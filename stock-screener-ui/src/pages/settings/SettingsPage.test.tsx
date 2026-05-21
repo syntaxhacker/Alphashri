@@ -4,7 +4,7 @@ import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SettingsPage } from "./SettingsPage";
 import { BrowserRouter, MemoryRouter, Routes, Route } from "react-router-dom";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithMantine, renderWithRouter } from "../../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // Mock modules using vi.hoisted
@@ -45,11 +45,6 @@ const mockSetShowMarketTicker = vi.fn();
 vi.mock("../../hooks/useMarketTickerEnabled", () => ({
   useMarketTickerEnabled: () => [false, mockSetShowMarketTicker],
 }));
-
-// Wrapper with Router + Mantine
-function renderWithRouter(ui: React.ReactElement) {
-  return renderWithMantine(<BrowserRouter>{ui}</BrowserRouter>);
-}
 
 describe("SettingsPage", () => {
   beforeEach(() => {

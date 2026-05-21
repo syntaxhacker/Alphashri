@@ -13,8 +13,8 @@ const mockStateStore: any = {
   performanceSummary: null,
   symbolPerformance: [],
   filterDate: null,
-  filterFromDate: "2026-05-09",
-  filterToDate: "2026-05-09",
+  filterFromDate: null,
+  filterToDate: null,
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
@@ -121,35 +121,7 @@ vi.mock("@mantine/core", async (importOriginal) => {
 });
 
 import { PaperHistoryTable } from "./PaperHistoryTable2";
-
-function mockTrade(overrides: any = {}): any {
-  return {
-    trade_id: `trade-${Math.random()}`,
-    symbol: "RELIANCE",
-    side: "BUY",
-    quantity: 10,
-    entry_price: 2500,
-    exit_price: 2600,
-    entry_time: "2026-05-09T09:30:00Z",
-    exit_time: "2026-05-09T10:30:00Z",
-    hold_duration_minutes: 60,
-    pnl: 1000,
-    net_pnl: 980,
-    costs: 20,
-    stop_loss: 2450,
-    take_profit: 2650,
-    peak_price: 2650,
-    low_price: 2480,
-    bot_id: "bot-1",
-    bot_name: "Bot Alpha",
-    strategy_id: 1,
-    strategy_name: "ORB",
-    exit_reason: "TP",
-    reason: "",
-    notes: "",
-    ...overrides,
-  };
-}
+import { mockTrade } from "./testFixtures";
 
 beforeEach(() => {
   resetMockStateStore();

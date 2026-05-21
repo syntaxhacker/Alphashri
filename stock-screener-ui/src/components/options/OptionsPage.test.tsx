@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { OptionsPage } from "./OptionsPage";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 vi.mock("./OptionChain/OptionChainPanel", () => ({
   OptionChainPanel: () => <div data-testid="options-chain-panel">Chain Panel</div>,
@@ -20,10 +20,6 @@ vi.mock("./OptionGreeks/GreeksPanel", () => ({
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 const defaultProps = {
   activeTab: "chain",

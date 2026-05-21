@@ -1,16 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import type { InternalStockMover } from "./sectorUtils";
+import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 describe("IntervalMoversTable", () => {
   it("shows empty state when no movers", () => {

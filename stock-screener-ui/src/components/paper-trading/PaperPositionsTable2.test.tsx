@@ -278,13 +278,6 @@ describe("PaperPositionsTable", () => {
       expect(row.textContent).toContain("+2.00%");
     });
 
-    test("positive P&L with ₹ amount and percentage", () => {
-      rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
-      const row = screen.getByTestId("position-row-RELIANCE");
-      expect(row.textContent).toContain("+₹5.0K");
-      expect(row.textContent).toContain("+2.00%");
-    });
-
     test("negative P&L with ₹ amount and percentage", () => {
       rWithPosition({ pnl: -500, pnl_pct: -0.2 });
       const row = screen.getByTestId("position-row-RELIANCE");
@@ -331,14 +324,7 @@ describe("PaperPositionsTable", () => {
 
   describe("CloseAll button", () => {
     test("CloseAll button renders when positions exist", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY", current_price: 2550 });
-      setState({
-        positions: [pos],
-        botSnapshot: null,
-        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
-      });
-      r(<PaperPositionsTable />);
-
+      rWithCloseAllEnabled({ current_price: 2550 });
       expect(screen.getByTestId("close-all-positions")).toBeTruthy();
       expect(screen.getAllByText("Close All").length).toBeGreaterThanOrEqual(1);
     });
@@ -353,18 +339,14 @@ describe("PaperPositionsTable", () => {
 
   describe("WatchlistScan panel", () => {
     test("WatchlistScan renders when botSnapshot is present", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: mockBotSnapshot });
-      r(<PaperPositionsTable />);
+      rWithPosition({}, { botSnapshot: mockBotSnapshot });
 
       expect(screen.getByTestId("watchlist-scan-card")).toBeTruthy();
       expect(screen.getByText("Watchlist Scan")).toBeTruthy();
     });
 
     test("WatchlistScan shows signals and watching sections", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({ positions: [pos], botSnapshot: mockBotSnapshot });
-      r(<PaperPositionsTable />);
+      rWithPosition({}, { botSnapshot: mockBotSnapshot });
 
       expect(screen.getByText("Signals")).toBeTruthy();
       expect(screen.getByText("Watching")).toBeTruthy();

@@ -1,15 +1,11 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { OptionChainHeader } from "./OptionChainHeader";
 
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 describe("OptionChainHeader", () => {
   const defaultProps = {

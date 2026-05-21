@@ -1,8 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
 import { OptionChainPanel } from "./OptionChainPanel";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
@@ -39,10 +39,6 @@ vi.mock("./LiveSpotChart", () => ({
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => cleanup());
-
-function renderWithMantine(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
-}
 
 const defaultProps = {
   selectedUnderlying: "NIFTY",

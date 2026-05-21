@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import React from "react";
+import React, { ComponentProps } from "react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, within, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -30,6 +30,7 @@ vi.mock("../../utils/ui-helpers", () => ({
 import { DayGroup } from "./DayGroup";
 import type { PaperTrade } from "../../types/paperTrading";
 import { TestWrapper } from "../../test/test-utils";
+import { mockTrade } from "./testFixtures";
 
 // Mantine component mocks
 // Note: MantineProvider is provided by TestWrapper wrapper, so we only mock individual components
@@ -202,65 +203,59 @@ vi.mock("../common/PreviewChartProvider", () => ({
 }));
 
 // ============================================
-// Mock Data Helpers
+// Mock Data Helpers — uses shared mockTrade from testFixtures
 // ============================================
 
-function mockTrade(overrides: Partial<PaperTrade> = {}): PaperTrade {
-  return {
-    trade_id: "trade-1",
-    symbol: "RELIANCE",
-    side: "BUY",
-    quantity: 10,
-    entry_price: 3750,
-    exit_price: 3825,
-    entry_time: "2026-04-24T09:30:00Z",
-    exit_time: "2026-04-24T10:00:00Z",
-    hold_duration_minutes: 30,
-    pnl: 500,
-    net_pnl: 500,
-    costs: 50,
-    stop_loss: 3700,
-    take_profit: 3900,
-    peak_price: 3830,
-    low_price: 3710,
-    bot_id: "bot-1",
-    bot_name: "Test Bot",
-    strategy_id: 1,
-    strategy_name: "ORB Conservative",
-    exit_reason: "TP",
-    reason: "Test reason",
-    notes: "Test notes",
-    ...overrides,
-  };
-}
-function mockTradeWithLoss(overrides: Partial<PaperTrade> = {}): PaperTrade {
-  return {
-    trade_id: "trade-loss",
-    symbol: "TCS",
-    side: "SELL",
-    quantity: 5,
-    entry_price: 4000,
-    exit_price: 3950,
-    entry_time: "2026-04-24T11:00:00Z",
-    exit_time: "2026-04-24T11:30:00Z",
-    hold_duration_minutes: 30,
-    pnl: -250,
-    net_pnl: -300,
-    costs: 50,
-    stop_loss: 4050,
-    take_profit: 3950,
-    peak_price: 4010,
-    low_price: 3940,
-    bot_id: "bot-2",
-    bot_name: "Loss Bot",
-    strategy_id: 2,
-    strategy_name: "EMA Cross",
-    exit_reason: "SL",
-    reason: "Stop loss hit",
-    notes: "Lost money",
-    ...overrides,
-  };
-}
+const defaultTradeOverrides: Partial<PaperTrade> = {
+  trade_id: "trade-1",
+  symbol: "RELIANCE",
+  quantity: 10,
+  entry_price: 3750,
+  exit_price: 3825,
+  entry_time: "2026-04-24T09:30:00Z",
+  exit_time: "2026-04-24T10:00:00Z",
+  hold_duration_minutes: 30,
+  pnl: 500,
+  net_pnl: 500,
+  costs: 50,
+  stop_loss: 3700,
+  take_profit: 3900,
+  peak_price: 3830,
+  low_price: 3710,
+  bot_id: "bot-1",
+  bot_name: "Test Bot",
+  strategy_id: 1,
+  strategy_name: "ORB Conservative",
+  exit_reason: "TP",
+  reason: "Test reason",
+  notes: "Test notes",
+};
+
+const lossTradeOverrides: Partial<PaperTrade> = {
+  trade_id: "trade-loss",
+  symbol: "TCS",
+  side: "SELL",
+  quantity: 5,
+  entry_price: 4000,
+  exit_price: 3950,
+  entry_time: "2026-04-24T11:00:00Z",
+  exit_time: "2026-04-24T11:30:00Z",
+  hold_duration_minutes: 30,
+  pnl: -250,
+  net_pnl: -300,
+  costs: 50,
+  stop_loss: 4050,
+  take_profit: 3950,
+  peak_price: 4010,
+  low_price: 3940,
+  bot_id: "bot-2",
+  bot_name: "Loss Bot",
+  strategy_id: 2,
+  strategy_name: "EMA Cross",
+  exit_reason: "SL",
+  reason: "Stop loss hit",
+  notes: "Lost money",
+};
 
 // ============================================
 // Test Setup
@@ -288,19 +283,30 @@ const defaultProps = {
 };
 
 // ============================================
+// Helper: render + expand a trade detail
+// ============================================
+
+async function setupTradeDetail(trades: PaperTrade[], overrides: Partial<ComponentProps<typeof DayGroup>> = {}) {
+  const user = userEvent.setup();
+  render(<DayGroup {...defaultProps} trades={trades} expanded={true} {...overrides} />, { wrapper: TestWrapper });
+  await user.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+  return { user };
+}
+
+// ============================================
 // DaySummary Tests
 // ============================================
 
 describe("DaySummary", () => {
   it("renders formatted date using formatDateHeader", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} />, {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} />, {
       wrapper: TestWrapper,
     });
     expect(screen.getByText("Apr 24, 2026")).toBeInTheDocument();
   });
   it("shows day P&L with + prefix for positive net_pnl", () => {
     const trades = [
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 500,
       }),
     ];
@@ -312,7 +318,7 @@ describe("DaySummary", () => {
     expect(screen.getByText((content) => content.includes("+₹500"))).toBeInTheDocument();
   });
   it("shows day P&L with - prefix for negative net_pnl", () => {
-    const trades = [mockTradeWithLoss()];
+    const trades = [mockTrade(lossTradeOverrides)];
     render(<DayGroup {...defaultProps} trades={trades} />, {
       wrapper: TestWrapper,
     });
@@ -321,7 +327,7 @@ describe("DaySummary", () => {
   });
   it("applies green color from getPnLTextColor for positive P&L", () => {
     const trades = [
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 500,
       }),
     ];
@@ -333,7 +339,7 @@ describe("DaySummary", () => {
   });
   it("applies green color from getPnLTextColor for zero P&L", () => {
     const trades = [
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 0,
       }),
     ];
@@ -345,10 +351,10 @@ describe("DaySummary", () => {
   });
   it("shows win badge ▲{count} in green when wins > 0", () => {
     const trades = [
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 500,
       }),
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 200,
       }),
     ];
@@ -360,7 +366,7 @@ describe("DaySummary", () => {
     expect(winBadge.closest("span")).toHaveAttribute("data-color", "green");
   });
   it("shows win badge in gray when wins = 0", () => {
-    const trades = [mockTradeWithLoss()];
+    const trades = [mockTrade(lossTradeOverrides)];
     render(<DayGroup {...defaultProps} trades={trades} />, {
       wrapper: TestWrapper,
     });
@@ -368,7 +374,7 @@ describe("DaySummary", () => {
     expect(winBadge.closest("span")).toHaveAttribute("data-color", "gray");
   });
   it("shows loss badge ▼{count} in red when losses > 0", () => {
-    const trades = [mockTradeWithLoss()];
+    const trades = [mockTrade(lossTradeOverrides)];
     render(<DayGroup {...defaultProps} trades={trades} />, {
       wrapper: TestWrapper,
     });
@@ -377,7 +383,7 @@ describe("DaySummary", () => {
     expect(lossBadge.closest("span")).toHaveAttribute("data-color", "red");
   });
   it("shows loss badge in gray when losses = 0", () => {
-    const trades = [mockTrade()];
+    const trades = [mockTrade(defaultTradeOverrides)];
     render(<DayGroup {...defaultProps} trades={trades} />, {
       wrapper: TestWrapper,
     });
@@ -427,17 +433,17 @@ describe("DayGroup core rendering", () => {
     expect(screen.getByTestId("day-group-2026-04-24")).toHaveClass("paper-day-group");
   });
   it("renders header with data-testid day-header-{date}", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} />, {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} />, {
       wrapper: TestWrapper,
     });
     expect(screen.getByTestId("day-header-2026-04-24")).toBeInTheDocument();
   });
   it("DaySummary displays trades count via P&L aggregation (sum of all trades)", () => {
     const trades = [
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 100,
       }),
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         net_pnl: 200,
       }),
     ];
@@ -448,81 +454,33 @@ describe("DayGroup core rendering", () => {
     expect(screen.getByText((content) => content.includes("+₹300"))).toBeInTheDocument();
   });
   it("renders table with SortableHeader for all 13 columns", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     const headers = screen.getAllByRole("columnheader");
     expect(headers.length).toBe(14); // 1 expand column + 13 data columns + Actions
   });
-  it("SortableHeader renders Symbol column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
+  const columns = ["Symbol", "Side", "Qty", "Entry", "Exit", "Hold", "P&L", "Bot", "Strategy", "SL", "TP"];
+  it.each(columns)("SortableHeader renders %s column", (col) => {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} expanded={true} />, {
       wrapper: TestWrapper,
     });
-    expect(screen.getByText("Symbol")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Side column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Side")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Qty column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Qty")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Entry column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Entry")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Exit column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    // Two "Exit" headers: exit_price column and exit_reason column
-    expect(screen.getAllByText("Exit").length).toBe(2);
-  });
-  it("SortableHeader renders Hold column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Hold")).toBeInTheDocument();
-  });
-  it("SortableHeader renders P&L column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("P&L")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Bot column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Bot")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Strategy column", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getByText("Strategy")).toBeInTheDocument();
-  });
-  it("SortableHeader renders Exit column (exit_reason)", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    expect(screen.getAllByText("Exit").length).toBe(2);
+    if (col === "Exit") {
+      expect(screen.getAllByText("Exit").length).toBe(2);
+    } else if (col === "TP") {
+      expect(screen.getAllByText("TP").length).toBeGreaterThanOrEqual(1);
+    } else {
+      expect(screen.getByText(col)).toBeInTheDocument();
+    }
   });
   it("expanded=true renders table visible inside Collapse", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     expect(screen.getByTestId("collapse-in")).toBeInTheDocument();
   });
   it("expanded=false does not render table", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={false} />, {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} expanded={false} />, {
       wrapper: TestWrapper,
     });
     expect(screen.queryByTestId("collapse-in")).not.toBeInTheDocument();
@@ -541,7 +499,7 @@ describe("DayGroup core rendering", () => {
 // ============================================
 
 describe("TradeRow rendering", () => {
-  const trade = mockTrade();
+  const trade = mockTrade(defaultTradeOverrides);
   beforeEach(() => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
@@ -612,7 +570,7 @@ describe("TradeRow rendering", () => {
 // ============================================
 
 describe("Expand/Collapse functionality", () => {
-  const trade = mockTrade();
+  const trade = mockTrade(defaultTradeOverrides);
   it("clicking toggle button expands detail locally", async () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
@@ -650,14 +608,9 @@ describe("Expand/Collapse functionality", () => {
 // ============================================
 
 describe("TradeDetail", () => {
-  const trade = mockTrade();
+  const trade = mockTrade(defaultTradeOverrides);
   it("shows TradeStats grid with all stats", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-
-    // Expand the trade detail
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     expect(screen.getByText("SL")).toBeInTheDocument();
     // "TP" appears both as label and in ExitReasonBadge; check at least one
     expect(screen.getAllByText("TP").length).toBeGreaterThan(0);
@@ -668,80 +621,53 @@ describe("TradeDetail", () => {
     expect(screen.getByText("Net P&L")).toBeInTheDocument();
   });
   it("SL shows toFixed(2) value with ₹ prefix", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     // Find the SL value by looking for text after "SL" label
     const slElements = screen.getAllByText("₹3700.00");
     expect(slElements.length).toBeGreaterThan(0);
   });
   it("TP shows toFixed(2) value with ₹ prefix", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const tpElements = screen.getAllByText("₹3900.00");
     expect(tpElements.length).toBeGreaterThan(0);
   });
   it("Peak shows toFixed(2) value with ₹ prefix", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const peakElements = screen.getAllByText("₹3830.00");
     expect(peakElements.length).toBeGreaterThan(0);
   });
   it("Low shows toFixed(2) value with ₹ prefix", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const lowElements = screen.getAllByText("₹3710.00");
     expect(lowElements.length).toBeGreaterThan(0);
   });
   it("null peak_price shows dash", async () => {
-    const tradeNoPeak = mockTrade({
+    const tradeNoPeak = mockTrade({...defaultTradeOverrides, 
       peak_price: null as any,
     });
-    render(<DayGroup {...defaultProps} trades={[tradeNoPeak]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([tradeNoPeak]);
     expect(screen.getByText("₹-")).toBeInTheDocument();
   });
   it("null low_price shows dash", async () => {
-    const tradeNoLow = mockTrade({
+    const tradeNoLow = mockTrade({...defaultTradeOverrides, 
       low_price: null as any,
     });
-    render(<DayGroup {...defaultProps} trades={[tradeNoLow]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([tradeNoLow]);
     expect(screen.getByText("₹-")).toBeInTheDocument();
   });
   it("Costs formatted via formatNumber", async () => {
     // formatNumber(50) returns "50", component renders "₹50"
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const costElements = screen.getAllByText((content) => content.includes("₹50"));
     expect(costElements.length).toBeGreaterThan(0);
   });
   it("Gross P&L shows with sign and formatted", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const grossElements = screen.getAllByText((content) => content.includes("+₹500"));
     expect(grossElements.length).toBeGreaterThan(0);
   });
   it("Net P&L shows with sign and formatted", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const netElements = screen.getAllByText((content) => content.includes("+₹500"));
     expect(netElements.length).toBeGreaterThan(0);
   });
@@ -752,58 +678,37 @@ describe("TradeDetail", () => {
 // ============================================
 
 describe("TradeNotesEditor", () => {
-  const trade = mockTrade();
+  const trade = mockTrade(defaultTradeOverrides);
   it("renders reason text with data-testid trade-reason-{trade_id}", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     expect(screen.getByTestId(`trade-reason-${trade.trade_id}`)).toBeInTheDocument();
   });
   it("renders notes textarea with data-testid trade-notes-{trade_id}", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     expect(screen.getByTestId(`trade-notes-${trade.trade_id}`)).toBeInTheDocument();
   });
   it("renders Save button with data-testid trade-notes-save-{trade_id}", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     expect(screen.getByTestId(`trade-notes-save-${trade.trade_id}`)).toBeInTheDocument();
   });
   it("reason text displays trade.reason value", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const reasonEl = screen.getByTestId(`trade-reason-${trade.trade_id}`);
     expect(reasonEl).toHaveTextContent("Test reason");
   });
   it("notes textarea initial value from trade.notes", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const textarea = screen.getByTestId(`trade-notes-${trade.trade_id}`) as HTMLTextAreaElement;
     expect(textarea.value).toBe("Test notes");
   });
   it("reason is displayed as read-only text", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const reasonEl = screen.getByTestId(`trade-reason-${trade.trade_id}`);
     expect(reasonEl).toHaveTextContent("Test reason");
     expect(reasonEl.tagName).toBe("SPAN");
   });
   it("notes textarea is editable", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const textarea = screen.getByTestId(`trade-notes-${trade.trade_id}`) as HTMLTextAreaElement;
     await userEvent.clear(textarea);
     await userEvent.type(textarea, "Updated notes");
@@ -811,10 +716,7 @@ describe("TradeNotesEditor", () => {
   });
   it("clicking Save calls updateTradeNotesAction with correct args", async () => {
     const { updateTradeNotesAction } = await import("../../state/paperTrading");
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
 
     // Change notes only (reason is read-only)
     const notesArea = screen.getByTestId(`trade-notes-${trade.trade_id}`) as HTMLTextAreaElement;
@@ -834,28 +736,19 @@ describe("TradeNotesEditor", () => {
     updateTradeNotesAction.mockImplementation(
       () => new Promise((resolve) => setTimeout(resolve, 100)),
     );
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
-    await userEvent.click(screen.getByTestId(`trade-notes-save-${trade.trade_id}`));
+    const { user } = await setupTradeDetail([trade]);
+    await user.click(screen.getByTestId(`trade-notes-save-${trade.trade_id}`));
     const saveBtn = screen.getByTestId(`trade-notes-save-${trade.trade_id}`);
     expect(saveBtn).toHaveAttribute("loading", "");
   });
   it("handles empty reason shows dash", async () => {
-    const emptyReasonTrade = mockTrade({ reason: "" });
-    render(<DayGroup {...defaultProps} trades={[emptyReasonTrade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    const emptyReasonTrade = mockTrade({...defaultTradeOverrides,  reason: "" });
+    await setupTradeDetail([emptyReasonTrade]);
     const reasonEl = screen.getByTestId(`trade-reason-${emptyReasonTrade.trade_id}`);
     expect(reasonEl).toHaveTextContent("-");
   });
   it("handles empty notes textarea", async () => {
-    render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([trade]);
     const textarea = screen.getByTestId(`trade-notes-${trade.trade_id}`) as HTMLTextAreaElement;
     await userEvent.clear(textarea);
     expect(textarea.value).toBe("");
@@ -867,7 +760,7 @@ describe("TradeNotesEditor", () => {
 // ============================================
 
 describe("Interactions", () => {
-  const trade = mockTrade();
+  const trade = mockTrade(defaultTradeOverrides);
   it("row click calls onSelectSymbol with correct args", () => {
     render(<DayGroup {...defaultProps} trades={[trade]} expanded={true} />, {
       wrapper: TestWrapper,
@@ -883,7 +776,7 @@ describe("Interactions", () => {
     );
   });
   it("strategyType derived from trade.strategy_type when present", () => {
-    const tradeWithType = mockTrade({
+    const tradeWithType = mockTrade({...defaultTradeOverrides, 
       strategy_type: "custom_type",
     });
     render(<DayGroup {...defaultProps} trades={[tradeWithType]} expanded={true} />, {
@@ -900,7 +793,7 @@ describe("Interactions", () => {
     );
   });
   it("strategyType falls back to getStrategyTypeFromName when strategy_type is undefined", () => {
-    const tradeNoType = mockTrade({
+    const tradeNoType = mockTrade({...defaultTradeOverrides, 
       strategy_type: undefined,
       strategy_name: "ORB Conservative",
     });
@@ -927,7 +820,7 @@ describe("Interactions", () => {
   });
   it("bot anchor click does not call setFilterBot when bot_id is null", async () => {
     const { setFilterBot } = await import("../../state/paperTrading");
-    const tradeNoBot = mockTrade({
+    const tradeNoBot = mockTrade({...defaultTradeOverrides, 
       bot_id: null,
       bot_name: "-",
     });
@@ -947,7 +840,7 @@ describe("Interactions", () => {
   });
   it("strategy anchor click does not call setFilterStrategy when strategy_id is null", async () => {
     const { setFilterStrategy } = await import("../../state/paperTrading");
-    const tradeNoStrategy = mockTrade({
+    const tradeNoStrategy = mockTrade({...defaultTradeOverrides, 
       strategy_id: null,
       strategy_name: "default",
     });
@@ -988,19 +881,19 @@ describe("Interactions", () => {
 
 describe("Sorting", () => {
   const trades = [
-    mockTrade({
+    mockTrade({...defaultTradeOverrides, 
       trade_id: "t1",
       symbol: "AAPL",
       net_pnl: 100,
       exit_time: "2026-04-24T09:00:00Z",
     }),
-    mockTrade({
+    mockTrade({...defaultTradeOverrides, 
       trade_id: "t2",
       symbol: "GOOGL",
       net_pnl: 200,
       exit_time: "2026-04-24T08:00:00Z",
     }),
-    mockTrade({
+    mockTrade({...defaultTradeOverrides, 
       trade_id: "t3",
       symbol: "MSFT",
       net_pnl: 50,
@@ -1104,39 +997,15 @@ describe("Sorting", () => {
 
 describe("Edge cases", () => {
   it("trade with null peak_price shows dash in TradeStats", async () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={[
-          mockTrade({
-            peak_price: null as any,
-          }),
-        ]}
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([mockTrade({...defaultTradeOverrides, 
+      peak_price: null as any,
+    })]);
     expect(screen.getByText("₹-")).toBeInTheDocument();
   });
   it("trade with null low_price shows dash in TradeStats", async () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={[
-          mockTrade({
-            low_price: null as any,
-          }),
-        ]}
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([mockTrade({...defaultTradeOverrides, 
+      low_price: null as any,
+    })]);
     expect(screen.getByText("₹-")).toBeInTheDocument();
   });
   it("trade with null bot_id shows dash for bot name", () => {
@@ -1144,7 +1013,7 @@ describe("Edge cases", () => {
       <DayGroup
         {...defaultProps}
         trades={[
-          mockTrade({
+          mockTrade({...defaultTradeOverrides, 
             bot_id: null,
             bot_name: "-",
           }),
@@ -1164,7 +1033,7 @@ describe("Edge cases", () => {
       <DayGroup
         {...defaultProps}
         trades={[
-          mockTrade({
+          mockTrade({...defaultTradeOverrides, 
             bot_id: null,
             bot_name: "-",
           }),
@@ -1183,7 +1052,7 @@ describe("Edge cases", () => {
       <DayGroup
         {...defaultProps}
         trades={[
-          mockTrade({
+          mockTrade({...defaultTradeOverrides, 
             strategy_id: null,
             strategy_name: "default",
           }),
@@ -1202,7 +1071,7 @@ describe("Edge cases", () => {
       <DayGroup
         {...defaultProps}
         trades={[
-          mockTrade({
+          mockTrade({...defaultTradeOverrides, 
             strategy_id: null,
             strategy_name: "default",
           }),
@@ -1221,7 +1090,7 @@ describe("Edge cases", () => {
       <DayGroup
         {...defaultProps}
         trades={[
-          mockTrade({
+          mockTrade({...defaultTradeOverrides, 
             exit_reason: "",
           }),
         ]}
@@ -1250,7 +1119,7 @@ describe("Edge cases", () => {
     expect(screen.queryByRole("table")).not.toBeInTheDocument();
   });
   it("single trade renders correctly", () => {
-    render(<DayGroup {...defaultProps} trades={[mockTrade()]} expanded={true} />, {
+    render(<DayGroup {...defaultProps} trades={[mockTrade(defaultTradeOverrides)]} expanded={true} />, {
       wrapper: TestWrapper,
     });
     expect(screen.getByTestId("trade-row-trade-1")).toBeInTheDocument();
@@ -1258,15 +1127,15 @@ describe("Edge cases", () => {
   });
   it("multiple trades same day render all rows", () => {
     const trades = [
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         trade_id: "t1",
         symbol: "AAPL",
       }),
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         trade_id: "t2",
         symbol: "GOOGL",
       }),
-      mockTrade({
+      mockTrade({...defaultTradeOverrides, 
         trade_id: "t3",
         symbol: "MSFT",
       }),
@@ -1279,24 +1148,18 @@ describe("Edge cases", () => {
     expect(screen.getByTestId("trade-row-t3")).toBeInTheDocument();
   });
   it("trade without reason shows dash", async () => {
-    const tradeNoReason = mockTrade({
+    const tradeNoReason = mockTrade({...defaultTradeOverrides, 
       reason: "",
     });
-    render(<DayGroup {...defaultProps} trades={[tradeNoReason]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([tradeNoReason]);
     const reasonEl = screen.getByTestId(`trade-reason-${tradeNoReason.trade_id}`);
     expect(reasonEl).toHaveTextContent("-");
   });
   it("trade without notes shows empty textarea", async () => {
-    const tradeNoNotes = mockTrade({
+    const tradeNoNotes = mockTrade({...defaultTradeOverrides, 
       notes: "",
     });
-    render(<DayGroup {...defaultProps} trades={[tradeNoNotes]} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([tradeNoNotes]);
     const textarea = screen.getByTestId(
       `trade-notes-${tradeNoNotes.trade_id}`,
     ) as HTMLTextAreaElement;
@@ -1308,7 +1171,7 @@ describe("Edge cases", () => {
       <DayGroup
         {...defaultProps}
         trades={[
-          mockTrade({
+          mockTrade({...defaultTradeOverrides, 
             symbol: longSymbol,
           }),
         ]}
@@ -1321,7 +1184,7 @@ describe("Edge cases", () => {
     expect(screen.getByText(longSymbol)).toBeInTheDocument();
   });
   it("negative P&L displays correct sign and formatted value", () => {
-    const negativeTrade = mockTrade({
+    const negativeTrade = mockTrade({...defaultTradeOverrides, 
       net_pnl: -500,
     });
     render(<DayGroup {...defaultProps} trades={[negativeTrade]} expanded={true} />, {
@@ -1335,7 +1198,7 @@ describe("Edge cases", () => {
     expect(netElements.length).toBeGreaterThan(0);
   });
   it("zero net_pnl displays correct formatting", () => {
-    const zeroTrade = mockTrade({
+    const zeroTrade = mockTrade({...defaultTradeOverrides, 
       net_pnl: 0,
     });
     render(<DayGroup {...defaultProps} trades={[zeroTrade]} expanded={true} />, {
@@ -1351,7 +1214,7 @@ describe("Edge cases", () => {
 
 describe("Lifecycle", () => {
   it("useEffect scrolls row into view when isSelected becomes true", () => {
-    const trade = mockTrade();
+    const trade = mockTrade(defaultTradeOverrides);
     const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
     render(
       <DayGroup {...defaultProps} trades={[trade]} selectedTradeId="trade-1" expanded={true} />,
@@ -1368,7 +1231,7 @@ describe("Lifecycle", () => {
     scrollIntoViewSpy.mockRestore();
   });
   it("does not scroll when isSelected is false", () => {
-    const trade = mockTrade();
+    const trade = mockTrade(defaultTradeOverrides);
     const scrollIntoViewSpy = vi.spyOn(HTMLElement.prototype, "scrollIntoView");
     render(
       <DayGroup {...defaultProps} trades={[trade]} selectedTradeId="other-id" expanded={true} />,
@@ -1386,7 +1249,7 @@ describe("Lifecycle", () => {
 // ============================================
 
 describe("TradeRow styling", () => {
-  const trade = mockTrade();
+  const trade = mockTrade(defaultTradeOverrides);
   it("selected row has trade-row-highlighted class", () => {
     render(
       <DayGroup {...defaultProps} trades={[trade]} selectedTradeId="trade-1" expanded={true} />,
@@ -1421,41 +1284,17 @@ describe("TradeRow styling", () => {
 
 describe("TradeStats colors", () => {
   it("Gross P&L positive shows green", async () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={[
-          mockTrade({
-            pnl: 500,
-          }),
-        ]}
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([mockTrade({...defaultTradeOverrides, 
+      pnl: 500,
+    })]);
     // The text is within an element with data-color="green"
     const grossPnlElements = screen.getAllByText((content) => content.includes("+₹500"));
     expect(grossPnlElements.length).toBeGreaterThan(0);
   });
   it("Gross P&L negative shows red", async () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={[
-          mockTrade({
-            pnl: -500,
-          }),
-        ]}
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    await userEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+    await setupTradeDetail([mockTrade({...defaultTradeOverrides, 
+      pnl: -500,
+    })]);
     // Negative P&L shows "₹500" (no sign) with red color
     const grossPnlElements = screen.getAllByText(
       (content, element) =>
