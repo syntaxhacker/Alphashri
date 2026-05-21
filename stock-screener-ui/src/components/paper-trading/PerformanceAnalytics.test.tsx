@@ -49,10 +49,10 @@ describe("PerformanceAnalytics", () => {
     };
     paperTradingState.setAnalyticsData(mockData as any);
     renderWithMantine(<PerformanceAnalytics />);
-    expect(screen.getAllByText(/Total P&L/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Total$/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/Win Rate/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Profit Factor/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Total Trades/i).length).toBeGreaterThan(0);
-    expect(screen.getAllByText(/Max Drawdown/i).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^PF$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/^Trades$/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Max DD/i).length).toBeGreaterThan(0);
   });
 });

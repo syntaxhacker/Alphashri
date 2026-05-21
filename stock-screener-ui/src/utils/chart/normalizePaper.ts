@@ -25,7 +25,7 @@ export function normalizePaper(
     (t, idx) => {
       const id = (t as PaperChartData["trades"][number]).trade_id;
       const num = parseInt(id, 10);
-      return isNaN(num) ? id : num;
+      return isNaN(num) ? idx : num;
     },
   );
 
@@ -140,7 +140,7 @@ export function normalizePaper(
     };
   }
 
-  const highlightedTradeId = selectedTradeId ? selectedTradeId : null;
+  const highlightedTradeId = selectedTradeId ? Number(selectedTradeId) : null;
   return {
     candles,
     trades,
@@ -150,7 +150,7 @@ export function normalizePaper(
     markLines,
     markAreas,
     showVolume: true,
-    showDataZoomSlider: true,
+    showDataZoomSlider: false,
     showLegend: false, // disabled in favor of custom ChartLegend in PaperChart2.tsx
     highlightedTradeId,
     showAllTrades,
