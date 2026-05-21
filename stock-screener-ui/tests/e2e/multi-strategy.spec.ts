@@ -8,7 +8,7 @@ import {
   BOT_IDS,
   setupBotMocksForId,
   navigateToBot,
-  clickStrategyTab,
+  verifyStrategyPanel,
 } from "./helpers/multiStrategyHelpers";
 import { apiRoute } from "../mocks/routeHelper";
 
@@ -32,7 +32,6 @@ test.describe("Multi-Strategy System - Signal Generators", () => {
 
     await page.waitForSelector("[data-testid='positions-panel']", { timeout: 15000 });
 
-    const strategyTabs = page.locator('[data-testid^="strategy-tab-"]');
     const positionsContainer = page.getByTestId("positions-table-container");
     const emptyState = page.getByTestId("positions-empty");
 
@@ -109,7 +108,7 @@ test.describe("Multi-Strategy System - Watchlists", () => {
   test("should have separate watchlists per strategy type", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await clickStrategyTab(page, "ORB Conservative");
+    await verifyStrategyPanel(page, "ORB Conservative");
     await expect(page.getByTestId("watchlist-scan-card")).toBeVisible();
   });
 });
@@ -147,7 +146,7 @@ test.describe("Multi-Strategy System - Positions Filter", () => {
   test("should filter positions by strategy tab", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await clickStrategyTab(page, "ORB Conservative");
+    await verifyStrategyPanel(page, "ORB Conservative");
     await expect(page.getByTestId("positions-table-container")).toContainText("TCS");
   });
 });
@@ -162,10 +161,10 @@ test.describe("Multi-Strategy System - All Positions", () => {
     await setupBotMocksForId(page, botId);
   });
 
-  test("should show all positions in All tab", async ({ page }) => {
+  test("should show all positions by default", async ({ page }) => {
     await navigateToBot(page, botId);
 
-    await clickStrategyTab(page, "All");
+    await verifyStrategyPanel(page, "All");
     const positionsTable = page.getByTestId("positions-table-container");
     await expect(positionsTable).toContainText("TCS");
     await expect(positionsTable).toContainText("INFY");
@@ -220,7 +219,8 @@ test.describe("Multi-Strategy System - Chart ORB Levels", () => {
 
     const positionRow = page.locator('[data-testid^="position-row-"]').first();
     await expect(positionRow).toBeVisible();
-    await positionRow.click();
+    // Click the symbol link inside the row to open chart (row click only toggles expansion)
+    await positionRow.locator(".symbol-link").click();
     await expect(page.getByTestId("paper-chart-container")).toBeVisible({ timeout: 5000 });
   });
 });
