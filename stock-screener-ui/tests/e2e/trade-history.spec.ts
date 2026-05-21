@@ -249,23 +249,34 @@ test.describe("Trade History - Trade Interactions", () => {
     await page.waitForTimeout(500);
   });
 
-  test("should show delete trade button", async ({ page }) => {
+  test("should show trade entry and exit prices when expanded", async ({ page }) => {
     await mockTradeHistoryWithSampleData(page);
     await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
 
-    const deleteBtn = page.locator('[data-testid="delete-trade-btn-trade-1"]');
-    await expect(deleteBtn).toBeVisible();
+    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
+    await toggleBtn.click();
+
+    await page.waitForTimeout(300);
+    await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
+    const row = page.locator('[data-testid="trade-row-trade-1"]');
+    await expect(row).toContainText("₹3750.00");
+    await expect(row).toContainText("₹3825.00");
   });
 
-  test("should click delete trade button without error", async ({ page }) => {
+  test("should collapse trade row on second toggle", async ({ page }) => {
     await mockTradeHistoryWithSampleData(page);
     await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
 
-    const deleteBtn = page.locator('[data-testid="delete-trade-btn-trade-1"]');
-    await deleteBtn.click();
+    const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
+    await toggleBtn.click();
+    await page.waitForTimeout(300);
+    await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
 
-    await page.waitForTimeout(500);
+    await toggleBtn.click();
+    await page.waitForTimeout(300);
+    // After collapse, the expanded detail should not be present
+    await expect(page.locator('[data-testid="trade-reason-trade-1"]')).not.toBeVisible();
   });
 });
