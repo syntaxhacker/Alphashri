@@ -115,12 +115,12 @@ test.describe("Trade History - Trade Details", () => {
     );
   });
 
-  test("should show trade timestamp", async ({ page }) => {
+  test("should show trade hold duration", async ({ page }) => {
     await mockTradeHistoryWithSampleData(page);
     await navigateToTradeHistoryWithBot(page);
     await verifyHistoryPanelVisible(page);
     await expect(page.locator('[data-testid="trade-row-trade-1"]')).toBeVisible();
-    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("10:30");
+    await expect(page.locator('[data-testid="trade-row-trade-1"]')).toContainText("1h 15m");
   });
 });
 
