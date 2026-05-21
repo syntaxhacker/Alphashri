@@ -27,7 +27,9 @@ export function buildTooltip(
         const pnl = pos.pnl ?? 0;
         const pnlPct = pos.pnl_pct ?? 0;
         const pnlColor = pnl >= 0 ? "#00E676" : "#FF1744";
-        return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">LIVE POSITION | ${pos.side}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${pos.entry_price.toFixed(2)}</b></span><span>Current: <b>₹${(pos.current_price ?? 0).toFixed(2)}</b></span><span>Qty: ${pos.quantity ?? 1}</span></div><div style="display:flex;gap:12px"><span style="color:#FF00FF">SL: ₹${(pos.stop_loss ?? 0).toFixed(2)}</span><span style="color:#FFFF00">TP: ₹${(pos.take_profit ?? 0).toFixed(2)}</span></div><div style="margin-top:4px"><span style="color:${pnlColor};font-weight:bold">P&L: ₹${pnl.toFixed(0)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)</span></div></div>`;
+        const slDisplay = pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "N/A";
+        const tpDisplay = pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "N/A";
+        return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">LIVE POSITION | ${pos.side}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${pos.entry_price.toFixed(2)}</b></span><span>Current: <b>₹${(pos.current_price ?? 0).toFixed(2)}</b></span><span>Qty: ${pos.quantity ?? 1}</span></div><div style="display:flex;gap:12px"><span style="color:#FF00FF">SL: ${slDisplay}</span><span style="color:#FFFF00">TP: ${tpDisplay}</span></div><div style="margin-top:4px"><span style="color:${pnlColor};font-weight:bold">P&L: ₹${pnl.toFixed(0)} (${pnlPct >= 0 ? "+" : ""}${pnlPct.toFixed(2)}%)</span></div></div>`;
       }
 
       if (p.data?.trade) {
@@ -37,7 +39,11 @@ export function buildTooltip(
         const costs = t.costs ?? 0;
         const side = t.side ? ` | ${t.side}` : "";
         const reason = t.exit_reason || "Open";
-        return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">Trade #${t.id}${side} | ${reason}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${t.entry_price.toFixed(2)}</b></span><span>Exit: <b>₹${(t.exit_price ?? 0).toFixed(2)}</b></span><span>Qty: ${t.quantity}</span></div><div style="display:flex;gap:12px"><span style="color:${pnlColor};font-weight:bold">P&L: ${pnl >= 0 ? "+" : ""}₹${pnl.toFixed(0)}</span><span style="color:#888">Cost: ₹${costs.toFixed(0)}</span></div></div>`;
+        const sl = t.sl_price ? `SL: ₹${t.sl_price.toFixed(2)}` : "";
+        const tp = t.tp_price ? `TP: ₹${t.tp_price.toFixed(2)}` : "";
+        const slTp = [sl, tp].filter(Boolean).join(" | ");
+        const slTpRow = slTp ? `<div style="display:flex;gap:12px;color:#FF00FF">${slTp}</div>` : "";
+        return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="color:#00BFFF;font-weight:bold;margin-bottom:4px">Trade #${t.id}${side} | ${reason}</div><div style="display:flex;gap:12px;margin-bottom:2px"><span>Entry: <b>₹${t.entry_price.toFixed(2)}</b></span><span>Exit: <b>₹${(t.exit_price ?? 0).toFixed(2)}</b></span><span>Qty: ${t.quantity}</span></div>${slTpRow}<div style="display:flex;gap:12px;margin-top:2px"><span style="color:${pnlColor};font-weight:bold">P&L: ${pnl >= 0 ? "+" : ""}₹${pnl.toFixed(0)}</span><span style="color:#888">Cost: ₹${costs.toFixed(0)}</span></div></div>`;
       }
     }
 

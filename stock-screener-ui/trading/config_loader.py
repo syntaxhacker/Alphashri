@@ -48,12 +48,17 @@ class StrategyConfigData:
 
     # 52W Chaser Parameters
     entry_threshold_pct: float = 3.0
+    min_breakout_pct: float = 0.5
     enable_trailing_stop: bool = False
     trailing_stop_pct: float = 3.0
     trailing_activation_pct: float = 2.0
     max_holding_days: int = 30
     cooldown_days: int = 30
     enable_filters: bool = False
+
+    # Blind 52W Parameters
+    near_high_threshold_pct: float = 3.0
+    min_days_since_52w_high: int = 20
 
     # EMA Crossover Parameters
     ema_fast_period: int = 9
@@ -106,12 +111,15 @@ class StrategyConfigData:
             cooldown_minutes=model.cooldown_minutes,
             max_distance_from_or_pct=model.max_distance_from_or_pct,
             entry_threshold_pct=model.entry_threshold_pct,
+            min_breakout_pct=model.min_breakout_pct,
             enable_trailing_stop=model.enable_trailing_stop,
             trailing_stop_pct=model.trailing_stop_pct,
             trailing_activation_pct=model.trailing_activation_pct,
             max_holding_days=model.max_holding_days,
             cooldown_days=model.cooldown_days,
             enable_filters=model.enable_filters,
+            near_high_threshold_pct=model.near_high_threshold_pct,
+            min_days_since_52w_high=model.min_days_since_52w_high,
             pivot_type=model.pivot_type,
             breakout_buffer_pct=model.breakout_buffer_pct,
             enable_shorts=model.enable_shorts,
@@ -155,12 +163,15 @@ class StrategyConfigData:
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
+            "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,
             "trailing_stop_pct": self.trailing_stop_pct,
             "trailing_activation_pct": self.trailing_activation_pct,
             "max_holding_days": self.max_holding_days,
             "cooldown_days": self.cooldown_days,
             "enable_filters": self.enable_filters,
+            "near_high_threshold_pct": self.near_high_threshold_pct,
+            "min_days_since_52w_high": self.min_days_since_52w_high,
             "pivot_type": self.pivot_type,
             "breakout_buffer_pct": self.breakout_buffer_pct,
             "enable_shorts": self.enable_shorts,

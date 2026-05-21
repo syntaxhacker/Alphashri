@@ -20,8 +20,8 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     performanceSummary: null,
     symbolPerformance: [],
     filterDate: null,
-    filterFromDate: new Date().toISOString().split("T")[0],
-    filterToDate: new Date().toISOString().split("T")[0],
+    filterFromDate: null,
+    filterToDate: null,
     filterSymbol: null,
     filterStrategy: null,
     filterBot: null,
@@ -136,6 +136,7 @@ vi.mock("../../api/paperTrading", () => ({
   fetchPaperChart: vi.fn().mockResolvedValue(undefined),
   closeAllPositions: vi.fn().mockResolvedValue(undefined),
   refreshBotLiveData: vi.fn().mockResolvedValue(undefined),
+  fetch52WLevels: vi.fn().mockResolvedValue({ high_52w: 3625, low_52w: 2800 }),
 }));
 
 vi.mock("react-router-dom", () => ({

@@ -1,4 +1,5 @@
 import type { ChartColors } from "./types";
+import { formatVolume } from "../chartUtils";
 
 interface GridResult {
   grids: any[];
@@ -12,6 +13,13 @@ export function buildGrid(
   showVolume: boolean,
   showDataZoomSlider: boolean,
 ): GridResult {
+  const dataZoom: GridResult["dataZoom"] = [
+    { type: "inside", ...(showVolume ? { xAxisIndex: [0, 1] } : {}), start: 0, end: 100 },
+    ...(showDataZoomSlider
+      ? [{ type: "slider" as const, show: true, ...(showVolume ? { xAxisIndex: [0, 1] } : {}), start: 0, end: 100, bottom: 30 }]
+      : []),
+  ];
+
   if (showVolume) {
     return {
       grids: [
@@ -23,7 +31,7 @@ export function buildGrid(
           type: "category",
           boundaryGap: true,
           axisLine: { lineStyle: { color: colors.borderColor } },
-          axisLabel: { fontSize: 10, color: colors.mutedColor },
+          axisLabel: { fontSize: 10, color: colors.mutedColor, rotate: 45 },
           splitLine: { show: false },
           min: "dataMin",
           max: "dataMax",
@@ -50,16 +58,11 @@ export function buildGrid(
           scale: true,
           gridIndex: 1,
           axisLine: { show: false },
-          axisLabel: { show: false },
+          axisLabel: { show: true, color: colors.mutedColor, fontSize: 9, formatter: (value: number) => formatVolume(value) },
           splitLine: { show: false },
         },
       ],
-      dataZoom: [
-        { type: "inside", xAxisIndex: [0, 1], start: 0, end: 100 },
-        ...(showDataZoomSlider
-          ? [{ type: "slider", show: true, xAxisIndex: [0, 1], start: 0, end: 100, bottom: 30 }]
-          : []),
-      ],
+      dataZoom,
     };
   }
 
@@ -83,15 +86,10 @@ export function buildGrid(
         axisLine: { lineStyle: { color: colors.borderColor } },
         axisLabel: {
           color: colors.mutedColor,
-          formatter: (value: number) => "₹" + value.toFixed(0),
+          formatter: (value: number) => "₹" + (value >= 100 ? value.toFixed(0) : value.toFixed(2)),
         },
       },
     ],
-    dataZoom: [
-      { type: "inside", start: 0, end: 100 },
-      ...(showDataZoomSlider
-        ? [{ type: "slider", show: true, start: 0, end: 100, bottom: 30 }]
-        : []),
-    ],
+    dataZoom,
   };
 }

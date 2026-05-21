@@ -281,15 +281,15 @@ async def get_paper_chart(
         def _filter_to_date_or_recent(df_full, target_date_str):
             if df_full is None or df_full.empty:
                 return df_full
-            df_full.index = pd.to_datetime(df_full.index)
-            date_start = pd.Timestamp(target_date_str + " 00:00:00", tz=config.IST)
-            date_end = pd.Timestamp(target_date_str + " 23:59:59", tz=config.IST)
+            df_full.index = pd.to_datetime(df_full.index).tz_localize(None)
+            date_start = pd.Timestamp(target_date_str + " 00:00:00")
+            date_end = pd.Timestamp(target_date_str + " 23:59:59")
             filtered = df_full[(df_full.index >= date_start) & (df_full.index <= date_end)]
             if filtered.empty:
                 # Weekend/holiday: extract last available trading day only
                 last_date = df_full.index[-1].date()
-                last_start = pd.Timestamp(f"{last_date} 00:00:00", tz=config.IST)
-                last_end = pd.Timestamp(f"{last_date} 23:59:59", tz=config.IST)
+                last_start = pd.Timestamp(f"{last_date} 00:00:00")
+                last_end = pd.Timestamp(f"{last_date} 23:59:59")
                 last_day = df_full[(df_full.index >= last_start) & (df_full.index <= last_end)]
                 if not last_day.empty:
                     return last_day
@@ -592,8 +592,8 @@ async def get_paper_chart(
                     "exit_reason": t.get("exit_reason", ""),
                     "costs": t.get("costs", 0),
                     "net_pnl": t.get("net_pnl", 0),
-                    "sl_price": t.get("stop_loss", 0),
-                    "tp_price": t.get("take_profit", 0),
+                    "stop_loss": t.get("stop_loss", 0),
+                    "take_profit": t.get("take_profit", 0),
                     "peak_price": t.get("peak_price", 0),
                     "low_price": t.get("low_price", 0),
                     "hold_duration_minutes": _calc_hold(t.get("entry_time"), t.get("exit_time")),
@@ -619,8 +619,8 @@ async def get_paper_chart(
                 "exit_reason": t.exit_reason,
                 "costs": t.costs,
                 "net_pnl": t.net_pnl,
-                "sl_price": t.sl_price,
-                "tp_price": t.tp_price,
+                "stop_loss": t.sl_price,
+                "take_profit": t.tp_price,
                 "peak_price": getattr(t, 'peak_price', 0),
                 "low_price": getattr(t, 'low_price', 0),
                 "hold_duration_minutes": _calc_hold(t.entry_time, t.exit_time),
@@ -831,3 +831,79 @@ async def reset_strategy_config_endpoint(name: str = "orb_default", user: "User"
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to reset config: {e}")
+
+
+CACHE_52W_DIR = Path(__file__).parent.parent.parent / "experiments" / "data" / "52w_cache"
+_52W_TTL_MINUTES = 5
+
+
+def _read_52w_cache(symbol: str) -> dict | None:
+    cache_file = CACHE_52W_DIR / f"{symbol.upper()}.json"
+    if not cache_file.exists():
+        return None
+    try:
+        import json
+        data = json.loads(cache_file.read_text())
+        now = datetime.now(config.IST)
+        cached_at = datetime.fromisoformat(data.get("cached_at", ""))
+        today = now.strftime('%Y-%m-%d')
+        if data.get("date") != today:
+            return data  # past dates are immutable
+        if (now - cached_at).total_seconds() < _52W_TTL_MINUTES * 60:
+            return data  # today, within TTL
+        return None  # today, TTL expired
+    except Exception:
+        return None
+
+
+def _write_52w_cache(symbol: str, high_52w: float, low_52w: float) -> None:
+    import json
+    now = datetime.now(config.IST)
+    data = {
+        "symbol": symbol.upper(),
+        "high_52w": high_52w,
+        "low_52w": low_52w,
+        "date": now.strftime('%Y-%m-%d'),
+        "cached_at": now.isoformat(),
+    }
+    CACHE_52W_DIR.mkdir(parents=True, exist_ok=True)
+    cache_file = CACHE_52W_DIR / f"{symbol.upper()}.json"
+    cache_file.write_text(json.dumps(data))
+
+
+@router.get("/52w/{symbol}")
+async def get_52w_levels(symbol: str, user: "User" = Depends(get_current_user)):
+    """Get 52-week high/low for a symbol (cached with 5min TTL for today, infinite for past)."""
+    cached = _read_52w_cache(symbol)
+    if cached is not None:
+        return cached
+
+    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+
+    try:
+        upstox_api = UpstoxAPI(
+            api_key=config.UPSTOX_API_KEY or "",
+            api_secret=config.UPSTOX_API_SECRET or "",
+            quiet=True,
+        )
+        to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
+        from_date = (datetime.now(config.IST) - timedelta(days=400)).strftime('%Y-%m-%d')
+        df = upstox_api.fetch_historical_data_v3(
+            symbol=symbol.upper(), unit='days', interval=1,
+            to_date=to_date, from_date=from_date,
+        )
+        if df is not None and not df.empty:
+            highs = df['high'].tolist()
+            lows = df['low'].tolist()
+            window = highs[-252:] if len(highs) >= 252 else highs
+            low_window = lows[-252:] if len(lows) >= 252 else lows
+            high_52w = round(float(max(window) if window else 0), 2)
+            low_52w = round(float(min(low_window) if low_window else 0), 2)
+            _write_52w_cache(symbol, high_52w, low_52w)
+            return {"symbol": symbol.upper(), "high_52w": high_52w, "low_52w": low_52w}
+        _write_52w_cache(symbol, 0, 0)
+        return {"symbol": symbol.upper(), "high_52w": 0, "low_52w": 0}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch 52W data: {e}")

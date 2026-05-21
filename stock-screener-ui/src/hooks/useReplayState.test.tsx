@@ -1,4 +1,4 @@
-// @vitest-environment jsdom
+// @vitest-environment happy-dom
 import { describe, it, vi, beforeEach } from "vitest";
 import { renderHook } from "@testing-library/react";
 import { useReplayState } from "./useReplayState";

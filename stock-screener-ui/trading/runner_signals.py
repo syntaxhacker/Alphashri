@@ -293,6 +293,7 @@ class RunnerSignalsMixin:
                 'current_price': daily_data['current_price'],
                 'high_52w': daily_data['high_52w'],
                 'today_intraday_high': daily_data.get('today_intraday_high', 0.0),
+                'days_since_52w_high': daily_data.get('days_since_52w_high', 0),
                 'daily_highs': daily_data['daily_highs'],
                 'volume': daily_data['volume'],
                 'avg_volume_20d': daily_data['avg_volume_20d'],
@@ -519,7 +520,7 @@ class RunnerSignalsMixin:
                 position.metadata['upstox_order_id'] = order_id
             if runner.strategy_type in SWING_STRATEGY_TYPES:
                 position.metadata['strategy_type'] = runner.strategy_type
-                if runner.strategy_type in ("52W_CHASER", "52W_TARGET"):
+                if runner.strategy_type in ("52W_CHASER", "52W_TARGET", "BLIND_52W"):
                     position.metadata['entry_52w_high'] = signal.or_high if signal.or_high > 0 else None
                     position.metadata['entry_adx'] = signal.adx if hasattr(signal, 'adx') else None
                     position.metadata['entry_rsi'] = signal.rsi if hasattr(signal, 'rsi') else None
@@ -529,6 +530,7 @@ class RunnerSignalsMixin:
                     position.metadata['sl_pct'] = runner.config.get('sl_pct', 2.0)
                     position.metadata['tp_pct'] = runner.config.get('tp_pct', 0.0)
                     position.metadata['entry_threshold_pct'] = runner.config.get('entry_threshold_pct', 2.0)
+                    position.metadata['min_breakout_pct'] = runner.config.get('min_breakout_pct', 0.5)
                     position.metadata['enable_filters'] = runner.config.get('enable_filters', False)
 
         return runner, validation, position

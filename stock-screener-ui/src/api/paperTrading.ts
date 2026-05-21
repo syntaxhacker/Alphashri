@@ -11,6 +11,9 @@ import type {
   SymbolPerformance,
   PaperChartData,
   StrategyConfig,
+  AnalyticsData,
+  ActivityEvent,
+  AggregatedDashboardData,
 } from "../types/paperTrading";
 import {
   setPositions,
@@ -27,6 +30,12 @@ import {
   setStrategyConfig,
   setConfigLoading,
   setConfigError,
+  setAnalyticsData,
+  setAnalyticsLoading,
+  setActivityEvents,
+  setActivityLoading,
+  setAggregatedData,
+  setAggregatedLoading,
 } from "../state/paperTrading";
 import { fetchWithAuth } from "../state/auth";
 import { isMarketClosedToday } from "../state/holidays";
@@ -95,6 +104,20 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
   }
 }
 
+export async function fetch52WLevels(symbol: string): Promise<{ high_52w: number; low_52w: number } | null> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/52w/${symbol}`);
+    const data = await response.json();
+    if (data.high_52w) {
+      return { high_52w: data.high_52w, low_52w: data.low_52w || 0 };
+    }
+    return null;
+  } catch (error) {
+    console.error("Failed to fetch 52W levels:", error);
+    return null;
+  }
+}
+
 // Fetch trade history with optional bot and date filtering
 export async function fetchTrades(
   limit: number = 100,
@@ -155,6 +178,26 @@ export async function updateTradeNotes(
     return data;
   } catch (error) {
     console.error("Failed to update trade notes:", error);
+    throw error;
+  }
+}
+
+export async function updatePositionNotes(
+  positionId: string,
+  notes: string | null,
+  reason: string | null,
+): Promise<any> {
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/positions/${positionId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes, reason }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.detail || "Failed to update position");
+    return data;
+  } catch (error) {
+    console.error("Failed to update position notes:", error);
     throw error;
   }
 }
@@ -228,6 +271,7 @@ export async function fetchPaperChart(
 
     if (data.error) {
       console.error("Chart data error:", data.error);
+      setError(data.error);
       if (!silent) setChartData(null);
       else setChartLoading(false);
       return null;
@@ -387,6 +431,54 @@ export async function updateStrategyConfig(config: Partial<StrategyConfig>): Pro
     console.error("Failed to update strategy config:", error);
     setConfigError(error instanceof Error ? error.message : "Failed to save config");
     return false;
+  }
+}
+
+// Fetch analytics data (equity curve, P&L analytics)
+export async function fetchAnalytics(daysBack: number = 90): Promise<AnalyticsData | null> {
+  setAnalyticsLoading(true);
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/analytics?days_back=${daysBack}`);
+    const data = await response.json();
+    setAnalyticsData(data);
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch analytics:", error);
+    setAnalyticsLoading(false);
+    return null;
+  }
+}
+
+// Fetch activity feed
+export async function fetchActivityFeed(since?: string): Promise<ActivityEvent[]> {
+  setActivityLoading(true);
+  try {
+    const params = new URLSearchParams();
+    if (since) params.append("since", since);
+    const qs = params.toString() ? `?${params.toString()}` : "";
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/activity/feed${qs}`);
+    const data = await response.json();
+    setActivityEvents(data.events || []);
+    return data.events || [];
+  } catch (error) {
+    console.error("Failed to fetch activity feed:", error);
+    setActivityLoading(false);
+    return [];
+  }
+}
+
+// Fetch aggregated dashboard
+export async function fetchAggregatedDashboard(): Promise<AggregatedDashboardData | null> {
+  setAggregatedLoading(true);
+  try {
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/aggregated`);
+    const data = await response.json();
+    setAggregatedData(data);
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch aggregated dashboard:", error);
+    setAggregatedLoading(false);
+    return null;
   }
 }
 

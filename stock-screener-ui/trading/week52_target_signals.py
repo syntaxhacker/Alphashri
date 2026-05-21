@@ -27,6 +27,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         self.near_high_trail_pct: float = float(config.get("near_high_trail_pct", 0.5))
         self.max_holding_days: int = int(config.get("max_holding_days", 15))
         self.cooldown_days: int = int(config.get("cooldown_days", 7))
+        self.recent_touch_days: int = int(config.get("recent_touch_days", 5))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(
@@ -59,6 +60,11 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
 
         # Skip if price already broke above 52W high intraday and fell back (failed breakout)
         if today_intraday_high > calculated_high:
+            return None
+
+        # Skip if 52W high was recently touched (target already achieved)
+        days_since = market_data.get("days_since_52w_high", 99)
+        if days_since < self.recent_touch_days:
             return None
 
         entry_threshold = calculated_high * (1 - self.entry_threshold_pct / 100)
