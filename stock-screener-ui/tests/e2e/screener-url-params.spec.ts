@@ -38,7 +38,7 @@ test.describe("Screener - URL Params", () => {
       force: true,
     });
 
-    await expect(page).toHaveURL(/screener=builtin%3Atrending/);
+    await expect(page).toHaveURL(/screener=trending/);
   });
 
   test("should preserve URL screener param across tab switches", async ({ page }) => {
