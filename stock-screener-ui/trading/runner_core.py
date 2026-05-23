@@ -36,7 +36,7 @@ class _TimestampedConsole(Console):
 
 console = _TimestampedConsole()
 from trading.replay_utils import DEFAULT_WATCHLIST, STRATEGY_FILTER_MAP, build_trade_close_event
-from trading.shared_portfolio import SharedPortfolioManager
+from trading.shared_portfolio import SharedPortfolioManager, OrderSide
 
 # Default screener profiles per strategy type (used if not configured)
 STRATEGY_TYPE_DEFAULT_PROFILES = {
@@ -194,6 +194,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self = cls.__new__(cls)
         self.user_id = 1
         self.test_mode = True
+        self.live_trading = False
         self.running = False
         self.bot_config_id = bot_config.id
         self.bot_config = bot_config
@@ -300,7 +301,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 pass
 
     def _execute_close_all(self, prices: dict):
-        from trading.backtest.costs import calculate_trading_costs
+        from backtest.costs import calculate_trading_costs
         for key, pos in list(self.portfolio.positions.items()):
             exit_price = prices.get(pos.symbol, pos.current_price or pos.entry_price)
             if exit_price <= 0:
@@ -375,7 +376,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 except Exception:
                     pass
                 side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
-                from trading.backtest.costs import calculate_trading_costs
+                from backtest.costs import calculate_trading_costs
                 costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
                 self.portfolio.close_position(
                     strategy_id=pos.strategy_id,

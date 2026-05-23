@@ -464,6 +464,7 @@ class TestExecuteSignalReplay:
         mock_position = MagicMock()
         mock_position.strategy_id = 1
         mock_position.symbol = "RELIANCE"
+        mock_position.entry_price = 1005.0
         mock_portfolio.open_position.return_value = mock_position
         runner.portfolio = mock_portfolio
 

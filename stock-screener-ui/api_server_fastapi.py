@@ -355,10 +355,12 @@ async def get_screeners(user: User = Depends(get_current_user)):
             filter_list = meta.get('filters', [])
             merged_profiles.append({
                 **profile,
-                'id': f"builtin:{profile['id']}",
+                'id': profile['id'],
                 'source': 'builtin',
                 'filters': {f['key']: f.get('default') for f in filter_list},
                 'section_labels': meta.get('section_labels', {}),
+                'section_descriptions': meta.get('section_descriptions', {}),
+                'score_formula': meta.get('score_formula', ''),
             })
 
         for s in user_screeners:
@@ -373,7 +375,7 @@ async def get_screeners(user: User = Depends(get_current_user)):
             merged_profiles.append(s_dict)
 
         return {
-            'default': 'builtin:trending',
+            'default': 'trending',
             'screeners': merged_profiles,
         }
     finally:

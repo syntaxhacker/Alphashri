@@ -141,7 +141,7 @@ export async function fetchData(
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.setData(data);
-    state.setActiveScreener(data?.screener || screener);
+    state.setActiveScreener((data?.screener || screener).replace(/^builtin:/, ""));
 
     const defaultSort = data?.profile_meta?.default_sort;
     if (defaultSort?.column) {
@@ -178,9 +178,17 @@ export async function loadScreeners(resetActive: boolean = true): Promise<void> 
     const res = await fetchWithAuth(SCREENERS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
-    state.setScreenerOptions(payload.screeners || []);
-    state.setProfileMetaById(payload.meta_by_id || {});
-    const defaultScreener = payload.default || "trending";
+    const screeners = (payload.screeners || []).map((s: any) => ({
+      ...s,
+      id: s.id.replace(/^builtin:/, ""),
+    }));
+    const meta_by_id: Record<string, any> = {};
+    for (const s of screeners) {
+      meta_by_id[s.id] = { section_labels: s.section_labels, section_descriptions: s.section_descriptions, default_sort: s.default_sort, score_formula: s.score_formula };
+    }
+    state.setProfileMetaById(meta_by_id);
+    state.setScreenerOptions(screeners);
+    const defaultScreener = (payload.default || "trending").replace(/^builtin:/, "");
 
     if (resetActive) {
       state.setActiveScreener(defaultScreener);
@@ -190,9 +198,9 @@ export async function loadScreeners(resetActive: boolean = true): Promise<void> 
       state.setSortDirection("asc");
     }
   } catch {
+    state.setProfileMetaById({});
     state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
     state.setActiveScreener("trending");
-    state.setProfileMetaById({});
   }
 }
 

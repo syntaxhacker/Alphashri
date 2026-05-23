@@ -53,8 +53,10 @@ export interface ProfileFilter {
 
 export interface ProfileMeta {
   section_labels?: { primary: string; secondary: string };
+  section_descriptions?: { primary: string; secondary: string };
   filters?: ProfileFilter[];
   default_sort?: { column: string; direction: "asc" | "desc" };
+  score_formula?: string;
 }
 
 export interface ScreenerData {
@@ -78,6 +80,7 @@ export interface ScreenerOption {
   filters?: ProfileFilter[];
   default_sort?: { column: string; direction: SortDirection };
   section_labels?: { primary: string; secondary: string };
+  section_descriptions?: { primary: string; secondary: string };
 }
 
 export interface ChangeNotification {

@@ -36,12 +36,12 @@ vi.mock("./ScreenerErrorPanel", () => ({
 
 vi.mock("../../state", () => ({
   screenerOptions: [
-    { id: "builtin:trending", label: "Trending" },
-    { id: "builtin:buyer_interest", label: "Buyer Interest" },
+    { id: "trending", label: "Trending" },
+    { id: "buyer_interest", label: "Buyer Interest" },
   ],
   profileMetaById: {
-    "builtin:trending": { section_labels: { primary: "Approaching", secondary: "Touched" } },
-    "builtin:buyer_interest": { section_labels: { primary: "Buyer Interest", secondary: "Stronger Setups" } },
+    "trending": { section_labels: { primary: "Approaching", secondary: "Touched" } },
+    "buyer_interest": { section_labels: { primary: "Buyer Interest", secondary: "Stronger Setups" } },
   },
 }));
 
@@ -57,7 +57,7 @@ const defaultProps = {
   onRefresh: vi.fn(),
   onSymbolClick: vi.fn(),
   onSymbolHover: vi.fn(),
-  activeScreener: "builtin:trending",
+  activeScreener: "trending",
   viewMode: "table" as const,
 };
 
@@ -102,7 +102,7 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        activeScreener="builtin:buyer_interest"
+        activeScreener="buyer_interest"
         totalStocks={5}
         approachingStocks={[
           { symbol: "A" } as any,
@@ -121,7 +121,7 @@ describe("ScreenerContent", () => {
     renderWithProvider(
       <ScreenerContent
         {...defaultProps}
-        activeScreener="builtin:buyer_interest"
+        activeScreener="buyer_interest"
         totalStocks={2}
         approachingStocks={[{ symbol: "A" } as any, { symbol: "B" } as any]}
       />,

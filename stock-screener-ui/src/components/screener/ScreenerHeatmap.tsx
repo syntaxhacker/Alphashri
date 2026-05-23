@@ -7,6 +7,7 @@ interface ScreenerHeatmapProps {
   stocks: Stock[];
   columns: ColumnDef[];
   touchedSymbols: Set<string>;
+  badgeLabel?: string;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
 }
@@ -99,6 +100,7 @@ export function ScreenerHeatmap({
   stocks,
   columns,
   touchedSymbols,
+  badgeLabel,
   onSymbolClick,
   onSymbolHover,
 }: ScreenerHeatmapProps) {
@@ -151,7 +153,7 @@ export function ScreenerHeatmap({
                 ) : null}
                 {touchedSymbols.has(stock.symbol) ? (
                   <Badge variant="light" color="green" size="sm">
-                    Touched
+                    {badgeLabel || "Touched"}
                   </Badge>
                 ) : null}
               </Group>

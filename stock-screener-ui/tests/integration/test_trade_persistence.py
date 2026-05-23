@@ -1,5 +1,7 @@
+import json
 import pytest
 from datetime import datetime, timedelta, timezone
+from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -220,3 +222,243 @@ class TestTradeDBPersistence:
                 "entry_price": 100.0,
                 "entry_time": datetime.now(IST),
             })
+
+
+@pytest.mark.integration
+class TestExecuteCloseAll:
+
+    def _make_runner_with_positions(self, user_id, bot_id, strategy_id):
+        from trading.multi_strategy_runner import MultiStrategyRunner
+        from trading.shared_portfolio import SharedPortfolioManager, OrderSide
+
+        mock_config = MagicMock()
+        mock_config.id = bot_id
+        mock_config.name = "Test Bot"
+
+        portfolio = SharedPortfolioManager(initial_capital=1_000_000)
+        portfolio.set_strategy_allocation(strategy_id, "Test Strategy", 0.40, 5)
+
+        portfolio.open_position(
+            strategy_id=strategy_id,
+            strategy_name="Test Strategy",
+            symbol="RELIANCE",
+            side=OrderSide.BUY,
+            quantity=10,
+            entry_price=2500.0,
+            stop_loss=2450.0,
+            take_profit=2600.0,
+        )
+        portfolio.open_position(
+            strategy_id=strategy_id,
+            strategy_name="Test Strategy",
+            symbol="TCS",
+            side=OrderSide.BUY,
+            quantity=5,
+            entry_price=3800.0,
+            stop_loss=3700.0,
+            take_profit=4000.0,
+        )
+
+        bot = MultiStrategyRunner.__new__(MultiStrategyRunner)
+        bot.user_id = user_id
+        bot.bot_config = mock_config
+        bot.portfolio = portfolio
+        bot.test_mode = True
+        bot._replay_time = None
+        return bot
+
+    def test_execute_close_all_closes_all_positions_and_persists(self, db, test_user, test_bot, test_strategy):
+        bot = self._make_runner_with_positions(test_user.id, test_bot.id, test_strategy.id)
+        assert len(bot.portfolio.positions) == 2
+
+        prices = {"RELIANCE": 2600.0, "TCS": 4000.0}
+
+        with patch.object(bot, "_get_data_fetcher", return_value=None), \
+             patch.object(bot, "_get_order_manager", return_value=None), \
+             patch.object(bot, "_persist_trade_to_db") as mock_persist_trade, \
+             patch.object(bot, "_persist_position_to_db") as mock_persist_pos:
+            bot._execute_close_all(prices)
+
+        assert len(bot.portfolio.positions) == 0
+        assert mock_persist_trade.call_count == 2
+        assert mock_persist_pos.call_count == 2
+
+        trade_args = [call[0][0] for call in mock_persist_trade.call_args_list]
+        call_symbols = [d["symbol"] for d in trade_args]
+        assert "RELIANCE" in call_symbols
+        assert "TCS" in call_symbols
+        for d in trade_args:
+            assert d["exit_reason"] == "MANUAL_CLOSE"
+            assert d["reason"] == "Closed via Close All"
+
+        for call in mock_persist_pos.call_args_list:
+            assert call[1]["action"] == "delete"
+            assert call[0][0]["symbol"] in ("RELIANCE", "TCS")
+
+    def test_execute_close_all_skips_zero_exit_price(self, db, test_user, test_bot, test_strategy):
+        bot = self._make_runner_with_positions(test_user.id, test_bot.id, test_strategy.id)
+
+        prices = {"RELIANCE": 0.0, "TCS": 0.0}
+
+        with patch.object(bot, "_get_data_fetcher", return_value=None), \
+             patch.object(bot, "_get_order_manager", return_value=None), \
+             patch.object(bot, "_persist_trade_to_db") as mock_persist_trade, \
+             patch.object(bot, "_persist_position_to_db") as mock_persist_pos:
+            bot._execute_close_all(prices)
+
+        assert mock_persist_trade.call_count == 0
+        assert mock_persist_pos.call_count == 0
+
+
+@pytest.mark.integration
+class TestExecuteClosePosition:
+
+    def _make_runner_with_mixed_positions(self, user_id, bot_id, strategy_id):
+        from trading.multi_strategy_runner import MultiStrategyRunner
+        from trading.shared_portfolio import SharedPortfolioManager, OrderSide
+
+        mock_config = MagicMock()
+        mock_config.id = bot_id
+        mock_config.name = "Test Bot"
+
+        portfolio = SharedPortfolioManager(initial_capital=1_000_000)
+        portfolio.set_strategy_allocation(strategy_id, "Test Strategy", 0.40, 5)
+
+        portfolio.open_position(
+            strategy_id=strategy_id,
+            strategy_name="Test Strategy",
+            symbol="RELIANCE",
+            side=OrderSide.BUY,
+            quantity=10,
+            entry_price=2500.0,
+            stop_loss=2450.0,
+            take_profit=2600.0,
+        )
+        portfolio.open_position(
+            strategy_id=strategy_id,
+            strategy_name="Test Strategy",
+            symbol="TCS",
+            side=OrderSide.BUY,
+            quantity=5,
+            entry_price=3800.0,
+            stop_loss=3700.0,
+            take_profit=4000.0,
+        )
+
+        bot = MultiStrategyRunner.__new__(MultiStrategyRunner)
+        bot.user_id = user_id
+        bot.bot_config = mock_config
+        bot.portfolio = portfolio
+        bot.test_mode = True
+        bot._replay_time = None
+        return bot
+
+    def test_execute_close_position_closes_single_position(self, db, test_user, test_bot, test_strategy):
+        bot = self._make_runner_with_mixed_positions(test_user.id, test_bot.id, test_strategy.id)
+        assert len(bot.portfolio.positions) == 2
+
+        with patch.object(bot, "_get_data_fetcher", return_value=None):
+            bot._execute_close_position("RELIANCE", 2600.0, strategy_id=test_strategy.id)
+
+        assert len(bot.portfolio.positions) == 1
+        remaining = list(bot.portfolio.positions.values())
+        assert remaining[0].symbol == "TCS"
+        assert remaining[0].quantity == 5
+
+    def test_execute_close_position_without_strategy_id(self, db, test_user, test_bot, test_strategy):
+        bot = self._make_runner_with_mixed_positions(test_user.id, test_bot.id, test_strategy.id)
+
+        with patch.object(bot, "_get_data_fetcher", return_value=None):
+            bot._execute_close_position("RELIANCE", 2600.0)
+
+        assert len(bot.portfolio.positions) == 1
+
+    def test_execute_close_position_unknown_symbol_noop(self, db, test_user, test_bot, test_strategy):
+        bot = self._make_runner_with_mixed_positions(test_user.id, test_bot.id, test_strategy.id)
+
+        with patch.object(bot, "_get_data_fetcher", return_value=None):
+            bot._execute_close_position("UNKNOWN", 100.0, strategy_id=test_strategy.id)
+
+        assert len(bot.portfolio.positions) == 2
+
+
+@pytest.mark.integration
+class TestCheckCommandFile:
+
+    def _make_bot_with_mock_portfolio(self, user_id, bot_id):
+        from trading.multi_strategy_runner import MultiStrategyRunner
+
+        mock_config = MagicMock()
+        mock_config.id = bot_id
+        mock_config.name = "Test Bot"
+
+        portfolio = MagicMock()
+        portfolio.positions = {}
+
+        bot = MultiStrategyRunner.__new__(MultiStrategyRunner)
+        bot.user_id = user_id
+        bot.bot_config = mock_config
+        bot.portfolio = portfolio
+        bot.test_mode = True
+        return bot
+
+    def test_check_command_file_close_all(self, db, test_user, test_bot):
+        bot = self._make_bot_with_mock_portfolio(test_user.id, test_bot.id)
+        cmd_path = Path(f"/tmp/bot-cmd-{test_bot.id}.json")
+
+        cmd = {"action": "close_all", "prices": {"RELIANCE": 2600.0, "TCS": 4000.0}}
+        cmd_path.write_text(json.dumps(cmd))
+
+        with patch.object(bot, "_execute_close_all") as mock_exec:
+            bot._check_command_file()
+
+        mock_exec.assert_called_once_with({"RELIANCE": 2600.0, "TCS": 4000.0})
+        assert not cmd_path.exists()
+
+    def test_check_command_file_close_position(self, db, test_user, test_bot):
+        bot = self._make_bot_with_mock_portfolio(test_user.id, test_bot.id)
+        cmd_path = Path(f"/tmp/bot-cmd-{test_bot.id}.json")
+
+        cmd = {"action": "close_position", "symbol": "RELIANCE", "exit_price": 2600.0, "strategy_id": 1}
+        cmd_path.write_text(json.dumps(cmd))
+
+        with patch.object(bot, "_execute_close_position") as mock_exec:
+            bot._check_command_file()
+
+        mock_exec.assert_called_once_with("RELIANCE", 2600.0, 1)
+        assert not cmd_path.exists()
+
+    def test_check_command_file_no_file_noop(self, db, test_user, test_bot):
+        bot = self._make_bot_with_mock_portfolio(test_user.id, test_bot.id)
+        cmd_path = Path(f"/tmp/bot-cmd-{test_bot.id}.json")
+        if cmd_path.exists():
+            cmd_path.unlink()
+
+        with patch.object(bot, "_execute_close_all") as mock_exec:
+            bot._check_command_file()
+
+        mock_exec.assert_not_called()
+
+    def test_check_command_file_malformedjson_handled_gracefully(self, db, test_user, test_bot):
+        bot = self._make_bot_with_mock_portfolio(test_user.id, test_bot.id)
+        cmd_path = Path(f"/tmp/bot-cmd-{test_bot.id}.json")
+        cmd_path.write_text("not valid json")
+
+        with patch.object(bot, "_execute_close_all") as mock_exec:
+            bot._check_command_file()
+
+        mock_exec.assert_not_called()
+        assert not cmd_path.exists()
+
+    def test_check_command_file_close_all_without_prices(self, db, test_user, test_bot):
+        bot = self._make_bot_with_mock_portfolio(test_user.id, test_bot.id)
+        cmd_path = Path(f"/tmp/bot-cmd-{test_bot.id}.json")
+
+        cmd = {"action": "close_all"}
+        cmd_path.write_text(json.dumps(cmd))
+
+        with patch.object(bot, "_execute_close_all") as mock_exec:
+            bot._check_command_file()
+
+        mock_exec.assert_called_once_with({})
+        assert not cmd_path.exists()

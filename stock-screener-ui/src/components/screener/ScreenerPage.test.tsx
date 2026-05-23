@@ -140,7 +140,9 @@ vi.mock("../../state", () => ({
   setSortDirection: vi.fn(),
   sortColumn: null,
   sortDirection: "desc",
-  profileMetaById: {},
+  profileMetaById: {
+    trending: { section_labels: { primary: "Approaching", secondary: "Touched" } },
+  },
   selectedSymbols: [] as string[],
   toggleSymbolSelection: vi.fn(),
   setSelectedSymbols: vi.fn(),
