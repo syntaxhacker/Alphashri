@@ -232,7 +232,6 @@ export function ScreenerPage({
                   handleSortChange={handleSortChange}
                   isLoading={isLoading}
                   error={error}
-                  totalStocks={approachingStocks.length + touchedStocks.length}
                   onRefresh={onRefresh}
                   onSymbolClick={onSymbolClick}
                   onSymbolHover={onSymbolHover}

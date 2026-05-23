@@ -9,13 +9,15 @@ interface ScreenerSectionProps {
   stocks: Stock[];
   columns: ColumnDef[];
   touchedSymbols: Set<string>;
+  badgeLabel?: string;
+  scoreFormula?: string;
   sortColumn: string;
   sortDirection: "asc" | "desc";
   onSortChange: (column: string) => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   viewMode: "table" | "heatmap";
-  section: "approaching" | "touched";
+  section: string;
   activeScreener: string;
 }
 
@@ -26,6 +28,8 @@ export function ScreenerSection({
   stocks,
   columns,
   touchedSymbols,
+  badgeLabel,
+  scoreFormula,
   sortColumn,
   sortDirection,
   onSortChange,
@@ -41,6 +45,8 @@ export function ScreenerSection({
         stocks={stocks}
         columns={columns}
         touchedSymbols={touchedSymbols}
+        badgeLabel={badgeLabel}
+        scoreFormula={scoreFormula}
         sortColumn={sortColumn}
         sortDirection={sortDirection}
         onSortChange={onSortChange}

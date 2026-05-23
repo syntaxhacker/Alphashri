@@ -10,6 +10,8 @@ interface ScreenerTableProps {
   stocks: Stock[];
   columns: ColumnDef[];
   touchedSymbols: Set<string>;
+  badgeLabel?: string;
+  scoreFormula?: string;
   sortColumn: string | null;
   sortDirection: "asc" | "desc";
   onSortChange: (column: string) => void;
@@ -21,6 +23,8 @@ export function ScreenerTable({
   stocks,
   columns,
   touchedSymbols,
+  badgeLabel,
+  scoreFormula,
   sortColumn,
   sortDirection,
   onSortChange,
@@ -108,6 +112,8 @@ export function ScreenerTable({
             stock={stock}
             columns={columns}
             isTouched={touchedSymbols.has(stock.symbol)}
+            badgeLabel={badgeLabel}
+            scoreFormula={scoreFormula}
             onSymbolClick={onSymbolClick}
             onSymbolHover={onSymbolHover}
           />

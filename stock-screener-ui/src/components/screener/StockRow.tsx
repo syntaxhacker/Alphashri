@@ -20,6 +20,8 @@ interface StockRowProps {
   stock: Stock;
   columns: ColumnDef[];
   isTouched: boolean;
+  badgeLabel?: string;
+  scoreFormula?: string;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
 }
@@ -35,6 +37,8 @@ export function StockRow({
   stock,
   columns,
   isTouched,
+  badgeLabel,
+  scoreFormula,
   onSymbolClick,
   onSymbolHover,
 }: StockRowProps) {
@@ -117,7 +121,7 @@ export function StockRow({
               className="touched-badge"
               data-testid={`touched-badge-${stock.symbol}`}
             >
-              Touched
+              {badgeLabel || "Touched"}
             </Badge>
           )}
         </Group>
@@ -128,9 +132,9 @@ export function StockRow({
       const scoreValue = typeof value === "number" ? value : 0;
       return (
         <Tooltip
-          label={`Score = ADX (${stock.adx ?? "?"}) + Return (${stock.recent_return_5d ?? "?"}%)×2 + RSI premium (${Math.max((stock.rsi ?? 50) - 50, 0)}) + Volume (${stock.volume_surge ?? "?"})×2 = ${scoreValue}`}
+          label={scoreFormula ? `${scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`}
           multiline
-          w={260}
+          w={300}
           withinPortal
         >
           <Badge

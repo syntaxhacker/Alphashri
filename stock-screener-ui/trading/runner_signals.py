@@ -360,9 +360,6 @@ class RunnerSignalsMixin:
         if not validation:
             return False
 
-        if not position:
-            return False
-
         if validation.get('rejected'):
             console.print(f"[red]{runner.strategy_name}: Signal rejected - {validation['reason']}[/red]")
             for item in getattr(runner, 'last_scan_items', []):
@@ -377,6 +374,9 @@ class RunnerSignalsMixin:
                 signal_type=signal.signal_type.value,
                 reason=validation['reason'],
             )
+            return False
+
+        if not position:
             return False
 
         send_trade_entry(
