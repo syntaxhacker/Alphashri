@@ -41,8 +41,9 @@ vi.mock("../common/TradingDatePicker", () => ({
 
 const defaultConfig: ReplayConfigType = {
   date: "2025-01-15",
+  end_date: "",
   strategy: "ALL",
-  symbols: "DEFAULT",
+  symbols: [],
   refresh_cache: false,
   bot_uuid: "",
 };
@@ -74,7 +75,7 @@ describe("ReplayConfig", () => {
 
   it("detects holiday date and calls isTradingHoliday", () => {
     mockIsTradingHoliday.mockReturnValue(true);
-    const config: ReplayConfigType = { date: "2025-01-26", strategy: "ALL", symbols: "DEFAULT", refresh_cache: false, bot_uuid: "" };
+    const config: ReplayConfigType = { date: "2025-01-26", end_date: "", strategy: "ALL", symbols: [], refresh_cache: false, bot_uuid: "" };
     mockHolidays.holidays = [{ date: "2025-01-26", description: "Republic Day" }];
     render(
       <MantineProvider>
@@ -93,7 +94,7 @@ describe("ReplayConfig", () => {
 
   it("shows holiday description in warning when date is a holiday", () => {
     mockIsTradingHoliday.mockReturnValue(true);
-    const config: ReplayConfigType = { date: "2025-01-26", strategy: "ALL", symbols: "DEFAULT", refresh_cache: false, bot_uuid: "" };
+    const config: ReplayConfigType = { date: "2025-01-26", end_date: "", strategy: "ALL", symbols: [], refresh_cache: false, bot_uuid: "" };
     mockHolidays.holidays = [{ date: "2025-01-26", description: "Republic Day" }];
     render(
       <MantineProvider>
@@ -160,7 +161,7 @@ describe("ReplayConfig", () => {
     expect(screen.getByTestId("replay-bot-select")).toBeInTheDocument();
   });
 
-  it("renders Date picker input", () => {
+  it("renders From/To date picker inputs", () => {
     render(
       <MantineProvider>
         <ReplayConfigBar
@@ -173,7 +174,8 @@ describe("ReplayConfig", () => {
         />
       </MantineProvider>,
     );
-    expect(screen.getByTestId("replay-date-input")).toBeInTheDocument();
+    expect(screen.getByTestId("replay-date-from")).toBeInTheDocument();
+    expect(screen.getByTestId("replay-date-to")).toBeInTheDocument();
   });
 
   it("renders Strategy Select with options", () => {

@@ -7,8 +7,9 @@ import type { ReplayConfig, ReplayEvent, ReplayState } from "../types/replay";
 function configToParams(config: ReplayConfig): Record<string, string> {
   const p: Record<string, string> = {};
   if (config.date) p.date = config.date;
+  if (config.end_date) p.end_date = config.end_date;
   if (config.strategy && config.strategy !== "ALL") p.strategy = config.strategy;
-  if (config.symbols) p.symbols = config.symbols;
+  if (config.symbols && config.symbols.length > 0) p.symbols = config.symbols.join(",");
   if (config.bot_uuid) p.bot = config.bot_uuid;
   return p;
 }
@@ -17,10 +18,12 @@ function paramsToConfig(searchParams: URLSearchParams): Partial<ReplayConfig> {
   const p: Partial<ReplayConfig> = {};
   const date = searchParams.get("date");
   if (date) p.date = date;
+  const end_date = searchParams.get("end_date");
+  if (end_date) p.end_date = end_date;
   const strategy = searchParams.get("strategy");
   if (strategy) p.strategy = strategy;
   const symbols = searchParams.get("symbols");
-  if (symbols) p.symbols = symbols;
+  if (symbols) p.symbols = symbols.split(",").map(s => s.trim()).filter(Boolean);
   const bot = searchParams.get("bot");
   if (bot) p.bot_uuid = bot;
   return p;
@@ -53,7 +56,7 @@ export function useReplayState(): ReplayState & {
     if (window.location.href !== `${window.location.origin}${newUrl}`) {
       window.history.replaceState(null, "", newUrl);
     }
-  }, [state.config.date, state.config.strategy, state.config.symbols, state.config.bot_uuid]);
+  }, [state.config.date, state.config.end_date, state.config.strategy, state.config.symbols, state.config.bot_uuid]);
 
   const startReplay = useCallback(() => {
     rs.startRunning();

@@ -1,7 +1,8 @@
 export interface ReplayConfig {
   date: string;
+  end_date: string;
   strategy: string;
-  symbols: string | null;
+  symbols: string[];
   refresh_cache: boolean;
   bot_uuid: string;
 }

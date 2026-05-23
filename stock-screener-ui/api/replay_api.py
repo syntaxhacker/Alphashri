@@ -17,18 +17,17 @@ executor = ThreadPoolExecutor(max_workers=2)
 
 class ReplayRequest(BaseModel):
     date: str
+    end_date: Optional[str] = None
     strategy: str = "ALL"
-    symbols: Optional[str] = None
+    symbols: Optional[list[str]] = None
     refresh_cache: bool = False
     bot_uuid: Optional[str] = None
 
 
-def _load_symbols(symbols_arg: Optional[str]) -> list[str]:
-    if symbols_arg == "DEFAULT" or not symbols_arg:
+def _load_symbols(symbols_arg: Optional[list[str]]) -> list[str]:
+    if not symbols_arg:
         return _get_dynamic_watchlist()
-    if symbols_arg:
-        return [s.strip().upper() for s in symbols_arg.split(",") if s.strip()]
-    return _get_dynamic_watchlist()
+    return [s.strip().upper() for s in symbols_arg if s.strip()]
 
 
 def _get_dynamic_watchlist() -> list[str]:
@@ -75,6 +74,7 @@ async def run_replay(request: ReplayRequest):
                 symbols=symbols,
                 strategy_filter=request.strategy,
                 on_event=on_event,
+                end_date_str=request.end_date,
             )
         except Exception as e:
             import traceback as tb

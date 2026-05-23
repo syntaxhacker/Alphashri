@@ -1,7 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
-import { Group, Box, Text, Select, Button, Switch, Loader, Alert } from "@mantine/core";
-import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle } from "@tabler/icons-react";
+import { useState, useEffect, useMemo } from "react";
+import { Group, Box, Text, Select, Button, Switch, Loader, Alert, MultiSelect, Tooltip, ActionIcon, Badge } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
+import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX } from "@tabler/icons-react";
 import { listBots } from "../../api/bots";
+import { searchSymbols } from "../../api/symbols";
 import type { BotConfig } from "../../types/bots";
 import type { ReplayConfig as ReplayConfigType } from "../../types/replay";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -19,11 +21,6 @@ const STRATEGY_OPTIONS = [
   { value: "SR", label: "SR Breakout" },
   { value: "EMA", label: "EMA Cross" },
   { value: "52W", label: "52W Chaser" },
-];
-
-const SYMBOL_OPTIONS = [
-  { value: "DEFAULT", label: "Default Watchlist (20)" },
-  { value: "TOP25", label: "Top 25 Volatile" },
 ];
 
 interface ReplayConfigProps {
@@ -55,7 +52,29 @@ export function ReplayConfigBar({
   const maxDate = useMemo(() => getMaxDate(), []);
   const [bots, setBots] = useState<BotConfig[]>([]);
   const [holidayWarning, setHolidayWarning] = useState<string | null>(null);
+  const [symbolSearch, setSymbolSearch] = useState("");
+  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
+  const [debouncedSearch] = useDebouncedValue(symbolSearch, 300);
   const botOptions = useMemo(() => bots.map((b) => ({ value: b.uuid, label: b.name })), [bots]);
+
+  useEffect(() => {
+    if (debouncedSearch.trim().length < 1) {
+      setSymbolOptions([]);
+      return;
+    }
+    searchSymbols(debouncedSearch, 20)
+      .then((results) => {
+        setSymbolOptions(
+          results.map((r) => ({
+            value: r.symbol,
+            label: `${r.symbol} - ${r.name}`,
+          })),
+        );
+      })
+      .catch((err) => {
+        console.error("Failed to search symbols:", err);
+      });
+  }, [debouncedSearch]);
 
   useStoreSubscription(subscribeToHolidays);
   const holidayState = getHolidayState();
@@ -101,19 +120,34 @@ export function ReplayConfigBar({
           />
         </Box>
 
-        <Box>
-          <Text size="xs" fw={500} mb={2}>
-            Date
-          </Text>
-          <TradingDatePicker
-            w={160}
-            maxDate={maxDate}
-            value={config.date}
-            onChange={(v) => setConfig({ date: v })}
-            placeholder="Pick date"
-            data-testid="replay-date-input"
-          />
-        </Box>
+        <Group gap="xs">
+          <Box>
+            <Text size="xs" fw={500} mb={2}>
+              From
+            </Text>
+            <TradingDatePicker
+              w={140}
+              maxDate={maxDate}
+              value={config.date}
+              onChange={(v) => setConfig({ date: v })}
+              placeholder="From"
+              data-testid="replay-date-from"
+            />
+          </Box>
+          <Box>
+            <Text size="xs" fw={500} mb={2}>
+              To
+            </Text>
+            <TradingDatePicker
+              w={140}
+              maxDate={maxDate}
+              value={config.end_date}
+              onChange={(v) => setConfig({ end_date: v })}
+              placeholder="To"
+              data-testid="replay-date-to"
+            />
+          </Box>
+        </Group>
 
         <Box>
           <Text size="xs" fw={500} mb={2}>
@@ -134,17 +168,61 @@ export function ReplayConfigBar({
           <Text size="xs" fw={500} mb={2}>
             Symbols
           </Text>
-          <Select
-            size="sm"
-            w={180}
-            data={SYMBOL_OPTIONS}
-            value={config.symbols ?? "DEFAULT"}
-            onChange={(v) => setConfig({ symbols: v })}
-            creatable
-            allowDeselect={false}
-            searchable
-            data-testid="replay-symbols-select"
-          />
+          <Group gap={4}>
+            <MultiSelect
+              size="sm"
+              w={220}
+              data={symbolOptions}
+              value={config.symbols}
+              onChange={(v) => setConfig({ symbols: v })}
+              searchable
+              searchValue={symbolSearch}
+              onSearchChange={setSymbolSearch}
+              clearable
+              hidePickedOptions
+              placeholder="Search symbols..."
+              nothingFoundMessage="No symbols found"
+              maxDropdownHeight={200}
+              data-testid="replay-symbols-select"
+            />
+            {config.symbols.length > 0 && (
+              <Tooltip label="Clear all symbols">
+                <ActionIcon
+                  size="sm"
+                  variant="subtle"
+                  color="gray"
+                  onClick={() => setConfig({ symbols: [] })}
+                  data-testid="clear-symbols-btn"
+                >
+                  <IconX size={14} />
+                </ActionIcon>
+              </Tooltip>
+            )}
+          </Group>
+          {config.symbols.length > 0 && (
+            <Box mt={4} data-testid="symbol-chips">
+              {config.symbols.map((symbol) => (
+                <Badge
+                  key={symbol}
+                  variant="outline"
+                  size="sm"
+                  mr={4}
+                  mb={4}
+                  rightSection={
+                    <IconX
+                      size={10}
+                      style={{ cursor: "pointer" }}
+                      onClick={() =>
+                        setConfig({ symbols: config.symbols.filter((s) => s !== symbol) })
+                      }
+                    />
+                  }
+                >
+                  {symbol}
+                </Badge>
+              ))}
+            </Box>
+          )}
         </Box>
 
         <Box>

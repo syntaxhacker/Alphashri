@@ -41,8 +41,9 @@ describe("replay state module", () => {
       const state = replayModule.getReplayState();
       expect(state.config).toEqual({
         date: "",
+        end_date: "",
         strategy: "ALL",
-        symbols: null,
+        symbols: [],
         refresh_cache: false,
         bot_uuid: "",
       });
@@ -89,7 +90,7 @@ describe("replay state module", () => {
 
       expect(replayModule.getReplayState().config.date).toBe("2025-01-01");
       expect(replayModule.getReplayState().config.strategy).toBe("ORB");
-      expect(replayModule.getReplayState().config.symbols).toBeNull(); // unchanged
+      expect(replayModule.getReplayState().config.symbols).toEqual([]); // unchanged
     });
 
     it("preserves existing config values", () => {
@@ -577,8 +578,9 @@ describe("replay state module", () => {
       const state = replayModule.getReplayState();
       expect(state.config).toEqual({
         date: "",
+        end_date: "",
         strategy: "ALL",
-        symbols: null,
+        symbols: [],
         refresh_cache: false,
         bot_uuid: "",
       });
