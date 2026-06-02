@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo } from "react";
 import {
   Box,
   Flex,
@@ -8,21 +8,11 @@ import {
   TextInput,
   LoadingOverlay,
   Badge,
-  ScrollArea,
 } from "@mantine/core";
-import { useMantineColorScheme } from "@mantine/core";
-import ReactECharts from "echarts-for-react";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { fetchHeatmapData, fetchHeatmapSectors, type SectorInfo } from "../../api/heatmap";
-import {
-  TOOLTIP_DARK_BG,
-  TOOLTIP_LIGHT_BG,
-  TOOLTIP_DARK_BORDER,
-  TOOLTIP_LIGHT_BORDER,
-  TOOLTIP_DARK_TEXT,
-  TOOLTIP_LIGHT_TEXT,
-} from "../../config/colors";
-import { METRICS, getMetricValue, getMetricColor, getMetricTextColor, formatMarketCap } from "./heatmapUtils";
+import { METRICS, getMetricValue, getMetricColor, getMetricTextColor } from "./heatmapUtils";
+import { HeatmapTreemap } from "./HeatmapTreemap";
 import { ScatterView } from "./ScatterView";
 import { DistributionView } from "./DistributionView";
 import { SectorBarView } from "./SectorBarView";
@@ -39,10 +29,6 @@ const VIEWS = [
 ];
 
 export function HeatmapPage() {
-  const { colorScheme } = useMantineColorScheme();
-  const isDark = colorScheme === "dark";
-  const chartRef = useRef<any>(null);
-
   const [view, setView] = useState("treemap");
   const [sectorFilter, setSectorFilter] = useState<string | null>(null);
   const [searchFilter, setSearchFilter] = useState("");
@@ -95,91 +81,6 @@ export function HeatmapPage() {
       label: `${s.name} (${s.count})`,
     }));
   }, [sectorsData]);
-
-  const chartOption = useMemo(() => {
-    const data = filteredStocks.map((stock) => {
-      const mv = getMetricValue(stock, metric);
-      const color = getMetricColor(mv, metricMin, metricMax);
-      const textColor = getMetricTextColor(mv, metricMin, metricMax);
-      return {
-        name: stock.symbol,
-        value: 1,
-        path: stock.symbol,
-        nameFull: stock.name,
-        sector: stock.sector,
-        price: stock.price,
-        change: stock.change_pct,
-        mcap: stock.market_cap,
-        pe: stock.pe_ratio,
-        metricLabel: activeMetric.label,
-        metricValue: activeMetric.fmt(mv),
-        label: { color: textColor },
-        itemStyle: { color },
-      };
-    });
-
-    const tooltipBg = isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG;
-    const tooltipBorder = isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER;
-    const tooltipText = isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT;
-
-    return {
-      tooltip: {
-        trigger: "item",
-        backgroundColor: tooltipBg,
-        borderColor: tooltipBorder,
-        textStyle: { color: tooltipText },
-        formatter: (params: any) => {
-          const d = params.data;
-          if (!d) return "";
-          return [
-            `<div style="font-weight:bold;font-size:14px;color:${tooltipText}">${d.name}</div>`,
-            `<div style="color:${tooltipText};font-size:12px;opacity:0.8">${d.nameFull}</div>`,
-            `<div style="margin-top:8px">`,
-            `  <div style="color:${tooltipText}">${d.metricLabel}: <b>${d.metricValue}</b></div>`,
-            `  <div style="color:${tooltipText}">P/E: <b>${d.pe}</b></div>`,
-            `  <div style="color:${tooltipText}">MCap: <b>${formatMarketCap(d.mcap)}</b></div>`,
-            `  <div style="color:${tooltipText}">Price: <b>₹${d.price?.toFixed(2) || "-"}</b></div>`,
-            `  <div style="color:${d.change >= 0 ? "green" : "red"}">Change: <b>${d.change >= 0 ? "+" : ""}${d.change?.toFixed(2)}%</b></div>`,
-            `  <div style="color:${tooltipText}">Sector: ${d.sector || "-"}</div>`,
-            `</div>`,
-          ].join("\n");
-        },
-      },
-      series: [
-        {
-          type: "treemap",
-          sort: false,
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          roam: false,
-          squareRatio: 1,
-          label: {
-            show: true,
-            formatter: (params: any) =>
-              `${params.name}\n${params.data?.metricValue}`,
-            fontSize: 10,
-            fontWeight: "bold",
-            lineHeight: 14,
-            textBorderColor: "#000",
-            textBorderWidth: 0.5,
-          },
-          breadcrumb: { show: false },
-          itemStyle: {
-            borderColor: isDark ? "#1a1a1a" : "#fff",
-            borderWidth: 1,
-            gapWidth: 0,
-          },
-          levels: [
-            { itemStyle: { borderColor: isDark ? "#1a1a1a" : "#fff", borderWidth: 0, gapWidth: 0 } },
-            { colorSaturation: [0.35, 0.5], itemStyle: { borderColorSaturation: 0.6, gapWidth: 0, borderWidth: 1 } },
-          ],
-          data,
-        },
-      ],
-    };
-  }, [filteredStocks, activeMetric, metric, metricMin, metricMax, isDark]);
 
   const metricOptions = METRICS.map((m) => ({ value: m.value, label: m.label }));
 
@@ -253,16 +154,13 @@ export function HeatmapPage() {
           </Flex>
         )}
         {!heatmapLoading && isChartView && (
-          <ScrollArea style={{ height: "100%" }}>
-            <Box style={{ minHeight: "100%", minWidth: 600 }}>
-              <ReactECharts
-                ref={chartRef}
-                option={chartOption}
-                style={{ height: 800, width: "100%" }}
-                opts={{ renderer: "canvas" }}
-              />
-            </Box>
-          </ScrollArea>
+          <HeatmapTreemap
+            stocks={filteredStocks}
+            metric={metric}
+            chartHeight={800}
+            showLegend={false}
+            testId="heatmap-page-treemap"
+          />
         )}
         {isTableView && (
           <HeatmapListView

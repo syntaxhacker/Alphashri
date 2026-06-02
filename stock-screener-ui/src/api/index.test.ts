@@ -19,6 +19,7 @@ vi.mock("../state", () => ({
   autoRefreshInterval: null,
   autoRefreshSeconds: 60,
   activeScreener: "trending",
+  profileMetaById: {},
   get data() { return mockStateData.data; },
   get isLoading() { return mockStateData.isLoading; },
   screenerOptions: [],

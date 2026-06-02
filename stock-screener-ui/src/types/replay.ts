@@ -1,7 +1,8 @@
 export interface ReplayConfig {
   date: string;
+  end_date: string;
   strategy: string;
-  symbols: string | null;
+  symbols: string[];
   refresh_cache: boolean;
   bot_uuid: string;
 }
@@ -200,6 +201,16 @@ export interface ReplayState {
   totalSymbols: number;
   chartOptions: ReplayChartOptions;
   highlightedTradeId: number | null;
+}
+
+export interface ReplaySavedConfig {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string;
+  config: ReplayConfig;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface ReplayChartOptions {

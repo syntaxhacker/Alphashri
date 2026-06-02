@@ -28,6 +28,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         self.max_holding_days: int = int(config.get("max_holding_days", 15))
         self.cooldown_days: int = int(config.get("cooldown_days", 7))
         self.recent_touch_days: int = int(config.get("recent_touch_days", 5))
+        self.min_avg_volume: float = float(config.get("min_avg_volume", 50000))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(
@@ -41,6 +42,9 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         today_intraday_high: float = market_data.get("today_intraday_high", 0.0)
 
         if current_price is None:
+            return None
+
+        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
             return None
 
         # Use provided high_52w from market_data first (includes latest completed bar),

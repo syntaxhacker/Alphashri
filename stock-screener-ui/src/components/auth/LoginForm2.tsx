@@ -95,6 +95,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
             <TextInput
               label="Email"
               id="email"
+              type="email"
               data-testid="login-email-input"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}
@@ -187,6 +188,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
             <TextInput
               label="Email"
               id="reg-email"
+              type="email"
               data-testid="register-email-input"
               value={email}
               onChange={(e) => setEmail(e.currentTarget.value)}

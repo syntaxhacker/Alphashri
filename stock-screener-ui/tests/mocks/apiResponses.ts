@@ -4,11 +4,46 @@ import { apiRoute } from "./routeHelper";
 
 export const mockScreenersList = {
   screeners: [
-    { id: "trending", label: "Trending", description: "52-week high scanner" },
+    {
+      id: "trending",
+      label: "Trending",
+      description: "52-week high scanner",
+      section_labels: { primary: "Approaching", secondary: "Touched" },
+      section_descriptions: {
+        primary: "Stocks nearing but have not yet touched the 52W high",
+        secondary: "Stocks that have touched or broken out of the 52W high",
+      },
+      score_formula: "",
+      default_sort: "score",
+      filters: [],
+    },
     {
       id: "buyer_interest_enhanced",
       label: "Buyer Interest+",
       description: "Enhanced buyer interest with sentiment",
+      section_labels: { primary: "Buyer Interest+", secondary: "" },
+      section_descriptions: { primary: "Enhanced buyer interest stocks approaching 52W high", secondary: "" },
+      score_formula: "",
+      default_sort: "score",
+      filters: [
+        {
+          key: "direction",
+          label: "Direction",
+          type: "select",
+          options: ["both", "bullish", "bearish"],
+          default: "both",
+        },
+        { key: "min_score", label: "Min Score", type: "number", min: 0, max: 200, default: 0 },
+        {
+          key: "min_vol_surge",
+          label: "Min Vol Surge",
+          type: "number",
+          min: 0,
+          max: 10,
+          step: 0.1,
+          default: 0,
+        },
+      ],
     },
   ],
   default: "trending",
@@ -553,6 +588,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   await page.route(apiRoute("auth/login"), async (route) => {
+    authStateByPage.set(page, true);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -561,6 +597,27 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
         refresh_token: "test_refresh_token_12345",
         token_type: "bearer",
         expires_in: 86400,
+      }),
+    });
+  });
+
+  await page.route(apiRoute("auth/refresh"), async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Refresh token invalid" }),
+    });
+  });
+
+  await page.route(apiRoute("auth/register"), async (route) => {
+    authStateByPage.set(page, true);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "test_access_token_12345",
+        refresh_token: "test_refresh_token_12345",
+        token_type: "bearer",
       }),
     });
   });

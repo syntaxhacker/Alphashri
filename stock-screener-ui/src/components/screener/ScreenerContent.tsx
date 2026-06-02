@@ -9,15 +9,12 @@ import { getColumnsForScreener } from "./columns";
 import * as state from "../../state";
 import type { Stock } from "../../types";
 
-const FALLBACK_LABELS = {
-  primary: "Approaching",
-  secondary: "Touched",
-};
-
-const FALLBACK_DESCRIPTIONS = {
-  primary: "Stocks nearing but have not yet touched the 52W high",
-  secondary: "Stocks that have touched or broken out of the 52W high",
-};
+interface SectionConfig {
+  key: string;
+  stocks: Stock[];
+  label: string;
+  description: string;
+}
 
 interface Props {
   approachingStocks: Stock[];
@@ -27,7 +24,6 @@ interface Props {
   handleSortChange: (column: string) => void;
   isLoading: boolean;
   error: string | null;
-  totalStocks: number;
   onRefresh: () => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
@@ -43,7 +39,6 @@ export function ScreenerContent({
   handleSortChange,
   isLoading,
   error,
-  totalStocks,
   onRefresh,
   onSymbolClick,
   onSymbolHover,
@@ -52,65 +47,74 @@ export function ScreenerContent({
 }: Props) {
   const { getSortedData } = useTableSort<Stock>({ sortColumn, sortDirection });
 
-  const sortedApproaching = useMemo(
-    () => getSortedData(approachingStocks, (s) => s[sortColumn as keyof Stock] as string | number),
-    [approachingStocks, getSortedData, sortColumn],
-  );
-  const sortedTouched = useMemo(
-    () => getSortedData(touchedStocks, (s) => s[sortColumn as keyof Stock] as string | number),
-    [touchedStocks, getSortedData, sortColumn],
-  );
+  const meta = state.profileMetaById[activeScreener];
 
-  const columns = getColumnsForScreener(activeScreener);
-  const emptySet = new Set<string>();
+  const scoreFormula = meta?.score_formula || "";
 
-  const sectionLabels = state.profileMetaById[activeScreener]?.section_labels;
-  const hasLabels = !!sectionLabels?.primary;
-  const labels = hasLabels ? sectionLabels : FALLBACK_LABELS;
-  const descriptions = hasLabels ? { primary: "", secondary: "" } : FALLBACK_DESCRIPTIONS;
+  const sections: SectionConfig[] = useMemo(() => {
+    const sl = meta?.section_labels;
+    const sd = meta?.section_descriptions;
+    const result: SectionConfig[] = [];
+
+    const sortedApproaching = getSortedData(approachingStocks, (s) => s[sortColumn as keyof Stock] as string | number);
+    const sortedTouched = getSortedData(touchedStocks, (s) => s[sortColumn as keyof Stock] as string | number);
+
+    if (sortedApproaching.length > 0) {
+      result.push({
+        key: "approaching",
+        stocks: sortedApproaching,
+        label: `${(sl?.primary || "Primary")} (${sortedApproaching.length})`,
+        description: sd?.primary || "",
+      });
+    }
+    if (sortedTouched.length > 0) {
+      result.push({
+        key: "touched",
+        stocks: sortedTouched,
+        label: `${(sl?.secondary || "Secondary")} (${sortedTouched.length})`,
+        description: sd?.secondary || "",
+      });
+    }
+    return result;
+  }, [approachingStocks, touchedStocks, meta, sortColumn, getSortedData]);
 
   if (isLoading) return <ScreenerLoading />;
   if (error) return <ScreenerErrorPanel error={error} onRefresh={onRefresh} />;
-  if (totalStocks === 0) return <ScreenerEmpty />;
+  if (sections.length === 0) return <ScreenerEmpty />;
 
   return (
-    <Stack gap="sm" w="100%" style={{ minHeight: 0 }}>
-      {sortedApproaching.length > 0 && (
-        <ScreenerSection
-          title={`${labels.primary} (${sortedApproaching.length})`}
-          description={descriptions.primary}
-          testId="screener-approaching-section"
-          stocks={sortedApproaching}
-          columns={columns}
-          touchedSymbols={emptySet}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-          onSortChange={handleSortChange}
-          onSymbolClick={onSymbolClick}
-          onSymbolHover={onSymbolHover}
-          viewMode={viewMode}
-          section="approaching"
-          activeScreener={activeScreener}
-        />
-      )}
-      {sortedTouched.length > 0 && (
-        <ScreenerSection
-          title={`${labels.secondary} (${sortedTouched.length})`}
-          description={descriptions.secondary}
-          testId="screener-touched-section"
-          stocks={sortedTouched}
-          columns={columns}
-          touchedSymbols={new Set(sortedTouched.map((s) => s.symbol))}
-          sortColumn={sortColumn}
-          sortDirection={sortDirection}
-          onSortChange={handleSortChange}
-          onSymbolClick={onSymbolClick}
-          onSymbolHover={onSymbolHover}
-          viewMode={viewMode}
-          section="touched"
-          activeScreener={activeScreener}
-        />
-      )}
+    <Stack gap={6} w="100%" p={6} style={{ minHeight: 0 }}>
+      {sections.map((section) => {
+        const columns = getColumnsForScreener(
+          activeScreener,
+          section.key as "approaching" | "touched",
+        );
+        return (
+          <ScreenerSection
+            key={section.key}
+            title={section.label}
+            description={section.description}
+            testId={`screener-${section.key}-section`}
+            stocks={section.stocks}
+            columns={columns}
+            badgeLabel={undefined}
+            scoreFormula={scoreFormula}
+            touchedSymbols={
+              section.key === "touched"
+                ? new Set(section.stocks.map((s) => s.symbol))
+                : new Set<string>()
+            }
+            sortColumn={sortColumn}
+            sortDirection={sortDirection}
+            onSortChange={handleSortChange}
+            onSymbolClick={onSymbolClick}
+            onSymbolHover={onSymbolHover}
+            viewMode={viewMode}
+            section={section.key}
+            activeScreener={activeScreener}
+          />
+        );
+      })}
     </Stack>
   );
 }

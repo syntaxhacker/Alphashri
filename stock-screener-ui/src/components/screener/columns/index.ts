@@ -7,6 +7,7 @@ import { getNiftyMoversColumns } from "./niftyMovers";
 import { getHighMomentumColumns } from "./highMomentum";
 import { getNear52wBreakoutColumns } from "./near52wBreakout";
 import { getTouched52wColumns } from "./touched52wHigh";
+import { get52wHighColumns } from "./52wHigh";
 
 export interface FormattedCell {
   value: string;
@@ -23,11 +24,16 @@ export interface ColumnDef<T = Stock> {
   format?: (value: any, row: T) => React.ReactNode | FormattedCell;
 }
 
-export function getColumnsForScreener(screenerId: string): ColumnDef[] {
+export function getColumnsForScreener(
+  screenerId: string,
+  section?: "approaching" | "touched",
+): ColumnDef[] {
   const id = screenerId.startsWith("builtin:") ? screenerId.slice(8) : screenerId;
   switch (id) {
     case "trending":
       return getTrendingColumns();
+    case "52w_high":
+      return get52wHighColumns(section ?? "approaching");
     case "near_52w_breakout":
       return getNear52wBreakoutColumns();
     case "touched_52w_high":

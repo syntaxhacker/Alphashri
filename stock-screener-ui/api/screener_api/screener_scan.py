@@ -1,11 +1,21 @@
 from datetime import datetime, timedelta
 
 import config
+from db.database import SessionLocal
 
 from .screener_models import (
-    MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float,
+    MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
+
+
+def _ensure_ist(dt: datetime) -> datetime:
+    """Attach IST to naive datetimes (config.IST is stdlib timezone, not pytz)."""
+    if hasattr(dt, 'to_pydatetime'):
+        dt = dt.to_pydatetime()
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=config.IST)
+    return dt.astimezone(config.IST)
 
 
 def _classify_sentiment(wick_close_pct, is_bullish):
@@ -25,7 +35,7 @@ def _build_stock_data(
     recent_return_5d, perf_w, sector, touched_52w, days_ago,
     day_change, rsi, stoch_k, wick_close_pct, volume_surge,
     atr_pct, adx, interest_score, gap_pct, premarket_change,
-    impact_score, market_cap_b, volume_m, reversal_signal,
+    impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
     is_bullish, sentiment, score, broker_diff,
 ):
     return {
@@ -54,6 +64,7 @@ def _build_stock_data(
         'impact_score': round(impact_score, 2),
         'market_cap_b': round(market_cap_b, 2),
         'volume_m': round(volume_m, 2),
+        'turnover_cr': round(turnover_cr, 2),
         'reversal_signal': reversal_signal,
         'is_bullish': is_bullish,
         'sentiment': sentiment,
@@ -61,6 +72,24 @@ def _build_stock_data(
 
 
 def _passes_profile_filters(screener, stock_data, profile_filters):
+    if screener in ('touched_52w_high', 'builtin:touched_52w_high'):
+        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, 0.1)
+        if _to_float(stock_data.get('volume_m'), 0) < min_vol:
+            return False
+        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, 60)
+        if _to_float(stock_data.get('turnover_cr'), 0) < min_turnover:
+            return False
+
+    if screener in ('52w_high', 'builtin:52w_high'):
+        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, 0.0)
+        vol = _to_float(stock_data.get('volume_m'), 0)
+        if min_vol > 0 and vol < min_vol:
+            return False
+        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, 0.0)
+        turnover = _to_float(stock_data.get('turnover_cr'), 0)
+        if min_turnover > 0 and turnover < min_turnover:
+            return False
+
     if not profile_filters:
         return True
 
@@ -111,10 +140,8 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         return True
     if screener == 'nifty50_activity':
         return _to_float(stock_data.get('interest_score'), 0) >= num('min_interest_score', 0)
-    if screener == 'near_52w_breakout':
+    if screener in ('near_52w_breakout', '52w_high', 'builtin:52w_high'):
         return _to_float(stock_data.get('to_52w_high'), 100) <= num('max_52w_gap', 100)
-    if screener in ('touched_52w_high', 'builtin:touched_52w_high'):
-        return True  # Filter handled by TV query + approaching/touched classification
     if screener == 'rsi_reversal':
         return _to_float(stock_data.get('rsi'), 100) <= num('max_rsi', 100) and _to_float(stock_data.get('stoch_k'), 0) >= num('min_stoch_k', 0)
     if screener == 'nifty_movers':
@@ -190,8 +217,7 @@ def _compute_days_ago(api, symbol, today_high=None):
             last_touch_dt = last_touch.to_pydatetime()
         else:
             last_touch_dt = last_touch
-        if last_touch_dt.tzinfo is None:
-            last_touch_dt = config.IST.localize(last_touch_dt)
+        last_touch_dt = _ensure_ist(last_touch_dt)
         days_ago = (datetime.now(config.IST) - last_touch_dt).days
         return max(0, days_ago)
     except Exception:
@@ -245,16 +271,18 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
 
             est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
-            touched_52w = to_52w_high < 0.1
+            touched_gap = touched_52w_gap_threshold_pct()
+            touched_52w = to_52w_high < touched_gap
             is_bullish = tv_price >= tv_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
 
+            turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
                 symbol, tv_price, upstox_price, tv_52w_high, to_52w_high,
                 recent_return, perf_w, sector, touched_52w, None,
                 day_change, rsi, stoch_k, wick_close_pct, volume_surge,
                 atr_pct, adx_val, interest_score, gap_pct, premarket_change,
-                impact_score, market_cap_b, volume_m, reversal_signal,
+                impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
             )
 
@@ -310,14 +338,15 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             perf_w = float(row_data.get('Perf.W', 0))
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', 0))
             est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
+            touched_gap = touched_52w_gap_threshold_pct()
             touched_52w = False
             if tv_52w_high > 0:
                 if recent_high >= tv_52w_high:
                     touched_52w = True
-                elif (tv_52w_high - recent_high) / tv_52w_high < 0.001:
+                elif (tv_52w_high - recent_high) / tv_52w_high < touched_gap / 100:
                     touched_52w = True
             days_ago = None
-            if screener_clean == 'touched_52w_high':
+            if screener_clean in ('touched_52w_high', '52w_high'):
                 days_ago = _compute_days_ago(api, symbol, today_high=recent_high)
             c_open = _to_float(current_candle.get('open'), c_close)
             is_bullish = c_close >= c_open
@@ -326,12 +355,13 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             score = min(99, int(adx + max(recent_return, 0) * 2 + max(rsi - 50, 0) * 0.5 + max(volume_surge, 0) * 2))
             broker_diff = round(diff_pct, 2)
 
+            turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
                 symbol, tv_price, upstox_price, tv_52w_high, high_diff_pct,
                 recent_return, perf_w, sector, touched_52w, days_ago,
                 day_change, rsi, stoch_k, wick_close_pct, volume_surge,
                 atr_pct, adx, interest_score, gap_pct, premarket_change,
-                impact_score, market_cap_b, volume_m, reversal_signal,
+                impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
             )
 
@@ -373,11 +403,130 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
     return None
 
 
+def _enrich_with_touch_history(data, screener):
+    """Enrich screener results with historical 52w touch information."""
+    from datetime import timedelta
+    from db.models.stock_52w_touch import Stock52WeekTouch
+
+    approaching = data.get('approaching', [])
+    touched = data.get('touched', [])
+    all_stocks = approaching + touched
+    if not all_stocks:
+        return
+
+    symbols = [s['symbol'] for s in all_stocks if s.get('symbol')]
+    if not symbols:
+        return
+
+    cutoff_date = datetime.now() - timedelta(days=7)
+    touch_map = {}
+    try:
+        db = SessionLocal()
+        try:
+            recent_touches = (
+                db.query(Stock52WeekTouch)
+                .filter(
+                    Stock52WeekTouch.symbol.in_(symbols),
+                    Stock52WeekTouch.touched_date >= cutoff_date,
+                    Stock52WeekTouch.is_high == True,
+                )
+                .order_by(Stock52WeekTouch.symbol, Stock52WeekTouch.touched_date.desc())
+                .all()
+            )
+            for touch in recent_touches:
+                if touch.symbol not in touch_map:
+                    touch_map[touch.symbol] = touch
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    last_touched_info = {}
+    try:
+        from sqlalchemy import func
+
+        db = SessionLocal()
+        try:
+            subq = (
+                db.query(
+                    Stock52WeekTouch.symbol,
+                    func.max(Stock52WeekTouch.touched_date).label('max_date'),
+                )
+                .filter(Stock52WeekTouch.symbol.in_(symbols))
+                .group_by(Stock52WeekTouch.symbol)
+                .subquery()
+            )
+            latest_touches = (
+                db.query(Stock52WeekTouch)
+                .join(
+                    subq,
+                    (Stock52WeekTouch.symbol == subq.c.symbol)
+                    & (Stock52WeekTouch.touched_date == subq.c.max_date),
+                )
+                .all()
+            )
+            for touch in latest_touches:
+                last_touched_info[touch.symbol] = {
+                    'date': touch.touched_date,
+                    'price': touch.touched_price,
+                }
+        finally:
+            db.close()
+    except Exception:
+        pass
+
+    new_approaching = []
+    new_touched = []
+    moved_count = 0
+
+    for stock in all_stocks:
+        symbol = stock.get('symbol')
+        touch = touch_map.get(symbol)
+        last_info = last_touched_info.get(symbol)
+
+        if last_info:
+            touch_dt = last_info['date']
+            stock['last_touched'] = touch_dt.isoformat()
+            stock['last_touched_price'] = last_info['price']
+            if stock.get('days_ago') is None:
+                if hasattr(touch_dt, 'to_pydatetime'):
+                    touch_dt = touch_dt.to_pydatetime()
+                touch_dt = _ensure_ist(touch_dt)
+                stock['days_ago'] = max(
+                    0,
+                    (datetime.now(config.IST) - touch_dt).days,
+                )
+        else:
+            stock['last_touched'] = None
+            stock['last_touched_price'] = None
+
+        was_touched_today = stock.get('touched_52w', False)
+        touched_recently = touch is not None
+
+        if was_touched_today or touched_recently:
+            stock['touched_52w'] = True
+            if not was_touched_today:
+                moved_count += 1
+            new_touched.append(stock)
+        else:
+            new_approaching.append(stock)
+
+    data['approaching'] = new_approaching
+    data['touched'] = new_touched
+    if moved_count > 0:
+        data['_debug_moved_by_history'] = moved_count
+
+
 def fetch_screener_data(provider='upstox', mode='historical', screener='trending', profile_filters=None, _retry_api=True):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import trending_upside
 
+    screener_raw = screener
     screener = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
+
+    if screener == '52w_high' or screener_raw in ('52w_high', 'builtin:52w_high'):
+        from .screener_52w import fetch_52w_high_data
+        return fetch_52w_high_data(provider, mode, profile_filters)
 
     api = None
     use_api = False
@@ -468,3 +617,45 @@ def fetch_screener_data(provider='upstox', mode='historical', screener='trending
         'summary': _summary_items_for(screener, approaching, touched),
         'warning': warning,
     }
+
+
+def fetch_all_52w_ranges_from_tv() -> dict:
+    """Fetch 52-week high/low for all NSE stocks from TradingView.
+
+    Uses paginated queries (1000 rows per page) sorted by market cap descending.
+    Returns dict of {symbol: {high, low, close}}.
+    """
+    from tradingview_screener import Query
+
+    fields = ['name', 'close', 'price_52_week_high', 'price_52_week_low', 'volume']
+    all_stocks = {}
+    offset = 0
+    page_size = 1000
+
+    while True:
+        q = (Query()
+            .select(*fields)
+            .set_markets('india')
+            .order_by('market_cap_basic', ascending=False)
+            .offset(offset).limit(offset + page_size))
+        _, df = q.get_scanner_data()
+        if df is None or df.empty:
+            break
+        for _, row in df.iterrows():
+            symbol = str(row.get('ticker', '')).replace('NSE:', '')
+            if not symbol:
+                continue
+            high = row.get('price_52_week_high')
+            low = row.get('price_52_week_low')
+            close = row.get('close')
+            if high and low and close:
+                all_stocks[symbol] = {
+                    'high': float(high),
+                    'low': float(low),
+                    'close': float(close),
+                }
+        offset += page_size
+        if len(df) < page_size:
+            break
+
+    return all_stocks

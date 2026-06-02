@@ -21,6 +21,12 @@ export function setRenderCallback(cb: () => void) {
 
 // Default screener options (fallback)
 const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
+  {
+    id: "52w_high",
+    label: "52W High",
+    description: "52-week high scanner using Upstox daily ranges",
+    status: "current",
+  },
   { id: "trending", label: "Trending", description: "Balanced trend + momentum candidates" },
   {
     id: "high_momentum",
@@ -51,11 +57,17 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
     id: "near_52w_breakout",
     label: "Near 52W",
     description: "52-week high breakout candidate logic",
+    status: "legacy",
+    superseded_by: "52w_high",
+    legacy_52w_sections: true,
   },
   {
     id: "touched_52w_high",
     label: "Touched 52W",
     description: "Stocks that recently touched 52-week high",
+    status: "legacy",
+    superseded_by: "52w_high",
+    legacy_52w_sections: true,
   },
   { id: "rsi_reversal", label: "RSI Reversal", description: "Oversold/overbought reversal logic" },
   { id: "market_open_gap", label: "Gap Open", description: "Market open gap scanner logic" },
@@ -141,7 +153,15 @@ export async function fetchData(
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
     state.setData(data);
-    state.setActiveScreener(data?.screener || screener);
+    const resolvedScreener = (data?.screener || screener).replace(/^builtin:/, "");
+    state.setActiveScreener(resolvedScreener);
+
+    if (data?.profile_meta) {
+      state.setProfileMetaById({
+        ...state.profileMetaById,
+        [resolvedScreener]: data.profile_meta,
+      });
+    }
 
     const defaultSort = data?.profile_meta?.default_sort;
     if (defaultSort?.column) {
@@ -178,21 +198,31 @@ export async function loadScreeners(resetActive: boolean = true): Promise<void> 
     const res = await fetchWithAuth(SCREENERS_URL);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const payload = await res.json();
-    state.setScreenerOptions(payload.screeners || []);
-    state.setProfileMetaById(payload.meta_by_id || {});
-    const defaultScreener = payload.default || "trending";
+    const screeners = (payload.screeners || []).map((s: any) => ({
+      ...s,
+      id: s.id.replace(/^builtin:/, ""),
+    }));
+    const meta_by_id: Record<string, any> = {};
+    for (const s of screeners) {
+      meta_by_id[s.id] = { section_labels: s.section_labels, section_descriptions: s.section_descriptions, default_sort: s.default_sort, score_formula: s.score_formula };
+    }
+    state.setProfileMetaById(meta_by_id);
+    state.setScreenerOptions(screeners);
+    const defaultScreener = (payload.default || "trending").replace(/^builtin:/, "");
+    const has52wHigh = screeners.some((s: ScreenerOption) => s.id === "52w_high");
+    const initialScreener = has52wHigh ? "52w_high" : defaultScreener;
 
     if (resetActive) {
-      state.setActiveScreener(defaultScreener);
+      state.setActiveScreener(initialScreener);
       state.setActiveProvider("upstox");
       state.setActiveMode("intraday");
       state.setSortColumn("score");
       state.setSortDirection("asc");
     }
   } catch {
-    state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
-    state.setActiveScreener("trending");
     state.setProfileMetaById({});
+    state.setScreenerOptions(DEFAULT_SCREENER_OPTIONS);
+    state.setActiveScreener("52w_high");
   }
 }
 

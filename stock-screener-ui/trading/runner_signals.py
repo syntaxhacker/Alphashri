@@ -256,14 +256,6 @@ class RunnerSignalsMixin:
         if not self.is_market_open():
             return []
 
-        today = self._ist_now().date()
-        if not hasattr(self, '_swing_last_scan_date'):
-            self._swing_last_scan_date: dict = {}
-        last_date = self._swing_last_scan_date.get(strategy_id)
-        if last_date == today:
-            return []
-        self._swing_last_scan_date[strategy_id] = today
-
         # Use provided watchlist or fall back to shared
         if watchlist is None:
             watchlist = self.watchlist
@@ -271,9 +263,20 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
+        today = self._ist_now().date()
+        if not hasattr(self, '_swing_entered_today'):
+            self._swing_entered_today: dict = {}
+        if self._swing_entered_today.get('_date') != today:
+            self._swing_entered_today.clear()
+            self._swing_entered_today['_date'] = today
+        if strategy_id not in self._swing_entered_today:
+            self._swing_entered_today[strategy_id] = set()
+
         for symbol in watchlist:
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
+                continue
+            if symbol in self._swing_entered_today[strategy_id]:
                 continue
 
             if symbol in self.cooldown_stocks:
@@ -317,6 +320,7 @@ class RunnerSignalsMixin:
                 scan_item['side'] = 'LONG'
                 scan_item['reason'] = signal.notes or ''
 
+                self._swing_entered_today[strategy_id].add(symbol)
                 new_signals.append(signal)
                 runner.signals_generated += 1
                 console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {symbol} @ ₹{signal.price:.2f}[/green]")
@@ -361,9 +365,6 @@ class RunnerSignalsMixin:
         if not validation:
             return False
 
-        if not position:
-            return False
-
         if validation.get('rejected'):
             console.print(f"[red]{runner.strategy_name}: Signal rejected - {validation['reason']}[/red]")
             for item in getattr(runner, 'last_scan_items', []):
@@ -378,6 +379,9 @@ class RunnerSignalsMixin:
                 signal_type=signal.signal_type.value,
                 reason=validation['reason'],
             )
+            return False
+
+        if not position:
             return False
 
         send_trade_entry(

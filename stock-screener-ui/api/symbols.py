@@ -24,21 +24,20 @@ def _load_instruments():
         return _instruments_cache
 
     try:
-        from db.database import SessionLocal
-        from db.models import Instrument
-
         db = SessionLocal()
         instruments = db.query(Instrument).filter(
             Instrument.segment == 'NSE_EQ'
         ).all()
         _instruments_cache = [i.to_dict() for i in instruments]
         _instruments_loaded = True
-        print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
         db.close()
+        if _instruments_cache:
+            print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
+        else:
+            print("⚠️ Database has 0 NSE_EQ instruments — symbol search will be empty")
         return _instruments_cache
     except Exception as e:
         print(f"⚠️ Failed to load instruments from database: {e}")
-        _instruments_cache = []
         _instruments_loaded = True
         return _instruments_cache
 

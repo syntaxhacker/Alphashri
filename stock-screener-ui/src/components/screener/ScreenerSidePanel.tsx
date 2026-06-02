@@ -1,11 +1,9 @@
 import {
   Stack,
   Text,
-  Badge,
   Select,
   NumberInput,
   Divider,
-  Group,
   Box,
   Button,
 } from "@mantine/core";
@@ -20,15 +18,36 @@ interface Props {
   sortDirection: SortDirection;
 }
 
+/** Mantine Select expects { value, label }[]; API may send string[] or number[]. */
+export function normalizeSelectFilterOptions(
+  options: ProfileFilter["options"],
+): { value: string; label: string }[] {
+  if (!options?.length) return [];
+  return options.map((opt) => {
+    if (typeof opt === "object" && opt !== null && "value" in opt) {
+      const v = String(opt.value);
+      return { value: v, label: opt.label ?? v };
+    }
+    const v = String(opt);
+    return { value: v, label: v };
+  });
+}
+
+/** Side panel only when profile has API-backed filter controls (not indicators/sort — those live in the table). */
+export function screenerHasSideFilters(activeScreener: string): boolean {
+  const filters = state.profileMetaById[activeScreener]?.filters;
+  return Array.isArray(filters) && filters.length > 0;
+}
+
 export function ScreenerSidePanel({
   activeScreener,
-  screenerOptions,
-  sortColumn,
-  sortDirection,
 }: Props) {
-  const activeOption = screenerOptions.find((o) => o.id === activeScreener);
   const profileMeta = state.profileMetaById[activeScreener];
   const filters = profileMeta?.filters || [];
+
+  if (filters.length === 0) {
+    return null;
+  }
 
   const handleFilterChange = (key: string, value: number | string | null) => {
     const newFilters = { ...state.profileFilters };
@@ -44,25 +63,23 @@ export function ScreenerSidePanel({
     fetchData("upstox", "intraday", activeScreener, "manual");
   };
 
-  const handleSortChange = (column: string) => {
-    if (state.sortColumn === column) {
-      state.setSortDirection(state.sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      state.setSortColumn(column);
-      state.setSortDirection("desc");
-    }
-  };
-
   const renderFilter = (filter: ProfileFilter) => {
     const value = state.profileFilters[filter.key];
 
     if (filter.type === "select" && filter.options) {
+      const selectData = normalizeSelectFilterOptions(filter.options);
+      const selected =
+        value !== undefined && value !== null && value !== ""
+          ? String(value)
+          : filter.default !== undefined
+            ? String(filter.default)
+            : null;
       return (
         <Select
           key={filter.key}
           label={filter.label}
-          data={filter.options}
-          value={(value as string) || null}
+          data={selectData}
+          value={selected}
           onChange={(val) => handleFilterChange(filter.key, val)}
           size="xs"
           clearable
@@ -87,88 +104,24 @@ export function ScreenerSidePanel({
   return (
     <Box
       style={{
-        width: 220,
-        padding: 12,
+        width: 148,
+        padding: 6,
         borderRight: "1px solid var(--mantine-color-default-border)",
         backgroundColor: "var(--mantine-color-body)",
         overflowY: "auto",
+        flexShrink: 0,
       }}
+      data-testid="screener-side-panel"
     >
-      <Stack gap="xs">
-        <Text fw={600} size="sm">
-          SCREENER
+      <Stack gap={4}>
+        <Text size="10px" fw={600} c="dimmed" tt="uppercase">
+          Filters
         </Text>
-
-        {activeOption && (
-          <>
-            <Text size="sm" fw={500}>
-              {activeOption.label}
-            </Text>
-            {activeOption.description && (
-              <Text size="xs" c="dimmed" lineClamp={2}>
-                {activeOption.description}
-              </Text>
-            )}
-          </>
-        )}
-
-        {activeOption?.indicators && activeOption.indicators.length > 0 && (
-          <>
-            <Divider my={4} />
-            <Text size="xs" fw={600} c="dimmed">
-              INDICATORS
-            </Text>
-            <Group gap={4}>
-              {activeOption.indicators.map((ind) => (
-                <Badge key={ind} size="sm" variant="light" color="blue">
-                  {ind}
-                </Badge>
-              ))}
-            </Group>
-          </>
-        )}
-
-        {filters.length > 0 && (
-          <>
-            <Divider my={4} />
-            <Text size="xs" fw={600} c="dimmed">
-              FILTERS
-            </Text>
-            <Stack gap="xs">{filters.map(renderFilter)}</Stack>
-          </>
-        )}
-
-        <Divider my={4} />
-
-        <Text size="xs" fw={600} c="dimmed">
-          SORT
-        </Text>
-        {profileMeta?.default_sort && (
-          <Button
-            size="xs"
-            variant={sortColumn === profileMeta.default_sort.column ? "filled" : "light"}
-            color={sortColumn === profileMeta.default_sort.column ? "blue" : "gray"}
-            onClick={() => handleSortChange(profileMeta.default_sort!.column)}
-            fullWidth
-          >
-            {profileMeta.default_sort.column}{" "}
-            {sortColumn === profileMeta.default_sort.column &&
-              (sortDirection === "asc" ? "↑" : "↓")}
-          </Button>
-        )}
-
-        {filters.length > 0 && (
-          <>
-            <Divider my={4} />
-            <Text
-              size="xs"
-              style={{ cursor: "pointer", textDecoration: "underline" }}
-              onClick={handleApplyFilters}
-            >
-              Apply Filters
-            </Text>
-          </>
-        )}
+        <Stack gap={4}>{filters.map(renderFilter)}</Stack>
+        <Divider my={2} />
+        <Button size="xs" variant="light" onClick={handleApplyFilters} fullWidth>
+          Apply filters
+        </Button>
       </Stack>
     </Box>
   );

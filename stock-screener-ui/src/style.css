@@ -116,7 +116,11 @@ textarea {
 
 .app-page-content > .screener-page,
 .app-page-content .screener-page {
-  height: calc(100vh - 52px - var(--mantine-spacing-sm) * 3) !important;
+  height: calc(100vh - 52px - var(--mantine-spacing-xs) * 2) !important;
+}
+
+.screener-profile-rail .mantine-NavLink-root {
+  border-radius: var(--mantine-radius-sm);
 }
 
 .app-page-content > .sector-page,
@@ -144,11 +148,8 @@ textarea {
   display: flex;
   gap: 8px;
 }
-.screener-nav {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  margin-bottom: 8px;
+.screener-nav.screener-profile-rail {
+  margin-bottom: 0;
 }
 .status {
   font-size: var(--font-size-sm);

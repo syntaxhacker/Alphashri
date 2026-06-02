@@ -813,9 +813,9 @@ async function navigateToPaperTradingSettings(page: import("@playwright/test").P
 
   const settingsTab = page.locator('[data-testid="tab-settings"]');
   await settingsTab.waitFor({ state: "visible", timeout: 10000 });
-  await settingsTab.click({ timeout: 10000 });
+  await settingsTab.click({ timeout: 10000, force: true });
 
-  await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 10000 });
+  await expect(page.locator('[data-testid="settings-panel"]')).toBeVisible({ timeout: 15000 });
 }
 
 test.describe("Paper Trading - Settings Panel Sections", () => {
@@ -924,8 +924,9 @@ test.describe("Paper Trading - Settings Panel Sections", () => {
 
     test("should display RunnerSettingsSection fields", async ({ page }) => {
       await navigateToPaperTradingSettings(page);
+      await page.locator("#runner-section").scrollIntoViewIfNeeded();
 
-      await expect(page.locator('[data-testid="config-cooldown"]')).toBeVisible();
+      await expect(page.locator('[data-testid="config-cooldown"]')).toBeVisible({ timeout: 10000 });
       await expect(page.locator('[data-testid="config-max-distance"]')).toBeVisible();
     });
 

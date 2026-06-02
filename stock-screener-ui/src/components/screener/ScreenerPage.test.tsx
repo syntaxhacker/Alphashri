@@ -31,7 +31,6 @@ vi.mock("./ScreenerHeader", () => ({
   ScreenerHeader: (props: any) => (
     <div
       data-testid="screener-header"
-      data-title={props.title}
       data-status={props.status}
       data-loading={props.isLoading}
       data-auto-refresh={props.autoRefreshSeconds}
@@ -90,10 +89,10 @@ vi.mock("./ScreenerTable", () => ({
   ),
 }));
 
-vi.mock("./ScreenerHeatmap", () => ({
-  ScreenerHeatmap: (props: any) => (
+vi.mock("./ScreenerHeatmapView", () => ({
+  ScreenerHeatmapView: (props: any) => (
     <div
-      data-testid={props["data-testid"] || "screener-heatmap"}
+      data-testid={props.testId || "screener-heatmap"}
       data-stocks-count={props.stocks.length}
     >
       {props.stocks.map((stock: Stock) => (
@@ -140,7 +139,9 @@ vi.mock("../../state", () => ({
   setSortDirection: vi.fn(),
   sortColumn: null,
   sortDirection: "desc",
-  profileMetaById: {},
+  profileMetaById: {
+    trending: { section_labels: { primary: "Approaching", secondary: "Touched" } },
+  },
   selectedSymbols: [] as string[],
   toggleSymbolSelection: vi.fn(),
   setSelectedSymbols: vi.fn(),
@@ -371,14 +372,13 @@ describe("ScreenerPage", () => {
     expect(defaultProps.onScreenerChange).toHaveBeenCalledWith("new-highs");
   });
 
-  it("renders header with correct title and status", () => {
+  it("renders header with correct status", () => {
     render(
       <MantineProvider>
         <ScreenerPage {...defaultProps} />
       </MantineProvider>,
     );
     const header = screen.getByTestId("screener-header");
-    expect(header).toHaveAttribute("data-title", "Trending | Alphashri");
     expect(header).toHaveAttribute("data-status", "3 stocks");
   });
 

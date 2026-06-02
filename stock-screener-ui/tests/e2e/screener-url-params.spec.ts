@@ -38,7 +38,7 @@ test.describe("Screener - URL Params", () => {
       force: true,
     });
 
-    await expect(page).toHaveURL(/screener=builtin%3Atrending/);
+    await expect(page).toHaveURL(/screener=trending/);
   });
 
   test("should preserve URL screener param across tab switches", async ({ page }) => {
@@ -46,7 +46,7 @@ test.describe("Screener - URL Params", () => {
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
     await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("button", { name: "Create" })).toBeVisible({ timeout: 10000 });
 
     await page.click('[data-testid="tab-screener"]');
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });

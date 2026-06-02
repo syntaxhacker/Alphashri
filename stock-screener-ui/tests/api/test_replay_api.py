@@ -31,7 +31,7 @@ class TestReplayAPI:
         mock_runner_class.create_for_replay.return_value = mock_runner
 
         # Simulate replay events via on_event callback
-        def fake_run_replay(date_str, symbols, strategy_filter, on_event):
+        def fake_run_replay(date_str, symbols, strategy_filter, on_event, end_date_str=None):
             on_event({
                 "type": "started",
                 "date": date_str,
@@ -182,7 +182,7 @@ class TestReplayAPI:
         mock_runner_class.create_for_replay.return_value = mock_runner
         mock_runner.run_replay.return_value = None
 
-        payload = {"date": "2026-04-25", "symbols": "RELIANCE,TCS"}
+        payload = {"date": "2026-04-25", "symbols": ["RELIANCE", "TCS"]}
         response = client.post("/api/replay/run", json=payload)
         assert response.status_code == 200
         # _get_dynamic_watchlist should not be called because symbols provided

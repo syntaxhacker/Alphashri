@@ -40,7 +40,7 @@ export let sortDirection: SortDirection = "desc";
 
 // Screener state
 export let screenerOptions: ScreenerOption[] = [];
-export let activeScreener = "trending";
+export let activeScreener = "52w_high";
 export let profileMetaById: Record<string, ProfileMeta> = {};
 export let profileFilters: Record<string, number | string> = {};
 

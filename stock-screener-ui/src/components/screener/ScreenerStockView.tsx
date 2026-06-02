@@ -1,18 +1,20 @@
 import { ScreenerTable } from "./ScreenerTable";
-import { ScreenerHeatmap } from "./ScreenerHeatmap";
+import { ScreenerHeatmapView } from "./ScreenerHeatmapView";
 import type { Stock, ColumnDef } from "../../types";
 
 interface ScreenerStockViewProps {
   stocks: Stock[];
   columns: ColumnDef[];
   touchedSymbols: Set<string>;
+  badgeLabel?: string;
+  scoreFormula?: string;
   sortColumn: string;
   sortDirection: "asc" | "desc";
   onSortChange: (column: string) => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   viewMode: "table" | "heatmap";
-  section: "approaching" | "touched";
+  section: string;
   activeScreener: string;
 }
 
@@ -20,6 +22,8 @@ export function ScreenerStockView({
   stocks,
   columns,
   touchedSymbols,
+  badgeLabel,
+  scoreFormula,
   sortColumn,
   sortDirection,
   onSortChange,
@@ -31,13 +35,11 @@ export function ScreenerStockView({
 }: ScreenerStockViewProps) {
   if (viewMode === "heatmap") {
     return (
-      <ScreenerHeatmap
+      <ScreenerHeatmapView
         stocks={stocks}
-        columns={columns}
-        touchedSymbols={touchedSymbols}
+        activeScreener={activeScreener}
         onSymbolClick={onSymbolClick}
-        onSymbolHover={onSymbolHover}
-        data-testid={`screener-heatmap-${section}`}
+        testId={`screener-heatmap-${section}`}
       />
     );
   }
@@ -47,6 +49,8 @@ export function ScreenerStockView({
       stocks={stocks}
       columns={columns}
       touchedSymbols={touchedSymbols}
+      badgeLabel={badgeLabel}
+      scoreFormula={scoreFormula}
       sortColumn={sortColumn}
       sortDirection={sortDirection}
       onSortChange={onSortChange}

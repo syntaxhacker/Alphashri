@@ -12,9 +12,11 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         self.near_high_threshold_pct = float(config.get("near_high_threshold_pct", 3.0))
         self.min_days_since_52w_high = int(config.get("min_days_since_52w_high", 20))
         self.max_holding_days = int(config.get("max_holding_days", 30))
+        self.sl_pct = float(config.get("sl_pct", 5.0))
+        self.min_avg_volume = float(config.get("min_avg_volume", 50000))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 30))
-        super().__init__(sl_pct=0, tp_pct=0, eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
+        super().__init__(sl_pct=self.sl_pct, tp_pct=0, eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")
@@ -22,6 +24,9 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         days_since = market_data.get("days_since_52w_high")
 
         if not all([current_price, high_52w, days_since is not None]):
+            return None
+
+        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
             return None
 
         # Already at or above 52W high — no entry
@@ -37,11 +42,12 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
             return None
 
         take_profit = round(high_52w, 2)
+        stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
         return self.create_signal(
             symbol=symbol,
             signal_type=SignalType.LONG_ENTRY,
             price=round(current_price, 2),
-            stop_loss=0,
+            stop_loss=stop_loss,
             take_profit=take_profit,
             or_high=round(high_52w, 2),
             notes=f"Blind 52W: {pct_from_high:.1f}% below 52W high ₹{high_52w:.2f}, {days_since}d drought | threshold={self.near_high_threshold_pct}% min_days={self.min_days_since_52w_high}",

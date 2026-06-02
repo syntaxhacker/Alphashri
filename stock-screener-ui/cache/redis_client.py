@@ -453,6 +453,11 @@ def invalidate_screener_cache() -> int:
     return deleted
 
 
+def invalidate_52w_range_cache() -> int:
+    """Remove Redis 52W range bulk/per-symbol keys (DB unchanged)."""
+    return cache_delete_pattern("52w_range:*")
+
+
 # ======
 # Stale-While-Revalidate + Singleflight
 # ======

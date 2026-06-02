@@ -52,7 +52,6 @@ vi.mock("@mantine/core", async (importOriginal) => {
 
 describe("ScreenerHeader", () => {
   const defaultProps = {
-    title: "Trending | Alphashri",
     status: "5 stocks",
     isLoading: false,
     autoRefreshSeconds: 60,
@@ -74,14 +73,13 @@ describe("ScreenerHeader", () => {
     cleanup();
   });
 
-  it("renders header with title and status", () => {
+  it("renders compact header with status", () => {
     render(
       <MantineProvider>
         <ScreenerHeader {...defaultProps} />
       </MantineProvider>,
     );
     expect(screen.getByTestId("screener-header")).toBeInTheDocument();
-    expect(screen.getByText("Trending | Alphashri")).toBeInTheDocument();
     expect(screen.getByText("5 stocks")).toBeInTheDocument();
   });
 
@@ -155,7 +153,7 @@ describe("ScreenerHeader", () => {
     const select = screen.getByTestId("provider-select");
     expect(select).toHaveValue("upstox");
     expect(screen.getByText("Upstox")).toBeInTheDocument();
-    expect(screen.getByText("INDMONEY")).toBeInTheDocument();
+    expect(screen.getByText("IND")).toBeInTheDocument();
   });
 
   it("calls onProviderChange when provider changes", () => {
@@ -177,7 +175,7 @@ describe("ScreenerHeader", () => {
     );
     const select = screen.getByTestId("mode-select");
     expect(select).toHaveValue("intraday");
-    expect(screen.getByText("Intraday")).toBeInTheDocument();
+    expect(screen.getByText("Intra")).toBeInTheDocument();
     expect(screen.getByText("5D")).toBeInTheDocument();
   });
 
@@ -232,54 +230,14 @@ describe("ScreenerHeader", () => {
     expect(screen.getByTestId("view-heatmap")).toBeInTheDocument();
   });
 
-  it("renders all control groups", () => {
+  it("renders header controls", () => {
     render(
       <MantineProvider>
         <ScreenerHeader {...defaultProps} />
       </MantineProvider>,
     );
     expect(screen.getByTestId("header-controls")).toBeInTheDocument();
-    expect(screen.getByTestId("auto-refresh-group")).toBeInTheDocument();
-    expect(screen.getByTestId("provider-group")).toBeInTheDocument();
-    expect(screen.getByTestId("mode-group")).toBeInTheDocument();
-    expect(screen.getByTestId("view-group")).toBeInTheDocument();
-  });
-
-  it("shows auto-refresh label", () => {
-    render(
-      <MantineProvider>
-        <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
-    );
-    expect(screen.getByText("Auto-refresh")).toBeInTheDocument();
-    expect(screen.getByText("sec")).toBeInTheDocument();
-  });
-
-  it("shows provider label", () => {
-    render(
-      <MantineProvider>
-        <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
-    );
-    expect(screen.getByText("Provider")).toBeInTheDocument();
-  });
-
-  it("shows mode label", () => {
-    render(
-      <MantineProvider>
-        <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
-    );
-    expect(screen.getByText("Mode")).toBeInTheDocument();
-  });
-
-  it("shows view as label on small screens", () => {
-    render(
-      <MantineProvider>
-        <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
-    );
-    expect(screen.getByText("View as")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-view-toggle")).toBeInTheDocument();
   });
 
   it("handles zero auto-refresh value", () => {
@@ -333,15 +291,6 @@ describe("ScreenerHeader", () => {
     const modeSelect = screen.getByTestId("mode-select");
     fireEvent.change(modeSelect, { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("renders with custom title", () => {
-    render(
-      <MantineProvider>
-        <ScreenerHeader {...defaultProps} title="Custom Title" />
-      </MantineProvider>,
-    );
-    expect(screen.getByText("Custom Title")).toBeInTheDocument();
   });
 
   it("renders with custom status", () => {

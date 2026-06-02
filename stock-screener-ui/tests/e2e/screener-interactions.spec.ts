@@ -24,13 +24,17 @@ test.describe("Screener - Interactions", () => {
       timeout: 10000,
     });
 
-    // Dispatch click on hidden radio (view toggle is hidden on desktop via hiddenFrom="sm")
-    await page.locator('[data-testid="screener-view-toggle"] input[value="heatmap"]').dispatchEvent("click");
+    await page.waitForSelector('[data-testid="screener-table-body"] .mantine-Table-tr', {
+      timeout: 10000,
+    });
 
-    // Verify heatmap content is displayed with stock cards
-    const heatmap = page.locator('[data-testid="screener-heatmap"]').first();
+    await page.getByTestId("screener-view-toggle").getByText("Map", { exact: true }).click();
+
+    const heatmap = page.locator('[data-testid^="screener-heatmap-"]').first();
     await expect(heatmap).toBeVisible({ timeout: 5000 });
-    await expect(heatmap.locator('[data-testid^="heatmap-"]').first()).toBeVisible();
+    await expect(
+      page.locator('[data-testid^="screener-heatmap-"][data-testid$="-metric"]').first(),
+    ).toBeVisible();
   });
 
   test("should navigate to chart on symbol click", async ({ page }) => {
@@ -39,18 +43,11 @@ test.describe("Screener - Interactions", () => {
       timeout: 10000,
     });
 
-    const stockSymbolLink = page.locator(
-      '.mantine-Table-tr:first-child [data-testid="stock-symbol"] a',
-    ).first();
-    if ((await stockSymbolLink.count()) > 0) {
-      await stockSymbolLink.click();
-    } else {
-      const firstSymbolLink = page.locator(
-        '.mantine-Table-tr:first-child [data-testid^="symbol-link-"]',
-      ).first();
-      await expect(firstSymbolLink).toBeVisible({ timeout: 5000 });
-      await firstSymbolLink.click();
-    }
+    const stockSymbolLink = page
+      .locator('[data-testid="screener-table-body"] button[data-testid^="symbol-link-"]')
+      .first();
+    await expect(stockSymbolLink).toBeVisible({ timeout: 5000 });
+    await stockSymbolLink.click();
 
     await expect(page).toHaveURL(/\/chart\//);
   });

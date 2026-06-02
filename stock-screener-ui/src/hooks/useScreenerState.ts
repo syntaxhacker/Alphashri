@@ -93,10 +93,11 @@ export function useScreenerState(initialScreener?: string) {
   }, []);
 
   const onScreenerChange = useCallback((screenerId: string) => {
-    state.setActiveScreener(screenerId);
-    fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", screenerId);
+    const cleanId = screenerId.replace(/^builtin:/, "");
+    state.setActiveScreener(cleanId);
+    fetchData(state.data?.provider || "upstox", state.data?.mode || "intraday", cleanId);
     const next = new URLSearchParams(searchParams);
-    next.set("screener", `builtin:${screenerId}`);
+    next.set("screener", cleanId);
     setSearchParams(next, { replace: true });
   }, [searchParams]);
 

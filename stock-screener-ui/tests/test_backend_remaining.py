@@ -196,6 +196,20 @@ class TestWeek52DataCaching:
 
         assert result1 == result2
 
+    def test_week52_low_and_range_from_ohlc(self):
+        from trading.week52_utils import (
+            build_52w_range_from_ohlc,
+            calculate_52w_low,
+        )
+
+        highs = [100, 105, 103, 108, 102, 110, 106, 104, 109, 107, 111]
+        lows = [90, 95, 92, 98, 94, 100, 96, 93, 99, 97, 101]
+        closes = [98, 102, 100, 105, 99, 108, 103, 101, 106, 104, 109]
+
+        assert calculate_52w_low(lows, period=252, exclude_current=True) == 90
+        r = build_52w_range_from_ohlc(highs, lows, closes)
+        assert r == {"high": 110, "low": 90, "close": 109}
+
 
 class TestScenarioScaffold:
     """Placeholder for scenario tests needing real infrastructure."""
