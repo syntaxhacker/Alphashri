@@ -49,7 +49,14 @@ export function ScreenerHeader({
       style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
     >
       <Group justify="space-between" align="center" gap={6} wrap="nowrap">
-        <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }} title={status}>
+        <Text
+          size="xs"
+          c="dimmed"
+          truncate
+          style={{ flex: 1, minWidth: 0 }}
+          title={status}
+          data-testid="status"
+        >
           {status}
         </Text>
         <Group gap={6} align="center" wrap="nowrap" className="header-controls" data-testid="header-controls">

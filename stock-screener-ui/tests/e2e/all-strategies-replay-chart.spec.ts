@@ -108,6 +108,17 @@ async function setupCommonReplayMocks(page: Page) {
       body: JSON.stringify({ holidays: [] }),
     });
   });
+  await page.route(apiRoute("replay/configs"), async (route) => {
+    if (route.request().method() === "GET") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ configs: [] }),
+      });
+      return;
+    }
+    await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
+  });
 }
 
 async function setupReplayMocks(
@@ -278,28 +289,30 @@ async function setupReplayMocks(
   });
 }
 
-async function navigateToReplayAndRun(page: Page) {
+async function fillReplayDate(page: Page, testId: string, value: string) {
+  const input = page.locator(`[data-testid="${testId}"] input`).first();
+  await expect(input).toBeVisible({ timeout: 10000 });
+  await input.click();
+  await input.fill(value);
+  await input.press("Enter");
+  await page.waitForTimeout(400);
+}
+
+async function selectReplaySymbol(page: Page, symbol: string) {
+  const symbolsSelect = page.locator('[data-testid="replay-symbols-select"]');
+  await symbolsSelect.click();
+  const searchInput = symbolsSelect.locator("input").first();
+  await searchInput.fill(symbol);
+  await page.getByRole("option", { name: new RegExp(`^${symbol}\\b`) }).first().click({ timeout: 10000 });
+}
+
+async function navigateToReplayAndRun(page: Page, symbol = "TCS") {
   await page.goto("/replay");
   await page.waitForSelector('[data-testid="replay-page"]', { timeout: 15000 });
 
-  const dateInput = page.locator('[data-testid="replay-date-input"]');
-  await expect(dateInput).toBeVisible({ timeout: 10000 });
-  await dateInput.click();
-  await page.waitForTimeout(500);
-
-  const calendarDay = page.locator(".mantine-DatePickerInput-day").filter({ hasText: "2" }).first();
-  if (await calendarDay.isVisible({ timeout: 3000 }).catch(() => false)) {
-    await calendarDay.click();
-    await page.waitForTimeout(500);
-  } else {
-    const inputEl = dateInput.locator("input").first();
-    if (await inputEl.isVisible({ timeout: 2000 }).catch(() => false)) {
-      await inputEl.click();
-      await inputEl.fill("02 Mar 2026");
-      await inputEl.press("Enter");
-      await page.waitForTimeout(500);
-    }
-  }
+  await fillReplayDate(page, "replay-date-from", "02 Mar 2026");
+  await fillReplayDate(page, "replay-date-to", "02 Mar 2026");
+  await selectReplaySymbol(page, symbol);
 
   const runBtn = page.locator('[data-testid="replay-run-btn"]');
   await expect(runBtn).toBeEnabled({ timeout: 5000 });
@@ -341,7 +354,7 @@ test.describe("Replay Chart - SR Breakout Strategy", () => {
       trades: srBreakoutTrades,
       pivotLevels: [{ date: "2026-03-02", pp: 2520, r1: 2560, s1: 2480, r2: 2590, s2: 2450 }],
     });
-    await navigateToReplayAndRun(page);
+    await navigateToReplayAndRun(page, "RELIANCE");
     await expect(page.locator('[data-testid="replay-chart"]')).toBeVisible({ timeout: 15000 });
   });
 
@@ -350,7 +363,7 @@ test.describe("Replay Chart - SR Breakout Strategy", () => {
       trades: srBreakoutTrades,
       pivotLevels: [{ date: "2026-03-02", pp: 2520, r1: 2560, s1: 2480, r2: 2590, s2: 2450 }],
     });
-    await navigateToReplayAndRun(page);
+    await navigateToReplayAndRun(page, "RELIANCE");
     await expect(page.locator('[data-testid="replay-show-pivot"]')).toBeVisible({ timeout: 10000 });
   });
 });
@@ -366,13 +379,13 @@ test.describe("Replay Chart - EMA Cross Strategy", () => {
         },
       },
     });
-    await navigateToReplayAndRun(page);
+    await navigateToReplayAndRun(page, "INFY");
     await expect(page.locator('[data-testid="replay-chart"]')).toBeVisible({ timeout: 15000 });
   });
 
   test("should show EMA toggle control", async ({ page }) => {
     await setupReplayMocks(page, { trades: emaCrossTrades });
-    await navigateToReplayAndRun(page);
+    await navigateToReplayAndRun(page, "INFY");
     await expect(page.locator('[data-testid="replay-show-ema"]')).toBeVisible({ timeout: 10000 });
   });
 });
@@ -403,7 +416,7 @@ test.describe("Replay Chart - 52W Target Strategy", () => {
       trades: target52wTrades,
       week52Levels: { RELIANCE: { high_52w: 2600, low_52w: 2200, distance_to_high_pct: 3.0 } },
     });
-    await navigateToReplayAndRun(page);
+    await navigateToReplayAndRun(page, "RELIANCE");
     await expect(page.locator('[data-testid="replay-chart"]')).toBeVisible({ timeout: 15000 });
   });
 });
@@ -435,8 +448,8 @@ test.describe("Replay Chart - Config Panel", () => {
     await page.waitForSelector('[data-testid="replay-page"]', { timeout: 15000 });
 
     await expect(page.locator('[data-testid="replay-config"]')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-testid="replay-date-input"]')).toBeVisible();
-    await expect(page.locator('[data-testid="replay-strategy-select"]')).toBeVisible();
+    await expect(page.locator('[data-testid="replay-date-from"]')).toBeVisible();
+    await expect(page.locator('[data-testid="replay-date-to"]')).toBeVisible();
     await expect(page.locator('[data-testid="replay-symbols-select"]')).toBeVisible();
     await expect(page.locator('[data-testid="replay-run-btn"]')).toBeVisible();
   });

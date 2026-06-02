@@ -40,7 +40,7 @@ test.describe("Screener - Interactions", () => {
     });
 
     const stockSymbolLink = page.locator(
-      '.mantine-Table-tr:first-child [data-testid="stock-symbol"] a',
+      '.mantine-Table-tr:first-child button[data-testid^="symbol-link-"]',
     ).first();
     if ((await stockSymbolLink.count()) > 0) {
       await stockSymbolLink.click();

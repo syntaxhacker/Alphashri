@@ -30,10 +30,10 @@ test.describe("Screener - Data Display", () => {
       timeout: 10000,
     });
     const firstSymbol = page.locator(
-      '.mantine-Table-tr:first-child [data-testid="stock-symbol"] a',
+      '.mantine-Table-tr:first-child button[data-testid^="symbol-link-"]',
     );
     if ((await firstSymbol.count()) > 0) {
-      expect(await firstSymbol.getAttribute("href")).toContain("/chart/");
+      await expect(firstSymbol.first()).toBeVisible();
     }
   });
   test("should display approaching and touched sections", async ({ page }) => {
