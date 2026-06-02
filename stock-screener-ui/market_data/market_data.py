@@ -122,6 +122,14 @@ def fetch_candles(
                 symbol=symbol.upper(),
                 interval=str(interval),
             )
+            if df is None or df.empty:
+                df = api.fetch_historical_data_v3(
+                    symbol=symbol.upper(),
+                    unit=unit,
+                    interval=interval,
+                    to_date=to_date,
+                    from_date=from_date,
+                )
         else:
             df = api.fetch_historical_data_v3(
                 symbol=symbol.upper(),

@@ -38,6 +38,7 @@ from api.screener import (
     PROFILES_WITH_52W_BUCKETS, _profile_meta, _passes_profile_filters,
     _build_rationale, _to_float,
 )
+from api.screener_api.screener_scan import _enrich_with_touch_history
 from db.database import SessionLocal
 from db.models import Stock52WeekTouch, Screener
 from db.models.user import User
@@ -88,138 +89,151 @@ async def screener_prewarm_task():
         except Exception:
             await asyncio.sleep(PREWARM_INTERVAL)
 
-def _enrich_with_touch_history(data, screener):
-    """Enrich screener results with historical 52w touch information.
 
-    Queries the database for the most recent 52w high touch for each symbol
-    and updates the stock data with last_touched info. Also adjusts
-    touched_52w and moves stocks from approaching to touched if they
-    touched within the recent window (7 calendar days ~= 5 trading days).
-    """
-    from datetime import timedelta
+_52W_RANGE_CACHE_TTL = 600
 
-    # Collect all symbols
-    approaching = data.get('approaching', [])
-    touched = data.get('touched', [])
-    all_stocks = approaching + touched
-    if not all_stocks:
-        return
 
-    symbols = [s['symbol'] for s in all_stocks if s.get('symbol')]
-    if not symbols:
-        return
-
-    # Look back 7 calendar days to cover ~5 trading days
-    cutoff_date = datetime.now() - timedelta(days=7)
-
-    touch_map = {}
-    try:
-        db = SessionLocal()
+def _sanitize_52w_range_entry(info) -> dict | None:
+    """Return {high, low, close} floats or None if any value is missing/non-finite."""
+    import math
+    if not isinstance(info, dict):
+        return None
+    out = {}
+    for key in ("high", "low", "close"):
+        val = info.get(key)
+        if val is None:
+            return None
         try:
-            # Get the most recent touch per symbol within the lookback window
-            recent_touches = (
-                db.query(Stock52WeekTouch)
-                .filter(
-                    Stock52WeekTouch.symbol.in_(symbols),
-                    Stock52WeekTouch.touched_date >= cutoff_date,
-                    Stock52WeekTouch.is_high == True,
-                )
-                .order_by(Stock52WeekTouch.symbol, Stock52WeekTouch.touched_date.desc())
-                .all()
-            )
-            # Keep only the most recent per symbol
-            for touch in recent_touches:
-                if touch.symbol not in touch_map:
-                    touch_map[touch.symbol] = touch
-        finally:
-            db.close()
-    except Exception:
-        # DB not available or query failed — skip enrichment
-        pass
-
-    # Build a map of symbol -> last_touched info for ALL symbols
-    # (including those without recent touches)
-    last_touched_info = {}
-    try:
-        db = SessionLocal()
+            fval = float(val)
+        except (TypeError, ValueError):
+            return None
+        if not math.isfinite(fval):
+            return None
+        out[key] = fval
+    days = info.get("days_ago")
+    if days is not None:
         try:
-            # Get the single most recent touch EVER for each symbol
-            from sqlalchemy import func
-            subq = (
-                db.query(
-                    Stock52WeekTouch.symbol,
-                    func.max(Stock52WeekTouch.touched_date).label('max_date')
-                )
-                .filter(Stock52WeekTouch.symbol.in_(symbols))
-                .group_by(Stock52WeekTouch.symbol)
-                .subquery()
-            )
-            latest_touches = (
-                db.query(Stock52WeekTouch)
-                .join(subq,
-                      (Stock52WeekTouch.symbol == subq.c.symbol) &
-                      (Stock52WeekTouch.touched_date == subq.c.max_date))
-                .all()
-            )
-            for touch in latest_touches:
-                last_touched_info[touch.symbol] = {
-                    'date': touch.touched_date,
-                    'price': touch.touched_price,
-                }
-        finally:
-            db.close()
+            out["days_ago"] = max(0, int(days))
+        except (TypeError, ValueError):
+            pass
+    return out
+
+
+def _sanitize_52w_ranges_bulk(data: dict) -> dict:
+    if not isinstance(data, dict):
+        return {}
+    return {
+        symbol: entry
+        for symbol, info in data.items()
+        if (entry := _sanitize_52w_range_entry(info)) is not None
+    }
+
+
+def _store_52w_ranges_in_redis(data: dict):
+    """Store 52W ranges per-symbol and as bulk JSON in Redis."""
+    from cache.redis_client import cache_set
+    clean = _sanitize_52w_ranges_bulk(data)
+    for symbol, info in clean.items():
+        cache_set(f"52w_range:{symbol}", info, ttl=_52W_RANGE_CACHE_TTL)
+    cache_set("52w_range:all", clean, ttl=_52W_RANGE_CACHE_TTL)
+
+
+def _load_52w_ranges_from_redis() -> dict:
+    """Load 52W ranges from Redis (bulk key) or return empty dict."""
+    from cache.redis_client import cache_get
+    data = cache_get("52w_range:all")
+    return data if isinstance(data, dict) else {}
+
+
+def _persist_52w_ranges_to_db(data: dict):
+    """Upsert 52W ranges into DB. Bulk replace for simplicity (~4000 rows)."""
+    from db.database import SessionLocal
+    from db.models.stock_52w_touch import Stock52WeekRange
+
+    db = SessionLocal()
+    try:
+        existing = {r.symbol: r for r in db.query(Stock52WeekRange).all()}
+        to_add = []
+        to_update = []
+        now = datetime.now()
+        for symbol, info in data.items():
+            cur = existing.get(symbol)
+            if cur:
+                if (
+                    cur.high_52w != info['high']
+                    or cur.low_52w != info['low']
+                    or cur.close != info['close']
+                ):
+                    cur.high_52w = info['high']
+                    cur.low_52w = info['low']
+                    cur.close = info['close']
+                    cur.updated_at = now
+                    to_update.append(cur)
+            else:
+                to_add.append(Stock52WeekRange(
+                    symbol=symbol, high_52w=info['high'],
+                    low_52w=info['low'], close=info['close'],
+                    updated_at=now,
+                ))
+        if to_add:
+            db.add_all(to_add)
+        db.commit()
     except Exception:
-        pass
+        db.rollback()
+    finally:
+        db.close()
 
-    # Process: build new approaching/touched lists based on enriched data
-    new_approaching = []
-    new_touched = []
-    moved_count = 0
 
-    for stock in all_stocks:
-        symbol = stock.get('symbol')
-        touch = touch_map.get(symbol)
-        last_info = last_touched_info.get(symbol)
+async def compute_52w_ranges_task():
+    """Hourly Upstox 52W batch (incremental) + screener cache invalidation when complete."""
+    import os
+    from trading.week52_job_status import get_job_status
 
-        # Add last_touched fields to the stock dict
-        if last_info:
-            stock['last_touched'] = last_info['date'].isoformat()
-            stock['last_touched_price'] = last_info['price']
-        else:
-            stock['last_touched'] = None
-            stock['last_touched_price'] = None
+    interval = int(os.environ.get("SCREENER_52W_INTERVAL_SEC", "3600"))
+    poll_sec = 30
+    max_wait = int(os.environ.get("SCREENER_52W_MAX_WAIT_SEC", "7200"))
 
-        # Determine if stock should be in touched bucket
-        # Criteria: either touched today (original logic) OR touched recently (historical)
-        was_touched_today = stock.get('touched_52w', False)
-        touched_recently = touch is not None
+    while True:
+        try:
+            await asyncio.sleep(interval)
+            job = get_job_status() or {}
+            if job.get("status") == "running":
+                print("[52W Range] Scheduled run skipped — batch already running")
+                continue
 
-        if was_touched_today or touched_recently:
-            # Should be in touched bucket
-            stock['touched_52w'] = True
-            if not was_touched_today:
-                moved_count += 1
-            new_touched.append(stock)
-        else:
-            # Remains in approaching
-            new_touched.append(stock) if False else None  # keep in approaching
-            new_approaching.append(stock)
+            from api.admin_routes import _run_52w_batch_subprocess
 
-    # Replace the lists
-    data['approaching'] = new_approaching
-    data['touched'] = new_touched
+            print(f"[52W Range] Starting scheduled incremental batch (every {interval}s)")
+            await asyncio.to_thread(_run_52w_batch_subprocess, True, True, 0)
 
-    # Update summary if any stocks were moved
-    if moved_count > 0:
-        data['_debug_moved_by_history'] = moved_count
+            waited = 0
+            while waited < max_wait:
+                await asyncio.sleep(poll_sec)
+                waited += poll_sec
+                job = get_job_status() or {}
+                st = job.get("status")
+                if st in ("completed", "failed", None, "idle"):
+                    break
+
+            from cache.redis_client import invalidate_screener_cache
+
+            n = invalidate_screener_cache()
+            print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[52W Range] Scheduled task error: {e}")
+            await asyncio.sleep(300)
 
 
 def _compute_screener(provider, mode, screener, profile_filters):
+    screener_id = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     data = fetch_screener_data(provider, mode, screener, profile_filters)
     data['applied_profile_filters'] = profile_filters
 
-    # Enrich with historical 52w touch data
-    _enrich_with_touch_history(data, screener)
+    # 52w_high already enriches touch history inside fetch_52w_high_data
+    if screener_id != '52w_high':
+        _enrich_with_touch_history(data, screener)
 
     return _sanitize_for_json(data)
 
@@ -228,6 +242,7 @@ def _compute_screener(provider, mode, screener, profile_filters):
 async def lifespan(app: FastAPI):
     print(f'🚀 Alphashri API starting...')
     prewarm = None
+    _52w_task = None
     news_poller = None
     try:
         from db.database import init_db
@@ -257,13 +272,23 @@ async def lifespan(app: FastAPI):
             print("🔄 Screener pre-warm started")
         except Exception as e:
             print(f"⚠️ Screener prewarm failed: {e}")
+
+        try:
+            _52w_task = asyncio.create_task(compute_52w_ranges_task())
+            print("📊 52W Range background task started")
+        except Exception as e:
+            print(f"⚠️ 52W Range task failed: {e}")
+            _52w_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
         print(traceback.format_exc())
+        _52w_task = None
     yield
     if prewarm:
         prewarm.cancel()
+    if _52w_task:
+        _52w_task.cancel()
     if news_poller:
         news_poller.cancel()
     print("📰 News poller stopped")
@@ -353,7 +378,7 @@ async def get_screeners(user: User = Depends(get_current_user)):
             profile_id = profile['id']
             meta = PROFILE_META.get(profile_id, {})
             filter_list = meta.get('filters', [])
-            merged_profiles.append({
+            entry = {
                 **profile,
                 'id': profile['id'],
                 'source': 'builtin',
@@ -361,7 +386,13 @@ async def get_screeners(user: User = Depends(get_current_user)):
                 'section_labels': meta.get('section_labels', {}),
                 'section_descriptions': meta.get('section_descriptions', {}),
                 'score_formula': meta.get('score_formula', ''),
-            })
+            }
+            if profile_id == '52w_high':
+                entry['status'] = 'current'
+            elif profile_id in ('near_52w_breakout', 'touched_52w_high'):
+                entry['status'] = 'legacy'
+                entry['superseded_by'] = '52w_high'
+            merged_profiles.append(entry)
 
         for s in user_screeners:
             s_dict = s.to_dict()
@@ -377,6 +408,7 @@ async def get_screeners(user: User = Depends(get_current_user)):
         return {
             'default': 'trending',
             'screeners': merged_profiles,
+            'legacy_52w_sections': True,
         }
     finally:
         session.close()
@@ -484,6 +516,7 @@ async def get_screener_data(
     min_stoch_k: float = Query(default=None),
     min_gap_pct: float = Query(default=None),
     min_volume_m: float = Query(default=None),
+    min_turnover_cr: float = Query(default=None),
     min_wick_pct: float = Query(default=None),
     min_interest_score: float = Query(default=None),
     min_impact: float = Query(default=None),
@@ -512,6 +545,8 @@ async def get_screener_data(
         profile_filters['min_gap_pct'] = min_gap_pct
     if min_volume_m is not None:
         profile_filters['min_volume_m'] = min_volume_m
+    if min_turnover_cr is not None:
+        profile_filters['min_turnover_cr'] = min_turnover_cr
     if min_wick_pct is not None:
         profile_filters['min_wick_pct'] = min_wick_pct
     if min_interest_score is not None:
@@ -537,6 +572,52 @@ async def get_screener_data(
     response = JSONResponse(content=data)
     response.headers["X-Cache"] = status
     return response
+
+
+@app.get("/api/52w-range")
+async def get_52w_range(symbol: str = Query(...)):
+    """Get 52-week high/low for a single symbol. Checks Redis first, falls back to DB."""
+    from cache.redis_client import cache_get
+    import asyncio
+
+    cached = await asyncio.to_thread(lambda: cache_get(f"52w_range:{symbol}"))
+    if cached and isinstance(cached, dict):
+        entry = _sanitize_52w_range_entry(cached)
+        if entry:
+            return entry
+
+    from db.database import SessionLocal
+    from db.models.stock_52w_touch import Stock52WeekRange
+
+    db = SessionLocal()
+    try:
+        row = db.query(Stock52WeekRange).filter(Stock52WeekRange.symbol == symbol).first()
+        if row:
+            return {"high": row.high_52w, "low": row.low_52w, "close": row.close}
+        return {"error": "not_found", "symbol": symbol}
+    finally:
+        db.close()
+
+
+@app.get("/api/52w-range/bulk")
+async def get_52w_range_bulk():
+    """Get 52W ranges for all symbols. Returns dict of {symbol: {high, low, close}}."""
+    from cache.redis_client import cache_get
+    import asyncio
+
+    cached = await asyncio.to_thread(_load_52w_ranges_from_redis)
+    if cached:
+        return _sanitize_52w_ranges_bulk(cached)
+
+    from db.database import SessionLocal
+    from db.models.stock_52w_touch import Stock52WeekRange
+
+    db = SessionLocal()
+    try:
+        rows = db.query(Stock52WeekRange).all()
+        return {r.symbol: {"high": r.high_52w, "low": r.low_52w, "close": r.close} for r in rows}
+    finally:
+        db.close()
 
 
 # ======
@@ -675,6 +756,13 @@ try:
     print("✅ Replay API loaded at /api/replay")
 except Exception as e:
     print(f"⚠️ Could not load replay API: {e}")
+
+try:
+    from api.debug_api import router as debug_router
+    app.include_router(debug_router)
+    print("✅ Debug API loaded at /api/debug")
+except Exception as e:
+    print(f"⚠️ Could not load debug API: {e}")
 
 try:
     from api.correlation import router as correlation_router

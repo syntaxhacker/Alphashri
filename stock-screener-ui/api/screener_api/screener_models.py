@@ -1,10 +1,29 @@
 import math
+import os
 from typing import Optional, Dict, Any, List
 
 
 MAX_WORKERS = 10
 
-PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high'}
+
+def touched_52w_gap_threshold_pct() -> float:
+    """Within this % below 52W high (or above = breakout) => 'touched' bucket."""
+    return float(os.environ.get('SCREENER_52W_TOUCHED_GAP_PCT', '1.0'))
+
+
+def gap_pct_to_52w_high(high: float, price: float) -> Optional[float]:
+    """Percent below 52W high (negative = price above high). None if inputs invalid."""
+    if high <= 0 or price <= 0:
+        return None
+    return round(((high - price) / high) * 100, 2)
+
+
+def is_within_52w_touch_gap(gap_pct: float, threshold_pct: Optional[float] = None) -> bool:
+    th = threshold_pct if threshold_pct is not None else touched_52w_gap_threshold_pct()
+    return gap_pct < th
+
+
+PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high', '52w_high'}
 
 PROFILE_META = {
     'trending': {
@@ -65,6 +84,18 @@ PROFILE_META = {
         'default_sort': {'column': 'score', 'direction': 'desc'},
         'score_formula': 'Volume score + Price change score + ATR contribution + Relative strength'
     },
+    '52w_high': {
+        'section_labels': {'primary': '🎯 APPROACHING 52W HIGH', 'secondary': '✅ TOUCHED 52W HIGH'},
+        'section_descriptions': {
+            'primary': 'Stocks nearing 52-week high using Upstox-computed ranges (no TradingView)',
+            'secondary': 'At or within 1% of Upstox 52-week high (gap < 1%); Days Ago = last touch of the high',
+        },
+        'filters': [
+            {'key': 'max_52w_gap', 'label': '52W Gap ≤', 'type': 'number', 'min': -5, 'max': 20, 'step': 0.1, 'default': 5},
+        ],
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
+        'score_formula': 'Proximity to 52W high (100 − gap%) + optional volume',
+    },
     'near_52w_breakout': {
         'section_labels': {'primary': '🎯 NEAR 52W BREAKOUT', 'secondary': '✅ TOUCHED 52W HIGH'},
         'section_descriptions': {'primary': 'Stocks within striking distance of their 52-week high with breakout potential', 'secondary': 'Stocks that have successfully broken out to new 52-week highs'},
@@ -77,7 +108,10 @@ PROFILE_META = {
     'touched_52w_high': {
         'section_labels': {'primary': '✅ ALREADY TOUCHED 52W', 'secondary': '📈 AT 52-WEEK HIGH'},
         'section_descriptions': {'primary': 'Stocks that have recently touched or crossed their 52-week high', 'secondary': 'Stocks currently trading at or very near their 52-week high'},
-        'filters': [],
+        'filters': [
+            {'key': 'min_volume_m', 'label': 'Vol M ≥', 'type': 'number', 'min': 0, 'max': 200, 'step': 0.1, 'default': 0.1},
+            {'key': 'min_turnover_cr', 'label': 'Turnover Cr ≥', 'type': 'number', 'min': 0, 'max': 50000, 'step': 10, 'default': 60},
+        ],
         'default_sort': {'column': 'days_ago', 'direction': 'asc'},
         'score_formula': 'Return 5D + Volume surge + RSI momentum + Days since touched recency'
     },

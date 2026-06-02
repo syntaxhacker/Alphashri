@@ -28,3 +28,41 @@ export interface LLMStats {
   aggregate: Aggregate;
   error?: string;
 }
+
+export interface Week52RangeJobStatus {
+  status: "idle" | "running" | "completed" | "failed";
+  total?: number;
+  processed?: number;
+  ok?: number;
+  failed?: number;
+  skipped?: number;
+  progress_pct?: number;
+  last_symbol?: string;
+  started_at?: string;
+  finished_at?: string;
+  elapsed_sec?: number;
+  message?: string;
+  error?: string;
+  updated_at?: string;
+}
+
+export interface Week52RangeDbStats {
+  db_row_count: number;
+  db_latest_updated_at: string | null;
+  expected_universe: number;
+  coverage_pct: number;
+}
+
+export interface Week52RangeSchedule {
+  interval_sec: number;
+  mode: string;
+  description: string;
+}
+
+export interface Week52RangeAdminStatus {
+  job: Week52RangeJobStatus;
+  database: Week52RangeDbStats;
+  fetched_at: string;
+  run_hint?: string;
+  schedule?: Week52RangeSchedule;
+}

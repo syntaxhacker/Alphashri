@@ -167,10 +167,15 @@ describe("StockRow", () => {
     expect(defaultProps.onSymbolHover).toHaveBeenCalledWith(null);
   });
 
-  it("shows touched badge when isTouched is true", () => {
-    render(<StockRow {...defaultProps} isTouched={true} />);
+  it("shows touched badge when isTouched and badgeLabel are set", () => {
+    render(<StockRow {...defaultProps} isTouched={true} badgeLabel="Touched" />);
     expect(screen.getByTestId("touched-badge-RELIANCE")).toBeInTheDocument();
     expect(screen.getByText("Touched")).toBeInTheDocument();
+  });
+
+  it("does not show touched badge when isTouched without badgeLabel", () => {
+    render(<StockRow {...defaultProps} isTouched={true} />);
+    expect(screen.queryByTestId("touched-badge-RELIANCE")).not.toBeInTheDocument();
   });
 
   it("does not show touched badge when isTouched is false", () => {

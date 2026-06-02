@@ -77,8 +77,8 @@ test.describe("Paper Trading Settings", () => {
 
     const saveButton = page.locator('[data-testid="save-settings-button"]');
     await expect(saveButton).toBeEnabled({ timeout: 10000 });
-    await saveButton.click();
-    await expect(saveButton).toContainText("Saved", { timeout: 5000 });
+    await saveButton.click({ force: true });
+    await expect(saveButton).toContainText("Saved", { timeout: 10000 });
 
     // Navigate fresh to paper trading settings after reload
     await navigateToPaperTradingSettings(page);

@@ -2,6 +2,7 @@ import { chromium, FullConfig } from "@playwright/test";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
+import { apiRoute } from "./tests/mocks/routeHelper";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -18,7 +19,7 @@ async function globalSetup(_config: FullConfig) {
   const browser = await chromium.launch();
   const page = await browser.newPage();
 
-  await page.route("**/api/auth/me", async (route) => {
+  await page.route(apiRoute("auth/me"), async (route) => {
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -26,7 +27,7 @@ async function globalSetup(_config: FullConfig) {
     });
   });
 
-  await page.goto("http://localhost:5173");
+  await page.goto("http://localhost:5173", { waitUntil: "domcontentloaded" });
 
   await page.evaluate(() => {
     localStorage.setItem("alphashri_token", "test_access_token_12345");
@@ -43,7 +44,9 @@ async function globalSetup(_config: FullConfig) {
     );
   });
 
-  await page.waitForLoadState("networkidle");
+  await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 }).catch(() => {
+    // Storage state is optional; auth E2E tests manage their own session.
+  });
 
   const storageState = await page.context().storageState();
 

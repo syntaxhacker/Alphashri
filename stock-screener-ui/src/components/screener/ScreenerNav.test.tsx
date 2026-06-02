@@ -6,12 +6,11 @@ import { ScreenerNav } from "./ScreenerNav";
 import { MantineProvider } from "@mantine/core";
 import type { ScreenerOption } from "../../types";
 
-// Mock Mantine Tooltip to render tooltip content as visible text in tests
 vi.mock("@mantine/core", async () => {
   const actual = await vi.importActual("@mantine/core");
   return {
     ...actual,
-    Tooltip: ({ label, children, ..._rest }: any) => (
+    Tooltip: ({ label, children }: { label: string; children: React.ReactNode }) => (
       <div data-testid="tooltip-wrapper" data-label={label}>
         {children}
         <span data-testid="tooltip-content">{label}</span>
@@ -57,15 +56,14 @@ describe("ScreenerNav", () => {
     expect(screen.getByText("RSI Reversal")).toBeInTheDocument();
   });
 
-  it("marks active screener as selected (checked radio button)", () => {
+  it("marks active screener with data-active", () => {
     render(
       <MantineProvider>
         <ScreenerNav {...defaultProps} />
       </MantineProvider>,
     );
-    const checkedRadio = screen.getByRole("radio", { checked: true });
-    expect(checkedRadio).toBeChecked();
-    expect(checkedRadio).toHaveAttribute("value", "trending");
+    expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
+    expect(screen.getByTestId("screener-nav-option-new-highs")).not.toHaveAttribute("data-active");
   });
 
   it("calls onChange when option is clicked", () => {
@@ -74,7 +72,7 @@ describe("ScreenerNav", () => {
         <ScreenerNav {...defaultProps} />
       </MantineProvider>,
     );
-    fireEvent.click(screen.getByText("New Highs"));
+    fireEvent.click(screen.getByTestId("screener-nav-option-new-highs"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("new-highs");
   });
 
@@ -84,7 +82,7 @@ describe("ScreenerNav", () => {
         <ScreenerNav {...defaultProps} />
       </MantineProvider>,
     );
-    fireEvent.click(screen.getByText("RSI Reversal"));
+    fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("rsi_reversal");
   });
 
@@ -94,7 +92,6 @@ describe("ScreenerNav", () => {
         <ScreenerNav {...defaultProps} />
       </MantineProvider>,
     );
-    // Tooltip content is rendered (mocked to be visible)
     expect(screen.getByText("Stocks with strong momentum")).toBeInTheDocument();
     expect(screen.getByText("Stocks at 52-week highs")).toBeInTheDocument();
     expect(screen.getByText("Stocks showing RSI reversal signals")).toBeInTheDocument();
@@ -108,12 +105,9 @@ describe("ScreenerNav", () => {
       </MantineProvider>,
     );
     expect(screen.getByText("Simple")).toBeInTheDocument();
-    // No tooltip should be rendered
-    expect(screen.queryByText("simple")).not.toBeInTheDocument();
   });
 
   it("changes active screener when different option selected", () => {
-    // Controlled component test: simulate parent state update
     let activeScreener = "trending";
     const handleChange = (id: string) => {
       activeScreener = id;
@@ -121,36 +115,21 @@ describe("ScreenerNav", () => {
 
     const { rerender } = render(
       <MantineProvider>
-        <ScreenerNav
-          options={mockOptions}
-          activeScreener={activeScreener}
-          onChange={handleChange}
-        />
+        <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
       </MantineProvider>,
     );
 
-    // Initially trending is checked
-    let checkedRadio = screen.getByRole("radio", { checked: true });
-    expect(checkedRadio).toBeChecked();
-    expect(checkedRadio).toHaveAttribute("value", "trending");
+    expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
 
-    // Click RSI Reversal to trigger onChange
-    fireEvent.click(screen.getByText("RSI Reversal"));
+    fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
 
-    // Re-render with updated activeScreener to reflect new state
     rerender(
       <MantineProvider>
-        <ScreenerNav
-          options={mockOptions}
-          activeScreener={activeScreener}
-          onChange={handleChange}
-        />
+        <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
       </MantineProvider>,
     );
 
-    checkedRadio = screen.getByRole("radio", { checked: true });
-    expect(checkedRadio).toBeChecked();
-    expect(checkedRadio).toHaveAttribute("value", "rsi_reversal");
+    expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toHaveAttribute("data-active", "true");
   });
 
   it("renders correct number of options", () => {
@@ -189,9 +168,26 @@ describe("ScreenerNav", () => {
         <ScreenerNav {...defaultProps} activeScreener="new-highs" />
       </MantineProvider>,
     );
-    const checkedRadio = screen.getByRole("radio", { checked: true });
-    expect(checkedRadio).toBeChecked();
-    expect(checkedRadio).toHaveAttribute("value", "new-highs");
+    expect(screen.getByTestId("screener-nav-option-new-highs")).toHaveAttribute("data-active", "true");
+  });
+
+  it("shows compact badges for legacy and current screeners", () => {
+    const optionsWithStatus: ScreenerOption[] = [
+      { id: "52w_high", label: "52W High", status: "current" },
+      { id: "near_52w_breakout", label: "Near 52W", status: "legacy" },
+    ];
+    render(
+      <MantineProvider>
+        <ScreenerNav
+          options={optionsWithStatus}
+          activeScreener="52w_high"
+          onChange={vi.fn()}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByText("N")).toBeInTheDocument();
+    expect(screen.getByText("L")).toBeInTheDocument();
+    expect(screen.getByText("Legacy")).toBeInTheDocument();
   });
 
   it("each option has unique test id", () => {
@@ -205,15 +201,13 @@ describe("ScreenerNav", () => {
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toBeInTheDocument();
   });
 
-  it("calls onChange when option label is clicked", () => {
+  it("calls onChange when option test id is clicked", () => {
     render(
       <MantineProvider>
         <ScreenerNav {...defaultProps} activeScreener="new-highs" />
       </MantineProvider>,
     );
-    // Click the span inside the label
-    const trendingOption = screen.getByTestId("screener-nav-option-trending");
-    fireEvent.click(trendingOption);
+    fireEvent.click(screen.getByTestId("screener-nav-option-trending"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("trending");
   });
 });

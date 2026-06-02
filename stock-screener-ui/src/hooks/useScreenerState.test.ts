@@ -14,7 +14,7 @@ const flushPromises = () => new Promise(setImmediate);
 vi.mock("../state", () => ({
   ...vi.importActual("../state"),
   screenerOptions: [],
-  activeScreener: "trending",
+  activeScreener: "52w_high",
   isLoading: false,
   error: null,
   autoRefreshSeconds: 60,
@@ -61,7 +61,7 @@ describe("useScreenerState", () => {
       // Wait for loadScreeners promise to resolve and then check fetchData/setupAutoRefresh
       await flushPromises();
 
-      expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending");
+      expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "52w_high");
       expect(setupAutoRefresh).toHaveBeenCalledTimes(1);
     });
 
@@ -71,7 +71,7 @@ describe("useScreenerState", () => {
       renderHook(() => useScreenerState());
 
       expect(loadScreeners).not.toHaveBeenCalled();
-      expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending");
+      expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "52w_high");
       expect(setupAutoRefresh).toHaveBeenCalledTimes(1);
     });
 
@@ -81,7 +81,7 @@ describe("useScreenerState", () => {
 
       renderHook(() => useScreenerState());
 
-      expect(fetchData).toHaveBeenCalledWith("indmoney", "historical", "trending");
+      expect(fetchData).toHaveBeenCalledWith("indmoney", "historical", "52w_high");
     });
 
     it("falls back to defaults when state.data is null", () => {
@@ -90,7 +90,7 @@ describe("useScreenerState", () => {
 
       renderHook(() => useScreenerState());
 
-      expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending");
+      expect(fetchData).toHaveBeenCalledWith("upstox", "intraday", "52w_high");
     });
   });
 

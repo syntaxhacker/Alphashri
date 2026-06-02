@@ -46,7 +46,7 @@ test.describe("Screener - URL Params", () => {
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });
 
     await page.click('[data-testid="tab-config"]');
-    await page.waitForLoadState("networkidle");
+    await expect(page.getByRole("button", { name: "Create" })).toBeVisible({ timeout: 10000 });
 
     await page.click('[data-testid="tab-screener"]');
     await page.waitForSelector(".mantine-Table-tr", { timeout: 10000 });

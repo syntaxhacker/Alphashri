@@ -27,8 +27,9 @@ const defaultChartOptions: ReplayChartOptions = {
 const initialState = {
   config: {
     date: "",
+    end_date: "",
     strategy: "ALL",
-    symbols: null,
+    symbols: [],
     refresh_cache: false,
     bot_uuid: "",
   } as ReplayConfig,

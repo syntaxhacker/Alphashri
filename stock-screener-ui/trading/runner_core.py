@@ -1120,6 +1120,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         symbols: list[str],
         strategy_filter: str = "ALL",
         on_event=None,
+        end_date_str: str | None = None,
     ):
         from datetime import timedelta as td
         from trading.replay_data_provider import ReplayDataProvider
@@ -1128,6 +1129,13 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.replay_mode = True
         self._replay_on_event = on_event
         self._replay_time = None
+
+        dates_to_run = pd.date_range(
+            pd.Timestamp(date_str, tz=IST),
+            pd.Timestamp(end_date_str or date_str, tz=IST),
+            freq='D',
+        )
+        current_date_str = dates_to_run[0].strftime('%Y-%m-%d')
 
         try:
             if on_event:
@@ -1141,7 +1149,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 pass
 
             provider = ReplayDataProvider(
-                date_str=date_str,
+                date_str=current_date_str,
                 symbols=symbols,
                 get_current_time_fn=self._ist_now,
                 api_client=api_client,
@@ -1166,7 +1174,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 max_total_capital_pct=self.bot_config.max_total_capital_pct,
                 max_total_positions=self.bot_config.max_total_positions,
                 user_id=None,
-                simulated_date=pd.Timestamp(date_str, tz=IST),
+                simulated_date=pd.Timestamp(current_date_str, tz=IST),
             )
 
             self.risk_manager = GlobalRiskManager(
@@ -1188,99 +1196,108 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 for sid in remove:
                     del self.strategies[sid]
 
-            if on_event:
+            # Main date loop
+            _replay_start_time = datetime.now(IST)
+            for current_date_str in dates_to_run.strftime('%Y-%m-%d'):
+                provider = ReplayDataProvider(
+                    date_str=current_date_str,
+                    symbols=symbols,
+                    get_current_time_fn=self._ist_now,
+                    api_client=api_client,
+                )
+                DataFetcherProxy.upstox_api = provider
+
                 total_candles = sum(len(df) for df in provider._1m_data.values())
-                on_event({"type": "loaded", "symbols": len(provider._1m_data), "candles": total_candles})
+                if on_event:
+                    on_event({"type": "loaded", "symbols": len(provider._1m_data), "candles": total_candles})
 
-            self._replay_symbol_candle_counts = {
-                sym: len(provider._1m_data[sym])
-                for sym in symbols if sym in provider._1m_data
-            }
-            self._emit_precomputed_overlays(provider, symbols)
+                self._replay_symbol_candle_counts = {
+                    sym: len(provider._1m_data[sym])
+                    for sym in symbols if sym in provider._1m_data
+                }
+                self._emit_precomputed_overlays(provider, symbols)
 
-            market_open = pd.Timestamp(date_str + " 09:15:00", tz=IST)
-            market_close = pd.Timestamp(date_str + " 15:30:00", tz=IST)
-            current = market_open
-            candle_count = 0
-            candle_buffer = {}
-            CANDLE_FLUSH_INTERVAL = 100
+                market_open = pd.Timestamp(current_date_str + " 09:15:00", tz=IST)
+                market_close = pd.Timestamp(current_date_str + " 15:30:00", tz=IST)
+                current = market_open
+                candle_count = 0
+                candle_buffer = {}
+                CANDLE_FLUSH_INTERVAL = 100
 
-            while current <= market_close:
-                self._replay_time = current
-                candle_count += 1
+                while current <= market_close:
+                    self._replay_time = current
+                    candle_count += 1
 
-                if candle_count % 50 == 0 and on_event:
-                    on_event({"type": "progress", "candle": candle_count, "total": 375,
-                                "time": current.strftime("%H:%M"), "symbol": ""})
+                    if candle_count % 50 == 0 and on_event:
+                        on_event({"type": "progress", "candle": candle_count, "total": total_candles,
+                                    "time": current.strftime("%H:%M"), "symbol": ""})
 
-                for sym in symbols:
-                    if sym not in provider._1m_data or provider._1m_data[sym].empty:
-                        continue
-                    df_sym = provider._1m_data[sym]
-                    mask = df_sym.index == current
-                    if not mask.any():
-                        continue
-                    row = df_sym[mask].iloc[0]
-                    if sym not in candle_buffer:
-                        candle_buffer[sym] = []
-                    candle_buffer[sym].append({
-                        "time": current.strftime("%H:%M"),
-                        "open": float(row["open"]),
-                        "high": float(row["high"]),
-                        "low": float(row["low"]),
-                        "close": float(row["close"]),
-                        "volume": float(row.get("volume", 0)),
-                    })
+                    for sym in symbols:
+                        if sym not in provider._1m_data or provider._1m_data[sym].empty:
+                            continue
+                        df_sym = provider._1m_data[sym]
+                        mask = df_sym.index == current
+                        if not mask.any():
+                            continue
+                        row = df_sym[mask].iloc[0]
+                        if sym not in candle_buffer:
+                            candle_buffer[sym] = []
+                        candle_buffer[sym].append({
+                            "time": current.strftime("%H:%M"),
+                            "open": float(row["open"]),
+                            "high": float(row["high"]),
+                            "low": float(row["low"]),
+                            "close": float(row["close"]),
+                            "volume": float(row.get("volume", 0)),
+                        })
 
-                if candle_count % CANDLE_FLUSH_INTERVAL == 0 and on_event:
+                    if candle_count % CANDLE_FLUSH_INTERVAL == 0 and on_event:
+                        for buf_sym, buf_candles in candle_buffer.items():
+                            if buf_candles:
+                                on_event({"type": "candles", "symbol": buf_sym, "candles": buf_candles})
+                                candle_buffer[buf_sym] = []
+
+                    is_5min = current.minute % 5 == 0 and current.second == 0
+                    is_market_open = current == market_open
+
+                    if is_5min or is_market_open:
+                        for sid, runner in self.strategies.items():
+                            try:
+                                signals = self.scan_for_signals(sid)
+                                for signal in signals:
+                                    sym = signal.symbol.upper()
+                                    if sym not in provider._1m_data:
+                                        continue
+                                    self.execute_signal(sid, signal)
+                            except Exception as e:
+                                console.print(f"[dim red]Replay scan error: {e}[/dim red]")
+
+                    self.monitor_positions()
+
+                    current += timedelta(minutes=1)
+
+                if on_event:
                     for buf_sym, buf_candles in candle_buffer.items():
                         if buf_candles:
                             on_event({"type": "candles", "symbol": buf_sym, "candles": buf_candles})
-                            candle_buffer[buf_sym] = []
 
-                is_5min = current.minute % 5 == 0 and current.second == 0
-                is_market_open = current == market_open
-
-                if is_5min or is_market_open:
-                    for sid, runner in self.strategies.items():
-                        if runner.strategy_type in ("52W_CHASER", "52W_TARGET", "BLIND_52W"):
-                            if not is_market_open:
-                                continue
-                        try:
-                            signals = self.scan_for_signals(sid)
-                            for signal in signals:
-                                sym = signal.symbol.upper()
-                                if sym not in provider._1m_data:
-                                    continue
-                                self.execute_signal(sid, signal)
-                        except Exception as e:
-                            console.print(f"[dim red]Replay scan error: {e}[/dim red]")
-
-                self.monitor_positions()
-
-                current += timedelta(minutes=1)
-
-            if on_event:
-                for buf_sym, buf_candles in candle_buffer.items():
-                    if buf_candles:
-                        on_event({"type": "candles", "symbol": buf_sym, "candles": buf_candles})
-
-            for key in list(self.portfolio.positions.keys()):
-                pos = self.portfolio.positions[key]
-                side = "LONG" if pos.side.value == "BUY" else "SHORT"
-                costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
-                trade = self.portfolio.close_position(
-                    strategy_id=pos.strategy_id, symbol=pos.symbol,
-                    exit_price=pos.current_price, exit_reason="FORCE_CLOSE",
-                    costs=costs, exit_time=market_close,
-                )
-                if on_event and trade:
-                    runner = self.strategies.get(pos.strategy_id)
-                    on_event(build_trade_close_event(trade, runner))
+                for key in list(self.portfolio.positions.keys()):
+                    pos = self.portfolio.positions[key]
+                    side = "LONG" if pos.side.value == "BUY" else "SHORT"
+                    costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
+                    trade = self.portfolio.close_position(
+                        strategy_id=pos.strategy_id, symbol=pos.symbol,
+                        exit_price=pos.current_price, exit_reason="FORCE_CLOSE",
+                        costs=costs, exit_time=market_close,
+                    )
+                    if on_event and trade:
+                        runner = self.strategies.get(pos.strategy_id)
+                        on_event(build_trade_close_event(trade, runner))
 
             if on_event:
                 self._emit_summary(on_event)
-                on_event({"type": "done", "success": True, "duration_ms": 0})
+                duration_ms = int((datetime.now(IST) - _replay_start_time).total_seconds() * 1000)
+                on_event({"type": "done", "success": True, "duration_ms": duration_ms})
         finally:
             self.replay_mode = False
             self._replay_time = None

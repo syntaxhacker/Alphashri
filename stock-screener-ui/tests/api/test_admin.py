@@ -41,6 +41,56 @@ def admin_auth_headers(admin_user: User):
 # LLM Stats Tests
 # =====================
 
+class TestAdmin52wRange:
+    """Tests for 52W range batch admin endpoints."""
+
+    def test_get_52w_range_status_admin(self, client, admin_auth_headers):
+        response = client.get("/api/admin/52w-range-status", headers=admin_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert "job" in data
+        assert "database" in data
+        assert "db_row_count" in data["database"]
+
+    def test_get_52w_range_status_not_admin(self, client, auth_headers):
+        response = client.get("/api/admin/52w-range-status", headers=auth_headers)
+        assert response.status_code == 403
+
+    @patch("api.admin_routes._run_52w_batch_subprocess")
+    @patch("trading.week52_job_status.get_job_status", return_value=None)
+    def test_run_52w_range_batch(self, mock_status, mock_run, client, admin_auth_headers):
+        response = client.post(
+            "/api/admin/52w-range/run",
+            headers=admin_auth_headers,
+            json={"skip_existing": True, "redis": True, "limit": 0},
+        )
+        assert response.status_code == 200
+        assert response.json()["status"] == "started"
+        mock_run.assert_called_once()
+
+    @patch("api.admin_routes.clear_52w_range_data")
+    @patch("trading.week52_job_status.get_job_status", return_value=None)
+    def test_delete_52w_cache(self, mock_status, mock_clear, client, admin_auth_headers):
+        mock_clear.return_value = {
+            "redis_keys_deleted": 10,
+            "db_rows_deleted": 0,
+            "screener_cache_keys_deleted": 2,
+            "clear_db": False,
+        }
+        response = client.delete(
+            "/api/admin/52w-range/cache?clear_db=false",
+            headers=admin_auth_headers,
+        )
+        assert response.status_code == 200
+        mock_clear.assert_called_once_with(clear_db=False)
+
+    def test_get_52w_status_includes_schedule(self, client, admin_auth_headers):
+        response = client.get("/api/admin/52w-range-status", headers=admin_auth_headers)
+        assert response.status_code == 200
+        assert "schedule" in response.json()
+        assert response.json()["schedule"]["interval_sec"] == 3600
+
+
 class TestAdminLLMStats:
     """Tests for GET /api/admin/llm-stats"""
 

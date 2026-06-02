@@ -5,22 +5,20 @@ import "@testing-library/jest-dom/vitest";
 import { MantineProvider } from "@mantine/core";
 import type { ReactElement } from "react";
 
-let mockSortColumn: string | null = null;
-let mockSortDirection: "asc" | "desc" = "desc";
-let mockProfileFilters: Record<string, any> = {};
-let mockProfileMetaById: Record<string, any> = {};
+let mockProfileFilters: Record<string, unknown> = {};
+let mockProfileMetaById: Record<string, unknown> = {};
 
 vi.mock("../../state", () => {
-  const mockSetSortColumn = vi.fn((c: string | null) => { mockSortColumn = c; });
-  const mockSetSortDirection = vi.fn((d: "asc" | "desc") => { mockSortDirection = d; });
-  const mockSetProfileFilters = vi.fn((f: Record<string, any>) => { mockProfileFilters = f; });
+  const mockSetProfileFilters = vi.fn((f: Record<string, unknown>) => {
+    mockProfileFilters = f;
+  });
   return {
-    get sortColumn() { return mockSortColumn; },
-    get sortDirection() { return mockSortDirection; },
-    get profileFilters() { return mockProfileFilters; },
-    get profileMetaById() { return mockProfileMetaById; },
-    setSortColumn: mockSetSortColumn,
-    setSortDirection: mockSetSortDirection,
+    get profileFilters() {
+      return mockProfileFilters;
+    },
+    get profileMetaById() {
+      return mockProfileMetaById;
+    },
     setProfileFilters: mockSetProfileFilters,
     subscribe: vi.fn(() => vi.fn()),
   };
@@ -30,35 +28,57 @@ vi.mock("../../api", () => ({
   fetchData: vi.fn(),
 }));
 
-import { ScreenerSidePanel } from "./ScreenerSidePanel";
+import {
+  ScreenerSidePanel,
+  screenerHasSideFilters,
+  normalizeSelectFilterOptions,
+} from "./ScreenerSidePanel";
 
 const renderWithProvider = (ui: ReactElement) =>
   render(<MantineProvider>{ui}</MantineProvider>);
 
-const trendingOption = {
-  id: "trending",
-  label: "Trending",
-  description: "Top trending stocks",
-  columns: ["symbol", "score", "rsi"],
-  indicators: ["RSI", "ADX"],
-  filters: [
-    { key: "min_rsi", label: "Min RSI", type: "number", min: 0, max: 100, default: 30 },
-    { key: "trend", label: "Trend", type: "select", options: ["up", "down", "sideways"] },
-  ],
-  default_sort: { column: "score", direction: "desc" },
-};
+const trendingFilters = [
+  { key: "min_rsi", label: "Min RSI", type: "number", min: 0, max: 100, default: 30 },
+  { key: "trend", label: "Trend", type: "select", options: ["up", "down", "sideways"] },
+];
 
-const basicOption = {
-  id: "new-highs",
-  label: "New Highs",
-  columns: ["symbol", "score"],
-};
+describe("normalizeSelectFilterOptions", () => {
+  it("converts numeric options for Mantine Select", () => {
+    expect(normalizeSelectFilterOptions([5, 10, 15, 30])).toEqual([
+      { value: "5", label: "5" },
+      { value: "10", label: "10" },
+      { value: "15", label: "15" },
+      { value: "30", label: "30" },
+    ]);
+  });
+
+  it("passes through string options", () => {
+    expect(normalizeSelectFilterOptions(["bullish", "bearish"])).toEqual([
+      { value: "bullish", label: "bullish" },
+      { value: "bearish", label: "bearish" },
+    ]);
+  });
+});
+
+describe("screenerHasSideFilters", () => {
+  beforeEach(() => {
+    mockProfileMetaById = {};
+  });
+
+  it("returns false when profile has no filters", () => {
+    mockProfileMetaById = { "52w_high": { filters: [] } };
+    expect(screenerHasSideFilters("52w_high")).toBe(false);
+  });
+
+  it("returns true when profile has filter defs", () => {
+    mockProfileMetaById = { trending: { filters: trendingFilters } };
+    expect(screenerHasSideFilters("trending")).toBe(true);
+  });
+});
 
 describe("ScreenerSidePanel", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSortColumn = null;
-    mockSortDirection = "desc";
     mockProfileFilters = {};
     mockProfileMetaById = {};
   });
@@ -67,136 +87,66 @@ describe("ScreenerSidePanel", () => {
     cleanup();
   });
 
-  it("shows active screener name and description", () => {
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: [] } };
+  it("renders nothing when profile has no filters", () => {
+    mockProfileMetaById = { "52w_high": { filters: [] } };
+    renderWithProvider(
+      <ScreenerSidePanel
+        activeScreener="52w_high"
+        screenerOptions={[]}
+        sortColumn={null}
+        sortDirection="desc"
+      />,
+    );
+    expect(screen.queryByTestId("screener-side-panel")).not.toBeInTheDocument();
+  });
+
+  it("renders filter inputs when profile has filters", () => {
+    mockProfileMetaById = { trending: { filters: trendingFilters } };
     renderWithProvider(
       <ScreenerSidePanel
         activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
+        screenerOptions={[]}
         sortColumn={null}
         sortDirection="desc"
       />,
     );
-    expect(screen.getByText("Trending")).toBeInTheDocument();
-    expect(screen.getByText("Top trending stocks")).toBeInTheDocument();
-  });
-
-  it("shows indicator badges when activeOption has indicators", () => {
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
-        sortColumn={null}
-        sortDirection="desc"
-      />,
-    );
-    expect(screen.getByText("RSI")).toBeInTheDocument();
-    expect(screen.getByText("ADX")).toBeInTheDocument();
-  });
-
-  it("does not show indicator badges when activeOption has no indicators", () => {
-    mockProfileMetaById = { "new-highs": { default_sort: null, filters: [] } };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="new-highs"
-        screenerOptions={[trendingOption, basicOption]}
-        sortColumn={null}
-        sortDirection="desc"
-      />,
-    );
-    expect(screen.queryByText("INDICATORS")).not.toBeInTheDocument();
-  });
-
-  it("renders filter inputs for each filter in profile", () => {
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
-        sortColumn={null}
-        sortDirection="desc"
-      />,
-    );
-    expect(screen.getByText("FILTERS")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-side-panel")).toBeInTheDocument();
+    expect(screen.getByText("Filters")).toBeInTheDocument();
     expect(screen.getByText("Min RSI")).toBeInTheDocument();
     expect(screen.getByText("Trend")).toBeInTheDocument();
   });
 
-  it("renders number input for number-type filters", () => {
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
+  it("renders select filter with numeric options without crashing", () => {
+    mockProfileMetaById = {
+      intraday_momentum: {
+        filters: [
+          { key: "lookback_minutes", label: "Lookback", type: "select", options: [5, 10, 15, 30], default: 15 },
+        ],
+      },
+    };
     renderWithProvider(
       <ScreenerSidePanel
-        activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
+        activeScreener="intraday_momentum"
+        screenerOptions={[]}
         sortColumn={null}
         sortDirection="desc"
       />,
     );
-    expect(screen.getByText("Min RSI")).toBeInTheDocument();
+    expect(screen.getByText("Lookback")).toBeInTheDocument();
   });
 
-  it("renders select for select-type filters", () => {
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
+  it("Apply filters button triggers fetchData", async () => {
+    mockProfileMetaById = { trending: { filters: trendingFilters } };
     renderWithProvider(
       <ScreenerSidePanel
         activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
+        screenerOptions={[]}
         sortColumn={null}
         sortDirection="desc"
       />,
     );
-    expect(screen.getByText("Trend")).toBeInTheDocument();
-  });
-
-  it("Apply Filters button triggers fetchData", async () => {
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
-        sortColumn={null}
-        sortDirection="desc"
-      />,
-    );
-    const applyBtn = screen.getByText("Apply Filters");
-    fireEvent.click(applyBtn);
+    fireEvent.click(screen.getByRole("button", { name: /apply filters/i }));
     const api = await import("../../api");
     expect(api.fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending", "manual");
-  });
-
-  it.skip("Sort button shows default sort column with direction arrow", () => {
-    mockSortColumn = "score";
-    mockSortDirection = "asc";
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
-        sortColumn="score"
-        sortDirection="asc"
-      />,
-    );
-    const sortBtn = screen.getByText(/score/);
-    expect(sortBtn).toBeInTheDocument();
-    expect(screen.getByText("↑")).toBeInTheDocument();
-  });
-
-  it("Calling sort toggles direction on same column", async () => {
-    mockSortColumn = "score";
-    mockSortDirection = "asc";
-    mockProfileMetaById = { trending: { default_sort: trendingOption.default_sort, filters: trendingOption.filters } };
-    renderWithProvider(
-      <ScreenerSidePanel
-        activeScreener="trending"
-        screenerOptions={[trendingOption, basicOption]}
-        sortColumn="score"
-        sortDirection="asc"
-      />,
-    );
-    const sortBtn = screen.getByText(/score/);
-    fireEvent.click(sortBtn);
-    const st = await import("../../state");
-    expect(st.setSortDirection).toHaveBeenCalledWith("desc");
   });
 });

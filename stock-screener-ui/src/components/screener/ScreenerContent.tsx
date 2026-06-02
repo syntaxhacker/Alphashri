@@ -47,7 +47,6 @@ export function ScreenerContent({
 }: Props) {
   const { getSortedData } = useTableSort<Stock>({ sortColumn, sortDirection });
 
-  const columns = getColumnsForScreener(activeScreener);
   const meta = state.profileMetaById[activeScreener];
 
   const scoreFormula = meta?.score_formula || "";
@@ -84,9 +83,12 @@ export function ScreenerContent({
   if (sections.length === 0) return <ScreenerEmpty />;
 
   return (
-    <Stack gap="sm" w="100%" style={{ minHeight: 0 }}>
+    <Stack gap={6} w="100%" p={6} style={{ minHeight: 0 }}>
       {sections.map((section) => {
-        const badgeLabel = section.key === "touched" ? meta?.section_labels?.secondary || "Touched" : undefined;
+        const columns = getColumnsForScreener(
+          activeScreener,
+          section.key as "approaching" | "touched",
+        );
         return (
           <ScreenerSection
             key={section.key}
@@ -95,7 +97,7 @@ export function ScreenerContent({
             testId={`screener-${section.key}-section`}
             stocks={section.stocks}
             columns={columns}
-            badgeLabel={badgeLabel}
+            badgeLabel={undefined}
             scoreFormula={scoreFormula}
             touchedSymbols={
               section.key === "touched"

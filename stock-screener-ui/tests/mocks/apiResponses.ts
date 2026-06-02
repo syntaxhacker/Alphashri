@@ -588,6 +588,7 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
   });
 
   await page.route(apiRoute("auth/login"), async (route) => {
+    authStateByPage.set(page, true);
     await route.fulfill({
       status: 200,
       contentType: "application/json",
@@ -596,6 +597,27 @@ export async function setupApiMocks(page: import("@playwright/test").Page) {
         refresh_token: "test_refresh_token_12345",
         token_type: "bearer",
         expires_in: 86400,
+      }),
+    });
+  });
+
+  await page.route(apiRoute("auth/refresh"), async (route) => {
+    await route.fulfill({
+      status: 401,
+      contentType: "application/json",
+      body: JSON.stringify({ detail: "Refresh token invalid" }),
+    });
+  });
+
+  await page.route(apiRoute("auth/register"), async (route) => {
+    authStateByPage.set(page, true);
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        access_token: "test_access_token_12345",
+        refresh_token: "test_refresh_token_12345",
+        token_type: "bearer",
       }),
     });
   });

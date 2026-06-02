@@ -5,6 +5,7 @@ export interface Stock {
   upstox_price: number;
   broker_diff: number;
   high_52w: number;
+  low_52w?: number;
   to_52w_high: number;
   time_to_52w?: { days: number; confidence: "HIGH" | "MED" | "LOW" };
   recent_return_5d: number;
@@ -48,7 +49,7 @@ export interface ProfileFilter {
   max?: number;
   step?: number;
   default?: number | string;
-  options?: string[];
+  options?: Array<string | number | { value: string; label: string }>;
 }
 
 export interface ProfileMeta {
@@ -75,6 +76,9 @@ export interface ScreenerOption {
   id: string;
   label: string;
   description?: string;
+  status?: "current" | "legacy";
+  superseded_by?: string;
+  legacy_52w_sections?: boolean;
   indicators?: string[];
   columns?: string[];
   filters?: ProfileFilter[];

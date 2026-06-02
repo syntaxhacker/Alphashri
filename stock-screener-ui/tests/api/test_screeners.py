@@ -135,12 +135,19 @@ def mock_trading_api():
 class TestScreenersList:
     """Test GET /api/screeners endpoint."""
 
-    @pytest.mark.asyncio
-    async def test_get_screeners_list(self, client):
-        """Test getting list of available screeners."""
-        # This test assumes there's a FastAPI test client
-        # If not, we'll test the underlying logic directly
-        pass
+    def test_get_screeners_list(self, auth_client):
+        """Test GET /api/screeners includes 52w_high as current and near_52w_breakout as legacy."""
+        response = auth_client.get("/api/screeners")
+        assert response.status_code == 200
+        data = response.json()
+        by_id = {s["id"]: s for s in data["screeners"]}
+
+        assert "52w_high" in by_id
+        assert by_id["52w_high"]["status"] == "current"
+
+        assert "near_52w_breakout" in by_id
+        assert by_id["near_52w_breakout"]["status"] == "legacy"
+        assert by_id["near_52w_breakout"].get("superseded_by") == "52w_high"
 
     def test_profile_meta_constants(self):
         """Test that PROFILE_META has all expected screener configurations."""
@@ -168,6 +175,7 @@ class TestScreenersList:
     def test_profiles_with_52w_buckets(self):
         """Test PROFILES_WITH_52W_BUCKETS constant."""
         assert 'trending' in PROFILES_WITH_52W_BUCKETS
+        assert '52w_high' in PROFILES_WITH_52W_BUCKETS
         assert 'near_52w_breakout' in PROFILES_WITH_52W_BUCKETS
         assert 'touched_52w_high' in PROFILES_WITH_52W_BUCKETS
 
@@ -201,6 +209,68 @@ class TestScreenersList:
 
 class TestScreenerDataRetrieval:
     """Test GET /api/screener endpoint with various profiles."""
+
+    @patch.object(trending_upside, 'fetch_trending_stocks')
+    @patch('api.screener_api.screener_52w.load_all_52w_ranges')
+    def test_fetch_52w_high_screener(self, mock_load_ranges, mock_fetch_trending):
+        """52w_high uses Upstox ranges, not TradingView trending fetch."""
+        mock_load_ranges.return_value = {
+            'RELIANCE': {'high': 1611.8, 'low': 1290, 'close': 1320},
+        }
+
+        result = fetch_screener_data(
+            provider='upstox',
+            mode='intraday',
+            screener='52w_high',
+            profile_filters={'max_52w_gap': '25'},
+        )
+
+        mock_fetch_trending.assert_not_called()
+        assert result['screener'] == '52w_high'
+        all_stocks = result['approaching'] + result['touched']
+        reliance = next(s for s in all_stocks if s['symbol'] == 'RELIANCE')
+        assert reliance['high_52w'] == 1611.8
+
+    @patch('api.screener_api.screener_52w.load_all_52w_ranges')
+    def test_52w_high_near_high_goes_to_touched_bucket(self, mock_load_ranges):
+        """Stocks within 1% of 52W high are 'touched', not stuck in approaching with empty days."""
+        mock_load_ranges.return_value = {
+            'LAURUSLABS': {'high': 1393.40, 'low': 585.90, 'close': 1388.40, 'days_ago': 2},
+            'FARAWAY': {'high': 1000.0, 'low': 500.0, 'close': 950.0},
+        }
+        result = fetch_screener_data(
+            provider='upstox',
+            mode='intraday',
+            screener='52w_high',
+            profile_filters={'max_52w_gap': 10},
+        )
+        touched_syms = {s['symbol'] for s in result['touched']}
+        assert 'LAURUSLABS' in touched_syms
+        assert 'FARAWAY' in {s['symbol'] for s in result['approaching']}
+        laurus = next(s for s in result['touched'] if s['symbol'] == 'LAURUSLABS')
+        assert laurus['to_52w_high'] < 1.0
+        assert laurus['days_ago'] == 2
+        assert laurus['touched_52w'] is True
+
+    @patch.object(trending_upside, 'fetch_trending_stocks')
+    @patch('api.screener_api.screener_52w.load_all_52w_ranges')
+    def test_get_screener_api_52w_high(self, mock_load_ranges, mock_fetch_trending, auth_client):
+        """GET /api/screener?screener=52w_high returns Upstox 52W high levels."""
+        mock_load_ranges.return_value = {
+            'RELIANCE': {'high': 1611.8, 'low': 1290, 'close': 1320},
+        }
+
+        response = auth_client.get(
+            "/api/screener",
+            params={"screener": "52w_high", "max_52w_gap": 25},
+        )
+        assert response.status_code == 200
+        data = response.json()
+
+        mock_fetch_trending.assert_not_called()
+        all_stocks = data['approaching'] + data['touched']
+        reliance = next(s for s in all_stocks if s['symbol'] == 'RELIANCE')
+        assert reliance['high_52w'] == 1611.8
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
     @patch.object(trending_upside, 'fetch_trending_stocks')
@@ -395,7 +465,7 @@ class TestScreenerDataRetrieval:
 
         # Create a stock that should pass profile filters for touched_52w_high
         # If builtin: leaked, it wouldn't match the profile check
-        stock_data = {'symbol': 'TEST', 'to_52w_high': 1.5, 'touched_52w': False}
+        stock_data = {'symbol': 'TEST', 'to_52w_high': 1.5, 'touched_52w': False, 'volume_m': 1.0, 'turnover_cr': 70}
 
         assert _passes_profile_filters('touched_52w_high', stock_data, {})
         assert _passes_profile_filters('builtin:touched_52w_high', stock_data, {})
@@ -510,22 +580,23 @@ class TestProfileFilters:
     def test_passes_profile_filters_touched_52w_high(self):
         """Test touched_52w_high does NOT filter out approaching stocks."""
         # Approaching stock (within 2% of 52w high but not touched)
-        approaching = {'symbol': 'RELIANCE', 'to_52w_high': 1.5, 'touched_52w': False}
+        approaching = {'symbol': 'RELIANCE', 'to_52w_high': 1.5, 'touched_52w': False, 'volume_m': 1.0, 'turnover_cr': 70}
         assert _passes_profile_filters('touched_52w_high', approaching, {})
 
         # Touched stock (at or above 52w high)
-        touched = {'symbol': 'HINDALCO', 'to_52w_high': 0.0, 'touched_52w': True}
+        touched = {'symbol': 'HINDALCO', 'to_52w_high': 0.0, 'touched_52w': True, 'volume_m': 2.5, 'turnover_cr': 125}
         assert _passes_profile_filters('touched_52w_high', touched, {})
 
         # Stock with builtin: prefix — same behavior
         assert _passes_profile_filters('builtin:touched_52w_high', approaching, {})
 
-    def test_passes_profile_filters_touched_52w_high_rejects_outside_range(self):
-        """Test touched_52w_high rejects stocks far from their 52w high."""
-        far_stock = {'symbol': 'XYZ', 'touched_52w': False}
-        # The TV query already filters, but _passes_profile_filters should
-        # still let it through (TV query is the gatekeeper, not this function)
-        assert _passes_profile_filters('touched_52w_high', far_stock, {})
+    def test_passes_profile_filters_touched_52w_high_rejects_low_volume(self):
+        """Test touched_52w_high rejects low-volume stocks."""
+        low_vol = {'symbol': 'CUBEINVIT', 'touched_52w': True, 'volume_m': 0.01}
+        assert not _passes_profile_filters('touched_52w_high', low_vol, {})
+        # Also rejects stocks without volume_m key
+        no_vol = {'symbol': 'XYZ', 'touched_52w': True}
+        assert not _passes_profile_filters('touched_52w_high', no_vol, {})
 
 
 class TestRationaleBuilder:
@@ -791,7 +862,7 @@ class Test52WeekTouchEnrichment:
         """Patch SessionLocal to use test database."""
         from sqlalchemy.orm import sessionmaker
         TestSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=db.get_bind())
-        monkeypatch.setattr('api_server_fastapi.SessionLocal', TestSessionLocal)
+        monkeypatch.setattr('api.screener_api.screener_scan.SessionLocal', TestSessionLocal)
 
     def test_enrich_adds_last_touched_fields_when_no_history(self, db):
         """Test that last_touched fields are None when no history exists."""

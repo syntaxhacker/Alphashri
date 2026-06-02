@@ -13,9 +13,9 @@ vi.mock("./ScreenerTable", () => ({
   ),
 }));
 
-vi.mock("./ScreenerHeatmap", () => ({
-  ScreenerHeatmap: (props: any) => (
-    <div data-testid={props["data-testid"] || "screener-heatmap"} data-view="heatmap">
+vi.mock("./ScreenerHeatmapView", () => ({
+  ScreenerHeatmapView: (props: any) => (
+    <div data-testid={props.testId || "screener-heatmap"} data-view="heatmap">
       Heatmap View
     </div>
   ),

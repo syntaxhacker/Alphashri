@@ -40,7 +40,12 @@ export function ScreenerSection({
   activeScreener,
 }: ScreenerSectionProps) {
   return (
-    <CompactPanel title={title} description={description} testId={testId} scrollable>
+    <CompactPanel
+      title={title}
+      description={viewMode === "heatmap" ? undefined : description}
+      testId={testId}
+      scrollable={viewMode !== "heatmap"}
+    >
       <ScreenerStockView
         stocks={stocks}
         columns={columns}

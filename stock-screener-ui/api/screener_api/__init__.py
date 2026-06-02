@@ -12,7 +12,10 @@ from .screener_results import (
 )
 from .screener_scan import (
     _passes_profile_filters,
+    _enrich_with_touch_history,
     estimate_days_to_52w,
     _process_single_stock,
     fetch_screener_data,
+    fetch_all_52w_ranges_from_tv,
 )
+from .screener_52w import fetch_52w_high_data

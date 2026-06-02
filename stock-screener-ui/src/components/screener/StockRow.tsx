@@ -64,7 +64,12 @@ export function StockRow({
 
     if (column.format) {
       const formatted = column.format(value, stock);
-      if (formatted && typeof formatted === "object" && "value" in formatted) {
+      if (
+        formatted !== null &&
+        formatted !== undefined &&
+        typeof formatted === "object" &&
+        "value" in (formatted as FormattedCell)
+      ) {
         const cell = formatted as FormattedCell;
         return (
           <Text c={cell.className as any} fw={500}>
@@ -72,7 +77,9 @@ export function StockRow({
           </Text>
         );
       }
-      return formatted;
+      if (formatted !== null && formatted !== undefined) {
+        return formatted;
+      }
     }
 
     if (column.key === "symbol") {
@@ -113,7 +120,7 @@ export function StockRow({
               </ActionIcon>
             )}
           </CopyButton>
-          {isTouched && (
+          {isTouched && badgeLabel ? (
             <Badge
               size="sm"
               variant="light"
@@ -121,9 +128,9 @@ export function StockRow({
               className="touched-badge"
               data-testid={`touched-badge-${stock.symbol}`}
             >
-              {badgeLabel || "Touched"}
+              {badgeLabel}
             </Badge>
-          )}
+          ) : null}
         </Group>
       );
     }
