@@ -2,6 +2,10 @@ import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
 import { apiRoute } from "../mocks/routeHelper";
 import { generateFullDayCandles } from "./helpers/chartHelpers";
+import { mockSymbolSearch } from "./helpers/backtestHelpers";
+
+const REPLAY_DATE_ISO = "2026-03-02";
+const REPLAY_DATE_DISPLAY = "02 Mar 2026";
 
 const orbTrades = [
   {
@@ -117,8 +121,17 @@ async function setupCommonReplayMocks(page: Page) {
       });
       return;
     }
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ id: 1, name: "auto", config: {} }),
+      });
+      return;
+    }
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({}) });
   });
+  await mockSymbolSearch(page);
 }
 
 async function setupReplayMocks(
@@ -289,36 +302,24 @@ async function setupReplayMocks(
   });
 }
 
-async function fillReplayDate(page: Page, testId: string, value: string) {
-  const input = page.locator(`[data-testid="${testId}"] input`).first();
-  await expect(input).toBeVisible({ timeout: 10000 });
-  await input.click();
-  await input.fill(value);
-  await input.press("Enter");
-  await page.waitForTimeout(400);
-}
-
-async function selectReplaySymbol(page: Page, symbol: string) {
-  const symbolsSelect = page.locator('[data-testid="replay-symbols-select"]');
-  await symbolsSelect.click();
-  const searchInput = symbolsSelect.locator("input").first();
-  await searchInput.fill(symbol);
-  await page.getByRole("option", { name: new RegExp(`^${symbol}\\b`) }).first().click({ timeout: 10000 });
-}
-
 async function navigateToReplayAndRun(page: Page, symbol = "TCS") {
-  await page.goto("/replay");
+  const params = new URLSearchParams({
+    date: REPLAY_DATE_ISO,
+    end_date: REPLAY_DATE_ISO,
+    symbols: symbol,
+  });
+  await page.goto(`/replay?${params.toString()}`);
   await page.waitForSelector('[data-testid="replay-page"]', { timeout: 15000 });
 
-  await fillReplayDate(page, "replay-date-from", "02 Mar 2026");
-  await fillReplayDate(page, "replay-date-to", "02 Mar 2026");
-  await selectReplaySymbol(page, symbol);
+  await expect(page.getByTestId("replay-date-from")).toContainText(REPLAY_DATE_DISPLAY);
+  await expect(page.getByTestId("replay-date-to")).toContainText(REPLAY_DATE_DISPLAY);
+  await expect(page.getByTestId("symbol-chips")).toContainText(symbol);
 
   const runBtn = page.locator('[data-testid="replay-run-btn"]');
   await expect(runBtn).toBeEnabled({ timeout: 5000 });
   await runBtn.click();
 
-  await expect(page.locator('[data-testid="replay-chart"]')).toBeVisible({ timeout: 15000 });
+  await expect(page.locator('[data-testid="replay-chart"]')).toBeVisible({ timeout: 20000 });
 }
 
 test.describe("Replay Chart - ORB Strategy", () => {

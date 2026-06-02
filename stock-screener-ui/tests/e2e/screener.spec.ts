@@ -29,12 +29,10 @@ test.describe("Screener - Data Display", () => {
     await page.waitForSelector(".mantine-Table-tr", {
       timeout: 10000,
     });
-    const firstSymbol = page.locator(
-      '.mantine-Table-tr:first-child button[data-testid^="symbol-link-"]',
-    );
-    if ((await firstSymbol.count()) > 0) {
-      await expect(firstSymbol.first()).toBeVisible();
-    }
+    const firstSymbol = page
+      .locator('[data-testid="screener-table-body"] button[data-testid^="symbol-link-"]')
+      .first();
+    await expect(firstSymbol).toBeVisible();
   });
   test("should display approaching and touched sections", async ({ page }) => {
     await page.goto("/");

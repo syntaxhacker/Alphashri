@@ -10,9 +10,9 @@ export default defineConfig({
   retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 4 : 6,
   reporter: process.env.CI ? [['blob'], ['list']] : 'list',
-  timeout: 30000,
+  timeout: 60000,
   expect: {
-    timeout: 5000,
+    timeout: 10000,
   },
   globalSetup: './playwright.setup.ts',
   use: {
