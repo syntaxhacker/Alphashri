@@ -71,6 +71,11 @@ vi.mock("../hooks/useThemeColors", () => ({
   }),
 }));
 
+vi.mock("./admin/Admin52wRangePanel", () => ({
+  Admin52wRangePanel: () =>
+    React.createElement("div", { "data-testid": "admin-52w-range-panel-mock" }),
+}));
+
 describe("AdminPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -130,12 +135,14 @@ describe("AdminPage", () => {
     renderWithMantine(<AdminPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("LLM Admin Dashboard")).toBeInTheDocument();
+      expect(screen.getByText("Admin")).toBeInTheDocument();
+      expect(screen.getByText("Total Runs")).toBeInTheDocument();
     });
 
-    expect(screen.getByText("100")).toBeInTheDocument();
-    expect(screen.getByText("150,000")).toBeInTheDocument();
-    expect(screen.getByText("$4.5000")).toBeInTheDocument();
+    const statGrid = screen.getAllByTestId("compact-stat-grid")[0];
+    expect(within(statGrid).getByText("100")).toBeInTheDocument();
+    expect(within(statGrid).getByText("150,000")).toBeInTheDocument();
+    expect(within(statGrid).getByText("$4.5000")).toBeInTheDocument();
   });
 
   it("displays refresh button", async () => {
@@ -238,10 +245,10 @@ describe("AdminPage", () => {
       expect(screen.getByTestId("refresh-btn")).toBeInTheDocument();
     });
 
-    const statGrid = screen.getByTestId("compact-stat-grid");
+    const statGrid = screen.getAllByTestId("compact-stat-grid")[0];
     expect(within(statGrid).getAllByText("0").length).toBeGreaterThanOrEqual(1);
-    expect(screen.getByText("$0.0000")).toBeInTheDocument();
-    expect(screen.getByText("0ms")).toBeInTheDocument();
+    expect(within(statGrid).getByText("$0.0000")).toBeInTheDocument();
+    expect(within(statGrid).getByText("0ms")).toBeInTheDocument();
     expect(screen.getByText("Models: 0")).toBeInTheDocument();
     expect(screen.getByText("Runs: 0")).toBeInTheDocument();
   });

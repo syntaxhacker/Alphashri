@@ -221,6 +221,7 @@ class TestWeek52ChaserSignalNotes:
                 "high_52w": 3000.0,
                 "adx": 30.0,
                 "rsi": 60.0,
+                "avg_volume_20d": 100_000,
             },
         )
         assert signal is not None
@@ -250,10 +251,11 @@ class TestWeek52TargetSignalNotes:
             market_data={
                 "current_price": 3920.0,
                 "high_52w": 4000.0,
+                "avg_volume_20d": 100_000,
             },
         )
         assert signal is not None
-        assert "52W high" in signal.notes
+        assert "52W Target" in signal.notes
         assert "4000.00" in signal.notes
         assert "SL 2.0%" in signal.notes
         assert "trail 0.5%" in signal.notes
