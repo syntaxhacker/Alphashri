@@ -221,7 +221,12 @@ def create_qa_user(db) -> User:
     user = db.query(User).filter(User.email == QA_USER_EMAIL).first()
 
     if user:
-        console.print(f"[yellow]QA user already exists (ID: {user.id})[/yellow]")
+        if not user.is_admin:
+            user.is_admin = True
+            db.commit()
+            console.print(f"[green]✓ QA user promoted to admin (ID: {user.id})[/green]")
+        else:
+            console.print(f"[yellow]QA user already exists (ID: {user.id}, admin)[/yellow]")
         return user
 
     user = User(
@@ -230,6 +235,7 @@ def create_qa_user(db) -> User:
         display_name=QA_USER_NAME,
         initial_capital=INITIAL_CAPITAL,
         is_active=True,
+        is_admin=True,
     )
     db.add(user)
     db.commit()

@@ -1,7 +1,7 @@
 import { useCallback, useEffect } from "react";
 import { useStoreSubscription } from "./useStoreSubscription";
 import * as rs from "../state/replay";
-import { runReplay, fetchReplaySymbols } from "../api/replay";
+import { runReplay, fetchReplaySymbols, saveReplayConfig } from "../api/replay";
 import type { ReplayConfig, ReplayEvent, ReplayState } from "../types/replay";
 
 function configToParams(config: ReplayConfig): Record<string, string> {
@@ -59,6 +59,8 @@ export function useReplayState(): ReplayState & {
   }, [state.config.date, state.config.end_date, state.config.strategy, state.config.symbols, state.config.bot_uuid]);
 
   const startReplay = useCallback(() => {
+    const autoName = `${state.config.date}${state.config.end_date ? '→'+state.config.end_date : ''}_${state.config.symbols.length || 'all'}sym`;
+    saveReplayConfig(autoName, state.config, `Auto-saved ${new Date().toISOString()}`).catch(() => {});
     rs.startRunning();
     let tradeId = 0;
 

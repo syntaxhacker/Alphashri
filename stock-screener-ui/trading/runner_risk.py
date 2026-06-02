@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES
+from trading.week52_utils import calculate_52w_high
 
 from trading.timezone import IST
 
@@ -94,17 +95,19 @@ class RunnerRiskMixin:
             lows = df['low'].tolist()
             volumes = df['volume'].tolist() if 'volume' in df.columns else []
 
-            window_252_highs = highs[-252:] if len(highs) >= 252 else highs
-            high_52w = max(window_252_highs) if window_252_highs else 0.0
+            high_52w = calculate_52w_high(highs, period=252, exclude_current=True) or 0.0
 
             # Trading days since 52W high was last achieved (0 = today)
             days_since_52w_high = 0
-            if high_52w > 0 and len(window_252_highs) >= 2:
-                reversed_window = list(reversed(window_252_highs))
-                try:
-                    days_since_52w_high = reversed_window.index(high_52w)
-                except ValueError:
-                    pass
+            if high_52w > 0 and len(highs) >= 2:
+                past_highs = highs[:-1]  # exclude current bar
+                window = past_highs[-252:] if len(past_highs) >= 252 else past_highs
+                if len(window) >= 2:
+                    reversed_window = list(reversed(window))
+                    try:
+                        days_since_52w_high = reversed_window.index(high_52w)
+                    except ValueError:
+                        pass
 
             avg_volume_20d = 0.0
             if len(volumes) >= 20:

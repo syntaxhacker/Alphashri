@@ -1,4 +1,5 @@
-import type { ReplayConfig, ReplayEvent } from "../types/replay";
+import type { ReplayConfig, ReplayEvent, ReplaySavedConfig } from "../types/replay";
+import { fetchWithAuth } from "../state/auth";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -71,4 +72,31 @@ export function runReplay(
     cancelled = true;
     controller.abort();
   };
+}
+
+export async function fetchSavedConfigs(): Promise<ReplaySavedConfig[]> {
+  const response = await fetchWithAuth(`${API_BASE}/api/replay/configs`);
+  if (!response.ok) throw new Error(`Failed to fetch saved configs: ${response.status}`);
+  const data = await response.json();
+  return data.configs || [];
+}
+
+export async function saveReplayConfig(name: string, config: ReplayConfig, description?: string): Promise<ReplaySavedConfig> {
+  const response = await fetchWithAuth(`${API_BASE}/api/replay/configs`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name, description: description || null, config }),
+  });
+  if (!response.ok) {
+    const err = await response.json().catch(() => ({}));
+    throw new Error(err.detail || `Failed to save config: ${response.status}`);
+  }
+  return response.json();
+}
+
+export async function deleteReplayConfig(id: number): Promise<void> {
+  const response = await fetchWithAuth(`${API_BASE}/api/replay/configs/${id}`, {
+    method: "DELETE",
+  });
+  if (!response.ok) throw new Error(`Failed to delete config: ${response.status}`);
 }

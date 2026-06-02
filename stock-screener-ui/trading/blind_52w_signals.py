@@ -13,6 +13,7 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         self.min_days_since_52w_high = int(config.get("min_days_since_52w_high", 20))
         self.max_holding_days = int(config.get("max_holding_days", 30))
         self.sl_pct = float(config.get("sl_pct", 5.0))
+        self.min_avg_volume = float(config.get("min_avg_volume", 50000))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 30))
         super().__init__(sl_pct=self.sl_pct, tp_pct=0, eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
@@ -23,6 +24,9 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         days_since = market_data.get("days_since_52w_high")
 
         if not all([current_price, high_52w, days_since is not None]):
+            return None
+
+        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
             return None
 
         # Already at or above 52W high — no entry

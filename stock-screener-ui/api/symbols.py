@@ -17,25 +17,6 @@ _instruments_cache: List[Dict] = []
 _instruments_loaded = False
 
 
-FALLBACK_SYMBOLS = [
-    "RELIANCE", "TCS", "HDFCBANK", "INFY", "ICICIBANK",
-    "HINDUNILVR", "ITC", "KOTAKBANK", "SBIN", "BHARTIARTL",
-    "BAJFINANCE", "LICI", "TATAMOTORS", "WIPRO", "TITAN",
-    "MARUTI", "SUNPHARMA", "ONGC", "ADANIENT", "NTPC",
-    "POWERGRID", "ULTRACEMCO", "M&M", "AXISBANK", "TRENT",
-    "BAJAJFINSV", "COALINDIA", "LT", "HCLTECH", "TECHM",
-    "ASIANPAINT", "HDFCLIFE", "SBILIFE", "BPCL", "ADANIPORTS",
-    "IOC", "HAL", "BEL", "VEDL", "TATASTEEL",
-    "JSWSTEEL", "INDUSINDBK", "EICHERMOT", "NESTLEIND", "GRASIM",
-    "BRITANNIA", "DIVISLAB", "APOLLOHOSP", "CIPLA", "DRREDDY",
-    "PIDILITIND", "BAJAJ-AUTO", "MARICO", "DABUR", "HAVELLS",
-    "ICICIPRULI", "ICICIGI", "HDFCAMC", "MUTHOOTFIN", "TORNTPHARM",
-    "GODREJCP", "COLPAL", "MCDOWELL-N", "VOLTAS", "SIEMENS",
-    "POLICYBZR", "ZOMATO", "PAYTM", "NYKAA", "MOTHERSON",
-    "IRFC", "RVNL", "IREDA", "NHPC", "SJVN",
-]
-
-
 def _load_instruments():
     global _instruments_cache, _instruments_loaded
 
@@ -43,30 +24,22 @@ def _load_instruments():
         return _instruments_cache
 
     try:
-        from db.database import SessionLocal
-        from db.models import Instrument
-
         db = SessionLocal()
         instruments = db.query(Instrument).filter(
             Instrument.segment == 'NSE_EQ'
         ).all()
         _instruments_cache = [i.to_dict() for i in instruments]
         _instruments_loaded = True
-        print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
         db.close()
         if _instruments_cache:
-            return _instruments_cache
-        print("⚠️ Database returned 0 instruments — using fallback list")
+            print(f"✅ Loaded {len(_instruments_cache)} instruments from database")
+        else:
+            print("⚠️ Database has 0 NSE_EQ instruments — symbol search will be empty")
+        return _instruments_cache
     except Exception as e:
         print(f"⚠️ Failed to load instruments from database: {e}")
-
-    _instruments_cache = [
-        {"trading_symbol": s, "name": s, "segment": "NSE_EQ", "isin": ""}
-        for s in FALLBACK_SYMBOLS
-    ]
-    _instruments_loaded = True
-    print(f"✅ Loaded {len(_instruments_cache)} fallback instruments")
-    return _instruments_cache
+        _instruments_loaded = True
+        return _instruments_cache
 
 
 @router.get("/api/symbols/search")

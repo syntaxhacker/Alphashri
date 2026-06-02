@@ -1,5 +1,5 @@
 import { ScreenerTable } from "./ScreenerTable";
-import { ScreenerHeatmap } from "./ScreenerHeatmap";
+import { ScreenerHeatmapView } from "./ScreenerHeatmapView";
 import type { Stock, ColumnDef } from "../../types";
 
 interface ScreenerStockViewProps {
@@ -35,14 +35,11 @@ export function ScreenerStockView({
 }: ScreenerStockViewProps) {
   if (viewMode === "heatmap") {
     return (
-      <ScreenerHeatmap
+      <ScreenerHeatmapView
         stocks={stocks}
-        columns={columns}
-        touchedSymbols={touchedSymbols}
-        badgeLabel={badgeLabel}
+        activeScreener={activeScreener}
         onSymbolClick={onSymbolClick}
-        onSymbolHover={onSymbolHover}
-        data-testid={`screener-heatmap-${section}`}
+        testId={`screener-heatmap-${section}`}
       />
     );
   }

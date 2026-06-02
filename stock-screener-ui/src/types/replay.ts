@@ -203,6 +203,16 @@ export interface ReplayState {
   highlightedTradeId: number | null;
 }
 
+export interface ReplaySavedConfig {
+  id: number;
+  user_id: number;
+  name: string;
+  description: string;
+  config: ReplayConfig;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface ReplayChartOptions {
   show_orb_zones: boolean;
   show_pivot_levels: boolean;

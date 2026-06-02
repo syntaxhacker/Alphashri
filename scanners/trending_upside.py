@@ -151,6 +151,21 @@ SCREENER_PROFILES = {
             'limit': 80,
         },
     },
+    '52w_high': {
+        'label': '52W High',
+        'description': 'Upstox 52-week range (recommended)',
+        'indicators': ['52W High', '52W Gap %'],
+        'columns': [
+            'symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'broker_diff',
+            'to_52w_high', 'high_52w', 'low_52w', 'days_ago', 'sector',
+        ],
+        'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
+        'query': {
+            'select': ['name', 'close'],
+            'filters': [],
+            'order_by': ('volume', False),
+        },
+    },
     'near_52w_breakout': {
         'label': 'Near 52W',
         'description': '52-week high breakout candidate logic',

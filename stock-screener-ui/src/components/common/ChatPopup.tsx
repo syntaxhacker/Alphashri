@@ -562,13 +562,14 @@ export function ChatPopup() {
 
           <ScrollArea style={{ flex: 1 }} p="sm">
             {messages.length === 0 ? (
-              <Text size="sm" c="dimmed" ta="center" py="xl">
-                Ask me to analyze a stock!
-                <br />
-                <Text size="xs" c="dimmed">
-                  Try: "Analyze NVDA" or "NVDA report"
+              <Stack gap={4} align="center" py="xl">
+                <Text size="sm" c="dimmed" ta="center" component="div">
+                  Ask me to analyze a stock!
                 </Text>
-              </Text>
+                <Text size="xs" c="dimmed" ta="center" component="div">
+                  Try: &quot;Analyze NVDA&quot; or &quot;NVDA report&quot;
+                </Text>
+              </Stack>
             ) : (
               <Stack gap="sm">
                 {messages.map((msg) => (

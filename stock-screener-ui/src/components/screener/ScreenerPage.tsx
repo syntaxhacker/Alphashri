@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Box, Tabs, Alert } from "@mantine/core";
-import { IconTable, IconChartDots, IconSettings, IconAlertCircle } from "@tabler/icons-react";
+import { Stack, Box, Tabs, Flex, Text } from "@mantine/core";
+import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
 import { CompactPage } from "../common/compact";
 import { ScreenerNav } from "./ScreenerNav";
@@ -9,7 +9,7 @@ import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
 import { CorrelationTab } from "./CorrelationTab";
 import { SelectionBar } from "./SelectionBar";
-import { ScreenerSidePanel } from "./ScreenerSidePanel";
+import { ScreenerSidePanel, screenerHasSideFilters } from "./ScreenerSidePanel";
 import { ScreenerConfigView } from "./ScreenerConfigView";
 import {
   setSymbols,
@@ -67,12 +67,44 @@ function useScreenerSort(activeScreener: string) {
   return { sortColumn, sortDirection, handleSortChange };
 }
 
+function CompactAlerts({
+  activeScreener,
+  warning,
+}: {
+  activeScreener: string;
+  warning?: string | null;
+}) {
+  const lines: string[] = [];
+  if (activeScreener === "52w_high") {
+    lines.push("52W from Upstox daily; LTP live when broker connected.");
+  }
+  if (warning) {
+    lines.push(warning);
+  }
+  if (lines.length === 0) {
+    return null;
+  }
+  return (
+    <Box
+      px={8}
+      py={2}
+      style={{ flexShrink: 0, borderBottom: "1px solid var(--mantine-color-default-border)" }}
+      data-testid="screener-52w-high-banner"
+    >
+      {lines.map((line) => (
+        <Text key={line} size="10px" c="dimmed" lineClamp={2}>
+          {line}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
 export function ScreenerPage({
   screenerOptions,
   activeScreener,
   onScreenerChange,
   onConfigScreenerSelect,
-  title,
   status,
   isLoading,
   autoRefreshSeconds,
@@ -125,58 +157,68 @@ export function ScreenerPage({
   }, [setSearchParams]);
 
   return (
-    <CompactPage>
+    <CompactPage gap={4}>
       <Stack
         h="100%"
         id="screener-main"
         className="screener-page"
-        gap="sm"
+        gap={4}
         data-testid="screener-page"
       >
         <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
-          <Stack gap="sm">
-            <Tabs
-              value={activeTab}
-              onChange={(v) => {
-                if (v && v !== "screener") {
-                  state.setSelectedSymbols([]);
-                }
-                if (v) setActiveTab(v);
-              }}
-            >
-              <Tabs.List>
-                <Tabs.Tab
-                  value="screener"
-                  leftSection={<IconTable size={16} />}
-                  data-testid="tab-screener"
-                >
-                  Screener
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="correlation"
-                  leftSection={<IconChartDots size={16} />}
-                  data-testid="tab-correlation"
-                >
-                  Correlation
-                </Tabs.Tab>
-                <Tabs.Tab
-                  value="config"
-                  leftSection={<IconSettings size={16} />}
-                  data-testid="tab-config"
-                >
-                  Config
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs>
-            {activeTab === "screener" && (
-              <>
-                <ScreenerNav
-                  options={screenerOptions}
-                  activeScreener={activeScreener}
-                  onChange={onScreenerChange}
-                />
+          <Tabs
+            value={activeTab}
+            onChange={(v) => {
+              if (v && v !== "screener") {
+                state.setSelectedSymbols([]);
+              }
+              if (v) setActiveTab(v);
+            }}
+          >
+            <Tabs.List style={{ minHeight: 32 }}>
+              <Tabs.Tab
+                value="screener"
+                leftSection={<IconTable size={14} />}
+                data-testid="tab-screener"
+                py={4}
+              >
+                Screener
+              </Tabs.Tab>
+              <Tabs.Tab
+                value="correlation"
+                leftSection={<IconChartDots size={14} />}
+                data-testid="tab-correlation"
+                py={4}
+              >
+                Correlation
+              </Tabs.Tab>
+              <Tabs.Tab
+                value="config"
+                leftSection={<IconSettings size={14} />}
+                data-testid="tab-config"
+                py={4}
+              >
+                Config
+              </Tabs.Tab>
+            </Tabs.List>
+          </Tabs>
+        </Box>
+        <Box
+          flex={1}
+          id="screener-content"
+          className="screener-content"
+          style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
+          data-testid="screener-content"
+        >
+          {activeTab === "screener" ? (
+            <Flex flex={1} miw={0} mih={0}>
+              <ScreenerNav
+                options={screenerOptions}
+                activeScreener={activeScreener}
+                onChange={onScreenerChange}
+              />
+              <Stack flex={1} gap={0} miw={0} mih={0}>
                 <ScreenerHeader
-                  title={title}
                   status={status}
                   isLoading={isLoading}
                   autoRefreshSeconds={autoRefreshSeconds}
@@ -189,59 +231,59 @@ export function ScreenerPage({
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
                 />
-                {warning && (
-                  <Alert icon={<IconAlertCircle size={16} />} color="yellow" size="sm" radius="sm">
-                    {warning}
-                  </Alert>
-                )}
-              </>
-            )}
-          </Stack>
-        </Box>
-        <Box
-          flex={1}
-          id="screener-content"
-          className="screener-content"
-          style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
-          data-testid="screener-content"
-        >
-          {activeTab === "screener" && (
-            <ScreenerSidePanel
-              activeScreener={activeScreener}
-              screenerOptions={screenerOptions}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-            />
-          )}
-          <Box style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-            <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+                <CompactAlerts activeScreener={activeScreener} warning={warning} />
+                <Flex flex={1} miw={0} mih={0}>
+                  {screenerHasSideFilters(activeScreener) && (
+                    <ScreenerSidePanel
+                      activeScreener={activeScreener}
+                      screenerOptions={screenerOptions}
+                      sortColumn={sortColumn}
+                      sortDirection={sortDirection}
+                    />
+                  )}
+                  <Box
+                    style={{
+                      flex: 1,
+                      display: "flex",
+                      flexDirection: "column",
+                      overflow: "hidden",
+                      minWidth: 0,
+                    }}
+                  >
+                    <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
+                      <ScreenerContent
+                        approachingStocks={approachingStocks}
+                        touchedStocks={touchedStocks}
+                        sortColumn={sortColumn}
+                        sortDirection={sortDirection}
+                        handleSortChange={handleSortChange}
+                        isLoading={isLoading}
+                        error={error}
+                        onRefresh={onRefresh}
+                        onSymbolClick={onSymbolClick}
+                        onSymbolHover={onSymbolHover}
+                        activeScreener={activeScreener}
+                        viewMode={viewMode}
+                      />
+                    </Box>
+                    <SelectionBar onCompare={handleCompare} />
+                  </Box>
+                </Flex>
+              </Stack>
+            </Flex>
+          ) : (
+            <Box style={{ flex: 1, overflow: "auto", minHeight: 0, width: "100%" }}>
               {activeTab === "config" ? (
                 <ScreenerConfigView
                   screenerOptions={screenerOptions}
                   activeScreener={activeScreener}
                   onScreenerChange={onConfigScreenerSelect}
                 />
-              ) : activeTab === "correlation" ? (
-                <CorrelationTab />
               ) : (
-                <ScreenerContent
-                  approachingStocks={approachingStocks}
-                  touchedStocks={touchedStocks}
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  handleSortChange={handleSortChange}
-                  isLoading={isLoading}
-                  error={error}
-                  onRefresh={onRefresh}
-                  onSymbolClick={onSymbolClick}
-                  onSymbolHover={onSymbolHover}
-                  activeScreener={activeScreener}
-                  viewMode={viewMode}
-                />
+                <CorrelationTab />
               )}
             </Box>
-            {activeTab === "screener" && <SelectionBar onCompare={handleCompare} />}
-          </Box>
+          )}
         </Box>
       </Stack>
     </CompactPage>

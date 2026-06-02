@@ -88,16 +88,13 @@ test.describe("Screener - Screener Navigation", () => {
     }
 
     // Get all tabs within the screener nav
-    const screenerTabs = page.locator(
-      '[data-testid="screener-nav"] .mantine-SegmentedControl-control',
-    );
-    const count = await screenerTabs.count();
+    const screenerOptions = page.locator('[data-testid^="screener-nav-option-"]');
+    const count = await screenerOptions.count();
     if (count < 2) {
       return;
     }
 
-    // Click the second tab (index 1)
-    await screenerTabs.nth(1).click({
+    await screenerOptions.nth(1).click({
       force: true,
     });
 

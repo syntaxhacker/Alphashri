@@ -30,6 +30,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         self.max_holding_days = int(config.get("max_holding_days", 30))
         self.cooldown_days = int(config.get("cooldown_days", 30))
         self.enable_filters = bool(config.get("enable_filters", False))
+        self.min_avg_volume = float(config.get("min_avg_volume", 50000))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
@@ -41,6 +42,9 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             high_52w = calculate_52w_high(daily_highs)
 
         if current_price is None or high_52w is None or current_price <= 0 or high_52w <= 0:
+            return None
+
+        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
             return None
 
         # Chaser enters on confirmed breakout: price must be min_breakout_pct above the 52W high

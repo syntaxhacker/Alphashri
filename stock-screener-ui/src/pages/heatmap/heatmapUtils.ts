@@ -33,8 +33,52 @@ export function norm(value: number, min: number, max: number): number {
   return Math.min(Math.max((logVal - logMin) / (logMax - logMin), 0), 1);
 }
 
+/** Metrics where negative = red and positive = green (not magnitude-only). */
+export const SIGNED_HEATMAP_METRICS = new Set([
+  "day_change",
+  "change_pct",
+  "to_52w_high",
+  "recent_return_5d",
+  "perf_w",
+  "impact_score",
+  "gap_pct",
+  "premarket_change",
+  "move_pct",
+  "perf_1y",
+  "dividend_yield",
+  "roe",
+]);
+
+export function isSignedHeatmapMetric(metric: string): boolean {
+  return SIGNED_HEATMAP_METRICS.has(metric);
+}
+
+/** Green for gains, red for losses; intensity scales within each side. */
+export function getSignedMetricColor(value: number, min: number, max: number): string {
+  if (value > 0) {
+    const t = max > 0 ? Math.min(value / max, 1) : 1;
+    return lerpRgb(25 * t);
+  }
+  if (value < 0) {
+    const t = min < 0 ? Math.min(Math.abs(value) / Math.abs(min), 1) : 1;
+    return lerpRgb(75 + 25 * t);
+  }
+  return lerpRgb(50);
+}
+
 export function getMetricColor(value: number, min: number, max: number): string {
   return lerpRgb(norm(value, min, max) * 100);
+}
+
+export function getHeatmapMetricColor(
+  metric: string,
+  value: number,
+  min: number,
+  max: number,
+): string {
+  return isSignedHeatmapMetric(metric)
+    ? getSignedMetricColor(value, min, max)
+    : getMetricColor(value, min, max);
 }
 
 export function getMetricTextColor(value: number, min: number, max: number): string {
@@ -45,15 +89,52 @@ export function getMetricTextColor(value: number, min: number, max: number): str
   return l > 0.55 ? "#1a1a1a" : "#fff";
 }
 
+export function getHeatmapMetricTextColor(
+  metric: string,
+  value: number,
+  min: number,
+  max: number,
+): string {
+  const bg = getHeatmapMetricColor(metric, value, min, max);
+  const m = bg.match(/\d+/g);
+  if (!m) return "#fff";
+  const l = (0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2]) / 255;
+  return l > 0.55 ? "#1a1a1a" : "#fff";
+}
+
 export function getMetricValue(stock: HeatmapStock, metric: string): number {
+  const row = stock as HeatmapStock & Record<string, unknown>;
   switch (metric) {
-    case "market_cap": return stock.market_cap;
-    case "pe_ratio": return stock.pe_ratio;
-    case "pb_ratio": return stock.pb_ratio ?? 0;
-    case "dividend_yield": return stock.dividend_yield ?? 0;
-    case "perf_1y": return stock.perf_1y ?? 0;
-    case "roe": return stock.roe ?? 0;
-    default: return 0;
+    case "market_cap":
+      return stock.market_cap;
+    case "pe_ratio":
+      return stock.pe_ratio;
+    case "pb_ratio":
+      return stock.pb_ratio ?? 0;
+    case "dividend_yield":
+      return stock.dividend_yield ?? 0;
+    case "perf_1y":
+      return stock.perf_1y ?? 0;
+    case "roe":
+      return stock.roe ?? 0;
+    case "score":
+      return Number(row.score) || 0;
+    case "to_52w_high":
+      return Number(row.to_52w_high) || 0;
+    case "day_change":
+      return Number(row.day_change) || 0;
+    case "recent_return_5d":
+      return Number(row.recent_return_5d) || 0;
+    case "perf_w":
+      return Number(row.perf_w) || 0;
+    case "rsi":
+      return Number(row.rsi) || 0;
+    case "adx":
+      return Number(row.adx) || 0;
+    case "volume_m":
+      return Number(row.volume_m) || 0;
+    default:
+      return 0;
   }
 }
 

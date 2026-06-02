@@ -178,7 +178,7 @@ describe("ReplayConfig", () => {
     expect(screen.getByTestId("replay-date-to")).toBeInTheDocument();
   });
 
-  it("renders Strategy Select with options", () => {
+  it("does NOT render Strategy Select (removed — bot has strategies)", () => {
     render(
       <MantineProvider>
         <ReplayConfigBar
@@ -191,7 +191,7 @@ describe("ReplayConfig", () => {
         />
       </MantineProvider>,
     );
-    expect(screen.getByTestId("replay-strategy-select")).toBeInTheDocument();
+    expect(screen.queryByTestId("replay-strategy-select")).toBeNull();
   });
 
   it("renders Symbols Select", () => {
@@ -208,6 +208,22 @@ describe("ReplayConfig", () => {
       </MantineProvider>,
     );
     expect(screen.getByTestId("replay-symbols-select")).toBeInTheDocument();
+  });
+
+  it("renders Screener Load button next to symbols", () => {
+    render(
+      <MantineProvider>
+        <ReplayConfigBar
+          config={defaultConfig}
+          isRunning={false}
+          setConfig={vi.fn()}
+          startReplay={vi.fn()}
+          stopReplay={vi.fn()}
+          reset={vi.fn()}
+        />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("screener-picker-btn")).toBeInTheDocument();
   });
 
   it("renders Refresh Cache switch", () => {

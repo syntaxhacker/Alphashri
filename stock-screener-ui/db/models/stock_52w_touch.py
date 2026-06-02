@@ -7,6 +7,29 @@ from sqlalchemy.sql import func
 from .base import Base
 
 
+class Stock52WeekRange(Base):
+    """Current 52-week high and low for each symbol.
+
+    Updated every 5 minutes during market hours via TradingView broad screener.
+    """
+    __tablename__ = "stock_52w_range"
+
+    symbol = Column(String(32), primary_key=True, index=True)
+    high_52w = Column(Float, nullable=False)
+    low_52w = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    updated_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    def to_dict(self) -> dict:
+        return {
+            "symbol": self.symbol,
+            "high_52w": self.high_52w,
+            "low_52w": self.low_52w,
+            "close": self.close,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
+
+
 class Stock52WeekTouch(Base):
     """Tracks when a stock touches its 52-week high or low.
 

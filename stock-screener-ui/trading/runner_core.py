@@ -1197,6 +1197,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     del self.strategies[sid]
 
             # Main date loop
+            _replay_start_time = datetime.now(IST)
             for current_date_str in dates_to_run.strftime('%Y-%m-%d'):
                 provider = ReplayDataProvider(
                     date_str=current_date_str,
@@ -1206,8 +1207,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 )
                 DataFetcherProxy.upstox_api = provider
 
+                total_candles = sum(len(df) for df in provider._1m_data.values())
                 if on_event:
-                    total_candles = sum(len(df) for df in provider._1m_data.values())
                     on_event({"type": "loaded", "symbols": len(provider._1m_data), "candles": total_candles})
 
                 self._replay_symbol_candle_counts = {
@@ -1228,7 +1229,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     candle_count += 1
 
                     if candle_count % 50 == 0 and on_event:
-                        on_event({"type": "progress", "candle": candle_count, "total": 375,
+                        on_event({"type": "progress", "candle": candle_count, "total": total_candles,
                                     "time": current.strftime("%H:%M"), "symbol": ""})
 
                     for sym in symbols:
@@ -1261,9 +1262,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                     if is_5min or is_market_open:
                         for sid, runner in self.strategies.items():
-                            if runner.strategy_type in ("52W_CHASER", "52W_TARGET", "BLIND_52W"):
-                                if not is_market_open:
-                                    continue
                             try:
                                 signals = self.scan_for_signals(sid)
                                 for signal in signals:
@@ -1298,7 +1296,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
             if on_event:
                 self._emit_summary(on_event)
-                on_event({"type": "done", "success": True, "duration_ms": 0})
+                duration_ms = int((datetime.now(IST) - _replay_start_time).total_seconds() * 1000)
+                on_event({"type": "done", "success": True, "duration_ms": duration_ms})
         finally:
             self.replay_mode = False
             self._replay_time = None

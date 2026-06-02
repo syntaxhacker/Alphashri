@@ -7,6 +7,7 @@ import { getRsiReversalColumns } from "./rsiReversal";
 import { getHighMomentumColumns } from "./highMomentum";
 import { getNiftyMoversColumns } from "./niftyMovers";
 import { getBuyerInterestColumns } from "./buyerInterest";
+import { get52wHighColumns } from "./52wHigh";
 import { getColumnsForScreener } from "./index";
 import type { FormattedCell } from "./index";
 import type { Stock } from "../../../types";
@@ -78,6 +79,19 @@ describe("getColumnsForScreener", () => {
   test("returns high_momentum columns for 'high_momentum'", () => {
     const cols = getColumnsForScreener("high_momentum");
     expect(cols[0].key).toBe("symbol");
+  });
+
+  test("returns 52w_high columns without volume or touched column", () => {
+    const cols = getColumnsForScreener("52w_high");
+    expect(cols.map((c) => c.key)).toEqual([
+      "symbol",
+      "score",
+      "to_52w_high",
+      "high_52w",
+      "low_52w",
+      "upstox_price",
+      "days_ago",
+    ]);
   });
 
   test("defaults to trending for unknown screener id", () => {
@@ -264,6 +278,26 @@ describe("trending columns", () => {
 
   test("perf_w zero gets red (not > 0)", () => {
     expectFormattedCell(fmt(columns, "perf_w", 0), "0.0%", "red");
+  });
+});
+
+describe("52wHigh columns", () => {
+  const columns = get52wHighColumns();
+
+  test("returns correct number of columns", () => {
+    expect(columns.length).toBe(7);
+  });
+
+  test("to_52w_high negative gets green class", () => {
+    expectFormattedCell(fmt(columns, "to_52w_high", -5.76), "-5.76%", "green");
+  });
+
+  test("upstox_price formats as LTP with rupee symbol", () => {
+    expect(fmt(columns, "upstox_price", 2451.0)).toBe("₹2451.00");
+  });
+
+  test("low_52w missing returns dash", () => {
+    expect(fmt(columns, "low_52w", undefined)).toBe("-");
   });
 });
 

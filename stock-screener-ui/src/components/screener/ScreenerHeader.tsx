@@ -6,14 +6,13 @@ import {
   Select,
   Tooltip,
   SegmentedControl,
+  Box,
 } from "@mantine/core";
 import { IconRefresh } from "@tabler/icons-react";
-import { CompactPanel } from "../common/compact";
 
 type ScreenerViewMode = "table" | "heatmap";
 
 interface ScreenerHeaderProps {
-  title: string;
   status: string;
   isLoading: boolean;
   autoRefreshSeconds: number;
@@ -28,7 +27,6 @@ interface ScreenerHeaderProps {
 }
 
 export function ScreenerHeader({
-  title,
   status,
   isLoading,
   autoRefreshSeconds,
@@ -42,112 +40,82 @@ export function ScreenerHeader({
   onViewModeChange,
 }: ScreenerHeaderProps) {
   return (
-    <CompactPanel
+    <Box
       id="screener-header"
       className="screener-header"
-      testId="screener-header"
-      title={title}
-      description={status}
+      data-testid="screener-header"
+      py={4}
+      px={8}
+      style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
     >
-      <Group justify="space-between" align="flex-start" gap="sm" wrap="wrap">
-        <Group gap="xs" align="center" className="header-controls" data-testid="header-controls">
+      <Group justify="space-between" align="center" gap={6} wrap="nowrap">
+        <Text size="xs" c="dimmed" truncate style={{ flex: 1, minWidth: 0 }} title={status}>
+          {status}
+        </Text>
+        <Group gap={6} align="center" wrap="nowrap" className="header-controls" data-testid="header-controls">
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
+              size="sm"
               onClick={onRefresh}
               loading={isLoading}
               data-testid="refresh-btn"
               id="refresh-btn"
               className="refresh-btn"
             >
-              <IconRefresh size={16} />
+              <IconRefresh size={14} />
             </ActionIcon>
           </Tooltip>
-          <Group
-            gap={6}
-            align="center"
-            className="auto-refresh-group"
-            data-testid="auto-refresh-group"
-          >
-            <Text size="xs" c="dimmed" className="auto-refresh-label">
-              Auto-refresh
-            </Text>
-            <NumberInput
-              value={autoRefreshSeconds}
-              onChange={(value) => onAutoRefreshChange(Number(value) || 0)}
-              min={0}
-              max={3600}
-              step={10}
-              w={76}
-              size="xs"
-              disabled={isLoading}
-              data-testid="auto-refresh-input"
-            />
-            <Text size="xs" c="dimmed" className="auto-refresh-unit">
-              sec
-            </Text>
-          </Group>
-          <Group gap={6} align="center" className="provider-group" data-testid="provider-group">
-            <Text size="xs" c="dimmed" className="provider-label">
-              Provider
-            </Text>
-            <Select
-              value={provider}
-              onChange={(value) => value && onProviderChange(value)}
-              data={[
-                { value: "upstox", label: "Upstox" },
-                { value: "indmoney", label: "INDMONEY" },
-              ]}
-              size="xs"
-              w={118}
-              disabled={isLoading}
-              data-testid="provider-select"
-              id="provider-select"
-              className="provider-select"
-            />
-          </Group>
-          <Group gap={6} align="center" className="mode-group" data-testid="mode-group">
-            <Text size="xs" c="dimmed" className="mode-label">
-              Mode
-            </Text>
-            <Select
-              value={mode}
-              onChange={(value) => value && onModeChange(value)}
-              data={[
-                { value: "intraday", label: "Intraday" },
-                { value: "historical", label: "5D" },
-              ]}
-              size="xs"
-              w={96}
-              disabled={isLoading}
-              data-testid="mode-select"
-              id="mode-select"
-              className="mode-select"
-            />
-          </Group>
-          <Group
-            gap={6}
-            align="center"
-            className="view-group"
-            data-testid="view-group"
-            hiddenFrom="sm"
-          >
-            <Text size="xs" c="dimmed">
-              View as
-            </Text>
-            <SegmentedControl
-              size="xs"
-              value={viewMode}
-              onChange={(value) => onViewModeChange(value as ScreenerViewMode)}
-              data={[
-                { label: "Table", value: "table" },
-                { label: "Heatmap", value: "heatmap" },
-              ]}
-              data-testid="screener-view-toggle"
-            />
-          </Group>
+          <NumberInput
+            value={autoRefreshSeconds}
+            onChange={(value) => onAutoRefreshChange(Number(value) || 0)}
+            min={0}
+            max={3600}
+            step={10}
+            w={52}
+            size="xs"
+            disabled={isLoading}
+            data-testid="auto-refresh-input"
+            aria-label="Auto-refresh seconds"
+          />
+          <Select
+            value={provider}
+            onChange={(value) => value && onProviderChange(value)}
+            data={[
+              { value: "upstox", label: "Upstox" },
+              { value: "indmoney", label: "IND" },
+            ]}
+            size="xs"
+            w={88}
+            disabled={isLoading}
+            data-testid="provider-select"
+            comboboxProps={{ withinPortal: true }}
+          />
+          <Select
+            value={mode}
+            onChange={(value) => value && onModeChange(value)}
+            data={[
+              { value: "intraday", label: "Intra" },
+              { value: "historical", label: "5D" },
+            ]}
+            size="xs"
+            w={72}
+            disabled={isLoading}
+            data-testid="mode-select"
+            comboboxProps={{ withinPortal: true }}
+          />
+          <SegmentedControl
+            size="xs"
+            value={viewMode}
+            onChange={(value) => onViewModeChange(value as ScreenerViewMode)}
+            data={[
+              { label: "Tbl", value: "table" },
+              { label: "Map", value: "heatmap" },
+            ]}
+            data-testid="screener-view-toggle"
+          />
         </Group>
       </Group>
-    </CompactPanel>
+    </Box>
   );
 }
