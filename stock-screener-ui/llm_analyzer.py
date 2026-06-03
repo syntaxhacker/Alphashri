@@ -158,6 +158,22 @@ class ArticleAnalyzer:
             print(f"Failed to get aggregate stats: {e}")
             return {}
 
+    def clear_llm_stats(self) -> int:
+        """Clear LLM run log data (llm_runs table only). Does not affect article_analysis cache.
+        Returns count of deleted rows.
+        """
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*) FROM llm_runs")
+                count = cursor.fetchone()[0] or 0
+                cursor.execute("DELETE FROM llm_runs")
+                conn.commit()
+                return int(count)
+        except Exception as e:
+            print(f"Failed to clear LLM stats: {e}")
+            return 0
+
     def _generate_cache_key(self, url: str) -> str:
         return hashlib.md5(url.encode()).hexdigest()
 

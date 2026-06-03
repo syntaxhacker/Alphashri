@@ -1,4 +1,10 @@
-"""TV-free 52-week high screener using Upstox-computed ranges (DB/Redis)."""
+"""
+52w high screener using precomputed 52w ranges (from DB/Redis, populated via Upstox or TV bulk).
+Symbols + 52w high/low/close come from the ranges (accurate historical).
+Volume, change, sector, market_cap, RSI and other live params are enriched via targeted
+TradingView scanner query (set_tickers on the exact candidate symbols) so the screener output
+has rich columns like the other TV-based screeners.
+"""
 import os
 from datetime import datetime
 
@@ -222,10 +228,18 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         stock_data['low_52w'] = round(low, 2)
         stock_data['rationale'] = _build_rationale(screener, stock_data)
 
-        if not _passes_profile_filters(screener, stock_data, profile_filters):
-            continue
-
         candidates.append(stock_data)
+
+    # Enrich candidates with real TV data (volume etc) BEFORE the vol filter,
+    # so that min_volume_m etc in 52w profile work with actual volume from TV.
+    _enrich_with_tv_scanner_data(candidates)
+
+    # re-apply passes now that volume_m etc are real (for 52w_high this mainly checks vol/turnover if min set >0)
+    filtered_candidates = []
+    for sd in candidates:
+        if _passes_profile_filters(screener, sd, profile_filters):
+            filtered_candidates.append(sd)
+    candidates = filtered_candidates
 
     approaching = []
     touched = []
@@ -277,3 +291,100 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
 
     data['summary'] = _summary_items_for(screener, data['approaching'], data['touched'])
     return data
+def _enrich_with_tv_scanner_data(stocks: list[dict]) -> None:
+    """Targeted TV enrichment for volume + other params for 52w high screener candidates.
+
+    We already have the right symbols (from 52w ranges -- "getting symbols fine").
+    Now query TV scanner directly (using set_tickers on the exact list) for live volume,
+    change, sector, market_cap etc. "from this tv search only".
+
+    Normalized symbol matching (via helpers) ensures TV names/tickers line up with our
+    local trading_symbols (handles NSE: prefix, BAJAJ_AUTO vs BAJAJ-AUTO, etc).
+    """
+    if not stocks:
+        return
+    syms = []
+    for s in stocks:
+        sym = s.get('symbol')
+        if sym and sym not in syms:
+            syms.append(sym)
+    if not syms:
+        return
+
+    # Lazy imports: keeps surface small, works when tradingview_screener is stubbed in tests.
+    try:
+        from api.symbols import normalize_tv_symbol, to_tv_ticker
+        from tradingview_screener import Query
+    except Exception:
+        return
+
+    BATCH_SIZE = 80  # safer batch size for set_tickers to avoid empty responses or limits on large 52w candidate lists
+    tv_by_sym: dict[str, dict] = {}
+
+    for i in range(0, len(syms), BATCH_SIZE):
+        batch = syms[i : i + BATCH_SIZE]
+        tickers = [to_tv_ticker(sym) for sym in batch]
+        if not tickers:
+            continue
+        try:
+            q = (
+                Query()
+                .set_tickers(*tickers)
+                .select(
+                    'name', 'ticker', 'close', 'volume', 'change',
+                    'sector', 'market_cap_basic', 'relative_volume_10d_calc',
+                    'RSI', 'ADX', 'Perf.W'
+                )
+            )
+            _, df = q.get_scanner_data()
+            if df is None or df.empty:
+                continue
+            for _, row in df.iterrows():
+                # Robust extraction: use iloc preferentially because set_tickers / scanner df
+                # often has duplicate column names ('ticker' twice), making .get('ticker') return
+                # a pandas Series (which str() makes messy). iloc[0] is typically the full ticker.
+                try:
+                    tkr = str(row.iloc[0]).strip() if len(row) > 0 else ''
+                    nm = str(row.iloc[1]).strip() if len(row) > 1 else ''
+                except Exception:
+                    tkr = str(row.get('ticker', '')).strip()
+                    nm = str(row.get('name', '')).strip()
+                raw = tkr or nm
+                bare = normalize_tv_symbol(raw)
+                if bare:
+                    tv_by_sym[bare] = row.to_dict() if hasattr(row, 'to_dict') else dict(row)
+        except Exception:
+            continue
+
+    if not tv_by_sym:
+        return
+
+    for stock in stocks:
+        sym = stock.get('symbol')
+        if not sym or sym not in tv_by_sym:
+            continue
+        r = tv_by_sym[sym]
+        vol = _to_float(r.get('volume'), 0)
+        stock['volume_m'] = round(vol / 1_000_000, 2)
+        price_for_turn = _to_float(
+            stock.get('upstox_price') or stock.get('tv_price') or r.get('close'), 0
+        )
+        stock['turnover_cr'] = round(vol * price_for_turn / 10_000_000, 2) if price_for_turn > 0 else 0.0
+
+        stock['day_change'] = round(_to_float(r.get('change'), 0), 2)
+        stock['sector'] = r.get('sector') or stock.get('sector', '-')
+        mc = _to_float(r.get('market_cap_basic'), 0)
+        if mc:
+            stock['market_cap_b'] = round(mc / 1_000_000_000, 2)
+
+        tv_close = _to_float(r.get('close'), 0)
+        if tv_close > 0:
+            stock['tv_price'] = round(tv_close, 2)
+
+        stock['rsi'] = round(_to_float(r.get('RSI'), stock.get('rsi', 0)), 1)
+        stock['adx'] = round(_to_float(r.get('ADX'), stock.get('adx', 0)), 1)
+        rel_vol = _to_float(r.get('relative_volume_10d_calc'), 0)
+        if rel_vol:
+            stock['volume_surge'] = round(rel_vol, 2)
+        # also provide raw 'volume' in addition to volume_m so it's visible as "vlumn"
+        stock['volume'] = vol

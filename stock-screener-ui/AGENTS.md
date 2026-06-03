@@ -8,7 +8,7 @@
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
@@ -116,6 +116,7 @@ src/
 - **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
+- **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
 
 ## Strategy Config Pipeline
 - **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
@@ -194,6 +195,16 @@ src/
 - Today's intraday fetch that returns empty (pre-market) does NOT fall through to historical — returns empty to avoid caching wrong day's data
 - Pre-market cache poisoning fix: when `date == today` and `fetch_intraday_data_v3` returns None/empty, early return (no fallback to historical)
 
+## 52W Range Screener Background Job
+- The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.
+- Both are gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
+- **Key `start.sh` behavior**: The range batch now performs a *prompt initial run* shortly after startup (during market hours) instead of sleeping the full interval first. This ensures that running `start.sh` when ranges are stale triggers an observable batch quickly (previous behavior waited up to 1 hour). After the initial run, it follows the normal `SCREENER_52W_INTERVAL_SEC` (default 3600, overrideable).
+- Scheduled runs are incremental only (`--skip-existing`). After the initial bootstrap, they usually process only a handful of symbols and finish in ~1-2 seconds.
+- The admin 52W panel shows the last job result from Redis (status usually stays "completed"). The live progress bar is only shown while the job status is actively "running" — because normal runs are so fast, it is rarely visible on the panel's 5s poll. Use "Clear cache + DB" followed by a manual "Run batch" (or full refresh) if you need to observe the progress UI.
+- "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
+- Prewarm keeps the 52w_high screener (and others) responsive during market hours.
+- Logs for the jobs appear in `logs/alphashri.log`.
+
 ## Trade Entry Reason Pipeline
 - Signal generators set `signal.notes` with detailed calculations (ORB: range%, SL%, ATR, ADX, RSI; SR Breakout: pivot type, buffer%; EMA Cross: gap, SL%; 52W Chaser: ADX, RSI; 52W Target: SL%, trail%)
 - `runner_signals.py:453` stores `signal.notes` in `position.metadata['entry_reason']`
@@ -267,6 +278,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
+- **52W range batch progress in admin UI**: normal post-bootstrap runs are very fast (tiny candidate set after skip-existing), so the "running" state + progress bar is rarely caught by the panel's polling. The UI mostly shows the last completed result. Force a long run (clear DB first + full refresh) if you need to observe live progress.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
