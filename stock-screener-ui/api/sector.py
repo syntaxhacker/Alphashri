@@ -19,11 +19,9 @@ import requests
 from tradingview_screener import Query as TVQuery, col
 
 from config import IST
-from api.utils import _to_float, (
-    _get_cache_path as _utils_get_cache_path,
-    _get_cache_meta_path as _utils_get_cache_meta_path,
-    _read_cache as _utils_read_cache,
-    _write_cache as _utils_write_cache,
+from api.utils import (
+    _to_float,
+    make_cache_helpers,
     _compute_pearson_correlation_matrix,
 )
 
@@ -190,21 +188,10 @@ def _make_cache_key(market: str, lookback_days: int) -> str:
     return f"{market}_{lookback_days}"
 
 
-# Thin wrappers over shared impl in api.utils (dedups the 26-line cache clone vs correlation.py)
-def _get_cache_path(key: str) -> Path:
-    return _utils_get_cache_path(CACHE_DIR, key)
-
-
-def _get_cache_meta_path(key: str) -> Path:
-    return _utils_get_cache_meta_path(CACHE_DIR, key)
-
-
-def _read_cache(key: str) -> Optional[dict]:
-    return _utils_read_cache(CACHE_DIR, key, CACHE_TTL_SECONDS)
-
-
-def _write_cache(key: str, data: dict) -> None:
-    _utils_write_cache(CACHE_DIR, key, data)
+# Use factory to bind shared cache helpers (eliminates duplicate wrapper fns vs correlation.py)
+_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache = make_cache_helpers(
+    CACHE_DIR, CACHE_TTL_SECONDS
+)
 
 
 def _get_instrument_key_map() -> Dict[str, str]:
