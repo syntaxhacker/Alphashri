@@ -4,18 +4,22 @@ and normalized price overlays for a set of symbols.
 """
 
 import asyncio
-import json
-import time
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional
 
-import numpy as np
 import pandas as pd
 from fastapi import APIRouter, HTTPException
 
 from config import IST, UPSTOX_API_KEY, UPSTOX_API_SECRET
 from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+from api.utils import (
+    _get_cache_path as _utils_get_cache_path,
+    _get_cache_meta_path as _utils_get_cache_meta_path,
+    _read_cache as _utils_read_cache,
+    _write_cache as _utils_write_cache,
+    _compute_pearson_correlation_matrix,
+)
 
 router = APIRouter(prefix="/api/correlation", tags=["correlation"])
 
@@ -23,7 +27,7 @@ CACHE_DIR = Path(__file__).parent.parent / "experiments" / "data" / "correlation
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
-# ===== Cache helpers =====
+# ===== Cache helpers (thin wrappers over shared impl in api.utils to eliminate DRY) =====
 
 def _make_cache_key(symbols: list[str], timeframe: str, period: int, period_unit: str) -> str:
     sym = "_".join(sorted(s.upper() for s in symbols))
@@ -31,36 +35,19 @@ def _make_cache_key(symbols: list[str], timeframe: str, period: int, period_unit
 
 
 def _get_cache_path(key: str) -> Path:
-    return CACHE_DIR / f"{key}.json"
+    return _utils_get_cache_path(CACHE_DIR, key)
 
 
 def _get_cache_meta_path(key: str) -> Path:
-    return CACHE_DIR / f"{key}.meta"
+    return _utils_get_cache_meta_path(CACHE_DIR, key)
 
 
 def _read_cache(key: str) -> Optional[dict]:
-    path = _get_cache_path(key)
-    if not path.exists():
-        return None
-    try:
-        meta_path = _get_cache_meta_path(key)
-        if meta_path.exists():
-            with open(meta_path, "r") as f:
-                meta = json.load(f)
-            if time.time() - meta.get("ts", 0) > CACHE_TTL_SECONDS:
-                return None
-        with open(path, "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
+    return _utils_read_cache(CACHE_DIR, key, CACHE_TTL_SECONDS)
 
 
 def _write_cache(key: str, data: dict) -> None:
-    CACHE_DIR.mkdir(parents=True, exist_ok=True)
-    with open(_get_cache_path(key), "w") as f:
-        json.dump(data, f)
-    with open(_get_cache_meta_path(key), "w") as f:
-        json.dump({"ts": time.time()}, f)
+    _utils_write_cache(CACHE_DIR, key, data)
 
 
 # ===== Data fetching =====
@@ -133,26 +120,14 @@ def _compute_correlation(
             }
         return None, None, None, None
 
-    all_dfs = [dfs[s] for s in valid_symbols]
-
-    all_indices = all_dfs[0].index
-    for df in all_dfs[1:]:
-        all_indices = all_indices.intersection(df.index)
-
-    if len(all_indices) < 2:
+    # Use shared implementation for alignment + corr matrix (dedups vs sector.py)
+    corr_list, _, all_indices = _compute_pearson_correlation_matrix(
+        {s: dfs[s] for s in valid_symbols}
+    )
+    if corr_list is None or all_indices is None:
         return None, None, None, None
 
-    close_matrix = np.column_stack([
-        df.loc[all_indices, "close"].values for df in all_dfs
-    ])
-
-    returns = np.diff(np.log(close_matrix), axis=0)
-
-    with np.errstate(invalid="ignore", divide="ignore"):
-        corr_matrix = np.corrcoef(returns, rowvar=False)
-
-    corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
-    corr_list = [[round(float(v), 6) for v in row] for row in corr_matrix]
+    all_dfs = [dfs[s] for s in valid_symbols]
 
     normalized = {}
     for s, df in zip(valid_symbols, all_dfs):

@@ -22,6 +22,24 @@ from backtest.api import (
 _backtest_handler = BacktestRequestHandler()
 
 
+def _base_backtest_response(data: dict) -> dict:
+    """Common dict builder for backtest run responses (and cache payloads).
+
+    Eliminates the 9-line duplicated literal for strategy/variation/config/results/totals/etc
+    between the cache-save path and the final response construction.
+    """
+    return {
+        'strategy': data.get('strategy'),
+        'variation_id': data.get('variation_id'),
+        'config': data.get('config'),
+        'results': data.get('results'),
+        'totals': data.get('totals'),
+        'skipped_stocks': data.get('skipped_stocks', []),
+        'run_time': data.get('run_time'),
+        'saved_uuid': data.get('saved_uuid'),
+    }
+
+
 class BacktestRunRequest(BaseModel):
     strategy: str = 'orb'
     variation_id: Optional[str] = None
@@ -84,17 +102,8 @@ async def run_backtest(
     if cached is not None:
         _backtest_handler.backtest_cache = build_backtest_inmem_cache(cached)
         _backtest_handler.set_progress_done()
-        response = {
-            'strategy': cached.get('strategy'),
-            'variation_id': cached.get('variation_id'),
-            'config': cached.get('config'),
-            'results': cached.get('results'),
-            'totals': cached.get('totals'),
-            'skipped_stocks': cached.get('skipped_stocks', []),
-            'run_time': cached.get('run_time'),
-            'saved_uuid': cached.get('saved_uuid'),
-            'from_cache': True,
-        }
+        response = _base_backtest_response(cached)
+        response['from_cache'] = True
         if include_chart_data:
             response['candles'] = cached.get('candles', {})
             response['chart_data'] = cached.get('chart_data', {})
@@ -111,32 +120,14 @@ async def run_backtest(
         has_trades = totals.get('trades', 0) > 0
 
         if is_cache_available() and has_trades:
-            cache_data = {
-                'strategy': result.get('strategy'),
-                'variation_id': result.get('variation_id'),
-                'config': result.get('config'),
-                'results': result.get('results'),
-                'totals': result.get('totals'),
-                'skipped_stocks': result.get('skipped_stocks', []),
-                'run_time': result.get('run_time'),
-                'saved_uuid': result.get('saved_uuid'),
-                'candles': result.get('candles', {}),
-                'chart_data': result.get('chart_data', {}),
-            }
+            cache_data = _base_backtest_response(result)
+            cache_data['candles'] = result.get('candles', {})
+            cache_data['chart_data'] = result.get('chart_data', {})
             cache_set(cache_key, cache_data, ttl=86400)
 
     _backtest_handler.set_progress_done()
 
-    response = {
-        'strategy': result.get('strategy'),
-        'variation_id': result.get('variation_id'),
-        'config': result.get('config'),
-        'results': result.get('results'),
-        'totals': result.get('totals'),
-        'skipped_stocks': result.get('skipped_stocks', []),
-        'run_time': result.get('run_time'),
-        'saved_uuid': result.get('saved_uuid'),
-    }
+    response = _base_backtest_response(result)
 
     if include_chart_data:
         from backtest.chart_data import build_chart_data_for_symbol
