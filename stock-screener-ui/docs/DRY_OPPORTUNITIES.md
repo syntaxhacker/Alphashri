@@ -202,3 +202,30 @@ print('All touched module imports: SUCCESS (no breakage)')
 
 See terminal for full list (head showed the top ones; tail for stats).
 
+## Final DRY pass (cache factory) + readiness for PR
+
+**Additional fix after parallel agents:**
+- Extracted `make_cache_helpers` factory in `api/utils.py`.
+- Updated `api/sector.py` and `api/correlation.py` to use the factory instead of duplicating the 4 thin wrapper functions (`_get_cache_path` etc).
+- This removed the last reported cross-file cache clone (api/correlation.py:37-53 <-> api/sector.py:195-211, ~16 lines).
+- Also cleaned import style in sector.py as part of the DRY import consolidation.
+
+**Post-fix jscpd (python, clean ignore, --threshold 10):**
+- 114 clones, 1721 duplicated lines (5.25%), 17426 tokens.
+- jscpd exits 0 (under 10% threshold); `bun run check:duplicates:python` succeeds with no note.
+- Reduction from prior 115 (the correlation/sector pair eliminated).
+- Remaining clones are: historical migration boilerplate (per AGENTS: do not refactor versions/*.py), strategy Nautilus __init__/on_bar skeletons (structural similarity kept distinct for chaser/target/sr/orb/ema specific rules; shared via NautilusBacktestMixin + Week52NautilusMixin + run_backtests already extracted), self-dups in bots_api/ (CRUD handler patterns), research scripts (sr opt/investigate, daily/), debug_api <-> scripts/debug_52w, internal utils/chart_data, trading config vs db model (intentional per Strategy Config Pipeline in AGENTS), etc.
+- No production behavioral clones left in core paths (screener, chart, backtest wrappers, db models, api utils now central).
+
+**Verification commands (all clean):**
+- `bun run check:duplicates:python` → exit 0 (5.25% < 10)
+- `source .venv/bin/activate && python -m pytest tests/api/test_sector.py tests/api/test_sector_correlation.py -q --tb=no` → 43 passed
+- `python -c 'from api.sector import ...; from api.correlation import ...; from api.utils import make_cache_helpers; ...'` (imports + roundtrip) → OK
+- `python scripts/validate_migrations.py` (will run below)
+
+**Ready for commit + PR to main.**
+- All main DRY hotspots from initial report addressed (52W via mixin+utils, api centralizers, db mixins, now final cache wrappers).
+- Per user request: when violations fixed, raise PR, wait GH run success, then poweroff.
+- Run full lint/build/pytest/validate before push.
+
+

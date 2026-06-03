@@ -32,6 +32,10 @@ except ImportError:
     InstrumentId = None  # type: ignore
     _NAUTILUS_AVAILABLE = False
 
+if not _NAUTILUS_AVAILABLE:
+    class _SafeNautilusBase: pass
+    Strategy = _SafeNautilusBase
+
 from .base import BaseStrategy, StrategyParam, Week52NautilusMixin
 
 # Add project root to path for imports
@@ -635,3 +639,6 @@ class Week52ChaserStrategy(BaseStrategy):
                     })
         
         return visuals
+
+if not _NAUTILUS_AVAILABLE:
+    Week52ChaserNautilusStrategy = None

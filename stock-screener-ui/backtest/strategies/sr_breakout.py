@@ -19,16 +19,39 @@ IST = config.IST
 
 import pandas as pd
 
-from nautilus_trader.backtest.config import BacktestEngineConfig
-from nautilus_trader.backtest.engine import BacktestEngine
-from nautilus_trader.model import BarType, InstrumentId, Money, Symbol, TraderId, Venue
-from nautilus_trader.model.currencies import INR
-from nautilus_trader.model.enums import AccountType, OmsType, OrderSide
-from nautilus_trader.model.instruments import Equity
-from nautilus_trader.model.objects import Price, Quantity
-from nautilus_trader.persistence.wranglers import BarDataWrangler
-from nautilus_trader.trading.strategy import Strategy
-from nautilus_trader.config import StrategyConfig
+# Guarded + safe for DRY (no Rust required for import).
+try:
+    from nautilus_trader.backtest.config import BacktestEngineConfig
+    from nautilus_trader.backtest.engine import BacktestEngine
+    from nautilus_trader.model import BarType, InstrumentId, Money, Symbol, TraderId, Venue
+    from nautilus_trader.model.currencies import INR
+    from nautilus_trader.model.enums import AccountType, OmsType, OrderSide
+    from nautilus_trader.model.instruments import Equity
+    from nautilus_trader.model.objects import Price, Quantity
+    from nautilus_trader.persistence.wranglers import BarDataWrangler
+    from nautilus_trader.trading.strategy import Strategy
+    from nautilus_trader.config import StrategyConfig
+    _NAUTILUS_AVAILABLE = True
+except ImportError:
+    BacktestEngineConfig = None  # type: ignore
+    BacktestEngine = None  # type: ignore
+    BarType = None  # type: ignore
+    InstrumentId = None  # type: ignore
+    Money = None  # type: ignore
+    Symbol = None  # type: ignore
+    TraderId = None  # type: ignore
+    Venue = None  # type: ignore
+    INR = None  # type: ignore
+    AccountType = None  # type: ignore
+    OmsType = None  # type: ignore
+    OrderSide = None  # type: ignore
+    Equity = None  # type: ignore
+    Price = None  # type: ignore
+    Quantity = None  # type: ignore
+    BarDataWrangler = None  # type: ignore
+    Strategy = object  # type: ignore
+    StrategyConfig = object  # type: ignore
+    _NAUTILUS_AVAILABLE = False
 
 from .base import BaseStrategy, StrategyParam, NautilusBacktestMixin, get_ist_time
 
@@ -95,7 +118,9 @@ def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
     symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
 
-    
+    if not _NAUTILUS_AVAILABLE:
+        return {"symbol": symbol, "success": False, "error": "nautilus_trader not available (requires Rust toolchain per AGENTS.md)"}
+
     try:
         from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
 
@@ -260,217 +285,222 @@ def run_single_stock_backtest(args):
         return {'symbol': symbol, 'success': False, 'error': str(e)}
 
 
-class SRBreakoutNautilusStrategy(Strategy, NautilusBacktestMixin):
-    """Support & Resistance Breakout implementation using Pivot Points."""
+if _NAUTILUS_AVAILABLE:
+    class SRBreakoutNautilusStrategy(Strategy, NautilusBacktestMixin):
+        """Support & Resistance Breakout implementation using Pivot Points."""
 
-    def __init__(self, config: 'SRBreakoutConfig'):
-        super().__init__(config)
-        self._instrument_id = config.instrument_id
-        self._bar_type = config.bar_type
-        self._pivot_type = config.pivot_type
-        self._breakout_buffer_pct = config.breakout_buffer_pct
-        self._sl_pct = config.sl_pct
-        self._tp_pct = config.tp_pct
-        self._trade_size = config.trade_size
-        self._enable_shorts = config.enable_shorts
-        self._cooldown_bars = config.cooldown_bars
-        self._historical_df = config.historical_df
+        def __init__(self, config: 'SRBreakoutConfig'):
+            super().__init__(config)
+            self._instrument_id = config.instrument_id
+            self._bar_type = config.bar_type
+            self._pivot_type = config.pivot_type
+            self._breakout_buffer_pct = config.breakout_buffer_pct
+            self._sl_pct = config.sl_pct
+            self._tp_pct = config.tp_pct
+            self._trade_size = config.trade_size
+            self._enable_shorts = config.enable_shorts
+            self._cooldown_bars = config.cooldown_bars
+            self._historical_df = config.historical_df
 
-        self._current_date = None
-        self._pivot_points: Optional[PivotPoints] = None
-        self._entry_price = None
-        self._position_side = None
-        self._last_exit_bar = None
-        self._bar_number = 0
-
-        self.trades = []
-        self._current_entry_time = None
-
-    def on_start(self):
-        self.subscribe_bars(self._bar_type)
-
-    def on_bar(self, bar):
-        hour, minute, date = get_ist_time(bar.ts_event)
-        cur_min = hour * 60 + minute
-        close_f = float(bar.close)
-        bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time.astimezone(IST)
-
-        self._bar_number += 1
-
-        # New trading day - recalculate pivot points
-        if self._current_date != date:
-            self._current_date = date
-            self._pivot_points = None
+            self._current_date = None
+            self._pivot_points: Optional[PivotPoints] = None
+            self._entry_price = None
+            self._position_side = None
             self._last_exit_bar = None
+            self._bar_number = 0
 
-            # Calculate pivot points from previous day's data
-            prev_day_data = self._get_previous_day_hlc(date)
-            if prev_day_data:
-                high, low, close = prev_day_data
-                self._pivot_points = calculate_pivot_points(high, low, close, self._pivot_type)
+            self.trades = []
+            self._current_entry_time = None
 
-        # Skip if pivot points not available
-        if self._pivot_points is None:
-            return
+        def on_start(self):
+            self.subscribe_bars(self._bar_type)
 
-        # Market timing
-        mkt_open = 9 * 60 + 15  # 9:15 AM IST
+        def on_bar(self, bar):
+            hour, minute, date = get_ist_time(bar.ts_event)
+            cur_min = hour * 60 + minute
+            close_f = float(bar.close)
+            bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
+            bar_time_ist = bar_time.astimezone(IST)
 
-        # Wait for market open
-        if cur_min < mkt_open:
-            return
+            self._bar_number += 1
 
-        # EOD safety exit (3:15 PM IST)
-        if cur_min >= 15 * 60 + 15:
+            # New trading day - recalculate pivot points
+            if self._current_date != date:
+                self._current_date = date
+                self._pivot_points = None
+                self._last_exit_bar = None
+
+                # Calculate pivot points from previous day's data
+                prev_day_data = self._get_previous_day_hlc(date)
+                if prev_day_data:
+                    high, low, close = prev_day_data
+                    self._pivot_points = calculate_pivot_points(high, low, close, self._pivot_type)
+
+            # Skip if pivot points not available
+            if self._pivot_points is None:
+                return
+
+            # Market timing
+            mkt_open = 9 * 60 + 15  # 9:15 AM IST
+
+            # Wait for market open
+            if cur_min < mkt_open:
+                return
+
+            # EOD safety exit (3:15 PM IST)
+            if cur_min >= 15 * 60 + 15:
+                positions = self.cache.positions_open(instrument_id=self._instrument_id)
+                if positions:
+                    self._exit(bar, positions[0], "EOD", bar_time_ist)
+                return
+
+            # Manage existing position
             positions = self.cache.positions_open(instrument_id=self._instrument_id)
             if positions:
-                self._exit(bar, positions[0], "EOD", bar_time_ist)
-            return
+                self._manage(bar, positions[0], bar_time_ist)
+                return
 
-        # Manage existing position
-        positions = self.cache.positions_open(instrument_id=self._instrument_id)
-        if positions:
-            self._manage(bar, positions[0], bar_time_ist)
-            return
+            # Check for new entry
+            self._check_entry(close_f, bar_time_ist)
 
-        # Check for new entry
-        self._check_entry(close_f, bar_time_ist)
+        def _get_previous_day_hlc(self, current_date) -> Optional[tuple]:
+            """Get previous trading day's HLC from historical data."""
+            if self._historical_df is None or self._historical_df.empty:
+                return None
 
-    def _get_previous_day_hlc(self, current_date) -> Optional[tuple]:
-        """Get previous trading day's HLC from historical data."""
-        if self._historical_df is None or self._historical_df.empty:
-            return None
+            df = self._historical_df.copy()
+            df['date'] = df.index.date
 
-        df = self._historical_df.copy()
-        df['date'] = df.index.date
+            unique_dates = sorted(df['date'].unique())
+            dates_before = [d for d in unique_dates if d < current_date]
 
-        unique_dates = sorted(df['date'].unique())
-        dates_before = [d for d in unique_dates if d < current_date]
+            if not dates_before:
+                return None
 
-        if not dates_before:
-            return None
+            prev_date = dates_before[-1]
+            prev_day_data = df[df['date'] == prev_date]
 
-        prev_date = dates_before[-1]
-        prev_day_data = df[df['date'] == prev_date]
+            if prev_day_data.empty:
+                return None
 
-        if prev_day_data.empty:
-            return None
+            return (
+                prev_day_data['high'].max(),
+                prev_day_data['low'].min(),
+                prev_day_data['close'].iloc[-1]
+            )
 
-        return (
-            prev_day_data['high'].max(),
-            prev_day_data['low'].min(),
-            prev_day_data['close'].iloc[-1]
-        )
+        def _check_entry(self, close_f: float, bar_time_ist: datetime):
+            if self._pivot_points is None:
+                return
 
-    def _check_entry(self, close_f: float, bar_time_ist: datetime):
-        if self._pivot_points is None:
-            return
+            # Check cooldown (using shared mixin helper)
+            if self._is_in_cooldown_bars(self._bar_number, self._last_exit_bar, self._cooldown_bars):
+                return
 
-        # Check cooldown (using shared mixin helper)
-        if self._is_in_cooldown_bars(self._bar_number, self._last_exit_bar, self._cooldown_bars):
-            return
+            # Calculate breakout levels with buffer
+            buffer_multiplier = self._breakout_buffer_pct / 100
 
-        # Calculate breakout levels with buffer
-        buffer_multiplier = self._breakout_buffer_pct / 100
+            # Long entry: close above R1 + buffer
+            long_trigger = self._pivot_points.r1 * (1 + buffer_multiplier)
+            long_entry = close_f > long_trigger
 
-        # Long entry: close above R1 + buffer
-        long_trigger = self._pivot_points.r1 * (1 + buffer_multiplier)
-        long_entry = close_f > long_trigger
+            # Short entry: close below S1 - buffer
+            short_trigger = self._pivot_points.s1 * (1 - buffer_multiplier)
+            short_entry = close_f < short_trigger
 
-        # Short entry: close below S1 - buffer
-        short_trigger = self._pivot_points.s1 * (1 - buffer_multiplier)
-        short_entry = close_f < short_trigger
+            if short_entry and self._enable_shorts:
+                self._submit_market_entry(is_long=False)
+                self._position_side = "SHORT"
+                self._entry_price = close_f
+                self._current_entry_time = bar_time_ist
+            elif long_entry:
+                self._submit_market_entry(is_long=True)
+                self._position_side = "LONG"
+                self._entry_price = close_f
+                self._current_entry_time = bar_time_ist
 
-        if short_entry and self._enable_shorts:
-            self._submit_market_entry(is_long=False)
-            self._position_side = "SHORT"
-            self._entry_price = close_f
-            self._current_entry_time = bar_time_ist
-        elif long_entry:
-            self._submit_market_entry(is_long=True)
-            self._position_side = "LONG"
-            self._entry_price = close_f
-            self._current_entry_time = bar_time_ist
+        def _manage(self, bar, position, bar_time_ist):
+            cur_price = float(bar.close)
 
-    def _manage(self, bar, position, bar_time_ist):
-        cur_price = float(bar.close)
+            if self._position_side == "SHORT":
+                pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+            else:
+                pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
 
-        if self._position_side == "SHORT":
-            pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
-        else:
-            pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+            if pnl_pct >= self._tp_pct:
+                self._exit(bar, position, "TP", bar_time_ist)
+            elif pnl_pct <= -self._sl_pct:
+                self._exit(bar, position, "SL", bar_time_ist)
 
-        if pnl_pct >= self._tp_pct:
-            self._exit(bar, position, "TP", bar_time_ist)
-        elif pnl_pct <= -self._sl_pct:
-            self._exit(bar, position, "SL", bar_time_ist)
+        def _exit(self, bar, position, reason, bar_time_ist):
+            cur_price = float(bar.close)
+            pos_qty = int(float(position.quantity)) if position.quantity else 0
 
-    def _exit(self, bar, position, reason, bar_time_ist):
-        cur_price = float(bar.close)
-        pos_qty = int(float(position.quantity)) if position.quantity else 0
+            # Use mixin helpers for the duplicated side-aware pnl/costs/hold calc (exact raw values preserved)
+            pnl = self._calc_pnl_and_costs(self._entry_price, cur_price, pos_qty, self._position_side or "LONG")
+            hold_minutes = self._calc_hold_minutes(self._current_entry_time, bar_time_ist)
 
-        # Use mixin helpers for the duplicated side-aware pnl/costs/hold calc (exact raw values preserved)
-        pnl = self._calc_pnl_and_costs(self._entry_price, cur_price, pos_qty, self._position_side or "LONG")
-        hold_minutes = self._calc_hold_minutes(self._current_entry_time, bar_time_ist)
+            # Store pivot levels for trade record
+            pp_data = {}
+            if self._pivot_points:
+                pp_data = {
+                    'pp': round(self._pivot_points.pp, 2),
+                    'r1': round(self._pivot_points.r1, 2),
+                    's1': round(self._pivot_points.s1, 2),
+                    'r2': round(self._pivot_points.r2, 2),
+                    's2': round(self._pivot_points.s2, 2),
+                }
 
-        # Store pivot levels for trade record
-        pp_data = {}
-        if self._pivot_points:
-            pp_data = {
-                'pp': round(self._pivot_points.pp, 2),
-                'r1': round(self._pivot_points.r1, 2),
-                's1': round(self._pivot_points.s1, 2),
-                'r2': round(self._pivot_points.r2, 2),
-                's2': round(self._pivot_points.s2, 2),
-            }
+            self.trades.append({
+                'entry_price': self._entry_price,
+                'exit_price': cur_price,
+                'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
+                'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
+                'quantity': abs(pos_qty),
+                'gross_pnl': pnl['gross_pnl'],
+                'gross_pnl_pct': pnl['gross_pnl_pct'],
+                'trading_costs': pnl['trading_costs'],
+                'net_pnl': pnl['net_pnl'],
+                'net_pnl_pct': pnl['net_pnl_pct'],
+                'exit_reason': reason,
+                'hold_duration_minutes': hold_minutes,
+                'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
+                'side': self._position_side,
+                **pp_data,
+            })
 
-        self.trades.append({
-            'entry_price': self._entry_price,
-            'exit_price': cur_price,
-            'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
-            'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
-            'quantity': abs(pos_qty),
-            'gross_pnl': pnl['gross_pnl'],
-            'gross_pnl_pct': pnl['gross_pnl_pct'],
-            'trading_costs': pnl['trading_costs'],
-            'net_pnl': pnl['net_pnl'],
-            'net_pnl_pct': pnl['net_pnl_pct'],
-            'exit_reason': reason,
-            'hold_duration_minutes': hold_minutes,
-            'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
-            'side': self._position_side,
-            **pp_data,
-        })
+            self.close_all_positions(self._instrument_id)
+            self._position_side = None
+            self._entry_price = None
+            self._current_entry_time = None
+            self._last_exit_bar = self._bar_number
 
-        self.close_all_positions(self._instrument_id)
-        self._position_side = None
-        self._entry_price = None
-        self._current_entry_time = None
-        self._last_exit_bar = self._bar_number
+        def on_stop(self):
+            pass
 
-    def on_stop(self):
-        pass
+        def on_reset(self):
+            self._current_date = None
+            self._pivot_points = None
+            self._position_side = None
+            self._entry_price = None
+else:
+    SRBreakoutNautilusStrategy = None
 
-    def on_reset(self):
-        self._current_date = None
-        self._pivot_points = None
-        self._position_side = None
-        self._entry_price = None
-
-
-class SRBreakoutConfig(StrategyConfig, kw_only=True):
-    """Configuration for Support & Resistance Breakout strategy."""
-    instrument_id: InstrumentId
-    bar_type: BarType
-    pivot_type: str = 'classic'
-    breakout_buffer_pct: float = 0.1
-    sl_pct: float = 1.5
-    tp_pct: float = 2.5
-    trade_size: int = 100
-    enable_shorts: bool = False
-    cooldown_bars: int = 3
-    historical_df: Optional[pd.DataFrame] = None
+if _NAUTILUS_AVAILABLE:
+    class SRBreakoutConfig(StrategyConfig, kw_only=True):
+        """Configuration for Support & Resistance Breakout strategy."""
+        instrument_id: InstrumentId
+        bar_type: BarType
+        pivot_type: str = 'classic'
+        breakout_buffer_pct: float = 0.1
+        sl_pct: float = 1.5
+        tp_pct: float = 2.5
+        trade_size: int = 100
+        enable_shorts: bool = False
+        cooldown_bars: int = 3
+        historical_df: Optional[pd.DataFrame] = None
+else:
+    SRBreakoutConfig = None
 
 
 class SRBreakoutStrategy(BaseStrategy):

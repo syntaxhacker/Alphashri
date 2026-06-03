@@ -14,10 +14,7 @@ from fastapi import APIRouter, HTTPException
 from config import IST, UPSTOX_API_KEY, UPSTOX_API_SECRET
 from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
 from api.utils import (
-    _get_cache_path as _utils_get_cache_path,
-    _get_cache_meta_path as _utils_get_cache_meta_path,
-    _read_cache as _utils_read_cache,
-    _write_cache as _utils_write_cache,
+    make_cache_helpers,
     _compute_pearson_correlation_matrix,
 )
 
@@ -27,27 +24,15 @@ CACHE_DIR = Path(__file__).parent.parent / "experiments" / "data" / "correlation
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
-# ===== Cache helpers (thin wrappers over shared impl in api.utils to eliminate DRY) =====
-
 def _make_cache_key(symbols: list[str], timeframe: str, period: int, period_unit: str) -> str:
     sym = "_".join(sorted(s.upper() for s in symbols))
     return f"{sym}_{timeframe}_{period}_{period_unit}"
 
 
-def _get_cache_path(key: str) -> Path:
-    return _utils_get_cache_path(CACHE_DIR, key)
-
-
-def _get_cache_meta_path(key: str) -> Path:
-    return _utils_get_cache_meta_path(CACHE_DIR, key)
-
-
-def _read_cache(key: str) -> Optional[dict]:
-    return _utils_read_cache(CACHE_DIR, key, CACHE_TTL_SECONDS)
-
-
-def _write_cache(key: str, data: dict) -> None:
-    _utils_write_cache(CACHE_DIR, key, data)
+# Use factory to bind shared cache helpers (eliminates duplicate wrapper fns vs sector.py)
+_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache = make_cache_helpers(
+    CACHE_DIR, CACHE_TTL_SECONDS
+)
 
 
 # ===== Data fetching =====

@@ -6,6 +6,7 @@ Centralizes:
 - Common response builders (_make_empty_chart_response)
 - Cache helpers for JSON+TTL meta-file caches (_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache)
   Used by correlation.py and sector.py to eliminate ~26-line duplicate cache logic.
+- make_cache_helpers factory to bind the above per-module without duplicating the 4 thin wrapper defs (~16-line clone).
 - Common data processing: _compute_pearson_correlation_matrix for sector/correlation corr calcs
   (eliminates the 6/10-line clones of diff/log/corrcoef/align logic).
 
@@ -16,7 +17,7 @@ Imported by chart, backtest routes (indirectly), screener, sector, etc.
 """
 
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Callable
 import json
 import math
 import time
@@ -149,6 +150,36 @@ def _write_cache(cache_dir: Path, key: str, data: dict) -> None:
         json.dump(data, f)
     with open(_get_cache_meta_path(cache_dir, key), "w") as f:
         json.dump({"ts": time.time()}, f)
+
+
+def make_cache_helpers(
+    cache_dir: Path, ttl_seconds: int = 300
+) -> tuple[
+    Callable[[str], Path],
+    Callable[[str], Path],
+    Callable[[str], Optional[dict]],
+    Callable[[str, dict], None],
+]:
+    """Factory returning bound cache helpers (get_path, get_meta, read, write) for given dir+ttl.
+
+    Eliminates the repeated thin-wrapper 4-def blocks (~16 lines) between
+    api/correlation.py and api/sector.py that were just delegating to the shared _utils_*.
+    Callers do:
+        _get_cache_path, _get_cache_meta_path, _read_cache, _write_cache = make_cache_helpers(CACHE_DIR, CACHE_TTL_SECONDS)
+    """
+    def _get(key: str) -> Path:
+        return _get_cache_path(cache_dir, key)
+
+    def _get_meta(key: str) -> Path:
+        return _get_cache_meta_path(cache_dir, key)
+
+    def _read(key: str) -> Optional[dict]:
+        return _read_cache(cache_dir, key, ttl_seconds)
+
+    def _write(key: str, data: dict) -> None:
+        _write_cache(cache_dir, key, data)
+
+    return _get, _get_meta, _read, _write
 
 
 def _compute_pearson_correlation_matrix(

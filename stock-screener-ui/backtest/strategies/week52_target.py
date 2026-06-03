@@ -31,6 +31,10 @@ except ImportError:
     InstrumentId = None  # type: ignore
     _NAUTILUS_AVAILABLE = False
 
+if not _NAUTILUS_AVAILABLE:
+    class _SafeNautilusBase: pass
+    Strategy = _SafeNautilusBase
+
 from .base import BaseStrategy, StrategyParam, Week52NautilusMixin
 from trading.week52_utils import calculate_52w_high, get_date_from_ns
 
@@ -485,3 +489,6 @@ def run_single_stock_week52_target(args):
         import traceback
         traceback.print_exc()
         return {'symbol': symbol, 'success': False, 'error': str(e)}
+
+if not _NAUTILUS_AVAILABLE:
+    Week52TargetNautilusStrategy = None

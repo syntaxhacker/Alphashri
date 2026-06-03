@@ -20,16 +20,39 @@ IST = config.IST
 
 import pandas as pd
 
-from nautilus_trader.backtest.config import BacktestEngineConfig
-from nautilus_trader.backtest.engine import BacktestEngine
-from nautilus_trader.model import BarType, InstrumentId, Money, Symbol, TraderId, Venue
-from nautilus_trader.model.currencies import INR
-from nautilus_trader.model.enums import AccountType, OmsType, OrderSide
-from nautilus_trader.model.instruments import Equity
-from nautilus_trader.model.objects import Price, Quantity
-from nautilus_trader.persistence.wranglers import BarDataWrangler
-from nautilus_trader.trading.strategy import Strategy
-from nautilus_trader.config import StrategyConfig
+# Guarded for DRY.
+try:
+    from nautilus_trader.backtest.config import BacktestEngineConfig
+    from nautilus_trader.backtest.engine import BacktestEngine
+    from nautilus_trader.model import BarType, InstrumentId, Money, Symbol, TraderId, Venue
+    from nautilus_trader.model.currencies import INR
+    from nautilus_trader.model.enums import AccountType, OmsType, OrderSide
+    from nautilus_trader.model.instruments import Equity
+    from nautilus_trader.model.objects import Price, Quantity
+    from nautilus_trader.persistence.wranglers import BarDataWrangler
+    from nautilus_trader.trading.strategy import Strategy
+    from nautilus_trader.config import StrategyConfig
+    _NAUTILUS_AVAILABLE = True
+except ImportError:
+    BacktestEngineConfig = None  # type: ignore
+    BacktestEngine = None  # type: ignore
+    BarType = None  # type: ignore
+    InstrumentId = None  # type: ignore
+    Money = None  # type: ignore
+    Symbol = None  # type: ignore
+    TraderId = None  # type: ignore
+    Venue = None  # type: ignore
+    INR = None  # type: ignore
+    AccountType = None  # type: ignore
+    OmsType = None  # type: ignore
+    OrderSide = None  # type: ignore
+    Equity = None  # type: ignore
+    Price = None  # type: ignore
+    Quantity = None  # type: ignore
+    BarDataWrangler = None  # type: ignore
+    Strategy = object  # type: ignore
+    StrategyConfig = object  # type: ignore
+    _NAUTILUS_AVAILABLE = False
 
 from .base import BaseStrategy, StrategyParam
 from ..costs import calculate_trading_costs
@@ -46,6 +69,9 @@ def calculate_ema(prices: List[float], period: int) -> float:
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
     symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
+
+    if not _NAUTILUS_AVAILABLE:
+        return {"symbol": symbol, "success": False, "error": "nautilus_trader not available (requires Rust toolchain per AGENTS.md)"}
 
     try:
         from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
@@ -208,196 +234,197 @@ def run_single_stock_backtest(args):
         return {'symbol': symbol, 'success': False, 'error': str(e)}
 
 
-class EMACrossNautilusStrategy(Strategy):
-    """EMA Crossover implementation using NautilusTrader."""
+if _NAUTILUS_AVAILABLE:
+    class EMACrossNautilusStrategy(Strategy):
+        """EMA Crossover implementation using NautilusTrader."""
 
-    def __init__(self, config: 'EMACrossConfig'):
-        super().__init__(config)
-        self._instrument_id = config.instrument_id
-        self._bar_type = config.bar_type
-        self._ema_fast_period = config.ema_fast_period
-        self._ema_slow_period = config.ema_slow_period
-        self._sl_pct = config.sl_pct
-        self._tp_pct = config.tp_pct
-        self._trade_size = config.trade_size
-        self._enable_shorts = config.enable_shorts
-        self._cooldown_bars = config.cooldown_bars
-        self._historical_df = config.historical_df
+        def __init__(self, config: 'EMACrossConfig'):
+            super().__init__(config)
+            self._instrument_id = config.instrument_id
+            self._bar_type = config.bar_type
+            self._ema_fast_period = config.ema_fast_period
+            self._ema_slow_period = config.ema_slow_period
+            self._sl_pct = config.sl_pct
+            self._tp_pct = config.tp_pct
+            self._trade_size = config.trade_size
+            self._enable_shorts = config.enable_shorts
+            self._cooldown_bars = config.cooldown_bars
+            self._historical_df = config.historical_df
 
-        self._current_date = None
-        self._entry_price = None
-        self._position_side = None
-        self._last_exit_bar = None
-        self._bar_number = 0
-
-        self.trades = []
-        self._current_entry_time = None
-
-        self._close_prices: List[float] = []
-        self._prev_ema_fast = None
-        self._prev_ema_slow = None
-
-    def on_start(self):
-        self.subscribe_bars(self._bar_type)
-
-    def on_bar(self, bar):
-        hour, minute, date = get_ist_time(bar.ts_event)
-        cur_min = hour * 60 + minute
-        close_f = float(bar.close)
-        bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time.astimezone(IST)
-
-        self._bar_number += 1
-
-        if self._current_date != date:
-            self._current_date = date
+            self._current_date = None
+            self._entry_price = None
+            self._position_side = None
             self._last_exit_bar = None
+            self._bar_number = 0
+
+            self.trades = []
+            self._current_entry_time = None
+
+            self._close_prices: List[float] = []
+            self._prev_ema_fast = None
+            self._prev_ema_slow = None
+
+        def on_start(self):
+            self.subscribe_bars(self._bar_type)
+
+        def on_bar(self, bar):
+            hour, minute, date = get_ist_time(bar.ts_event)
+            cur_min = hour * 60 + minute
+            close_f = float(bar.close)
+            bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
+            bar_time_ist = bar_time.astimezone(IST)
+
+            self._bar_number += 1
+
+            if self._current_date != date:
+                self._current_date = date
+                self._last_exit_bar = None
+                self._close_prices = []
+                self._prev_ema_fast = None
+                self._prev_ema_slow = None
+
+            mkt_open = 9 * 60 + 15
+
+            if cur_min < mkt_open:
+                return
+
+            if cur_min >= 14 * 60 + 45:
+                positions = self.cache.positions_open(instrument_id=self._instrument_id)
+                if positions:
+                    ema_fast = calculate_ema(self._close_prices, self._ema_fast_period) if self._close_prices else 0.0
+                    ema_slow = calculate_ema(self._close_prices, self._ema_slow_period) if self._close_prices else 0.0
+                    self._exit(bar, positions[0], "EOD", bar_time_ist, ema_fast, ema_slow)
+                return
+
+            self._close_prices.append(close_f)
+
+            if len(self._close_prices) < self._ema_slow_period:
+                return
+
+            ema_fast = calculate_ema(self._close_prices, self._ema_fast_period)
+            ema_slow = calculate_ema(self._close_prices, self._ema_slow_period)
+
+            positions = self.cache.positions_open(instrument_id=self._instrument_id)
+            if positions:
+                self._manage(bar, positions[0], bar_time_ist, ema_fast, ema_slow)
+                return
+
+            if self._prev_ema_fast is not None and self._prev_ema_slow is not None:
+                bullish_cross = self._prev_ema_fast <= self._prev_ema_slow and ema_fast > ema_slow
+                bearish_cross = self._prev_ema_fast >= self._prev_ema_slow and ema_fast < ema_slow
+
+                if bullish_cross:
+                    self._check_entry("LONG", close_f, bar_time_ist, ema_fast, ema_slow)
+                elif bearish_cross and self._enable_shorts:
+                    self._check_entry("SHORT", close_f, bar_time_ist, ema_fast, ema_slow)
+
+            self._prev_ema_fast = ema_fast
+            self._prev_ema_slow = ema_slow
+
+        def _check_entry(self, side: str, close_f: float, bar_time_ist: datetime, ema_fast: float, ema_slow: float):
+            if self._last_exit_bar is not None and self._cooldown_bars > 0:
+                if (self._bar_number - self._last_exit_bar) < self._cooldown_bars:
+                    return
+
+            order_side = OrderSide.BUY if side == "LONG" else OrderSide.SELL
+            order = self.order_factory.market(
+                instrument_id=self._instrument_id,
+                order_side=order_side,
+                quantity=Quantity.from_str(str(self._trade_size)),
+            )
+            self.submit_order(order)
+            self._position_side = side
+            self._entry_price = close_f
+            self._current_entry_time = bar_time_ist
+            self._entry_ema_fast = ema_fast
+            self._entry_ema_slow = ema_slow
+
+        def _manage(self, bar, position, bar_time_ist, ema_fast: float, ema_slow: float):
+            cur_price = float(bar.close)
+
+            if self._position_side == "SHORT":
+                pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+            else:
+                pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+
+            if pnl_pct >= self._tp_pct:
+                self._exit(bar, position, "TP", bar_time_ist, ema_fast, ema_slow)
+            elif pnl_pct <= -self._sl_pct:
+                self._exit(bar, position, "SL", bar_time_ist, ema_fast, ema_slow)
+
+        def _exit(self, bar, position, reason, bar_time_ist, ema_fast: float, ema_slow: float):
+            cur_price = float(bar.close)
+            pos_qty = int(float(position.quantity)) if position.quantity else 0
+
+            if self._position_side == "SHORT":
+                gross_pnl = (self._entry_price - cur_price) * abs(pos_qty)
+                gross_pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+            else:
+                gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
+                gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+
+            costs = calculate_trading_costs(self._entry_price, cur_price, abs(pos_qty))
+            net_pnl = gross_pnl - costs['total_costs']
+            net_pnl_pct = (net_pnl / (self._entry_price * abs(pos_qty))) * 100 if pos_qty != 0 else 0
+
+            hold_minutes = 0
+            if self._current_entry_time and bar_time_ist:
+                hold_minutes = int((bar_time_ist - self._current_entry_time).total_seconds() / 60)
+
+            entry_ema_fast = getattr(self, '_entry_ema_fast', ema_fast)
+            entry_ema_slow = getattr(self, '_entry_ema_slow', ema_slow)
+
+            self.trades.append({
+                'entry_price': self._entry_price,
+                'exit_price': cur_price,
+                'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
+                'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
+                'quantity': abs(pos_qty),
+                'gross_pnl': gross_pnl,
+                'gross_pnl_pct': gross_pnl_pct,
+                'trading_costs': costs['total_costs'],
+                'net_pnl': net_pnl,
+                'net_pnl_pct': net_pnl_pct,
+                'exit_reason': reason,
+                'hold_duration_minutes': hold_minutes,
+                'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
+                'side': self._position_side,
+                'ema_fast': round(entry_ema_fast, 2),
+                'ema_slow': round(entry_ema_slow, 2),
+            })
+
+            self.close_all_positions(self._instrument_id)
+            self._position_side = None
+            self._entry_price = None
+            self._current_entry_time = None
+            self._last_exit_bar = self._bar_number
+
+        def on_stop(self):
+            pass
+
+        def on_reset(self):
+            self._current_date = None
+            self._position_side = None
+            self._entry_price = None
             self._close_prices = []
             self._prev_ema_fast = None
             self._prev_ema_slow = None
 
-        mkt_open = 9 * 60 + 15
 
-        if cur_min < mkt_open:
-            return
-
-        if cur_min >= 14 * 60 + 45:
-            positions = self.cache.positions_open(instrument_id=self._instrument_id)
-            if positions:
-                ema_fast = calculate_ema(self._close_prices, self._ema_fast_period) if self._close_prices else 0.0
-                ema_slow = calculate_ema(self._close_prices, self._ema_slow_period) if self._close_prices else 0.0
-                self._exit(bar, positions[0], "EOD", bar_time_ist, ema_fast, ema_slow)
-            return
-
-        self._close_prices.append(close_f)
-
-        if len(self._close_prices) < self._ema_slow_period:
-            return
-
-        ema_fast = calculate_ema(self._close_prices, self._ema_fast_period)
-        ema_slow = calculate_ema(self._close_prices, self._ema_slow_period)
-
-        positions = self.cache.positions_open(instrument_id=self._instrument_id)
-        if positions:
-            self._manage(bar, positions[0], bar_time_ist, ema_fast, ema_slow)
-            return
-
-        if self._prev_ema_fast is not None and self._prev_ema_slow is not None:
-            bullish_cross = self._prev_ema_fast <= self._prev_ema_slow and ema_fast > ema_slow
-            bearish_cross = self._prev_ema_fast >= self._prev_ema_slow and ema_fast < ema_slow
-
-            if bullish_cross:
-                self._check_entry("LONG", close_f, bar_time_ist, ema_fast, ema_slow)
-            elif bearish_cross and self._enable_shorts:
-                self._check_entry("SHORT", close_f, bar_time_ist, ema_fast, ema_slow)
-
-        self._prev_ema_fast = ema_fast
-        self._prev_ema_slow = ema_slow
-
-    def _check_entry(self, side: str, close_f: float, bar_time_ist: datetime, ema_fast: float, ema_slow: float):
-        if self._last_exit_bar is not None and self._cooldown_bars > 0:
-            if (self._bar_number - self._last_exit_bar) < self._cooldown_bars:
-                return
-
-        order_side = OrderSide.BUY if side == "LONG" else OrderSide.SELL
-        order = self.order_factory.market(
-            instrument_id=self._instrument_id,
-            order_side=order_side,
-            quantity=Quantity.from_str(str(self._trade_size)),
-        )
-        self.submit_order(order)
-        self._position_side = side
-        self._entry_price = close_f
-        self._current_entry_time = bar_time_ist
-        self._entry_ema_fast = ema_fast
-        self._entry_ema_slow = ema_slow
-
-    def _manage(self, bar, position, bar_time_ist, ema_fast: float, ema_slow: float):
-        cur_price = float(bar.close)
-
-        if self._position_side == "SHORT":
-            pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
-        else:
-            pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
-
-        if pnl_pct >= self._tp_pct:
-            self._exit(bar, position, "TP", bar_time_ist, ema_fast, ema_slow)
-        elif pnl_pct <= -self._sl_pct:
-            self._exit(bar, position, "SL", bar_time_ist, ema_fast, ema_slow)
-
-    def _exit(self, bar, position, reason, bar_time_ist, ema_fast: float, ema_slow: float):
-        cur_price = float(bar.close)
-        pos_qty = int(float(position.quantity)) if position.quantity else 0
-
-        if self._position_side == "SHORT":
-            gross_pnl = (self._entry_price - cur_price) * abs(pos_qty)
-            gross_pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
-        else:
-            gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
-            gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
-
-        costs = calculate_trading_costs(self._entry_price, cur_price, abs(pos_qty))
-        net_pnl = gross_pnl - costs['total_costs']
-        net_pnl_pct = (net_pnl / (self._entry_price * abs(pos_qty))) * 100 if pos_qty != 0 else 0
-
-        hold_minutes = 0
-        if self._current_entry_time and bar_time_ist:
-            hold_minutes = int((bar_time_ist - self._current_entry_time).total_seconds() / 60)
-
-        entry_ema_fast = getattr(self, '_entry_ema_fast', ema_fast)
-        entry_ema_slow = getattr(self, '_entry_ema_slow', ema_slow)
-
-        self.trades.append({
-            'entry_price': self._entry_price,
-            'exit_price': cur_price,
-            'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
-            'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
-            'quantity': abs(pos_qty),
-            'gross_pnl': gross_pnl,
-            'gross_pnl_pct': gross_pnl_pct,
-            'trading_costs': costs['total_costs'],
-            'net_pnl': net_pnl,
-            'net_pnl_pct': net_pnl_pct,
-            'exit_reason': reason,
-            'hold_duration_minutes': hold_minutes,
-            'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
-            'side': self._position_side,
-            'ema_fast': round(entry_ema_fast, 2),
-            'ema_slow': round(entry_ema_slow, 2),
-        })
-
-        self.close_all_positions(self._instrument_id)
-        self._position_side = None
-        self._entry_price = None
-        self._current_entry_time = None
-        self._last_exit_bar = self._bar_number
-
-    def on_stop(self):
-        pass
-
-    def on_reset(self):
-        self._current_date = None
-        self._position_side = None
-        self._entry_price = None
-        self._close_prices = []
-        self._prev_ema_fast = None
-        self._prev_ema_slow = None
-
-
-class EMACrossConfig(StrategyConfig, kw_only=True):
-    """Configuration for EMA Crossover strategy."""
-    instrument_id: InstrumentId
-    bar_type: BarType
-    ema_fast_period: int = 9
-    ema_slow_period: int = 21
-    sl_pct: float = 1.0
-    tp_pct: float = 1.5
-    trade_size: int = 100
-    enable_shorts: bool = False
-    cooldown_bars: int = 3
-    historical_df: Optional[pd.DataFrame] = None
-
-
+    class EMACrossConfig(StrategyConfig, kw_only=True):
+        """Configuration for EMA Crossover strategy."""
+        instrument_id: InstrumentId
+        bar_type: BarType
+        ema_fast_period: int = 9
+        ema_slow_period: int = 21
+        sl_pct: float = 1.0
+        tp_pct: float = 1.5
+        trade_size: int = 100
+        enable_shorts: bool = False
+        cooldown_bars: int = 3
+        historical_df: Optional[pd.DataFrame] = None
+else:
+    EMACrossNautilusStrategy = None
 class EMACrossStrategy(BaseStrategy):
     """EMA Crossover Strategy - API wrapper."""
 
@@ -620,3 +647,7 @@ class EMACrossStrategy(BaseStrategy):
                 {'label': f'EMA {ema_slow_period}', 'color': '#ee5253', 'data': ema_slow},
             ]
         }
+
+if not _NAUTILUS_AVAILABLE:
+    EMACrossNautilusStrategy = None
+    # EMACrossConfig may be guarded or not needed
