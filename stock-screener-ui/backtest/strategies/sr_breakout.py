@@ -286,7 +286,7 @@ def run_single_stock_backtest(args):
 
 
 if _NAUTILUS_AVAILABLE:
-    class SRBreakoutNautilusStrategy(Strategy, NautilusBacktestMixin):
+    class SRBreakoutNautilusStrategy(Strategy):  # mixin avoided for metaclass compat
         """Support & Resistance Breakout implementation using Pivot Points."""
 
         def __init__(self, config: 'SRBreakoutConfig'):

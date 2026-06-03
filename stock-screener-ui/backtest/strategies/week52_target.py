@@ -68,7 +68,7 @@ else:
 
 
 if _NAUTILUS_AVAILABLE:
-    class Week52TargetNautilusStrategy(Strategy, Week52NautilusMixin):
+    class Week52TargetNautilusStrategy(Strategy):  # mixin avoided for metaclass compat
         """
         52 Week Target Strategy - Nautilus Implementation
         

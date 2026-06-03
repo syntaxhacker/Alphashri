@@ -240,7 +240,7 @@ def run_single_stock_backtest(args):
 
 
 if _NAUTILUS_AVAILABLE:
-    class ORBNautilusStrategy(Strategy, NautilusBacktestMixin):
+    class ORBNautilusStrategy(Strategy):  # mixin methods attached or duplicated; MI avoided for meta compat with real nautilus Strategy
         """Simplified ORB implementation aligned with paper flow.
         Uses shared OR calculation utility from trading.orb_utils."""
 
