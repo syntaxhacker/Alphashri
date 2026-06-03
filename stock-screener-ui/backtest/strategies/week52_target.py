@@ -32,7 +32,6 @@ except ImportError:
     _NAUTILUS_AVAILABLE = False
 
 from .base import BaseStrategy, StrategyParam, Week52NautilusMixin
-from ..costs import calculate_trading_costs
 from trading.week52_utils import calculate_52w_high, get_date_from_ns
 
 # Add project root to path for imports
@@ -151,42 +150,48 @@ if _NAUTILUS_AVAILABLE:
             if not self._in_position:
                 self._increment_cooldown_if_not_in_position()
             
-            # ENTRY CONDITIONS
-            if not self._in_position and not in_cooldown:
-                # Entry when today's candle CLOSES >= entry price threshold
-                if close_price >= entry_price_threshold:
-                    print(f"[52W Target] ENTER: close={close_price}, threshold={entry_price_threshold}, 52w_high={self._52w_high}")
-                    self._enter_long(close_price, bar_time)
+            # ENTRY: use skeleton + hook (the >= check + ENTER print live in _should_enter to keep print timing)
+            self._try_enter_position(close_price, self._52w_high, bar_time, in_cooldown=in_cooldown)
             
-            # EXIT CONDITIONS
-            if self._in_position:
-                self._bars_in_trade += 1
-                exit_reason = None
-                
-                # Update peak price
-                if self._highest_price_since_entry is None or high_price > self._highest_price_since_entry:
-                    self._highest_price_since_entry = high_price
-                
-                # 1. Check if price closed above 52W high (target reached)
-                if self._entry_52w_high and close_price > self._entry_52w_high:
-                    # Price closed above 52W high - activate trailing
-                    if self._highest_price_since_entry:
-                        trailing_stop_price = self._highest_price_since_entry * (1 - self._trailing_stop_pct / 100)
-                        if close_price <= trailing_stop_price:
-                            exit_reason = 'TRAILING_STOP'
-                
-                # 2. Stop Loss - if price closes below entry × (100 - stop_loss_pct)%
-                if not exit_reason and self._entry_price:
-                    sl_price = self._entry_price * (1 - self._stop_loss_pct / 100)
-                    if close_price <= sl_price:
-                        exit_reason = 'SL'
-                
-                # 3. Max Holding Period
-                if not exit_reason and self._bars_in_trade >= self._max_holding_bars:
-                    exit_reason = 'MAX_HOLDING'
-                
-                if exit_reason:
-                    self._exit_long(close_price, exit_reason, bar_time)
+            # EXIT: use skeleton (this replaces the duplicated inc/update/chained if-not-reason block internally and vs chaser)
+            self._check_and_exit_if_needed(close_price, high_price, self._52w_high, bar_time)
+
+        def _should_enter(self, close_price: float, high_52w: Optional[float], bar_time: datetime) -> bool:
+            """Target entry condition: close >= 52W * (1 - thresh%). Includes the ENTER debug print for exact behavior."""
+            if high_52w is None:
+                return False
+            entry_price_threshold = high_52w * (1 - self._entry_threshold_pct / 100)
+            if close_price >= entry_price_threshold:
+                print(f"[52W Target] ENTER: close={close_price}, threshold={entry_price_threshold}, 52w_high={high_52w}")
+                return True
+            return False
+
+        def _determine_exit_reason(self, close_price: float, high_price: float, high_52w: Optional[float], bar_time: datetime) -> Optional[str]:
+            """Exact target exit logic (chained if-not for priority, trailing only after cross, no NEW_52W etc)."""
+            if not self._in_position:
+                return None
+            # peak update already performed by skeleton caller
+            exit_reason = None
+
+            # 1. Check if price closed above 52W high (target reached)
+            if self._entry_52w_high and close_price > self._entry_52w_high:
+                # Price closed above 52W high - activate trailing
+                if self._highest_price_since_entry:
+                    trailing_stop_price = self._highest_price_since_entry * (1 - self._trailing_stop_pct / 100)
+                    if close_price <= trailing_stop_price:
+                        exit_reason = 'TRAILING_STOP'
+
+            # 2. Stop Loss - if price closes below entry × (100 - stop_loss_pct)%
+            if not exit_reason and self._entry_price:
+                sl_price = self._entry_price * (1 - self._stop_loss_pct / 100)
+                if close_price <= sl_price:
+                    exit_reason = 'SL'
+
+            # 3. Max Holding Period
+            if not exit_reason and self._bars_in_trade >= self._max_holding_bars:
+                exit_reason = 'MAX_HOLDING'
+
+            return exit_reason
 
         def _enter_long(self, price: float, bar_time: datetime):
             """Enter a long position. Delegates to shared mixin (preserves target state names)."""
@@ -305,91 +310,39 @@ class Week52TargetStrategy(BaseStrategy):
 
     def run(self, symbols: List[str], days: int, params: Dict, progress_callback=None) -> Dict:
         """Run backtest for the strategy."""
-        from multiprocessing import Pool, cpu_count
-        
-        results = []
-        chart_data = {}
-        all_candles = {}
-        skipped_stocks = []
-
         from db.models import get_shared_broker_token
 
         token_data = get_shared_broker_token('upstox')
         access_token = token_data.get('access_token') if token_data else None
 
         worker_args = [(symbol, params, days, access_token) for symbol in symbols]
-        total = len(symbols)
-        completed = 0
-        num_workers = min(4, cpu_count() or 4, max(1, total))
-        
-        use_parallel = False
-        
+
         import logging
         logger = logging.getLogger(__name__)
         logger.info(f"[52W Target] Running for {symbols}, params={params}, days={days}")
 
-        if use_parallel:
-            if progress_callback:
-                progress_callback(0, total, f"Starting parallel backtest with {num_workers} workers...")
-            with Pool(processes=num_workers) as pool:
-                for result in pool.imap_unordered(run_single_stock_week52_target, worker_args, chunksize=2):
-                    completed += 1
-                    if progress_callback:
-                        progress_callback(completed, total, f"Completed {result['symbol']}...")
-                    if not result['success']:
-                        skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
-                        continue
-                    if result.get('candles'):
-                        all_candles[result['symbol']] = result['candles']
-                    if result.get('result'):
-                        results.append(result['result'])
-                    if result.get('trade_list'):
-                        chart_data[result['symbol']] = {
-                            'trades': result['trade_list'],
-                            'visuals': self.get_visuals(result['trade_list'], params)
-                        }
-        else:
-            for args in worker_args:
-                completed += 1
-                result = run_single_stock_week52_target(args)
-                if progress_callback:
-                    progress_callback(completed, total, f"Completed {result['symbol']}...")
-                if not result['success']:
-                    skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
-                    continue
-                if result.get('candles'):
-                    all_candles[result['symbol']] = result['candles']
-                if result.get('result'):
-                    results.append(result['result'])
-                if result.get('trade_list'):
-                    chart_data[result['symbol']] = {
-                        'trades': result['trade_list'],
-                        'visuals': self.get_visuals(result['trade_list'], params)
-                    }
-        
-        # Aggregate results
-        total_trades = sum(r.get('trades', 0) for r in results)
-        total_pnl = sum(r.get('net_pnl', 0) for r in results)
-        
-        return {
-            'strategy': '52w_target',
-            'results': results,
-            'totals': {
-                'gross_pnl': round(sum(r.get('gross_pnl', 0) for r in results), 2),
-                'total_costs': round(sum(r.get('total_costs', 0) for r in results), 2),
-                'net_pnl': round(total_pnl, 2),
-                'trades': total_trades,
-                'win_rate': round((sum(r.get('wins', 0) for r in results) / total_trades * 100) if total_trades > 0 else 0, 1),
-                'stocks_tested': len(results) + len(skipped_stocks),
-            },
-            'chart_data': chart_data,
-            'candles': all_candles,
-            'skipped_stocks': skipped_stocks,
-            'summary': {
-                'total_trades': total_trades,
-                'total_pnl': total_pnl,
-            }
+        # Use shared helper with parallel forced off (cleans the ~15 line if/else internal dup in this run()).
+        base_out = self.run_backtests(
+            symbols=symbols,
+            days=days,
+            params=params,
+            run_single_func=run_single_stock_week52_target,
+            worker_args=worker_args,
+            progress_callback=progress_callback,
+            strategy_key='52w_target',
+            use_parallel=False,
+            include_config=False,
+            include_run_time=False,
+        )
+
+        # Preserve target's unique shape (no top config/run_time, extra summary, recomputed totals match prior)
+        total_trades = base_out['totals']['trades']
+        total_pnl = base_out['totals']['net_pnl']
+        base_out['summary'] = {
+            'total_trades': total_trades,
+            'total_pnl': total_pnl,
         }
+        return base_out
 
     def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
         """Return chart visuals."""

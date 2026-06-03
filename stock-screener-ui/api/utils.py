@@ -4,6 +4,10 @@ api/utils.py — Shared helpers for API layer to reduce DRY clones.
 Centralizes:
 - Data normalizers (_to_float, _sanitize_for_json, _ensure_datetime_index)
 - Common response builders (_make_empty_chart_response)
+- Cache helpers for JSON+TTL meta-file caches (_get_cache_path, _get_cache_meta_path, _read_cache, _write_cache)
+  Used by correlation.py and sector.py to eliminate ~26-line duplicate cache logic.
+- Common data processing: _compute_pearson_correlation_matrix for sector/correlation corr calcs
+  (eliminates the 6/10-line clones of diff/log/corrcoef/align logic).
 
 These were duplicated across api/screener_api/screener_models.py, api/sector.py,
 api/chart.py, backtest/api.py etc.
@@ -11,8 +15,11 @@ api/chart.py, backtest/api.py etc.
 Imported by chart, backtest routes (indirectly), screener, sector, etc.
 """
 
+from pathlib import Path
 from typing import Any, Dict, Optional
+import json
 import math
+import time
 
 
 def _to_float(value: Any, default: float = 0.0) -> float:
@@ -103,3 +110,84 @@ def _make_empty_chart_response(
     if error is not None:
         resp['error'] = error
     return resp
+
+
+# ===== Shared JSON + TTL meta cache helpers =====
+# Eliminates duplicate _get_cache_*, _read_cache, _write_cache (and related)
+# between api/correlation.py and api/sector.py (was ~26 lines / 247 tokens clone).
+
+def _get_cache_path(cache_dir: Path, key: str) -> Path:
+    return cache_dir / f"{key}.json"
+
+
+def _get_cache_meta_path(cache_dir: Path, key: str) -> Path:
+    return cache_dir / f"{key}.meta"
+
+
+def _read_cache(cache_dir: Path, key: str, ttl_seconds: int = 300) -> Optional[dict]:
+    """Read from JSON cache if present and not expired per .meta file."""
+    path = _get_cache_path(cache_dir, key)
+    if not path.exists():
+        return None
+    try:
+        meta_path = _get_cache_meta_path(cache_dir, key)
+        if meta_path.exists():
+            with open(meta_path, "r") as f:
+                meta = json.load(f)
+            if time.time() - meta.get("ts", 0) > ttl_seconds:
+                return None
+        with open(path, "r") as f:
+            return json.load(f)
+    except Exception:
+        return None
+
+
+def _write_cache(cache_dir: Path, key: str, data: dict) -> None:
+    """Write data to JSON cache + update .meta timestamp. Ensures dir exists."""
+    cache_dir.mkdir(parents=True, exist_ok=True)
+    with open(_get_cache_path(cache_dir, key), "w") as f:
+        json.dump(data, f)
+    with open(_get_cache_meta_path(cache_dir, key), "w") as f:
+        json.dump({"ts": time.time()}, f)
+
+
+def _compute_pearson_correlation_matrix(
+    dfs: Dict[str, Any],
+) -> tuple[Optional[list[list[float]]], Optional[list[str]], Optional[Any]]:
+    """Compute Pearson corr matrix on log returns of overlapping 'close' series.
+
+    This was the ~6-10 line duplicated block (diff/log/corrcoef/nan/round list + intersect)
+    in api/correlation.py:_compute_correlation and api/sector.py:_compute_correlation_matrix.
+
+    Returns (corr_list, symbols, common_index) or (None, None, None) on failure.
+    """
+    import numpy as np
+    import pandas as pd
+
+    if not dfs or len(dfs) < 2:
+        return None, None, None
+
+    symbols = list(dfs.keys())
+    all_dfs = [dfs[s] for s in symbols]
+
+    # intersect indices (assume pandas Index with .intersection)
+    all_indices = all_dfs[0].index
+    for df in all_dfs[1:]:
+        all_indices = all_indices.intersection(df.index)
+
+    if len(all_indices) < 2:
+        return None, None, None
+
+    close_matrix = np.column_stack([
+        df.loc[all_indices, "close"].values for df in all_dfs
+    ])
+
+    returns = np.diff(np.log(close_matrix), axis=0)
+
+    with np.errstate(invalid="ignore", divide="ignore"):
+        corr_matrix = np.corrcoef(returns, rowvar=False)
+
+    corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
+    corr_list = [[round(float(v), 6) for v in row] for row in corr_matrix]
+
+    return corr_list, symbols, all_indices

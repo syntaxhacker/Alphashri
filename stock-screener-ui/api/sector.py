@@ -10,7 +10,6 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional, Any, Tuple
 import asyncio
 import json
-import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -20,7 +19,13 @@ import requests
 from tradingview_screener import Query as TVQuery, col
 
 from config import IST
-from api.utils import _to_float
+from api.utils import _to_float, (
+    _get_cache_path as _utils_get_cache_path,
+    _get_cache_meta_path as _utils_get_cache_meta_path,
+    _read_cache as _utils_read_cache,
+    _write_cache as _utils_write_cache,
+    _compute_pearson_correlation_matrix,
+)
 
 router = APIRouter(prefix="/api/sector", tags=["sector"])
 
@@ -178,7 +183,6 @@ US_SECTOR_ETFS = [
 
 # Cache setup
 CACHE_DIR = Path(__file__).parent.parent / "experiments" / "data" / "sector_corr_cache"
-CACHE_DIR.mkdir(parents=True, exist_ok=True)
 CACHE_TTL_SECONDS = 300  # 5 minutes
 
 
@@ -186,36 +190,21 @@ def _make_cache_key(market: str, lookback_days: int) -> str:
     return f"{market}_{lookback_days}"
 
 
+# Thin wrappers over shared impl in api.utils (dedups the 26-line cache clone vs correlation.py)
 def _get_cache_path(key: str) -> Path:
-    return CACHE_DIR / f"{key}.json"
+    return _utils_get_cache_path(CACHE_DIR, key)
 
 
 def _get_cache_meta_path(key: str) -> Path:
-    return CACHE_DIR / f"{key}.meta"
+    return _utils_get_cache_meta_path(CACHE_DIR, key)
 
 
 def _read_cache(key: str) -> Optional[dict]:
-    path = _get_cache_path(key)
-    if not path.exists():
-        return None
-    try:
-        meta_path = _get_cache_meta_path(key)
-        if meta_path.exists():
-            with open(meta_path, "r") as f:
-                meta = json.load(f)
-            if time.time() - meta.get("ts", 0) > CACHE_TTL_SECONDS:
-                return None
-        with open(path, "r") as f:
-            return json.load(f)
-    except Exception:
-        return None
+    return _utils_read_cache(CACHE_DIR, key, CACHE_TTL_SECONDS)
 
 
 def _write_cache(key: str, data: dict) -> None:
-    with open(_get_cache_path(key), "w") as f:
-        json.dump(data, f)
-    with open(_get_cache_meta_path(key), "w") as f:
-        json.dump({"ts": time.time()}, f)
+    _utils_write_cache(CACHE_DIR, key, data)
 
 
 def _get_instrument_key_map() -> Dict[str, str]:
@@ -375,33 +364,12 @@ async def _fetch_sector_data_for_market(
 def _compute_correlation_matrix(
     dfs: Dict[str, pd.DataFrame]
 ) -> Tuple[Optional[List[List[float]]], Optional[List[str]]]:
-    """Compute Pearson correlation matrix on daily returns."""
-    if len(dfs) < 2:
-        return None, None
+    """Compute Pearson correlation matrix on daily returns.
 
-    all_indices = None
-    for df in dfs.values():
-        if all_indices is None:
-            all_indices = df.index
-        else:
-            all_indices = all_indices.intersection(df.index)
-
-    if all_indices is None or len(all_indices) < 2:
-        return None, None
-
-    symbols = list(dfs.keys())
-    close_matrix = np.column_stack([
-        dfs[sym].loc[all_indices, "close"].values for sym in symbols
-    ])
-
-    returns = np.diff(np.log(close_matrix), axis=0)
-
-    with np.errstate(invalid="ignore", divide="ignore"):
-        corr_matrix = np.corrcoef(returns, rowvar=False)
-
-    corr_matrix = np.nan_to_num(corr_matrix, nan=0.0)
-    corr_list = [[round(float(v), 6) for v in row] for row in corr_matrix]
-
+    Delegates core logic to shared _compute_pearson_correlation_matrix in api.utils
+    (eliminates clone with correlation.py).
+    """
+    corr_list, symbols, _ = _compute_pearson_correlation_matrix(dfs)
     return corr_list, symbols
 
 
