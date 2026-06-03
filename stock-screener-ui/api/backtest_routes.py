@@ -15,7 +15,8 @@ router = APIRouter(prefix="/api/backtest", tags=["backtest"])
 
 from backtest.api import (
     BacktestRequestHandler, handle_get_strategies, handle_get_costs, handle_run_backtest,
-    list_backtest_history, get_backtest_history_details, delete_backtest_history
+    list_backtest_history, get_backtest_history_details, delete_backtest_history,
+    build_backtest_inmem_cache,
 )
 
 _backtest_handler = BacktestRequestHandler()
@@ -81,13 +82,8 @@ async def run_backtest(
 
     cached = cache_get(cache_key) if is_cache_available() else None
     if cached is not None:
-        _backtest_handler.backtest_cache = {
-            'candles': cached.get('candles', {}),
-            'chart_data': cached.get('chart_data', {}),
-            'config': cached.get('config', {}),
-            'results': cached.get('results', []),
-        }
-        _backtest_handler.progress_state['running'] = False
+        _backtest_handler.backtest_cache = build_backtest_inmem_cache(cached)
+        _backtest_handler.set_progress_done()
         response = {
             'strategy': cached.get('strategy'),
             'variation_id': cached.get('variation_id'),
@@ -104,21 +100,13 @@ async def run_backtest(
             response['chart_data'] = cached.get('chart_data', {})
         return _sanitize_for_json(response)
 
-    _backtest_handler.progress_state['running'] = True
-    _backtest_handler.progress_state['current'] = 0
-    _backtest_handler.progress_state['total'] = len(body.get('symbols', []))
-    _backtest_handler.progress_state['message'] = 'Starting...'
+    _backtest_handler.reset_progress(len(body.get('symbols', [])))
 
     result = await asyncio.to_thread(handle_run_backtest, body, _backtest_handler.progress_state)
 
-    if 'error' not in result:
-        _backtest_handler.backtest_cache = {
-            'candles': result.get('candles', {}),
-            'chart_data': result.get('chart_data', {}),
-            'config': result.get('config', {}),
-            'results': result.get('results', []),
-        }
+    _backtest_handler.apply_result_to_cache(result)
 
+    if 'error' not in result:
         totals = result.get('totals', {})
         has_trades = totals.get('trades', 0) > 0
 
@@ -137,7 +125,7 @@ async def run_backtest(
             }
             cache_set(cache_key, cache_data, ttl=86400)
 
-    _backtest_handler.progress_state['running'] = False
+    _backtest_handler.set_progress_done()
 
     response = {
         'strategy': result.get('strategy'),

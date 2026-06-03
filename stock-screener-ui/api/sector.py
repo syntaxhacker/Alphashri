@@ -13,7 +13,6 @@ import json
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
-import math
 
 import numpy as np
 import pandas as pd
@@ -21,6 +20,7 @@ import requests
 from tradingview_screener import Query as TVQuery, col
 
 from config import IST
+from api.utils import _to_float
 
 router = APIRouter(prefix="/api/sector", tags=["sector"])
 
@@ -44,16 +44,6 @@ class SectorResponse(BaseModel):
     last_updated: datetime
     market: str
 
-def _to_float(value, default=0.0):
-    try:
-        if value is None:
-            return default
-        out = float(value)
-        if not math.isfinite(out):
-            return default
-        return out
-    except Exception:
-        return default
 
 def _fetch_sector_data(market: str, limit: int) -> pd.DataFrame:
     """Synchronous TradingView query — must not be called directly in an async context."""

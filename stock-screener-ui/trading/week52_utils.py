@@ -118,3 +118,65 @@ def days_since_52w_high_touch_from_df(df: "pd.DataFrame", high_52w: float) -> Op
     except Exception:
         highs = df["high"].astype(float).tolist()
         return days_since_52w_high_touch(highs, high_52w)
+
+
+# --- Shared helpers for 52W backtest Nautilus strategies (DRY fix) ---
+
+from datetime import datetime, timezone
+# Note: get_date_from_ns is timezone-naive in sense of IST; used for bar ts_event which is UTC ns
+
+
+def get_date_from_ns(ts_ns: int) -> datetime:
+    """Convert nanosecond timestamp (from nautilus bar.ts_event) to datetime in UTC.
+    Duplicated previously in backtest/strategies/week52_*.py .
+    """
+    ts_sec = ts_ns / 1_000_000_000
+    return datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+
+
+class Week52HighTracker:
+    """
+    Stateful 52-week high tracker backed by calculate_52w_high.
+    Eliminates duplicated _high_prices / _price_history + calc logic
+    in Week52*NautilusStrategy.on_bar().
+
+    Compatible with Week52HighIndicator API (used by chaser tests for backward compat).
+    """
+    def __init__(self, period: int = 252, min_periods: int = 20):
+        self.period = period
+        self.min_periods = min_periods
+        self._high_prices: List[float] = []
+        self._current_52w_high: Optional[float] = None
+
+    def update(self, high_price: float) -> Optional[float]:
+        """Append high (of bar), compute 52w excluding current, return it (or None)."""
+        self._high_prices.append(float(high_price))
+
+        # Keep only the last 'period'
+        if len(self._high_prices) > self.period:
+            self._high_prices.pop(0)
+
+        # Match prior logic: compute even for small counts if possible
+        if len(self._high_prices) >= self.min_periods:
+            self._current_52w_high = calculate_52w_high(
+                self._high_prices, period=self.period, exclude_current=True
+            )
+        elif len(self._high_prices) > 1:
+            self._current_52w_high = calculate_52w_high(
+                self._high_prices, period=self.period, exclude_current=True
+            )
+        else:
+            self._current_52w_high = None
+
+        return self._current_52w_high
+
+    @property
+    def value(self) -> Optional[float]:
+        return self._current_52w_high
+
+    def is_initialized(self) -> bool:
+        return len(self._high_prices) >= self.min_periods and self._current_52w_high is not None
+
+    def reset(self) -> None:
+        self._high_prices = []
+        self._current_52w_high = None

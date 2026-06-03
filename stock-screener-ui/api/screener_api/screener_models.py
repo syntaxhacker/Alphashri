@@ -1,6 +1,7 @@
-import math
 import os
 from typing import Optional, Dict, Any, List
+
+from api.utils import _to_float, _sanitize_for_json
 
 
 MAX_WORKERS = 10
@@ -158,23 +159,5 @@ PROFILE_META = {
 }
 
 
-def _to_float(value, default=0.0):
-    try:
-        if value is None:
-            return default
-        out = float(value)
-        if not math.isfinite(out):
-            return default
-        return out
-    except Exception:
-        return default
-
-
-def _sanitize_for_json(obj):
-    if isinstance(obj, dict):
-        return {k: _sanitize_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitize_for_json(v) for v in obj]
-    if isinstance(obj, float):
-        return obj if math.isfinite(obj) else None
-    return obj
+# _to_float and _sanitize_for_json are now centralized in api/utils.py
+# (imported at top of this file for re-export via screener_api and api.screener)

@@ -1,30 +1,19 @@
 import json
-import uuid
-from datetime import datetime, timezone
-from sqlalchemy import Column, Integer, String, Float, Boolean, DateTime, ForeignKey, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Float, DateTime, ForeignKey, UniqueConstraint
 from sqlalchemy.orm import relationship
 
-from .base import Base
+from .base import Base, PaperTradingMixin, PythonUpdatedAtMixin
 
 
-class Trade(Base):
+class Trade(PaperTradingMixin, Base):
     __tablename__ = "trades"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    bot_id = Column(Integer, ForeignKey("bot_configs.id"), nullable=True, index=True)
-    strategy_id = Column(Integer, nullable=True, index=True)
-    strategy_name = Column(String(100), nullable=False, default="")
-    symbol = Column(String(50), nullable=False, index=True)
-    side = Column(String(10), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    entry_price = Column(Float, nullable=False)
+    # id, uuid, user_id, bot_id (nullable), strategy_*, symbol, side, quantity, entry_price, entry_time, created_at,
+    # stop_loss, take_profit, peak_price, low_price, is_test
+    # are provided by PaperTradingMixin (DRY fix for ~7+ line dup with Position; mixin now also covers sl/tp/peak/low/is_test)
+
     exit_price = Column(Float, nullable=True)
-    entry_time = Column(DateTime(timezone=True), nullable=False)
     exit_time = Column(DateTime(timezone=True), nullable=True)
-    stop_loss = Column(Float, nullable=True, default=0.0)
-    take_profit = Column(Float, nullable=True, default=0.0)
     pnl = Column(Float, nullable=True, default=0.0)
     pnl_pct = Column(Float, nullable=True, default=0.0)
     costs = Column(Float, nullable=True, default=0.0)
@@ -32,11 +21,7 @@ class Trade(Base):
     exit_reason = Column(String(50), nullable=True)
     notes = Column(String(500), nullable=True, default="")
     reason = Column(String(500), nullable=True, default="")
-    peak_price = Column(Float, nullable=True, default=0.0)
-    low_price = Column(Float, nullable=True, default=0.0)
-    is_test = Column(Boolean, nullable=False, default=False)
     source = Column(String(20), nullable=False, default="live")
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
 
     user = relationship("User", backref="trades")
     bot = relationship("BotConfig", backref="trades")
@@ -48,61 +33,41 @@ class Trade(Base):
                 hold = int((self.exit_time - self.entry_time).total_seconds() / 60)
             except Exception:
                 pass
-        return {
-            "id": self.uuid,
+        d = self._paper_base_to_dict()
+        d.update({
             "trade_id": f"TRADE-{self.id:06d}",
-            "symbol": self.symbol,
-            "side": self.side,
-            "quantity": self.quantity,
-            "entry_price": self.entry_price,
             "exit_price": self.exit_price,
-            "entry_time": self.entry_time.isoformat() if self.entry_time else None,
             "exit_time": self.exit_time.isoformat() if self.exit_time else None,
             "pnl": self.pnl,
             "pnl_pct": self.pnl_pct,
             "exit_reason": self.exit_reason,
             "costs": self.costs,
             "net_pnl": self.net_pnl,
-            "strategy_id": self.strategy_id,
-            "strategy_name": self.strategy_name,
-            "is_test": self.is_test,
             "source": self.source,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
+            "is_test": self.is_test,
+            "bot_id": self.bot_id,
             "hold_duration_minutes": hold,
             "notes": self.notes or "",
             "reason": self.reason or "",
-            "bot_id": self.bot_id,
-            "peak_price": self.peak_price or 0.0,
-            "low_price": self.low_price or 0.0,
-        }
+        })
+        return d
 
 
-class Position(Base):
+class Position(PaperTradingMixin, PythonUpdatedAtMixin, Base):
     __tablename__ = "positions"
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    uuid = Column(String(36), unique=True, nullable=False, default=lambda: str(uuid.uuid4()))
-    user_id = Column(Integer, ForeignKey("users.id"), nullable=False, index=True)
-    bot_id = Column(Integer, ForeignKey("bot_configs.id"), nullable=False, index=True)
-    strategy_id = Column(Integer, nullable=True, index=True)
-    strategy_name = Column(String(100), nullable=False, default="")
-    symbol = Column(String(50), nullable=False, index=True)
-    side = Column(String(10), nullable=False)
-    quantity = Column(Integer, nullable=False)
-    entry_price = Column(Float, nullable=False)
-    stop_loss = Column(Float, nullable=True, default=0.0)
-    take_profit = Column(Float, nullable=True, default=0.0)
-    entry_time = Column(DateTime(timezone=True), nullable=False)
+    # id, uuid, user_id, bot_id, strategy_*, symbol, side, quantity, entry_price, entry_time, created_at,
+    # stop_loss, take_profit, peak_price, low_price, is_test
+    # from PaperTradingMixin (DRY).
+    # bot_id redeclared below for nullable=False (stricter).
+    # updated_at from PythonUpdatedAtMixin (DRY).
+
+    bot_id = Column(Integer, ForeignKey("bot_configs.id"), nullable=False, index=True)  # stricter than mixin's True
+
     current_price = Column(Float, nullable=True, default=0.0)
     unrealized_pnl = Column(Float, nullable=True, default=0.0)
     unrealized_pnl_pct = Column(Float, nullable=True, default=0.0)
-    is_test = Column(Boolean, nullable=False, default=False)
-    created_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc))
-    updated_at = Column(DateTime(timezone=True), nullable=False, default=lambda: datetime.now(timezone.utc), onupdate=lambda: datetime.now(timezone.utc))
     strategy_type = Column(String(20), nullable=True, default="")
-    peak_price = Column(Float, nullable=True, default=0.0)
-    low_price = Column(Float, nullable=True, default=0.0)
     metadata_json = Column(String(2000), nullable=True, default="")
 
     user = relationship("User", backref="positions")
@@ -121,23 +86,13 @@ class Position(Base):
                 pass
         entry_reason = metadata.get("entry_reason", "") if isinstance(metadata, dict) else ""
         notes = metadata.get("notes", "") if isinstance(metadata, dict) else ""
-        return {
-            "id": self.uuid,
-            "symbol": self.symbol,
-            "side": self.side,
-            "quantity": self.quantity,
-            "entry_price": self.entry_price,
+        d = self._paper_base_to_dict()
+        d.update({
             "current_price": self.current_price,
-            "stop_loss": self.stop_loss,
-            "take_profit": self.take_profit,
             "unrealized_pnl": self.unrealized_pnl,
             "unrealized_pnl_pct": self.unrealized_pnl_pct,
-            "entry_time": self.entry_time.isoformat() if self.entry_time else None,
-            "strategy_id": self.strategy_id,
-            "strategy_name": self.strategy_name,
             "strategy_type": self.strategy_type or "",
-            "peak_price": self.peak_price or 0.0,
-            "low_price": self.low_price or 0.0,
             "entry_reason": entry_reason,
             "notes": notes,
-        }
+        })
+        return d
