@@ -62,7 +62,7 @@ describe("formatResponseTime", () => {
 describe("formatDateTime", () => {
   it("formats a valid ISO string", () => {
     const result = formatDateTime("2025-01-15T10:30:00Z");
-    expect(result).toMatch(/1\/15\/2025, \d{1,2}:\d{2}:\d{2} [AP]M/);
+    expect(result).toMatch(/Jan 15, 2025, \d{2}:\d{2}:\d{2} [AP]M/);
   });
 
   it("returns a string for an invalid date string (Date doesn't throw, returns Invalid Date)", () => {
@@ -77,7 +77,7 @@ describe("formatDateTime", () => {
 
   it("handles a date-only string", () => {
     const result = formatDateTime("2025-06-01");
-    expect(result).toMatch(/6\/1\/2025, \d{1,2}:\d{2}:\d{2} [AP]M/);
+    expect(result).toMatch(/Jun 1, 2025, \d{2}:\d{2}:\d{2} [AP]M/);
   });
 });
 
