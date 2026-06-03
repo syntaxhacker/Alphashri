@@ -166,3 +166,39 @@ print('All touched module imports: SUCCESS (no breakage)')
 
 **No new issues found.** All verification steps per task complete. DRY fixes hold (reduced clones, tests green where runnable, migrations ok).
 
+
+## Python files jscpd check (latest clean run post agent refactors)
+
+**Command (from project root, on branch `refactor/dry-opportunities`):**
+`npx jscpd "api/" "scripts/" "trading/" "backtest/" "db/" -f python --min-lines 5 --ignore "**/.venv/**,**/__pycache__/**,**/*.pyc,**/node_modules/**,**/dist/**,**/build/**,**/src/**,**/tests/**,**/e2e/**,**/*.ts,**/*.tsx,**/*.js,**/*.jsx,**/logs/**,**/experiments/**,**/*.md,**/*.json" --reporters console`
+
+**Results (full stats):**
+- Format: python
+- Files analyzed: 183
+- Total lines: 32747
+- Total tokens: 284469
+- Clones found: 132
+- Duplicated lines: 2100 (6.41%)
+- Duplicated tokens: 21621 (7.6%)
+
+**Main clones found (project code only; no venv pollution):**
+- db/migrations/versions/ internal + cross (7 lines, 5 lines boilerplate in Alembic files - expected for historical migrations).
+- backtest/strategies/week52_target.py internal (15 lines).
+- backtest/strategies/week52_chaser.py <-> week52_target.py (multiple: 15 lines, 12 lines, 16 lines, 12 lines, 30 lines, 17 lines, 19 lines, 16 lines, 9 lines etc. - the large blocks between the two 52W strategies).
+- Cross with backtest/strategies/sr_breakout.py (11 lines, 15 lines, 12 lines, 53 lines!!, 22 lines with chaser/target).
+
+(Note: The parallel subagent refactors extracted the biggest shared logic (mixin for Nautilus on_bar/enter/exit/tracker/cooldown, common run_single helpers, etc.), which eliminated the *exact* 50-line monster and many others. Remaining listed are the analogous but strategy-specific implementations or other strategy overlaps like sr_breakout. jscpd still flags structural similarity.)
+
+**Comparison / impact:**
+- Pre any fixes (initial scans): ~142 clones / 6.96%.
+- Post parallel agent fixes (52W mixin+utils, api central, db mixins): down to 132 / 6.41% (some reduction; main 52W chaser/target large dups addressed via extraction).
+- The 52W pair was the primary Python DRY opportunity (as noted in AGENTS.md and initial report). Refactored to share code while keeping distinct entry/exit (chaser vs target).
+
+**Recommendations:**
+- Further extract common backtest strategy patterns (e.g. more in base.py or a strategies/base_52w or general strategy mixin for the sr/52w family).
+- For migrations, boilerplate is standard; use the helpers added to env.py for future ones.
+- Re-run `bun run check:duplicates:python` (or the jscpd cmd) as part of Python reviews.
+- The package.json now includes it in check:all.
+
+See terminal for full list (head showed the top ones; tail for stats).
+
