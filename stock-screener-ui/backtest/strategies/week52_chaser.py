@@ -109,7 +109,7 @@ def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
     return rsi
 
 
-class Week52ChaserNautilusStrategy(Strategy, Week52NautilusMixin):
+class Week52ChaserNautilusStrategy(Strategy):  # mixin avoided for metaclass compat
     """52-Week High Chaser implementation for NautilusTrader."""
 
     def __init__(self, config: 'Week52ChaserConfig'):
