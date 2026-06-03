@@ -16,6 +16,11 @@ import sys
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock
 
+try:
+    import nautilus_trader
+except ModuleNotFoundError:
+    pytest.skip("nautilus_trader not available", allow_module_level=True)
+
 from backtest.strategies.week52_target import run_single_stock_week52_target
 
 

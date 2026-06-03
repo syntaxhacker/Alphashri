@@ -20,6 +20,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+try:
+    import nautilus_trader
+except ModuleNotFoundError:
+    pytest.skip("nautilus_trader not available", allow_module_level=True)
+
 from backtest.strategies.week52_chaser import (
     Week52HighIndicator,
     Week52ChaserStrategy,
