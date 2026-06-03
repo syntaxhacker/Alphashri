@@ -204,6 +204,7 @@ describe("AdminPage", () => {
     });
 
     expect(screen.getByTestId("runs-table")).toBeInTheDocument();
+    expect(screen.getByTestId("admin-llm-clear-logs")).toBeInTheDocument();
   });
 
   it("shows warning if there is a non-fatal error", async () => {

@@ -251,6 +251,46 @@ class TestAdminLLMStats:
         assert data["aggregate"]["runs_by_day"] == []
         assert data["recent_runs"] == []
 
+    @patch('api.news_routes._llm_available', True)
+    @patch('api.news_routes.article_analyzer')
+    def test_reset_llm_stats_success(self, mock_analyzer, client, admin_auth_headers):
+        """Test successful reset of LLM stats log data."""
+        mock_analyzer.clear_llm_stats.return_value = 5
+        response = client.post("/api/admin/llm-stats/reset", headers=admin_auth_headers)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["status"] == "ok"
+        assert data["deleted"] == 5
+        assert "Cleared 5 LLM run log entries" in data["message"]
+        mock_analyzer.clear_llm_stats.assert_called_once()
+
+    @patch('api.news_routes._llm_available', False)
+    def test_reset_llm_stats_unavailable(self, client, admin_auth_headers):
+        """Test 503 when LLM analyzer not available on reset."""
+        response = client.post("/api/admin/llm-stats/reset", headers=admin_auth_headers)
+        assert response.status_code == 503
+        assert "LLM Analyzer not available" in response.json()["detail"]
+
+    def test_reset_llm_stats_not_admin(self, client, auth_headers):
+        """Test 403 for non-admin on LLM stats reset."""
+        response = client.post("/api/admin/llm-stats/reset", headers=auth_headers)
+        assert response.status_code == 403
+        assert "Admin access required" in response.json()["detail"]
+
+    def test_reset_llm_stats_unauthorized(self, client):
+        """Test 401 without auth on LLM stats reset."""
+        response = client.post("/api/admin/llm-stats/reset")
+        assert response.status_code == 401
+
+    @patch('api.news_routes._llm_available', True)
+    @patch('api.news_routes.article_analyzer')
+    def test_reset_llm_stats_exception(self, mock_analyzer, client, admin_auth_headers):
+        """Test 500 when clear raises."""
+        mock_analyzer.clear_llm_stats.side_effect = Exception("db locked")
+        response = client.post("/api/admin/llm-stats/reset", headers=admin_auth_headers)
+        assert response.status_code == 500
+        assert "db locked" in response.json()["detail"]
+
 # =====================
 # Cache Stats Tests
 # =====================

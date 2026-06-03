@@ -56,7 +56,37 @@ const coreCols: ColumnDef[] = [
   },
 ];
 
-/** Upstox 52W screener — no volume (not in stock_52w_range). No Touched column in touched section (redundant with section title). */
+/** 52W high screener columns now expose volume (raw + _m), rsi, adx thanks to TV scanner enrichment. */
 export function get52wHighColumns(_section: Week52Section = "approaching"): ColumnDef[] {
-  return [...coreCols];
+  return [
+    ...coreCols,
+    {
+      key: "volume_m",
+      label: "Vol M",
+      type: "number",
+      sortable: true,
+      format: (value: number) => (value != null ? value.toFixed(2) : "-"),
+    },
+    {
+      key: "volume",
+      label: "Volume",
+      type: "number",
+      sortable: true,
+      format: (value: number) => (value != null ? Math.round(value).toLocaleString() : "-"),
+    },
+    {
+      key: "rsi",
+      label: "RSI",
+      type: "number",
+      sortable: true,
+      format: (value: number) => (value != null ? value.toFixed(1) : "-"),
+    },
+    {
+      key: "adx",
+      label: "ADX",
+      type: "number",
+      sortable: true,
+      format: (value: number) => (value != null ? value.toFixed(1) : "-"),
+    },
+  ];
 }

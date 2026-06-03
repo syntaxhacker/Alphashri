@@ -8,8 +8,9 @@ import {
   ActionIcon,
   ScrollArea,
   Tabs,
+  Button,
 } from "@mantine/core";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../components/auth/AuthProvider2";
 import {
   CompactPage,
@@ -60,11 +61,15 @@ function AdminContent({
   error,
   onRefresh,
   loading,
+  onClearLLM,
+  clearing,
 }: {
   stats: LLMStats;
   error: string | null;
   onRefresh: () => void;
   loading: boolean;
+  onClearLLM?: () => void;
+  clearing?: boolean;
 }) {
   const { recent_runs, aggregate } = stats;
   return (
@@ -107,7 +112,24 @@ function AdminContent({
                 </Text>
               )}
               <ModelBreakdown models={aggregate.models_used} />
-              <CompactPanel title="Recent Runs" flex={1} style={{ minHeight: 0 }}>
+              <Group justify="space-between" align="center">
+                <Text size="sm" fw={500}>
+                  Recent Runs
+                </Text>
+                <Button
+                  size="xs"
+                  variant="light"
+                  color="red"
+                  leftSection={<IconTrash size={14} />}
+                  onClick={onClearLLM}
+                  loading={clearing}
+                  disabled={!onClearLLM}
+                  data-testid="admin-llm-clear-logs"
+                >
+                  Clear logs
+                </Button>
+              </Group>
+              <CompactPanel flex={1} style={{ minHeight: 0 }}>
                 <ScrollArea flex={1}>
                   <RecentRunsTable runs={recent_runs} />
                 </ScrollArea>
@@ -127,6 +149,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<LLMStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [clearing, setClearing] = useState(false);
 
   const fetchStats = useCallback(async () => {
     setLoading(true);
@@ -148,6 +171,31 @@ export default function AdminPage() {
     }
   }, [fetchWithAuth]);
 
+  const clearLLMStats = async () => {
+    if (
+      !window.confirm(
+        "Clear all LLM stats log data (recent runs + aggregates)? This does not clear the article analysis cache."
+      )
+    )
+      return;
+    setClearing(true);
+    setError(null);
+    try {
+      const response = await fetchWithAuth(`${API_BASE}/api/admin/llm-stats/reset`, {
+        method: "POST",
+      });
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.detail || `HTTP ${response.status}`);
+      }
+      await fetchStats();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to clear LLM stats");
+    } finally {
+      setClearing(false);
+    }
+  };
+
   useEffect(() => {
     fetchStats();
   }, [fetchStats]);
@@ -155,5 +203,14 @@ export default function AdminPage() {
   if (loading && !stats) return <LoadingState />;
   if (error && !stats) return <ErrorState error={error} />;
 
-  return <AdminContent stats={stats!} error={error} onRefresh={fetchStats} loading={loading} />;
+  return (
+    <AdminContent
+      stats={stats!}
+      error={error}
+      onRefresh={fetchStats}
+      loading={loading}
+      onClearLLM={clearLLMStats}
+      clearing={clearing}
+    />
+  );
 }

@@ -60,16 +60,14 @@ article_analyzer = None
 _news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
-PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers"]
+PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high"]
 PREWARM_INTERVAL = 60
 
 
 async def screener_prewarm_task():
     while True:
         try:
-            hour = datetime.now(config.IST).hour
-            is_market_hours = 8 <= hour <= 16
-            if is_market_hours:
+            if _is_market_hours():
                 from cache.redis_client import make_cache_key, cache_ttl, stale_while_revalidate
                 for screener_id in PREWARM_SCREENERS:
                     cache_key = make_cache_key("screener", "upstox", "intraday", screener_id)
@@ -88,6 +86,20 @@ async def screener_prewarm_task():
             break
         except Exception:
             await asyncio.sleep(PREWARM_INTERVAL)
+
+
+def _is_market_hours() -> bool:
+    """Returns True during Indian equity market hours (09:15-15:30 IST on trading days, excluding weekends/holidays).
+    Delegates to the canonical trading.utils.is_market_open (respects MARKET_OPEN/MARKET_CLOSE + holiday calendar).
+    Used to gate background 52W range batches, screener cache invalidations, and prewarms.
+    """
+    try:
+        from trading.utils import is_market_open
+        return is_market_open()
+    except Exception:
+        # Fallback (e.g. partial import env) — approximate window only
+        hour = datetime.now(config.IST).hour
+        return 8 <= hour <= 16
 
 
 _52W_RANGE_CACHE_TTL = 600
@@ -154,21 +166,16 @@ def _persist_52w_ranges_to_db(data: dict):
     try:
         existing = {r.symbol: r for r in db.query(Stock52WeekRange).all()}
         to_add = []
-        to_update = []
-        now = datetime.now()
+        now = datetime.now(config.IST).replace(tzinfo=None)
         for symbol, info in data.items():
             cur = existing.get(symbol)
             if cur:
-                if (
-                    cur.high_52w != info['high']
-                    or cur.low_52w != info['low']
-                    or cur.close != info['close']
-                ):
-                    cur.high_52w = info['high']
-                    cur.low_52w = info['low']
-                    cur.close = info['close']
-                    cur.updated_at = now
-                    to_update.append(cur)
+                # Always bump updated_at on refresh so max(updated_at) reflects last
+                # successful range computation/verification time for the most recent symbol.
+                cur.high_52w = info['high']
+                cur.low_52w = info['low']
+                cur.close = info['close']
+                cur.updated_at = now
             else:
                 to_add.append(Stock52WeekRange(
                     symbol=symbol, high_52w=info['high'],
@@ -185,7 +192,12 @@ def _persist_52w_ranges_to_db(data: dict):
 
 
 async def compute_52w_ranges_task():
-    """Hourly Upstox 52W batch (incremental) + screener cache invalidation when complete."""
+    """Hourly Upstox 52W batch (incremental) + screener cache invalidation when complete.
+    The batch + invalidation only actually run during market hours (see _is_market_hours).
+    On startup we do a prompt initial run (short delay) if in market hours so that
+    "just ran start.sh and data is stale" results in an observable batch quickly
+    instead of waiting the full interval.
+    """
     import os
     from trading.week52_job_status import get_job_status
 
@@ -193,12 +205,17 @@ async def compute_52w_ranges_task():
     poll_sec = 30
     max_wait = int(os.environ.get("SCREENER_52W_MAX_WAIT_SEC", "7200"))
 
-    first_run = True
+    first = True
     while True:
-        if not first_run:
-            await asyncio.sleep(interval)
-        first_run = False
         try:
+            if first:
+                await asyncio.sleep(5)
+                first = False
+            else:
+                await asyncio.sleep(interval)
+
+            if not _is_market_hours():
+                continue
             job = get_job_status() or {}
             if job.get("status") == "running":
                 print("[52W Range] Scheduled run skipped — batch already running")
