@@ -25,6 +25,8 @@ from api.utils import (
     _compute_pearson_correlation_matrix,
 )
 
+import time  # for test patching symmetry
+
 router = APIRouter(prefix="/api/sector", tags=["sector"])
 
 class SectorItem(BaseModel):
