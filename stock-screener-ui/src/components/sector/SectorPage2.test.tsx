@@ -27,12 +27,12 @@ vi.mock("./IntervalMoversTable", () => ({
 
 vi.mock("./SectorHelpers", async (importOriginal) => {
   const actual = await importOriginal();
-  const RealSectorTreemap = actual.SectorTreemap;
-  return {
-    ...actual,
-    SectorTreemap: (props: any) => <div data-testid="sector-treemap">SectorTreemap</div>,
-  };
+  return actual;
 });
+
+vi.mock("./SectorHeatmapView", () => ({
+  SectorHeatmapView: () => <div data-testid="sector-heatmap-view">SectorHeatmapView</div>,
+}));
 
 const mockSectors: SectorItem[] = [
   { sector: "IT", avg_change: 2.5, stock_count: 50, advances: 30, declines: 20, avg_rsi: 55, avg_adx: 26, top_movers: "TCS, INFY" },

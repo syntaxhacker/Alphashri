@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
 import {
   Box,
@@ -28,13 +28,17 @@ import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import { SectorCorrelationTab } from "./SectorCorrelationTab";
 import { fetchSectorPerformance } from "../../api/sector";
+import { fetchHeatmapData } from "../../api/heatmap";
+import type { HeatmapStock } from "../../api/heatmap";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 import type { SectorResponse, SectorItem, StockMover } from "../../types/sector";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { formatPercentage } from "../../utils/ui-helpers";
-import { detectSectorAlerts, detectIntervalMovers, SectorTreemap } from "./SectorHelpers";
+import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
+import { SectorHeatmapView } from "./SectorHeatmapView";
+import type { ViewMode } from "./SectorHeatmapView";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -161,10 +165,28 @@ function DashboardContent({
   data,
   alerts,
   intervalMovers,
+  viewMode,
+  onViewModeChange,
+  heatmapStocks,
+  heatmapMetric,
+  onHeatmapMetricChange,
+  stockSectorFilter,
+  onStockSectorFilterChange,
+  sectorOptions,
+  heatmapLoading,
 }: {
   data: SectorResponse;
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  heatmapStocks: HeatmapStock[];
+  heatmapMetric: string;
+  onHeatmapMetricChange: (metric: string) => void;
+  stockSectorFilter: string | null;
+  onStockSectorFilterChange: (sector: string | null) => void;
+  sectorOptions: { value: string; label: string }[];
+  heatmapLoading: boolean;
 }) {
   const bottomSector = data.sectors[data.sectors.length - 1];
   const totalAdvances = data.sectors.reduce((acc, s) => acc + s.advances, 0);
@@ -200,31 +222,40 @@ function DashboardContent({
         />
       </CompactStatGrid>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
-        <CompactPanel
-          id="sector-treemap-container"
-          data-testid="sector-treemap-container"
-          padded={false}
-          title={
-            <Group justify="space-between" mb="xs">
-              <Title order={4}>Live Sector Map</Title>
-              {data.last_updated && (
-                <Group gap={4}>
-                  <IconClock size={12} color="gray" />
-                  <Text size="sm" c="dimmed">
-                    {new Date(data.last_updated).toLocaleTimeString()}
-                  </Text>
-                </Group>
-              )}
-            </Group>
-          }
-          scrollable
-        >
-          <Box px="sm" pb="sm" style={{ minHeight: 0, flex: 1 }}>
-            <SectorTreemap sectors={data.sectors} />
-          </Box>
-        </CompactPanel>
+      <CompactPanel
+        id="sector-heatmap-panel"
+        data-testid="sector-heatmap-panel"
+        padded={false}
+        title={
+          <Group justify="space-between" mb="xs">
+            <Title order={4}>Market Heatmap</Title>
+            {data.last_updated && (
+              <Group gap={4}>
+                <IconClock size={12} color="gray" />
+                <Text size="sm" c="dimmed">
+                  {new Date(data.last_updated).toLocaleTimeString()}
+                </Text>
+              </Group>
+            )}
+          </Group>
+        }
+      >
+        <SectorHeatmapView
+          viewMode={viewMode}
+          onViewModeChange={onViewModeChange}
+          sectors={data.sectors}
+          stocks={heatmapStocks}
+          metric={heatmapMetric}
+          onMetricChange={onHeatmapMetricChange}
+          sectorFilter={stockSectorFilter}
+          sectorOptions={sectorOptions}
+          onSectorFilterChange={onStockSectorFilterChange}
+          lastUpdated={data.last_updated}
+          loading={heatmapLoading}
+        />
+      </CompactPanel>
 
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
         <CompactPanel
           id="sector-table-container"
           data-testid="sector-table-container"
@@ -489,6 +520,15 @@ function SectorTabContent({
   alerts,
   intervalMovers,
   loadData,
+  viewMode,
+  onViewModeChange,
+  heatmapStocks,
+  heatmapMetric,
+  onHeatmapMetricChange,
+  stockSectorFilter,
+  onStockSectorFilterChange,
+  sectorOptions,
+  heatmapLoading,
 }: {
   activeTab: string | null;
   data: SectorResponse | null;
@@ -498,6 +538,15 @@ function SectorTabContent({
   alerts: SectorAlert[];
   intervalMovers: InternalStockMover[];
   loadData: (m: string, isInitial?: boolean) => Promise<boolean>;
+  viewMode: ViewMode;
+  onViewModeChange: (mode: ViewMode) => void;
+  heatmapStocks: HeatmapStock[];
+  heatmapMetric: string;
+  onHeatmapMetricChange: (metric: string) => void;
+  stockSectorFilter: string | null;
+  onStockSectorFilterChange: (sector: string | null) => void;
+  sectorOptions: { value: string; label: string }[];
+  heatmapLoading: boolean;
 }) {
   if (activeTab === "correlation") {
     return <SectorCorrelationTab />;
@@ -527,12 +576,59 @@ function SectorTabContent({
   if (loading && !data) return <LoadingPanel />;
   if (error) return <ErrorPanel error={error} onRetry={() => loadData(market)} />;
   if (!data || data.sectors.length === 0) return <EmptyPanel />;
-  return <DashboardContent data={data} alerts={alerts} intervalMovers={intervalMovers} />;
+  return (
+    <DashboardContent
+      data={data}
+      alerts={alerts}
+      intervalMovers={intervalMovers}
+      viewMode={viewMode}
+      onViewModeChange={onViewModeChange}
+      heatmapStocks={heatmapStocks}
+      heatmapMetric={heatmapMetric}
+      onHeatmapMetricChange={onHeatmapMetricChange}
+      stockSectorFilter={stockSectorFilter}
+      onStockSectorFilterChange={onStockSectorFilterChange}
+      sectorOptions={sectorOptions}
+      heatmapLoading={heatmapLoading}
+    />
+  );
 }
 
 export function SectorPage() {
   useStoreSubscription(subscribeToHolidays);
   const state = useSectorData();
+
+  const [viewMode, setViewMode] = useState<ViewMode>("sector");
+  const [heatmapMetric, setHeatmapMetric] = useState("change_pct");
+  const [stockSectorFilter, setStockSectorFilter] = useState<string | null>(null);
+  const [heatmapStocks, setHeatmapStocks] = useState<HeatmapStock[]>([]);
+  const [heatmapLoading, setHeatmapLoading] = useState(false);
+
+  useEffect(() => {
+    if (viewMode !== "stock") return;
+    const controller = new AbortController();
+    setHeatmapLoading(true);
+    fetchHeatmapData(undefined, undefined, stockSectorFilter || undefined, 500, controller.signal)
+      .then((res) => {
+        if (!controller.signal.aborted) {
+          setHeatmapStocks(res.stocks);
+          setHeatmapLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setHeatmapStocks([]);
+          setHeatmapLoading(false);
+        }
+      });
+    return () => controller.abort();
+  }, [viewMode, stockSectorFilter]);
+
+  const sectorOptions = useMemo(() => {
+    const unique = [...new Set(heatmapStocks.map((s) => s.sector).filter(Boolean))];
+    return unique.map((s) => ({ value: s, label: s }));
+  }, [heatmapStocks]);
+
   return (
     <Stack
       gap="sm"
@@ -581,6 +677,15 @@ export function SectorPage() {
             alerts={state.alerts}
             intervalMovers={state.intervalMovers}
             loadData={state.loadData}
+            viewMode={viewMode}
+            onViewModeChange={setViewMode}
+            heatmapStocks={heatmapStocks}
+            heatmapMetric={heatmapMetric}
+            onHeatmapMetricChange={setHeatmapMetric}
+            stockSectorFilter={stockSectorFilter}
+            onStockSectorFilterChange={setStockSectorFilter}
+            sectorOptions={sectorOptions}
+            heatmapLoading={heatmapLoading}
           />
         </Box>
       </Box>

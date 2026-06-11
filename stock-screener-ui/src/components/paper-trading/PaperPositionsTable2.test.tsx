@@ -380,7 +380,6 @@ describe("PaperPositionsTable", () => {
     test("clicking skipped row selects symbol", async () => {
       const user = userEvent.setup();
       rWithPosition({}, { botSnapshot: mockBotSnapshot });
-      await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
       const { setSelectedSymbol } = await import("../../state/paperTrading");
       await user.click(screen.getByTestId("scan-skipped-INFY"));
       expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
