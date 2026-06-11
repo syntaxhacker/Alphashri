@@ -256,7 +256,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
       <Accordion
         variant="contained"
         multiple
-        defaultValue={["signals", "watching"]}
+        defaultValue={["signals", "watching", "rejected", "skipped"]}
         data-testid="watchlist-scan-accordion"
         styles={{
           item: { border: "none", backgroundColor: "transparent" },
