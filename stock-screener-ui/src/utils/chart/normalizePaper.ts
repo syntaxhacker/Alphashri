@@ -140,7 +140,35 @@ export function normalizePaper(
     };
   }
 
-  const highlightedTradeId = selectedTradeId ? Number(selectedTradeId) : null;
+  const highlightedTradeId = selectedTradeId && data.trades
+    ? (() => {
+        const trade = data.trades.find(t => t.trade_id === selectedTradeId);
+        if (!trade) return null;
+        const num = parseInt(trade.trade_id, 10);
+        return isNaN(num) ? data.trades.indexOf(trade) : num;
+      })()
+    : null;
+
+  if (highlightedTradeId != null) {
+    const trade = trades.find(t => t.id === highlightedTradeId);
+    if (trade) {
+      if (trade.stop_loss && trade.stop_loss > 0) {
+        markLines.push({
+          yAxis: trade.stop_loss,
+          lineStyle: { color: "#FF5252", type: "dashed", width: 1 },
+          label: { position: "insideEndTop", formatter: `SL ${trade.stop_loss}` },
+        });
+      }
+      if (trade.take_profit && trade.take_profit > 0) {
+        markLines.push({
+          yAxis: trade.take_profit,
+          lineStyle: { color: "#69F0AE", type: "dashed", width: 1 },
+          label: { position: "insideEndTop", formatter: `TP ${trade.take_profit}` },
+        });
+      }
+    }
+  }
+
   return {
     candles,
     trades,
