@@ -35,9 +35,30 @@ Parameters via env vars: `ORB_OR_MIN`, `ORB_SL`, `ORB_TP`, `ORB_BUFFER`, `ORB_CO
 
 ## What's Been Tried
 
-### Baseline (PF=1.21)
-OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=3, no shorts, EOD=14:45
-→ 477 trades, WR=48.2%, net=Rs +61,504
+### Baseline (PF=1.41)
+OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=3, no shorts, EOD=15:00
+→ 800 trades, WR=36.8%, net=Rs +128,401
+
+### Key Findings
+| Experiment | Best | PF | Notes |
+|-----------|------|----|-------|
+| EOD=15:00 | vs 14:45 | 1.41→1.41 | Huge jump from EOD change (800 trades) |
+| CD sweep | CD=30 | 1.54 | Fewer but higher quality trades (507 trades) |
+| SL/TP grid (CD=30) | SL=1.2/TP=2.0 | 1.66 | Wider SL + moderate TP works best (425 trades) |
+| CD refine (SL=1.2/TP=2.0) | CD=40-50 | 1.69 | Longer cooldown plateaus (406-414 trades) |
+| Buffer sweep | 0.62% | **1.90** | Sweet spot. 0.1% (1.74), 0.6% (1.88), 0.62% (1.90) |
+| Shorts | OFF | better | Doubles trades to 657, PF drops to 1.26 |
+| Max per day | 1-2 | same | Cooldown already handles it |
+
+### Best Config Found (PF=1.90)
+```
+OR_MIN=45, SL=1.2%, TP=2.0%, buffer=0.62%, cooldown=50 bars (250 min), shorts=OFF, EOD=15:00
+→ PF=1.90, WR=55.7%, 291 trades/120 days, net_pnl=+Rs 125,432
+
+Key insight: High beta stocks need wider buffer (0.62%) and longer cooldown (250 min)
+compared to general volatile stocks (0.3% buffer, 75 min cooldown).
+SL=1.2% and TP=2.0% give better risk/reward than tighter stops.
+```
 OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=15 bars (75 min), shorts=OFF
 → PF=1.29, WR=41.5%, 615 trades/90 days, net_pnl=+101,690 INR
 ```
