@@ -16,6 +16,8 @@ Parameters via env vars: `ORB_OR_MIN`, `ORB_SL`, `ORB_TP`, `ORB_BUFFER`, `ORB_CO
 
 ## Files in Scope
 - `experiments/orb_benchmark.py` — Standalone ORB simulation on cached data, outputs METRIC lines
+- `experiments/calc_beta.py` — Calculate stock betas vs market proxy from cached data
+- `experiments/oos_validate.py` — Train/test split validation to detect overfitting
 - `autoresearch.sh` — Shell wrapper that sets env vars and runs benchmark
 
 ## Off Limits
@@ -32,6 +34,26 @@ Parameters via env vars: `ORB_OR_MIN`, `ORB_SL`, `ORB_TP`, `ORB_BUFFER`, `ORB_CO
 - Cost model: equity intraday rates (brokerage 0.03%, STT 0.025% sell, etc.)
 - OR range filter: min 0.5%, max 3.0% (skip tight/wide ranges)
 - Min 5 candles in OR period, min 3 candles post-OR
+
+## Utility Scripts
+
+### Calculate betas for all stocks
+```bash
+source .venv/bin/activate && python3 experiments/calc_beta.py
+```
+Outputs `METRIC beta_ADANIENT=1.486` lines for each stock. High beta (>1.2) list also output.
+
+### OOS validation (detect overfitting)
+```bash
+source .venv/bin/activate && python3 experiments/oos_validate.py
+```
+Runs best params on train (Dec-Feb) vs test (Mar-Apr), reports delta. Outputs `METRIC oos_pf_test` etc.
+Use `ORB_SYMBOLS=ADANIENT,UPL` to filter specific stocks.
+
+### Run benchmark on filtered symbols + dates
+```bash
+ORB_SYMBOLS="ADANIENT,UPL,IRFC" ORB_DATE_START="2026-03-01" ORB_DATE_END="2026-04-09" ./autoresearch.sh
+```
 
 ## What's Been Tried
 

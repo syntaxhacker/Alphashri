@@ -14,8 +14,11 @@ Environment variables:
   ORB_TRADE_SIZE=100     Shares per trade
   ORB_MIN_ENTRY=0        Min entry time in minutes from 9:15 (0=no filter)
   ORB_MAX_PER_DAY=0      Max trades per day (0=unlimited)
-  ORB_EOD_EXIT=885       EOD exit in minutes from midnight IST (885=14:45, 900=15:00)
-  ORB_CACHE_DIR=../experiments/data
+   ORB_EOD_EXIT=885       EOD exit in minutes from midnight IST (885=14:45, 900=15:00)
+   ORB_CACHE_DIR=../experiments/data
+   ORB_SYMBOLS=           Comma-separated symbol filter (default: all)
+   ORB_DATE_START=        Start date YYYY-MM-DD (default: all)
+   ORB_DATE_END=          End date YYYY-MM-DD (default: all)
 """
 import os
 import sys
@@ -38,6 +41,9 @@ ENV = {
     "MAX_PER_DAY": int(os.environ.get("ORB_MAX_PER_DAY", "0")),
     "EOD_EXIT": int(os.environ.get("ORB_EOD_EXIT", "885")),
     "CACHE_DIR": os.environ.get("ORB_CACHE_DIR", "../experiments/data"),
+    "SYMBOLS": os.environ.get("ORB_SYMBOLS", ""),
+    "DATE_START": os.environ.get("ORB_DATE_START", ""),
+    "DATE_END": os.environ.get("ORB_DATE_END", ""),
 }
 
 
@@ -200,10 +206,33 @@ def compute_metrics(all_trades: list[dict]) -> dict:
     }
 
 
+def filter_data_by_date(df: pd.DataFrame) -> pd.DataFrame:
+    if ENV["DATE_START"]:
+        start = pd.Timestamp(ENV["DATE_START"], tz=IST)
+        mask = df.index.map(lambda x: ist_time(x) >= start)
+        df = df[mask]
+    if ENV["DATE_END"]:
+        end = pd.Timestamp(ENV["DATE_END"] + " 23:59:59", tz=IST)
+        mask = df.index.map(lambda x: ist_time(x) <= end)
+        df = df[mask]
+    return df
+
+
 def main():
     print(f"Loading cached data from {ENV['CACHE_DIR']}...", file=sys.stderr)
     data = load_cached_data(ENV["CACHE_DIR"])
-    print(f"Loaded {len(data)} symbols", file=sys.stderr)
+
+    # Filter symbols
+    if ENV["SYMBOLS"]:
+        wanted = set(s.strip() for s in ENV["SYMBOLS"].split(","))
+        data = {k: v for k, v in data.items() if k in wanted}
+    print(f"Loaded {len(data)} symbols: {list(data.keys())}", file=sys.stderr)
+
+    # Filter dates
+    if ENV["DATE_START"] or ENV["DATE_END"]:
+        for sym in data:
+            data[sym] = filter_data_by_date(data[sym])
+        print(f"Filtered to date range: start={ENV['DATE_START'] or 'all'} end={ENV['DATE_END'] or 'all'}", file=sys.stderr)
 
     all_trades = []
     for symbol, df in data.items():
