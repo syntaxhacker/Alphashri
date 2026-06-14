@@ -381,6 +381,9 @@ async def get_paper_chart(
         # Resample only if direct fetch didn't succeed at the requested TF
         if fetched_at_tf:
             df = df_1m  # Already at correct TF
+            # When no explicit from_date, filter to just the requested date (or recent fallback)
+            if not from_date and date:
+                df = _filter_to_date_or_recent(df, date)
         elif timeframe in direct_tf_timeframes:
             df = _resample_to_timeframe(df_1m, timeframe)
         else:

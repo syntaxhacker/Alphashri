@@ -231,7 +231,7 @@ export function normalizeReplay(
     overlays,
     emaData,
     markAreas,
-    showVolume: true,
+    showVolume: false,
     showDataZoomSlider: false,
     showLegend: false,
     highlightedTradeId,

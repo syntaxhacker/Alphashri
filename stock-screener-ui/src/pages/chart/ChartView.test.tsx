@@ -225,9 +225,9 @@ describe("ChartView", () => {
       expect(screen.getByTestId("candlestick-chart")).toBeInTheDocument();
     });
     const checkbox = screen.getByTestId("chart-pivots-checkbox") as HTMLInputElement;
-    expect(checkbox.checked).toBe(true);
-    await user.click(checkbox);
     expect(checkbox.checked).toBe(false);
+    await user.click(checkbox);
+    expect(checkbox.checked).toBe(true);
   });
 
   it("navigates back when goBack is called", async () => {

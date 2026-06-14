@@ -268,7 +268,7 @@ describe("buildTooltip", () => {
       expect(result).toContain("C: ₹105.00");
     });
 
-    it("displays volume", () => {
+    it("does not display volume", () => {
       const formatter = buildTooltip(mockCandles);
       const params = [
         {
@@ -277,15 +277,15 @@ describe("buildTooltip", () => {
         },
       ];
       const result = formatter(params);
-      expect(result).toContain("Vol: 1.0K");
+      expect(result).not.toContain("Vol:");
     });
 
-    it("formats volume with K suffix", () => {
+    it("does not display volume for large volumes", () => {
       const candlesWithLargeVolume = [{ ...mockCandles[0], volume: 1500000 }];
       const formatter = buildTooltip(candlesWithLargeVolume);
       const params = [{ seriesType: "candlestick", dataIndex: 0 }];
       const result = formatter(params);
-      expect(result).toContain("1.5M");
+      expect(result).not.toContain("Vol:");
     });
 
     it("shows positive change in green", () => {

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { Accordion, Badge, Flex, Group, Table, Text } from "@mantine/core";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
@@ -152,7 +152,9 @@ const SECTION_HEADER = { padding: "2px 6px", fontSize: "11px", fontWeight: 600 a
 const SECTION_PANEL = { padding: 0 };
 
 export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: WatchlistScanProps) {
+  const [accordionValue, setAccordionValue] = useState<string[]>(["signals", "watching", "rejected", "skipped"]);
   const handleSelectSymbol = async (symbol: string) => {
+    setAccordionValue([]);
     setSelectedSymbol(symbol);
     const currentState = getPaperTradingState();
     await fetchPaperChart(
@@ -256,7 +258,8 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
       <Accordion
         variant="contained"
         multiple
-        defaultValue={["signals", "watching", "rejected", "skipped"]}
+        value={accordionValue}
+        onChange={setAccordionValue}
         data-testid="watchlist-scan-accordion"
         styles={{
           item: { border: "none", backgroundColor: "transparent" },

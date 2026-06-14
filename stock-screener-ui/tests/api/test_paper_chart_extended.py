@@ -688,6 +688,133 @@ class TestChartErrors:
 
 
 # ---------------------------------------------------------------------------
+# Tests: Direct TF timeframe filtering (4h, 2h, 12h)
+# ---------------------------------------------------------------------------
+
+@pytest.mark.unit
+class TestDirectTimeframeFiltering:
+    """Tests that direct TF timeframes (2h, 4h, 12h) filter to target date when no from_date."""
+
+    def _make_multi_day_4h_df(self):
+        """Build a 4-hour candle DataFrame spanning multiple days."""
+        frames = []
+        for day_offset in range(5):
+            base = datetime(2026, 3, 24 + day_offset, 9, 15, 0, tzinfo=IST)
+            idx = pd.date_range(start=base, periods=2, freq="4h")
+            df = pd.DataFrame({
+                "open": [280.0 + day_offset] * 2,
+                "high": [285.0 + day_offset] * 2,
+                "low": [275.0 + day_offset] * 2,
+                "close": [282.0 + day_offset] * 2,
+                "volume": [50000] * 2,
+            }, index=idx)
+            frames.append(df)
+        return pd.concat(frames)
+
+    def test_4h_filters_to_single_day_without_from_date(self, client, auth_headers, mock_trading_deps):
+        mock_trader, mock_journal = mock_trading_deps
+        mock_api = MagicMock()
+        multi_day_df = self._make_multi_day_4h_df()
+        mock_api.fetch_historical_data_v3.return_value = multi_day_df
+        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
+             patch("api.paper.endpoints.save_cached_candles"), \
+             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+             patch("api.paper_trading.get_journal", return_value=mock_journal):
+            response = client.get(
+                "/api/paper/chart/ONGC?timeframe=4hour&date=2026-03-26",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" not in data, f"Got error: {data}"
+        # All candles should be from a single day (or at most a very small range due to timezone)
+        dates = set()
+        for c in data["candles"]:
+            dt = pd.to_datetime(c["time"]).date()
+            dates.add(dt)
+        assert len(dates) <= 2, f"Expected ≤2 dates for 4h single-day, got {len(dates)}: {dates}"
+
+    def test_2h_filters_to_single_day_without_from_date(self, client, auth_headers, mock_trading_deps):
+        mock_trader, mock_journal = mock_trading_deps
+        mock_api = MagicMock()
+        frames = []
+        for day_offset in range(5):
+            base = datetime(2026, 3, 24 + day_offset, 9, 15, 0, tzinfo=IST)
+            idx = pd.date_range(start=base, periods=4, freq="2h")
+            df = pd.DataFrame({
+                "open": [280.0 + day_offset] * 4,
+                "high": [285.0 + day_offset] * 4,
+                "low": [275.0 + day_offset] * 4,
+                "close": [282.0 + day_offset] * 4,
+                "volume": [30000] * 4,
+            }, index=idx)
+            frames.append(df)
+        multi_day_df = pd.concat(frames)
+        mock_api.fetch_historical_data_v3.return_value = multi_day_df
+        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
+             patch("api.paper.endpoints.save_cached_candles"), \
+             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+             patch("api.paper_trading.get_journal", return_value=mock_journal):
+            response = client.get(
+                "/api/paper/chart/ONGC?timeframe=2hour&date=2026-03-26",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" not in data, f"Got error: {data}"
+        dates = set(pd.to_datetime(c["time"]).date() for c in data["candles"])
+        assert len(dates) <= 2, f"Expected ≤2 dates for 2h single-day, got {len(dates)}: {dates}"
+
+    def test_4h_with_from_date_keeps_all_days(self, client, auth_headers, mock_trading_deps):
+        mock_trader, mock_journal = mock_trading_deps
+        mock_api = MagicMock()
+        multi_day_df = self._make_multi_day_4h_df()
+        mock_api.fetch_historical_data_v3.return_value = multi_day_df
+        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
+             patch("api.paper.endpoints.save_cached_candles"), \
+             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+             patch("api.paper_trading.get_journal", return_value=mock_journal):
+            response = client.get(
+                "/api/paper/chart/ONGC?timeframe=4hour&date=2026-03-28&from_date=2026-03-24",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" not in data, f"Got error: {data}"
+        dates = set(pd.to_datetime(c["time"]).date() for c in data["candles"])
+        assert len(dates) > 1, f"Expected multiple dates with from_date, got {dates}"
+
+    def test_4h_fallback_to_recent_when_no_data_for_date(self, client, auth_headers, mock_trading_deps):
+        mock_trader, mock_journal = mock_trading_deps
+        mock_api = MagicMock()
+        # Data only from March 24, but requesting March 28 (no data)
+        base = datetime(2026, 3, 24, 9, 15, 0, tzinfo=IST)
+        idx = pd.date_range(start=base, periods=2, freq="4h")
+        single_day_df = pd.DataFrame({
+            "open": [280.0] * 2, "high": [285.0] * 2,
+            "low": [275.0] * 2, "close": [282.0] * 2,
+            "volume": [50000] * 2,
+        }, index=idx)
+        mock_api.fetch_historical_data_v3.return_value = single_day_df
+        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
+             patch("api.paper.endpoints.save_cached_candles"), \
+             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+             patch("api.paper_trading.get_journal", return_value=mock_journal):
+            response = client.get(
+                "/api/paper/chart/ONGC?timeframe=4hour&date=2026-03-28",
+                headers=auth_headers,
+            )
+        assert response.status_code == 200
+        data = response.json()
+        assert "error" not in data, f"Should fallback to recent data, got: {data}"
+        assert len(data["candles"]) > 0
+
+
+# ---------------------------------------------------------------------------
 # Tests: Response shape
 # ---------------------------------------------------------------------------
 

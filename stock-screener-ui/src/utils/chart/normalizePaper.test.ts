@@ -365,9 +365,9 @@ describe("normalizePaper", () => {
   });
 
   describe("ChartInput configuration", () => {
-    it("sets showVolume to true", () => {
+    it("sets showVolume to false", () => {
       const result = normalizePaper(mockPaperData, false);
-      expect(result.showVolume).toBe(true);
+      expect(result.showVolume).toBe(false);
     });
 
     it("sets showDataZoomSlider to false", () => {
@@ -412,7 +412,7 @@ describe("normalizePaper", () => {
       const result = normalizePaper(data, false);
       expect(result.candles).toEqual([]);
       expect(result.trades).toEqual([]);
-      expect(result.showVolume).toBe(true);
+      expect(result.showVolume).toBe(false);
     });
 
     it("handles missing optional data fields", () => {
