@@ -1,5 +1,5 @@
 import type { HolidayMap } from "../chartUtils";
-import { formatVolume, getCandleFromParams } from "../chartUtils";
+import { getCandleFromParams } from "../chartUtils";
 import type { UnifiedTrade } from "./types";
 
 export function buildTooltip(
@@ -72,6 +72,6 @@ export function buildTooltip(
       c.time_str || c.date
         ? `${c.date || ""} ${c.time_str || ""}`.trim()
         : c.time.split(/[T ]/).pop()?.substring(0, 5) || c.time;
-    return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="font-weight:bold;margin-bottom:4px">${timeLabel}</div><div style="display:flex;gap:12px"><span>O: ₹${c.open.toFixed(2)}</span><span>H: ₹${c.high.toFixed(2)}</span><span>L: ₹${c.low.toFixed(2)}</span><span>C: ₹${c.close.toFixed(2)}</span></div><div style="display:flex;gap:12px;color:#888"><span style="color:${changeColor};font-weight:bold">${c.close >= c.open ? "+" : ""}${change}%</span><span>Vol: ${formatVolume(c.volume)}</span></div></div>`;
+    return `<div style="padding:6px 8px;font-family:monospace;font-size:12px;line-height:1.4"><div style="font-weight:bold;margin-bottom:4px">${timeLabel}</div><div style="display:flex;gap:12px"><span>O: ₹${c.open.toFixed(2)}</span><span>H: ₹${c.high.toFixed(2)}</span><span>L: ₹${c.low.toFixed(2)}</span><span>C: ₹${c.close.toFixed(2)}</span></div><div style="display:flex;gap:12px;color:#888"><span style="color:${changeColor};font-weight:bold">${c.close >= c.open ? "+" : ""}${change}%</span></div></div>`;
   };
 }

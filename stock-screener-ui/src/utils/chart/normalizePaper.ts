@@ -177,7 +177,7 @@ export function normalizePaper(
     livePosition,
     markLines,
     markAreas,
-    showVolume: true,
+    showVolume: false,
     showDataZoomSlider: false,
     showLegend: false, // disabled in favor of custom ChartLegend in PaperChart2.tsx
     highlightedTradeId,

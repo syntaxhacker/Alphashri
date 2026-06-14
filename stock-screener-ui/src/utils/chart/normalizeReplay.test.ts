@@ -516,9 +516,9 @@ describe("normalizeReplay", () => {
   });
 
   describe("ChartInput configuration", () => {
-    it("sets showVolume to true", () => {
-      const result = normalizeReplay(mockCandles, [], [], [], [], {}, "TEST", false);
-      expect(result.showVolume).toBe(true);
+    it("sets showVolume to false", () => {
+      const result = normalizeReplay(mockCandles, [], [], [], [], {}, "RELIANCE", false);
+      expect(result.showVolume).toBe(false);
     });
 
     it("sets showDataZoomSlider to false", () => {
