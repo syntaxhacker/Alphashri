@@ -64,6 +64,11 @@ export function initLiveAutoRefresh() {
   setupAutoRefresh(refreshLiveData, 20000); // 20 seconds
 }
 
+// Initialize auto-refresh for a specific bot (uses refreshBotLiveData)
+export function initBotAutoRefresh(botId: string) {
+  setupAutoRefresh(() => refreshBotLiveData(botId), 20000); // 20 seconds
+}
+
 // Stop auto-refresh
 export function stopLiveAutoRefresh() {
   stopAutoRefresh();

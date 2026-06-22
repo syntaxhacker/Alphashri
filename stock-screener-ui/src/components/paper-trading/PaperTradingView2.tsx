@@ -10,6 +10,7 @@ import {
 import {
   refreshLiveData,
   initLiveAutoRefresh,
+  initBotAutoRefresh,
   stopLiveAutoRefresh,
   refreshBotLiveData,
   listBots,
@@ -49,6 +50,7 @@ function useLoadInitialData(
       if (botId) {
         setActiveBotId(botId);
         await refreshBotLiveData(botId);
+        initBotAutoRefresh(botId);
       } else {
         refreshLiveData();
       }
@@ -72,6 +74,7 @@ function useHandleBotSelect(setActiveBotId: (id: string | null) => void) {
         setActiveBotId(botId);
         stopLiveAutoRefresh();
         await refreshBotLiveData(botId);
+        initBotAutoRefresh(botId);
       }
     },
     [setActiveBotId],
