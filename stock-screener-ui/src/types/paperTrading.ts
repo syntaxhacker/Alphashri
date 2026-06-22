@@ -191,6 +191,7 @@ export interface PaperScanItem {
   reason?: string;
   strategy_name?: string;
   strategy_id?: number;
+  source?: string;        // 'custom' if symbol is in strategy's custom_watchlist
   timestamp?: string; // ISO timestamp when item was scanned
 }
 

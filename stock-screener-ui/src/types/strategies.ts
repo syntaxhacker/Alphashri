@@ -53,6 +53,8 @@ export interface StrategyConfig {
   breakout_buffer_pct: number;
   // Screener Profiles (multi-select)
   screener_profiles?: string[];
+  // Custom watchlist (user-specified symbols)
+  custom_watchlist?: string[];
   // Cost Parameters
   brokerage_pct: number;
   min_brokerage: number;
@@ -112,6 +114,8 @@ export interface StrategyCreate {
   eod_exit_minute?: number;
   // Screener Profiles (multi-select)
   screener_profiles?: string[];
+  // Custom watchlist (user-specified symbols)
+  custom_watchlist?: string[];
 }
 
 // Strategy update request
@@ -154,6 +158,8 @@ export interface StrategyUpdate {
   eod_exit_minute?: number;
   // Screener Profiles (multi-select)
   screener_profiles?: string[];
+  // Custom watchlist (user-specified symbols)
+  custom_watchlist?: string[];
 }
 
 // Strategy with variations (for template view)

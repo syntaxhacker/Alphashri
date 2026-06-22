@@ -76,6 +76,8 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
+        custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
+
         for symbol in watchlist:
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
@@ -139,6 +141,7 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'source': 'custom' if symbol in custom_watchlist_set else None,
                     'timestamp': self._ist_now().isoformat(),
                 }
 
@@ -159,6 +162,7 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'source': 'custom' if symbol in custom_watchlist_set else None,
                     'timestamp': self._ist_now().isoformat(),
                 }
 
@@ -193,6 +197,7 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'source': 'custom' if symbol in custom_watchlist_set else None,
                     'timestamp': self._ist_now().isoformat(),
                 }
 
@@ -266,6 +271,8 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
+        custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
+
         today = self._ist_now().date()
         if not hasattr(self, '_swing_entered_today'):
             self._swing_entered_today: dict = {}
@@ -315,6 +322,7 @@ class RunnerSignalsMixin:
                 'status': 'watching',
                 'side': None,
                 'reason': None,
+                'source': 'custom' if symbol in custom_watchlist_set else None,
                 'timestamp': self._ist_now().isoformat(),
             }
 

@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Modal,
   Stack,
@@ -11,6 +11,7 @@ import {
   Text,
   MultiSelect,
 } from "@mantine/core";
+import { useDebouncedValue } from "@mantine/hooks";
 import { IconInfoCircle, IconAlertTriangle } from "@tabler/icons-react";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";
@@ -20,6 +21,7 @@ import { EmaParamsPanel } from "./EmaParamsPanel";
 import { SwingParamsPanel } from "./SwingParamsPanel";
 import { RiskManagementPanel } from "./RiskManagementPanel";
 import { RunnerPanel } from "./RunnerPanel";
+import { searchSymbols } from "../../api/symbols";
 
 const STRATEGY_TYPES = [
   { value: "ORB", label: "ORB" },
@@ -69,11 +71,25 @@ export function StrategyForm({
   const [selectedProfiles, setSelectedProfiles] = useState<string[]>(
     initialValues.screener_profiles || [],
   );
+  const [customWatchlist, setCustomWatchlist] = useState<string[]>(
+    initialValues.custom_watchlist || [],
+  );
+  const [symbolSearch, setSymbolSearch] = useState("");
+  const [debouncedSearch] = useDebouncedValue(symbolSearch, 300);
+  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
+
+  useEffect(() => {
+    if (debouncedSearch.trim().length < 1) return;
+    searchSymbols(debouncedSearch, 20).then((results) => {
+      setSymbolOptions(results.map((r) => ({ value: r.symbol, label: `${r.symbol} — ${r.name}` })));
+    }).catch(() => {});
+  }, [debouncedSearch]);
 
   useEffect(() => {
     const newType = initialValues.strategy_type;
     setCurrentStrategyType(newType);
     setSelectedProfiles(initialValues.screener_profiles || []);
+    setCustomWatchlist(initialValues.custom_watchlist || []);
     setActiveTab(
       newType === "ORB"
         ? "orb"
@@ -83,7 +99,7 @@ export function StrategyForm({
             ? "ema"
             : "52w",
     );
-  }, [initialValues.strategy_type, initialValues.screener_profiles]);
+  }, [initialValues.strategy_type, initialValues.screener_profiles, initialValues.custom_watchlist]);
   const isIntraday = INTRADAY_TYPES.includes(currentStrategyType);
   const isSwing = SWING_TYPES.includes(currentStrategyType);
   const isOrb = currentStrategyType === "ORB";
@@ -154,6 +170,7 @@ export function StrategyForm({
       eod_exit_hour: getNumVal(formData, "eod_exit_hour", DEFAULT_VALUES.eod_exit_hour),
       eod_exit_minute: getNumVal(formData, "eod_exit_minute", DEFAULT_VALUES.eod_exit_minute),
       screener_profiles: selectedProfiles.length > 0 ? selectedProfiles : undefined,
+      custom_watchlist: customWatchlist.length > 0 ? customWatchlist : undefined,
     };
 
     const enableTrailingEl = form.querySelector(
@@ -271,6 +288,20 @@ export function StrategyForm({
             clearable
             searchable
             data-testid="strategy-screener-profiles"
+          />
+
+          <MultiSelect
+            label="Custom Stocks"
+            placeholder="Search and add specific stocks"
+            description="Always watched alongside screener results"
+            data={symbolOptions}
+            value={customWatchlist}
+            onChange={setCustomWatchlist}
+            searchValue={symbolSearch}
+            onSearchChange={setSymbolSearch}
+            searchable
+            clearable
+            data-testid="strategy-custom-watchlist"
           />
 
           <Tabs

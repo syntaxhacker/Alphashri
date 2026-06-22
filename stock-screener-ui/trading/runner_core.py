@@ -760,9 +760,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             strategy_type, ['trending']
         )
 
+        # Custom watchlist takes priority — prepend to screener results
+        custom_symbols = config.get('custom_watchlist', [])
+        if custom_symbols:
+            console.print(f"[cyan]Custom watchlist for strategy {strategy_id}: {custom_symbols}[/cyan]")
+
         console.print(f"[cyan]Refreshing watchlist for strategy {strategy_id} ({strategy_type}) with profiles: {profiles}[/cyan]")
 
-        all_symbols = []
+        all_symbols = list(custom_symbols)
 
         import sys as _sys
         from pathlib import Path as _Path

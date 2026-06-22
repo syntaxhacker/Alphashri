@@ -51,6 +51,7 @@ const makeTemplate = (overrides: Partial<StrategyConfig> = {}): StrategyConfig =
   ema_fast_period: 9, ema_slow_period: 21,
   pivot_type: "classic", breakout_buffer_pct: 0.1,
   screener_profiles: [],
+  custom_watchlist: [],
   brokerage_pct: 0.03, min_brokerage: 20, stt_pct: 0.025,
   exchange_pct: 0.003, sebi_pct: 0.0001, stamp_pct: 0.003,
   gst_pct: 18, created_at: null, updated_at: null,
@@ -149,6 +150,15 @@ describe("StrategyForm", () => {
       </MantineProvider>,
     );
     expect(screen.getByTestId("strategy-screener-profiles")).toBeInTheDocument();
+  });
+
+  it("renders Custom Stocks MultiSelect", () => {
+    render(
+      <MantineProvider>
+        <StrategyForm {...baseProps} />
+      </MantineProvider>,
+    );
+    expect(screen.getByTestId("strategy-custom-watchlist")).toBeInTheDocument();
   });
 
   it("renders form tabs", () => {
