@@ -44,6 +44,7 @@ class StrategyRunner:
                 min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
                 max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
                 breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
+                config_name=self.strategy_name,
             )
         elif self.strategy_type == "SR_BREAKOUT":
             from trading.sr_breakout_signals import SRBreakoutSignalGenerator

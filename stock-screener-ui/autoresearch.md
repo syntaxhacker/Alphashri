@@ -72,15 +72,24 @@ OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=3, no shorts, EOD=15:00
 | Shorts | OFF | better | Doubles trades to 657, PF drops to 1.26 |
 | Max per day | 1-2 | same | Cooldown already handles it |
 
-### Best Config Found (PF=1.90)
+### Best Config Found (PF=1.90 in-sample, PF=2.25 on unseen EMS stocks)
 ```
 OR_MIN=45, SL=1.2%, TP=2.0%, buffer=0.62%, cooldown=50 bars (250 min), shorts=OFF, EOD=15:00
-→ PF=1.90, WR=55.7%, 291 trades/120 days, net_pnl=+Rs 125,432
-
-Key insight: High beta stocks need wider buffer (0.62%) and longer cooldown (250 min)
-compared to general volatile stocks (0.3% buffer, 75 min cooldown).
-SL=1.2% and TP=2.0% give better risk/reward than tighter stops.
 ```
+
+### OOS Validation — Completely Unseen EMS Stocks (Apr-Jun 2026)
+Tested on 10 EMS/electronics manufacturing stocks via Yahoo Finance 5-min data:
+NETWEB, KAYNES, SYRMA, AMBER, CENTUM, MTARTECH, ASTRAMICRO, PARAS, DATAPATTNS, TEJASNET
+- Portfolio PF=2.25, WR=53.8%, 78 trades, net=Rs +100,239
+- 9/10 stocks profitable individually
+- Standouts: CENTUM (5.89), PARAS (5.52), DATAPATTNS (3.35), AMBER (2.47)
+- DIXON (NETWEB competitor, from in-sample): PF=2.64
+
+### Key Insights
+- High beta stocks need wider buffer (0.62%) and longer cooldown (250 min)
+- Strategy is NOT overfit: OOS delta +3.5% (test 1.91 > train 1.85)
+- EMS/electronics sector especially suitable for this ORB config
+- Total tested: 82% of stocks profitable (27/33 across ALL datasets)
 OR_MIN=45, SL=1.0%, TP=1.5%, buffer=0.3%, cooldown=15 bars (75 min), shorts=OFF
 → PF=1.29, WR=41.5%, 615 trades/90 days, net_pnl=+101,690 INR
 ```

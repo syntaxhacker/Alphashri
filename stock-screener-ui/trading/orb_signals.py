@@ -16,10 +16,6 @@ from dataclasses import dataclass
 import config
 from enum import Enum
 
-# Add project paths
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent / 'scanners'))
-
 from rich.console import Console
 from rich.table import Table
 
@@ -227,7 +223,9 @@ class ORBSignalGenerator:
             )
 
         # Check for short breakout (below OR low)
-        if current_price < or_low * (1 - buffer):
+        if not self.enable_shorts:
+            pass
+        elif current_price < or_low * (1 - buffer):
             # Calculate SL and TP for short
             sl = current_price * (1 + self.sl_pct / 100)
             tp = current_price * (1 - self.tp_pct / 100)

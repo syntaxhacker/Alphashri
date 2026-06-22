@@ -139,6 +139,7 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'timestamp': self._ist_now().isoformat(),
                 }
 
             elif runner.strategy_type == "EMA_CROSS":
@@ -158,6 +159,7 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'timestamp': self._ist_now().isoformat(),
                 }
 
             else:
@@ -191,6 +193,7 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'timestamp': self._ist_now().isoformat(),
                 }
 
                 min_or_pct = runner.signal_generator.min_or_range_pct
@@ -312,6 +315,7 @@ class RunnerSignalsMixin:
                 'status': 'watching',
                 'side': None,
                 'reason': None,
+                'timestamp': self._ist_now().isoformat(),
             }
 
             if signal:
@@ -627,6 +631,7 @@ class RunnerSignalsMixin:
                             entry_52w_high=metadata.get('entry_52w_high'),
                             current_52w_high=metadata.get('current_52w_high'),
                             days_in_position=days_in_position,
+                            timestamp=self._ist_now(),
                     )
                     if exit_signal:
                         exit_triggered = True

@@ -8,7 +8,7 @@ import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { closeAllPositions, refreshBotLiveData } from "../../api/paperTrading";
 import { CompactPanel } from "../common/compact";
 import { PositionsTableBody, groupPositionsByStrategy, calcStrategySummary } from "./PositionsHelpers";
-import { WatchlistScan } from "./WatchlistScan";
+import { WatchlistScan2 } from "./WatchlistScan2";
 
 function usePositionsData(): PaperPosition[] {
   useStoreSubscription(subscribe);
@@ -244,7 +244,7 @@ export function PaperPositionsTable() {
       id="positions-panel"
       data-testid="positions-panel"
     >
-      <WatchlistScan snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
+      <WatchlistScan2 snapshot={botSnapshot} selectedSymbol={selectedSymbol} />
 
       {positions.length > 0 && (
         <PositionsContent
