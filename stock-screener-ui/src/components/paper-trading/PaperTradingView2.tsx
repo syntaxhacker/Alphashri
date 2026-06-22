@@ -36,28 +36,20 @@ import {
 import { LivePriceUpdater } from "./LivePriceUpdater";
 
 function useLoadInitialData(
-  activeBotId: string | null,
-  setActiveBotId: (id: string) => void,
   setAvailableBots: (bots: BotInfo[]) => void,
   setBotSummaries: (summaries: BotSummary[]) => void,
 ) {
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(async (): Promise<string | null> => {
     try {
       const [bots, summaries] = await Promise.all([listBots(), fetchBotSummaries()]);
       setAvailableBots(bots);
       setBotSummaries(summaries);
-      const botId = activeBotId || (bots.length > 0 ? bots[0].id : null);
-      if (botId) {
-        setActiveBotId(botId);
-        await refreshBotLiveData(botId);
-        initBotAutoRefresh(botId);
-      } else {
-        refreshLiveData();
-      }
+      return bots.length > 0 ? bots[0].id : null;
     } catch (error) {
       setError(`Failed to load initial data: ${error}`);
+      return null;
     }
-  }, [activeBotId, setActiveBotId, setAvailableBots, setBotSummaries]);
+  }, [setAvailableBots, setBotSummaries]);
 
   return loadInitialData;
 }
@@ -91,8 +83,6 @@ function usePaperTradingViewModel() {
   const [botSummaries, setBotSummaries] = useState<BotSummary[]>([]);
 
   const loadInitialData = useLoadInitialData(
-    activeBotId,
-    setActiveBotId,
     setAvailableBots,
     setBotSummaries,
   );
@@ -100,7 +90,15 @@ function usePaperTradingViewModel() {
   const handleClearError = useCallback(() => setError(null), []);
 
   useEffect(() => {
-    loadInitialData();
+    loadInitialData().then((botId) => {
+      if (botId) {
+        setActiveBotId(botId);
+        refreshBotLiveData(botId);
+        initBotAutoRefresh(botId);
+      } else {
+        refreshLiveData();
+      }
+    });
     return () => {
       stopLiveAutoRefresh();
     };
