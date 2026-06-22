@@ -15,6 +15,7 @@ import {
   refreshLiveData,
   refreshHistoryData,
   stopLiveAutoRefresh,
+  initBotAutoRefresh,
   fetchStrategyConfig,
   refreshBotLiveData,
   startBot,
@@ -86,7 +87,9 @@ export function usePaperViewActions(activeBotId: string | null) {
     if (!botId) {
       refreshLiveData();
     } else {
+      stopLiveAutoRefresh();
       await refreshBotLiveData(botId);
+      initBotAutoRefresh(botId);
     }
   }, []);
 

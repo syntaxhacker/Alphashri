@@ -68,6 +68,7 @@ vi.mock("../../state/paperTrading", () => ({
 vi.mock("../../api/paperTrading", () => ({
   refreshLiveData: vi.fn().mockResolvedValue(undefined),
   initLiveAutoRefresh: vi.fn(),
+  initBotAutoRefresh: vi.fn(),
   stopLiveAutoRefresh: vi.fn(),
   refreshBotLiveData: vi.fn().mockResolvedValue(undefined),
   listBots: vi.fn().mockResolvedValue([]),
@@ -249,6 +250,21 @@ describe("PaperTradingView", () => {
       await vi.waitFor(() => {
         expect(refreshBotLiveData).toHaveBeenCalledWith("bot-1");
       });
+    });
+
+    test("starts bot auto-refresh when bots exist", async () => {
+      const { listBots } = await import("../../api/paperTrading");
+      (listBots as ReturnType<typeof vi.fn>).mockResolvedValue([
+        { id: "bot-1", name: "Bot 1" },
+      ]);
+      const { initBotAutoRefresh, initLiveAutoRefresh } = await import("../../api/paperTrading");
+
+      r();
+
+      await vi.waitFor(() => {
+        expect(initBotAutoRefresh).toHaveBeenCalledWith("bot-1");
+      });
+      expect(initLiveAutoRefresh).not.toHaveBeenCalled();
     });
 
     test("falls back to refreshLiveData when no bots", async () => {

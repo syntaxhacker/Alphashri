@@ -99,6 +99,7 @@ vi.mock("../../api/paperTrading", () => ({
   refreshLiveData: vi.fn().mockResolvedValue(undefined),
   refreshHistoryData: vi.fn().mockResolvedValue(undefined),
   stopLiveAutoRefresh: vi.fn(),
+  initBotAutoRefresh: vi.fn(),
   refreshBotLiveData: vi.fn().mockResolvedValue(undefined),
   startBot: vi.fn().mockResolvedValue({}),
   stopBot: vi.fn().mockResolvedValue({}),
@@ -404,15 +405,17 @@ describe("usePaperViewActions", () => {
     expect(refreshLiveData).toHaveBeenCalled();
   });
 
-  it("handleBotSelect with botId calls refreshBotLiveData", async () => {
+  it("handleBotSelect with botId calls refreshBotLiveData and starts bot auto-refresh", async () => {
     const { result } = renderHook(() => usePaperViewActions("bot-1"));
 
     await act(async () => {
       await result.current.handleBotSelect("bot-2");
     });
 
-    const { refreshBotLiveData } = await import("../../api/paperTrading");
+    const { refreshBotLiveData, stopLiveAutoRefresh, initBotAutoRefresh } = await import("../../api/paperTrading");
+    expect(stopLiveAutoRefresh).toHaveBeenCalled();
     expect(refreshBotLiveData).toHaveBeenCalledWith("bot-2");
+    expect(initBotAutoRefresh).toHaveBeenCalledWith("bot-2");
   });
 });
 

@@ -36,6 +36,7 @@ import {
   startPaperBot,
   stopPaperBot,
   initLiveAutoRefresh,
+  initBotAutoRefresh,
   stopLiveAutoRefresh,
   fetchBotSummaries,
   listBots,
@@ -249,6 +250,16 @@ describe("initLiveAutoRefresh & stopLiveAutoRefresh", () => {
     initLiveAutoRefresh();
 
     expect(setupAutoRefresh).toHaveBeenCalledWith(refreshLiveData, 20000);
+  });
+
+  it("initBotAutoRefresh calls setupAutoRefresh with refreshBotLiveData wrapper and correct interval", () => {
+    initBotAutoRefresh("bot-42");
+
+    expect(setupAutoRefresh).toHaveBeenCalledTimes(1);
+    expect(setupAutoRefresh).toHaveBeenCalledWith(expect.any(Function), 20000);
+
+    const wrapperFn = (setupAutoRefresh as ReturnType<typeof vi.fn>).mock.calls[0][0];
+    expect(wrapperFn.toString()).toContain("refreshBotLiveData");
   });
 
   it("stopLiveAutoRefresh calls stopAutoRefresh", () => {
