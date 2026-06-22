@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { memo, useRef, useEffect, useState } from "react";
 import {
   Anchor,
   Collapse,
@@ -103,6 +103,7 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
   const netSign = netPnl >= 0 ? "+" : "";
 
   const entryContext = [
+    { label: "Trade ID", value: `#${trade.trade_id}` },
     { label: "Entry Time", value: formatTimeOnly(trade.entry_time) },
     { label: "Peak", value: `₹${trade.peak_price?.toFixed(2) ?? "-"}` },
     { label: "Low", value: `₹${trade.low_price?.toFixed(2) ?? "-"}` },
@@ -213,7 +214,7 @@ function TradeDetail({ trade }: { trade: PaperTrade }) {
   );
 }
 
-function TradeRow({
+const TradeRow = memo(function TradeRow({
   trade,
   onSelectSymbol,
   onDeleteTrade,
@@ -226,6 +227,7 @@ function TradeRow({
     tradeId?: string,
     strategyType?: string,
     strategyId?: number,
+    entryTime?: string,
   ) => void;
   onDeleteTrade: (id: string) => void;
   selectedTradeId: string | null;
@@ -355,7 +357,7 @@ function TradeRow({
       </Table.Tr>
     </>
   );
-}
+});
 
 export function DayGroup({
   date,
