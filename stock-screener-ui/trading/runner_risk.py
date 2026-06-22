@@ -95,13 +95,12 @@ class RunnerRiskMixin:
             lows = df['low'].tolist()
             volumes = df['volume'].tolist() if 'volume' in df.columns else []
 
-            high_52w = calculate_52w_high(highs, period=252, exclude_current=True) or 0.0
+            high_52w = calculate_52w_high(highs, period=252, exclude_current=False) or 0.0
 
             # Trading days since 52W high was last touched (uses 98% threshold, not exact match)
             days_since_52w_high = 0
             if high_52w > 0 and highs:
-                past_highs = highs[:-1]  # exclude current bar
-                result = days_since_52w_high_touch(past_highs, high_52w)
+                result = days_since_52w_high_touch(highs, high_52w)
                 if result is not None:
                     days_since_52w_high = result
 
