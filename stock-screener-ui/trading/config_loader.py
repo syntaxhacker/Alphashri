@@ -74,6 +74,7 @@ class StrategyConfigData:
 
     # Screener Profiles (multi-select)
     screener_profiles: List[str] = field(default_factory=list)
+    custom_watchlist: List[str] = field(default_factory=list)
 
     # Cost Parameters
     brokerage_pct: float = 0.0003
@@ -126,6 +127,7 @@ class StrategyConfigData:
             eod_exit_hour=model.eod_exit_hour,
             eod_exit_minute=model.eod_exit_minute,
             screener_profiles=json.loads(model.screener_profiles) if isinstance(model.screener_profiles, str) else [],
+            custom_watchlist=json.loads(model.custom_watchlist) if isinstance(model.custom_watchlist, str) else [],
             ema_fast_period=model.ema_fast_period,
             ema_slow_period=model.ema_slow_period,
             brokerage_pct=model.brokerage_pct,
@@ -178,6 +180,7 @@ class StrategyConfigData:
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
             "screener_profiles": self.screener_profiles,
+            "custom_watchlist": self.custom_watchlist,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,
             "brokerage_pct": self.brokerage_pct,

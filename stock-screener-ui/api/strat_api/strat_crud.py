@@ -66,6 +66,7 @@ def _sync_create_strategy(db, request):
             "eod_exit_hour": parent.eod_exit_hour,
             "eod_exit_minute": parent.eod_exit_minute,
             "screener_profiles": json.dumps(parent.screener_profiles) if parent.screener_profiles else None,
+            "custom_watchlist": json.dumps(parent.custom_watchlist) if parent.custom_watchlist else None,
             "brokerage_pct": parent.brokerage_pct,
             "min_brokerage": parent.min_brokerage,
             "stt_pct": parent.stt_pct,
@@ -83,6 +84,7 @@ def _sync_create_strategy(db, request):
         "is_template": False,
         "is_active": True,
         "screener_profiles": json.dumps(request.screener_profiles) if request.screener_profiles else None,
+        "custom_watchlist": json.dumps(request.custom_watchlist) if request.custom_watchlist else None,
     }
 
     for field in [
@@ -91,10 +93,14 @@ def _sync_create_strategy(db, request):
         "max_total_exposure_pct", "risk_per_trade_pct", "min_trade_value",
         "max_trade_value", "cooldown_minutes", "max_distance_from_or_pct",
         "enable_shorts", "eod_exit_hour", "eod_exit_minute",
-        "screener_profiles",
+        "breakout_buffer_pct",
+        "screener_profiles", "custom_watchlist",
     ]:
         request_val = getattr(request, field, None)
-        strategy_data[field] = request_val if request_val is not None else defaults.get(field)
+        if field in ("screener_profiles", "custom_watchlist"):
+            strategy_data[field] = json.dumps(request_val) if request_val else defaults.get(field)
+        else:
+            strategy_data[field] = request_val if request_val is not None else defaults.get(field)
 
     strategy = StrategyConfig(**strategy_data)
     db.add(strategy)
@@ -114,7 +120,7 @@ def _sync_update_strategy(db, strategy_id, request):
     update_data = request.model_dump(exclude_unset=True)
     for key, value in update_data.items():
         if value is not None and hasattr(strategy, key):
-            if key == "screener_profiles" and value:
+            if key in ("screener_profiles", "custom_watchlist") and value:
                 setattr(strategy, key, json.dumps(value))
             else:
                 setattr(strategy, key, value)
@@ -157,7 +163,7 @@ def _sync_update_child_variations(db, template_id: int) -> int:
     skip_fields = {
         'id', 'uuid', 'internal_id', 'name', 'description', 'is_template',
         'is_active', 'is_default', 'parent_id', 'user_id',
-        'created_at', 'updated_at', 'screener_profiles',
+        'created_at', 'updated_at', 'screener_profiles', 'custom_watchlist',
     }
 
     template_dict = template.to_dict()

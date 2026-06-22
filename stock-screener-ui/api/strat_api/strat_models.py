@@ -48,6 +48,8 @@ class StrategyCreate(BaseModel):
     ema_slow_period: Optional[int] = None
     # Screener Profiles (multi-select)
     screener_profiles: Optional[List[str]] = None
+    # Custom watchlist (user-specified symbols)
+    custom_watchlist: Optional[List[str]] = None
 
 
 class StrategyUpdate(BaseModel):
@@ -94,3 +96,5 @@ class StrategyUpdate(BaseModel):
     ema_slow_period: Optional[int] = None
     # Screener Profiles (multi-select)
     screener_profiles: Optional[List[str]] = None
+    # Custom watchlist (user-specified symbols)
+    custom_watchlist: Optional[List[str]] = None

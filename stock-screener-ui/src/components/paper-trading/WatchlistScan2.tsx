@@ -285,6 +285,9 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
                     <Table.Td>
                       <Group gap={6} wrap="nowrap">
                         <ClickableSymbol symbol={item.symbol} showPreview />
+                        {item.source === "custom" && (
+                          <Badge size="xs" variant="light" color="violet">Custom</Badge>
+                        )}
                         {isNew && (
                           <Tooltip label="New (< 1 min)">
                             <IconSparkles size={12} color="var(--mantine-color-green-6)" />
