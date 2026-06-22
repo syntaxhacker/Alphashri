@@ -284,7 +284,7 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
       fetchBotScanItems(botId, undefined, signal),
     ]);
     if (reqId !== _botDataReqId) return;
-    const trades = await fetchTrades(200, botId, undefined, undefined, undefined, signal);
+    const trades = await fetchTrades(200, botId, undefined, undefined, undefined, signal, true);
     const todayString = new Date().toDateString();
     const realizedToday = trades
       .filter((trade) => {

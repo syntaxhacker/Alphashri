@@ -48,7 +48,7 @@ export function usePaperViewActions(activeBotId: string | null) {
           setFilterFromDate(fromStr);
           setFilterToDate(toStr);
         }
-        refreshHistoryData(currentState.filterBot || activeBotId, fromStr, toStr);
+        refreshHistoryData(currentState.filterBot || null, fromStr, toStr);
       } else if (view === "settings") {
         stopLiveAutoRefresh();
         fetchStrategyConfig();

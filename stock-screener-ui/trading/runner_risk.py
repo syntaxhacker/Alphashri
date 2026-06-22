@@ -47,15 +47,7 @@ class RunnerRiskMixin:
             if signal_gen:
                 or_levels = signal_gen.calculate_or_levels(candles)
                 if or_levels and candles:
-                    n = len(candles)
-                    if n % 3 == 2:
-                        confirmed_15min_close = candles[-1]['close']
-                    elif n >= 3:
-                        prev_boundary_idx = n - (n % 3) - 1
-                        confirmed_15min_close = candles[prev_boundary_idx]['close']
-                    else:
-                        confirmed_15min_close = candles[-1]['close']
-                    or_levels['latest_price'] = confirmed_15min_close
+                    or_levels['latest_price'] = candles[-1]['close']
                     or_levels['latest_high'] = candles[-1]['high']
                     or_levels['latest_low'] = candles[-1]['low']
                 return or_levels
