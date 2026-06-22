@@ -128,6 +128,7 @@ export async function fetchTrades(
   toDate?: string | null,
   daysBack: number = 30,
   signal?: AbortSignal,
+  skipSetTrades?: boolean,
 ): Promise<PaperTrade[]> {
   try {
     const params = new URLSearchParams();
@@ -140,7 +141,7 @@ export async function fetchTrades(
     const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`, { signal });
     const data = await response.json();
     const trades = data.trades || [];
-    setTrades(trades);
+    if (!skipSetTrades) setTrades(trades);
     return trades;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;

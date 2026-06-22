@@ -53,7 +53,7 @@ def calculate_or_levels(
         market_open_dt = datetime(dt.year, dt.month, dt.day, *market_open)
         or_end_dt = market_open_dt + timedelta(minutes=or_minutes)
 
-        if market_open_dt <= dt <= or_end_dt:
+        if market_open_dt <= dt < or_end_dt:
             or_candles.append(candle)
 
     if len(or_candles) < 5:  # Need at least 5 candles
