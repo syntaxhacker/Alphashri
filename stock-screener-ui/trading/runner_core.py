@@ -1129,6 +1129,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.replay_mode = True
         self._replay_on_event = on_event
         self._replay_time = None
+        self.watchlist = list(symbols)
 
         dates_to_run = pd.date_range(
             pd.Timestamp(date_str, tz=IST),
@@ -1261,7 +1262,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     is_market_open = current == market_open
 
                     if is_5min or is_market_open:
-                        for sid, runner in self.strategies.items():
+                        for sid, rnr in self.strategies.items():
                             try:
                                 signals = self.scan_for_signals(sid)
                                 for signal in signals:

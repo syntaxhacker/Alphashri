@@ -191,6 +191,7 @@ export interface PaperScanItem {
   reason?: string;
   strategy_name?: string;
   strategy_id?: number;
+  timestamp?: string; // ISO timestamp when item was scanned
 }
 
 export interface PaperBotSnapshot {
