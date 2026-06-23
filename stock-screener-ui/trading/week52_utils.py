@@ -125,10 +125,10 @@ def check_intraday_52w_touch(
     high_52w: float,
     days_since_52w_high: int,
     *,
-    threshold: float = 0.98,
+    threshold: float = 1.0,
 ) -> int:
     """
-    Detect if today's intraday high has already touched the 52W high zone.
+    Detect if today's intraday high has broken above the 52W high.
 
     When a stock breaks its 52W high intraday but the daily bar hasn't closed,
     days_since_52w_high computed from daily data alone misses today's touch.
@@ -138,14 +138,13 @@ def check_intraday_52w_touch(
         intraday_high: Today's highest price so far (from intraday data).
         high_52w: Current 52-week high (may or may not include today's candle).
         days_since_52w_high: Value computed from daily data only.
-        threshold: Fraction of 52W high considered a "touch" (default 0.98).
+        threshold: Fraction of 52W high considered a break (default 1.0).
 
     Returns:
-        Corrected days_since value (0 if touched today, original otherwise).
+        Corrected days_since value (0 if broken today, original otherwise).
     """
     if intraday_high > 0 and high_52w > 0:
-        touch_level = high_52w * threshold
-        if intraday_high >= touch_level and days_since_52w_high > 0:
+        if intraday_high >= high_52w * threshold and days_since_52w_high > 0:
             return 0
     return days_since_52w_high
 
