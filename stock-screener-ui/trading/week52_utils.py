@@ -120,6 +120,36 @@ def days_since_52w_high_touch_from_df(df: "pd.DataFrame", high_52w: float) -> Op
         return days_since_52w_high_touch(highs, high_52w)
 
 
+def check_intraday_52w_touch(
+    intraday_high: float,
+    high_52w: float,
+    days_since_52w_high: int,
+    *,
+    threshold: float = 0.98,
+) -> int:
+    """
+    Detect if today's intraday high has already touched the 52W high zone.
+
+    When a stock breaks its 52W high intraday but the daily bar hasn't closed,
+    days_since_52w_high computed from daily data alone misses today's touch.
+    This function overrides it to 0 so callers can block stale breakouts.
+
+    Args:
+        intraday_high: Today's highest price so far (from intraday data).
+        high_52w: Current 52-week high (may or may not include today's candle).
+        days_since_52w_high: Value computed from daily data only.
+        threshold: Fraction of 52W high considered a "touch" (default 0.98).
+
+    Returns:
+        Corrected days_since value (0 if touched today, original otherwise).
+    """
+    if intraday_high > 0 and high_52w > 0:
+        touch_level = high_52w * threshold
+        if intraday_high >= touch_level and days_since_52w_high > 0:
+            return 0
+    return days_since_52w_high
+
+
 # --- Shared helpers for 52W backtest Nautilus strategies (DRY fix) ---
 
 from datetime import datetime, timezone
