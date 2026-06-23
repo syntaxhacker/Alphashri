@@ -77,6 +77,8 @@ class RunnerSignalsMixin:
         scan_items = []
 
         custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
+        if custom_watchlist_set:
+            console.print(f"[cyan]Scan custom watchlist: {len(custom_watchlist_set)} stocks[/cyan]")
 
         for symbol in watchlist:
             key = f"{strategy_id}_{symbol}"
@@ -169,6 +171,14 @@ class RunnerSignalsMixin:
             else:
                 or_levels = self.fetch_or_data(symbol, runner=runner)
                 if not or_levels:
+                    scan_items.append({
+                        'symbol': symbol,
+                        'status': 'watching',
+                        'side': None,
+                        'reason': 'Data fetch failed (rate limit)',
+                        'source': 'custom' if symbol in custom_watchlist_set else None,
+                        'timestamp': self._ist_now().isoformat(),
+                    })
                     continue
 
                 self.or_levels[symbol] = or_levels

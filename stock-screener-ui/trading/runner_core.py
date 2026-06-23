@@ -1037,6 +1037,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     if cycle % 10 == 0:
                         self.refresh_watchlist()  # Refresh shared watchlist
 
+                    # Also refresh per-strategy watchlist on first cycle (ensures custom stocks are included)
+                    if cycle == 1:
+                        for sid in self.strategies:
+                            self.refresh_watchlist(sid)
+
                     for strategy_id, runner in self.strategies.items():
                         if runner.status == "running":
                             # Refresh per-strategy watchlist periodically (every 30 cycles)
