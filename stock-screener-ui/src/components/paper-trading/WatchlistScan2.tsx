@@ -254,7 +254,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
               <Table.Tr>
                 <Table.Td colSpan={7}>
                   <Text size="xs" c="dimmed" ta="center" py="sm">
-                    No items match current filters
+                    {counts.skipped > 0 ? `${counts.skipped} skipped` : "No items"}
                   </Text>
                 </Table.Td>
               </Table.Tr>

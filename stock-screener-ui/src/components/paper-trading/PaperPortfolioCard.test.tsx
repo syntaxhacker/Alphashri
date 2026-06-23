@@ -65,7 +65,7 @@ describe("PaperPortfolioCard", () => {
       const portfolio = mockPortfolio({ total_value: 100000, cash: 50000, margin_used: 50000 });
       renderWithMantine(<PaperPortfolioCard portfolio={portfolio} />);
       expect(screen.getByText(/1\.0L/)).toBeInTheDocument();
-      expect(screen.getAllByText(/50K/)).toHaveLength(3);
+      expect(screen.getAllByText(/50K/)).toHaveLength(2);
     });
 
     test("formats large P&L in L format", () => {
@@ -78,10 +78,9 @@ describe("PaperPortfolioCard", () => {
   describe("portfolio labels", () => {
     test("displays abbreviated stat labels", () => {
       renderWithPortfolio();
-      expect(screen.getByText(/V:/)).toBeInTheDocument();
-      expect(screen.getByText(/C:/)).toBeInTheDocument();
-      expect(screen.getByText(/M:/)).toBeInTheDocument();
-      expect(screen.getByText(/A:/)).toBeInTheDocument();
+      expect(screen.getByText(/Val/)).toBeInTheDocument();
+      expect(screen.getByText(/Cash/)).toBeInTheDocument();
+      expect(screen.getByText(/Mrgn/)).toBeInTheDocument();
     });
   });
 });

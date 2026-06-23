@@ -193,9 +193,12 @@ async def compute_52w_ranges_task():
     poll_sec = 30
     max_wait = int(os.environ.get("SCREENER_52W_MAX_WAIT_SEC", "7200"))
 
+    first_run = True
     while True:
-        try:
+        if not first_run:
             await asyncio.sleep(interval)
+        first_run = False
+        try:
             job = get_job_status() or {}
             if job.get("status") == "running":
                 print("[52W Range] Scheduled run skipped — batch already running")
