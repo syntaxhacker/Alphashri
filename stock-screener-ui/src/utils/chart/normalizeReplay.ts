@@ -208,11 +208,11 @@ export function normalizeReplay(
 
   const markAreas: MarkAreaItem[] = [];
   if (chartOptions?.show_orb_zones !== false && candles.length > 0) {
-    const lastOrbIdx = Math.min(8, candles.length - 1);
-    const toTime = candles[lastOrbIdx].time;
-    const toHHMM = parseTimeToHHMM(toTime);
     for (const or of orLevels) {
       if (or.symbol !== selectedSymbol) continue;
+      const orbEndIdx = Math.min(map1mIndex(or.to_index), candles.length - 1);
+      const toTime = candles[orbEndIdx].time;
+      const toHHMM = parseTimeToHHMM(toTime);
       markAreas.push({
         from: candles[0].time.includes("T")
           ? parseTimeToHHMM(candles[0].time)
