@@ -7,6 +7,9 @@ Contains risk-related helper methods for fetching and validating data.
 from datetime import datetime, timedelta
 from typing import Optional
 
+import config
+from cache.redis_client import cache_get, cache_set
+
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES
 from trading.week52_utils import calculate_52w_high, days_since_52w_high_touch
 
@@ -17,7 +20,15 @@ class RunnerRiskMixin:
     """Mixin class providing risk management and data fetching methods for MultiStrategyRunner."""
 
     def fetch_or_data(self, symbol: str, runner=None) -> Optional[dict]:
-        """Fetch opening range data for a symbol using the given runner's or_minutes."""
+        """Fetch opening range data for a symbol using the given runner's or_minutes.
+        
+        Results are cached in Redis with a 60s TTL to avoid API rate limits.
+        """
+        cache_key = f"orb:or_data:{symbol}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             fetcher = self._get_data_fetcher()
             if not fetcher:
@@ -50,6 +61,8 @@ class RunnerRiskMixin:
                     or_levels['latest_price'] = candles[-1]['close']
                     or_levels['latest_high'] = candles[-1]['high']
                     or_levels['latest_low'] = candles[-1]['low']
+                if or_levels:
+                    cache_set(cache_key, or_levels, ttl=60)
                 return or_levels
 
             return None
@@ -58,7 +71,10 @@ class RunnerRiskMixin:
             from rich.console import Console
             console = Console()
             console.print(f"[dim red]Error fetching OR for {symbol}: {e}[/dim red]")
-            return None
+            # Return stale cache on error (better than nothing)
+            if cached is None:
+                cached = cache_get(cache_key)
+            return cached
 
     def fetch_daily_data(self, symbol: str) -> Optional[dict]:
         """Fetch daily OHLCV data for a symbol (used by swing strategies)."""

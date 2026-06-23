@@ -803,9 +803,9 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 seen.add(s)
                 unique_symbols.append(s)
 
-        # Store per-strategy watchlist
-        self.strategy_watchlists[strategy_id] = unique_symbols[:50]
-        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:50])} stocks[/green]")
+        # Store per-strategy watchlist (capped to avoid API rate limits)
+        self.strategy_watchlists[strategy_id] = unique_symbols[:15]
+        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:15])} stocks[/green]")
         return self.strategy_watchlists[strategy_id]
 
     def persist_state(self):
