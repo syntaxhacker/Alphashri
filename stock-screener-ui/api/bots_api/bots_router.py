@@ -214,6 +214,7 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
                     'strategy_type': strategy.strategy_type,
                     'max_positions': row.max_positions,
                     'capital_allocation_pct': row.capital_allocation_pct,
+                    'enable_shorts': strategy.enable_shorts,
                 })
 
         watchlist = []

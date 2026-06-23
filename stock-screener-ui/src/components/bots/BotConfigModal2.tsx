@@ -78,12 +78,14 @@ function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
       items.push(`Trail %: ${fmt(strategy.trailing_stop_pct, "%")}`);
     items.push(`Max Holding: ${strategy.max_holding_days}d`);
     items.push(`Cooldown: ${strategy.cooldown_days}d`);
+    items.push(`Shorts: ${bool(strategy.enable_shorts)}`);
     items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
   } else if (t === "EMA_CROSS") {
     items.push(`EMA Fast: ${strategy.ema_fast_period}`);
     items.push(`EMA Slow: ${strategy.ema_slow_period}`);
     items.push(`SL: ${fmt(strategy.sl_pct, "%")}`);
     items.push(`TP: ${fmt(strategy.tp_pct, "%")}`);
+    items.push(`Shorts: ${bool(strategy.enable_shorts)}`);
     items.push(`EOD: ${time(strategy.eod_exit_hour, strategy.eod_exit_minute)}`);
   }
 
