@@ -171,7 +171,7 @@ function HistoryFilters({
 
   return (
     <>
-      <Flex flex="none" py={2} className="paper-history-filters" id="history-filters">
+      <Flex flex="none" py={1} className="paper-history-filters" id="history-filters">
         <Group gap="xs" justify="space-between" w="100%">
           <Group gap="xs">
             {bots.length > 1 && (
@@ -225,7 +225,7 @@ function HistoryFilters({
         data-testid="trades-header"
         id="trades-header"
       >
-        <Group justify="space-between" px="xs" py={2}>
+        <Group justify="space-between" px={4} py={2}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">
             Trade History
           </Text>
@@ -261,7 +261,7 @@ function HistoryList({
   return (
     <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
       {filteredTrades.length === 0 ? (
-        <Flex py="lg" justify="center" align="center" direction="column" gap={4}>
+        <Flex py="sm" justify="center" align="center" direction="column" gap={4}>
           <Text size="xs" fw={500} c="dimmed">
             No trades found
           </Text>
@@ -355,7 +355,7 @@ export function PaperHistoryTable() {
     return (
       <Flex
         justify="center"
-        py="lg"
+        py="sm"
         data-testid="history-panel"
         className="paper-history-panel"
         id="history-panel"

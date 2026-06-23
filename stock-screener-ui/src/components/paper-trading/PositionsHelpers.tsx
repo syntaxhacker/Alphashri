@@ -275,7 +275,7 @@ function PositionRow({
       <Table.Tr key={`${pos.order_id || `${pos.strategy_id}-${pos.symbol}`}-detail`}>
         <Table.Td colSpan={5} style={{ padding: 0, border: "none" }}>
           <Collapse in={expanded}>
-            <Box p="sm" bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
+            <Box p="xs" bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
               <PositionDetail pos={pos} />
             </Box>
           </Collapse>
@@ -310,7 +310,7 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
   };
 
   return (
-    <Stack gap="xs">
+    <Stack gap={2}>
       <SimpleGrid cols={2} spacing="xs">
         <Box style={{ overflow: "hidden" }}>
           <Text size="xs" c="dimmed">Entry Reason</Text>
@@ -321,7 +321,7 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
           <Text size="sm" style={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
-      <SimpleGrid cols={4} spacing="xs">
+      <SimpleGrid cols={4} spacing={2}>
         <Box>
           <Text size="xs" c="dimmed">Stop Loss</Text>
           <Text size="sm" c="red">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
@@ -476,7 +476,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
       className="paper-watchlist-scan"
       id="watchlist-scan"
     >
-      <Group justify="space-between" px="xs" py={2}>
+      <Group justify="space-between" px={4} py={2}>
         <Text fw={600} size="xs" c="dimmed" tt="uppercase">
           Watchlist Scan
         </Text>
@@ -547,8 +547,8 @@ export function StrategySummaryFooter({
   return (
     <Flex
       direction="column"
-      mt="xs"
-      pt="xs"
+      mt={2}
+      pt={2}
       style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
       data-testid="strategy-summary-footer"
       className="paper-strategy-summary"

@@ -25,7 +25,7 @@ function usePositionsData(): PaperPosition[] {
 function EmptyPositions() {
   return (
     <Flex
-      py="lg"
+      py="sm"
       justify="center"
       align="center"
       direction="column"
@@ -45,7 +45,7 @@ function LoadingState() {
   return (
     <Flex
       justify="center"
-      py="lg"
+      py="sm"
       data-testid="positions-panel"
       className="paper-positions-panel"
       id="positions-panel"
@@ -61,7 +61,7 @@ function EmptyOrLoadingState() {
   return (
     <Flex
       justify="center"
-      py="lg"
+      py="sm"
       data-testid="positions-panel"
       className="paper-positions-panel"
       id="positions-panel"
@@ -102,7 +102,7 @@ function PositionsContent({
         <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
           Positions ({positions.length})
         </Text>
-        <Group gap="xs">
+        <Group gap={2}>
           <Badge color={isLive ? "red" : "green"} variant="light" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
@@ -111,7 +111,7 @@ function PositionsContent({
       </Group>
 
       <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <Flex direction="column" gap="sm" data-testid="positions-table-container">
+        <Flex direction="column" gap="xs" data-testid="positions-table-container">
           {Array.from(strategyGroups.entries()).map(([strategyId, group]) => {
             const summary = calcStrategySummary(group);
             const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
@@ -124,7 +124,7 @@ function PositionsContent({
               >
                 <Group
                   justify="space-between"
-                  mb="xs"
+                  mb={2}
                   onClick={() => toggleGroup(strategyId)}
                   style={{ cursor: "pointer" }}
                 >
@@ -239,7 +239,7 @@ export function PaperPositionsTable() {
     <Flex
       direction="column"
       h="100%"
-      gap="sm"
+      gap="xs"
       className="paper-positions-panel"
       id="positions-panel"
       data-testid="positions-panel"

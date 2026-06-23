@@ -14,7 +14,7 @@ interface RunnerSettingsSectionProps {
 export function RunnerSettingsSection({ config, onChange }: RunnerSettingsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="runner-section">
-      <Text fw={600} size="xs" tt="uppercase" mb="xs">
+      <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Runner Configuration
       </Text>
       <Grid gutter={4}>

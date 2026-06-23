@@ -96,10 +96,10 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="sm" justify="center" align="center" wrap="wrap" py={6} px="sm" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend">
+    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend">
       {items.map((item, i) => (
-        <Flex key={i} align="center" gap={4}>
-          <Box className={`legend-marker ${item.label.toLowerCase()}`} w={10} h={10} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
+        <Flex key={i} align="center" gap={2}>
+          <Box className={`legend-marker ${item.label.toLowerCase()}`} w={8} h={8} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
           <Text size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
@@ -126,7 +126,7 @@ function ChartEmptyState({
     >
       <Box data-testid={icon ? undefined : "chart-placeholder-content"} style={{ textAlign: "center" }}>
         {icon && (
-          <Text size="lg" c="dimmed" mb="sm">
+          <Text size="lg" c="dimmed" mb="xs">
             {icon}
           </Text>
         )}
@@ -246,9 +246,9 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       className="paper-chart-header"
       id="chart-header"
       align="center"
-      gap="sm"
-      p="xs"
-      pb={6}
+      gap="xs"
+      p={4}
+      pb={2}
       style={{ flex: "0 0 auto" }}
     >
       {state.chartData?.symbol && (
@@ -300,7 +300,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             <IconDots size={16} />
           </ActionIcon>
         </Popover.Target>
-        <Popover.Dropdown p="sm">
+        <Popover.Dropdown p="xs">
           <Stack gap="xs">
             <Text size="xs" fw={500} c="dimmed">Range</Text>
             <Group gap={4}>
@@ -316,7 +316,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
               ))}
             </Group>
 
-            <Divider my={2} />
+            <Divider my={1} />
 
             <Text size="xs" fw={500} c="dimmed">Overlays</Text>
             <Group gap={4}>
@@ -396,10 +396,10 @@ export function PaperChart() {
       <ChartEmptyState className={emptyState.className} icon={emptyState.icon}>
         <Text c="dimmed">{emptyState.text}</Text>
         {emptyState.subtext && (
-          <Text size="sm" c="dimmed" mt="xs">{emptyState.subtext}</Text>
+          <Text size="sm" c="dimmed" mt={2}>{emptyState.subtext}</Text>
         )}
         {emptyState.className === "paper-chart-error" && state.selectedSymbol && (
-          <Button size="xs" variant="light" mt="sm" onClick={() =>
+          <Button size="xs" variant="light" mt="xs" onClick={() =>
             fetchPaperChart(state.selectedSymbol, state.chartData?.date || dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true)
           }>
             Retry
