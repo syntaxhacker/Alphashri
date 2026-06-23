@@ -11,7 +11,7 @@ import config
 from cache.redis_client import cache_get, cache_set
 
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES
-from trading.week52_utils import calculate_52w_high, days_since_52w_high_touch
+from trading.week52_utils import calculate_52w_high, days_since_52w_high_touch, check_intraday_52w_touch
 
 from trading.timezone import IST
 
@@ -131,8 +131,14 @@ class RunnerRiskMixin:
             except Exception:
                 intraday = None
 
+            intraday_high = 0.0
             if intraday is not None and not intraday.empty:
                 current_price = float(intraday['close'].iloc[-1])
+                intraday_high = float(intraday['high'].max())
+
+            days_since_52w_high = check_intraday_52w_touch(
+                intraday_high, high_52w, days_since_52w_high,
+            )
 
             return {
                 'current_price': current_price,

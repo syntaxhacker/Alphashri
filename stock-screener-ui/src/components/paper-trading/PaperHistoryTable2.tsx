@@ -11,7 +11,6 @@ import {
   setFilterToDate,
   deleteTradeAction,
   setSelectedTradeId,
-  setShowAllTrades,
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
 import type { PaperTrade } from "../../types/paperTrading";

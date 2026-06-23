@@ -146,8 +146,6 @@ function LiveView({ state }: LiveViewProps) {
       >
         <PaperPortfolioCard
           portfolio={state.portfolio as any}
-          isMultiStrategy={state.availableBots.length > 0}
-          strategySummaries={[]}
         />
         <ScrollArea flex={1} style={{ minHeight: 0 }}>
           <PaperPositionsTable />
