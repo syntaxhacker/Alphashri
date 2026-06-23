@@ -397,8 +397,9 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
       <Text size="sm">{bot.strategies.length} strategies</Text>
       <Group gap="xs" wrap="wrap">
         {bot.strategies.map((s) => (
-          <Badge key={s.id} size="sm" variant="light">
+          <Badge key={s.id} size="sm" variant="light" color={!s.enable_shorts ? "orange" : undefined}>
             {s.strategy_type}
+            {!s.enable_shorts && <span style={{ marginLeft: 2 }}>L</span>}
           </Badge>
         ))}
       </Group>
