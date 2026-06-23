@@ -298,6 +298,9 @@ export interface BotInfo {
   }>;
   is_active: boolean;
   live_trading: boolean;
+  running?: boolean;
+  pid?: number | null;
+  position_count?: number;
 }
 
 export interface DailyPnLPoint {
