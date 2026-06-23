@@ -52,11 +52,11 @@ export function normalizePaper(
       const orbEndIdx = orb.or_candle_count != null
         ? Math.min(orb.or_candle_count - 1, candles.length - 1)
         : Math.min(8, candles.length - 1);
+      const firstTime = candles[0].time_str || candles[0].time.split(/[T ]/).pop()?.substring(0, 5) || "09:15";
+      const lastTime = candles[orbEndIdx].time_str || candles[orbEndIdx].time.split(/[T ]/).pop()?.substring(0, 5) || firstTime;
       markAreas.push({
-        from: candles[0].time.split(/[T ]/).pop()?.substring(0, 5) || "09:15",
-        to:
-          candles[orbEndIdx].time.split(/[T ]/).pop()?.substring(0, 5) ||
-          "09:25",
+        from: firstTime,
+        to: lastTime,
         fromY: orb.or_low,
         toY: orb.or_high,
         color: "rgba(33,150,243,0.15)",
@@ -147,8 +147,10 @@ export function normalizePaper(
     ? (() => {
         const trade = data.trades.find(t => t.trade_id === selectedTradeId);
         if (!trade) return null;
-        const num = parseInt(trade.trade_id, 10);
-        return isNaN(num) ? data.trades.indexOf(trade) : num;
+        const idx = data.trades.indexOf(trade);
+        // Use index as ID to avoid fraction collision (e.g., "1.5" vs "1")
+        const mappedTrade = trades[idx];
+        return mappedTrade ? mappedTrade.id : idx;
       })()
     : null;
 
@@ -178,7 +180,7 @@ export function normalizePaper(
     overlays,
     emaData,
     livePosition,
-    markLines,
+    markLines: markLines.filter(m => m.yAxis != null && isFinite(m.yAxis)),
     markAreas,
     showVolume: false,
     showDataZoomSlider: false,
