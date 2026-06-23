@@ -104,6 +104,11 @@ function usePaperTradingViewModel() {
     };
   }, [loadInitialData]);
 
+  // Refresh bot summaries whenever bot running state changes
+  useEffect(() => {
+    fetchBotSummaries().then(setBotSummaries);
+  }, [state.botRunning]);
+
   const actions = usePaperViewActions(activeBotId);
   const filters = useHistoryFilters();
 
