@@ -134,7 +134,7 @@ export function LiveFilters({
   const botName = selectedBot?.name || "Bot";
 
   return (
-    <Flex gap="sm" align="center" wrap="wrap">
+    <Flex gap="xs" align="center" wrap="wrap">
       <BotCardStrip bots={bots} selectedBotId={activeBotId} onSelect={actions.handleBotSelect} />
       <Group gap="xs">
         <StatusBadge
@@ -198,7 +198,7 @@ export function HistoryFilters({
   const symbolOptions = symbols.map((s) => ({ value: s, label: s }));
 
   return (
-    <Flex gap="sm" align="center" wrap="wrap">
+    <Flex gap="xs" align="center" wrap="wrap">
       <Group gap="xs">
         <Text size="sm" c="dimmed">
           From:

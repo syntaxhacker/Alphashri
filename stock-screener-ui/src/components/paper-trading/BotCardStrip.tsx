@@ -11,7 +11,7 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
   if (bots.length === 0) return null;
 
   return (
-    <Group gap="sm" wrap="wrap">
+    <Group gap="xs" wrap="wrap">
       {bots.map((bot) => {
         const isSelected = bot.id === selectedBotId;
         const isRunning = bot.running;
@@ -27,7 +27,7 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
         return (
           <Box
             key={bot.id}
-            p="xs"
+            p={4}
             data-testid={`bot-card-${bot.id}`}
             style={{
               cursor: bot.is_active ? "pointer" : "default",
@@ -41,8 +41,8 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
               if (bot.is_active && !isSelected) onSelect(bot.id);
             }}
           >
-            <Stack gap={2}>
-              <Group gap={6}>
+            <Stack gap={1}>
+              <Group gap={4}>
                 <Box
                   style={{
                     width: 8,

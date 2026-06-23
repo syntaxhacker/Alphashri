@@ -37,7 +37,7 @@ export function PaperPortfolioCard({ portfolio }: PaperPortfolioCardProps) {
   const available = portfolio.available_margin ?? portfolio.cash;
 
   return (
-    <Group gap="md" px="xs" py={0} data-testid="portfolio-card" id="portfolio-card">
+    <Group gap="xs" px={4} py={0} data-testid="portfolio-card" id="portfolio-card">
       <Text size="xs" c="dimmed">Val ₹{fmt(portfolio.total_value)}</Text>
       <Text size="xs" c="dimmed">Cash ₹{fmt(portfolio.cash)}</Text>
       <Text size="xs" c="dimmed">Mrgn ₹{fmt(portfolio.margin_used)}</Text>

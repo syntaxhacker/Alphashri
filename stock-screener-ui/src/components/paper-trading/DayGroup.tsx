@@ -68,8 +68,8 @@ function DaySummary({
   return (
     <Group
       justify="space-between"
-      px="xs"
-      py={2}
+      px={4}
+      py={1}
       onClick={onToggle}
       style={{ cursor: "pointer" }}
       data-testid={`day-header-${date}`}
@@ -119,7 +119,7 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Grid gutter="xs">
+    <Grid gutter={2}>
       <Grid.Col span={{ base: 12, md: 6 }}>
         <Stack gap={2}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
@@ -162,8 +162,8 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
   };
 
   return (
-    <Stack gap="xs">
-      <Group gap="sm" align="flex-start" grow>
+    <Stack gap={2}>
+      <Group gap="xs" align="flex-start" grow>
         <Stack gap={1} style={{ flex: 1 }}>
           <Text size="xs" c="dimmed">
             Reason
@@ -349,7 +349,7 @@ const TradeRow = memo(function TradeRow({
       <Table.Tr>
         <Table.Td colSpan={14} p={0}>
           <Collapse in={detailExpanded}>
-            <div style={{ padding: "8px 12px", background: "var(--mantine-color-body)" }}>
+            <div style={{ padding: "6px 8px", background: "var(--mantine-color-body)" }}>
               <TradeDetail trade={trade} />
             </div>
           </Collapse>

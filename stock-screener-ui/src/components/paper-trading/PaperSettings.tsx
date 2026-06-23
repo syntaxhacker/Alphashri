@@ -106,7 +106,7 @@ function SettingsLoadingState() {
 function SettingsErrorState({ error }: { error: string }) {
   return (
     <Card
-      padding="md"
+      padding="sm"
       radius="md"
       withBorder
       data-testid="settings-panel"
@@ -126,7 +126,7 @@ function SettingsErrorState({ error }: { error: string }) {
       <Button
         variant="light"
         size="sm"
-        mt="md"
+        mt="sm"
         onClick={() => fetchStrategyConfig()}
         data-testid="retry-button"
       >
@@ -158,7 +158,7 @@ function SettingsContent({
 }) {
   return (
     <Card
-      padding="md"
+      padding="sm"
       radius="md"
       withBorder
       data-testid="settings-panel"
@@ -171,7 +171,7 @@ function SettingsContent({
           icon={<IconAlertCircle size={16} />}
           color="red"
           variant="light"
-          mb="md"
+          mb="sm"
           onClose={() => {}}
           withCloseButton
         >
@@ -179,7 +179,7 @@ function SettingsContent({
         </Alert>
       )}
 
-      <Group justify="space-between" mb="sm" className="paper-settings-header" id="settings-header">
+      <Group justify="space-between" mb="xs" className="paper-settings-header" id="settings-header">
         <div>
           <Text fw={600} size="md">
             Strategy Configuration
@@ -195,7 +195,7 @@ function SettingsContent({
         )}
       </Group>
 
-      <Stack gap="xs" className="paper-settings-content" id="settings-content">
+      <Stack gap={2} className="paper-settings-content" id="settings-content">
         <Stack gap="xs" className="paper-settings-section" id="strategy-section">
           <Text fw={600} size="xs" tt="uppercase">
             Active Strategy

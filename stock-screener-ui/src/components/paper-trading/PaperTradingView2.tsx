@@ -131,7 +131,7 @@ function LiveView({ state }: LiveViewProps) {
   return (
     <Flex
       h="100%"
-      gap="md"
+      gap="xs"
       direction={{ base: "column", md: "row" }}
       className="paper-live-view"
       id="live-view-grid"
@@ -174,7 +174,7 @@ function HistoryView({ state: _state }: HistoryViewProps) {
     <Flex
       className="paper-history-view"
       id="history-view"
-      gap="md"
+      gap="xs"
       h="100%"
       direction={{ base: "column", md: "row" }}
       data-testid="paper-history-panel"
@@ -222,7 +222,7 @@ function ErrorAlert({ message, onClose }: ErrorAlertProps) {
       title="Error"
       color="red"
       variant="filled"
-      mb="md"
+      mb="xs"
       data-testid="paper-error"
       withCloseButton
       onClose={onClose}
@@ -252,12 +252,12 @@ function HeaderSection({
   return (
     <Flex
       flex="0 0 auto"
-      mb="md"
+      mb="xs"
       className="paper-trading-header"
       id="paper-header"
       direction="column"
     >
-      <Stack gap="sm">
+      <Stack gap="xs">
         <Flex justify="space-between" align="center">
           <PaperTradingTabs state={state} onViewChange={actions.handleViewChange} />
         </Flex>
@@ -283,7 +283,7 @@ export function PaperTradingView() {
     <Flex
       direction="column"
       h="100%"
-      p="sm"
+      p="xs"
       className="paper-trading-view"
       id="paper-trading-main"
       style={{ overflow: "hidden" }}

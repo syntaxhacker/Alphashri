@@ -126,8 +126,8 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
 
   if (!snapshot || allItems.length === 0) {
     return (
-      <Stack gap="xs" data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
-        <Group justify="space-between" px="xs" py={2}>
+      <Stack gap={2} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+        <Group justify="space-between" px={4} py={1}>
           <Group gap="xs">
             <Text fw={600} size="xs" c="dimmed" tt="uppercase">
               Watchlist Scan
@@ -143,7 +143,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
             </Text>
           </Group>
         </Group>
-        <Text size="xs" c="orange" fs="italic" ta="center" py="sm">
+        <Text size="xs" c="orange" fs="italic" ta="center" py="xs">
           No scan data — API rate limit or connection issue
         </Text>
       </Stack>
@@ -151,9 +151,9 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
   }
 
   return (
-    <Stack gap="xs" data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+    <Stack gap={2} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
       {/* Header */}
-      <Group justify="space-between" px="xs" py={2} wrap="nowrap">
+      <Group justify="space-between" px={4} py={1} wrap="nowrap">
         <Group gap="xs">
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
@@ -171,7 +171,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
       </Group>
 
       {/* Filters */}
-      <Group gap="xs" px="xs" wrap="wrap">
+      <Group gap="xs" px={4} wrap="wrap">
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -332,7 +332,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
       </ScrollArea>
 
       {/* Footer summary */}
-      <Group justify="space-between" px="xs" py={2}>
+      <Group justify="space-between" px={4} py={1}>
         <Group gap="xs">
           <Text size="xs" c="dimmed">
             Showing {visibleItems.length} of {allItems.length}
