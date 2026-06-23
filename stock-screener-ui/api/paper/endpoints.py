@@ -23,6 +23,7 @@ from rich.console import Console
 from .requests import StrategyConfigUpdate
 from .paper_api import router, _get_user_id, _get_symbol_trades_from_db
 from .chart_cache import get_cached_candles, save_cached_candles
+from trading.timeframe_utils import parse_timeframe_minutes, calculate_or_candle_count
 
 console = Console()
 
@@ -458,7 +459,8 @@ async def get_paper_chart(
             except Exception:
                 pass
 
-        or_candle_count = max(1, or_minutes // 5)
+        tf_minutes = parse_timeframe_minutes(timeframe)
+        or_candle_count = calculate_or_candle_count(or_minutes, tf_minutes)
         or_candles = candles[:or_candle_count] if len(candles) >= or_candle_count else candles
         orb_levels = None
         if or_candles:
@@ -472,6 +474,7 @@ async def get_paper_chart(
                 "or_range": or_high - or_low,
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
                 "or_minutes": or_minutes,
+                "or_candle_count": or_candle_count,
             }
 
         ema_series = None

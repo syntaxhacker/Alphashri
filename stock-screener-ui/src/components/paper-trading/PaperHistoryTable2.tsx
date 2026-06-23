@@ -341,8 +341,6 @@ export function PaperHistoryTable() {
   ) => {
     setSelectedSymbol(symbol);
     if (tradeId) setSelectedTradeId(tradeId, strategyType, strategyId);
-    const sameSymbolCount = filteredTrades.filter((t) => t.symbol === symbol).length;
-    if (sameSymbolCount > 1) setShowAllTrades(true);
     const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
     const fromDate = entryDate
       ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")

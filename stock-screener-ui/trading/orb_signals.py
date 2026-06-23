@@ -109,6 +109,7 @@ class ORBSignalGenerator:
             self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else config.breakout_buffer_pct
             self.enable_shorts = config.enable_shorts
             self.FORCE_EXIT = (config.eod_exit_hour, config.eod_exit_minute)
+            self.max_distance_from_or_pct = getattr(config, 'max_distance_from_or_pct', 1.5)
         else:
             self.or_minutes = or_minutes if or_minutes is not None else 45
             self.sl_pct = sl_pct if sl_pct is not None else 1.0
@@ -117,6 +118,7 @@ class ORBSignalGenerator:
             self.max_or_range_pct = max_or_range_pct if max_or_range_pct is not None else 3.0
             self.breakout_buffer_pct = breakout_buffer_pct if breakout_buffer_pct is not None else 0.3
             self.enable_shorts = False
+            self.max_distance_from_or_pct = 1.5
 
         # OR levels cache
         self.or_levels: Dict[str, dict] = {}
@@ -200,6 +202,11 @@ class ORBSignalGenerator:
 
         # Check for long breakout (above OR high)
         if current_price > or_high * (1 + buffer):
+            # Skip if too far from OR high (chasing)
+            distance_pct = ((current_price - or_high) / or_high) * 100
+            if distance_pct > self.max_distance_from_or_pct:
+                return None
+
             # Calculate SL and TP
             sl = current_price * (1 - self.sl_pct / 100)
             tp = current_price * (1 + self.tp_pct / 100)
@@ -226,7 +233,10 @@ class ORBSignalGenerator:
         if not self.enable_shorts:
             pass
         elif current_price < or_low * (1 - buffer):
-            # Calculate SL and TP for short
+            # Skip if too far from OR low (chasing short)
+            distance_pct = ((or_low - current_price) / or_low) * 100
+            if distance_pct > self.max_distance_from_or_pct:
+                return None
             sl = current_price * (1 + self.sl_pct / 100)
             tp = current_price * (1 - self.tp_pct / 100)
 

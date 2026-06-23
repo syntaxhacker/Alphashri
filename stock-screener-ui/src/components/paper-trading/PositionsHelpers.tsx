@@ -350,6 +350,10 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
             {loading52 ? <Loader size="xs" /> : week52?.low_52w ? `₹${week52.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
+        <Box>
+          <Text size="xs" c="dimmed">Position ID</Text>
+          <Text size="xs" style={{ wordBreak: "break-all" }}>{pos.order_id || "—"}</Text>
+        </Box>
       </SimpleGrid>
       <Box>
         <Text size="xs" c="dimmed" mb={2}>Notes</Text>

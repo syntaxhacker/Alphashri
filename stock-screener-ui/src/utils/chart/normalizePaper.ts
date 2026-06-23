@@ -49,10 +49,13 @@ export function normalizePaper(
       },
     );
     if (candles.length > 0) {
+      const orbEndIdx = orb.or_candle_count != null
+        ? Math.min(orb.or_candle_count - 1, candles.length - 1)
+        : Math.min(8, candles.length - 1);
       markAreas.push({
         from: candles[0].time.split(/[T ]/).pop()?.substring(0, 5) || "09:15",
         to:
-          candles[Math.min(8, candles.length - 1)].time.split(/[T ]/).pop()?.substring(0, 5) ||
+          candles[orbEndIdx].time.split(/[T ]/).pop()?.substring(0, 5) ||
           "09:25",
         fromY: orb.or_low,
         toY: orb.or_high,

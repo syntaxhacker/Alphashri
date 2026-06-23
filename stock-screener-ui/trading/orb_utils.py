@@ -56,7 +56,7 @@ def calculate_or_levels(
         if market_open_dt <= dt < or_end_dt:
             or_candles.append(candle)
 
-    if len(or_candles) < 5:  # Need at least 5 candles
+    if len(or_candles) < 1:  # Need at least one candle in the OR period
         return None
 
     # Calculate OR levels

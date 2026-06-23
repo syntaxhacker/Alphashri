@@ -168,6 +168,7 @@ export interface ORBLevels {
   or_range: number;
   or_range_pct: number;
   or_minutes?: number;
+  or_candle_count?: number;
 }
 
 // 52-week high levels for swing strategies
