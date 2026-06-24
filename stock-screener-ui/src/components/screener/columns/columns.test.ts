@@ -81,17 +81,16 @@ describe("getColumnsForScreener", () => {
     expect(cols[0].key).toBe("symbol");
   });
 
-  test("returns 52w_high columns without volume or touched column", () => {
+  test("returns 52w_high columns (now includes volume/rsi/adx from TV enrichment)", () => {
     const cols = getColumnsForScreener("52w_high");
-    expect(cols.map((c) => c.key)).toEqual([
-      "symbol",
-      "score",
-      "to_52w_high",
-      "high_52w",
-      "low_52w",
-      "upstox_price",
-      "days_ago",
-    ]);
+    const keys = cols.map((c) => c.key);
+    expect(keys).toContain("symbol");
+    expect(keys).toContain("score");
+    expect(keys).toContain("to_52w_high");
+    expect(keys).toContain("volume_m");
+    expect(keys).toContain("volume");
+    expect(keys).toContain("rsi");
+    expect(keys).toContain("adx");
   });
 
   test("defaults to trending for unknown screener id", () => {
@@ -285,7 +284,15 @@ describe("52wHigh columns", () => {
   const columns = get52wHighColumns();
 
   test("returns correct number of columns", () => {
-    expect(columns.length).toBe(7);
+    expect(columns.length).toBe(11);
+  });
+
+  test("includes tv enriched columns from 52w_high screener", () => {
+    const keys = columns.map((c) => c.key);
+    expect(keys).toContain("volume_m");
+    expect(keys).toContain("volume");
+    expect(keys).toContain("rsi");
+    expect(keys).toContain("adx");
   });
 
   test("to_52w_high negative gets green class", () => {

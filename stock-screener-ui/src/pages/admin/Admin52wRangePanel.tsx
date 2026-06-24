@@ -13,6 +13,7 @@ import { IconPlayerPlay, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../components/common/compact";
 import type { Week52RangeAdminStatus } from "../../types/admin";
+import { formatDateTime } from "./formatters";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -214,18 +215,20 @@ export function Admin52wRangePanel() {
             <Alert color="green" title="Last batch completed">
               {job.message}
               {job.elapsed_sec != null ? ` (${job.elapsed_sec}s)` : ""}
+              {job.finished_at ? ` • ${formatDateTime(job.finished_at)}` : ""}
             </Alert>
           )}
 
           {!running && job?.status === "failed" && (
             <Alert color="red" title="Last batch failed">
               {job.error || job.message}
+              {job.finished_at ? ` • ${formatDateTime(job.finished_at)}` : ""}
             </Alert>
           )}
 
           {db?.db_latest_updated_at && (
-            <Text size="xs" c="dimmed">
-              Latest DB update: {db.db_latest_updated_at}
+            <Text size="xs" c="dimmed" title={db.db_latest_updated_at}>
+              Latest DB update: {formatDateTime(db.db_latest_updated_at)}
             </Text>
           )}
 

@@ -208,6 +208,30 @@ async def get_llm_stats(
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.post("/api/admin/llm-stats/reset")
+async def reset_llm_stats_endpoint(
+    current_user=Depends(get_current_user)
+):
+    """Clear LLM stats log data (recent runs table). Admin only. Does not clear analysis cache."""
+    _require_admin(current_user)
+
+    try:
+        from api.news_routes import _llm_available, article_analyzer
+        if not _llm_available or article_analyzer is None:
+            raise HTTPException(status_code=503, detail="LLM Analyzer not available")
+
+        deleted = article_analyzer.clear_llm_stats()
+        return {
+            "status": "ok",
+            "deleted": deleted,
+            "message": f"Cleared {deleted} LLM run log entries",
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/api/admin/cache-stats")
 async def get_cache_stats_endpoint(
     current_user=Depends(get_current_user)
