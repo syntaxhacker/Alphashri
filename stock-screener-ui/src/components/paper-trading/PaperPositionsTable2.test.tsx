@@ -365,7 +365,7 @@ describe("PaperPositionsTable", () => {
 
     test("positions panel data-testid present", () => {
       rWithPosition();
-      expect(screen.getByTestId("positions-panel")).toBeTruthy();
+      expect(screen.getByTestId("positions-table-container")).toBeTruthy();
     });
 
     test("positions table has data-testid from DataTable", () => {
