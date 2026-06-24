@@ -193,12 +193,11 @@ def _fetch_candles_at_tf(upstox_api, symbol: str, timeframe: str, from_date: str
     if not interval:
         interval = 5  # default
     
-    # For longer TFs, we need more historical days
-    if interval in ['D', 720, 120, 240]:
-        # Need 30+ days for proper 12h/daily candles
-        from_date = (datetime.now(config.IST) - timedelta(days=45)).strftime('%Y-%m-%d')
-    else:
-        from_date = (datetime.now(config.IST) - timedelta(days=5)).strftime('%Y-%m-%d')
+    if from_date is None:
+        if interval in ['D', 720, 120, 240]:
+            from_date = (datetime.now(config.IST) - timedelta(days=45)).strftime('%Y-%m-%d')
+        else:
+            from_date = (datetime.now(config.IST) - timedelta(days=5)).strftime('%Y-%m-%d')
     
     return upstox_api.fetch_historical_data_v3(
         symbol=symbol,

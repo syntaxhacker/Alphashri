@@ -7,3 +7,5 @@ export { PaperTradingView } from "./PaperTradingView2";
 export { PerformanceAnalytics } from "./PerformanceAnalytics";
 export { ActivityFeed } from "./ActivityFeed";
 export { AggregatedDashboard } from "./AggregatedDashboard";
+export { StrategyCard } from "./StrategyCard";
+export { SelectedPositionBar } from "./SelectedPositionBar";

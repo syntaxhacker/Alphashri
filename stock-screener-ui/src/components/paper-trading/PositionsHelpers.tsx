@@ -227,6 +227,7 @@ function PositionRow({
   const prevPrice = usePrevPrice(pos.current_price);
   const sideColor = getSideColor(pos.side);
   const rowBg = calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit);
+  const ageColor = "transparent";
   const tpLabel = pos.take_profit > 0 ? `₹${pos.take_profit.toFixed(2)}` : "trail";
 
   return (
@@ -286,6 +287,7 @@ function PositionRow({
 }
 
 function PositionDetail({ pos }: { pos: PaperPosition }) {
+  console.log("[PositionDetail] pos:", pos.symbol, "order_id:", pos.order_id, "id:", pos.id);
   const [notes, setNotes] = useState(pos.notes || "");
   const [saving, setSaving] = useState(false);
   const [week52, setWeek52] = useState<{ high_52w: number; low_52w: number } | null>(null);
@@ -352,7 +354,7 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
         </Box>
         <Box>
           <Text size="xs" c="dimmed">Position ID</Text>
-          <Text size="xs" style={{ wordBreak: "break-all" }}>{pos.order_id || "—"}</Text>
+          <Text size="xs" style={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
         </Box>
       </SimpleGrid>
       <Box>
@@ -376,14 +378,37 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
   );
 }
 
+export function getPositionAgeColor(entryTime: string): string {
+  const elapsed = Date.now() - new Date(entryTime).getTime();
+  const hours = elapsed / (1000 * 60 * 60);
+  if (hours > 4) return "var(--mantine-color-orange-1)";
+  if (hours > 2) return "var(--mantine-color-orange-0)";
+  return "transparent";
+}
+
 export function PositionsTableBody({
   positions,
   selectedSymbol: _selectedSymbol,
+  onSelect: externalOnSelect,
+  onClose: externalOnClose,
 }: {
   positions: PaperPosition[];
-  selectedSymbol: string | null;
+  selectedSymbol?: string | null;
+  onSelect?: (
+    symbol: string,
+    tradeId?: string,
+    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
+    entryTime?: string,
+  ) => void;
+  onClose?: (symbol: string, price: number) => void;
 }) {
   const handleClosePosition = async (symbol: string, currentPrice: number) => {
+    if (externalOnClose) {
+      externalOnClose(symbol, currentPrice);
+      return;
+    }
     if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
       try {
         await closePaperPosition(symbol, currentPrice, "MANUAL");
@@ -403,6 +428,10 @@ export function PositionsTableBody({
     strategyId?: number,
     entryTime?: string,
   ) => {
+    if (externalOnSelect) {
+      externalOnSelect(symbol, _tradeId, _strategyName, _strategyType, strategyId, entryTime);
+      return;
+    }
     setSelectedSymbol(symbol);
     setSelectedTradeId("-1");
     const entryDate = entryTime ? entryTime.split("T")[0] : undefined;

@@ -19,6 +19,7 @@ export interface PaperPosition {
   pnl: number;
   pnl_pct: number;
   margin_used: number;
+  id?: string;
   order_id: string;
   strategy_id: number;
   strategy_name: string;
@@ -248,6 +249,13 @@ export interface PaperTradingState {
   chartLoading: boolean;
   chartTimeframe: string;
   chartFromDate: string | null;
+
+  chartDataLive: PaperChartData | null;
+  chartTimeframeLive: string;
+  chartFromDateLive: string | null;
+  chartDataHistory: PaperChartData | null;
+  chartTimeframeHistory: string;
+  chartFromDateHistory: string | null;
 
   // Loading states
   isLoading: boolean;

@@ -98,6 +98,7 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
     const response = await fetchWithAuth(`${API_BASE}/api/paper/positions`);
     const data = await response.json();
     const positions = data.positions || [];
+    console.log("[fetchPositions] raw response:", data, "positions[0]:", positions[0]);
     setPositions(positions);
     return positions;
   } catch (error) {

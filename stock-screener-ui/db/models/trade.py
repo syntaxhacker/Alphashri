@@ -86,6 +86,7 @@ class Position(PaperTradingMixin, PythonUpdatedAtMixin, Base):
                 pass
         entry_reason = metadata.get("entry_reason", "") if isinstance(metadata, dict) else ""
         notes = metadata.get("notes", "") if isinstance(metadata, dict) else ""
+        order_id = metadata.get("upstox_order_id", "") if isinstance(metadata, dict) else ""
         d = self._paper_base_to_dict()
         d.update({
             "current_price": self.current_price,
@@ -94,5 +95,6 @@ class Position(PaperTradingMixin, PythonUpdatedAtMixin, Base):
             "strategy_type": self.strategy_type or "",
             "entry_reason": entry_reason,
             "notes": notes,
+            "order_id": order_id,
         })
         return d

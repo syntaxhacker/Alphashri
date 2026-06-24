@@ -47,6 +47,7 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
     "52W_TARGET": ["near_52w_breakout"],
     "BLIND_52W": ["near_52w_breakout"],
 }
+from trading.bot_heartbeat import BotHeartbeat
 from trading.global_risk_manager import GlobalRiskManager
 from trading.journal import get_journal
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
@@ -172,6 +173,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self._load_strategies()
 
         self.journal = get_journal(user_id)
+        self._heartbeat = BotHeartbeat(
+            user_id=self.user_id,
+            bot_config_id=self.bot_config.id,
+        )
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -199,6 +204,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.bot_config_id = bot_config.id
         self.bot_config = bot_config
         self._init_common_fields()
+        self._heartbeat = None
         self.portfolio = None
         self.risk_manager = None
         self.strategies = {}
@@ -443,26 +449,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         return SessionLocal()
 
     def _write_heartbeat(self):
-        try:
-            from cache.redis_client import get_redis_client
-            client = get_redis_client()
-            if client is not None:
-                import os
-                pid = os.getpid()
-                bot_id = self.bot_config.id if self.bot_config else 0
-                client.setex(f"bot:{self.user_id}:{bot_id}:status", 90, f"running:{pid}")
-        except Exception:
-            pass
+        if self._heartbeat:
+            self._heartbeat.start()
 
     def _clear_heartbeat(self):
-        try:
-            from cache.redis_client import get_redis_client
-            client = get_redis_client()
-            if client is not None:
-                bot_id = self.bot_config.id if self.bot_config else 0
-                client.delete(f"bot:{self.user_id}:{bot_id}:status")
-        except Exception:
-            pass
+        if self._heartbeat:
+            self._heartbeat.stop()
 
     def _persist_trade_to_db(self, trade_data: dict):
         try:
@@ -1080,8 +1072,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     self.display_status()
 
                     self.persist_state()
-
-                    self._write_heartbeat()
 
                     if self.running and not self.is_force_exit_time():
                         console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")

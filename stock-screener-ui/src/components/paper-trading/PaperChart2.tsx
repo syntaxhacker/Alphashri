@@ -22,7 +22,6 @@ import dayjs from "dayjs";
 import {
   getPaperTradingState,
   setChartTimeframe,
-  setChartFromDate,
   setShowAllTrades,
   setShowOrbLines,
   setShowPivotLines,
@@ -161,8 +160,6 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   useEffect(() => {
     if (state.chartFromDate && state.chartData?.date) {
       setRange([new Date(state.chartFromDate), new Date(state.chartData.date)]);
-    } else if (!state.chartFromDate && state.chartData?.date && range[0] === null && range[1] === null) {
-      // keep range null
     }
   }, [state.chartFromDate, state.chartData?.date]);
 
@@ -180,51 +177,43 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
 
   const handleQuickRange = useCallback((days: number) => {
     const to = new Date();
-    let from: Date;
-    if (days === -1) {
-      from = new Date(0);
-    } else {
-      from = dayjs().subtract(days, "day").toDate();
-    }
+    const from = days === -1 ? new Date(0) : dayjs().subtract(days, "day").toDate();
     setRange([from, to]);
     setPopoverOpened(false);
-    setChartFromDate(null);
     const fd = days === -1 ? undefined : dayjs(from).format("YYYY-MM-DD");
     const cd = dayjs(to).format("YYYY-MM-DD");
-    if (state.selectedSymbol) {
-      fetchPaperChart(state.selectedSymbol, cd, state.chartTimeframe, state.selectedStrategyId, fd, true);
+    const s = getPaperTradingState();
+    if (s.selectedSymbol) {
+      fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true);
     }
-  }, [state.selectedSymbol, state.chartTimeframe, state.selectedStrategyId]);
+  }, []);
 
   const handleRangeChange = useCallback(
     (r: [Date | null, Date | null]) => {
       setRange(r);
       if (r[0] && r[1] && r[0] > r[1]) return;
-      setChartFromDate(null);
       const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
-      const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : state.chartData?.date;
-      if (!fd && (state.chartTimeframe === "12hour" || state.chartTimeframe === "1day")) {
-        setChartTimeframe("4hour");
-      }
-      if (state.selectedSymbol && cd) {
-        const tf = !fd && (state.chartTimeframe === "12hour" || state.chartTimeframe === "1day") ? "4hour" : state.chartTimeframe;
-        fetchPaperChart(state.selectedSymbol, cd, tf, state.selectedStrategyId, fd, true);
+      const s = getPaperTradingState();
+      const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : s.chartData?.date;
+      if (s.selectedSymbol && cd) {
+        fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true);
       }
       if (r[0] && r[1]) setPopoverOpened(false);
     },
-    [state.selectedSymbol, state.chartData?.date, state.chartTimeframe, state.selectedStrategyId],
+    [],
   );
 
   const handleTimeframeChange = useCallback(
     async (value: string | null) => {
       if (!value) return;
-      setRange([null, null]);
       setChartTimeframe(value);
-      if (state.selectedSymbol && chartDate) {
-        await fetchPaperChart(state.selectedSymbol, chartDate, value, state.selectedStrategyId, fromDate, true);
+      const s = getPaperTradingState();
+      const cd = s.chartData?.date;
+      if (s.selectedSymbol && cd) {
+        await fetchPaperChart(s.selectedSymbol, cd, value, s.selectedStrategyId, s.chartFromDate || undefined, true);
       }
     },
-    [state.selectedSymbol, chartDate, state.selectedStrategyId, fromDate],
+    [],
   );
 
   const shortDate = (() => {

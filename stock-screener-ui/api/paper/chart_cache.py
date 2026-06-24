@@ -37,8 +37,9 @@ def _write_meta(path: Path) -> None:
 
 
 def get_cached_candles(symbol: str, date: str, timeframe: str = None, from_date: str = None) -> tuple[pd.DataFrame | None, bool]:
-    # Include timeframe in cache key to separate different TFs
-    if timeframe:
+    if timeframe and from_date:
+        path = CACHE_DIR / date / f"{from_date}_{symbol.upper()}_{timeframe}.pkl"
+    elif timeframe:
         path = CACHE_DIR / date / f"{symbol.upper()}_{timeframe}.pkl"
     elif from_date:
         path = CACHE_DIR / date / f"{from_date}_{symbol.upper()}.pkl"
@@ -63,8 +64,9 @@ def get_cached_candles(symbol: str, date: str, timeframe: str = None, from_date:
 def save_cached_candles(symbol: str, date: str, df: pd.DataFrame, timeframe: str = None, from_date: str = None) -> None:
     if df is None or df.empty:
         return
-    # Include timeframe in cache key to separate different TFs
-    if timeframe:
+    if timeframe and from_date:
+        path = CACHE_DIR / date / f"{from_date}_{symbol.upper()}_{timeframe}.pkl"
+    elif timeframe:
         path = CACHE_DIR / date / f"{symbol.upper()}_{timeframe}.pkl"
     elif from_date:
         path = CACHE_DIR / date / f"{from_date}_{symbol.upper()}.pkl"

@@ -1,14 +1,22 @@
 import { useCallback } from "react";
 import dayjs from "dayjs";
-import { Flex, Tabs, Text, Group, Button, Select, Tooltip } from "@mantine/core";
+import { Flex, Tabs, Text, Group, Select } from "@mantine/core";
 import { TradingDatePicker } from "../common/TradingDatePicker";
-import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import {
   getPaperTradingState,
   setPaperTradingView,
   setFilterFromDate,
   setFilterToDate,
   setFilterSymbol,
+  setChartData,
+  setChartTimeframe,
+  setChartFromDate,
+  setChartDataLive,
+  setChartTimeframeLive,
+  setChartFromDateLive,
+  setChartDataHistory,
+  setChartTimeframeHistory,
+  setChartFromDateHistory,
 } from "../../state/paperTrading";
 import type { PaperTradingView, PaperTrade, BotSummary } from "../../types/paperTrading";
 import {
@@ -23,15 +31,39 @@ import {
   startPaperBot,
   stopPaperBot,
 } from "../../api/paperTrading";
-import { BotCardStrip } from "./BotCardStrip";
-import { StatusBadge } from "../common/BadgeComponents";
-import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
+import { BotSelector } from "./BotSelector";
 
 export function usePaperViewActions(activeBotId: string | null) {
   const handleViewChange = useCallback(
     async (view: string | null) => {
       if (!view) return;
+
+      // Save current chart state before switching views
+      const prevState = getPaperTradingState();
+      const prevView = prevState.currentView;
+      if (prevView === "live") {
+        setChartDataLive(prevState.chartData);
+        setChartTimeframeLive(prevState.chartTimeframe);
+        setChartFromDateLive(prevState.chartFromDate);
+      } else if (prevView === "history") {
+        setChartDataHistory(prevState.chartData);
+        setChartTimeframeHistory(prevState.chartTimeframe);
+        setChartFromDateHistory(prevState.chartFromDate);
+      }
+
+      // Restore target view's chart state
+      if (view === "live") {
+        const s = getPaperTradingState();
+        setChartData(s.chartDataLive);
+        setChartTimeframe(s.chartTimeframeLive);
+        setChartFromDate(s.chartFromDateLive);
+      } else if (view === "history") {
+        const s = getPaperTradingState();
+        setChartData(s.chartDataHistory);
+        setChartTimeframe(s.chartTimeframeHistory);
+        setChartFromDate(s.chartFromDateHistory);
+      }
+
       setPaperTradingView(view as PaperTradingView);
 
       if (view === "live") {
@@ -119,7 +151,7 @@ export function useHistoryFilters() {
 export function LiveFilters({
   activeBotId,
   bots,
-  state,
+  state: _state,
   actions,
 }: {
   activeBotId: string | null;
@@ -127,63 +159,14 @@ export function LiveFilters({
   state: ReturnType<typeof getPaperTradingState>;
   actions: ReturnType<typeof usePaperViewActions>;
 }) {
-  useStoreSubscription(subscribeToHolidays);
-  const marketClosed = isMarketClosedToday();
-
-  const selectedBot = bots.find((b) => b.id === activeBotId);
-  const botName = selectedBot?.name || "Bot";
-
   return (
-    <Flex gap="xs" align="center" wrap="wrap">
-      <BotCardStrip bots={bots} selectedBotId={activeBotId} onSelect={actions.handleBotSelect} />
-      <Group gap="xs">
-        <StatusBadge
-          running={state.botRunning}
-          pid={state.botPid ?? undefined}
-          data-testid="bot-status"
-        />
-        <Button
-          size="xs"
-          variant="subtle"
-          leftSection={<IconRefresh size={14} />}
-          onClick={actions.handleRefresh}
-          data-testid="refresh-btn"
-        >
-          Refresh
-        </Button>
-        {state.botRunning ? (
-          <Button
-            size="xs"
-            variant="subtle"
-            color="red"
-            leftSection={<IconPlayerStop size={14} />}
-            onClick={actions.handleToggleBot}
-            data-testid="stop-bot-btn"
-          >
-            Stop {botName}
-          </Button>
-        ) : (
-          <Tooltip
-            label="Market closed — cannot start bot"
-            disabled={!marketClosed}
-          >
-            <span>
-              <Button
-                size="xs"
-                variant="subtle"
-                color="blue"
-                leftSection={<IconPlayerPlay size={14} />}
-                onClick={actions.handleToggleBot}
-                disabled={marketClosed}
-                data-testid="start-bot-btn"
-              >
-                Start {botName}
-              </Button>
-            </span>
-          </Tooltip>
-        )}
-      </Group>
-    </Flex>
+    <BotSelector
+      bots={bots}
+      selectedBotId={activeBotId}
+      onSelectBot={actions.handleBotSelect}
+      onToggleBot={actions.handleToggleBot}
+      onRefresh={actions.handleRefresh}
+    />
   );
 }
 
