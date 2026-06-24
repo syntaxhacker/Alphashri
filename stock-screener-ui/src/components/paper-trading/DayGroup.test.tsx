@@ -20,6 +20,11 @@ vi.mock("../../api/paperTrading", () => ({
 }));
 vi.mock("../../utils/ui-helpers", () => ({
   formatNumber: (n: number) => `${n}`,
+  formatSignedPnl: (n: number) => {
+    const sign = n >= 0 ? "+" : "";
+    const abs = typeof n === "number" ? Math.abs(n) : 0;
+    return `${sign}₹${abs}`;
+  },
   formatTimeOnly: (_t: string) => "09:30",
   formatDateHeader: (_d: string) => "Apr 24, 2026",
   formatDuration: (m: number) => `${m}m`,

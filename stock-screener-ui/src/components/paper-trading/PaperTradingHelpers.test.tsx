@@ -88,6 +88,15 @@ vi.mock("../../state/paperTrading", () => ({
   setSelectedSymbol: vi.fn(),
   setFilterBot: vi.fn(),
   setFilterStrategy: vi.fn(),
+  setChartData: vi.fn(),
+  setChartTimeframe: vi.fn(),
+  setChartFromDate: vi.fn(),
+  setChartDataLive: vi.fn(),
+  setChartTimeframeLive: vi.fn(),
+  setChartFromDateLive: vi.fn(),
+  setChartDataHistory: vi.fn(),
+  setChartTimeframeHistory: vi.fn(),
+  setChartFromDateHistory: vi.fn(),
 }));
 
 vi.mock("../../state/holidays", () => ({
@@ -115,16 +124,39 @@ vi.mock("../../api/botControlApi", () => ({
 // ============================================================
 // Mock child components to simplify component tests
 // ============================================================
-vi.mock("../../components/paper-trading/BotCardStrip", () => ({
-  BotCardStrip: ({ bots }: any) => (
-    <div data-testid="bot-card-strip">
-      {bots.map((b: any) => (
-        <div key={b.id} data-testid={`bot-card-${b.id}`}>
-          {b.name}
+vi.mock("./BotSelector", () => ({
+  BotSelector: ({ bots, selectedBotId, onRefresh, onToggleBot }: any) => {
+    if (bots.length === 0) return null;
+    const selectedBot = bots.find((b: any) => b.id === selectedBotId);
+    const running = selectedBot?.running ?? false;
+    const name = selectedBot?.name || "Bot";
+    return (
+      <div>
+        <div data-testid="bot-card-strip">
+          {bots.map((b: any) => (
+            <div key={b.id} data-testid={`bot-card-${b.id}`}>
+              {b.name}
+            </div>
+          ))}
         </div>
-      ))}
-    </div>
-  ),
+        <div data-testid="bot-status">
+          {running ? `Running (PID ${selectedBot?.pid || "N/A"})` : "Stopped"}
+        </div>
+        <button data-testid="refresh-btn" onClick={onRefresh}>
+          Refresh
+        </button>
+        {running ? (
+          <button data-testid="stop-bot-btn" onClick={onToggleBot}>
+            Stop {name}
+          </button>
+        ) : (
+          <button data-testid="start-bot-btn" onClick={onToggleBot}>
+            Start {name}
+          </button>
+        )}
+      </div>
+    );
+  },
 }));
 
 vi.mock("../common/BadgeComponents", () => ({
@@ -520,13 +552,10 @@ describe("LiveFilters", () => {
   });
 
   it("renders StatusBadge with running state and pid", () => {
-    mockStateStore.botRunning = true;
-    mockStateStore.botPid = 12345;
-
     r(
       <LiveFilters
         activeBotId="bot-1"
-        bots={[mockBot()]}
+        bots={[mockBot({ running: true, pid: 12345 })]}
         state={mockStateStore}
         actions={mockActions}
       />,
@@ -591,12 +620,10 @@ describe("LiveFilters", () => {
   });
 
   it("renders Stop button when bot is running", () => {
-    mockStateStore.botRunning = true;
-
     r(
       <LiveFilters
         activeBotId="bot-1"
-        bots={[mockBot({ name: "My Bot" })]}
+        bots={[mockBot({ running: true, name: "My Bot" })]}
         state={mockStateStore}
         actions={mockActions}
       />,
@@ -626,12 +653,11 @@ describe("LiveFilters", () => {
 
   it("Stop button calls handleToggleBot when clicked", async () => {
     const user = userEvent.setup();
-    mockStateStore.botRunning = true;
 
     r(
       <LiveFilters
         activeBotId="bot-1"
-        bots={[mockBot()]}
+        bots={[mockBot({ running: true })]}
         state={mockStateStore}
         actions={mockActions}
       />,
@@ -656,12 +682,12 @@ describe("LiveFilters", () => {
     expect(screen.getByTestId("start-bot-btn")).toHaveTextContent("Start Bot");
   });
 
-  it("renders empty BotCardStrip when bots array is empty", () => {
+  it("renders nothing when bots array is empty", () => {
     const { container } = r(
       <LiveFilters activeBotId={null} bots={[]} state={mockStateStore} actions={mockActions} />,
     );
 
-    expect(container.querySelector('[data-testid="bot-status"]')).toBeTruthy();
+    expect(container.querySelector('[data-testid="bot-status"]')).toBeNull();
   });
 });
 
@@ -781,7 +807,7 @@ describe("FiltersBar", () => {
     r(
       <FiltersBar
         activeBotId={null}
-        bots={[]}
+        bots={[mockBot()]}
         state={mockStateStore}
         actions={mockActions}
         filters={mockFilters}
@@ -946,10 +972,11 @@ describe("PaperTradingHelpers integration", () => {
   });
 
   it("FiltersBar correctly renders LiveFilters with all subcomponents", () => {
-    const bots = [mockBot({ id: "bot-1", name: "Bot 1" }), mockBot({ id: "bot-2", name: "Bot 2" })];
+    const bots = [
+      mockBot({ id: "bot-1", name: "Bot 1", running: true, pid: 1234 }),
+      mockBot({ id: "bot-2", name: "Bot 2" }),
+    ];
     mockStateStore.currentView = "live";
-    mockStateStore.botRunning = true;
-    mockStateStore.botPid = 1234;
 
     r(
       <FiltersBar
@@ -1024,14 +1051,12 @@ describe("Edge cases", () => {
   });
 
   describe("bots array empty vs single vs multiple", () => {
-    it("LiveFilters renders bot-status when bots empty", () => {
-      mockStateStore.botRunning = false;
-
+    it("LiveFilters renders nothing when bots empty", () => {
       const { container } = r(
         <LiveFilters activeBotId={null} bots={[]} state={mockStateStore} actions={mockActions} />,
       );
 
-      expect(container.querySelector('[data-testid="bot-status"]')).toBeTruthy();
+      expect(container.querySelector('[data-testid="bot-status"]')).toBeNull();
     });
 
     it("LiveFilters handles single bot correctly", () => {

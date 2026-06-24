@@ -64,7 +64,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - Barrel files (`mantine.ts`) point to current components — edit `*2.tsx` files, update barrel, never edit old files
 - Page-level routing components in `src/pages/<feature>/` (e.g., `pages/chart/ChartView.tsx`, `pages/sector/SectorPage.tsx`)
 - Shared components: `SortableHeader`, `BadgeComponents`, `PnlText`, `DataTable`, `compact.tsx`, `states.tsx` in `src/components/common/`
-- Shared utilities: `formatCurrencyIN`, `formatNumber`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
+- Shared utilities: `formatNumber`, `formatSignedPnl`, `formatPercentage`, `formatCurrencyCompact`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
 - **React keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
@@ -117,11 +117,41 @@ src/
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
 
+## Signal Generator Architecture
+
+```
+BaseSignalGenerator (base_signals.py)
+  ├── SRBreakoutSignalGenerator (sr_breakout_signals.py)
+  ├── EMACrossSignalGenerator (ema_cross_signals.py)
+  └── Base52WSignalGenerator (week52_utils.py)  ← swing base, is_eod_exit_time() → False
+        ├── Week52ChaserSignalGenerator (week52_chaser_signals.py)
+        ├── Week52TargetSignalGenerator (week52_target_signals.py)
+        └── Blind52WSignalGenerator (blind_52w_signals.py)
+
+ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer standalone)
+```
+
+### Shared helpers on BaseSignalGenerator
+- `_calc_sl_tp(side, entry_price, sl_pct=None, tp_pct=None)` → `(sl, tp)` tuple — handles LONG/SHORT formulae
+- `_safe_float(market_data, key, default=0.0)` — safely extracts float from dict (handles None)
+- `_format_exit_note(reason, pnl_pct)` → `"reason (PnL: +x.xx%)"` — standardizes exit note formatting
+- `_calc_pnl_pct(side, entry, current)` — handles LONG/SHORT sign, div-by-zero guard
+
+### 52W swing strategies (Base52WSignalGenerator)
+- `is_eod_exit_time()` always returns `False` (swing = multi-day holds, no EOD exit)
+- `_extract_exit_kwargs(kwargs, current_price)` — extracts `days_in_position`, `max_holding_days`, `highest_price_since_entry`, `entry_52w_high`, `trailing_stop_pct` with instance-aware defaults
+
+### DRY rules for signal generators
+- Always use `_calc_sl_tp()` for SL/TP arithmetic, never inline
+- Always use `_safe_float()` for market_data extraction, never `get(..., 0) or 0`
+- Always use `_format_exit_note()` for exit signal notes
+- Always use `_calc_pnl_pct()` for PnL calculations, never inline formula
+
 ## Strategy Config Pipeline
 - **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
 - All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
-- `base_signals.py` is the abstract base for most signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`. Each subclass overrides before `super().__init__()`.
-- **ORB** is standalone (does not extend BaseSignalGenerator). SL/TP passed as constructor args from `StrategyRunner`.
+- `base_signals.py` is the abstract base for ALL signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, `is_eod_exit_time()`, `_calc_sl_tp()`, `_safe_float()`, `_format_exit_note()`, and `_calc_pnl_pct()`. Each subclass overrides before `super().__init__()`.
+- **ORB** now extends `BaseSignalGenerator`. SL/TP passed as constructor args from `StrategyRunner`.
 - Each strategy has its own per-generator SL/TP defaults. Config comes from DB (seed_qa_data.py), not hardcoded here.
 - **StrategyRunner.ORB** passes individual params (not config dict): `self.config['sl_pct']`. All other strategies pass the full dict.
 - **DB model defaults** (`sl_pct=1.0, tp_pct=1.5`) apply when creating a new StrategyConfig row via API without explicit values.

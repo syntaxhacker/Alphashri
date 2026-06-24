@@ -19,7 +19,8 @@ import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTradin
 import { fetchPaperChart } from "../../api/paperTrading";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import { nearBreakoutPct, tableStyles as TABLE_STYLES } from "./PositionsHelpers";
+import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
+import { nearBreakoutPct } from "./PositionsHelpers";
 
 interface WatchlistScan2Props {
   snapshot: PaperBotSnapshot | null;

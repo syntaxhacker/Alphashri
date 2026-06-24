@@ -96,6 +96,9 @@ def _build_mixin(portfolio, strategies, ist_now=None):
     mixin._persist_trade_to_db = Mock()
     mixin._ist_now = Mock(return_value=ist_now or datetime(2026, 4, 15, 14, 50, tzinfo=IST))
     mixin.bot_config = Mock(id=1, name="Test Bot")
+    mixin._get_order_manager = Mock(return_value=Mock(
+        place_exit_order=Mock(return_value={"filled_price": 100, "order_id": "ord123"})
+    ))
     return mixin
 
 

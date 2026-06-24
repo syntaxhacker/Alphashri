@@ -16,6 +16,7 @@ import {
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
+  formatSignedPnl,
   formatTimeOnly,
   formatDateHeader,
   formatDuration,
@@ -63,7 +64,6 @@ function DaySummary({
   const wins = trades.filter((t) => t.net_pnl > 0).length;
   const losses = trades.filter((t) => t.net_pnl < 0).length;
   const pnlColor = getPnLTextColor(dayPnl);
-  const pnlSign = dayPnl >= 0 ? "+" : "";
 
   return (
     <Group
@@ -81,7 +81,7 @@ function DaySummary({
       </Group>
       <Group gap="xs">
         <Text size="xs" c={pnlColor} fw={600}>
-          {pnlSign}₹{formatNumber(Math.abs(dayPnl))}
+          {formatSignedPnl(dayPnl)}
         </Text>
         <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
           ▲{wins}
@@ -97,10 +97,8 @@ function DaySummary({
 function TradeStats({ trade }: { trade: PaperTrade }) {
   const grossPnl = trade.pnl;
   const grossColor = getPnLTextColor(grossPnl);
-  const grossSign = grossPnl >= 0 ? "+" : "";
   const netPnl = trade.net_pnl;
   const netColor = getPnLTextColor(netPnl);
-  const netSign = netPnl >= 0 ? "+" : "";
 
   const entryContext = [
     { label: "Trade ID", value: `#${trade.trade_id}` },
@@ -114,8 +112,8 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
     { label: "Exit Time", value: formatTimeOnly(trade.exit_time) },
     { label: "Exit Price", value: trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-" },
     { label: "Costs", value: `₹${formatNumber(trade.costs)}` },
-    { label: "Gross P&L", value: `${grossSign}₹${formatNumber(Math.abs(grossPnl))}`, color: grossColor },
-    { label: "Net P&L", value: `${netSign}₹${formatNumber(Math.abs(netPnl))}`, color: netColor },
+    { label: "Gross P&L", value: formatSignedPnl(grossPnl), color: grossColor },
+    { label: "Net P&L", value: formatSignedPnl(netPnl), color: netColor },
   ];
 
   return (

@@ -11,11 +11,10 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
-from trading.base_signals import BaseSignalGenerator
-from trading.week52_utils import calculate_52w_high
+from trading.week52_utils import Base52WSignalGenerator, calculate_52w_high
 
 
-class Week52ChaserSignalGenerator(BaseSignalGenerator):
+class Week52ChaserSignalGenerator(Base52WSignalGenerator):
 
     strategy_type = "52W_CHASER"
 
@@ -45,7 +44,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         if current_price is None or high_52w is None or current_price <= 0 or high_52w <= 0:
             return None
 
-        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
+        if self._safe_float(market_data, "avg_volume_20d") < self.min_avg_volume:
             return None
 
         # Skip if 52W high was touched too recently (stale breakout)
@@ -63,15 +62,15 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             return None
 
         sl = high_52w  # SL at 52W high — breakout failed if price pulls back below
-        tp = current_price * (1 + self.tp_pct / 100)
+        _, tp = self._calc_sl_tp("BUY", current_price)
 
-        vol = market_data.get("volume", 0) or 0
-        avg_vol = market_data.get("avg_volume_20d", 0) or 0
+        vol = self._safe_float(market_data, "volume")
+        avg_vol = self._safe_float(market_data, "avg_volume_20d")
         vol_ratio = round(vol / avg_vol, 2) if avg_vol > 0 else 0
-        ma50 = market_data.get("ma50", 0) or 0
-        ma200 = market_data.get("ma200", 0) or 0
-        adx = float(market_data.get("adx", 0.0) or 0.0)
-        rsi = float(market_data.get("rsi", 0.0) or 0.0)
+        ma50 = self._safe_float(market_data, "ma50")
+        ma200 = self._safe_float(market_data, "ma200")
+        adx = self._safe_float(market_data, "adx")
+        rsi = self._safe_float(market_data, "rsi")
 
         return self.create_signal(
             symbol=symbol,
@@ -101,15 +100,16 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
         if position_side != "BUY" or entry_price <= 0 or current_price <= 0:
             return None
 
-        pnl_pct = ((current_price - entry_price) / entry_price) * 100
-        highest_price = kwargs.get("highest_price_since_entry", current_price)
+        pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
+        ek = self._extract_exit_kwargs(kwargs, current_price)
+        days_in_position = ek["days_in_position"]
+        max_holding_days = ek["max_holding_days"]
+        highest_price = ek["highest_price_since_entry"]
+        entry_52w_high = ek["entry_52w_high"]
+        trailing_stop_pct = ek["trailing_stop_pct"]
         trailing_active = kwargs.get("trailing_active", False)
-        entry_52w_high = kwargs.get("entry_52w_high")
         current_52w_high = kwargs.get("current_52w_high")
-        days_in_position = kwargs.get("days_in_position", 0)
-        max_holding_days = kwargs.get("max_holding_days", self.max_holding_days)
         enable_trailing_stop = kwargs.get("enable_trailing_stop", self.enable_trailing_stop)
-        trailing_stop_pct = kwargs.get("trailing_stop_pct", self.trailing_stop_pct)
         exit_reason = None
 
         if enable_trailing_stop and not trailing_active and entry_52w_high is not None:
@@ -139,7 +139,7 @@ class Week52ChaserSignalGenerator(BaseSignalGenerator):
             price=current_price,
             stop_loss=stop_loss,
             take_profit=take_profit,
-            notes=f"Exit: {exit_reason} (PnL: {pnl_pct:+.2f}%)",
+            notes=self._format_exit_note(f"Exit: {exit_reason}", pnl_pct),
         )
 
     def _check_filters(self, market_data: dict, current_price: float) -> bool:

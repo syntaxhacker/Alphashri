@@ -56,29 +56,27 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         bearish_cross = ema_fast_prev >= ema_slow_prev and ema_fast_current < ema_slow_current
 
         if bullish_cross:
-            sl = current_price * (1 - self.sl_pct / 100)
-            tp = current_price * (1 + self.tp_pct / 100)
+            sl, tp = self._calc_sl_tp("BUY", current_price)
             gap = ema_fast_current - ema_slow_current
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_ENTRY,
                 price=current_price,
-                stop_loss=round(sl, 2),
-                take_profit=round(tp, 2),
+                stop_loss=sl,
+                take_profit=tp,
                 notes=f"Bullish EMA{self.ema_fast_period}/{self.ema_slow_period} cross at ₹{current_price:.2f} | gap {gap:.2f} | SL {self.sl_pct}% TP {self.tp_pct}%",
                 score=gap,
             )
 
         if bearish_cross and self.enable_shorts:
-            sl = current_price * (1 + self.sl_pct / 100)
-            tp = current_price * (1 - self.tp_pct / 100)
+            sl, tp = self._calc_sl_tp("SELL", current_price)
             gap = ema_slow_current - ema_fast_current
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.SHORT_ENTRY,
                 price=current_price,
-                stop_loss=round(sl, 2),
-                take_profit=round(tp, 2),
+                stop_loss=sl,
+                take_profit=tp,
                 notes=f"Bearish EMA{self.ema_fast_period}/{self.ema_slow_period} cross at ₹{current_price:.2f} | gap {gap:.2f} | SL {self.sl_pct}% TP {self.tp_pct}%",
                 score=gap,
             )

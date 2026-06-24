@@ -7,7 +7,7 @@ import {
   filterByRange,
   groupTradesByDate,
   getPeriodFromDateRange,
-} from "./tradeHistoryUtils";
+} from "../../utils/tradeHistoryUtils";
 import { mockTrade } from "./testFixtures";
 
 describe("formatTimeOnly", () => {

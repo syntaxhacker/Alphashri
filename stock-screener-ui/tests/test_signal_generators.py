@@ -189,7 +189,7 @@ class TestWeek52ChaserSignalGenerator:
 
     def test_check_entry_breakout_above_52w_high(self):
         price = 510.0
-        signal = self.gen.check_entry("TEST", {"current_price": price, "high_52w": 500.0})
+        signal = self.gen.check_entry("TEST", {"current_price": price, "high_52w": 500.0, "avg_volume_20d": 100000})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
         assert signal.price == price
@@ -262,7 +262,7 @@ class TestWeek52ChaserSignalGenerator:
     def test_check_entry_filters_disabled_by_default(self):
         signal = self.gen.check_entry("TEST", {
             "current_price": 510.0, "high_52w": 500.0,
-            "adx": 10.0, "rsi": 30.0, "volume": 10, "avg_volume_20d": 10000,
+            "adx": 10.0, "rsi": 30.0, "volume": 10, "avg_volume_20d": 100000,
         })
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
@@ -384,7 +384,7 @@ class TestWeek52TargetSignalGenerator:
         self.gen = Week52TargetSignalGenerator(config={})
 
     def test_check_entry_within_threshold(self):
-        signal = self.gen.check_entry("TEST", {"current_price": 495.0, "high_52w": 500.0, "days_since_52w_high": 99})
+        signal = self.gen.check_entry("TEST", {"current_price": 495.0, "high_52w": 500.0, "days_since_52w_high": 99, "avg_volume_20d": 100000})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
         assert signal.price == 495.0
@@ -396,7 +396,7 @@ class TestWeek52TargetSignalGenerator:
     def test_check_entry_fallback_to_daily_highs(self):
         daily_highs = [400.0] * 200 + [500.0]
         signal = self.gen.check_entry("TEST", {
-            "current_price": 495.0, "daily_highs": daily_highs, "days_since_52w_high": 99,
+            "current_price": 495.0, "daily_highs": daily_highs, "days_since_52w_high": 99, "avg_volume_20d": 100000,
         })
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
@@ -429,7 +429,7 @@ class TestWeek52TargetSignalGenerator:
 
     def test_check_entry_no_tp(self):
         """52W Target has no take profit — trailing stop manages exits."""
-        signal = self.gen.check_entry("TEST", {"current_price": 495.0, "high_52w": 500.0, "days_since_52w_high": 99})
+        signal = self.gen.check_entry("TEST", {"current_price": 495.0, "high_52w": 500.0, "days_since_52w_high": 99, "avg_volume_20d": 100000})
         assert signal is not None
         assert signal.take_profit == 0.0
 
