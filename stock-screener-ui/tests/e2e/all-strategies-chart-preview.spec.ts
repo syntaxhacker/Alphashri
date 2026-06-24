@@ -110,7 +110,6 @@ test.describe("Chart Preview - ORB Strategy Levels", () => {
     expect(orbHigh).toBeTruthy();
     expect(orbLow).toBeTruthy();
   });
-  });
 });
 
 test.describe("Chart Preview - Pivot Levels", () => {
