@@ -259,6 +259,7 @@ See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI
 - Backend: pytest, files in `stock-screener-ui/tests/`
 - Run both before committing
 - **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
+- **E2E tests**: Never run the full E2E suite (`npx playwright test` without file filter) — it takes >10min. Only run spec files that failed in CI. Use `--workers=6` for speed. Verify locally before pushing.
 
 ### Running Targeted Tests (Fast)
 Use glob patterns to run only the changed feature's tests during development:

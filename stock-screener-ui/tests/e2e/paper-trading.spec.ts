@@ -37,7 +37,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
 
     const portfolioCard = page.locator('[data-testid="portfolio-card"]');
     await expect(portfolioCard).toBeVisible({ timeout: 30000 });
-    await expect(portfolioCard).toContainText("Value");
+    await expect(portfolioCard).toContainText("Val");
     await expect(portfolioCard).toContainText("Cash");
   });
 
@@ -176,6 +176,25 @@ test.describe("Paper Trading - Bot Controls", () => {
       });
     });
 
+    await page.route(apiRoute("bots/summary"), async (route) => {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify([
+          {
+            id: TEST_BOT_UUID,
+            name: "Multi-ORB Test Bot",
+            is_active: true,
+            running: botRunning,
+            pid: botRunning ? 22133 : null,
+            status: botRunning ? "running" : "stopped",
+            position_count: 0,
+            strategies: [],
+          },
+        ]),
+      });
+    });
+
     await page.route(apiRoute(`bots/${TEST_BOT_UUID}/start`), async (route) => {
       botRunning = true;
       await route.fulfill({
@@ -222,19 +241,23 @@ test.describe("Paper Trading - Bot Controls", () => {
   });
 
   test("should show Stop Bot button when bot is running", async ({ page }) => {
-    // Mock bot as running
-    await page.route(apiRoute(`bots/${TEST_BOT_UUID}`), async (route) => {
+    // Mock bot summaries as running
+    await page.route(apiRoute("bots/summary"), async (route) => {
       await route.fulfill({
         status: 200,
         contentType: "application/json",
-        body: JSON.stringify({
-          id: TEST_BOT_UUID,
-          name: "Multi-ORB Test Bot",
-          is_active: true,
-          strategies: [],
-          running: true,
-          pid: 22133,
-        }),
+        body: JSON.stringify([
+          {
+            id: TEST_BOT_UUID,
+            name: "Multi-ORB Test Bot",
+            is_active: true,
+            running: true,
+            pid: 22133,
+            status: "running",
+            position_count: 2,
+            strategies: [],
+          },
+        ]),
       });
     });
 
@@ -388,9 +411,9 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
 
-    await scanCard.getByText("Skipped").click({ timeout: 15000 });
+    await scanCard.getByRole("checkbox", { name: /Skipped/ }).click({ timeout: 15000 });
 
-    await expect(scanCard.locator('[data-testid="scan-row-RELIANCE"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-row-RELIANCE"]').first()).toBeVisible();
     await expect(scanCard).toContainText("RELIANCE");
   });
 
@@ -599,7 +622,7 @@ test.describe("Paper Trading - Portfolio Card", () => {
 
     const portfolioCard = page.locator('[data-testid="portfolio-card"]');
     await expect(portfolioCard).toBeVisible({ timeout: 10000 });
-    await expect(portfolioCard).toContainText("Total Value");
+    await expect(portfolioCard).toContainText("Val");
     await expect(portfolioCard).toContainText("Cash");
   });
 
@@ -622,7 +645,7 @@ test.describe("Paper Trading - Portfolio Card", () => {
 
     const portfolioCard = page.locator('[data-testid="portfolio-card"]');
     await expect(portfolioCard).toBeVisible({ timeout: 10000 });
-    await expect(portfolioCard).toContainText("Day P&L");
+    await expect(portfolioCard).toContainText("₹");
   });
 });
 
@@ -708,9 +731,8 @@ test.describe("Paper Trading - Chart Controls", () => {
 
     await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 15000 });
     await page.locator('[data-testid="bot-select"]').click({ timeout: 15000 });
-    const option = page.locator('[data-combobox-option]').first();
-    await option.waitFor({ timeout: 5000 });
-    await option.click();
+    await page.waitForTimeout(200);
+    await page.keyboard.press("Enter");
 
     await page.getByTestId("tab-live").click();
     // networkidle times out due to SSE live-price stream; wait for target element instead

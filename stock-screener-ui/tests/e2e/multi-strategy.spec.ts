@@ -30,7 +30,7 @@ test.describe("Multi-Strategy System - Signal Generators", () => {
     test.slow();
     await navigateToBot(page, botId);
 
-    await page.waitForSelector("[data-testid='positions-panel']", { timeout: 30000 });
+    await page.waitForSelector("[data-testid='positions-table-container'], [data-testid='positions-empty']", { timeout: 30000 });
 
     const positionsContainer = page.getByTestId("positions-table-container");
     const emptyState = page.getByTestId("positions-empty");
@@ -274,6 +274,6 @@ test.describe("Multi-Strategy System - Chart 52W Levels", () => {
     page,
   }) => {
     await navigateToBot(page, botId);
-    await expect(page.getByTestId("positions-panel")).toBeVisible();
+    await expect(page.getByTestId("positions-table-container").or(page.getByTestId("positions-empty")).first()).toBeVisible();
   });
 });

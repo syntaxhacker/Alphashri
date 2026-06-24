@@ -310,17 +310,17 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             <Text size="xs" fw={500} c="dimmed">Overlays</Text>
             <Group gap={4}>
               {OVERLAY_ITEMS.map(({ label, key, setter }) => (
-                <Chip
-                  key={key}
-                  size="xs"
-                  variant="light"
-                  radius="sm"
-                  checked={state[key]}
-                  onChange={(checked) => setter(checked)}
-                  data-testid={`overlay-${label.toLowerCase()}`}
-                >
-                  {label}
-                </Chip>
+                <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
+                  <Chip
+                    size="xs"
+                    variant="light"
+                    radius="sm"
+                    checked={state[key]}
+                    onChange={(checked) => setter(checked)}
+                  >
+                    {label}
+                  </Chip>
+                </Box>
               ))}
             </Group>
           </Stack>

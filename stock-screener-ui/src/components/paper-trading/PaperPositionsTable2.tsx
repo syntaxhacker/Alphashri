@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Badge, Text, Group, Flex, Tooltip, Button } from "@mantine/core";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
@@ -115,6 +115,13 @@ export function PaperPositionsTable() {
 
   const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set(strategyGroups.keys()));
   const [allExpanded, setAllExpanded] = useState(true);
+
+  useEffect(() => {
+    if (strategyGroups.size > 0 && expandedCards.size === 0) {
+      setExpandedCards(new Set(strategyGroups.keys()));
+      setAllExpanded(true);
+    }
+  }, [strategyGroups]);
 
   const toggleCard = (id: number) => {
     setExpandedCards((prev) => {
