@@ -74,6 +74,9 @@ export function BotSelector({
           }}
         />
       </Tooltip>
+      <Text size="xs" c="dimmed" data-testid="bot-status">
+        {running ? `Running (PID ${selectedBot?.pid ?? '?'})` : "Stopped"}
+      </Text>
       <Tooltip label="Refresh">
         <Button
           size="compact-xs"

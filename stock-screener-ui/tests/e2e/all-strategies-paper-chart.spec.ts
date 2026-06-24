@@ -141,7 +141,8 @@ test.describe("Paper Chart - ORB Strategy", () => {
       livePosition: createLivePosition(),
     });
     await navigateAndClickPosition(page, "TCS");
-    await expect(page.locator('[data-testid="show-orb-lines"]')).toBeVisible({ timeout: 10000 });
+    await page.locator('[data-testid="chart-more-button"]').click();
+    await expect(page.locator('[data-testid="overlay-orb"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should show chart with SL/TP data for live position", async ({ page }) => {
@@ -202,7 +203,8 @@ test.describe("Paper Chart - SR Breakout Strategy", () => {
       }),
     });
     await navigateAndClickPosition(page, "RELIANCE");
-    await expect(page.locator('[data-testid="show-pivot-lines"]')).toBeVisible({ timeout: 10000 });
+    await page.locator('[data-testid="chart-more-button"]').click();
+    await expect(page.locator('[data-testid="overlay-pivot"]')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -242,7 +244,8 @@ test.describe("Paper Chart - 52W Chaser Strategy", () => {
       }),
     });
     await navigateAndClickPosition(page, "TCS");
-    await expect(page.locator('[data-testid="show-52w-lines"]')).toBeVisible({ timeout: 10000 });
+    await page.locator('[data-testid="chart-more-button"]').click();
+    await expect(page.locator('[data-testid="overlay-52w"]')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -289,10 +292,13 @@ test.describe("Paper Chart - EMA Cross Strategy", () => {
         pnl: 200,
         pnl_pct: 0.67,
         quantity: 30,
+        stop_loss: 1470,
+        take_profit: 1550,
       }),
     });
     await navigateAndClickPosition(page, "INFY");
-    await expect(page.locator('[data-testid="show-ema-lines"]')).toBeVisible({ timeout: 10000 });
+    await page.locator('[data-testid="chart-more-button"]').click();
+    await expect(page.locator('[data-testid="overlay-ema"]')).toBeVisible({ timeout: 10000 });
   });
 });
 
@@ -312,7 +318,8 @@ test.describe("Paper Chart - Timeframe Switching", () => {
       livePosition: createLivePosition(),
     });
     await navigateAndClickPosition(page, "TCS");
-    await expect(page.locator('[data-testid="show-all-trades-checkbox"]')).toBeVisible({
+    await page.locator('[data-testid="chart-more-button"]').click();
+    await expect(page.locator('[data-testid="overlay-all"]')).toBeVisible({
       timeout: 10000,
     });
   });

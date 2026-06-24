@@ -27,7 +27,6 @@ export async function navigateToTradeHistoryTab(page: Page): Promise<void> {
 }
 
 export async function navigateToTradeHistory(page: Page): Promise<void> {
-  await page.goto("/");
   await navigateToPaperTrading(page);
   await navigateToTradeHistoryTab(page);
 }
@@ -39,23 +38,19 @@ export async function navigateToLiveTab(page: Page): Promise<void> {
 }
 
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  const livePanel = page.locator('[data-testid="paper-left-panel"]');
-  const isLiveView = await livePanel.isVisible().catch(() => false);
+  // BotSelector uses a Mantine Select – wait for it to be visible
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
 
-  if (!isLiveView) {
-    await navigateToLiveTab(page);
-  }
+  // Click to open the dropdown portal
+  await botSelect.click();
 
-  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
-  const isCardVisible = await botCard.isVisible().catch(() => false);
-
-  if (isCardVisible) {
-    await botCard.click();
-  } else {
-    // Fallback: click first available bot card
-    const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
-    await firstBotCard.click();
-  }
+  // Click the matching option. Mantine renders each option as a <button>/<div>
+  // with data-combobox-option attribute, role="option", and the value prop
+  // serialized as text content or a data-* attribute.
+  const option = page.locator('[data-combobox-option]').first();
+  await option.waitFor({ timeout: 5000 });
+  await option.click();
   await page.waitForTimeout(500);
 }
 

@@ -128,7 +128,7 @@ test.describe("Multi-Strategy System - Positions Attribution", () => {
 
     await expect(page.getByTestId("positions-table-container")).toBeVisible();
     // Strategy attribution shown via strategy panel headings
-    await expect(page.locator('[data-testid*="strategy-panel-"]').first()).toBeVisible();
+    await expect(page.locator('[data-testid*="strategy-card-"]').first()).toBeVisible();
   });
 });
 
