@@ -75,7 +75,7 @@ test.describe("Multi-Strategy - Strategy Panels", () => {
     await navigateToBot(page);
 
     for (const s of ALL_STRATEGY_TYPES) {
-      const panel = page.locator(`[data-testid="strategy-panel-${s.id}"]`);
+      const panel = page.locator(`[data-testid="strategy-card-${s.name}"]`);
       await expect(panel).toBeVisible({ timeout: 10000 });
       await expect(panel).toContainText(s.name);
     }
@@ -111,7 +111,7 @@ test.describe("Multi-Strategy - Strategy Panels", () => {
     await expectPositionsVisible(page);
 
     for (const s of ALL_STRATEGY_TYPES) {
-      const panel = page.locator(`[data-testid="strategy-panel-${s.id}"]`);
+      const panel = page.locator(`[data-testid="strategy-card-${s.name}"]`);
       await expect(panel).toBeVisible({ timeout: 5000 });
     }
   });

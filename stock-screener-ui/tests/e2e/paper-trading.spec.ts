@@ -59,7 +59,7 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     const positionsTable = page.locator('[data-testid="positions-table-container"]');
     await expect(positionsTable).toBeVisible();
 
-    await expect(page.locator('[data-testid*="strategy-panel-"]').first()).toBeVisible({
+    await expect(page.locator('[data-testid*="strategy-card-"]').first()).toBeVisible({
       timeout: 15000,
     });
   });
@@ -320,7 +320,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     });
   });
 
-  test("should display Watchlist Scan card with accordion sections", async ({ page }) => {
+  test("should display Watchlist Scan card with segments and table", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
@@ -328,36 +328,36 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     await expect(scanCard).toContainText("Watchlist Scan");
   });
 
-  test("should use accordion component (not flat table)", async ({ page }) => {
+  test("should use flat table component (not accordion)", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard.locator('[data-testid="watchlist-scan-accordion"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="watchlist-scan-table"]')).toBeVisible();
   });
 
-  test("should have Signals accordion item", async ({ page }) => {
+  test("should have Signals segmented control", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard.locator('[data-testid="watchlist-scan-signals"]')).toBeVisible();
+    await expect(scanCard).toContainText("Signals");
   });
 
-  test("should have Watching accordion item", async ({ page }) => {
+  test("should have Watching segmented control", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard.locator('[data-testid="watchlist-scan-watching"]')).toBeVisible();
+    await expect(scanCard).toContainText("Watching");
   });
 
-  test("should have Skipped accordion item", async ({ page }) => {
+  test("should have Skipped checkbox", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard.locator('[data-testid="watchlist-scan-skipped"]')).toBeVisible();
+    await expect(scanCard).toContainText("Skipped");
   });
 
   test("should display Signals section with signal items", async ({ page }) => {
@@ -367,10 +367,10 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     await expect(scanCard).toBeVisible({ timeout: 10000 });
 
     await expect(scanCard).toContainText("Signals");
-    await expect(scanCard.locator('[data-testid="scan-signal-TCS"]')).toBeVisible();
-    await expect(scanCard.locator('[data-testid="scan-signal-SBIN"]')).toBeVisible();
-    await expect(scanCard.locator('[data-testid="scan-signal-TCS"]')).toContainText("LONG");
-    await expect(scanCard.locator('[data-testid="scan-signal-SBIN"]')).toContainText("SHORT");
+    await expect(scanCard.locator('[data-testid="scan-row-TCS"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-row-SBIN"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-row-TCS"]')).toContainText("LONG");
+    await expect(scanCard.locator('[data-testid="scan-row-SBIN"]')).toContainText("SHORT");
   });
 
   test("should display watching items", async ({ page }) => {
@@ -379,7 +379,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
 
-    await expect(scanCard.locator('[data-testid="scan-watching-HDFCBANK"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-row-HDFCBANK"]')).toBeVisible();
   });
 
   test("should display skipped items in table", async ({ page }) => {
@@ -390,7 +390,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
 
     await scanCard.getByText("Skipped").click({ timeout: 15000 });
 
-    await expect(scanCard.locator('[data-testid="scan-skipped-RELIANCE"]')).toBeVisible();
+    await expect(scanCard.locator('[data-testid="scan-row-RELIANCE"]')).toBeVisible();
     await expect(scanCard).toContainText("RELIANCE");
   });
 
@@ -725,17 +725,19 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should render all chart control switches", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    await expect(page.getByTestId("show-all-trades-checkbox")).toBeVisible();
-    await expect(page.getByTestId("show-orb-lines")).toBeVisible();
-    await expect(page.getByTestId("show-pivot-lines")).toBeVisible();
-    await expect(page.getByTestId("show-52w-lines")).toBeVisible();
-    await expect(page.getByTestId("show-ema-lines")).toBeVisible();
+    await page.getByTestId("chart-more-button").click();
+    await expect(page.getByTestId("overlay-all")).toBeVisible();
+    await expect(page.getByTestId("overlay-orb")).toBeVisible();
+    await expect(page.getByTestId("overlay-pivot")).toBeVisible();
+    await expect(page.getByTestId("overlay-52w")).toBeVisible();
+    await expect(page.getByTestId("overlay-ema")).toBeVisible();
   });
 
   test("should toggle EMA lines", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const emaSwitch = page.getByTestId("show-ema-lines");
+    await page.getByTestId("chart-more-button").click();
+    const emaSwitch = page.getByTestId("overlay-ema");
     await expect(emaSwitch).toBeVisible();
     await emaSwitch.click();
     await page.waitForTimeout(200);
@@ -746,7 +748,8 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should toggle ORB lines", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const orbSwitch = page.getByTestId("show-orb-lines");
+    await page.getByTestId("chart-more-button").click();
+    const orbSwitch = page.getByTestId("overlay-orb");
     await expect(orbSwitch).toBeVisible();
     await orbSwitch.click();
     await page.waitForTimeout(200);
@@ -757,7 +760,8 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should toggle 52W high line", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const w52Switch = page.getByTestId("show-52w-lines");
+    await page.getByTestId("chart-more-button").click();
+    const w52Switch = page.getByTestId("overlay-52w");
     await expect(w52Switch).toBeVisible();
     await w52Switch.click();
     await page.waitForTimeout(200);
@@ -768,7 +772,8 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should toggle SL/TP markers via All trades switch", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const allTradesSwitch = page.getByTestId("show-all-trades-checkbox");
+    await page.getByTestId("chart-more-button").click();
+    const allTradesSwitch = page.getByTestId("overlay-all");
     await expect(allTradesSwitch).toBeVisible();
     await allTradesSwitch.click();
     await page.waitForTimeout(200);

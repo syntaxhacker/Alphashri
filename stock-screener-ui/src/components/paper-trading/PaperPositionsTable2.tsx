@@ -182,7 +182,7 @@ export function PaperPositionsTable() {
   const isLive = state.availableBots.find(b => b.id === state.filterBot)?.live_trading ?? false;
 
   return (
-    <Flex direction="column" gap="xs" data-testid="positions-panel">
+    <Flex direction="column" gap="xs" data-testid="positions-table-container">
       <Group justify="space-between" py={2}>
         <Group gap="xs">
           <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
