@@ -120,6 +120,9 @@ test.describe("Chart Preview - Pivot Levels", () => {
     });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
+    // Toggle pivot lines on (defaults to off)
+    await page.locator('[data-testid="chart-pivots-checkbox"]').check();
+    await page.waitForTimeout(500);
     const option = await getChartOption(page);
     const series = option?.series || [];
     const pivotNames = series
