@@ -24,11 +24,11 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await expect(page.getByTestId("tab-settings")).toBeVisible();
   });
 
-  test("should display bot cards", async ({ page }) => {
+  test("should display bot selector", async ({ page }) => {
     await navigateToPaperTrading(page);
 
-    // Verify bot cards are visible
-    await expect(page.locator('[data-testid^="bot-card-"]').first()).toBeVisible();
+    // Verify bot select is visible
+    await expect(page.locator('[data-testid="bot-select"]')).toBeVisible();
   });
 
   // Note: This test uses the mock data from setupMultiStrategyBotMocks
@@ -706,8 +706,11 @@ test.describe("Paper Trading - Chart Controls", () => {
       timeout: 20000,
     });
 
-    await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 15000 });
-    await page.locator('[data-testid^="bot-card-"]').first().click({ timeout: 15000 });
+    await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 15000 });
+    await page.locator('[data-testid="bot-select"]').click({ timeout: 15000 });
+    const option = page.locator('[data-combobox-option]').first();
+    await option.waitFor({ timeout: 5000 });
+    await option.click();
 
     await page.getByTestId("tab-live").click();
     // networkidle times out due to SSE live-price stream; wait for target element instead

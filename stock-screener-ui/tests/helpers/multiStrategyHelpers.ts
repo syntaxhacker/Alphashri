@@ -28,17 +28,13 @@ export async function navigateToMultiStrategyBot(page: Page, botId: string = "2"
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  // Wait for bot cards to be visible
-  await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
-
-  // Click the requested bot card or the first available one
-  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
-  const isCardVisible = await botCard.isVisible().catch(() => false);
-  if (isCardVisible) {
-    await botCard.click();
-  } else {
-    await page.locator('[data-testid^="bot-card-"]').first().click();
-  }
+  // Select a bot via the Mantine Select dropdown
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
+  await botSelect.click();
+  const option = page.locator('[data-combobox-option]').first();
+  await option.waitFor({ timeout: 5000 });
+  await option.click();
 
   // Wait for positions to load (not just "Loading positions...")
   await page.waitForFunction(
