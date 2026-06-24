@@ -136,10 +136,10 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
               No data
             </Badge>
           </Group>
-          <Group gap="xs">
+          <Group gap={2}>
             <IconRefresh size={12} />
             <Text size="xs" c="dimmed">
-              {scanTime}
+              updated {scanTime}
             </Text>
           </Group>
         </Group>
@@ -162,10 +162,10 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
             {allItems.length}
           </Badge>
         </Group>
-        <Group gap="xs">
+        <Group gap={2}>
           <IconRefresh size={12} />
           <Text size="xs" c="dimmed">
-            {scanTime}
+            updated {scanTime}
           </Text>
         </Group>
       </Group>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Flex, Stack, Alert, ScrollArea } from "@mantine/core";
 import {
@@ -34,6 +34,8 @@ import {
   PaperTradingTabs,
 } from "./PaperTradingHelpers";
 import { LivePriceUpdater } from "./LivePriceUpdater";
+import { WatchlistScan2 } from "./WatchlistScan2";
+import { SelectedPositionBar } from "./SelectedPositionBar";
 
 function useLoadInitialData(
   setAvailableBots: (bots: BotInfo[]) => void,
@@ -104,7 +106,6 @@ function usePaperTradingViewModel() {
     };
   }, [loadInitialData]);
 
-  // Refresh bot summaries whenever bot running state changes
   useEffect(() => {
     fetchBotSummaries().then(setBotSummaries);
   }, [state.botRunning]);
@@ -128,6 +129,11 @@ interface LiveViewProps {
 }
 
 function LiveView({ state }: LiveViewProps) {
+  const selectedPosition = useMemo(() => {
+    if (!state.selectedSymbol) return null;
+    return state.positions.find((p) => p.symbol === state.selectedSymbol) || null;
+  }, [state.positions, state.selectedSymbol]);
+
   return (
     <Flex
       h="100%"
@@ -138,28 +144,28 @@ function LiveView({ state }: LiveViewProps) {
     >
       <Flex
         direction="column"
-        w={{ base: "100%", md: "50%" }}
-        style={{ minWidth: 0 }}
+        style={{ width: "35%", minWidth: 0 }}
         className="paper-left-panel"
         id="left-panel"
         data-testid="paper-left-panel"
       >
-        <PaperPortfolioCard
-          portfolio={state.portfolio as any}
-        />
+        <PaperPortfolioCard portfolio={state.portfolio as any} />
         <ScrollArea flex={1} style={{ minHeight: 0 }}>
-          <PaperPositionsTable />
+          <Flex direction="column" gap="xs">
+            <PaperPositionsTable />
+          </Flex>
         </ScrollArea>
+        <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} />
       </Flex>
       <Flex
         direction="column"
-        flex={1}
-        style={{ minWidth: 0, overflow: "hidden" }}
+        style={{ width: "65%", minWidth: 0, overflow: "hidden" }}
         className="paper-right-panel"
         id="right-panel"
         data-testid="paper-right-panel"
       >
         <PaperChart />
+        <SelectedPositionBar position={selectedPosition} />
       </Flex>
     </Flex>
   );

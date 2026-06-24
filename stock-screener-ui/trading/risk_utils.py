@@ -142,6 +142,7 @@ def position_to_dict(pos, extra_fields: dict | None = None) -> dict:
         'entry_time': pos.entry_time.isoformat(),
         'strategy_id': pos.strategy_id,
         'strategy_name': pos.strategy_name,
+        'order_id': pos.metadata.get('upstox_order_id', ''),
     }
     if extra_fields:
         d.update(extra_fields)

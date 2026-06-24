@@ -326,6 +326,8 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         peak_price: p.peak_price || 0,
         low_price: p.low_price || 0,
         notes: p.notes || "",
+        id: p.id || "",
+        order_id: p.order_id || "",
       }));
 
       setPortfolio(normalizeBotPortfolio(portfolioData.portfolio, positions, realizedToday));

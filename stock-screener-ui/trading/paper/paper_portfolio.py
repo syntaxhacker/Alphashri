@@ -239,6 +239,7 @@ class PaperTrader:
             low_price=fill_price,
             strategy_id=self.strategy_id,
             strategy_name=self.strategy_name,
+            order_id=order.order_id,
         )
 
         console.print(f"[green]\u2713 Order filled: {side.value} {fill_quantity}/{quantity} {symbol} @ \u20b9{fill_price:.2f}[/green]")
@@ -414,6 +415,7 @@ class PaperTrader:
                 'strategy_name': pos.strategy_name,
                 'strategy_type': pos.strategy_type,
                 'entry_reason': getattr(pos, 'metadata', {}).get('entry_reason', ''),
+                'order_id': pos.order_id,
             }
             for pos in self.positions.values()
         ]

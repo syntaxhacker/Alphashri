@@ -55,6 +55,12 @@ export const initialPaperTradingState: PaperTradingState = {
   chartLoading: false,
   chartTimeframe: "5min",
   chartFromDate: null,
+  chartDataLive: null,
+  chartTimeframeLive: "5min",
+  chartFromDateLive: null,
+  chartDataHistory: null,
+  chartTimeframeHistory: "1day",
+  chartFromDateHistory: null,
 
   isLoading: false,
   error: null,
@@ -112,6 +118,7 @@ export function setPaperTradingView(view: PaperTradingView) {
 
 // Positions management
 export function setPositions(positions: PaperPosition[]) {
+  console.log("[setPositions] count:", positions.length, "sample order_id:", positions[0]?.order_id, "keys:", Object.keys(positions[0] || {}));
   state = { ...state, positions };
   notify();
 }
@@ -246,6 +253,36 @@ export function setChartTimeframe(timeframe: string) {
 
 export function setChartFromDate(fromDate: string | null) {
   state = { ...state, chartFromDate: fromDate };
+  notify();
+}
+
+export function setChartDataLive(data: PaperChartData | null) {
+  state = { ...state, chartDataLive: data };
+  notify();
+}
+
+export function setChartTimeframeLive(timeframe: string) {
+  state = { ...state, chartTimeframeLive: timeframe };
+  notify();
+}
+
+export function setChartFromDateLive(fromDate: string | null) {
+  state = { ...state, chartFromDateLive: fromDate };
+  notify();
+}
+
+export function setChartDataHistory(data: PaperChartData | null) {
+  state = { ...state, chartDataHistory: data };
+  notify();
+}
+
+export function setChartTimeframeHistory(timeframe: string) {
+  state = { ...state, chartTimeframeHistory: timeframe };
+  notify();
+}
+
+export function setChartFromDateHistory(fromDate: string | null) {
+  state = { ...state, chartFromDateHistory: fromDate };
   notify();
 }
 
