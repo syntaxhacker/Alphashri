@@ -213,10 +213,11 @@ class TestCacheRoundtrip:
 
     def test_read_returns_none_after_ttl_expiry(self, cache_dir):
         import api.correlation as mod
+        import api.utils as utils_mod
         data = {"matrix": [[1.0]], "symbols": ["A"]}
         _write_cache("expiry_key", data)
 
-        with patch.object(mod, "time") as mock_time:
+        with patch.object(utils_mod, "time") as mock_time:
             mock_time.time.return_value = time.time() + mod.CACHE_TTL_SECONDS + 1
             result = _read_cache("expiry_key")
             assert result is None
@@ -352,6 +353,10 @@ class TestCorrelationEndpoint:
         monkeypatch.setattr(mod, "CACHE_DIR", tmp_path)
         monkeypatch.setattr(mod, "UPSTOX_API_KEY", "test_key")
         monkeypatch.setattr(mod, "UPSTOX_API_SECRET", "test_secret")
+        # Re-bind cache helpers (factory closes over dir at make time; tests mutate CACHE_DIR)
+        mod._get_cache_path, mod._get_cache_meta_path, mod._read_cache, mod._write_cache = mod.make_cache_helpers(
+            mod.CACHE_DIR, mod.CACHE_TTL_SECONDS
+        )
 
         mock_api = MagicMock()
         mock_api.fetch_historical_data_v3.return_value = None

@@ -99,7 +99,7 @@ export function CompactPanel({
   return (
     <Paper
       radius="xs"
-      p={padded ? "sm" : 0}
+      p={padded ? "xs" : 0}
       shadow="none"
       bg="light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))"
       style={panelStyle}
@@ -107,7 +107,7 @@ export function CompactPanel({
       {...paperProps}
     >
       {(title || description || action) && (
-        <Group justify="space-between" align="flex-start" gap="sm" mb="sm">
+        <Group justify="space-between" align="flex-start" gap="xs" mb="xs">
           <Stack gap={2}>
             {title ? (
               typeof title === "string" ? (
@@ -153,7 +153,7 @@ export function CompactStat({
   return (
     <Card
       radius="xs"
-      p="sm"
+      p="xs"
       withBorder
       shadow="none"
       bg="light-dark(rgba(248, 250, 252, 0.85), rgba(15, 23, 42, 0.55))"
@@ -167,7 +167,7 @@ export function CompactStat({
       </Text>
       {hint ? (
         typeof hint === "string" || typeof hint === "number" ? (
-          <Text size="xs" c="dimmed" mt={4}>
+          <Text size="xs" c="dimmed" mt={2}>
             {hint}
           </Text>
         ) : (
@@ -186,7 +186,7 @@ export function CompactStatGrid({
   [key: string]: any;
 }) {
   return (
-    <SimpleGrid cols={{ base: 2, md: 4 }} spacing="sm" {...props}>
+    <SimpleGrid cols={{ base: 2, md: 4 }} spacing="xs" {...props}>
       {children}
     </SimpleGrid>
   );

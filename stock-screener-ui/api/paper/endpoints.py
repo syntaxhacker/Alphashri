@@ -3,6 +3,7 @@ Additional endpoints: signals, risk, health, chart, config.
 """
 
 import asyncio
+import math
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -23,6 +24,7 @@ from rich.console import Console
 from .requests import StrategyConfigUpdate
 from .paper_api import router, _get_user_id, _get_symbol_trades_from_db
 from .chart_cache import get_cached_candles, save_cached_candles
+from trading.timeframe_utils import parse_timeframe_minutes, calculate_or_candle_count
 
 console = Console()
 
@@ -191,12 +193,11 @@ def _fetch_candles_at_tf(upstox_api, symbol: str, timeframe: str, from_date: str
     if not interval:
         interval = 5  # default
     
-    # For longer TFs, we need more historical days
-    if interval in ['D', 720, 120, 240]:
-        # Need 30+ days for proper 12h/daily candles
-        from_date = (datetime.now(config.IST) - timedelta(days=45)).strftime('%Y-%m-%d')
-    else:
-        from_date = (datetime.now(config.IST) - timedelta(days=5)).strftime('%Y-%m-%d')
+    if from_date is None:
+        if interval in ['D', 720, 120, 240]:
+            from_date = (datetime.now(config.IST) - timedelta(days=45)).strftime('%Y-%m-%d')
+        else:
+            from_date = (datetime.now(config.IST) - timedelta(days=5)).strftime('%Y-%m-%d')
     
     return upstox_api.fetch_historical_data_v3(
         symbol=symbol,
@@ -281,19 +282,21 @@ async def get_paper_chart(
         def _filter_to_date_or_recent(df_full, target_date_str):
             if df_full is None or df_full.empty:
                 return df_full
-            df_full.index = pd.to_datetime(df_full.index).tz_localize(None)
-            date_start = pd.Timestamp(target_date_str + " 00:00:00")
-            date_end = pd.Timestamp(target_date_str + " 23:59:59")
+            df_full.index = pd.to_datetime(df_full.index)
+            if df_full.index.tz is None:
+                df_full.index = df_full.index.tz_localize(config.IST)
+            df_full.index = df_full.index.tz_convert(config.IST)
+            date_start = pd.Timestamp(target_date_str, tz=config.IST)
+            date_end = date_start + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
             filtered = df_full[(df_full.index >= date_start) & (df_full.index <= date_end)]
             if filtered.empty:
-                # Weekend/holiday: extract last available trading day only
                 last_date = df_full.index[-1].date()
-                last_start = pd.Timestamp(f"{last_date} 00:00:00")
-                last_end = pd.Timestamp(f"{last_date} 23:59:59")
+                last_start = pd.Timestamp(last_date, tz=config.IST)
+                last_end = last_start + pd.Timedelta(days=1) - pd.Timedelta(seconds=1)
                 last_day = df_full[(df_full.index >= last_start) & (df_full.index <= last_end)]
                 if not last_day.empty:
                     return last_day
-                return df_full  # Fallback to full df if single-day extraction fails
+                return df_full
             return filtered
 
         # Timeframes that should be fetched directly (not resampled from 1min)
@@ -381,6 +384,9 @@ async def get_paper_chart(
         # Resample only if direct fetch didn't succeed at the requested TF
         if fetched_at_tf:
             df = df_1m  # Already at correct TF
+            # When no explicit from_date, filter to just the requested date (or recent fallback)
+            if not from_date and date:
+                df = _filter_to_date_or_recent(df, date)
         elif timeframe in direct_tf_timeframes:
             df = _resample_to_timeframe(df_1m, timeframe)
         else:
@@ -435,13 +441,16 @@ async def get_paper_chart(
 
         candles = []
         for idx, row in df.iterrows():
+            o, h, l, c = float(row['open']), float(row['high']), float(row['low']), float(row['close'])
+            if any(math.isnan(v) or math.isinf(v) for v in [o, h, l, c]):
+                continue
             time_str = idx.isoformat() if hasattr(idx, 'isoformat') else str(idx)
             candles.append({
                 "time": time_str,
-                "open": float(row['open']),
-                "high": float(row['high']),
-                "low": float(row['low']),
-                "close": float(row['close']),
+                "open": o,
+                "high": h,
+                "low": l,
+                "close": c,
                 "volume": int(row.get('volume', 0)),
             })
 
@@ -455,7 +464,8 @@ async def get_paper_chart(
             except Exception:
                 pass
 
-        or_candle_count = max(1, or_minutes // 5)
+        tf_minutes = parse_timeframe_minutes(timeframe)
+        or_candle_count = calculate_or_candle_count(or_minutes, tf_minutes)
         or_candles = candles[:or_candle_count] if len(candles) >= or_candle_count else candles
         orb_levels = None
         if or_candles:
@@ -469,6 +479,7 @@ async def get_paper_chart(
                 "or_range": or_high - or_low,
                 "or_range_pct": ((or_high - or_low) / or_open * 100) if or_open > 0 else 0,
                 "or_minutes": or_minutes,
+                "or_candle_count": or_candle_count,
             }
 
         ema_series = None
@@ -481,8 +492,10 @@ async def get_paper_chart(
             ema_fast_period = strategy_config.ema_fast_period if strategy_config else 9
             ema_slow_period = strategy_config.ema_slow_period if strategy_config else 21
             closes = df['close'].tolist()
-            ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
-            ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
+            ema_fast_raw = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2)
+            ema_slow_raw = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2)
+            ema_fast = [0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else v for v in ema_fast_raw.tolist()]
+            ema_slow = [0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else v for v in ema_slow_raw.tolist()]
             ema_series = {
                 'ema_fast': {'label': f'EMA {ema_fast_period}', 'color': '#10ac84', 'data': ema_fast},
                 'ema_slow': {'label': f'EMA {ema_slow_period}', 'color': '#ee5253', 'data': ema_slow},

@@ -27,7 +27,6 @@ export async function navigateToTradeHistoryTab(page: Page): Promise<void> {
 }
 
 export async function navigateToTradeHistory(page: Page): Promise<void> {
-  await page.goto("/");
   await navigateToPaperTrading(page);
   await navigateToTradeHistoryTab(page);
 }
@@ -39,23 +38,15 @@ export async function navigateToLiveTab(page: Page): Promise<void> {
 }
 
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  const livePanel = page.locator('[data-testid="paper-left-panel"]');
-  const isLiveView = await livePanel.isVisible().catch(() => false);
+  // BotSelector uses a Mantine Select – wait for it to be visible
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
 
-  if (!isLiveView) {
-    await navigateToLiveTab(page);
-  }
-
-  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
-  const isCardVisible = await botCard.isVisible().catch(() => false);
-
-  if (isCardVisible) {
-    await botCard.click();
-  } else {
-    // Fallback: click first available bot card
-    const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
-    await firstBotCard.click();
-  }
+  // Click to open the dropdown portal
+  await botSelect.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
 }
 

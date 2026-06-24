@@ -220,6 +220,7 @@ async def compute_52w_ranges_task():
                 # Only perform 52W batch + cache flush during market hours
                 # (consistent with prewarm behavior for other screeners).
                 continue
+
             job = get_job_status() or {}
             if job.get("status") == "running":
                 print("[52W Range] Scheduled run skipped — batch already running")

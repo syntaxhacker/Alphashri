@@ -118,3 +118,114 @@ def days_since_52w_high_touch_from_df(df: "pd.DataFrame", high_52w: float) -> Op
     except Exception:
         highs = df["high"].astype(float).tolist()
         return days_since_52w_high_touch(highs, high_52w)
+
+
+def check_intraday_52w_touch(
+    intraday_high: float,
+    high_52w: float,
+    days_since_52w_high: int,
+    *,
+    threshold: float = 0.98,
+) -> int:
+    """
+    Detect if today's intraday high has broken above the 52W high.
+
+    When a stock breaks its 52W high intraday but the daily bar hasn't closed,
+    days_since_52w_high computed from daily data alone misses today's touch.
+    This function overrides it to 0 so callers can block stale breakouts.
+
+    Args:
+        intraday_high: Today's highest price so far (from intraday data).
+        high_52w: Current 52-week high (may or may not include today's candle).
+        days_since_52w_high: Value computed from daily data only.
+        threshold: Fraction of 52W high considered a break (default 1.0).
+
+    Returns:
+        Corrected days_since value (0 if broken today, original otherwise).
+    """
+    if intraday_high > 0 and high_52w > 0:
+        if intraday_high >= high_52w * threshold and days_since_52w_high > 0:
+            return 0
+    return days_since_52w_high
+
+
+# --- Shared helpers for 52W backtest Nautilus strategies (DRY fix) ---
+
+from datetime import datetime, timezone
+from trading.base_signals import BaseSignalGenerator
+# Note: get_date_from_ns is timezone-naive in sense of IST; used for bar ts_event which is UTC ns
+
+
+def get_date_from_ns(ts_ns: int) -> datetime:
+    """Convert nanosecond timestamp (from nautilus bar.ts_event) to datetime in UTC.
+    Duplicated previously in backtest/strategies/week52_*.py .
+    """
+    ts_sec = ts_ns / 1_000_000_000
+    return datetime.fromtimestamp(ts_sec, tz=timezone.utc)
+
+
+class Week52HighTracker:
+    """
+    Stateful 52-week high tracker backed by calculate_52w_high.
+    Eliminates duplicated _high_prices / _price_history + calc logic
+    in Week52*NautilusStrategy.on_bar().
+
+    Compatible with Week52HighIndicator API (used by chaser tests for backward compat).
+    """
+    def __init__(self, period: int = 252, min_periods: int = 20):
+        self.period = period
+        self.min_periods = min_periods
+        self._high_prices: List[float] = []
+        self._current_52w_high: Optional[float] = None
+
+    def update(self, high_price: float) -> Optional[float]:
+        """Append high (of bar), compute 52w excluding current, return it (or None)."""
+        self._high_prices.append(float(high_price))
+
+        # Keep only the last 'period'
+        if len(self._high_prices) > self.period:
+            self._high_prices.pop(0)
+
+        # Match prior logic: compute even for small counts if possible
+        if len(self._high_prices) >= self.min_periods:
+            self._current_52w_high = calculate_52w_high(
+                self._high_prices, period=self.period, exclude_current=True
+            )
+        elif len(self._high_prices) > 1:
+            self._current_52w_high = calculate_52w_high(
+                self._high_prices, period=self.period, exclude_current=True
+            )
+        else:
+            self._current_52w_high = None
+
+        return self._current_52w_high
+
+    @property
+    def value(self) -> Optional[float]:
+        return self._current_52w_high
+
+    def is_initialized(self) -> bool:
+        return len(self._high_prices) >= self.min_periods and self._current_52w_high is not None
+
+    def reset(self) -> None:
+        self._high_prices = []
+        self._current_52w_high = None
+
+
+class Base52WSignalGenerator(BaseSignalGenerator):
+    """Intermediate base for 52W signal generators — disables EOD exit."""
+
+    def __init__(self, sl_pct: float = 1.0, tp_pct: float = 1.5):
+        super().__init__(sl_pct=sl_pct, tp_pct=tp_pct)
+
+    def is_eod_exit_time(self, hour: int, minute: int) -> bool:
+        return False
+
+    def _extract_exit_kwargs(self, kwargs: dict, current_price: float) -> dict:
+        return {
+            "days_in_position": kwargs.get("days_in_position", 0),
+            "max_holding_days": kwargs.get("max_holding_days", getattr(self, "max_holding_days", 30)),
+            "highest_price_since_entry": kwargs.get("highest_price_since_entry", current_price),
+            "entry_52w_high": kwargs.get("entry_52w_high"),
+            "trailing_stop_pct": kwargs.get("trailing_stop_pct", getattr(self, "trailing_stop_pct", 2.0)),
+        }

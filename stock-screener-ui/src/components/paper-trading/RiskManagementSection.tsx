@@ -14,7 +14,7 @@ interface RiskManagementSectionProps {
 export function RiskManagementSection({ config, onChange }: RiskManagementSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="risk-section">
-      <Text fw={600} size="xs" tt="uppercase" mb="xs">
+      <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Risk Parameters
       </Text>
       <Grid gutter={4}>
@@ -61,7 +61,7 @@ export function RiskManagementSection({ config, onChange }: RiskManagementSectio
           />
         </Grid.Col>
       </Grid>
-      <Grid gutter={4} mt={4}>
+      <Grid gutter={4} mt={2}>
         <Grid.Col span={{ base: 12, lg: 6 }}>
           <NumberInput
             label="Max Exposure %"
@@ -91,7 +91,7 @@ export function RiskManagementSection({ config, onChange }: RiskManagementSectio
           />
         </Grid.Col>
       </Grid>
-      <Grid gutter={4} mt={4}>
+      <Grid gutter={4} mt={2}>
         <Grid.Col span={{ base: 12, lg: 6 }}>
           <NumberInput
             label="Min Trade Value"

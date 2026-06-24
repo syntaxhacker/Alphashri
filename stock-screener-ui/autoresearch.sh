@@ -12,7 +12,7 @@ export ORB_SHORTS="${ORB_SHORTS:-0}"
 export ORB_TRADE_SIZE="${ORB_TRADE_SIZE:-100}"
 export ORB_MIN_ENTRY="${ORB_MIN_ENTRY:-0}"
 export ORB_MAX_PER_DAY="${ORB_MAX_PER_DAY:-0}"
-export ORB_EOD_EXIT="${ORB_EOD_EXIT:-885}"
+export ORB_EOD_EXIT="${ORB_EOD_EXIT:-900}"
 export ORB_CACHE_DIR="${ORB_CACHE_DIR:-../experiments/data}"
 
 python3 "$SCRIPT_DIR/experiments/orb_benchmark.py"

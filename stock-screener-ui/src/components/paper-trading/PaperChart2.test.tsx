@@ -326,3 +326,100 @@ describe("PaperChart state logic", () => {
     },
   );
 });
+
+describe("TIMEFRAME_OPTIONS filtering", () => {
+  const TIMEFRAME_OPTIONS = [
+    { value: "1min", label: "1m" },
+    { value: "5min", label: "5m" },
+    { value: "15min", label: "15m" },
+    { value: "30min", label: "30m" },
+    { value: "1hour", label: "1h" },
+    { value: "2hour", label: "2h" },
+    { value: "4hour", label: "4h" },
+    { value: "12hour", label: "12h" },
+    { value: "1day", label: "1d" },
+  ];
+
+  test("single-day view (no fromDate) excludes 12hour and 1day", () => {
+    const fromDate = undefined;
+    const filtered = fromDate
+      ? TIMEFRAME_OPTIONS
+      : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day");
+    expect(filtered).toHaveLength(7);
+    expect(filtered.map((tf) => tf.value)).not.toContain("12hour");
+    expect(filtered.map((tf) => tf.value)).not.toContain("1day");
+    expect(filtered.map((tf) => tf.value)).toContain("4hour");
+    expect(filtered.map((tf) => tf.value)).toContain("1hour");
+  });
+
+  test("multi-day view (with fromDate) shows all timeframes", () => {
+    const fromDate = "2026-06-01";
+    const filtered = fromDate
+      ? TIMEFRAME_OPTIONS
+      : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day");
+    expect(filtered).toHaveLength(9);
+    expect(filtered.map((tf) => tf.value)).toContain("12hour");
+    expect(filtered.map((tf) => tf.value)).toContain("1day");
+  });
+
+  test("filtering preserves order relative to original array", () => {
+    const fromDate = undefined;
+    const filtered = fromDate
+      ? TIMEFRAME_OPTIONS
+      : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day");
+    const originalIndices = TIMEFRAME_OPTIONS.map((tf) => tf.value);
+    let lastIndex = -1;
+    for (const tf of filtered) {
+      const idx = originalIndices.indexOf(tf.value);
+      expect(idx).toBeGreaterThan(lastIndex);
+      lastIndex = idx;
+    }
+  });
+});
+
+describe("handleRangeChange auto-downgrade", () => {
+  test("downgrades 12hour to 4hour on single-day range", () => {
+    const chartTimeframe = "12hour";
+    const fd = undefined; // single-day
+    const isLongTF = !fd && (chartTimeframe === "12hour" || chartTimeframe === "1day");
+    expect(isLongTF).toBe(true);
+    const tf = isLongTF ? "4hour" : chartTimeframe;
+    expect(tf).toBe("4hour");
+  });
+
+  test("downgrades 1day to 4hour on single-day range", () => {
+    const chartTimeframe = "1day";
+    const fd = undefined;
+    const isLongTF = !fd && (chartTimeframe === "12hour" || chartTimeframe === "1day");
+    expect(isLongTF).toBe(true);
+    const tf = isLongTF ? "4hour" : chartTimeframe;
+    expect(tf).toBe("4hour");
+  });
+
+  test("keeps 4hour unchanged on single-day range", () => {
+    const chartTimeframe = "4hour";
+    const fd = undefined;
+    const isLongTF = !fd && (chartTimeframe === "12hour" || chartTimeframe === "1day");
+    expect(isLongTF).toBe(false);
+    const tf = isLongTF ? "4hour" : chartTimeframe;
+    expect(tf).toBe("4hour");
+  });
+
+  test("keeps 12hour unchanged on multi-day range", () => {
+    const chartTimeframe = "12hour";
+    const fd = "2026-06-01";
+    const isLongTF = !fd && (chartTimeframe === "12hour" || chartTimeframe === "1day");
+    expect(isLongTF).toBe(false);
+    const tf = isLongTF ? "4hour" : chartTimeframe;
+    expect(tf).toBe("12hour");
+  });
+
+  test("keeps 1day unchanged on multi-day range", () => {
+    const chartTimeframe = "1day";
+    const fd = "2026-06-01";
+    const isLongTF = !fd && (chartTimeframe === "12hour" || chartTimeframe === "1day");
+    expect(isLongTF).toBe(false);
+    const tf = isLongTF ? "4hour" : chartTimeframe;
+    expect(tf).toBe("1day");
+  });
+});

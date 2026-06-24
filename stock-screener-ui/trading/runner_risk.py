@@ -7,8 +7,11 @@ Contains risk-related helper methods for fetching and validating data.
 from datetime import datetime, timedelta
 from typing import Optional
 
+import config
+from cache.redis_client import cache_get, cache_set
+
 from trading.strategy_runner import INTRADAY_STRATEGY_TYPES
-from trading.week52_utils import calculate_52w_high
+from trading.week52_utils import calculate_52w_high, days_since_52w_high_touch, check_intraday_52w_touch
 
 from trading.timezone import IST
 
@@ -17,7 +20,15 @@ class RunnerRiskMixin:
     """Mixin class providing risk management and data fetching methods for MultiStrategyRunner."""
 
     def fetch_or_data(self, symbol: str, runner=None) -> Optional[dict]:
-        """Fetch opening range data for a symbol using the given runner's or_minutes."""
+        """Fetch opening range data for a symbol using the given runner's or_minutes.
+        
+        Results are cached in Redis with a 60s TTL to avoid API rate limits.
+        """
+        cache_key = f"orb:or_data:{symbol}"
+        cached = cache_get(cache_key)
+        if cached is not None:
+            return cached
+
         try:
             fetcher = self._get_data_fetcher()
             if not fetcher:
@@ -47,17 +58,11 @@ class RunnerRiskMixin:
             if signal_gen:
                 or_levels = signal_gen.calculate_or_levels(candles)
                 if or_levels and candles:
-                    n = len(candles)
-                    if n % 3 == 2:
-                        confirmed_15min_close = candles[-1]['close']
-                    elif n >= 3:
-                        prev_boundary_idx = n - (n % 3) - 1
-                        confirmed_15min_close = candles[prev_boundary_idx]['close']
-                    else:
-                        confirmed_15min_close = candles[-1]['close']
-                    or_levels['latest_price'] = confirmed_15min_close
+                    or_levels['latest_price'] = candles[-1]['close']
                     or_levels['latest_high'] = candles[-1]['high']
                     or_levels['latest_low'] = candles[-1]['low']
+                if or_levels:
+                    cache_set(cache_key, or_levels, ttl=60)
                 return or_levels
 
             return None
@@ -66,7 +71,10 @@ class RunnerRiskMixin:
             from rich.console import Console
             console = Console()
             console.print(f"[dim red]Error fetching OR for {symbol}: {e}[/dim red]")
-            return None
+            # Return stale cache on error (better than nothing)
+            if cached is None:
+                cached = cache_get(cache_key)
+            return cached
 
     def fetch_daily_data(self, symbol: str) -> Optional[dict]:
         """Fetch daily OHLCV data for a symbol (used by swing strategies)."""
@@ -95,19 +103,14 @@ class RunnerRiskMixin:
             lows = df['low'].tolist()
             volumes = df['volume'].tolist() if 'volume' in df.columns else []
 
-            high_52w = calculate_52w_high(highs, period=252, exclude_current=True) or 0.0
+            high_52w = calculate_52w_high(highs, period=252, exclude_current=False) or 0.0
 
-            # Trading days since 52W high was last achieved (0 = today)
+            # Trading days since 52W high was last touched (uses 98% threshold, not exact match)
             days_since_52w_high = 0
-            if high_52w > 0 and len(highs) >= 2:
-                past_highs = highs[:-1]  # exclude current bar
-                window = past_highs[-252:] if len(past_highs) >= 252 else past_highs
-                if len(window) >= 2:
-                    reversed_window = list(reversed(window))
-                    try:
-                        days_since_52w_high = reversed_window.index(high_52w)
-                    except ValueError:
-                        pass
+            if high_52w > 0 and highs:
+                result = days_since_52w_high_touch(highs, high_52w)
+                if result is not None:
+                    days_since_52w_high = result
 
             avg_volume_20d = 0.0
             if len(volumes) >= 20:
@@ -128,8 +131,14 @@ class RunnerRiskMixin:
             except Exception:
                 intraday = None
 
+            intraday_high = 0.0
             if intraday is not None and not intraday.empty:
                 current_price = float(intraday['close'].iloc[-1])
+                intraday_high = float(intraday['high'].max())
+
+            days_since_52w_high = check_intraday_52w_touch(
+                intraday_high, high_52w, days_since_52w_high,
+            )
 
             return {
                 'current_price': current_price,

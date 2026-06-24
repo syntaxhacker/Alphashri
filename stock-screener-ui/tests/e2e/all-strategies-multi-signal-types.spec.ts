@@ -61,9 +61,11 @@ async function navigateToBot(page: Page) {
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
-  const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
-  await firstBotCard.click();
+  await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
+  await page.locator('[data-testid="bot-select"]').click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 
   await page.getByTestId("tab-live").click();
   await page.waitForLoadState("networkidle");
@@ -75,7 +77,7 @@ test.describe("Multi-Strategy - Strategy Panels", () => {
     await navigateToBot(page);
 
     for (const s of ALL_STRATEGY_TYPES) {
-      const panel = page.locator(`[data-testid="strategy-panel-${s.id}"]`);
+      const panel = page.locator(`[data-testid="strategy-card-${s.name}"]`);
       await expect(panel).toBeVisible({ timeout: 10000 });
       await expect(panel).toContainText(s.name);
     }
@@ -111,7 +113,7 @@ test.describe("Multi-Strategy - Strategy Panels", () => {
     await expectPositionsVisible(page);
 
     for (const s of ALL_STRATEGY_TYPES) {
-      const panel = page.locator(`[data-testid="strategy-panel-${s.id}"]`);
+      const panel = page.locator(`[data-testid="strategy-card-${s.name}"]`);
       await expect(panel).toBeVisible({ timeout: 5000 });
     }
   });

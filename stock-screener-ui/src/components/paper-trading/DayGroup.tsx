@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from "react";
+import { memo, useRef, useEffect, useState } from "react";
 import {
   Anchor,
   Collapse,
@@ -16,6 +16,7 @@ import {
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
+  formatSignedPnl,
   formatTimeOnly,
   formatDateHeader,
   formatDuration,
@@ -63,13 +64,12 @@ function DaySummary({
   const wins = trades.filter((t) => t.net_pnl > 0).length;
   const losses = trades.filter((t) => t.net_pnl < 0).length;
   const pnlColor = getPnLTextColor(dayPnl);
-  const pnlSign = dayPnl >= 0 ? "+" : "";
 
   return (
     <Group
       justify="space-between"
-      px="xs"
-      py={2}
+      px={4}
+      py={1}
       onClick={onToggle}
       style={{ cursor: "pointer" }}
       data-testid={`day-header-${date}`}
@@ -81,7 +81,7 @@ function DaySummary({
       </Group>
       <Group gap="xs">
         <Text size="xs" c={pnlColor} fw={600}>
-          {pnlSign}₹{formatNumber(Math.abs(dayPnl))}
+          {formatSignedPnl(dayPnl)}
         </Text>
         <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
           ▲{wins}
@@ -97,12 +97,11 @@ function DaySummary({
 function TradeStats({ trade }: { trade: PaperTrade }) {
   const grossPnl = trade.pnl;
   const grossColor = getPnLTextColor(grossPnl);
-  const grossSign = grossPnl >= 0 ? "+" : "";
   const netPnl = trade.net_pnl;
   const netColor = getPnLTextColor(netPnl);
-  const netSign = netPnl >= 0 ? "+" : "";
 
   const entryContext = [
+    { label: "Trade ID", value: `#${trade.trade_id}` },
     { label: "Entry Time", value: formatTimeOnly(trade.entry_time) },
     { label: "Peak", value: `₹${trade.peak_price?.toFixed(2) ?? "-"}` },
     { label: "Low", value: `₹${trade.low_price?.toFixed(2) ?? "-"}` },
@@ -113,12 +112,12 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
     { label: "Exit Time", value: formatTimeOnly(trade.exit_time) },
     { label: "Exit Price", value: trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-" },
     { label: "Costs", value: `₹${formatNumber(trade.costs)}` },
-    { label: "Gross P&L", value: `${grossSign}₹${formatNumber(Math.abs(grossPnl))}`, color: grossColor },
-    { label: "Net P&L", value: `${netSign}₹${formatNumber(Math.abs(netPnl))}`, color: netColor },
+    { label: "Gross P&L", value: formatSignedPnl(grossPnl), color: grossColor },
+    { label: "Net P&L", value: formatSignedPnl(netPnl), color: netColor },
   ];
 
   return (
-    <Grid gutter="xs">
+    <Grid gutter={2}>
       <Grid.Col span={{ base: 12, md: 6 }}>
         <Stack gap={2}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
@@ -161,8 +160,8 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
   };
 
   return (
-    <Stack gap="xs">
-      <Group gap="sm" align="flex-start" grow>
+    <Stack gap={2}>
+      <Group gap="xs" align="flex-start" grow>
         <Stack gap={1} style={{ flex: 1 }}>
           <Text size="xs" c="dimmed">
             Reason
@@ -213,7 +212,7 @@ function TradeDetail({ trade }: { trade: PaperTrade }) {
   );
 }
 
-function TradeRow({
+const TradeRow = memo(function TradeRow({
   trade,
   onSelectSymbol,
   onDeleteTrade,
@@ -226,6 +225,7 @@ function TradeRow({
     tradeId?: string,
     strategyType?: string,
     strategyId?: number,
+    entryTime?: string,
   ) => void;
   onDeleteTrade: (id: string) => void;
   selectedTradeId: string | null;
@@ -347,7 +347,7 @@ function TradeRow({
       <Table.Tr>
         <Table.Td colSpan={14} p={0}>
           <Collapse in={detailExpanded}>
-            <div style={{ padding: "8px 12px", background: "var(--mantine-color-body)" }}>
+            <div style={{ padding: "6px 8px", background: "var(--mantine-color-body)" }}>
               <TradeDetail trade={trade} />
             </div>
           </Collapse>
@@ -355,7 +355,7 @@ function TradeRow({
       </Table.Tr>
     </>
   );
-}
+});
 
 export function DayGroup({
   date,

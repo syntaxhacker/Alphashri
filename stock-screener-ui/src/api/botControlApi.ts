@@ -12,6 +12,8 @@ import {
 import { fetchWithAuth } from "../state/auth";
 import { fetchTrades, refreshLiveData } from "./paperTrading";
 
+let _abortController: AbortController | null = null;
+
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
 type PaperBotStatus = {
@@ -64,6 +66,11 @@ export function initLiveAutoRefresh() {
   setupAutoRefresh(refreshLiveData, 20000); // 20 seconds
 }
 
+// Initialize auto-refresh for a specific bot (uses refreshBotLiveData)
+export function initBotAutoRefresh(botId: string) {
+  setupAutoRefresh(() => refreshBotLiveData(botId), 20000); // 20 seconds
+}
+
 // Stop auto-refresh
 export function stopLiveAutoRefresh() {
   stopAutoRefresh();
@@ -93,12 +100,13 @@ export async function listBots(): Promise<any[]> {
 }
 
 // Get bot details
-export async function getBot(botId: string): Promise<any | null> {
+export async function getBot(botId: string, signal?: AbortSignal): Promise<any | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}`);
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}`, { signal });
     const data = await response.json();
     return data;
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to get bot:", error);
     return null;
   }
@@ -156,42 +164,53 @@ export async function stopBot(botId: string): Promise<{ success: boolean; messag
 }
 
 // Get bot portfolio with per-strategy breakdown
-export async function fetchBotPortfolio(botId: string): Promise<any | null> {
+export async function fetchBotPortfolio(botId: string, signal?: AbortSignal): Promise<any | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/portfolio`);
+    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/portfolio`, { signal });
     const data = await response.json();
     return data;
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to fetch bot portfolio:", error);
     return null;
   }
 }
 
 // Get bot positions (optionally filtered by strategy)
-export async function fetchBotPositions(botId: string, strategyId?: string): Promise<any[]> {
+export async function fetchBotPositions(
+  botId: string,
+  strategyId?: string,
+  signal?: AbortSignal,
+): Promise<any[]> {
   try {
     const params = new URLSearchParams();
     if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/positions${params.toString() ? "?" + params : ""}`;
-    const response = await fetchWithAuth(url);
+    const response = await fetchWithAuth(url, { signal });
     const data = await response.json();
     return data.positions || [];
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to fetch bot positions:", error);
     return [];
   }
 }
 
 // Get bot scan items (optionally filtered by strategy)
-export async function fetchBotScanItems(botId: string, strategyId?: string): Promise<any[]> {
+export async function fetchBotScanItems(
+  botId: string,
+  strategyId?: string,
+  signal?: AbortSignal,
+): Promise<any[]> {
   try {
     const params = new URLSearchParams();
     if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/scan${params.toString() ? "?" + params : ""}`;
-    const response = await fetchWithAuth(url);
+    const response = await fetchWithAuth(url, { signal });
     const data = await response.json();
     return data.scan_items || [];
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to fetch bot scan items:", error);
     return [];
   }
@@ -248,17 +267,24 @@ export function normalizeBotPortfolio(
   };
 }
 
+let _botDataReqId = 0;
+
 // Refresh data from multi-strategy bot
 export async function refreshBotLiveData(botId: string): Promise<void> {
+  _abortController?.abort();
+  _abortController = new AbortController();
+  const signal = _abortController.signal;
+  const reqId = ++_botDataReqId;
   setLoading(true);
   try {
     const [botInfo, portfolioData, positions, scanItems] = await Promise.all([
-      getBot(botId),
-      fetchBotPortfolio(botId),
-      fetchBotPositions(botId),
-      fetchBotScanItems(botId),
+      getBot(botId, signal),
+      fetchBotPortfolio(botId, signal),
+      fetchBotPositions(botId, undefined, signal),
+      fetchBotScanItems(botId, undefined, signal),
     ]);
-    const trades = await fetchTrades(200, botId);
+    if (reqId !== _botDataReqId) return;
+    const trades = await fetchTrades(200, botId, undefined, undefined, undefined, signal, true);
     const todayString = new Date().toDateString();
     const realizedToday = trades
       .filter((trade) => {
@@ -272,6 +298,8 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
     if (botInfo) {
       setBotStatus(!!botInfo.running, botInfo.pid ?? null, null);
     }
+
+    if (reqId !== _botDataReqId) return;
 
     if (portfolioData) {
       const watchlist = Array.isArray(portfolioData.watchlist)
@@ -298,6 +326,8 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         peak_price: p.peak_price || 0,
         low_price: p.low_price || 0,
         notes: p.notes || "",
+        id: p.id || "",
+        order_id: p.order_id || "",
       }));
 
       setPortfolio(normalizeBotPortfolio(portfolioData.portfolio, positions, realizedToday));
@@ -313,8 +343,12 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
       });
     }
   } catch (error) {
-    setError(error instanceof Error ? error.message : "Unknown error");
+    if (reqId === _botDataReqId) {
+      setError(error instanceof Error ? error.message : "Unknown error");
+    }
   } finally {
-    setLoading(false);
+    if (reqId === _botDataReqId) {
+      setLoading(false);
+    }
   }
 }

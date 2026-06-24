@@ -78,6 +78,7 @@ vi.mock("../common/PreviewChartProvider", () => ({
 vi.mock("../../utils/ui-helpers", () => ({
   getValueColor: vi.fn(() => "green"),
   getScoreColor: vi.fn(() => "blue"),
+  formatNumber: (n: number) => `${n}`,
 }));
 
 const mockStock: Stock = {

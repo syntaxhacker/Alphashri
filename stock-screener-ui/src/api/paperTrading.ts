@@ -44,6 +44,7 @@ import {
   stopPaperBot,
   fetchPaperBotStatus,
   initLiveAutoRefresh,
+  initBotAutoRefresh,
   stopLiveAutoRefresh,
   listBots,
   getBot,
@@ -62,6 +63,7 @@ export {
   stopPaperBot,
   fetchPaperBotStatus,
   initLiveAutoRefresh,
+  initBotAutoRefresh,
   stopLiveAutoRefresh,
   listBots,
   getBot,
@@ -96,6 +98,7 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
     const response = await fetchWithAuth(`${API_BASE}/api/paper/positions`);
     const data = await response.json();
     const positions = data.positions || [];
+    console.log("[fetchPositions] raw response:", data, "positions[0]:", positions[0]);
     setPositions(positions);
     return positions;
   } catch (error) {
@@ -125,6 +128,8 @@ export async function fetchTrades(
   fromDate?: string | null,
   toDate?: string | null,
   daysBack: number = 30,
+  signal?: AbortSignal,
+  skipSetTrades?: boolean,
 ): Promise<PaperTrade[]> {
   try {
     const params = new URLSearchParams();
@@ -134,12 +139,13 @@ export async function fetchTrades(
     if (toDate) params.append("to_date", toDate);
     params.append("days_back", daysBack.toString());
 
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`);
+    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`, { signal });
     const data = await response.json();
     const trades = data.trades || [];
-    setTrades(trades);
+    if (!skipSetTrades) setTrades(trades);
     return trades;
   } catch (error) {
+    if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to fetch trades:", error);
     return [];
   }

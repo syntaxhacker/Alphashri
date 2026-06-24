@@ -56,6 +56,7 @@ class PaperPosition:
     strategy_id: int = 0
     strategy_name: str = ""
     strategy_type: str = ""
+    order_id: str = ""
 
 
 

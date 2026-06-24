@@ -409,7 +409,7 @@ class TestPositionToDict:
         pos = self._make_position()
         d = position_to_dict(pos, extra_fields=None)
         assert 'symbol' in d
-        assert len(d) == 12
+        assert len(d) == 13
 
     def test_sell_side_value(self):
         pos = self._make_position(side=MagicMock(value='SELL'))

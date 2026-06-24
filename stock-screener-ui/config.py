@@ -42,6 +42,12 @@ DATABASE_URL = os.getenv("DATABASE_URL")
 if not DATABASE_URL:
     LOCAL_DB_PATH = BASE_DIR / "db" / "alphashri.db"
     DATABASE_URL = f"sqlite:///{LOCAL_DB_PATH}"
+else:
+    # Resolve relative paths to absolute so DB works regardless of CWD
+    if DATABASE_URL.startswith("sqlite:///./"):
+        rel_path = DATABASE_URL[len("sqlite:///."):]
+        abs_path = BASE_DIR / rel_path.lstrip("/")
+        DATABASE_URL = f"sqlite:///{abs_path}"
 
 # Fix Render/Heroku postgres:// prefix
 if DATABASE_URL.startswith("postgres://"):

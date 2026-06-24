@@ -8,6 +8,7 @@ import json as _json
 import signal
 import sys
 import time
+from contextlib import contextmanager
 from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Dict, Optional
@@ -47,6 +48,7 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
     "52W_TARGET": ["near_52w_breakout"],
     "BLIND_52W": ["near_52w_breakout"],
 }
+from trading.bot_heartbeat import BotHeartbeat
 from trading.global_risk_manager import GlobalRiskManager
 from trading.journal import get_journal
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
@@ -172,6 +174,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self._load_strategies()
 
         self.journal = get_journal(user_id)
+        self._heartbeat = BotHeartbeat(
+            user_id=self.user_id,
+            bot_config_id=self.bot_config.id,
+        )
 
         signal.signal(signal.SIGINT, self._signal_handler)
         signal.signal(signal.SIGTERM, self._signal_handler)
@@ -199,6 +205,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.bot_config_id = bot_config.id
         self.bot_config = bot_config
         self._init_common_fields()
+        self._heartbeat = None
         self.portfolio = None
         self.risk_manager = None
         self.strategies = {}
@@ -301,24 +308,21 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 pass
 
     def _execute_close_all(self, prices: dict):
-        from backtest.costs import calculate_trading_costs
         for key, pos in list(self.portfolio.positions.items()):
             exit_price = prices.get(pos.symbol, pos.current_price or pos.entry_price)
             if exit_price <= 0:
                 continue
             try:
-                _fetcher = self._get_data_fetcher()
-                if _fetcher and hasattr(_fetcher, 'upstox_api') and _fetcher.upstox_api:
-                    _df = _fetcher.upstox_api.fetch_intraday_data_v3(pos.symbol, "1")
-                    if _df is not None and not _df.empty:
-                        exit_price = float(_df.iloc[-1]["close"])
+                _p = self._fetch_live_price(pos.symbol)
+                if _p is not None:
+                    exit_price = _p
             except Exception:
                 pass
-            side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+            side = self._side_str(pos.side, "LONG_SHORT")
             costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
             order_mgr = self._get_order_manager()
             if order_mgr:
-                tag_str = f"{pos.strategy_name}_{pos.symbol}"[:40]
+                tag_str = self._build_order_tag(pos.strategy_name, pos.symbol)
                 result = order_mgr.place_exit_order(
                     symbol=pos.symbol,
                     side=side,
@@ -368,15 +372,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 if exit_price <= 0:
                     exit_price = pos.current_price or pos.entry_price
                 try:
-                    _fetcher = self._get_data_fetcher()
-                    if _fetcher and hasattr(_fetcher, 'upstox_api') and _fetcher.upstox_api:
-                        _df = _fetcher.upstox_api.fetch_intraday_data_v3(symbol, "1")
-                        if _df is not None and not _df.empty:
-                            exit_price = float(_df.iloc[-1]["close"])
+                    _p = self._fetch_live_price(symbol)
+                    if _p is not None:
+                        exit_price = _p
                 except Exception:
                     pass
-                side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
-                from backtest.costs import calculate_trading_costs
+                side = self._side_str(pos.side, "LONG_SHORT")
                 costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
                 self.portfolio.close_position(
                     strategy_id=pos.strategy_id,
@@ -443,31 +444,31 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         return SessionLocal()
 
     def _write_heartbeat(self):
-        try:
-            from cache.redis_client import get_redis_client
-            client = get_redis_client()
-            if client is not None:
-                import os
-                pid = os.getpid()
-                bot_id = self.bot_config.id if self.bot_config else 0
-                client.setex(f"bot:{self.user_id}:{bot_id}:status", 90, f"running:{pid}")
-        except Exception:
-            pass
+        if self._heartbeat:
+            self._heartbeat.start()
 
     def _clear_heartbeat(self):
+        if self._heartbeat:
+            self._heartbeat.stop()
+
+    @contextmanager
+    def _db_session(self):
+        db = None
         try:
-            from cache.redis_client import get_redis_client
-            client = get_redis_client()
-            if client is not None:
-                bot_id = self.bot_config.id if self.bot_config else 0
-                client.delete(f"bot:{self.user_id}:{bot_id}:status")
-        except Exception:
-            pass
+            db = self._get_db_session()
+            yield db
+            db.commit()
+        except Exception as e:
+            if db:
+                db.rollback()
+            console.print(f"[yellow]DB error: {e}[/yellow]")
+        finally:
+            if db:
+                db.close()
 
     def _persist_trade_to_db(self, trade_data: dict):
         try:
-            db = self._get_db_session()
-            try:
+            with self._db_session() as db:
                 from db.models import Trade
                 trade = Trade(
                     user_id=self.user_id,
@@ -495,19 +496,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     source='live' if not self.test_mode else 'test',
                 )
                 db.add(trade)
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                console.print(f"[yellow]DB trade persist failed: {e}[/yellow]")
-            finally:
-                db.close()
         except Exception:
             pass
 
     def _persist_position_to_db(self, pos_data: dict, action: str = "upsert"):
         try:
-            db = self._get_db_session()
-            try:
+            with self._db_session() as db:
                 from db.models import Position
                 from sqlalchemy import text
                 if action == "delete":
@@ -515,7 +509,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         text("DELETE FROM positions WHERE bot_id = :bot_id AND strategy_id = :strategy_id AND symbol = :symbol"),
                         {"bot_id": self.bot_config.id if self.bot_config else 0, "strategy_id": pos_data.get('strategy_id', 0), "symbol": pos_data['symbol']}
                     )
-                    db.commit()
                 else:
                     existing = db.query(Position).filter(
                         Position.bot_id == (self.bot_config.id if self.bot_config else 0),
@@ -558,19 +551,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             metadata_json=_json.dumps(pos_data.get('metadata', {})) if pos_data.get('metadata') else '',
                         )
                         db.add(position)
-                    db.commit()
-            except Exception as e:
-                db.rollback()
-                console.print(f"[yellow]DB position persist failed: {e}[/yellow]")
-            finally:
-                db.close()
         except Exception:
             pass
 
     def _load_positions_from_db(self):
         try:
-            db = self._get_db_session()
-            try:
+            with self._db_session() as db:
                 from db.models import Position
                 positions = db.query(Position).filter(
                     Position.bot_id == (self.bot_config.id if self.bot_config else 0),
@@ -615,9 +601,9 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 close_prices = {}
                                 for symbol in today_symbols:
                                     try:
-                                        df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
-                                        if df is not None and not df.empty:
-                                            close_prices[symbol] = df.iloc[-1]['close']
+                                        _p = self._fetch_live_price(symbol)
+                                        if _p is not None:
+                                            close_prices[symbol] = _p
                                     except Exception as e:
                                         console.print(f"[dim red]Price fetch failed for {symbol}: {e}[/dim red]")
                                 if close_prices:
@@ -638,7 +624,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 exit_price = pos.current_price or pos.entry_price
                                 if exit_price <= 0:
                                     continue
-                                side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+                                side = self._side_str(pos.side, "LONG_SHORT")
                                 costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
                                 trade = self.portfolio.close_position(
                                     strategy_id=pos.strategy_id,
@@ -675,8 +661,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                         'symbol': pos.symbol,
                                     }, action="delete")
                             console.print(f"[yellow]Closed {len(to_close)} stale positions from previous days[/yellow]")
-            finally:
-                db.close()
         except Exception:
             pass
 
@@ -760,9 +744,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             strategy_type, ['trending']
         )
 
+        # Custom watchlist takes priority — prepend to screener results
+        custom_symbols = config.get('custom_watchlist', [])
+        if custom_symbols:
+            console.print(f"[cyan]Custom watchlist for strategy {strategy_id}: {custom_symbols}[/cyan]")
+
         console.print(f"[cyan]Refreshing watchlist for strategy {strategy_id} ({strategy_type}) with profiles: {profiles}[/cyan]")
 
-        all_symbols = []
+        all_symbols = list(custom_symbols)
 
         import sys as _sys
         from pathlib import Path as _Path
@@ -798,17 +787,15 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 seen.add(s)
                 unique_symbols.append(s)
 
-        # Store per-strategy watchlist
-        self.strategy_watchlists[strategy_id] = unique_symbols[:50]
-        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:50])} stocks[/green]")
+        # Store per-strategy watchlist (capped to avoid API rate limits)
+        self.strategy_watchlists[strategy_id] = unique_symbols[:15]
+        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:15])} stocks[/green]")
         return self.strategy_watchlists[strategy_id]
 
     def persist_state(self):
         try:
-            from db.models import BotRuntimeState, StrategyRuntimeState
-
-            db = self._get_db_session()
-            try:
+            with self._db_session() as db:
+                from db.models import BotRuntimeState, StrategyRuntimeState
                 portfolio = self.portfolio.get_portfolio_status()
 
                 bot_state = db.query(BotRuntimeState).filter(
@@ -850,15 +837,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     s_state.positions_count = s_status.get('positions_count', 0) if s_status else 0
                     s_state.realized_pnl = s_status.get('realized_pnl', 0.0) if s_status else 0.0
                     db.flush()
-
-                db.commit()
-            except Exception as e:
-                db.rollback()
-                console.print(f"[yellow]DB state persist failed: {e}[/yellow]")
-            finally:
-                db.close()
         except Exception as e:
-            console.print(f"[yellow]persist_state failed: {e}[/yellow]")
+            console.print(f"[yellow]persist_state bot/strategy state failed: {e}[/yellow]")
 
         scan_items = []
         for strategy_id, runner in self.strategies.items():
@@ -869,20 +849,13 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 scan_items.append(item_copy)
 
         try:
-            db = self._get_db_session()
-            try:
+            with self._db_session() as db:
                 from db.models import BotRuntimeState
                 bot_state = db.query(BotRuntimeState).filter(
                     BotRuntimeState.bot_id == self.bot_config.id
                 ).first()
                 if bot_state:
                     bot_state.scan_items = _json.dumps(scan_items)
-                    db.commit()
-            except Exception as e:
-                db.rollback()
-                console.print(f"[yellow]persist_state scan_items DB failed: {e}[/yellow]")
-            finally:
-                db.close()
         except Exception as e:
             console.print(f"[yellow]persist_state scan_items DB failed: {e}[/yellow]")
 
@@ -1032,6 +1005,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     if cycle % 10 == 0:
                         self.refresh_watchlist()  # Refresh shared watchlist
 
+                    # Also refresh per-strategy watchlist on first cycle (ensures custom stocks are included)
+                    if cycle == 1:
+                        for sid in self.strategies:
+                            self.refresh_watchlist(sid)
+
                     for strategy_id, runner in self.strategies.items():
                         if runner.status == "running":
                             # Refresh per-strategy watchlist periodically (every 30 cycles)
@@ -1070,8 +1048,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     self.display_status()
 
                     self.persist_state()
-
-                    self._write_heartbeat()
 
                     if self.running and not self.is_force_exit_time():
                         console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
@@ -1129,6 +1105,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.replay_mode = True
         self._replay_on_event = on_event
         self._replay_time = None
+        self.watchlist = list(symbols)
 
         dates_to_run = pd.date_range(
             pd.Timestamp(date_str, tz=IST),
@@ -1261,7 +1238,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     is_market_open = current == market_open
 
                     if is_5min or is_market_open:
-                        for sid, runner in self.strategies.items():
+                        for sid, rnr in self.strategies.items():
                             try:
                                 signals = self.scan_for_signals(sid)
                                 for signal in signals:
@@ -1283,7 +1260,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                 for key in list(self.portfolio.positions.keys()):
                     pos = self.portfolio.positions[key]
-                    side = "LONG" if pos.side.value == "BUY" else "SHORT"
+                    side = self._side_str(pos.side, "LONG_SHORT")
                     costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
                     trade = self.portfolio.close_position(
                         strategy_id=pos.strategy_id, symbol=pos.symbol,

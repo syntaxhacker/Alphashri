@@ -247,7 +247,7 @@ describe("PaperHistoryTable", () => {
 
 describe("groupTradesByDate with sorting", () => {
   test("sorts by specified column", async () => {
-    const { groupTradesByDate } = await import("./tradeHistoryUtils");
+    const { groupTradesByDate } = await import("../../utils/tradeHistoryUtils");
     const trades = [
       { trade_id: "t1", symbol: "AAPL", exit_time: "2026-05-09T10:30:00Z" },
       { trade_id: "t2", symbol: "ZOO", exit_time: "2026-05-09T11:00:00Z" },
@@ -302,16 +302,16 @@ describe("PaperHistoryTable interactions", () => {
     expect(setSelectedTradeId).toHaveBeenCalled();
   });
 
-  test("multiple same-symbol trades calls setShowAllTrades", async () => {
+  test("clicking a trade always sets showAllTrades false via setSelectedTradeId", async () => {
     mockStateStore.trades = [
       mockTrade({ trade_id: "t1", symbol: "RELIANCE", exit_time: "2026-05-09T10:00:00Z" }),
       mockTrade({ trade_id: "t2", symbol: "RELIANCE", exit_time: "2026-05-09T11:00:00Z" }),
     ];
     r();
-    const { setShowAllTrades } = await import("../../state/paperTrading");
+    const { setSelectedTradeId } = await import("../../state/paperTrading");
     const row = screen.getByTestId("trade-row-t1");
     row.click();
-    expect(setShowAllTrades).toHaveBeenCalledWith(true);
+    expect(setSelectedTradeId).toHaveBeenCalled();
   });
 
   test("single symbol trade does not set showAllTrades", async () => {

@@ -127,6 +127,7 @@ vi.mock("../../state/paperTrading", () => {
     }),
     setSelectedTradeId: vi.fn(),
     setShowAllTrades: vi.fn(),
+    updatePositionNotesAction: vi.fn().mockResolvedValue(undefined),
   };
 });
 
@@ -227,12 +228,11 @@ describe("PaperPositionsTable", () => {
       expect(screen.getByText("Loading positions...")).toBeTruthy();
     });
 
-    test("no positions but botSnapshot present shows empty positions and watchlist", () => {
+    test("no positions but botSnapshot present shows empty positions", () => {
       setState({ positions: [], botSnapshot: mockBotSnapshot });
       r(<PaperPositionsTable />);
 
       expect(screen.getByTestId("positions-empty")).toBeInTheDocument();
-      expect(screen.getByTestId("watchlist-scan-card")).toBeInTheDocument();
     });
   });
 
@@ -288,7 +288,7 @@ describe("PaperPositionsTable", () => {
   });
 
   describe("Multiple positions grouped by strategy", () => {
-    test("renders positions in strategy panel", () => {
+    test("renders positions in strategy card", () => {
       rWithTwoPositions(
         { strategy_id: 1, strategy_name: "ORB Strategy" },
         {
@@ -301,16 +301,16 @@ describe("PaperPositionsTable", () => {
       );
       expect(screen.getByText((c) => c.includes("RELIANCE"))).toBeTruthy();
       expect(screen.getByText((c) => c.includes("TCS"))).toBeTruthy();
-      expect(screen.getByTestId("strategy-panel-1")).toBeTruthy();
+      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeTruthy();
     });
 
-    test("renders separate panels for different strategies", () => {
+    test("renders separate cards for different strategies", () => {
       rWithTwoPositions(
         { strategy_id: 1, strategy_name: "ORB Strategy" },
         { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
       );
-      expect(screen.getByTestId("strategy-panel-1")).toBeTruthy();
-      expect(screen.getByTestId("strategy-panel-2")).toBeTruthy();
+      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeTruthy();
+      expect(screen.getByTestId("strategy-card-SR Breakout")).toBeTruthy();
     });
 
     test("strategy panel shows count and P&L", () => {
@@ -338,76 +338,7 @@ describe("PaperPositionsTable", () => {
     });
   });
 
-  describe("WatchlistScan panel", () => {
-    test("WatchlistScan renders when botSnapshot is present", () => {
-      rWithPosition({}, { botSnapshot: mockBotSnapshot });
-
-      expect(screen.getByTestId("watchlist-scan-card")).toBeTruthy();
-      expect(screen.getByText("Watchlist Scan")).toBeTruthy();
-    });
-
-    test("WatchlistScan shows signals and watching sections", () => {
-      rWithPosition({}, { botSnapshot: mockBotSnapshot });
-
-      expect(screen.getByText("Signals")).toBeTruthy();
-      expect(screen.getByText("Watching")).toBeTruthy();
-    });
-
-    test("WatchlistScan shows empty state when no scan_items", () => {
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({
-        positions: [pos],
-        botSnapshot: {
-          timestamp: "2026-03-20T09:30:00Z",
-          watchlist: [],
-          open_positions: [],
-          scan_items: [],
-          signals: [],
-        },
-      });
-      r(<PaperPositionsTable />);
-
-      expect(screen.getByTestId("watchlist-scan-card")).toBeTruthy();
-      expect(screen.getByText(/No scan data/)).toBeTruthy();
-    });
-
-    test("WatchlistScan shows skipped section when skipped items exist", () => {
-      rWithPosition({}, { botSnapshot: mockBotSnapshot });
-      expect(screen.getByText("Skipped")).toBeInTheDocument();
-      expect(screen.getByTestId("scan-skipped-INFY")).toBeInTheDocument();
-    });
-
-    test("clicking skipped row selects symbol", async () => {
-      const user = userEvent.setup();
-      rWithPosition({}, { botSnapshot: mockBotSnapshot });
-      await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
-      await user.click(screen.getByTestId("scan-skipped-INFY"));
-      expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
-    });
-
-    test("clicking signal row selects symbol", async () => {
-      const user = userEvent.setup();
-      rWithPosition({}, { botSnapshot: mockBotSnapshotSignalsOnly });
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
-      await user.click(screen.getByTestId("scan-signal-RELIANCE"));
-      expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
-    });
-
-    test("WatchlistScan hidden when no botSnapshot and no positions", () => {
-      setState({ positions: [], botSnapshot: null });
-      r(<PaperPositionsTable />);
-
-      expect(screen.queryByTestId("watchlist-scan-card")).not.toBeInTheDocument();
-    });
-  });
-
   describe("Positions table container and header", () => {
-    test("positions table container renders", () => {
-      rWithPosition();
-      expect(screen.getByTestId("positions-table-container")).toBeTruthy();
-    });
-
     test("positions header shows count", () => {
       rWithTwoPositions({}, {});
       expect(screen.getByText("Positions (2)")).toBeTruthy();
@@ -434,38 +365,12 @@ describe("PaperPositionsTable", () => {
 
     test("positions panel data-testid present", () => {
       rWithPosition();
-      expect(screen.getByTestId("positions-panel")).toBeTruthy();
+      expect(screen.getByTestId("positions-table-container")).toBeTruthy();
     });
 
     test("positions table has data-testid from DataTable", () => {
       rWithPosition();
       expect(screen.getByTestId("positions-table")).toBeInTheDocument();
-    });
-  });
-
-  describe("WatchlistScan handleSelectSymbol", () => {
-    test("handleSelectSymbol calls fetchPaperChart with current state params", async () => {
-      const user = userEvent.setup();
-      const { fetchPaperChart } = await import("../../api/paperTrading");
-      const pos = mockPosition({ symbol: "RELIANCE", side: "BUY" });
-      setState({
-        positions: [pos],
-        botSnapshot: mockBotSnapshotSignalsOnly,
-        selectedStrategyId: 5,
-        chartTimeframe: "15min",
-        intradayOnly: true,
-      });
-      r(<PaperPositionsTable />);
-      await user.click(screen.getByTestId("scan-signal-RELIANCE"));
-      expect(fetchPaperChart).toHaveBeenCalledWith("RELIANCE", undefined, "15min", 5);
-    });
-
-    test("handleSelectSymbol works for watching rows too", async () => {
-      const user = userEvent.setup();
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
-      rWithPosition({}, { botSnapshot: mockBotSnapshot });
-      await user.click(screen.getByTestId("scan-watching-TCS"));
-      expect(setSelectedSymbol).toHaveBeenCalledWith("TCS");
     });
   });
 

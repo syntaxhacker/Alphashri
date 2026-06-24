@@ -43,20 +43,17 @@ export async function navigateToPaperTradingWithBot(
     positionsEmpty.waitFor({ state: "visible", timeout: 20000 }),
   ]).catch(() => {});
 
-  // Now try to find and click the bot card if it's visible
-  const botCard = page.locator(`[data-testid="bot-card-${botId}"]`);
-  const isCardVisible = await botCard.isVisible().catch(() => false);
+  // First bot is auto-selected via loadInitialData; confirm with keyboard
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
 
-  if (isCardVisible) {
-    await botCard.click({ timeout: 10000 });
-  } else {
-    // Fallback: click first available bot card
-    const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
-    const hasBotCards = await firstBotCard.isVisible().catch(() => false);
-    if (hasBotCards) {
-      await firstBotCard.click({ timeout: 10000 });
-    }
-  }
+  // Open the select dropdown and press Enter to confirm current selection
+  await botSelect.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Enter");
+
+  // Wait a moment for the selection to register and API calls to start
+  await page.waitForTimeout(500);
 
   // Wait a moment for the selection to register and API calls to start
   await page.waitForTimeout(500);
@@ -87,5 +84,5 @@ export async function verifyPaperTradingTabs(page: Page): Promise<void> {
  * Get bot selector cards
  */
 export function getBotSelector(page: Page) {
-  return page.locator('[data-testid^="bot-card-"]');
+  return page.locator('[data-testid="bot-select"]');
 }

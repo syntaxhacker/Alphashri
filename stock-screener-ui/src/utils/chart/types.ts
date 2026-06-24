@@ -20,6 +20,8 @@ export interface UnifiedTrade {
   side?: "BUY" | "SELL";
   pnl?: number;
   costs?: number;
+  stop_loss?: number;
+  take_profit?: number;
   candle_idx?: number;
   exit_candle_idx?: number;
 }

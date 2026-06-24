@@ -89,9 +89,8 @@ class ReplayDataProvider:
         tf_minutes = int(interval)
         now = self._get_time()
         now_ist = now.astimezone(IST) if now.tzinfo else now.replace(tzinfo=IST)
-        cutoff = now_ist
 
-        mask = df.index.tz_convert(IST) <= cutoff
+        mask = df.index.tz_convert(IST) <= now_ist
         df = df[mask].copy()
 
         if df.empty:
@@ -100,7 +99,20 @@ class ReplayDataProvider:
         if tf_minutes == 1:
             return df
 
-        return resample_candles(df, tf_minutes)
+        result = resample_candles(df, tf_minutes)
+        # Drop the last candle if it's partial (fewer 1-min candles than tf_minutes)
+        if result is not None and len(result) > 0:
+            last_idx = result.index[-1]
+            last_start = last_idx
+            last_end = last_idx + timedelta(minutes=tf_minutes)
+            # Count 1-min candles in this bucket
+            bucket_1m = df.index.tz_convert(IST)[
+                (df.index.tz_convert(IST) >= last_start) &
+                (df.index.tz_convert(IST) < last_end)
+            ]
+            if len(bucket_1m) < tf_minutes:
+                result = result.iloc[:-1]
+        return result
 
     def fetch_historical_data_v3(
         self,

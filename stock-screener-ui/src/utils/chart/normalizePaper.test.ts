@@ -365,9 +365,9 @@ describe("normalizePaper", () => {
   });
 
   describe("ChartInput configuration", () => {
-    it("sets showVolume to true", () => {
+    it("sets showVolume to false", () => {
       const result = normalizePaper(mockPaperData, false);
-      expect(result.showVolume).toBe(true);
+      expect(result.showVolume).toBe(false);
     });
 
     it("sets showDataZoomSlider to false", () => {
@@ -385,14 +385,14 @@ describe("normalizePaper", () => {
       expect(result.isDark).toBe(true);
     });
 
-    it("parses selectedTradeId to number", () => {
-      const result = normalizePaper(mockPaperData, false, "42");
-      expect(result.highlightedTradeId).toBe(42);
+    it("looks up selectedTradeId by trade_id", () => {
+      const result = normalizePaper(mockPaperData, false, "1");
+      expect(result.highlightedTradeId).toBe(1);
     });
 
-    it("handles invalid selectedTradeId string", () => {
-      const result = normalizePaper(mockPaperData, false, "abc");
-      expect(result.highlightedTradeId).toBeNaN();
+    it("returns null for non-existent selectedTradeId", () => {
+      const result = normalizePaper(mockPaperData, false, "nonexistent");
+      expect(result.highlightedTradeId).toBeNull();
     });
 
     it("sets highlightedTradeId to null when not provided", () => {
@@ -412,7 +412,7 @@ describe("normalizePaper", () => {
       const result = normalizePaper(data, false);
       expect(result.candles).toEqual([]);
       expect(result.trades).toEqual([]);
-      expect(result.showVolume).toBe(true);
+      expect(result.showVolume).toBe(false);
     });
 
     it("handles missing optional data fields", () => {

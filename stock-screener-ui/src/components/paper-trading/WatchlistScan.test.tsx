@@ -137,11 +137,6 @@ describe("WatchlistScan", () => {
   describe("row click handlers", () => {
     async function clickScanRow(symbol: string, status: "signal" | "watching" | "skipped") {
       const user = userEvent.setup();
-      if (status === "skipped") {
-        await user.click(
-          within(screen.getByTestId(`watchlist-scan-${status}`)).getByRole("button"),
-        );
-      }
       await user.click(screen.getByTestId(`scan-${status}-${symbol}`));
       return user;
     }
@@ -175,22 +170,16 @@ describe("WatchlistScan", () => {
       },
     );
 
-    test("skipped accordion starts collapsed", async () => {
-      const user = userEvent.setup();
-
+    test("skipped accordion starts expanded", async () => {
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
 
       const control = accordionControl("skipped");
-      expect(control).toHaveAttribute("aria-expanded", "false");
-
-      // Row exists in DOM despite collapsed panel (keepMounted=true)
-      expect(screen.getByTestId("scan-skipped-INFY")).toBeInTheDocument();
-
-      // Expand and verify row is clickable
-      await user.click(control);
       expect(control).toHaveAttribute("aria-expanded", "true");
+      expect(screen.getByTestId("skipped-table")).toBeInTheDocument();
 
+      // Row is visible and clickable
       const { setSelectedSymbol } = await import("../../state/paperTrading");
+      const user = userEvent.setup();
       await user.click(screen.getByTestId("scan-skipped-INFY"));
       expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
     });
@@ -213,22 +202,18 @@ describe("WatchlistScan", () => {
       expect(signalsControl).toHaveAttribute("aria-expanded", "true");
     });
 
-    test("with defaultValue changed, sections start collapsed", async () => {
-      const user = userEvent.setup();
+    test("all sections start expanded by default", async () => {
       const { setSelectedSymbol } = await import("../../state/paperTrading");
 
       r(<WatchlistScan snapshot={mockSnapshotWithAll} selectedSymbol={null} />);
 
-      // Default sections start expanded
+      // All sections start expanded
       expect(accordionControl("signals")).toHaveAttribute("aria-expanded", "true");
       expect(accordionControl("watching")).toHaveAttribute("aria-expanded", "true");
+      expect(accordionControl("skipped")).toHaveAttribute("aria-expanded", "true");
 
-      // Non-default section (skipped) starts collapsed
-      const skippedControl = accordionControl("skipped");
-      expect(skippedControl).toHaveAttribute("aria-expanded", "false");
-
-      // Expand non-default section and verify rows become clickable
-      await user.click(skippedControl);
+      // Row is clickable without expanding
+      const user = userEvent.setup();
       await user.click(screen.getByTestId("scan-skipped-INFY"));
       expect(setSelectedSymbol).toHaveBeenCalledWith("INFY");
     });
@@ -343,7 +328,6 @@ describe("skipped row merged items", () => {
   ];
 
   test.each(skippedTestCases)("$name", async ({ scanItems, expectedCell2, expectedCell3 }) => {
-    const user = userEvent.setup();
     const snapshot: PaperBotSnapshot = {
       ...mockSnapshotWithAll,
       scan_items: scanItems,
@@ -351,7 +335,6 @@ describe("skipped row merged items", () => {
 
     r(<WatchlistScan snapshot={snapshot} selectedSymbol={null} />);
     const symbol = scanItems[0].symbol;
-    await user.click(within(screen.getByTestId("watchlist-scan-skipped")).getByRole("button"));
 
     expect(screen.getByTestId(`scan-skipped-${symbol}`)).toBeInTheDocument();
     const cells = within(screen.getByTestId(`scan-skipped-${symbol}`)).getAllByRole("cell");

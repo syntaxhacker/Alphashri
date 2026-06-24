@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Flex, Stack, Alert, ScrollArea } from "@mantine/core";
 import {
@@ -10,6 +10,7 @@ import {
 import {
   refreshLiveData,
   initLiveAutoRefresh,
+  initBotAutoRefresh,
   stopLiveAutoRefresh,
   refreshBotLiveData,
   listBots,
@@ -33,29 +34,24 @@ import {
   PaperTradingTabs,
 } from "./PaperTradingHelpers";
 import { LivePriceUpdater } from "./LivePriceUpdater";
+import { WatchlistScan2 } from "./WatchlistScan2";
+import { SelectedPositionBar } from "./SelectedPositionBar";
 
 function useLoadInitialData(
-  activeBotId: string | null,
-  setActiveBotId: (id: string) => void,
   setAvailableBots: (bots: BotInfo[]) => void,
   setBotSummaries: (summaries: BotSummary[]) => void,
 ) {
-  const loadInitialData = useCallback(async () => {
+  const loadInitialData = useCallback(async (): Promise<string | null> => {
     try {
       const [bots, summaries] = await Promise.all([listBots(), fetchBotSummaries()]);
       setAvailableBots(bots);
       setBotSummaries(summaries);
-      const botId = activeBotId || (bots.length > 0 ? bots[0].id : null);
-      if (botId) {
-        setActiveBotId(botId);
-        await refreshBotLiveData(botId);
-      } else {
-        refreshLiveData();
-      }
+      return bots.length > 0 ? bots[0].id : null;
     } catch (error) {
       setError(`Failed to load initial data: ${error}`);
+      return null;
     }
-  }, [activeBotId, setActiveBotId, setAvailableBots, setBotSummaries]);
+  }, [setAvailableBots, setBotSummaries]);
 
   return loadInitialData;
 }
@@ -72,6 +68,7 @@ function useHandleBotSelect(setActiveBotId: (id: string | null) => void) {
         setActiveBotId(botId);
         stopLiveAutoRefresh();
         await refreshBotLiveData(botId);
+        initBotAutoRefresh(botId);
       }
     },
     [setActiveBotId],
@@ -88,8 +85,6 @@ function usePaperTradingViewModel() {
   const [botSummaries, setBotSummaries] = useState<BotSummary[]>([]);
 
   const loadInitialData = useLoadInitialData(
-    activeBotId,
-    setActiveBotId,
     setAvailableBots,
     setBotSummaries,
   );
@@ -97,11 +92,23 @@ function usePaperTradingViewModel() {
   const handleClearError = useCallback(() => setError(null), []);
 
   useEffect(() => {
-    loadInitialData();
+    loadInitialData().then((botId) => {
+      if (botId) {
+        setActiveBotId(botId);
+        refreshBotLiveData(botId);
+        initBotAutoRefresh(botId);
+      } else {
+        refreshLiveData();
+      }
+    });
     return () => {
       stopLiveAutoRefresh();
     };
   }, [loadInitialData]);
+
+  useEffect(() => {
+    fetchBotSummaries().then(setBotSummaries);
+  }, [state.botRunning]);
 
   const actions = usePaperViewActions(activeBotId);
   const filters = useHistoryFilters();
@@ -122,40 +129,43 @@ interface LiveViewProps {
 }
 
 function LiveView({ state }: LiveViewProps) {
+  const selectedPosition = useMemo(() => {
+    if (!state.selectedSymbol) return null;
+    return state.positions.find((p) => p.symbol === state.selectedSymbol) || null;
+  }, [state.positions, state.selectedSymbol]);
+
   return (
     <Flex
       h="100%"
-      gap="md"
+      gap="xs"
       direction={{ base: "column", md: "row" }}
       className="paper-live-view"
       id="live-view-grid"
     >
       <Flex
         direction="column"
-        w={{ base: "100%", md: "50%" }}
-        style={{ minWidth: 0 }}
+        style={{ width: "35%", minWidth: 0 }}
         className="paper-left-panel"
         id="left-panel"
         data-testid="paper-left-panel"
       >
-        <PaperPortfolioCard
-          portfolio={state.portfolio as any}
-          isMultiStrategy={state.availableBots.length > 0}
-          strategySummaries={[]}
-        />
+        <PaperPortfolioCard portfolio={state.portfolio as any} />
         <ScrollArea flex={1} style={{ minHeight: 0 }}>
-          <PaperPositionsTable />
+          <Flex direction="column" gap="xs">
+            <PaperPositionsTable />
+          </Flex>
         </ScrollArea>
+        <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} />
       </Flex>
       <Flex
         direction="column"
-        flex={1}
-        style={{ minWidth: 0, overflow: "hidden" }}
+        style={{ width: "65%", minWidth: 0, overflow: "hidden" }}
         className="paper-right-panel"
         id="right-panel"
         data-testid="paper-right-panel"
       >
         <PaperChart />
+        <SelectedPositionBar position={selectedPosition} />
       </Flex>
     </Flex>
   );
@@ -170,7 +180,7 @@ function HistoryView({ state: _state }: HistoryViewProps) {
     <Flex
       className="paper-history-view"
       id="history-view"
-      gap="md"
+      gap="xs"
       h="100%"
       direction={{ base: "column", md: "row" }}
       data-testid="paper-history-panel"
@@ -218,7 +228,7 @@ function ErrorAlert({ message, onClose }: ErrorAlertProps) {
       title="Error"
       color="red"
       variant="filled"
-      mb="md"
+      mb="xs"
       data-testid="paper-error"
       withCloseButton
       onClose={onClose}
@@ -248,12 +258,12 @@ function HeaderSection({
   return (
     <Flex
       flex="0 0 auto"
-      mb="md"
+      mb="xs"
       className="paper-trading-header"
       id="paper-header"
       direction="column"
     >
-      <Stack gap="sm">
+      <Stack gap="xs">
         <Flex justify="space-between" align="center">
           <PaperTradingTabs state={state} onViewChange={actions.handleViewChange} />
         </Flex>
@@ -279,7 +289,7 @@ export function PaperTradingView() {
     <Flex
       direction="column"
       h="100%"
-      p="sm"
+      p="xs"
       className="paper-trading-view"
       id="paper-trading-main"
       style={{ overflow: "hidden" }}

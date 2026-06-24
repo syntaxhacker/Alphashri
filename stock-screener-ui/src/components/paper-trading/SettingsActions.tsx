@@ -10,7 +10,7 @@ interface SettingsActionsProps {
 
 export function SettingsActions({ loading, dirty, onSave, onReset }: SettingsActionsProps) {
   return (
-    <Group justify="flex-end" gap="sm" className="paper-settings-actions" id="settings-actions">
+    <Group justify="flex-end" gap="xs" className="paper-settings-actions" id="settings-actions">
       <Button
         variant="light"
         color="gray"

@@ -19,6 +19,7 @@ export interface PaperPosition {
   pnl: number;
   pnl_pct: number;
   margin_used: number;
+  id?: string;
   order_id: string;
   strategy_id: number;
   strategy_name: string;
@@ -168,15 +169,7 @@ export interface ORBLevels {
   or_range: number;
   or_range_pct: number;
   or_minutes?: number;
-}
-
-// 52-week high levels for swing strategies
-export interface Week52Levels {
-  high_52w: number; // 52-week high price
-  low_52w: number; // 52-week low price
-  distance_to_high_pct: number; // How far from 52W high (%)
-  distance_to_low_pct: number; // How far from 52W low (%)
-  near_high: boolean; // Within entry threshold of high
+  or_candle_count?: number;
 }
 
 export interface PaperScanItem {
@@ -191,6 +184,8 @@ export interface PaperScanItem {
   reason?: string;
   strategy_name?: string;
   strategy_id?: number;
+  source?: string;        // 'custom' if symbol is in strategy's custom_watchlist
+  timestamp?: string; // ISO timestamp when item was scanned
 }
 
 export interface PaperBotSnapshot {
@@ -246,6 +241,13 @@ export interface PaperTradingState {
   chartTimeframe: string;
   chartFromDate: string | null;
 
+  chartDataLive: PaperChartData | null;
+  chartTimeframeLive: string;
+  chartFromDateLive: string | null;
+  chartDataHistory: PaperChartData | null;
+  chartTimeframeHistory: string;
+  chartFromDateHistory: string | null;
+
   // Loading states
   isLoading: boolean;
   error: string | null;
@@ -282,9 +284,6 @@ export interface PaperTradingState {
 
 }
 
-// View type for paper trading (match the state)
-export type PaperView = "live" | "history" | "settings" | "analytics" | "activity" | "aggregated";
-
 // Bot info for multi-strategy
 export interface BotInfo {
   id: string; // UUID string
@@ -296,6 +295,9 @@ export interface BotInfo {
   }>;
   is_active: boolean;
   live_trading: boolean;
+  running?: boolean;
+  pid?: number | null;
+  position_count?: number;
 }
 
 export interface DailyPnLPoint {

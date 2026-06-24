@@ -1,10 +1,10 @@
 from typing import Optional
 
 from trading.orb_signals import ORBSignal, SignalType
-from trading.base_signals import BaseSignalGenerator
+from trading.week52_utils import Base52WSignalGenerator
 
 
-class Blind52WSignalGenerator(BaseSignalGenerator):
+class Blind52WSignalGenerator(Base52WSignalGenerator):
 
     strategy_type: str = "BLIND_52W"
 
@@ -14,9 +14,7 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         self.max_holding_days = int(config.get("max_holding_days", 30))
         self.sl_pct = float(config.get("sl_pct", 5.0))
         self.min_avg_volume = float(config.get("min_avg_volume", 50000))
-        eod_hour = int(config.get("eod_exit_hour", 15))
-        eod_minute = int(config.get("eod_exit_minute", 30))
-        super().__init__(sl_pct=self.sl_pct, tp_pct=0, eod_exit_hour=eod_hour, eod_exit_minute=eod_minute)
+        super().__init__(sl_pct=self.sl_pct, tp_pct=0)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")
@@ -26,7 +24,7 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         if not all([current_price, high_52w, days_since is not None]):
             return None
 
-        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
+        if self._safe_float(market_data, "avg_volume_20d") < self.min_avg_volume:
             return None
 
         # Already at or above 52W high — no entry
@@ -42,7 +40,8 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
             return None
 
         take_profit = round(high_52w, 2)
-        stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
+        sl, _ = self._calc_sl_tp("BUY", current_price)
+        stop_loss = sl
         return self.create_signal(
             symbol=symbol,
             signal_type=SignalType.LONG_ENTRY,
@@ -66,20 +65,9 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
         if position_side != "BUY":
             return None
 
-        hour, minute = self._get_current_time(**kwargs)
-        if self.is_eod_exit_time(hour, minute):
-            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
-            return self.create_signal(
-                symbol=symbol,
-                signal_type=SignalType.LONG_EXIT,
-                price=round(current_price, 2),
-                stop_loss=stop_loss,
-                take_profit=take_profit,
-                notes=f"EOD exit ({self.eod_exit_hour}:{self.eod_exit_minute:02d}) (PnL: {pnl_pct:+.2f}%)",
-            )
-
-        days_in_position: int = kwargs.get("days_in_position", 0)
-        max_holding_days: int = kwargs.get("max_holding_days", self.max_holding_days)
+        ek = self._extract_exit_kwargs(kwargs, current_price)
+        days_in_position = ek["days_in_position"]
+        max_holding_days = ek["max_holding_days"]
         if days_in_position >= max_holding_days:
             pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
             return self.create_signal(
@@ -88,7 +76,7 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
                 price=round(current_price, 2),
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                notes=f"MAX_HOLDING ({max_holding_days}d) (PnL: {pnl_pct:+.2f}%)",
+                notes=self._format_exit_note(f"MAX_HOLDING ({max_holding_days}d)", pnl_pct),
             )
 
         # Exit when target (52W high) is reached
@@ -100,7 +88,7 @@ class Blind52WSignalGenerator(BaseSignalGenerator):
                 price=round(current_price, 2),
                 stop_loss=stop_loss,
                 take_profit=take_profit,
-                notes=f"52W high target reached ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
+                notes=self._format_exit_note(f"52W high target reached ₹{take_profit:.2f}", pnl_pct),
             )
 
         return None

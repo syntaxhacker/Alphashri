@@ -53,25 +53,37 @@ const DEFAULT_POSITIONS = [
     id: 1,
     symbol: "TCS",
     side: "BUY",
-    qty: 10,
+    quantity: 10,
     entry_price: 3750,
     current_price: 3800,
+    entry_time: "2026-03-02T09:30:00",
+    stop_loss: 3700,
+    take_profit: 3900,
+    unrealized_pnl: 500,
+    unrealized_pnl_pct: 1.33,
     pnl: 500,
-    pnl_pct: 1.33,
+    margin_used: 37500,
     strategy_name: "ORB Conservative",
     strategy_id: 1,
+    order_id: "order-1",
   },
   {
     id: 2,
     symbol: "INFY",
     side: "BUY",
-    qty: 20,
+    quantity: 20,
     entry_price: 1480,
     current_price: 1500,
+    entry_time: "2026-03-02T10:00:00",
+    stop_loss: 1450,
+    take_profit: 1520,
+    unrealized_pnl: 400,
+    unrealized_pnl_pct: 1.35,
     pnl: 400,
-    pnl_pct: 1.35,
+    margin_used: 29600,
     strategy_name: "ORB Aggressive",
     strategy_id: 2,
+    order_id: "order-2",
   },
 ];
 
@@ -114,14 +126,17 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
             quantity: 10,
             entry_price: 3750,
             current_price: 3800,
+            entry_time: "2026-03-02T09:30:00",
+            stop_loss: 3700,
+            take_profit: 3900,
+            unrealized_pnl: 500,
+            unrealized_pnl_pct: 1.33,
             pnl: 500,
             pnl_pct: 1.33,
             margin_used: 37500,
             strategy_name: "ORB Conservative",
             strategy_id: 1,
-            sl: 3700,
-            tp: 3900,
-            entry_time: "2026-03-02T09:30:00",
+            order_id: "order-1",
           },
           {
             id: 2,
@@ -130,14 +145,17 @@ export async function setupBotMocksForId(page: Page, botId: string, customScanIt
             quantity: 20,
             entry_price: 1480,
             current_price: 1500,
+            entry_time: "2026-03-02T10:00:00",
+            stop_loss: 1450,
+            take_profit: 1520,
+            unrealized_pnl: 400,
+            unrealized_pnl_pct: 1.35,
             pnl: 400,
             pnl_pct: 1.35,
             margin_used: 29600,
             strategy_name: "ORB Aggressive",
             strategy_id: 2,
-            sl: 1450,
-            tp: 1520,
-            entry_time: "2026-03-02T10:00:00",
+            order_id: "order-2",
           },
         ],
         count: 2,
@@ -151,10 +169,13 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  // Wait for bot cards and click the first available one
-  await page.waitForSelector('[data-testid^="bot-card-"]', { state: "visible", timeout: 10000 });
-  const firstBotCard = page.locator('[data-testid^="bot-card-"]').first();
-  await firstBotCard.click();
+  // Select a bot via the Mantine Select dropdown
+  const botSelect = page.locator('[data-testid="bot-select"]');
+  await expect(botSelect).toBeVisible({ timeout: 10000 });
+  await botSelect.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 
   await page.getByTestId("tab-live").click();
   await page.waitForTimeout(1000);

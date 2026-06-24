@@ -80,6 +80,7 @@ class StrategyConfig(Base):
     eod_exit_hour = Column(Integer, default=14)
     eod_exit_minute = Column(Integer, default=45)
     screener_profiles = Column(String(500), nullable=True)  # JSON array: '["trending", "near_52w_breakout"]'
+    custom_watchlist = Column(String(2000), nullable=True)  # JSON array: '["RELIANCE", "HDFCBANK"]'
 
     brokerage_pct = Column(Float, default=0.0003)
     min_brokerage = Column(Float, default=20)
@@ -141,6 +142,7 @@ class StrategyConfig(Base):
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
             "screener_profiles": json.loads(self.screener_profiles) if self.screener_profiles else [],
+            "custom_watchlist": json.loads(self.custom_watchlist) if self.custom_watchlist else [],
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,
