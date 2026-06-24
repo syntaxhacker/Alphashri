@@ -10,8 +10,10 @@ import {
   updatePositionNotesAction,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
+import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
 import {
-  formatNumber,
+  formatSignedPnl,
+  formatPercentage,
   formatElapsed,
   formatCurrencyIN,
   getPnLTextColor,
@@ -73,30 +75,6 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   return { totalPnl, marginUsed, count: positions.length };
 }
 
-const TABLE_STYLES = {
-  thead: {
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 1,
-    background: "var(--mantine-color-body)",
-  },
-  th: {
-    padding: "3px 5px",
-    fontSize: "10px",
-    fontWeight: 600,
-    textTransform: "uppercase" as const,
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-    letterSpacing: "0.5px",
-  },
-  td: {
-    padding: "3px 5px",
-    fontSize: "12px",
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-  },
-};
-
 export { TABLE_STYLES as tableStyles };
 
 function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
@@ -153,7 +131,6 @@ function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
   }, [pnl]);
 
   const pnlClass = getPnLTextColor(pnl);
-  const pnlSign = pnl >= 0 ? "+" : "";
 
   return (
     <Text
@@ -165,11 +142,10 @@ function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
       onAnimationEnd={() => setFlash(null)}
       style={{ display: "inline" }}
     >
-      {pnlSign}₹{formatNumber(pnl)}
+      {formatSignedPnl(pnl)}
       <Text span c="dimmed" fs="italic" size="sm">
         {" "}
-        ({pnlSign}
-        {pnlPct.toFixed(2)}%)
+        ({formatPercentage(pnlPct)})
       </Text>
     </Text>
   );
@@ -607,7 +583,7 @@ export function StrategySummaryFooter({
               <Table.Td>₹{formatCurrencyIN(s.marginUsed)}</Table.Td>
               <Table.Td>
                 <Text c={getPnLTextColor(s.totalPnl)} fw={600} size="sm">
-                  {s.totalPnl >= 0 ? "+" : ""}₹{formatNumber(s.totalPnl)}
+                  {formatSignedPnl(s.totalPnl)}
                 </Text>
               </Table.Td>
             </Table.Tr>

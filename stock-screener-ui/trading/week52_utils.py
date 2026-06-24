@@ -152,6 +152,7 @@ def check_intraday_52w_touch(
 # --- Shared helpers for 52W backtest Nautilus strategies (DRY fix) ---
 
 from datetime import datetime, timezone
+from trading.base_signals import BaseSignalGenerator
 # Note: get_date_from_ns is timezone-naive in sense of IST; used for bar ts_event which is UTC ns
 
 
@@ -209,3 +210,22 @@ class Week52HighTracker:
     def reset(self) -> None:
         self._high_prices = []
         self._current_52w_high = None
+
+
+class Base52WSignalGenerator(BaseSignalGenerator):
+    """Intermediate base for 52W signal generators — disables EOD exit."""
+
+    def __init__(self, sl_pct: float = 1.0, tp_pct: float = 1.5):
+        super().__init__(sl_pct=sl_pct, tp_pct=tp_pct)
+
+    def is_eod_exit_time(self, hour: int, minute: int) -> bool:
+        return False
+
+    def _extract_exit_kwargs(self, kwargs: dict, current_price: float) -> dict:
+        return {
+            "days_in_position": kwargs.get("days_in_position", 0),
+            "max_holding_days": kwargs.get("max_holding_days", getattr(self, "max_holding_days", 30)),
+            "highest_price_since_entry": kwargs.get("highest_price_since_entry", current_price),
+            "entry_52w_high": kwargs.get("entry_52w_high"),
+            "trailing_stop_pct": kwargs.get("trailing_stop_pct", getattr(self, "trailing_stop_pct", 2.0)),
+        }

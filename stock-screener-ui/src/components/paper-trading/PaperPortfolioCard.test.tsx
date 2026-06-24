@@ -42,12 +42,12 @@ describe("PaperPortfolioCard", () => {
 
   describe("P&L formatting", () => {
     test.each([
-      { name: "positive P&L shows + prefix", day_pnl: 5000, expected: /\+₹5K/ },
+      { name: "positive P&L shows + prefix", day_pnl: 5000, expected: /\+₹5\.0K/ },
       {
         name: "negative P&L shows no + prefix",
         day_pnl: -5000,
-        expected: /₹-5K/,
-        notExpected: /\+₹5K/,
+        expected: /₹-5\.0K/,
+        notExpected: /\+₹5\.0K/,
       },
       { name: "zero P&L shows 0", day_pnl: 0, expected: /₹0/ },
       { name: "large P&L in L format", day_pnl: 100000, expected: /\+₹1\.0L/ },
@@ -65,7 +65,7 @@ describe("PaperPortfolioCard", () => {
       const portfolio = mockPortfolio({ total_value: 100000, cash: 50000, margin_used: 50000 });
       renderWithMantine(<PaperPortfolioCard portfolio={portfolio} />);
       expect(screen.getByText(/1\.0L/)).toBeInTheDocument();
-      expect(screen.getAllByText(/50K/)).toHaveLength(2);
+      expect(screen.getAllByText(/50\.0K/)).toHaveLength(2);
     });
 
     test("formats large P&L in L format", () => {

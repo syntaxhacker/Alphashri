@@ -26,7 +26,7 @@ import type {
   StrategyStatus,
   BotConfig,
 } from "../../types/bots";
-import { formatNumber as formatNumberShared, getPnLTextColor } from "../../utils/ui-helpers";
+import { formatNumber as formatNumberShared, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge, StatusBadge } from "../common/BadgeComponents";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
@@ -70,7 +70,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
                 Total P&L
               </Text>
               <Text fw={600} c={pnlColor}>
-                {portfolio.total_pnl >= 0 ? "+" : ""}₹{formatNumberShared(portfolio.total_pnl)}
+                {formatSignedPnl(portfolio.total_pnl)}
                 <Text span size="sm" ml={4}>
                   ({portfolio.total_pnl_pct >= 0 ? "+" : ""}
                   {portfolio.total_pnl_pct.toFixed(2)}%)
@@ -133,7 +133,7 @@ export function StrategyStatusCard({
             P&L
           </Text>
           <Text size="sm" fw={600} c={pnlColor}>
-            {strategy.total_pnl >= 0 ? "+" : ""}₹{formatNumberShared(strategy.total_pnl)}
+            {formatSignedPnl(strategy.total_pnl)}
           </Text>
         </Group>
 
@@ -186,7 +186,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
                 <Table.Td>₹{p.current_price.toFixed(2)}</Table.Td>
                 <Table.Td>
                   <Text c={pnlColor} fw={600}>
-                    {p.unrealized_pnl >= 0 ? "+" : ""}₹{formatNumberShared(p.unrealized_pnl)}
+                    {formatSignedPnl(p.unrealized_pnl)}
                     <Text span size="sm" ml={4}>
                       ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
                       {p.unrealized_pnl_pct.toFixed(2)}%)
@@ -278,18 +278,18 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
                   <Table.Td>₹{t.entry_price.toFixed(2)}</Table.Td>
                   <Table.Td>₹{t.exit_price?.toFixed(2) || "-"}</Table.Td>
                   <Table.Td>
-                    <Text c={pnlColor} fw={600}>
-                      {t.pnl >= 0 ? "+" : ""}₹{formatNumberShared(t.pnl)}
-                      <Text span size="sm" ml={4}>
-                        ({t.pnl_pct >= 0 ? "+" : ""}
-                        {t.pnl_pct.toFixed(2)}%)
-                      </Text>
+                  <Text c={pnlColor} fw={600}>
+                    {formatSignedPnl(t.pnl)}
+                    <Text span size="sm" ml={4}>
+                      ({t.pnl_pct >= 0 ? "+" : ""}
+                      {t.pnl_pct.toFixed(2)}%)
                     </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text c={netPnlColor} fw={600}>
-                      {t.net_pnl >= 0 ? "+" : ""}₹{formatNumberShared(t.net_pnl)}
-                    </Text>
+                  </Text>
+                </Table.Td>
+                <Table.Td>
+                  <Text c={netPnlColor} fw={600}>
+                    {formatSignedPnl(t.net_pnl)}
+                  </Text>
                   </Table.Td>
                   <Table.Td>
                     <ExitReasonBadge reason={t.exit_reason} />

@@ -1,34 +1,12 @@
 import { Table, Text, Badge, Group, Box } from "@mantine/core";
 import { SideBadge } from "../common/BadgeComponents";
+import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
 import { formatTimeOnly } from "../../utils/ui-helpers";
 import type { ReplayOpenPosition } from "../../types/replay";
 
 interface ReplayPositionsProps {
   positions: ReplayOpenPosition[];
 }
-
-const TABLE_STYLES = {
-  thead: {
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 1,
-    background: "var(--mantine-color-body)",
-  },
-  th: {
-    padding: "4px 6px",
-    fontSize: "11px",
-    fontWeight: 600,
-    textTransform: "uppercase" as const,
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-  },
-  td: {
-    padding: "3px 6px",
-    fontSize: "12px",
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-  },
-};
 
 export function ReplayPositions({ positions }: ReplayPositionsProps) {
   if (positions.length === 0) return null;

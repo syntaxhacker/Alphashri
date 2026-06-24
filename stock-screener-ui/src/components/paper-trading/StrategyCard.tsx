@@ -4,7 +4,7 @@ import { IconX } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 import { PositionsTableBody } from "./PositionsHelpers";
 import type { PaperPosition } from "../../types/paperTrading";
-import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
+import { formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
 interface StrategyCardProps {
   strategyName: string;
@@ -56,7 +56,7 @@ export function StrategyCard({
           <Text size="sm" fw={600}>{strategyName}</Text>
           <Badge size="xs">{summary.count}</Badge>
           <Text size="xs" c={getPnLTextColor(summary.totalPnl)} fw={600}>
-            {summary.totalPnl >= 0 ? "+" : ""}₹{formatNumber(summary.totalPnl)}
+            {formatSignedPnl(summary.totalPnl)}
           </Text>
           <Progress
             value={capacityPct}

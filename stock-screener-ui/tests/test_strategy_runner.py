@@ -92,8 +92,8 @@ class TestSignalGeneratorInitialization:
         assert isinstance(runner.signal_generator, ORBSignalGenerator)
         # Check defaults
         assert runner.signal_generator.or_minutes == 45
-        assert runner.signal_generator.sl_pct == 0.4
-        assert runner.signal_generator.tp_pct == 1.2
+        assert runner.signal_generator.sl_pct == 1.0
+        assert runner.signal_generator.tp_pct == 1.5
         assert runner.signal_generator.min_or_range_pct == 0.5
         assert runner.signal_generator.max_or_range_pct == 3.0
         assert runner.signal_generator.breakout_buffer_pct == 0.3

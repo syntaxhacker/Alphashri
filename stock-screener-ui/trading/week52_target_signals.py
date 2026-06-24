@@ -10,11 +10,10 @@ from datetime import datetime
 from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
-from trading.base_signals import BaseSignalGenerator
-from trading.week52_utils import calculate_52w_high
+from trading.week52_utils import Base52WSignalGenerator, calculate_52w_high
 
 
-class Week52TargetSignalGenerator(BaseSignalGenerator):
+class Week52TargetSignalGenerator(Base52WSignalGenerator):
 
     strategy_type: str = "52W_TARGET"
 
@@ -43,7 +42,7 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if current_price is None:
             return None
 
-        if (market_data.get("avg_volume_20d", 0) or 0) < self.min_avg_volume:
+        if self._safe_float(market_data, "avg_volume_20d") < self.min_avg_volume:
             return None
 
         # Use provided high_52w from market_data first (includes latest completed bar),
@@ -70,16 +69,17 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if current_price < entry_threshold:
             return None
 
-        stop_loss = round(current_price * (1 - self.sl_pct / 100), 2)
+        sl, _ = self._calc_sl_tp("BUY", current_price)
+        stop_loss = sl
         # No TP — let the trailing stop manage exits once near/above the 52W high
         take_profit = 0.0
 
-        vol = market_data.get("volume", 0) or 0
-        avg_vol = market_data.get("avg_volume_20d", 0) or 0
+        vol = self._safe_float(market_data, "volume")
+        avg_vol = self._safe_float(market_data, "avg_volume_20d")
         vol_ratio = round(vol / avg_vol, 2) if avg_vol > 0 else 0
-        ma50 = market_data.get("ma50", 0) or 0
-        ma200 = market_data.get("ma200", 0) or 0
-        rsi = float(market_data.get("rsi", 0.0) or 0.0)
+        ma50 = self._safe_float(market_data, "ma50")
+        ma200 = self._safe_float(market_data, "ma200")
+        rsi = self._safe_float(market_data, "rsi")
 
         return self.create_signal(
             symbol=symbol,
@@ -104,11 +104,12 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if position_side != "BUY":
             return None
 
-        highest_price_since_entry: float = kwargs.get("highest_price_since_entry", current_price)
-        entry_52w_high: Optional[float] = kwargs.get("entry_52w_high")
-        days_in_position: int = kwargs.get("days_in_position", 0)
-        max_holding_days: int = kwargs.get("max_holding_days", self.max_holding_days)
-        trailing_stop_pct: float = kwargs.get("trailing_stop_pct", self.trailing_stop_pct)
+        ek = self._extract_exit_kwargs(kwargs, current_price)
+        days_in_position = ek["days_in_position"]
+        max_holding_days = ek["max_holding_days"]
+        highest_price_since_entry = ek["highest_price_since_entry"]
+        entry_52w_high = ek["entry_52w_high"]
+        trailing_stop_pct = ek["trailing_stop_pct"]
         near_high_activation_pct: float = kwargs.get("near_high_activation_pct", self.near_high_activation_pct)
         near_high_trail_pct: float = kwargs.get("near_high_trail_pct", self.near_high_trail_pct)
         sl_pct: float = kwargs.get("sl_pct", self.sl_pct)
@@ -134,12 +135,12 @@ class Week52TargetSignalGenerator(BaseSignalGenerator):
         if exit_reason is None:
             return None
 
-        pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
+        pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
         return self.create_signal(
             symbol=symbol,
             signal_type=SignalType.LONG_EXIT,
             price=round(current_price, 2),
             stop_loss=stop_loss,
             take_profit=take_profit,
-            notes=f"52W Target exit: {exit_reason} (PnL: {pnl_pct:+.2f}%)",
+            notes=self._format_exit_note(f"52W Target exit: {exit_reason}", pnl_pct),
         )

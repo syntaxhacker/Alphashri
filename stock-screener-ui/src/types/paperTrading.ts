@@ -172,15 +172,6 @@ export interface ORBLevels {
   or_candle_count?: number;
 }
 
-// 52-week high levels for swing strategies
-export interface Week52Levels {
-  high_52w: number; // 52-week high price
-  low_52w: number; // 52-week low price
-  distance_to_high_pct: number; // How far from 52W high (%)
-  distance_to_low_pct: number; // How far from 52W low (%)
-  near_high: boolean; // Within entry threshold of high
-}
-
 export interface PaperScanItem {
   symbol: string;
   status: string;
@@ -292,9 +283,6 @@ export interface PaperTradingState {
   aggregatedLoading: boolean;
 
 }
-
-// View type for paper trading (match the state)
-export type PaperView = "live" | "history" | "settings" | "analytics" | "activity" | "aggregated";
 
 // Bot info for multi-strategy
 export interface BotInfo {

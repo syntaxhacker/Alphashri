@@ -28,6 +28,7 @@ except ImportError:
 
 # Import shared ORB utilities (single source of truth for OR calculations)
 from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
+from trading.base_signals import BaseSignalGenerator
 
 console = Console()
 
@@ -59,7 +60,7 @@ class ORBSignal:
     notes: str = ""
 
 
-class ORBSignalGenerator:
+class ORBSignalGenerator(BaseSignalGenerator):
     """
     Generate live ORB trading signals.
 
@@ -123,6 +124,7 @@ class ORBSignalGenerator:
         # OR levels cache
         self.or_levels: Dict[str, dict] = {}
         self.active_signals: Dict[str, ORBSignal] = {}
+        super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def calculate_or_levels(self, candles: List[dict], symbol: str = None) -> Optional[dict]:
         """
@@ -163,6 +165,13 @@ class ORBSignalGenerator:
             Cached OR levels or None if not cached
         """
         return self.or_levels.get(symbol)
+
+    def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
+        current_price = market_data.get("current_price")
+        or_levels = market_data.get("or_levels")
+        if current_price is None or or_levels is None:
+            return None
+        return self.check_breakout(symbol=symbol, current_price=current_price, or_levels=or_levels)
 
     def check_breakout(
         self,
@@ -208,15 +217,14 @@ class ORBSignalGenerator:
                 return None
 
             # Calculate SL and TP
-            sl = current_price * (1 - self.sl_pct / 100)
-            tp = current_price * (1 + self.tp_pct / 100)
+            sl, tp = self._calc_sl_tp("BUY", current_price)
 
             return ORBSignal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_ENTRY,
                 price=current_price,
-                stop_loss=round(sl, 2),
-                take_profit=round(tp, 2),
+                stop_loss=sl,
+                take_profit=tp,
                 or_high=or_high,
                 or_low=or_low,
                 or_range=or_range,
@@ -237,15 +245,14 @@ class ORBSignalGenerator:
             distance_pct = ((or_low - current_price) / or_low) * 100
             if distance_pct > self.max_distance_from_or_pct:
                 return None
-            sl = current_price * (1 + self.sl_pct / 100)
-            tp = current_price * (1 - self.tp_pct / 100)
+            sl, tp = self._calc_sl_tp("SELL", current_price)
 
             return ORBSignal(
                 symbol=symbol,
                 signal_type=SignalType.SHORT_ENTRY,
                 price=current_price,
-                stop_loss=round(sl, 2),
-                take_profit=round(tp, 2),
+                stop_loss=sl,
+                take_profit=tp,
                 or_high=or_high,
                 or_low=or_low,
                 or_range=or_range,
@@ -288,7 +295,7 @@ class ORBSignalGenerator:
 
         # Check force exit time (14:45)
         if now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]:
-            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
+            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
             return ORBSignal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_EXIT if position_side == "BUY" else SignalType.SHORT_EXIT,
@@ -300,12 +307,12 @@ class ORBSignalGenerator:
                 or_range=0,
                 or_range_pct=0,
                 timestamp=now,
-                notes=f"EOD force exit ({self.FORCE_EXIT[0]}:{self.FORCE_EXIT[1]:02d}) (PnL: {pnl_pct:+.2f}%)",
+                notes=self._format_exit_note(f"EOD force exit ({self.FORCE_EXIT[0]}:{self.FORCE_EXIT[1]:02d})", pnl_pct),
             )
 
         # Check SL/TP for long position
         if position_side == "BUY":
-            pnl_pct = ((current_price - entry_price) / entry_price) * 100 if entry_price else 0
+            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
             if current_price <= stop_loss:
                 return ORBSignal(
                     symbol=symbol,
@@ -318,7 +325,7 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)",
+                    notes=self._format_exit_note(f"Stop loss hit ₹{stop_loss:.2f}", pnl_pct),
                 )
             if current_price >= take_profit:
                 return ORBSignal(
@@ -332,12 +339,12 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
+                    notes=self._format_exit_note(f"Take profit hit ₹{take_profit:.2f}", pnl_pct),
                 )
 
         # Check SL/TP for short position
         if position_side == "SELL":
-            pnl_pct = ((entry_price - current_price) / entry_price) * 100 if entry_price else 0
+            pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
             if current_price >= stop_loss:
                 return ORBSignal(
                     symbol=symbol,
@@ -350,7 +357,7 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes=f"Stop loss hit ₹{stop_loss:.2f} (PnL: {pnl_pct:+.2f}%)",
+                    notes=self._format_exit_note(f"Stop loss hit ₹{stop_loss:.2f}", pnl_pct),
                 )
             if current_price <= take_profit:
                 return ORBSignal(
@@ -364,7 +371,7 @@ class ORBSignalGenerator:
                     or_range=0,
                     or_range_pct=0,
                     timestamp=now,
-                    notes=f"Take profit hit ₹{take_profit:.2f} (PnL: {pnl_pct:+.2f}%)",
+                    notes=self._format_exit_note(f"Take profit hit ₹{take_profit:.2f}", pnl_pct),
                 )
 
         return None

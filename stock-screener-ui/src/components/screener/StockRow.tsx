@@ -12,7 +12,7 @@ import {
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";
-import { getValueColor, getScoreColor } from "../../utils/ui-helpers";
+import { getValueColor, getScoreColor, formatNumber } from "../../utils/ui-helpers";
 import { usePreviewChart } from "../common/PreviewChartProvider";
 import { toggleSymbolSelection, selectedSymbols } from "../../state";
 
@@ -24,13 +24,6 @@ interface StockRowProps {
   scoreFormula?: string;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
-}
-
-function formatNumber(value: any): React.ReactNode {
-  if (value === null || value === undefined) return "-";
-  const num = typeof value === "number" ? value : parseFloat(value);
-  if (isNaN(num)) return value;
-  return num.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
 export function StockRow({
@@ -157,6 +150,9 @@ export function StockRow({
     }
 
     if (column.type === "number") {
+      if (value === undefined || value === null || isNaN(value)) {
+        return <Text c="dimmed" data-testid={`number-cell-${stock.symbol}-${column.key}`}>-</Text>;
+      }
       const color = getValueColor(value);
       return (
         <Text
