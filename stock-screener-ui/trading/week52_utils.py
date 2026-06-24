@@ -125,7 +125,7 @@ def check_intraday_52w_touch(
     high_52w: float,
     days_since_52w_high: int,
     *,
-    threshold: float = 1.0,
+    threshold: float = 0.98,
 ) -> int:
     """
     Detect if today's intraday high has broken above the 52W high.
