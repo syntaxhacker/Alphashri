@@ -45,7 +45,7 @@ async function setupChartPreviewMock(
   };
 
   if (data.week52Levels) {
-    chartData.week52_levels = data.week52Levels;
+    chartData.high_52w = data.week52Levels.high_52w;
   }
 
   await page.route(apiRoute("chart/preview/"), async (route) => {
@@ -292,6 +292,9 @@ test.describe("Chart Preview - Combined Overlays (All Strategy Types)", () => {
     });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
+    // Toggle 52W high line on (defaults to off)
+    await page.locator('[data-testid="chart-52w-checkbox-wrapper"]').click();
+    await page.waitForTimeout(500);
     const option = await getChartOption(page);
     const series = option?.series || [];
     const overlayNames = series

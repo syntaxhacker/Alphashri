@@ -258,8 +258,10 @@ async function fetchAndRenderChart(symbol: string, size: ChartSize): Promise<voi
       candles: data.candles,
       orb_zones: data.orb_zones,
       pivot_levels: data.pivot_levels,
+      high_52w: data.high_52w ?? null,
+      show52wHigh: size !== "preview" && !!data.high_52w,
       size,
-      showPivots: size !== "preview", // Show pivots in expanded/full
+      showPivots: size !== "preview",
     });
 
     if (!chartOption) {
