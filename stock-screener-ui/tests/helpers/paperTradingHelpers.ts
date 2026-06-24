@@ -43,13 +43,17 @@ export async function navigateToPaperTradingWithBot(
     positionsEmpty.waitFor({ state: "visible", timeout: 20000 }),
   ]).catch(() => {});
 
-  // Select a bot via the Mantine Select dropdown
+  // First bot is auto-selected via loadInitialData; confirm with keyboard
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
+
+  // Open the select dropdown and press Enter to confirm current selection
   await botSelect.click();
-  const option = page.locator('[data-combobox-option]').first();
-  await option.waitFor({ timeout: 5000 });
-  await option.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("Enter");
+
+  // Wait a moment for the selection to register and API calls to start
+  await page.waitForTimeout(500);
 
   // Wait a moment for the selection to register and API calls to start
   await page.waitForTimeout(500);

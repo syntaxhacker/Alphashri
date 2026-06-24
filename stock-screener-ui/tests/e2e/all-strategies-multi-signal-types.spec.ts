@@ -63,9 +63,9 @@ async function navigateToBot(page: Page) {
 
   await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
   await page.locator('[data-testid="bot-select"]').click();
-  const option = page.locator('[data-combobox-option]').first();
-  await option.waitFor({ timeout: 5000 });
-  await option.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 
   await page.getByTestId("tab-live").click();
   await page.waitForLoadState("networkidle");

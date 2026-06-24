@@ -44,13 +44,9 @@ export async function selectBot(page: Page, botId: string): Promise<void> {
 
   // Click to open the dropdown portal
   await botSelect.click();
-
-  // Click the matching option. Mantine renders each option as a <button>/<div>
-  // with data-combobox-option attribute, role="option", and the value prop
-  // serialized as text content or a data-* attribute.
-  const option = page.locator('[data-combobox-option]').first();
-  await option.waitFor({ timeout: 5000 });
-  await option.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
   await page.waitForTimeout(500);
 }
 

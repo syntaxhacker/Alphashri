@@ -32,9 +32,9 @@ export async function navigateToMultiStrategyBot(page: Page, botId: string = "2"
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
   await botSelect.click();
-  const option = page.locator('[data-combobox-option]').first();
-  await option.waitFor({ timeout: 5000 });
-  await option.click();
+  await page.waitForTimeout(200);
+  await page.keyboard.press("ArrowDown");
+  await page.keyboard.press("Enter");
 
   // Wait for positions to load (not just "Loading positions...")
   await page.waitForFunction(

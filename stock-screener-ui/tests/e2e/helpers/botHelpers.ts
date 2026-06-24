@@ -100,6 +100,26 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
     });
   });
 
+  await page.route(apiRoute("bots/[a-f0-9-]+"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        id: botId,
+        name: botName,
+        is_active: true,
+        is_running: isRunning,
+        pid: isRunning ? 12345 : null,
+        strategies: strategies.map((s) => ({
+          id: String(s.id),
+          name: s.name,
+          strategy_type: "ORB",
+          allocation: s.allocation,
+        })),
+      }),
+    });
+  });
+
   await page.route(apiRoute("bots/[a-f0-9-]+/start"), async (route) => {
     await route.fulfill({
       status: 200,
@@ -139,12 +159,24 @@ export async function setupBotApiMocks(page: Page, options: SetupBotApiMocksOpti
       status: 200,
       contentType: "application/json",
       body: JSON.stringify({
-        cash: 100000,
-        equity: 105000,
-        pnl: 5000,
-        margin_used: 50000,
-        daily_pnl: 1000,
-        positions: [],
+        portfolio: {
+          initial_capital: 1000000,
+          cash: 950000,
+          equity: 1006000,
+          margin_used: 50000,
+          unrealized_pnl: 1000,
+          realized_pnl: 5000,
+          total_value: 1006000,
+          total_pnl: 6000,
+          total_pnl_pct: 0.6,
+          positions: positions.length,
+          trades: 5,
+          daily_pnl: 1000,
+          daily_pnl_pct: 0.1,
+          daily_trades: 2,
+          open_positions: positions.length,
+          total_positions: positions.length,
+        },
       }),
     });
   });
