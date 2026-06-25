@@ -82,6 +82,20 @@ class RunnerSignalsMixin:
         Dispatches to the appropriate scan method based on strategy type.
         Uses per-strategy watchlist if available, otherwise falls back to shared watchlist.
         """
+        # Reset consecutive loss counter on new day
+        losses = getattr(self, '_consecutive_losses', {})
+        runner = self.strategies.get(strategy_id)
+        if runner and runner.status == "paused":
+            today_date = self._ist_now().date()
+            paused_date = getattr(runner, '_paused_date', None)
+            if paused_date != today_date:
+                sid = str(runner.strategy_id)
+                losses.pop(sid, None)
+                runner.status = "running"
+                console.print(f"[green]{runner.strategy_name}: Unpaused - new trading day[/green]")
+                runner._paused_date = today_date
+        self._consecutive_losses = losses
+
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
             return []
@@ -786,6 +800,22 @@ class RunnerSignalsMixin:
 
                 trade_logged = True
                 self.cooldown_stocks[symbol] = self._ist_now()
+
+                # Consecutive loss tracking
+                if runner:
+                    max_consecutive = int(runner.config.get("max_consecutive_losses", 3))
+                    if max_consecutive > 0:
+                        losses = getattr(self, '_consecutive_losses', {})
+                        sid = str(trade.strategy_id)
+                        if trade.pnl is not None and trade.pnl < 0:
+                            losses[sid] = losses.get(sid, 0) + 1
+                            if losses[sid] >= max_consecutive:
+                                runner.status = "paused"
+                                runner._paused_date = self._ist_now().date()
+                                console.print(f"[red]{runner.strategy_name}: Paused - {losses[sid]} consecutive losses (limit: {max_consecutive})[/red]")
+                        elif trade.pnl is not None and trade.pnl > 0:
+                            losses[sid] = 0
+                        self._consecutive_losses = losses
 
         if trade_logged and not self.replay_mode:
             self.journal.save_journal()

@@ -23,7 +23,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
         self.sl_pct = config.get("sl_pct", 1.5)
         self.tp_pct = config.get("tp_pct", 2.5)
         self.pivot_type = config.get("pivot_type", "classic")
-        self.breakout_buffer_pct = config.get("breakout_buffer_pct", 0.1)
+        self.breakout_buffer_pct = config.get("breakout_buffer_pct", 1.0)
         self.max_distance_from_r1_pct = float(config.get("max_distance_from_r1_pct", 5.0))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 15))
