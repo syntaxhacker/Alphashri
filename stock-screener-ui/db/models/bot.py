@@ -56,6 +56,7 @@ class StrategyConfig(Base):
 
     cooldown_minutes = Column(Integer, default=30)
     max_distance_from_or_pct = Column(Float, default=1.5)
+    max_distance_from_r1_pct = Column(Float, default=5.0)
 
     entry_threshold_pct = Column(Float, default=3.0)
     min_breakout_pct = Column(Float, default=0.5)
@@ -124,6 +125,7 @@ class StrategyConfig(Base):
             "max_trade_value": self.max_trade_value,
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
+            "max_distance_from_r1_pct": self.max_distance_from_r1_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
             "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,
