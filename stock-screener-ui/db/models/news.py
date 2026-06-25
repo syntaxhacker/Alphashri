@@ -36,6 +36,18 @@ class NewsArticle(Base):
             except:
                 pass
 
+        summary = analysis.get("summary") if analysis else None
+
+        analysis_status = "done"
+        if not self.analysis_json:
+            analysis_status = "none"
+        elif (
+            summary is None
+            or "Failed to analyze" in str(summary)
+            or "Summary unavailable" in str(summary)
+        ):
+            analysis_status = "failed"
+
         return {
             "id": self.id,
             "url": self.url,
@@ -47,10 +59,11 @@ class NewsArticle(Base):
             "fetched_at": self.fetched_at.isoformat() if self.fetched_at else None,
             "sentiment": self.sentiment,
             "impact_score": self.impact_score,
-            "summary": analysis.get("summary") if analysis else None,
+            "summary": summary,
             "key_points": analysis.get("key_points") if analysis else None,
             "key_entities": analysis.get("key_entities") if analysis else None,
             "trade_ideas": analysis.get("trade_ideas") if analysis else None,
+            "analysis_status": analysis_status,
             "symbols": [s.to_dict() for s in self.symbols] if self.symbols else []
         }
 

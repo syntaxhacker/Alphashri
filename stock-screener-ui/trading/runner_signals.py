@@ -149,11 +149,6 @@ class RunnerSignalsMixin:
                 if not prev_data:
                     continue
 
-                live_price = self._fetch_live_price(symbol)
-
-                if live_price is None:
-                    continue
-
                 gen = runner.signal_generator
                 pivot_points = gen.calculate_pivot_points(
                     prev_data['prev_high'], prev_data['prev_low'], prev_data['prev_close']
@@ -167,8 +162,34 @@ class RunnerSignalsMixin:
                 }):
                     pass
 
+                # Candle-close breakout detection: check last 3 completed 1-min candles
+                # for a cross above R1, using candle close as trigger price
+                entry_price = None
+                r1 = pivot_points.get("R1")
+                buf = gen.breakout_buffer_pct / 100 if hasattr(gen, 'breakout_buffer_pct') else 0.01
+                r1_trigger = r1 * (1 + buf) if r1 else None
+
+                fetcher = self._get_data_fetcher()
+                if fetcher and r1_trigger:
+                    df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+                    if df is not None and len(df) >= 2:
+                        # Check last 3 completed candles (skip current forming candle)
+                        for i in range(max(0, len(df) - 4), len(df) - 1):
+                            candle_close = float(df.iloc[i]['close'])
+                            candle_high = float(df.iloc[i]['high'])
+                            if candle_high >= r1_trigger and candle_close >= r1_trigger:
+                                entry_price = candle_close
+                                break
+
+                # Fallback to current live price if no candle breakout detected
+                if entry_price is None:
+                    entry_price = self._fetch_live_price(symbol)
+
+                if entry_price is None:
+                    continue
+
                 market_data = {
-                    'current_price': live_price,
+                    'current_price': entry_price,
                     'pivot_points': pivot_points,
                 }
 
@@ -176,7 +197,7 @@ class RunnerSignalsMixin:
 
                 scan_item = {
                     'symbol': symbol,
-                    'price': live_price,
+                    'price': entry_price,
                     'status': 'watching',
                     'side': None,
                     'reason': None,

@@ -114,6 +114,13 @@ async def get_news_article(url: str = Query(..., description="Article URL to fet
                 article['key_points'] = analysis_data.get('key_points')
                 article['key_entities'] = analysis_data.get('key_entities')
                 article['trade_ideas'] = analysis_data.get('trade_ideas')
+                summary = analysis_data.get('summary', '')
+                if not summary or 'Failed to analyze' in summary or 'Summary unavailable' in summary:
+                    article['analysis_status'] = 'failed'
+                else:
+                    article['analysis_status'] = 'done'
+            else:
+                article['analysis_status'] = 'none'
 
         except Exception as persist_error:
             print(f"⚠️ Could not persist article: {persist_error}")

@@ -4,11 +4,11 @@ import hashlib
 import sqlite3
 import time
 from typing import Dict, Any, Optional, List
-from openai import OpenAI
 import config
+from preciz import _call_llm_json
 
 OPENROUTER_PRICING = {
-    "stepfun/step-3.5-flash:free": {"prompt": 0, "completion": 0},
+    "openrouter/owl-alpha": {"prompt": 0, "completion": 0},
     "anthropic/claude-3.5-sonnet": {"prompt": 3.0, "completion": 15.0},
     "anthropic/claude-3-opus": {"prompt": 15.0, "completion": 75.0},
     "openai/gpt-4-turbo": {"prompt": 10.0, "completion": 30.0},
@@ -23,17 +23,13 @@ OPENROUTER_PRICING = {
 class ArticleAnalyzer:
     """Class to analyze financial news articles using OpenRouter LLMs with SQLite caching."""
     
-    def __init__(self, model_name: str = "stepfun/step-3.5-flash:free", db_path: str = "db/llm_cache.db"):
+    def __init__(self, model_name: str = "openrouter/owl-alpha", db_path: str = "db/llm_cache.db"):
         api_key = config.OPENROUTER_API_KEY
         if not api_key:
             print("WARNING: OPENROUTER_API_KEY environment variable not set. Analysis will fail.")
-            
+
         self.model_name = model_name
-        self.client = OpenAI(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=api_key or "dummy-key"
-        )
-        
+
         os.makedirs(os.path.dirname(db_path), exist_ok=True)
         self.db_path = db_path
         self._init_db()
@@ -256,46 +252,17 @@ Return ONLY valid JSON. No markdown. Example output:
         user_prompt = f"Headline: {headline}\n\nContent: {content}"
         
         start_time = time.time()
-        prompt_tokens = 0
-        completion_tokens = 0
-        total_tokens = 0
-        cost_usd = 0.0
-        raw_content = None
         
         try:
-            response = self.client.chat.completions.create(
-                model=self.model_name,
+            analysis_data = _call_llm_json(
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt}
                 ],
-                temperature=0.1
+                model=self.model_name
             )
             
             response_time_ms = int((time.time() - start_time) * 1000)
-            
-            if response.usage:
-                prompt_tokens = response.usage.prompt_tokens or 0
-                completion_tokens = response.usage.completion_tokens or 0
-                total_tokens = response.usage.total_tokens or (prompt_tokens + completion_tokens)
-            
-            cost_usd = self._calculate_cost(self.model_name, prompt_tokens, completion_tokens)
-            
-            raw_content = response.choices[0].message.content
-            if raw_content is None:
-                raise ValueError("LLM returned empty content")
-            raw_content = raw_content.strip()
-            
-            if raw_content.startswith("```json"):
-                raw_content = raw_content[7:]
-            elif raw_content.startswith("```"):
-                raw_content = raw_content[3:]
-            if raw_content.endswith("```"):
-                raw_content = raw_content[:-3]
-                
-            raw_content = raw_content.strip()
-            
-            analysis_data = json.loads(raw_content)
             
             result = {
                 "summary": analysis_data.get("summary", "Summary unavailable."),
@@ -315,10 +282,10 @@ Return ONLY valid JSON. No markdown. Example output:
                 url=url,
                 model=self.model_name,
                 headline=headline,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=total_tokens,
-                cost_usd=cost_usd,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                cost_usd=0.0,
                 response_time_ms=response_time_ms,
                 status="success"
             )
@@ -333,18 +300,16 @@ Return ONLY valid JSON. No markdown. Example output:
                 url=url,
                 model=self.model_name,
                 headline=headline,
-                prompt_tokens=prompt_tokens,
-                completion_tokens=completion_tokens,
-                total_tokens=total_tokens,
-                cost_usd=cost_usd,
+                prompt_tokens=0,
+                completion_tokens=0,
+                total_tokens=0,
+                cost_usd=0.0,
                 response_time_ms=response_time_ms,
                 status="failed",
                 error_message=error_message
             )
             
             print(f"LLM Analysis failed: {e}")
-            if 'raw_content' in locals():
-                print(f"Raw output was: {raw_content}")
             return {
                 "summary": f"Failed to analyze article: {str(e)}",
                 "sentiment": "NEUTRAL",

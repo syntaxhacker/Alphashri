@@ -26,6 +26,7 @@ import {
   formatResponseTime,
 } from "./admin/RecentRunsTable";
 import { Admin52wRangePanel } from "./admin/Admin52wRangePanel";
+import { NewsQueuePanel } from "./admin/NewsQueuePanel";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
@@ -94,6 +95,9 @@ function AdminContent({
             <Tabs.Tab value="52w" data-testid="admin-tab-52w">
               52W range batch
             </Tabs.Tab>
+            <Tabs.Tab value="news-queue" data-testid="admin-tab-news-queue">
+              News Queue
+            </Tabs.Tab>
           </Tabs.List>
           <Tabs.Panel value="llm" pt="sm" style={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
             <Stack gap="sm" h="100%" style={{ minHeight: 0 }}>
@@ -138,6 +142,9 @@ function AdminContent({
           </Tabs.Panel>
           <Tabs.Panel value="52w" pt="sm">
             <Admin52wRangePanel />
+          </Tabs.Panel>
+          <Tabs.Panel value="news-queue" pt="sm">
+            <NewsQueuePanel />
           </Tabs.Panel>
         </Tabs>
       </CompactPage>

@@ -66,3 +66,31 @@ export interface Week52RangeAdminStatus {
   run_hint?: string;
   schedule?: Week52RangeSchedule;
 }
+
+export interface NewsAnalysisQueueStatus {
+  pending: number;
+  processing: number;
+  done: number;
+  failed: number;
+  total: number;
+}
+
+export interface NewsQueueNeedsAnalysis {
+  broken_summary: number;
+  null_analysis: number;
+}
+
+export interface NewsQueueFailure {
+  queue_id: number;
+  article_id: number;
+  headline: string;
+  error: string;
+  updated_at: string;
+}
+
+export interface NewsAnalysisQueueStatusResponse {
+  queue: NewsAnalysisQueueStatus;
+  needs_analysis: NewsQueueNeedsAnalysis;
+  recent_failures: NewsQueueFailure[];
+  error?: string;
+}
