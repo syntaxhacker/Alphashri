@@ -25,6 +25,7 @@ class StrategyCreate(BaseModel):
     # Runner parameters
     cooldown_minutes: Optional[int] = None
     max_distance_from_or_pct: Optional[float] = None
+    max_distance_from_r1_pct: Optional[float] = None
     enable_shorts: Optional[bool] = None
     eod_exit_hour: Optional[int] = None
     eod_exit_minute: Optional[int] = None
@@ -73,6 +74,7 @@ class StrategyUpdate(BaseModel):
     max_trade_value: Optional[float] = None
     cooldown_minutes: Optional[int] = None
     max_distance_from_or_pct: Optional[float] = None
+    max_distance_from_r1_pct: Optional[float] = None
     enable_shorts: Optional[bool] = None
     eod_exit_hour: Optional[int] = None
     eod_exit_minute: Optional[int] = None

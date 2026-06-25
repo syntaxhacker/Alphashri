@@ -24,6 +24,7 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
         self.tp_pct = config.get("tp_pct", 2.5)
         self.pivot_type = config.get("pivot_type", "classic")
         self.breakout_buffer_pct = config.get("breakout_buffer_pct", 0.1)
+        self.max_distance_from_r1_pct = float(config.get("max_distance_from_r1_pct", 5.0))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 15))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
@@ -62,6 +63,11 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
             return None
 
         buf = self.breakout_buffer_pct / 100
+
+        # Skip if price is too far above R1 (already ran up too much)
+        max_price = r1 * (1 + self.max_distance_from_r1_pct / 100)
+        if current_price > max_price:
+            return None
 
         if current_price > r1 * (1 + buf):
             sl, default_tp = self._calc_sl_tp("BUY", current_price)

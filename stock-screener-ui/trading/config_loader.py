@@ -45,6 +45,7 @@ class StrategyConfigData:
     # Trading Runner Parameters
     cooldown_minutes: int = 30
     max_distance_from_or_pct: float = 1.5
+    max_distance_from_r1_pct: float = 5.0
 
     # 52W Chaser Parameters
     entry_threshold_pct: float = 3.0
@@ -111,6 +112,7 @@ class StrategyConfigData:
             max_trade_value=model.max_trade_value,
             cooldown_minutes=model.cooldown_minutes,
             max_distance_from_or_pct=model.max_distance_from_or_pct,
+            max_distance_from_r1_pct=model.max_distance_from_r1_pct,
             entry_threshold_pct=model.entry_threshold_pct,
             min_breakout_pct=model.min_breakout_pct,
             enable_trailing_stop=model.enable_trailing_stop,
@@ -164,6 +166,7 @@ class StrategyConfigData:
             "max_trade_value": self.max_trade_value,
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
+            "max_distance_from_r1_pct": self.max_distance_from_r1_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
             "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,

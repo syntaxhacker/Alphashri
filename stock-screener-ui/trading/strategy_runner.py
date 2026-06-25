@@ -65,3 +65,8 @@ class StrategyRunner:
             from trading.orb_signals import ORBSignalGenerator
             console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")
             self.signal_generator = ORBSignalGenerator()
+
+        # Apply config-level overrides that all generators share
+        cutoff = self.config.get('eod_entry_cutoff_minutes')
+        if cutoff is not None:
+            self.signal_generator.eod_entry_cutoff_minutes = int(cutoff)
