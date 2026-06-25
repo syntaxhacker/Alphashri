@@ -432,7 +432,7 @@ class RunnerSignalsMixin:
                 return False
 
             eod_entry_cutoff_minutes = getattr(runner.signal_generator, 'eod_entry_cutoff_minutes', 15)
-            if eod_entry_cutoff_minutes > 0:
+            if isinstance(eod_entry_cutoff_minutes, (int, float)) and eod_entry_cutoff_minutes > 0:
                 eod_dt = now.replace(hour=runner.signal_generator.eod_exit_hour, minute=runner.signal_generator.eod_exit_minute, second=0, microsecond=0)
                 if eod_dt - now < timedelta(minutes=eod_entry_cutoff_minutes):
                     console.print(f"[yellow]{runner.strategy_name}: Entry blocked - within {eod_entry_cutoff_minutes}min of EOD exit ({runner.signal_generator.eod_exit_hour}:{runner.signal_generator.eod_exit_minute:02d})[/yellow]")

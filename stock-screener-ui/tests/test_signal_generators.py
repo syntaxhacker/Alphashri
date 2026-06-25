@@ -169,7 +169,7 @@ class TestSRBreakoutSignalGenerator:
         assert gen.sl_pct == 1.5
         assert gen.tp_pct == 2.5
         assert gen.pivot_type == "classic"
-        assert gen.breakout_buffer_pct == 0.1
+        assert gen.breakout_buffer_pct == 1.0
 
     def test_config_custom_values(self):
         gen = SRBreakoutSignalGenerator(config={
