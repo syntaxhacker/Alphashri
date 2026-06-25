@@ -235,6 +235,8 @@ async def get_recent_articles(
     Get recent news articles from the database.
     """
     from cache.redis_client import cache_get, cache_set, is_cache_available
+    from sqlalchemy import text
+    from db.database import engine as _eng
 
     cache_key = f"news:recent:{hours}:{source or 'all'}:{limit}"
     cached = cache_get(cache_key) if is_cache_available() else None
@@ -248,6 +250,20 @@ async def get_recent_articles(
         source=source,
         limit=limit
     )
+    
+    # enrich with queue status
+    with _eng.connect() as conn:
+        queue_statuses = {
+            r[0]: r[1]
+            for r in conn.execute(text(
+                "SELECT article_id, status FROM news_analysis_queue WHERE status IN ('pending', 'processing')"
+            )).fetchall()
+        }
+
+    for a in articles:
+        qs = queue_statuses.get(a["id"])
+        if qs:
+            a["analysis_status"] = qs
     
     result = {
         "hours": hours,

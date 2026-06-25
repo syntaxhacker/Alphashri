@@ -8,15 +8,13 @@ Test cases cover:
 """
 import sys
 import os
-import json
 from pathlib import Path
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-# openai is mocked in conftest.py
 from llm_analyzer import ArticleAnalyzer
 
 @pytest.fixture
@@ -58,14 +56,10 @@ class TestArticleAnalyzer:
         assert result["summary"] == "Article content too short or unavailable for analysis."
         assert result["sentiment"] == "NEUTRAL"
 
-    @patch('llm_analyzer.OpenAI')
-    def test_successful_analysis(self, mock_openai, analyzer_db):
+    @patch('llm_analyzer._call_llm_json')
+    def test_successful_analysis(self, mock_call_llm, analyzer_db):
         """Test the mocked model returning correct JSON."""
-        # Setup mock OpenRouter response
-        mock_response = MagicMock()
-        mock_response.choices = [MagicMock()]
-        
-        mock_json_str = json.dumps({
+        mock_call_llm.return_value = {
             "summary": "AI writes good code.",
             "sentiment": "BULLISH",
             "impact_score": 7,
@@ -73,14 +67,7 @@ class TestArticleAnalyzer:
             "trade_ideas": [
                  {"symbol": "AI", "direction": "LONG", "reasoning": "Progress."}
             ]
-        })
-        
-        # Simulate the model returning code blocks
-        mock_response.choices[0].message.content = f"```json\n{mock_json_str}\n```"
-        
-        mock_client_instance = MagicMock()
-        mock_client_instance.chat.completions.create.return_value = mock_response
-        analyzer_db.client = mock_client_instance
+        }
         
         # Execute
         result = analyzer_db.analyze_article("https://ai.com", "AI News", "Long content about AI " * 10)
@@ -96,12 +83,10 @@ class TestArticleAnalyzer:
         assert cached is not None
         assert cached["impact_score"] == 7
 
-    @patch('llm_analyzer.OpenAI')
-    def test_fallback_on_api_error(self, mock_openai, analyzer_db):
+    @patch('llm_analyzer._call_llm_json')
+    def test_fallback_on_api_error(self, mock_call_llm, analyzer_db):
         """Test graceful fallback if OpenRouter fails."""
-        mock_client_instance = MagicMock()
-        mock_client_instance.chat.completions.create.side_effect = Exception("API Offline")
-        analyzer_db.client = mock_client_instance
+        mock_call_llm.side_effect = Exception("API Offline")
         
         result = analyzer_db.analyze_article("https://fail.com", "Fail", "Long content about failures " * 10)
         

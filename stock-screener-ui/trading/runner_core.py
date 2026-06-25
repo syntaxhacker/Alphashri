@@ -946,7 +946,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         for strategy_id in self.strategies:
             self.stop_strategy(strategy_id)
 
-    def run(self, interval: int = 60):
+    def run(self, interval: int = 5):
         """
         Run the multi-strategy trading loop.
 
