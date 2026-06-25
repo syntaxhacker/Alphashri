@@ -148,6 +148,14 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - Always use `_format_exit_note()` for exit signal notes
 - Always use `_calc_pnl_pct()` for PnL calculations, never inline formula
 
+### SR Breakout strategy specifics
+- `max_distance_from_r1_pct=5.0` — skips entries where price is >5% above R1 (prevents late breakout entries)
+- `breakout_buffer_pct=1.0` — minimum breakout trigger threshold (was 0.1%, now meaningful)
+- `eod_entry_cutoff_minutes=15` — blocks entries within 15 min of EOD exit (prevents wasted trades)
+- `max_consecutive_losses=3` — pauses strategy for the day after 3 consecutive losses
+- Uses **candle-close breakout detection**: checks last 3 completed 1-min candles for R1 cross instead of live LTP
+- Scan interval: **5s** (globally reduced from 60s for faster signal detection)
+
 ## Strategy Config Pipeline
 - **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
 - All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
@@ -160,6 +168,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Risk params**: `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
 - **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
+  - `runner_core.py:run(interval=5)` — global scan interval. Safe to keep but impacts all strategies.
   - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
   - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
   - `week52_chaser_signals.py:128-132` — ADX<25, RSI 50-70 filters. 52W-specific, could be config.
