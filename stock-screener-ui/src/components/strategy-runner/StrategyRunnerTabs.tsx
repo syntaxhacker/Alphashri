@@ -484,6 +484,13 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
 /* ───── Correlation Tab ───── */
 
 function CorrelationTab({ summary, trades, bots }: TabsProps) {
+  // Only show bots that actually have trades
+  const activeBotNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const t of trades) names.add(t.bot_name);
+    return Array.from(names).sort();
+  }, [trades]);
+
   const symbols = useMemo(() => {
     const set = new Set<string>();
     for (const t of trades) set.add(t.symbol);
@@ -493,7 +500,7 @@ function CorrelationTab({ summary, trades, bots }: TabsProps) {
     return Array.from(set).sort();
   }, [summary, trades]);
 
-  if (symbols.length === 0 || bots.length === 0) {
+  if (symbols.length === 0 || activeBotNames.length === 0) {
     return (
       <Text c="dimmed" ta="center" py="lg">
         Run a comparison to see correlation data
@@ -507,10 +514,10 @@ function CorrelationTab({ summary, trades, bots }: TabsProps) {
         <Table.Thead>
           <Table.Tr>
             <Table.Th>Symbol</Table.Th>
-            {bots.map((bot) => (
-              <Table.Th key={bot.uuid} ta="center">
+            {activeBotNames.map((name) => (
+              <Table.Th key={name} ta="center">
                 <Text size="xs" fw={500}>
-                  {bot.name}
+                  {name}
                 </Text>
               </Table.Th>
             ))}
@@ -518,67 +525,40 @@ function CorrelationTab({ summary, trades, bots }: TabsProps) {
         </Table.Thead>
         <Table.Tbody>
           {symbols.map((symbol) => {
-            const cellValues = bots.map((bot) => {
-              const botTrades = trades.filter(
-                (t) => t.symbol === symbol && t.bot_uuid === bot.uuid,
-              );
-              if (botTrades.length === 0) return { pf: 0, hasTrades: false };
-              const winners = botTrades.filter((t) => t.pnl > 0);
-              const losers = botTrades.filter((t) => t.pnl <= 0);
-              const pf =
-                losers.length > 0
-                  ? winners.reduce((s, t) => s + t.pnl, 0) /
-                    Math.abs(losers.reduce((s, t) => s + t.pnl, 0))
-                  : winners.length > 0
-                    ? Infinity
-                    : 0;
-              return { pf, hasTrades: true };
-            });
-
-            const pfValues = cellValues
-              .filter((c) => c.hasTrades && isFinite(c.pf))
-              .map((c) => c.pf);
-            const minPF = pfValues.length > 0 ? Math.min(...pfValues) : 0;
-            const maxPF = pfValues.length > 0 ? Math.max(...pfValues, 1) : 1;
+            const sData = summary?.by_symbol?.[symbol] || { net_pnl: 0, total_trades: 0 };
 
             return (
               <Table.Tr key={symbol}>
                 <Table.Td>
                   <Text size="xs" fw={500}>
                     {symbol}
+                    <Text span size="xs" c="dimmed" ml={4}>
+                      ({sData.total_trades})
+                    </Text>
                   </Text>
                 </Table.Td>
-                {cellValues.map((cell, ci) => {
-                  if (!cell.hasTrades) {
+                {activeBotNames.map((botName) => {
+                  const botTrades = trades.filter(
+                    (t) => t.symbol === symbol && t.bot_name === botName,
+                  );
+                  if (botTrades.length === 0) {
                     return (
-                      <Table.Td key={ci} ta="center" style={{ background: "#f0f0f0" }}>
-                        <Text size="xs" c="dimmed">
-                          {"\u2014"}
-                        </Text>
+                      <Table.Td key={botName} ta="center" style={{ background: "#f0f0f0" }}>
+                        <Text size="xs" c="dimmed">{"\u2014"}</Text>
                       </Table.Td>
                     );
                   }
-                  const pfVal = isFinite(cell.pf) ? cell.pf : (cell.pf > 0 ? maxPF : 0);
-                  const bgColor =
-                    pfVal > 1.5
-                      ? "var(--mantine-color-green-2)"
-                      : pfVal >= 0.5
-                        ? "var(--mantine-color-yellow-2)"
-                        : "var(--mantine-color-red-2)";
-                  const textColor =
-                    pfVal > 1.5
-                      ? "var(--mantine-color-green-9)"
-                      : pfVal >= 0.5
-                        ? "var(--mantine-color-yellow-9)"
-                        : "var(--mantine-color-red-9)";
+                  const netPnl = botTrades.reduce((s, t) => s + t.net_pnl, 0);
+                  const wins = botTrades.filter((t) => t.pnl > 0).length;
+                  const bgColor = netPnl > 0 ? "var(--mantine-color-green-1)" : "var(--mantine-color-red-1)";
+                  const textColor = netPnl > 0 ? "var(--mantine-color-green-8)" : "var(--mantine-color-red-8)";
                   return (
-                    <Table.Td
-                      key={ci}
-                      ta="center"
-                      style={{ background: bgColor }}
-                    >
+                    <Table.Td key={botName} ta="center" style={{ background: bgColor }}>
                       <Text size="xs" fw={500} c={textColor}>
-                        {formatPF(cell.pf)}
+                        {netPnl >= 0 ? "+" : ""}{netPnl.toFixed(0)}
+                      </Text>
+                      <Text size="xs" c="dimmed">
+                        {wins}/{botTrades.length}
                       </Text>
                     </Table.Td>
                   );
