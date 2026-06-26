@@ -1,50 +1,81 @@
-# Autoresearch Dashboard: ORB High Beta
+# Autoresearch Dashboard: EMA Cross Trending
 
-**Runs:** 42 | **Kept:** 22 | **Discarded:** 20 | **Crashed:** 0
-**Baseline:** profit_factor: 1.4051 (#1)
-**Best:** profit_factor: 1.9031 (#36, +35.4%)
+**Runs:** 73 | **Kept:** 20 | **Discarded:** 53 | **Crashed:** 0
+**Baseline:** profit_factor: 1.0585 (#43)
+**Best:** profit_factor: 1.4561 (#99, +37.6%)
 
 | # | commit | profit_factor | status | description |
 |---|--------|---------------|--------|-------------|
-| 1 | c147c0a | 1.4051 (+0.0%) | keep | baseline: EOD=15:00, SL=1.0 TP=1.5 CD=3 buffer=0.3 shorts=off |
-| 2 | c147c0a | 1.2133 (-13.7%) | discard | CD=6: PF drops, overtrading hurts |
-| 3 | c147c0a | 1.3879 (-1.2%) | discard | CD=15: slightly worse |
-| 4 | c147c0a | 1.5387 (+9.5%) | keep | CD=30: first big improvement |
-| 5 | 5960b06 | 1.4414 (+2.6%) | discard | CD=30 SL=0.8 TP=1.5 |
-| 6 | 5960b06 | 1.4326 (+2.0%) | discard | CD=30 SL=0.8 TP=2.0 |
-| 7 | 5960b06 | 1.2671 (-9.8%) | discard | CD=30 SL=0.8 TP=2.5: TP too far |
-| 8 | 5960b06 | 1.6052 (+14.2%) | keep | CD=30 SL=1.0 TP=2.0: new best |
-| 9 | 5960b06 | 1.4323 (+1.9%) | discard | CD=30 SL=1.0 TP=2.5 |
-| 10 | 5960b06 | 1.6447 (+17.1%) | keep | CD=30 SL=1.2 TP=1.5: high WR |
-| 11 | 5960b06 | 1.6624 (+18.3%) | keep | CD=30 SL=1.2 TP=2.0: best so far |
-| 12 | 5960b06 | 1.4635 (+4.2%) | discard | CD=30 SL=1.2 TP=2.5 |
-| 13 | fda380b | 1.6758 (+19.3%) | keep | CD=20 SL=1.2 TP=2.0 |
-| 14 | fda380b | 1.6867 (+20.0%) | keep | CD=25 SL=1.2 TP=2.0 |
-| 15 | fda380b | 1.6908 (+20.3%) | keep | CD=40 SL=1.2 TP=2.0 |
-| 16 | fda380b | 1.6912 (+20.4%) | keep | CD=50 SL=1.2 TP=2.0: plateau |
-| 17 | 8df11cd | 1.6102 (+14.6%) | discard | EOD=15:15: PF drops |
-| 18 | 8df11cd | 1.1318 (-19.5%) | discard | EOD=15:30: no EOD exits left |
-| 19 | 8df11cd | 1.7428 (+24.0%) | keep | Buffer=0.1%: big jump |
-| 20 | 8df11cd | 1.6682 (+18.7%) | discard | Buffer=0.2% |
-| 21 | 8df11cd | 1.7721 (+26.1%) | keep | Buffer=0.5%: BEST SO FAR |
-| 22 | 8df11cd | 1.7004 (+21.0%) | keep | CD=35 SL=1.2 TP=2.0 |
-| 23 | 8d9d8ff | 1.7762 (+26.4%) | keep | CD=35 buf=0.5 |
-| 24 | 8d9d8ff | 1.4106 (+0.4%) | discard | buf=0.4: not enough |
-| 25 | 8d9d8ff | 1.8782 (+33.7%) | keep | buf=0.6: BEST SO FAR |
-| 26 | 8d9d8ff | 1.4630 (+4.1%) | discard | buf=0.7: too tight |
-| 27 | 8d9d8ff | 1.7701 (+26.0%) | keep | CD=45 buf=0.5 |
-| 28 | 8d9d8ff | 1.7772 (+26.5%) | keep | CD=30 buf=0.5 |
-| 29 | 2e99a87 | 1.6187 (+15.2%) | discard | SL=1.0 TP=1.5 buf=0.6 |
-| 30 | 2e99a87 | 1.7084 (+21.6%) | discard | SL=1.0 TP=2.0 buf=0.6 |
-| 31 | 2e99a87 | 1.6667 (+18.6%) | discard | SL=1.5 TP=2.5 buf=0.6 |
-| 32 | 2e99a87 | 1.8922 (+34.7%) | keep | max_trades=1 (same as unlimited) |
-| 33 | 2e99a87 | 1.8922 (+34.7%) | keep | max_trades=2 (same as unlimited) |
-| 34 | 2e99a87 | 1.2562 (-10.6%) | discard | shorts enabled: much worse |
-| 35 | 2e99a87 | 1.8922 (+34.7%) | keep | buf=0.60 (confirmed) |
-| 36 | 2e99a87 | 1.9031 (+35.4%) | keep | buf=0.62 (PEAK CONFIRMED) |
-| 37 | 2e99a87 | 1.8734 (+33.3%) | discard | buf=0.64 |
-| 38 | 2e99a87 | 1.8608 (+32.4%) | discard | buf=0.66 |
-| 39 | 2e99a87 | 1.5058 (+7.2%) | discard | buf=0.68: sharp drop |
-| 40 | 8fdecb1 | 1.9031 (+35.4%) | keep | CD=55 buf=0.62 (same) |
-| 41 | 8fdecb1 | 1.9019 (+35.4%) | keep | CD=45 buf=0.62 (same) |
-| 42 | 8fdecb1 | 1.7401 (+23.8%) | discard | SL=1.1 TP=1.8 buf=0.62 |
+| 43 | 5b59ef9 | 1.0585 (baseline) | keep | baseline: FAST=9 SLOW=21 SL=1.0 TP=1.5 CD=3 shorts=off  |
+| 44 | be9125e | 1.1063 (+4.5%) | keep | SL=0.5 TP=1.0 FAST=9/21 CD=3: PF improves to 1.1063, mo |
+| 45 | be9125e | 1.1214 (+5.9%) | keep | SL=0.5 TP=1.5 FAST=9/21 CD=3: PF improves to 1.1214 |
+| 46 | be9125e | 1.1731 (+10.8%) | keep | SL=0.5 TP=2.0 FAST=9/21 CD=3: PF=1.1731 best of SL/TP g |
+| 47 | be9125e | 1.1702 (+10.6%) | discard | SL=0.5 TP=3.0 FAST=9/21 CD=3: PF=1.1702, discard |
+| 48 | be9125e | 1.057 (-0.1%) | discard | SL=0.8 TP=1.0 FAST=9/21 CD=3: PF=1.057 |
+| 49 | be9125e | 1.0691 (+1.0%) | discard | SL=0.8 TP=1.5 FAST=9/21 CD=3: PF=1.069 |
+| 50 | be9125e | 1.117 (+5.5%) | keep | SL=0.8 TP=2.0 FAST=9/21 CD=3: PF=1.117 |
+| 51 | be9125e | 1.0396 (-1.8%) | discard | SL=1.2 TP=1.5 FAST=9/21 CD=3: PF=1.04 |
+| 52 | be9125e | 1.0841 (+2.4%) | discard | SL=1.2 TP=2.0 FAST=9/21 CD=3: PF=1.084 |
+| 53 | be9125e | 1.088 (+2.8%) | discard | SL=1.2 TP=3.0 FAST=9/21 CD=3: PF=1.088 |
+| 54 | be9125e | 1.0872 (+2.7%) | discard | FAST=5 SLOW=15: PF=1.087 |
+| 55 | be9125e | 1.0845 (+2.5%) | discard | FAST=5 SLOW=20: PF=1.085 |
+| 56 | be9125e | 1.1416 (+7.9%) | discard | FAST=5 SLOW=30: PF=1.142 |
+| 57 | be9125e | 1.1647 (+10.0%) | discard | FAST=10 SLOW=30: PF=1.165 |
+| 58 | be9125e | 1.19 (+12.4%) | keep | FAST=12 SLOW=26: PF=1.190 — NEW BEST |
+| 59 | be9125e | 1.0941 (+3.4%) | discard | FAST=15 SLOW=30: PF=1.094 |
+| 60 | be9125e | 1.1701 (+10.5%) | discard | FAST=10 SLOW=26: PF=1.170 |
+| 61 | be9125e | 1.1718 (+10.7%) | discard | FAST=12 SLOW=20: PF=1.172 |
+| 62 | be9125e | 1.164 (+10.0%) | discard | FAST=8 SLOW=21: PF=1.164 |
+| 63 | be9125e | 1.1691 (+10.4%) | discard | FAST=10 SLOW=21: PF=1.169 |
+| 64 | be9125e | 1.1325 (+7.0%) | discard | SL=1.0 TP=2.0 FAST=12/26: PF=1.133 |
+| 65 | be9125e | 1.1635 (+9.9%) | discard | SL=0.5 TP=1.5 FAST=12/26: PF=1.164 |
+| 66 | be9125e | 1.1887 (+12.3%) | discard | SL=0.5 TP=3.0 FAST=12/26: PF=1.189 |
+| 67 | be9125e | 1.199 (+13.3%) | keep | CD=5 FAST=12/26 SL=0.5 TP=2.0: PF=1.199 |
+| 68 | be9125e | 1.2055 (+13.9%) | keep | CD=10 FAST=12/26 SL=0.5 TP=2.0: PF=1.206 |
+| 69 | be9125e | 1.2326 (+16.4%) | keep | CD=15 FAST=12/26 SL=0.5 TP=2.0: PF=1.233 |
+| 70 | be9125e | 1.276 (+20.5%) | keep | CD=20 FAST=12/26 SL=0.5 TP=2.0: PF=1.276 |
+| 71 | be9125e | 1.3214 (+24.8%) | keep | CD=30 FAST=12/26 SL=0.5 TP=2.0: PF=1.321 |
+| 72 | be9125e | 1.2906 (+21.9%) | keep | CD=50 FAST=12/26 SL=0.5 TP=2.0: PF=1.291 |
+| 73 | be9125e | 1.2841 (+21.3%) | discard | CD=25 FAST=12/26: PF=1.284 |
+| 74 | be9125e | 1.343 (+26.9%) | keep | CD=35 FAST=12/26: PF=1.343 — NEW BEST |
+| 75 | be9125e | 1.3298 (+25.6%) | discard | CD=40 FAST=12/26: PF=1.330 |
+| 76 | be9125e | 1.3304 (+25.7%) | discard | CD=32: PF=1.330 |
+| 77 | be9125e | 1.3358 (+26.2%) | discard | CD=38: PF=1.336 |
+| 78 | be9125e | 1.3368 (+26.3%) | discard | CD=45: PF=1.337 |
+| 79 | be9125e | 1.3764 (+30.0%) | keep | EOD=15:00 CD=35: PF=1.376 — NEW BEST |
+| 80 | be9125e | 1.3138 (+24.1%) | discard | EOD=14:30 CD=35: PF=1.314 |
+| 81 | be9125e | 1.3739 (+29.8%) | discard | EOD=15:15 CD=35: PF=1.374 |
+| 82 | be9125e | 1.2674 (+19.7%) | discard | EOD=15:30 CD=35: PF=1.267 |
+| 83 | be9125e | 1.2702 (+20.0%) | discard | shorts on CD=35 EOD=15:00: PF=1.270 |
+| 84 | be9125e | 1.3083 (+23.6%) | discard | SL=0.4 TP=2.0 CD=35 EOD=15:00: PF=1.308 |
+| 85 | be9125e | 1.3252 (+25.2%) | discard | SL=0.6 TP=2.0 CD=35 EOD=15:00: PF=1.325 |
+| 86 | be9125e | 1.3851 (+30.9%) | keep | SL=0.5 TP=2.5 CD=35 EOD=15:00: PF=1.385 |
+| 87 | be9125e | 1.393 (+31.6%) | keep | SL=0.5 TP=3.0 CD=35 EOD=15:00: PF=1.393 |
+| 88 | be9125e | 1.3955 (+31.8%) | keep | SL=0.5 TP=2.2 CD=35 EOD=15:00: PF=1.396 |
+| 89 | be9125e | 1.3804 (+30.4%) | discard | SL=0.5 TP=2.1 CD=35 EOD=15:00: PF=1.380 |
+| 90 | be9125e | 1.3948 (+31.8%) | discard | SL=0.5 TP=2.3 CD=35 EOD=15:00: PF=1.395 |
+| 91 | be9125e | 1.4023 (+32.5%) | keep | SL=0.5 TP=2.4 CD=35 EOD=15:00: PF=1.402 — NEW BEST |
+| 92 | be9125e | 1.3887 (+31.2%) | discard | SL=0.5 TP=2.6 CD=35 EOD=15:00: PF=1.389 |
+| 93 | be9125e | 1.3742 (+29.8%) | discard | CD=30 TP=2.4: PF=1.374 |
+| 94 | be9125e | 1.4017 (+32.4%) | discard | CD=38 TP=2.4: PF=1.402 |
+| 95 | be9125e | 1.4013 (+32.4%) | discard | CD=40 TP=2.4: PF=1.401 |
+| 96 | be9125e | 1.3482 (+27.4%) | discard | FAST=10 SLOW=20 TP=2.4 CD=35 EOD=15:00: PF=1.348 |
+| 97 | be9125e | 1.2769 (+20.6%) | discard | FAST=15 SLOW=30 TP=2.4 CD=35 EOD=15:00: PF=1.277 |
+| 98 | be9125e | 1.3645 (+28.9%) | discard | FAST=8 SLOW=21 TP=2.4 CD=35 EOD=15:00: PF=1.365 |
+| 99 | be9125e | 1.4561 (+37.6%) | keep | EOD=14:53 SL=0.5 TP=2.4 CD=35 FAST=12/26: PF=1.456 — NE |
+| 100 | be9125e | 1.416 (+33.8%) | discard | EOD=14:50: PF=1.416 |
+| 101 | be9125e | 1.4023 (+32.5%) | discard | EOD=14:57: PF=1.402 |
+| 102 | be9125e | 1.4413 (+36.2%) | discard | EOD=14:53 TP=2.5: PF=1.441 |
+| 103 | be9125e | 1.404 (+32.6%) | discard | SL=0.45 TP=2.4 CD=35 EOD=14:53: PF=1.404 |
+| 104 | be9125e | 1.4509 (+37.1%) | discard | SL=0.55 TP=2.4 CD=35 EOD=14:53: PF=1.451 |
+| 105 | be9125e | 1.4426 (+36.3%) | discard | CD=33 EOD=14:53: PF=1.443 |
+| 106 | be9125e | 1.4518 (+37.2%) | discard | CD=34 EOD=14:53: PF=1.452 |
+| 107 | be9125e | 1.4543 (+37.4%) | discard | CD=36 EOD=14:53: PF=1.454 |
+| 108 | be9125e | 1.4561 (+37.6%) | keep | EOD=14:54 SL=0.5 TP=2.4 CD=35 FAST=12/26: PF=1.456 (con |
+| 109 | be9125e | 1.4417 (+36.2%) | discard | SL=0.55 TP=2.4 CD=34: PF=1.442 |
+| 110 | be9125e | 1.3788 (+30.3%) | discard | FAST=10 SLOW=30 best params: PF=1.379 |
+| 111 | be9125e | 1.3192 (+24.6%) | discard | SL=0.4 TP=2.4 best params: PF=1.319 |
+| 112 | be9125e | 1.3591 (+28.4%) | discard | SL=0.6 TP=2.4 best params: PF=1.359 |
+| 113 | be9125e | 1.3799 (+30.4%) | discard | FAST=11 SLOW=25 best params: PF=1.380 |
+| 114 | be9125e | 1.3478 (+27.3%) | discard | FAST=13 SLOW=27 best params: PF=1.348 |
+| 115 | be9125e | 1.4227 (+34.4%) | discard | EOD=15:05 best params: PF=1.423 |
