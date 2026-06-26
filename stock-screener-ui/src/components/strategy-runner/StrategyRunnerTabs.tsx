@@ -598,10 +598,10 @@ export function StrategyRunnerTabs(props: TabsProps) {
   return (
     <Tabs defaultValue="by_bot">
       <Tabs.List>
-        <Tabs.Tab value="by_bot">By Bot</Tabs.Tab>
-        <Tabs.Tab value="by_symbol">By Symbol</Tabs.Tab>
-        <Tabs.Tab value="trade_log">Trade Log</Tabs.Tab>
-        <Tabs.Tab value="correlation">Correlation</Tabs.Tab>
+        <Tabs.Tab value="by_bot" data-testid="sr-tab-bybot">By Bot</Tabs.Tab>
+        <Tabs.Tab value="by_symbol" data-testid="sr-tab-bysymbol">By Symbol</Tabs.Tab>
+        <Tabs.Tab value="trade_log" data-testid="sr-tab-trades">Trade Log</Tabs.Tab>
+        <Tabs.Tab value="correlation" data-testid="sr-tab-correlation">Correlation</Tabs.Tab>
       </Tabs.List>
 
       <Tabs.Panel value="by_bot" pt="sm">

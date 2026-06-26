@@ -90,10 +90,10 @@ export function StrategyRunnerConfig({
       : 0;
 
   return (
-    <Box>
+    <Box data-testid="sr-config-bar">
       <Stack gap="sm">
         <Group gap="sm" wrap="wrap" align="flex-end">
-          <Box>
+          <Box data-testid="sr-bot-select">
             <Text size="xs" fw={500} mb={2}>
               Bots
             </Text>
@@ -217,6 +217,7 @@ export function StrategyRunnerConfig({
                 variant="light"
                 leftSection={<IconPlayerStop size={16} />}
                 onClick={stopRunner}
+                data-testid="sr-stop-btn"
               >
                 Stop
               </Button>
@@ -227,6 +228,7 @@ export function StrategyRunnerConfig({
                   leftSection={<IconPlayerPlay size={16} />}
                   disabled={config.bot_uuids.length === 0 || !config.date}
                   onClick={startRunner}
+                  data-testid="sr-run-btn"
                 >
                   Run
                 </Button>

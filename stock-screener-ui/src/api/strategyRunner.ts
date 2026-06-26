@@ -45,7 +45,7 @@ export function runStrategyRunner(
             const eventType = eventLine ? eventLine.slice(7).trim() : "";
             const parsed = JSON.parse(dataLine.slice(6));
             onEvent({ event: eventType, data: parsed });
-          } catch { /* skip malformed */ }
+          } catch {} // skip malformed
         }
       }
 
