@@ -16,3 +16,9 @@
 - (to be filled as experiments run)
 
 ## Experiment History
+### Run 43 (baseline): FAST=9 SLOW=21 SL=1.0 TP=1.5 CD=3 shorts=off EOD=14:45 — PF=1.0585 (KEEP)
+- Timestamp: 2026-06-26
+- What changed: Initial baseline run
+- Result: PF=1.0585, WR=49.3%, 3057 trades, net=Rs+53,299
+- Insight: 68% of trades exit via EOD (2083/3057) — TPs rarely hit at 1.5%. SL:TP ratio 2:1 suggests need wider TP or tighter SL.
+- Next: Sweep SL/TP grid (0.5/1.0/1.5/2.0/3.0), try longer EMAs (20/50)
