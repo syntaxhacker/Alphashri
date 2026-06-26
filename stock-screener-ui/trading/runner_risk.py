@@ -224,6 +224,7 @@ class RunnerRiskMixin:
         """Fetch intraday data and compute EMA crossover state for a symbol.
         
         Uses configurable interval (ema_interval_minutes in runner config, default 5).
+        Applies market range filter (min_market_range_pct) if configured.
         """
         from trading.ema_utils import calculate_ema
 
@@ -232,8 +233,16 @@ class RunnerRiskMixin:
             return None
 
         ema_interval = 5
+        min_range = 0.0
         if runner and hasattr(runner, 'config'):
             ema_interval = int(runner.config.get("ema_interval_minutes", runner.config.get("or_minutes", 5)))
+            min_range = float(runner.config.get("min_market_range_pct", 0.0))
+
+        # Market range filter: check JUNIORBEES daily range before scanning
+        if min_range > 0:
+            market_ok = self._check_market_range(min_range)
+            if not market_ok:
+                return None
 
         try:
             df = fetcher.upstox_api.fetch_intraday_data_v3(
@@ -273,3 +282,35 @@ class RunnerRiskMixin:
             'ema_slow_prev': round(ema_slow_prev, 2),
             'closes': closes,
         }
+
+    _market_range_cache: dict = {}
+
+    def _check_market_range(self, min_range_pct: float) -> bool:
+        """Check if today's JUNIORBEES daily range meets the minimum threshold.
+        Caches result per date (simulated date in replay) so it's only fetched once per day."""
+        today = self._ist_now().date()
+        if today in self._market_range_cache:
+            return self._market_range_cache[today]
+
+        try:
+            now = self._ist_now()
+            to_date = now.strftime('%Y-%m-%d')
+            from datetime import timedelta
+            from_date = (now - timedelta(days=10)).strftime('%Y-%m-%d')
+            df = self._get_data_fetcher().upstox_api.fetch_historical_data_v3(
+                symbol="JUNIORBEES", unit='days', interval=1,
+                to_date=to_date, from_date=from_date,
+            )
+            if df is not None and len(df) > 0:
+                row = df.iloc[-1]
+                o, h, l = float(row['open']), float(row['high']), float(row['low'])
+                if o > 0:
+                    range_pct = (h - l) / o * 100
+                    is_ok = range_pct >= min_range_pct
+                    self._market_range_cache[today] = is_ok
+                    return is_ok
+        except Exception:
+            from rich.console import Console
+            Console().print(f"[dim red]Market range check failed for JUNIORBEES, allowing trade[/dim red]")
+        self._market_range_cache[today] = True
+        return True
