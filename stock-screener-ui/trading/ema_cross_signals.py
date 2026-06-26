@@ -23,7 +23,8 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
         self.sl_pct = float(config.get("sl_pct", 1.0))
         self.tp_pct = float(config.get("tp_pct", 1.5))
         self.enable_shorts = bool(config.get("enable_shorts", False))
-        self.cooldown_bars = int(config.get("cooldown_bars", 3))
+        cd_minutes = int(config.get("cooldown_minutes", config.get("cooldown_bars", 3)))
+        self.cooldown_bars = max(1, cd_minutes // 5)  # convert minutes to 5-min bars
         eod_hour = int(config.get("eod_exit_hour", 14))
         eod_minute = int(config.get("eod_exit_minute", 45))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,

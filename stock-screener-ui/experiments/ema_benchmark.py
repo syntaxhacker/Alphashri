@@ -44,13 +44,17 @@ ENV = {
     "DATE_END": os.environ.get("EMA_DATE_END", ""),
 }
 
+# TV screener volatile stocks (relaxed profile, top 50)
 SYMBOLS = [
-    "RELIANCE", "TCS", "INFY", "ICICIBANK", "HDFCBANK", "SBIN",
-    "BHARTIARTL", "ITC", "KOTAKBANK", "LT", "AXISBANK", "BAJFINANCE",
-    "MARUTI", "ASIANPAINT", "HCLTECH", "SUNPHARMA", "TITAN", "WIPRO",
-    "ULTRACEMCO", "ADANIENT", "TRENT", "DIXON", "BAJAJFINSV",
-    "NTPC", "POWERGRID", "HINDALCO", "IEX", "INDUSINDBK", "BPCL",
-    "VEDL", "SRF", "BANDHANBNK", "JSWENERGY", "UPL",
+    "AEROENTER", "PANAMAPET", "PANACEABIO", "THANGAMAYL", "SENORES",
+    "WHEELS", "ARVIND", "EMSLIMITED", "CORONA", "GREAVESCOT",
+    "BORORENEW", "NACLIND", "ACUTAAS", "GNA", "AVALON",
+    "THERMAX", "ADANIENT", "VIJAYA", "NUVAMA", "ABSLAMC",
+    "TATACAP", "INOXGREEN", "SANSERA", "KPIL", "DYCL",
+    "ADANIGREEN", "TMCV", "POLYPLEX", "LAURUSLABS", "KAJARIACER",
+    "HNDFDS", "FINEORG", "NAVINFLUOR", "BELRISE", "NAZARA",
+    "MAXHEALTH", "IKS", "POONAWALLA", "PARADEEP", "BHARATFORG",
+    "PHOENIXLTD", "ABCAPITAL", "GMRAIRPORT",
 ]
 
 
@@ -107,6 +111,37 @@ def load_data(cache_dir: str) -> dict[str, pd.DataFrame]:
     data = filter_symbols(data)
     data = filter_dates(data)
     return data
+
+
+# Indian intraday equity trading costs (matching backtest/costs.py)
+BROKERAGE_PCT = 0.0003
+STT_PCT = 0.00025
+EXCHANGE_PCT = 0.0000297
+SEBI_PCT = 0.000001
+STAMP_DUTY_PCT = 0.00003
+GST_PCT = 0.18
+
+
+def calc_costs(entry_price: float, exit_price: float, quantity: int, side: str = "LONG") -> float:
+    """Calculate total round-trip trading costs. Returns total_costs."""
+    buy_value = entry_price * quantity if side == "LONG" else exit_price * quantity
+    sell_value = exit_price * quantity if side == "LONG" else entry_price * quantity
+
+    buy_brk = min(20, buy_value * BROKERAGE_PCT)
+    buy_stamp = buy_value * STAMP_DUTY_PCT
+    buy_exch = buy_value * EXCHANGE_PCT
+    buy_sebi = buy_value * SEBI_PCT
+    buy_gst = GST_PCT * (buy_brk + buy_exch + buy_sebi)
+    buy_total = buy_brk + buy_stamp + buy_exch + buy_sebi + buy_gst
+
+    sell_brk = min(20, sell_value * BROKERAGE_PCT)
+    sell_stt = sell_value * STT_PCT
+    sell_exch = sell_value * EXCHANGE_PCT
+    sell_sebi = sell_value * SEBI_PCT
+    sell_gst = GST_PCT * (sell_brk + sell_exch + sell_sebi)
+    sell_total = sell_brk + sell_stt + sell_exch + sell_sebi + sell_gst
+
+    return round(buy_total + sell_total, 2)
 
 
 def filter_symbols(data: dict) -> dict:
@@ -182,11 +217,15 @@ def sim_symbol(df: pd.DataFrame) -> list[dict]:
             shares = int(capital / pos["entry"])
             gross_pnl = (exit_price - pos["entry"]) * shares if pos["side"] == "LONG" \
                         else (pos["entry"] - exit_price) * shares
+            costs = calc_costs(pos["entry"], exit_price, shares, pos["side"])
+            net_pnl = gross_pnl - costs
             trades.append({
                 "side": pos["side"],
                 "entry": pos["entry"],
                 "exit": exit_price,
                 "gross_pnl": gross_pnl,
+                "costs": costs,
+                "net_pnl": net_pnl,
                 "reason": reason,
                 "entry_time": pos["entry_time"],
                 "exit_time": ts_ist,
@@ -236,23 +275,25 @@ def compute_metrics(all_trades: list) -> dict:
     if not all_trades:
         return {"total_trades": 0, "wins": 0, "losses": 0, "net_pnl": 0.0,
                 "profit_factor": 0.0, "win_rate": 0.0, "tp_exits": 0,
-                "sl_exits": 0, "eod_exits": 0, "stocks_with_trades": 0}
-    wins = [t for t in all_trades if t["gross_pnl"] > 0]
-    losses = [t for t in all_trades if t["gross_pnl"] <= 0]
-    gross_profit = sum(t["gross_pnl"] for t in wins)
-    gross_loss = abs(sum(t["gross_pnl"] for t in losses))
+                "sl_exits": 0, "eod_exits": 0, "stocks_with_trades": 0, "total_costs": 0}
+    wins = [t for t in all_trades if t["net_pnl"] > 0]
+    losses = [t for t in all_trades if t["net_pnl"] <= 0]
+    gross_profit = sum(t["net_pnl"] for t in wins)
+    gross_loss = abs(sum(t["net_pnl"] for t in losses))
+    total_costs = sum(t.get("costs", 0) for t in all_trades)
     unique_stocks = set(t.get("symbol", "?") for t in all_trades)
     return {
         "total_trades": len(all_trades),
         "wins": len(wins),
         "losses": len(losses),
-        "net_pnl": round(sum(t["gross_pnl"] for t in all_trades), 2),
+        "net_pnl": round(sum(t["net_pnl"] for t in all_trades), 2),
         "profit_factor": round(gross_profit / gross_loss, 4) if gross_loss > 0 else 99.9999,
         "win_rate": round(len(wins) / len(all_trades) * 100, 1) if all_trades else 0.0,
         "tp_exits": sum(1 for t in all_trades if t["reason"] == "TP"),
         "sl_exits": sum(1 for t in all_trades if t["reason"] == "SL"),
         "eod_exits": sum(1 for t in all_trades if t["reason"] == "EOD"),
         "stocks_with_trades": len(unique_stocks),
+        "total_costs": round(total_costs, 2),
     }
 
 
@@ -279,6 +320,7 @@ def main():
     print(f"Net P&L: Rs {metrics['net_pnl']:,.2f}", file=sys.stderr)
     print(f"Profit factor: {metrics['profit_factor']}", file=sys.stderr)
     print(f"TP/SL/EOD: {metrics['tp_exits']}/{metrics['sl_exits']}/{metrics['eod_exits']}", file=sys.stderr)
+    print(f"Total costs: Rs {metrics['total_costs']:,.2f}", file=sys.stderr)
     print(f"Stocks: {metrics['stocks_with_trades']}", file=sys.stderr)
 
     print(f"METRIC profit_factor={metrics['profit_factor']}")
@@ -289,6 +331,7 @@ def main():
     print(f"METRIC sl_exits={metrics['sl_exits']}")
     print(f"METRIC eod_exits={metrics['eod_exits']}")
     print(f"METRIC stocks_with_trades={metrics['stocks_with_trades']}")
+    print(f"METRIC total_costs={metrics['total_costs']}")
 
 
 if __name__ == "__main__":
