@@ -84,11 +84,51 @@ def run_adx_trend():
                 in_pos = True
     return all_trades
 
+def run_ema_60m():
+    from experiments.ema_benchmark import SYMBOLS as _dummy, sim_symbol, compute_metrics, calc_costs, ENV as EMA_ENV
+    from market_data.market_data import fetch_candles, resample_candles
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    EMA_ENV['SL'] = args.sl or 8.0
+    EMA_ENV['TP'] = args.tp or 12.0
+    EMA_ENV['FAST'] = 1
+    EMA_ENV['SLOW'] = 2
+    EMA_ENV['COOLDOWN'] = 1
+    EMA_ENV['EOD_HOUR'] = 15
+    EMA_ENV['EOD_MINUTE'] = 0
+
+    data_5m = {}
+    for sym in SYMBOLS:
+        df = fetch_candles(symbol=sym, tf=5, from_date=args.date_start, to_date=args.date_end)
+        if df is not None and len(df) > 20:
+            if not df.index.tz:
+                df.index = pd.DatetimeIndex(df.index).tz_localize("UTC")
+            data_5m[sym] = df.sort_index()
+
+    data = {}
+    for sym, df in data_5m.items():
+        rdf = resample_candles(df, 60)
+        if rdf is not None and len(rdf) > 5:
+            data[sym] = rdf
+
+    all_trades = []
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        fut = {pool.submit(sim_symbol, df): sym for sym, df in data.items()}
+        for f in as_completed(fut):
+            sym = fut[f]; trades = f.result()
+            for t in trades:
+                t['symbol'] = sym
+                t['net'] = t['net_pnl']
+            all_trades.extend(trades)
+    return [{'month': '', 'net': t['net']} for t in all_trades]
+
 # Dispatch to strategy
 if args.strategy == 'adx_trend':
     all_trades = run_adx_trend()
+elif args.strategy == 'ema_60m':
+    all_trades = run_ema_60m()
 else:
-    print(f"Strategy '{args.strategy}' not yet implemented in universal runner", file=sys.stderr)
+    print(f"Strategy '{args.strategy}' not yet implemented", file=sys.stderr)
     sys.exit(1)
 
 # ── Results ──
