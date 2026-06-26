@@ -20,9 +20,11 @@ Environment variables:
   EMA_DATE_END=          End date YYYY-MM-DD
 """
 import os, sys, pickle, hashlib
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import pandas as pd
 import numpy as np
 from datetime import datetime, timedelta, timezone
+from market_data.market_data import resample_candles
 
 IST = timezone(timedelta(hours=5, minutes=30))
 MKT_OPEN = 9 * 60 + 15   # 9:15 IST
@@ -38,6 +40,7 @@ ENV = {
     "EOD_HOUR": int(os.environ.get("EMA_EOD_HOUR", "14")),
     "EOD_MINUTE": int(os.environ.get("EMA_EOD_MINUTE", "45")),
     "TRADE_CAPITAL": float(os.environ.get("EMA_TRADE_CAPITAL", "100000")),
+    "TF": int(os.environ.get("EMA_TF", "5")),
     "CACHE_DIR": os.environ.get("EMA_CACHE_DIR", "../experiments/data"),
     "SYMBOLS": os.environ.get("EMA_SYMBOLS", ""),
     "DATE_START": os.environ.get("EMA_DATE_START", ""),
@@ -73,7 +76,7 @@ def load_data(cache_dir: str) -> dict[str, pd.DataFrame]:
     flag_path = cache_path + ".hash"
 
     param_hash = hashlib.md5(
-        f"SYMBOLS={sorted(SYMBOLS)}|START={ENV['DATE_START']}|END={ENV['DATE_END']}".encode()
+        f"SYMBOLS={sorted(SYMBOLS)}|TF={ENV['TF']}|START={ENV['DATE_START']}|END={ENV['DATE_END']}".encode()
     ).hexdigest()[:12]
 
     if os.path.exists(cache_path) and os.path.exists(flag_path):
@@ -101,6 +104,17 @@ def load_data(cache_dir: str) -> dict[str, pd.DataFrame]:
             df = df.sort_index()
             data[sym] = df
             print(f"  {sym}: {len(df)} candles", file=sys.stderr)
+
+    # Resample to desired timeframe if not 5-min
+    tf = ENV['TF']
+    if tf != 5:
+        resampled = {}
+        for sym, df in data.items():
+            rdf = resample_candles(df, tf)
+            if rdf is not None and len(rdf) > 5:
+                resampled[sym] = rdf
+        data = resampled
+        print(f"Resampled to {tf}-min: {len(data)} symbols", file=sys.stderr)
 
     os.makedirs(cache_dir, exist_ok=True)
     with open(cache_path, "wb") as f:
@@ -306,12 +320,16 @@ def main():
     print(f"Running simulation on {len(data)} symbols...", file=sys.stderr)
 
     all_trades = []
-    for symbol, df in data.items():
-        trades = sim_symbol(df)
-        for t in trades:
-            t["symbol"] = symbol
-        all_trades.extend(trades)
-        print(f"  {symbol}: {len(trades)} trades", file=sys.stderr)
+    max_workers = min(3, len(data))
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        fut = {pool.submit(sim_symbol, df): sym for sym, df in data.items()}
+        for f in as_completed(fut):
+            sym = fut[f]
+            trades = f.result()
+            for t in trades:
+                t["symbol"] = sym
+            all_trades.extend(trades)
+            print(f"  {sym}: {len(trades)} trades", file=sys.stderr)
 
     metrics = compute_metrics(all_trades)
     print(file=sys.stderr)
