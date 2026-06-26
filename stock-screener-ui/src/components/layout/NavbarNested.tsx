@@ -13,6 +13,7 @@ import {
   IconShield,
   IconPlayerPlay,
   IconLayoutGrid,
+  IconAdjustments,
 } from "@tabler/icons-react";
 import { Box, Group, ScrollArea, AppShell, Stack, ActionIcon } from "@mantine/core";
 import { useMantineColorScheme } from "@mantine/core";
@@ -34,6 +35,7 @@ const navItems = [
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
   { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
+  { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },

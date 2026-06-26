@@ -5,13 +5,17 @@ import {
   Text,
   Button,
   MultiSelect,
-  Checkbox,
   Tooltip,
   ActionIcon,
   Progress,
   Stack,
+  Badge,
 } from "@mantine/core";
-import { IconPlayerPlay, IconPlayerStop, IconRotate } from "@tabler/icons-react";
+import { useDebouncedValue } from "@mantine/hooks";
+import { IconPlayerPlay, IconPlayerStop, IconRotate, IconX } from "@tabler/icons-react";
+import { searchSymbols } from "../../api/symbols";
+import type { SymbolResult } from "../../api/symbols";
+import { ScreenerSymbolPicker } from "../replay/ScreenerSymbolPicker";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import type { StrategyRunnerConfig, BotInfo } from "../../types/strategyRunner";
 
@@ -49,21 +53,27 @@ export function StrategyRunnerConfig({
 }: Props) {
   const maxDate = useMemo(() => getMaxDate(), []);
 
-  const [symbolInput, setSymbolInput] = useState("");
+  const [symbolSearch, setSymbolSearch] = useState("");
+  const [debouncedSymbolSearch] = useDebouncedValue(symbolSearch, 300);
+  const [symbolOptions, setSymbolOptions] = useState<{ value: string; label: string }[]>([]);
 
   useEffect(() => {
     loadBots();
   }, [loadBots]);
 
-  const symbolOptions = useMemo(() => {
-    const symbols = new Set<string>();
-    for (const bot of bots) {
-      for (const sym of bot.watchlist) {
-        symbols.add(sym);
-      }
+  useEffect(() => {
+    if (!debouncedSymbolSearch) {
+      setSymbolOptions([]);
+      return;
     }
-    return Array.from(symbols).map((s) => ({ value: s, label: s }));
-  }, [bots]);
+    let cancelled = false;
+    searchSymbols(debouncedSymbolSearch, 20).then((results: SymbolResult[]) => {
+      if (!cancelled) {
+        setSymbolOptions(results.map((r) => ({ value: r.symbol, label: `${r.symbol} - ${r.name}` })));
+      }
+    });
+    return () => { cancelled = true; };
+  }, [debouncedSymbolSearch]);
 
   const allWatchlistSymbols = useMemo(
     () => Array.from(new Set(bots.flatMap((b) => b.watchlist))),
@@ -133,6 +143,10 @@ export function StrategyRunnerConfig({
               Symbols
             </Text>
             <Group gap={4}>
+              <ScreenerSymbolPicker
+                symbols={config.symbols}
+                onAddSymbols={(newSymbols) => setConfig({ symbols: [...config.symbols, ...newSymbols] })}
+              />
               <MultiSelect
                 size="sm"
                 w={220}
@@ -140,8 +154,8 @@ export function StrategyRunnerConfig({
                 value={config.symbols}
                 onChange={(v) => setConfig({ symbols: v })}
                 searchable
-                searchValue={symbolInput}
-                onSearchChange={setSymbolInput}
+                searchValue={symbolSearch}
+                onSearchChange={setSymbolSearch}
                 clearable
                 hidePickedOptions
                 placeholder="Search symbols..."
@@ -163,6 +177,33 @@ export function StrategyRunnerConfig({
                 </Tooltip>
               )}
             </Group>
+            {config.symbols.length > 0 && (
+              <Box mt={4}>
+                {config.symbols.slice(0, 10).map((sym) => (
+                  <Badge
+                    key={sym}
+                    variant="outline"
+                    size="sm"
+                    mr={4}
+                    mb={4}
+                    rightSection={
+                      <IconX
+                        size={10}
+                        style={{ cursor: "pointer" }}
+                        onClick={() => setConfig({ symbols: config.symbols.filter((s) => s !== sym) })}
+                      />
+                    }
+                  >
+                    {sym}
+                  </Badge>
+                ))}
+                {config.symbols.length > 10 && (
+                  <Text size="xs" c="dimmed" span>
+                    +{config.symbols.length - 10} more
+                  </Text>
+                )}
+              </Box>
+            )}
           </Box>
 
           <Box>

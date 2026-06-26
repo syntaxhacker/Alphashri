@@ -47,50 +47,25 @@ export function useStrategyRunnerState(): StrategyRunnerState & {
     }
   }, []);
 
-  const startRunner = useCallback(() => {
+  const startRunner = useCallback(async () => {
     sr.startRunning();
 
-    const cancel = runStrategyRunner(
-      state.config,
-      (event: any) => {
-        switch (event.type) {
-          case "bot_start":
-            sr.setProgress({
-              currentBot: event.currentBot,
-              totalBots: event.totalBots,
-              currentBotName: event.botName || "",
-            });
-            break;
-          case "trade":
-            sr.addTrade(event as StrategyRunnerTrade);
-            break;
-          case "bot_done":
-            sr.setProgress({
-              currentBot: event.currentBot,
-              totalBots: event.totalBots,
-              currentBotName: event.botName || "",
-            });
-            break;
-          case "summary":
-            sr.setSummary(event as StrategyRunnerSummary);
-            break;
-          case "error":
-            sr.setError(event.message || "Unknown error");
-            break;
-          case "done":
-            sr.stopRunning();
-            break;
-        }
-      },
-      (error: Error) => {
-        sr.setError(error.message);
-      },
-      () => {
-        sr.stopRunning();
-      },
-    );
+    try {
+      const result = await runStrategyRunner(state.config);
+      const trades = result.trades || [];
+      const summary = result.summary;
 
-    sseRef.current = cancel;
+      for (const t of trades) {
+        sr.addTrade(t as StrategyRunnerTrade);
+      }
+      if (summary) {
+        sr.setSummary(summary as StrategyRunnerSummary);
+      }
+    } catch (err) {
+      sr.setError(err instanceof Error ? err.message : String(err));
+    } finally {
+      sr.stopRunning();
+    }
   }, [state.config]);
 
   const stopRunner = useCallback(() => {
