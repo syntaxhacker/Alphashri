@@ -67,6 +67,9 @@ class StrategyRunner:
         elif self.strategy_type == "ADX_TREND":
             from trading.adx_trend_signals import ADXTrendSignalGenerator
             self.signal_generator = ADXTrendSignalGenerator(self.config)
+        elif self.strategy_type == "VOLUME_SURGE":
+            from trading.volume_surge_signals import VolumeSurgeSignalGenerator
+            self.signal_generator = VolumeSurgeSignalGenerator(self.config)
         else:
             from trading.orb_signals import ORBSignalGenerator
             console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")

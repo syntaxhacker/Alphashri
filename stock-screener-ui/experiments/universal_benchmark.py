@@ -25,7 +25,7 @@ from backtest.costs import calculate_trading_costs
 
 parser = argparse.ArgumentParser()
 parser.add_argument('--profile', default='trending')
-parser.add_argument('--strategy', default='adx_trend', choices=['adx_trend', 'ema_60m', 'orb', 'short_52w_failed'])
+parser.add_argument('--strategy', default='adx_trend', choices=['adx_trend', 'ema_60m', 'orb', 'short_52w_failed', 'volume_surge'])
 parser.add_argument('--limit', type=int, default=30)
 parser.add_argument('--date-start', default='2025-12-01')
 parser.add_argument('--date-end', default='2026-08-01')
@@ -122,11 +122,57 @@ def run_ema_60m():
             all_trades.extend(trades)
     return [{'month': '', 'net': t['net']} for t in all_trades]
 
+def run_volume_surge():
+    from trading.volume_surge_signals import VolumeSurgeSignalGenerator
+    gen = VolumeSurgeSignalGenerator({
+        'sl_pct': args.sl or 5.0, 'tp_pct': args.tp or 8.0,
+        'min_volume_ratio': float(os.environ.get("VS_MIN_VOL_RATIO", "2.0")),
+        'min_wick_close_pct': float(os.environ.get("VS_MIN_WICK", "50.0")),
+        'min_adx': float(os.environ.get("VS_MIN_ADX", "20.0")),
+        'max_holding_days': 15, 'cooldown_days': 10,
+        'enable_shorts': False, 'require_ma50': True,
+    })
+    all_trades = []
+    for sym in SYMBOLS:
+        df = fetch_candles(symbol=sym, tf=1440, from_date=args.date_start, to_date=args.date_end)
+        if df is None or len(df) < 60: continue
+        closes = df['close'].tolist(); highs = df['high'].tolist(); lows = df['low'].tolist(); vols = df['volume'].tolist()
+        in_pos = False; pos = {}
+        for i in range(60, len(closes)):
+            cp = float(closes[i]); ts = df.index[i]; month = ts.strftime('%Y-%m')
+            md = {
+                'current_price': cp, 'high_52w': max(highs[:i]), 'days_since_52w_high': 0,
+                'daily_highs': highs[:i], 'daily_lows': lows[:i], 'daily_closes': closes[:i],
+                'volume': float(vols[i]) if vols else 0,
+                'avg_volume_20d': sum(float(vols[j]) for j in range(max(0,i-20), i)) / min(20, max(1,i)),
+                'ma50': sum(closes[max(0,i-50):i]) / min(50, i),
+                'ma200': 0, 'adx': 0,
+            }
+            if in_pos:
+                d = i - pos['ei']
+                es = gen.check_exit(sym, pos['side'], pos['entry'], pos['sl'], pos['tp'], cp,
+                    days_in_position=d, max_holding_days=15,
+                    highest_price_since_entry=max(pos.get('peak', cp), cp), entry_52w_high=md['high_52w'])
+                if es:
+                    shares = int(100000 / pos['entry'])
+                    gp = (cp - pos['entry']) * shares
+                    ct = calculate_trading_costs(pos['entry'], cp, shares, 'BUY')['total_costs']
+                    all_trades.append({'month': month, 'net': gp - ct})
+                    in_pos = False
+                continue
+            sig = gen.check_entry(sym, md)
+            if sig:
+                pos = {'side': 'BUY', 'entry': sig.price, 'sl': sig.stop_loss, 'tp': sig.take_profit, 'ei': i, 'peak': sig.price}
+                in_pos = True
+    return all_trades
+
 # Dispatch to strategy
 if args.strategy == 'adx_trend':
     all_trades = run_adx_trend()
 elif args.strategy == 'ema_60m':
     all_trades = run_ema_60m()
+elif args.strategy == 'volume_surge':
+    all_trades = run_volume_surge()
 else:
     print(f"Strategy '{args.strategy}' not yet implemented", file=sys.stderr)
     sys.exit(1)

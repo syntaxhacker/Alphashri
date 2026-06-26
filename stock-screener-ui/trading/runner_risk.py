@@ -164,6 +164,7 @@ class RunnerRiskMixin:
                 'high_52w': high_52w,
                 'days_since_52w_high': days_since_52w_high,
                 'daily_highs': highs,
+                'daily_lows': lows,
                 'daily_closes': closes,
                 'volume': volumes[-1] if volumes else 0.0,
                 'avg_volume_20d': avg_volume_20d,
