@@ -1,4 +1,4 @@
-import { useMemo, useState, useRef, useEffect } from "react";
+import { useMemo, useState, useRef, useEffect, Fragment } from "react";
 import {
   Tabs,
   Table,
@@ -8,6 +8,7 @@ import {
   Badge,
   Box,
   Tooltip,
+  ActionIcon,
 } from "@mantine/core";
 import {
   getPnLTextColor,
@@ -15,6 +16,7 @@ import {
   getNextSortDirection,
   sortByField,
 } from "../../utils/ui-helpers";
+import { TradeChart } from "./TradeChart";
 import { SortableHeader } from "../common/SortableHeader";
 import { SideBadge } from "../common/BadgeComponents";
 import { getMetricColor, getMetricTextColor } from "../../pages/heatmap/heatmapUtils";
@@ -32,8 +34,13 @@ interface TabsProps {
   bots: BotInfo[];
 }
 
+function toN(v: any, fallback: number = 0): number {
+  return (typeof v === "number" && !Number.isNaN(v)) ? v : fallback;
+}
+function f2(v: any): string { return toN(v).toFixed(2); }
+function f1(v: any): string { return toN(v).toFixed(1); }
 function formatPF(pf: number): string {
-  if (pf === 0) return "\u2014";
+  if (pf === 0 || !isFinite(pf)) return "\u2014";
   return pf.toFixed(2);
 }
 
@@ -113,13 +120,13 @@ function ByBotTab({ summary, trades }: { summary: StrategyRunnerSummary | null; 
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="xs" c={entry.summary.win_rate >= 50 ? "green" : "red"}>
-                  {entry.summary.win_rate.toFixed(1)}%
+                  {f1(entry.summary.win_rate)}%
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="xs" fw={500} c={getPnLTextColor(entry.summary.net_pnl)}>
                   {entry.summary.net_pnl >= 0 ? "+" : ""}
-                  {entry.summary.net_pnl.toFixed(2)}
+                  {f2(entry.summary.net_pnl)}
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
@@ -234,7 +241,7 @@ function BySymbolTab({ summary, trades, bots }: TabsProps) {
               </Table.Td>
               <Table.Td ta="right">
                 <Text size="xs" c={entry.win_rate >= 50 ? "green" : "red"}>
-                  {entry.win_rate.toFixed(1)}%
+                  {f1(entry.win_rate)}%
                 </Text>
               </Table.Td>
               <Table.Td
@@ -253,7 +260,7 @@ function BySymbolTab({ summary, trades, bots }: TabsProps) {
                   c={getMetricTextColor(entry.net_pnl, minPnl < 0 ? minPnl : 0, maxPnl)}
                 >
                   {entry.net_pnl >= 0 ? "+" : ""}
-                  {entry.net_pnl.toFixed(2)}
+                  {f2(entry.net_pnl)}
                 </Text>
               </Table.Td>
               <Table.Td ta="right">
@@ -287,6 +294,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [sortField, setSortField] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
+  const [expandedTrade, setExpandedTrade] = useState<string | null>(null);
 
   const sortedTrades = useMemo(() => {
     if (!sortField) return trades;
@@ -382,57 +390,89 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
                 onSort={handleSort}
               />
               <Table.Th>Reason</Table.Th>
+              <Table.Th ta="center">Chart</Table.Th>
             </Table.Tr>
           </Table.Thead>
           <Table.Tbody>
-            {sortedTrades.map((trade, idx) => (
-              <Table.Tr key={`${trade.bot_uuid}-${trade.symbol}-${trade.entry_time}-${idx}`}>
-                <Table.Td>
-                  <Text size="xs" fw={500}>
-                    {trade.bot_name}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs" fw={500}>
-                    {trade.symbol}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <SideBadge side={trade.side} size="xs" />
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">{formatTimeOnly(trade.entry_time)}</Text>
-                </Table.Td>
-                <Table.Td>
-                  <Text size="xs">
-                    {trade.exit_time ? formatTimeOnly(trade.exit_time) : "-"}
-                  </Text>
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Text size="xs">{trade.entry_price.toFixed(2)}</Text>
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Text size="xs">{trade.exit_price.toFixed(2)}</Text>
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Text size="xs" fw={500} c={getPnLTextColor(trade.pnl)}>
-                    {trade.pnl >= 0 ? "+" : ""}
-                    {trade.pnl.toFixed(2)}
-                  </Text>
-                </Table.Td>
-                <Table.Td ta="right">
-                  <Text size="xs" fw={500} c={getPnLTextColor(trade.net_pnl)}>
-                    {trade.net_pnl >= 0 ? "+" : ""}
-                    {trade.net_pnl.toFixed(2)}
-                  </Text>
-                </Table.Td>
-                <Table.Td>
-                  <Badge size="xs" color="gray" variant="light">
-                    {trade.reason || "-"}
-                  </Badge>
-                </Table.Td>
-              </Table.Tr>
-            ))}
+            {sortedTrades.map((trade, idx) => {
+              const tradeKey = `${trade.bot_uuid}-${trade.symbol}-${trade.entry_time}-${idx}`;
+              const isExpanded = expandedTrade === tradeKey;
+              return (
+                <Fragment key={tradeKey}>
+                  <Table.Tr>
+                    <Table.Td>
+                      <Text size="xs" fw={500}>
+                        {trade.bot_name}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs" fw={500}>
+                        {trade.symbol}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <SideBadge side={trade.side} size="xs" />
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">{formatTimeOnly(trade.entry_time)}</Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="xs">
+                        {trade.exit_time ? formatTimeOnly(trade.exit_time) : "-"}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Text size="xs">{f2(trade.entry_price)}</Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Text size="xs">{f2(trade.exit_price)}</Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Text size="xs" fw={500} c={getPnLTextColor(trade.pnl)}>
+                        {trade.pnl >= 0 ? "+" : ""}
+                        {f2(trade.pnl)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td ta="right">
+                      <Text size="xs" fw={500} c={getPnLTextColor(trade.net_pnl)}>
+                        {trade.net_pnl >= 0 ? "+" : ""}
+                        {f2(trade.net_pnl)}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Badge size="xs" color="gray" variant="light">
+                        {trade.reason || "-"}
+                      </Badge>
+                    </Table.Td>
+                    <Table.Td ta="center">
+                      <ActionIcon
+                        size="xs"
+                        variant={isExpanded ? "filled" : "subtle"}
+                        color={isExpanded ? "blue" : "gray"}
+                        onClick={() => setExpandedTrade(isExpanded ? null : tradeKey)}
+                      >
+                        <Text size="xs">{isExpanded ? "−" : "+"}</Text>
+                      </ActionIcon>
+                    </Table.Td>
+                  </Table.Tr>
+                  {isExpanded && (
+                    <Table.Tr>
+                      <Table.Td colSpan={11} p="md" style={{ background: "var(--mantine-color-gray-0)" }}>
+                        <TradeChart
+                          symbol={trade.symbol}
+                          date={trade.entry_time?.slice(0, 10) || ""}
+                          entryPrice={trade.entry_price}
+                          exitPrice={trade.exit_price}
+                          entryTime={trade.entry_time}
+                          exitTime={trade.exit_time || ""}
+                          height={280}
+                        />
+                      </Table.Td>
+                    </Table.Tr>
+                  )}
+                </Fragment>
+              );
+            })}
           </Table.Tbody>
         </Table>
         <div ref={bottomRef} />
