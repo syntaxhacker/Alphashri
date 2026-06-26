@@ -210,6 +210,7 @@ class RunnerSignalsMixin:
                     symbol,
                     runner.config.get('ema_fast_period', 9),
                     runner.config.get('ema_slow_period', 21),
+                    runner=runner,
                 )
                 if not ema_data:
                     continue

@@ -217,18 +217,26 @@ class RunnerRiskMixin:
             'prev_close': prev_row['close'],
         }
 
-    def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21) -> Optional[dict]:
-        """Fetch intraday data and compute EMA crossover state for a symbol."""
+    def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21,
+                        runner=None) -> Optional[dict]:
+        """Fetch intraday data and compute EMA crossover state for a symbol.
+        
+        Uses configurable interval (ema_interval_minutes in runner config, default 5).
+        """
         from trading.ema_utils import calculate_ema
 
         fetcher = self._get_data_fetcher()
         if not fetcher:
             return None
 
+        ema_interval = 5
+        if runner and hasattr(runner, 'config'):
+            ema_interval = int(runner.config.get("ema_interval_minutes", runner.config.get("or_minutes", 5)))
+
         try:
             df = fetcher.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol,
-                interval='5',
+                interval=str(ema_interval),
             )
         except Exception as e:
             from rich.console import Console
