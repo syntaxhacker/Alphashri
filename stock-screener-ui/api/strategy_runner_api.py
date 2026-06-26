@@ -1,5 +1,6 @@
 """Strategy Runner API — SSE with real-time progress via threading."""
-import json, queue, threading
+import json as _json
+import queue, threading
 from typing import Optional
 
 import numpy as np
@@ -49,19 +50,19 @@ def run_strategy_runner(request: Request, body: StrategyRunnerRequest):
             try:
                 bot_config = db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
                 if not bot_config:
-                    yield {"event": "error", "data": {"message": f"Bot {bot_uuid} not found"}}
+                    yield {"event": "error", "data": _json.dumps({"message": f"Bot {bot_uuid} not found"})}
                     continue
                 _ = bot_config.strategies  # eager-load
             finally:
                 db.close()
 
             s = bot_config.strategies[0] if bot_config.strategies else None
-            yield {"event": "bot_start", "data": {
+            yield {"event": "bot_start", "data": _json.dumps({
                 "bot_index": idx, "total_bots": total_bots,
                 "bot_name": bot_config.name,
                 "strategy_name": s.name if s else "",
                 "strategy_type": s.strategy_type if s else "",
-            }}
+            })}
 
             # Run replay in a thread, pipe events via queue
             q = queue.Queue()
@@ -103,18 +104,18 @@ def run_strategy_runner(request: Request, body: StrategyRunnerRequest):
                     ev["bot_name"] = bot_config.name
                     ev["bot_uuid"] = bot_uuid
                     bot_trades.append(ev)
-                    yield {"event": "trade", "data": _clean(ev)}
+                    yield {"event": "trade", "data": _json.dumps(_clean(ev))}
                 elif ev["type"] == "error":
-                    yield {"event": "error", "data": {"message": str(ev.get("message", ""))}}
+                    yield {"event": "error", "data": _json.dumps({"message": str(ev.get("message", ""))})}
 
             thread.join()
 
-            yield {"event": "bot_done", "data": {
+            yield {"event": "bot_done", "data": _json.dumps({
                 "bot_index": idx, "bot_name": bot_config.name, "trades": len(bot_trades),
-            }}
+            })}
 
         # ── Combined summary ──
-        yield {"event": "done", "data": {"status": "complete"}}
+        yield {"event": "done", "data": _json.dumps({"status": "complete"})}
 
     return EventSourceResponse(event_stream())
 
