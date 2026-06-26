@@ -50,15 +50,22 @@ print(df['name'].tolist())
 # (set custom_watchlist to the symbols)
 ```
 
+## Created Bots
+
+| Bot | Name | Strategy | Universe | PF (6mo) | Net |
+|-----|------|----------|----------|----------|------|
+| 5 | ORB High Beta Bot | ORB | `volatility_trend` | 1.90 | +₹125K |
+| 6 | EMA Cross Best Bot | EMA Cross 60-min | `volatility_trend` (TV) | 2.47 | +₹1.29M |
+| 7 | ADX Trend Bot | ADX Trend | TV screener (43 stocks) | 2.81 | +₹510K |
+| **8** | **ADX Trend Ultra-Large Bot** | **ADX Trend** | **`trending`** | **4.22** | **+₹480K** |
+| **9** | **ADX Trend Volatility Bot** | **ADX Trend** | **`volatility_trend`** | **2.40** | **+₹339K** |
+| **10** | **ADX Trend Momentum Bot** | **ADX Trend** | **`high_momentum`** | **2.35** | **+₹332K** |
+
 ## Pending Experiments
 
 | # | Universe | Strategy | Status |
 |---|----------|----------|--------|
-| 1 | `trending` (ultra-large caps) | ADX Trend (SL=5 TP=6 shorts=off) | Bot created (id=7) |
-| 2 | `volatility_trend` | EMA Cross 60-min | Bot created (id=6) |
-| 3 | `volatility_trend` | ORB High Beta | Bot created (id=5) |
-| 4 | `high_momentum` | ADX Trend | Not yet |
-| 5 | `near_52w_breakout` | 52W Chaser | Bot exists (id=3) |
-| 6 | `rsi_reversal` | Mean Reversion | Signal gen needed |
-| 7 | `intraday_momentum` | Scalping | Signal gen needed |
-| 8 | `trending` | EMA Cross 60-min | Not yet |
+| 1 | `trending` | EMA Cross 60-min | Not yet — could be strong |
+| 2 | `rsi_reversal` | Mean Reversion | Signal gen needed |
+| 3 | `intraday_momentum` | Scalping | Signal gen needed |
+| 4 | `near_52w_breakout` | ADX Trend | Not yet — speculative |
