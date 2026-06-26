@@ -32,6 +32,7 @@ ENV = {
     "MAX_HOLDING": int(os.environ.get("SWING_MAX_HOLDING", "20")),
     "COOLDOWN": int(os.environ.get("SWING_COOLDOWN", "10")),
     "SHORTS": int(os.environ.get("SWING_SHORTS", "1")),
+    "STOCK_MA50_FILTER": int(os.environ.get("STOCK_MA50_FILTER", "0")),
     "DATE_START": os.environ.get("SWING_DATE_START", "2026-01-01"),
     "DATE_END": os.environ.get("SWING_DATE_END", "2026-07-01"),
 }
@@ -213,6 +214,7 @@ def main():
         'max_holding_days': ENV['MAX_HOLDING'],
         'cooldown_days': ENV['COOLDOWN'],
         'enable_shorts': bool(ENV['SHORTS']),
+        'stock_ma50_filter': bool(ENV['STOCK_MA50_FILTER']),
     }
     print(f"Strategy: {cfg['strategy']} SL={cfg['sl_pct']}% TP={cfg['tp_pct']}% "
           f"ADX>{cfg['adx_threshold'] if cfg['strategy']=='adx_trend' else 'N/A'} "

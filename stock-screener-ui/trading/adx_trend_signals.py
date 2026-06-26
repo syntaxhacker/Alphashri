@@ -53,6 +53,7 @@ class ADXTrendSignalGenerator(BaseSignalGenerator):
         self.cooldown_days = int(config.get("cooldown_days", 10))
         self.enable_shorts = bool(config.get("enable_shorts", True))
         self.adx_period = int(config.get("adx_period", 14))
+        self.stock_ma50_filter = bool(config.get("stock_ma50_filter", False))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
@@ -75,8 +76,20 @@ class ADXTrendSignalGenerator(BaseSignalGenerator):
         if adx < self.adx_threshold:
             return None
 
+        # Stock MA50 filter: skip trades against the stock's medium-term trend
+        if self.stock_ma50_filter:
+            ma50 = market_data.get("ma50")
+            if ma50 is not None and ma50 > 0:
+                stock_bull = current_price > ma50
+            else:
+                stock_bull = None  # No MA50 data, skip filter
+        else:
+            stock_bull = None
+
         # DI+ > DI- → bullish (long)
         if di_plus > di_minus:
+            if stock_bull is not None and not stock_bull:
+                return None  # Skip long when stock is below MA50
             sl, tp = self._calc_sl_tp("BUY", current_price)
             return self.create_signal(
                 symbol=symbol, signal_type=SignalType.LONG_ENTRY,
@@ -87,6 +100,8 @@ class ADXTrendSignalGenerator(BaseSignalGenerator):
 
         # DI- > DI+ → bearish (short)
         if self.enable_shorts and di_minus > di_plus:
+            if stock_bull is not None and stock_bull:
+                return None  # Skip short when stock is above MA50
             sl, tp = self._calc_sl_tp("SELL", current_price)
             return self.create_signal(
                 symbol=symbol, signal_type=SignalType.SHORT_ENTRY,

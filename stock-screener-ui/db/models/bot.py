@@ -146,6 +146,7 @@ class StrategyConfig(Base):
             "screener_profiles": json.loads(self.screener_profiles) if self.screener_profiles else [],
             "custom_watchlist": json.loads(self.custom_watchlist) if self.custom_watchlist else [],
             "min_market_range_pct": getattr(self, 'min_market_range_pct', 1.0),
+            "stock_ma50_filter": getattr(self, 'stock_ma50_filter', False),
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,
