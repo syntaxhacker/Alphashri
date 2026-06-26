@@ -50,8 +50,6 @@ export function StrategyRunnerPage() {
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState({ currentBot: 0, totalBots: 0, currentBotName: "" });
 
-  const sseRef = useRef<(() => void) | null>(null);
-  const collectedRef = useRef<StrategyRunnerTrade[]>([]);
   const configRef = useRef(config);
   configRef.current = config;
   const startRunnerRef = useRef<(() => void) | null>(null);
@@ -70,37 +68,26 @@ export function StrategyRunnerPage() {
       .catch(() => {}); // auth-dependent, ignore silently
   }, []);
 
-  const startRunner = useCallback(() => {
+  const startRunner = useCallback(async () => {
     const cfg = configRef.current;
-    collectedRef.current = [];
     setIsRunning(true);
     setTrades([]);
     setSummary(null);
     setError(null);
+    setProgress((p) => ({ ...p, currentBotName: "Running..." }));
 
-    const cancel = runStrategyRunner(
-      cfg,
-      (ev: any) => {
-        if (ev.event === "bot_start") {
-          setProgress({ currentBot: ev.data.bot_index ?? 0, totalBots: ev.data.total_bots ?? 1, currentBotName: ev.data.bot_name || "" });
-        } else if (ev.event === "trade") {
-          collectedRef.current.push(ev.data as StrategyRunnerTrade);
-          setTrades([...collectedRef.current]);
-          setProgress((p) => ({ ...p, currentBotName: `${ev.data.symbol} PnL=${ev.data.pnl?.toFixed?.(0) || "?"} (${collectedRef.current.length} trades)` }));
-        } else if (ev.event === "bot_done") {
-          setProgress((p) => ({ ...p, currentBot: (ev.data.bot_index ?? 0) + 1, currentBotName: `${ev.data.bot_name || ""} done` }));
-        } else if (ev.event === "error") {
-          setError(ev.data?.message || "Unknown error");
-        } else if (ev.event === "done") {
-          computeSummary(collectedRef.current, setSummary);
-          setIsRunning(false);
-        }
-      },
-      (err: Error) => { setError(err.message); setIsRunning(false); },
-      () => setIsRunning(false),
-    );
-
-    sseRef.current = cancel;
+    try {
+      const result = await runStrategyRunner(cfg);
+      const trades = (result.trades || []) as StrategyRunnerTrade[];
+      setTrades(trades);
+      if (result.summary) {
+        setSummary(result.summary as StrategyRunnerSummary);
+      }
+    } catch (err: any) {
+      setError(err.message || "Unknown error");
+    } finally {
+      setIsRunning(false);
+    }
   }, []);
 
   startRunnerRef.current = startRunner;

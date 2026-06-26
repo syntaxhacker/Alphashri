@@ -1,31 +1,13 @@
-"""Strategy Runner API — SSE with real-time progress via threading."""
+"""Strategy Runner API — run multiple bots, return results as JSON."""
 import json as _json
-import queue, threading
 from typing import Optional
 
-import numpy as np
-
 from fastapi import APIRouter, Request
-from sse_starlette.sse import EventSourceResponse
 from pydantic import BaseModel
 
 from trading.runner_core import MultiStrategyRunner
 from db.database import SessionLocal
 from db.models.bot import BotConfig
-
-def _clean(obj):
-    """Convert numpy types to native Python for JSON serialization."""
-    if isinstance(obj, dict):
-        return {k: _clean(v) for k, v in obj.items()}
-    elif isinstance(obj, (list, tuple)):
-        return [_clean(v) for v in obj]
-    elif isinstance(obj, np.integer):
-        return int(obj)
-    elif isinstance(obj, np.floating):
-        return float(obj)
-    elif isinstance(obj, np.bool_):
-        return bool(obj)
-    return obj
 
 router = APIRouter(prefix="/api/strategy-runner", tags=["strategy-runner"])
 
@@ -39,83 +21,100 @@ class StrategyRunnerRequest(BaseModel):
 
 @router.post("/run")
 def run_strategy_runner(request: Request, body: StrategyRunnerRequest):
-    """Run multiple bots. SSE stream with real-time events via threading."""
+    """Run multiple bots sequentially, return combined JSON summary."""
 
-    def event_stream():
-        total_bots = len(body.bot_uuids)
+    all_trades = []
+    bots_result = []
 
-        for idx, bot_uuid in enumerate(body.bot_uuids):
-            # Load bot config (keep session open for eager-load)
-            db = SessionLocal()
-            try:
-                bot_config = db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
-                if not bot_config:
-                    yield {"event": "error", "data": _json.dumps({"message": f"Bot {bot_uuid} not found"})}
-                    continue
-                _ = bot_config.strategies  # eager-load
-            finally:
-                db.close()
+    for bot_uuid in body.bot_uuids:
+        db = SessionLocal()
+        try:
+            bot_config = db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
+            if not bot_config:
+                bots_result.append({"uuid": bot_uuid, "error": "Bot not found"})
+                continue
+            _ = bot_config.strategies  # eager load
 
             s = bot_config.strategies[0] if bot_config.strategies else None
-            yield {"event": "bot_start", "data": _json.dumps({
-                "bot_index": idx, "total_bots": total_bots,
-                "bot_name": bot_config.name,
+            bot_events = []
+            runner = MultiStrategyRunner.create_for_replay(bot_config=bot_config)
+            runner.run_replay(
+                date_str=body.date,
+                symbols=body.symbols,
+                strategy_filter="ALL",
+                on_event=bot_events.append,
+                end_date_str=body.end_date,
+            )
+
+            bot_trades = [e for e in bot_events if e["type"] == "trade_close"]
+            for t in bot_trades:
+                t["bot_name"] = bot_config.name
+                t["bot_uuid"] = bot_uuid
+            all_trades.extend(bot_trades)
+
+            bots_result.append({
+                "uuid": bot_uuid,
+                "name": bot_config.name,
                 "strategy_name": s.name if s else "",
                 "strategy_type": s.strategy_type if s else "",
-            })}
+                "trades": len(bot_trades),
+            })
+        finally:
+            db.close()
 
-            # Run replay in a thread, pipe events via queue
-            q = queue.Queue()
-            SENTINEL = object()
+    # Combined summary
+    result = {"bots": bots_result, "trades": all_trades}
 
-            def on_event(e):
-                q.put(e)
+    if all_trades:
+        wins = [t for t in all_trades if t.get("pnl", 0) > 0]
+        gp = sum(t.get("pnl", 0) for t in wins)
+        gl = abs(sum(t.get("pnl", 0) for t in all_trades if t.get("pnl", 0) <= 0))
+        net = sum(t.get("pnl", 0) for t in all_trades)
 
-            def target():
-                try:
-                    db2 = SessionLocal()
-                    try:
-                        bc = db2.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
-                        _ = bc.strategies
-                        runner = MultiStrategyRunner.create_for_replay(bot_config=bc)
-                        runner.run_replay(
-                            date_str=body.date, symbols=body.symbols,
-                            strategy_filter="ALL", on_event=on_event,
-                            end_date_str=body.end_date,
-                        )
-                    finally:
-                        db2.close()
-                except Exception as ex:
-                    q.put({"type": "error", "message": str(ex)})
-                finally:
-                    q.put(SENTINEL)
+        by_bot = {}
+        for t in all_trades:
+            bn = t.get("bot_name", "?")
+            by_bot.setdefault(bn, {"trades": []})["trades"].append(t)
+        for bn, d in by_bot.items():
+            bt = d["trades"]; bw = [t for t in bt if t.get("pnl", 0) > 0]
+            bgp = sum(t.get("pnl", 0) for t in bw)
+            bgl = abs(sum(t.get("pnl", 0) for t in bt if t.get("pnl", 0) <= 0))
+            d["summary"] = {"total_trades": len(bt), "winners": len(bw),
+                "win_rate": round(len(bw)/len(bt)*100, 1) if bt else 0,
+                "net_pnl": round(sum(t.get("pnl", 0) for t in bt), 2),
+                "profit_factor": round(bgp/bgl, 4) if bgl > 0 else 0}
 
-            thread = threading.Thread(target=target, daemon=True)
-            thread.start()
+        by_sym = {}
+        for t in all_trades:
+            sym = t.get("symbol", "?")
+            d = by_sym.setdefault(sym, {"trades": [], "bots": set()})
+            d["trades"].append(t)
+            d["bots"].add(t.get("bot_name", "?"))
+        symbol_summary = {}
+        for sym, d in by_sym.items():
+            st = d["trades"]; sw = [t for t in st if t.get("pnl", 0) > 0]
+            sgp = sum(t.get("pnl", 0) for t in sw)
+            sgl = abs(sum(t.get("pnl", 0) for t in st if t.get("pnl", 0) <= 0))
+            bot_pf = {}
+            for t in st:
+                bn = t.get("bot_name", "?")
+                bot_pf[bn] = bot_pf.get(bn, 0) + t.get("pnl", 0)
+            symbol_summary[sym] = {"total_trades": len(st), "winners": len(sw),
+                "win_rate": round(len(sw)/len(st)*100, 1) if st else 0,
+                "net_pnl": round(sum(t.get("pnl", 0) for t in st), 2),
+                "profit_factor": round(sgp/sgl, 4) if sgl > 0 else 0,
+                "bots_traded": len(d["bots"]), "best_bot": max(bot_pf, key=bot_pf.get) if bot_pf else ""}
 
-            bot_trades = []
-            while True:
-                ev = q.get()
-                if ev is SENTINEL:
-                    break
-                # Only forward trade_close and error events to SSE
-                # (loaded, progress, candles, ema_series etc. are consumed silently)
-                if ev["type"] == "trade_close":
-                    ev["bot_name"] = bot_config.name
-                    ev["bot_uuid"] = bot_uuid
-                    bot_trades.append(ev)
-                    yield {"event": "trade", "data": _json.dumps(_clean(ev))}
-                elif ev["type"] == "error":
-                    yield {"event": "error", "data": _json.dumps({"message": str(ev.get("message", ""))})}
+        result["summary"] = {
+            "total_trades": len(all_trades),
+            "winners": len(wins),
+            "win_rate": round(len(wins)/len(all_trades)*100, 1) if all_trades else 0,
+            "net_pnl": round(net, 2),
+            "profit_factor": round(gp/gl, 4) if gl > 0 else 0,
+            "by_bot": {k: {"summary": v["summary"]} for k, v in by_bot.items()},
+            "by_symbol": symbol_summary,
+        }
+    else:
+        result["summary"] = {"total_trades": 0}
 
-            thread.join()
-
-            yield {"event": "bot_done", "data": _json.dumps({
-                "bot_index": idx, "bot_name": bot_config.name, "trades": len(bot_trades),
-            })}
-
-        # ── Combined summary ──
-        yield {"event": "done", "data": _json.dumps({"status": "complete"})}
-
-    return EventSourceResponse(event_stream())
-
+    return result
