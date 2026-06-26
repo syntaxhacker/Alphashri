@@ -825,7 +825,7 @@ class RunnerSignalsMixin:
 
                 # Consecutive loss tracking
                 if runner:
-                    max_consecutive = int(runner.config.get("max_consecutive_losses", 3))
+                    max_consecutive = int(runner.config.get("max_consecutive_losses", 0))
                     if max_consecutive > 0:
                         losses = getattr(self, '_consecutive_losses', {})
                         sid = str(trade.strategy_id)
