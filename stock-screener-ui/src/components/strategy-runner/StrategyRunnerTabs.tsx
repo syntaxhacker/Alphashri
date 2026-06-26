@@ -42,10 +42,10 @@ function formatPF(pf: number): string {
 function ByBotTab({ summary, trades }: { summary: StrategyRunnerSummary | null; trades: StrategyRunnerTrade[] }) {
   const botEntries = useMemo(() => {
     if (summary?.by_bot) {
-      return Object.entries(summary.by_bot).map(([uuid, data]) => ({
-        uuid,
-        name: data.trades[0]?.bot_name || uuid,
-        trades: data.trades,
+      return Object.entries(summary.by_bot).map(([name, data]) => ({
+        uuid: name,
+        name,
+        trades: [],
         summary: data.summary,
       }));
     }
