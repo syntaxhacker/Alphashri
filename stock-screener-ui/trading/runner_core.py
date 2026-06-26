@@ -1260,6 +1260,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                 for key in list(self.portfolio.positions.keys()):
                     pos = self.portfolio.positions[key]
+                    # Skip swing strategy positions — they carry over between days
+                    runner = self.strategies.get(pos.strategy_id)
+                    if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
+                        continue
                     side = self._side_str(pos.side, "LONG_SHORT")
                     costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
                     trade = self.portfolio.close_position(
@@ -1268,7 +1272,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         costs=costs, exit_time=market_close,
                     )
                     if on_event and trade:
-                        runner = self.strategies.get(pos.strategy_id)
                         on_event(build_trade_close_event(trade, runner))
 
             if on_event:
