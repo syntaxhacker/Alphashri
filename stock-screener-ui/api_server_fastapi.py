@@ -783,6 +783,13 @@ except Exception as e:
     print(f"⚠️ Could not load replay API: {e}")
 
 try:
+    from api.strategy_runner_api import router as strategy_runner_router
+    app.include_router(strategy_runner_router)
+    print("✅ Strategy Runner API loaded at /api/strategy-runner")
+except Exception as e:
+    print(f"⚠️ Could not load strategy runner API: {e}")
+
+try:
     from api.debug_api import router as debug_router
     app.include_router(debug_router)
     print("✅ Debug API loaded at /api/debug")
