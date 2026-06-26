@@ -252,7 +252,11 @@ Return ONLY valid JSON. No markdown. Example output:
         user_prompt = f"Headline: {headline}\n\nContent: {content}"
         
         start_time = time.time()
-        
+        prompt_tokens = 0
+        completion_tokens = 0
+        total_tokens = 0
+        cost_usd = 0.0
+
         try:
             analysis_data = _call_llm_json(
                 messages=[
@@ -263,6 +267,13 @@ Return ONLY valid JSON. No markdown. Example output:
             )
             
             response_time_ms = int((time.time() - start_time) * 1000)
+            
+            # extract token usage from _usage key (attached by preciz)
+            usage = analysis_data.pop("_usage", None) if isinstance(analysis_data, dict) else None
+            prompt_tokens = usage.get("prompt_tokens", 0) if usage else 0
+            completion_tokens = usage.get("completion_tokens", 0) if usage else 0
+            total_tokens = usage.get("total_tokens", 0) if usage else 0
+            cost_usd = self._calculate_cost(self.model_name, prompt_tokens, completion_tokens)
             
             result = {
                 "summary": analysis_data.get("summary", "Summary unavailable."),
@@ -282,10 +293,10 @@ Return ONLY valid JSON. No markdown. Example output:
                 url=url,
                 model=self.model_name,
                 headline=headline,
-                prompt_tokens=0,
-                completion_tokens=0,
-                total_tokens=0,
-                cost_usd=0.0,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cost_usd=cost_usd,
                 response_time_ms=response_time_ms,
                 status="success"
             )
@@ -300,10 +311,10 @@ Return ONLY valid JSON. No markdown. Example output:
                 url=url,
                 model=self.model_name,
                 headline=headline,
-                prompt_tokens=0,
-                completion_tokens=0,
-                total_tokens=0,
-                cost_usd=0.0,
+                prompt_tokens=prompt_tokens,
+                completion_tokens=completion_tokens,
+                total_tokens=total_tokens,
+                cost_usd=cost_usd,
                 response_time_ms=response_time_ms,
                 status="failed",
                 error_message=error_message
