@@ -41,6 +41,14 @@ def _build_rationale(screener, stock_data):
         move = _to_float(stock_data.get('move_pct'), 0)
         lookback = stock_data.get('lookback_minutes', 15)
         return f"Move {move:+.2f}% ({lookback}m) | VolSurge {_to_float(stock_data.get('volume_surge'), 0):.2f}x | RSI {rsi:.1f}"
+
+    if screener == 'undervalued':
+        pe = _to_float(stock_data.get('pe'), 0)
+        pb = _to_float(stock_data.get('pb'), 0)
+        roe = _to_float(stock_data.get('roe'), 0)
+        vs = _to_float(stock_data.get('value_score'), 0)
+        return f"P/E {pe:.1f} | P/B {pb:.2f} | ROE {roe:.1f}% | Score {vs:.0f}"
+
     return f"Score {int(score)} | 52W gap {gap52:+.2f}% | 5D {ret5d:+.1f}% | PerfW {perfw:+.1f}%"
 
 
@@ -121,6 +129,13 @@ def _summary_items_for(screener, approaching, touched):
             {'label': 'Avg Move', 'value': f"{avg('move_pct'):+.2f}%"},
             {'label': 'Max Move', 'value': f"{max_move:+.2f}%"},
             {'label': 'Avg Vol Surge', 'value': f"{avg('volume_surge'):.2f}x"}
+        ]
+
+    if screener == 'undervalued':
+        return [
+            {'label': 'Avg P/E', 'value': f"{avg('pe'):.1f}"},
+            {'label': 'Avg ROE', 'value': f"{avg('roe'):.1f}%"},
+            {'label': 'Stocks', 'value': str(len(rows))}
         ]
 
     return [

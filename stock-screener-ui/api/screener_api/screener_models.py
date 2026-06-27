@@ -155,6 +155,16 @@ PROFILE_META = {
         ],
         'default_sort': {'column': 'move_pct', 'direction': 'desc'},
         'score_formula': 'Move% × 2 + RSI acceleration + Volume surge + ADX trend'
+    },
+    'undervalued': {
+        'section_labels': {'primary': '💎 UNDERVALUED', 'secondary': '✅ TOP VALUE PICKS'},
+        'section_descriptions': {'primary': 'Financially undervalued NSE stocks with low P/E, P/B, strong ROE, and low debt', 'secondary': 'Highest value-ranked stocks based on composite fundamental score'},
+        'filters': [
+            {'key': 'max_pe', 'label': 'Max P/E', 'type': 'number', 'min': 1, 'max': 50, 'step': 1, 'default': 25},
+            {'key': 'min_roe', 'label': 'Min ROE %', 'type': 'number', 'min': 0, 'max': 50, 'step': 1, 'default': 6},
+        ],
+        'default_sort': {'column': 'score', 'direction': 'desc'},
+        'score_formula': 'Low P/E (30pts) + Low P/B (20pts) + High ROE (25pts) + Low D/E (15pts) + Div Yield (10pts)'
     }
 }
 
