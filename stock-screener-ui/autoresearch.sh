@@ -1,17 +1,19 @@
-#!/usr/bin/env bash
+#!/bin/bash
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+cd "$SCRIPT_DIR"
 
-export EMA_FAST="${EMA_FAST:-9}"
-export EMA_SLOW="${EMA_SLOW:-21}"
-export EMA_SL="${EMA_SL:-1.0}"
-export EMA_TP="${EMA_TP:-1.5}"
-export EMA_COOLDOWN="${EMA_COOLDOWN:-3}"
-export EMA_SHORTS="${EMA_SHORTS:-0}"
-export EMA_EOD_HOUR="${EMA_EOD_HOUR:-14}"
-export EMA_EOD_MINUTE="${EMA_EOD_MINUTE:-45}"
-export EMA_TRADE_CAPITAL="${EMA_TRADE_CAPITAL:-100000}"
-export EMA_CACHE_DIR="${EMA_CACHE_DIR:-./experiments/data}"
+source .venv/bin/activate 2>/dev/null || true
 
-python3 "$SCRIPT_DIR/experiments/ema_benchmark.py"
+# Read params from env (set by autoresearch loop), with defaults matching baseline
+MIN_MCAP_CR="${MIN_MCAP_CR:-1000}"
+MIN_ATR_PCT="${MIN_ATR_PCT:-3.0}"
+MIN_PRICE="${MIN_PRICE:-100}"
+MIN_VOLUME="${MIN_VOLUME:-500000}"
+
+python3 experiments/benchmark_screener_params.py \
+    --min-mcap-cr "$MIN_MCAP_CR" \
+    --min-atr-pct "$MIN_ATR_PCT" \
+    --min-price "$MIN_PRICE" \
+    --min-volume "$MIN_VOLUME"
