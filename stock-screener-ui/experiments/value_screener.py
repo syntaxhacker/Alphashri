@@ -1,85 +1,120 @@
 #!/usr/bin/env python3
-"""Find financially undervalued NSE stocks using yfinance fundamental data.
+"""Find financially undervalued NSE stocks via TV screener.
 
-Combines TV screener candidates with yfinance fundamentals (P/E, P/B, ROE, D/E).
-Scores and ranks by value + quality.
+Uses correct TV field names from tv_fields.md:
+  price_earnings_ttm, price_book_ratio, return_on_equity,
+  debt_to_equity, dividend_yield_recent, current_ratio
 """
-import sys, os, time
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import sys, os; import pandas as pd
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PROJ_DIR = os.path.dirname(SCRIPT_DIR)
-sys.path.insert(0, PROJ_DIR)
-sys.path.insert(0, os.path.join(PROJ_DIR, 'scanners'))
-import yfinance as yf; import pandas as pd
-from trending_upside import fetch_trending_stocks
+sys.path.insert(0, os.path.join(os.path.dirname(SCRIPT_DIR), 'upstox_trader', 'screeners'))
 
-FIN_SECTORS = {'financial services', 'financial', 'banks', 'insurance'}
+from tradingview_screener import Query, col
 
-def get_fundamentals(sym):
+try:
+    from tv_helpers import get_tradingview_cookies
+    cookies = get_tradingview_cookies(quiet=True)
+except:
+    cookies = None
+
+print("Fetching undervalued NSE stocks from TV...", file=sys.stderr)
+
+try:
+    _, df = (
+        Query()
+        .select(
+            'name', 'close', 'volume', 'market_cap_basic', 'sector',
+            'price_earnings_ttm',      # P/E
+            'price_book_ratio',        # P/B
+            'return_on_equity',        # ROE
+            'debt_to_equity',          # D/E
+            'dividend_yield_recent',   # Div yield
+            'current_ratio',
+        )
+        .set_markets('india')
+        .where(
+            col('close') > 30,
+            col('volume') > 100000,
+            col('market_cap_basic') > 1_000_000_000,  # 100Cr+
+            col('price_earnings_ttm').between(3, 20),
+            col('price_book_ratio').between(0.3, 5),
+            col('return_on_equity') > 8,
+            col('debt_to_equity') < 1.5,
+            col('exchange') == 'NSE',
+        )
+        .order_by('price_earnings_ttm', ascending=True)
+        .limit(100)
+        .get_scanner_data(cookies=cookies)
+    )
+except Exception as e:
+    print(f"Error: {e}", file=sys.stderr)
+    sys.exit(1)
+
+if df is None or df.empty:
+    print("No stocks found with strict filters — relaxing...", file=sys.stderr)
     try:
-        info = yf.Ticker(sym + '.NS').info
-        pe = info.get('trailingPE') or info.get('forwardPE')
-        pb = info.get('priceToBook')
-        roe = info.get('returnOnEquity')
-        de = info.get('debtToEquity')
-        mcap = info.get('marketCap') or 0
-        sector = (info.get('sector') or '')[:30]
-        price = info.get('currentPrice') or info.get('regularMarketPrice') or 0
-        if roe and roe < 1: roe *= 100
-        if pe and 3 <= pe <= 35 and mcap > 1e9:
-            return {'symbol': sym, 'price': round(price, 1), 'mcap': mcap,
-                    'P/E': round(pe, 1), 'P/B': round(pb, 2) if pb else None,
-                    'ROE': round(roe, 1) if roe else None,
-                    'D/E': round(de, 1) if de else None, 'sector': sector}
-    except: pass
-    return None
+        _, df = (
+            Query()
+            .select(
+                'name', 'close', 'volume', 'market_cap_basic', 'sector',
+                'price_earnings_ttm', 'price_book_ratio', 'return_on_equity',
+                'debt_to_equity', 'dividend_yield_recent',
+            )
+            .set_markets('india')
+            .where(
+                col('close') > 20, col('volume') > 50000,
+                col('market_cap_basic') > 500_000_000,
+                col('price_earnings_ttm').between(3, 25),
+                col('price_book_ratio') < 5,
+                col('return_on_equity') > 6,
+                col('debt_to_equity') < 2,
+                col('exchange') == 'NSE',
+            )
+            .order_by('price_earnings_ttm', ascending=True)
+            .limit(100)
+            .get_scanner_data(cookies=cookies)
+        )
+    except Exception as e:
+        print(f"Relaxed query also failed: {e}", file=sys.stderr)
+        sys.exit(1)
 
-print("Fetching NSE candidates from TV screener...", file=sys.stderr)
-tv = fetch_trending_stocks(limit=200, profile='trending')
-if tv is None or tv.empty: print("No data"); sys.exit(1)
-symbols = [str(s).upper().strip() for s in tv[tv['close'] > 30]['name'].tolist()][:100]
-print(f"  {len(symbols)} stocks, enriching with yfinance...", file=sys.stderr)
+if df is None or df.empty:
+    print("No stocks found", file=sys.stderr)
+    sys.exit(1)
 
-results = []
-with ThreadPoolExecutor(max_workers=6) as pool:
-    futures = {pool.submit(get_fundamentals, s): s for s in symbols}
-    for i, f in enumerate(as_completed(futures), 1):
-        r = f.result()
-        if r: results.append(r)
-        if i % 20 == 0: print(f"  {i}/{len(symbols)}...", file=sys.stderr)
+# Clean & score
+df['mcap_cr'] = df['market_cap_basic'] / 1e7
+df['name'] = df['name'].str.replace('NSE:', '', regex=False)
 
-if not results: print("No fundamental data"); sys.exit(1)
-df = pd.DataFrame(results)
-df['mcap_cr'] = df['mcap'] / 1e7
-df['is_fin'] = df['sector'].str.lower().str.contains('|'.join(FIN_SECTORS), na=False)
+# Handle missing P/B for banks (will be NaN for some)
+df['price_book_ratio'] = df['price_book_ratio'].fillna(3)  # assume moderate P/B for banks
+df['debt_to_equity'] = df['debt_to_equity'].fillna(0.5)
 
-# Filter: sector-aware
-filt = df[(df['P/E'].between(3, 25)) & (df['P/B'].between(0.3, 5)) &
-          (df['ROE'].fillna(10) > 8)].copy()
-
-# Score
-filt['score'] = (
-    (25 - filt['P/E'].clip(0, 25)) * 0.35 +
-    (4 - filt['P/B'].clip(0, 4)) * 0.25 +
-    filt['ROE'].clip(0, 40) * 0.25 +
-    (3 - filt['D/E'].fillna(0.5).clip(0, 3)) * 0.15
+df['value_score'] = (
+    (20 - df['price_earnings_ttm'].clip(0, 20)) * 0.35 +
+    (4 - df['price_book_ratio'].clip(0, 4)) * 0.20 +
+    df['return_on_equity'].clip(0, 40) * 0.25 +
+    (2 - df['debt_to_equity'].clip(0, 2)) * 0.20
 )
-filt = filt.sort_values('score', ascending=False)
+df = df.sort_values('value_score', ascending=False)
 
-# Show all
-print(f"\n{'='*130}")
-print(f"  💎 UNDERVALUED NSE STOCKS — {len(filt)} found")
-print(f"  P/E 3-25 | P/B 0.3-5 | ROE>8% | Sourced from yfinance")
-print(f"{'='*130}")
-print(f"{'Rank':<5} {'Symbol':<18} {'Price':>8} {'MCap(Cr)':>10} {'P/E':>6} {'P/B':>6} "
-      f"{'ROE%':>6} {'D/E':>6} {'Score':>6} {'Sector':<28}")
-print("-" * 130)
-for i, (_, r) in enumerate(filt.iterrows(), 1):
-    roe_s = f"{r['ROE']:.1f}%" if pd.notna(r.get('ROE')) else "  N/A"
-    de_s = f"{r['D/E']:.1f}" if pd.notna(r.get('D/E')) else "  N/A"
-    print(f"{i:<5} {r['symbol']:<18} {r['price']:>8.1f} {r['mcap_cr']:>9,.0f} "
-          f"{r['P/E']:>6.1f} {r['P/B']:>5.2f} {roe_s} {de_s} "
-          f"{r['score']:>6.1f} {str(r.get('sector','') or '')[:28]}")
+print(f"\n{'='*150}")
+print(f"  💎 UNDERVALUED NSE STOCKS (TV Fundamental Fields) — {len(df)} found")
+print(f"  P/E 3-25 | P/B <5 | ROE>6% | D/E<2 | Vol>50K")
+print(f"{'='*150}")
+print(f"{'Rank':<5} {'Symbol':<20} {'Price':>8} {'MCap(Cr)':>10} {'P/E':>6} {'P/B':>6} "
+      f"{'ROE%':>6} {'D/E':>6} {'Div%':>6} {'Score':>6}")
+print("-" * 150)
 
-print(f"\n  Avg P/E: {filt['P/E'].mean():.1f} | Avg P/B: {filt['P/B'].mean():.2f} | Avg ROE: {filt['ROE'].mean():.1f}%")
-print(f"\n✅ Done", file=sys.stderr)
+for i, (_, r) in enumerate(df.head(35).iterrows(), 1):
+    pe = f"{r['price_earnings_ttm']:.1f}"
+    pb = f"{r['price_book_ratio']:.2f}" if pd.notna(r.get('price_book_ratio')) else "  N/A"
+    roe = f"{r['return_on_equity']:.1f}%"
+    de = f"{r['debt_to_equity']:.2f}" if pd.notna(r.get('debt_to_equity')) else "  N/A"
+    dy = f"{r['dividend_yield_recent']:.1f}%" if pd.notna(r.get('dividend_yield_recent')) and r['dividend_yield_recent'] > 0 else "     "
+    name = str(r['name'])[:20]
+    print(f"{i:<5} {name:<20} {r['close']:>8.1f} {r['mcap_cr']:>9,.0f} "
+          f"{pe:>6} {pb:>6} {roe:>6} {de:>6} {dy:>6} {r['value_score']:>6.1f}")
+
+print(f"\n  Avg P/E: {df['price_earnings_ttm'].mean():.1f} | Avg ROE: {df['return_on_equity'].mean():.1f}%")
+print(f"✅ {len(df)} undervalued stocks from TV screener", file=sys.stderr)
