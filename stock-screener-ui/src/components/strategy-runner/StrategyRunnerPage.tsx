@@ -53,6 +53,7 @@ export function StrategyRunnerPage() {
   const configRef = useRef(config);
   configRef.current = config;
   const startRunnerRef = useRef<(() => void) | null>(null);
+  const autoRunDone = useRef(false);
 
   const setConfig = useCallback((partial: Partial<StrategyRunnerConfig>) => {
     setConfigRaw((prev) => {
@@ -92,13 +93,13 @@ export function StrategyRunnerPage() {
 
   startRunnerRef.current = startRunner;
 
-  // Auto-run on load if URL has params
+  // Auto-run on first load if URL has params (only once)
   useEffect(() => {
+    if (autoRunDone.current) return;
     const canRun = config.bot_uuids.length > 0 && config.date && config.symbols.length > 0 && !isRunning && trades.length === 0;
     if (canRun) {
-      const timer = setTimeout(() => {
-        startRunnerRef.current?.();
-      }, 800);
+      autoRunDone.current = true;
+      const timer = setTimeout(() => startRunnerRef.current?.(), 800);
       return () => clearTimeout(timer);
     }
   }, [config.bot_uuids.length, config.date, config.symbols.length, isRunning, trades.length]);
