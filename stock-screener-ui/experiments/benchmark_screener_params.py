@@ -10,9 +10,11 @@ Subsequent runs use cache (< 5s).
 """
 import argparse, sys, os, pickle, csv, time
 SCRIPT_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-sys.path.insert(0, os.path.join(SCRIPT_DIR, '..'))
-sys.path.insert(0, os.path.join(SCRIPT_DIR, '..', 'scanners'))
-sys.path.insert(0, os.path.join(SCRIPT_DIR, '..', 'upstox_trader'))
+PROJ_DIR = os.path.dirname(SCRIPT_DIR)  # parent of stock-screener-ui
+sys.path.insert(0, SCRIPT_DIR)
+sys.path.insert(0, PROJ_DIR)
+sys.path.insert(0, os.path.join(PROJ_DIR, 'scanners'))
+sys.path.insert(0, os.path.join(PROJ_DIR, 'upstox_trader'))
 
 import pandas as pd
 from concurrent.futures import ThreadPoolExecutor, as_completed
