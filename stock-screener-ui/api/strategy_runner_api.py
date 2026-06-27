@@ -1,5 +1,6 @@
-"""Strategy Runner API — run multiple bots, return results as JSON."""
-import json as _json
+"""Strategy Runner API — run multiple bots in parallel, combined JSON summary."""
+import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Optional
 
 from fastapi import APIRouter, Request
@@ -19,48 +20,57 @@ class StrategyRunnerRequest(BaseModel):
     symbols: list[str]
 
 
+def _run_one_bot(bot_uuid: str, date: str, end_date: str, symbols: list[str]) -> dict:
+    """Run replay for one bot in its own thread/DB session. Returns result dict."""
+    db = SessionLocal()
+    try:
+        bot_config = db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
+        if not bot_config:
+            return {"uuid": bot_uuid, "error": "Bot not found", "trades": 0, "trades_list": []}
+        _ = bot_config.strategies  # eager-load
+
+        s = bot_config.strategies[0] if bot_config.strategies else None
+        bot_events = []
+        runner = MultiStrategyRunner.create_for_replay(bot_config=bot_config)
+        runner.run_replay(
+            date_str=date, symbols=symbols,
+            strategy_filter="ALL", on_event=bot_events.append,
+            end_date_str=end_date,
+        )
+
+        bot_trades = [e for e in bot_events if e["type"] == "trade_close"]
+        for t in bot_trades:
+            t["bot_name"] = bot_config.name
+            t["bot_uuid"] = bot_uuid
+
+        return {
+            "uuid": bot_uuid,
+            "name": bot_config.name,
+            "strategy_name": s.name if s else "",
+            "strategy_type": s.strategy_type if s else "",
+            "trades": len(bot_trades),
+            "trades_list": bot_trades,
+        }
+    finally:
+        db.close()
+
+
 @router.post("/run")
 def run_strategy_runner(request: Request, body: StrategyRunnerRequest):
-    """Run multiple bots sequentially, return combined JSON summary."""
-
-    all_trades = []
+    """Run bots in parallel (max 3), return combined JSON summary."""
+    max_workers = min(3, len(body.bot_uuids))
     bots_result = []
+    all_trades = []
 
-    for bot_uuid in body.bot_uuids:
-        db = SessionLocal()
-        try:
-            bot_config = db.query(BotConfig).filter(BotConfig.uuid == bot_uuid).first()
-            if not bot_config:
-                bots_result.append({"uuid": bot_uuid, "error": "Bot not found"})
-                continue
-            _ = bot_config.strategies  # eager load
-
-            s = bot_config.strategies[0] if bot_config.strategies else None
-            bot_events = []
-            runner = MultiStrategyRunner.create_for_replay(bot_config=bot_config)
-            runner.run_replay(
-                date_str=body.date,
-                symbols=body.symbols,
-                strategy_filter="ALL",
-                on_event=bot_events.append,
-                end_date_str=body.end_date,
-            )
-
-            bot_trades = [e for e in bot_events if e["type"] == "trade_close"]
-            for t in bot_trades:
-                t["bot_name"] = bot_config.name
-                t["bot_uuid"] = bot_uuid
-            all_trades.extend(bot_trades)
-
-            bots_result.append({
-                "uuid": bot_uuid,
-                "name": bot_config.name,
-                "strategy_name": s.name if s else "",
-                "strategy_type": s.strategy_type if s else "",
-                "trades": len(bot_trades),
-            })
-        finally:
-            db.close()
+    with ThreadPoolExecutor(max_workers=max_workers) as pool:
+        fut_map = {
+            pool.submit(_run_one_bot, uid, body.date, body.end_date or "", body.symbols): uid
+            for uid in body.bot_uuids
+        }
+        for fut in as_completed(fut_map):
+            result = fut.result()
+            bots_result.append(result)
+            all_trades.extend(result.get("trades_list", []))
 
     # Combined summary
     result = {"bots": bots_result, "trades": all_trades}
