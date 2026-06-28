@@ -92,31 +92,26 @@ def get_nse_stocks(limit=0, min_price=20, min_vol=50000):
     if limit > 0: uniq = uniq[:limit]
     return uniq
 
-# Initialize API client once at module level
-def init_api(token):
-    """Save token and init UpstoxAPI."""
-    sys.path.insert(0, os.path.join(PROJ_DIR, 'upstox_trader'))
-    token_path = os.path.join(PROJ_DIR, '.upstox_token.json')
-    with open(token_path, 'w') as f:
-        json.dump({'access_token': token}, f)
-    from config_and_utils.free_indian_apis import UpstoxAPI
-    return UpstoxAPI(api_key='dummy', api_secret='dummy', quiet=True)
-
-_api = None
+# Save token at module level so each thread can init its own API client
+_TOKEN = None
 
 def fetch_daily_data(stock):
-    """Fetch ~500 days of daily data from Upstox."""
-    global _api
+    """Fetch ~500 days of daily data from Upstox (thread-safe, creates own client)."""
+    global _TOKEN
     try:
+        # Each thread creates its own API client (avoids thread-safety issues)
+        sys.path.insert(0, os.path.join(PROJ_DIR, 'upstox_trader'))
+        from config_and_utils.free_indian_apis import UpstoxAPI
+        api = UpstoxAPI(api_key='dummy', api_secret='dummy', quiet=True)
         to_date = datetime.now().strftime('%Y-%m-%d')
         from_date = (datetime.now() - timedelta(days=800)).strftime('%Y-%m-%d')
-        df = _api.fetch_historical_data_v3(
+        df = api.fetch_historical_data_v3(
             stock['symbol'], 'days', 1, to_date, from_date,
             instrument_type='EQ', exchange='NSE_EQ'
         )
         if df is not None and len(df) >= H52_PERIOD + 10:
             return df
-    except Exception:
+    except Exception as e:
         pass
     return None
 
@@ -298,9 +293,12 @@ def main():
     if not row: print("❌ No Upstox token in DB"); sys.exit(1)
     token = row[0]
     print(f"🔑 Token OK ({len(token)} chars)", file=sys.stderr)
-    # Init API client
-    global _api
-    _api = init_api(token)
+    # Save token globally for threads
+    global _TOKEN
+    _TOKEN = token
+    token_path = os.path.join(PROJ_DIR, '.upstox_token.json')
+    with open(token_path, 'w') as f:
+        json.dump({'access_token': token}, f)
 
     # Run backtest
     all_trades = {s: [] for s in STRATEGIES}

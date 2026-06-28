@@ -26,23 +26,16 @@ with open(os.path.join(SCRIPT_DIR, '..', '.upstox_token.json'), 'w') as f:
 
 api = UpstoxAPI('dummy', 'dummy', quiet=True)
 
-# Pre-fetch a universe of liquid stocks from the previous run's summary
-# Use all stocks that had data + manually add known good ones
+# Load ALL stocks from the latest full batch run
+summary_path = os.path.join(SCRIPT_DIR, 'experiments', 'output', 'run_20260628_232416', 'stocks_summary.csv')
 base_symbols = []
-summary_path = os.path.join(SCRIPT_DIR, 'experiments', 'output', 'run_20260628_191729', 'stocks_summary.csv')
 if os.path.exists(summary_path):
     df = pd.read_csv(summary_path)
     base_symbols = df['symbol'].tolist()
-    print(f"Loaded {len(base_symbols)} symbols from previous run", file=sys.stderr)
-
-# Also add known performing stocks
-extra = ['NETWEB', 'JMFINANCIL', 'COFORGE', 'KIRLOSENG', 'AVANTIFEED', 'BHARATFORG',
-         'NITCO', 'PTC', 'RAMRAT', 'DIVISLAB', 'SBILIFE', 'ABCAPITAL',
-         'SKMEGGPROD', 'HINDPETRO', 'TATACONSUM', 'SHRIRAMFIN', 'ALKEM',
-         'NATIONALUM', 'SHREECEM', 'MARUTI', 'VCL', 'RAMANEWS', 'INDORAMA']
-for s in extra:
-    if s not in base_symbols:
-        base_symbols.append(s)
+    print(f"Loaded {len(base_symbols)} symbols from full batch run", file=sys.stderr)
+else:
+    print("❌ Batch output not found", file=sys.stderr)
+    sys.exit(1)
 
 print(f"Total symbols: {len(base_symbols)}", file=sys.stderr)
 
