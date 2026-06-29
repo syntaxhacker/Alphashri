@@ -190,6 +190,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self._screener = None
         self._data_fetcher = None
         self._daily_summary_sent = False
+        self._cycle_data_cache: dict = {}
         self.replay_mode = False
         self._replay_time = None
         self._replay_on_event = None
@@ -946,13 +947,18 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         for strategy_id in self.strategies:
             self.stop_strategy(strategy_id)
 
-    def run(self, interval: int = 5):
+    def run(self, interval: int | None = None):
         """
         Run the multi-strategy trading loop.
 
         Args:
-            interval: Seconds between scan cycles
+            interval: Seconds between scan cycles. If None, computed from strategy configs.
         """
+        if interval is None:
+            interval = min(
+                (s.config.get('scan_interval_secs', 5) for s in self.strategies.values()),
+                default=5,
+            )
         from trading.telegram_notifier import send_bot_status, send_daily_summary
 
         mode_str = 'TEST' if self.test_mode else ('LIVE' if self.live_trading else 'PAPER')
@@ -983,6 +989,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         try:
             while self.running:
                 cycle += 1
+                self._cycle_data_cache.clear()
 
                 try:
                     now_ist = self._ist_now()
@@ -993,7 +1000,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             self.risk_manager.reset_daily()
                         self._daily_summary_sent = False
 
-                    console.print(f"\n[dim]--- Cycle {cycle} @ {now_ist.strftime('%H:%M:%S')} ---[/dim]")
+                    print(f"\n--- Cycle {cycle} @ {now_ist.strftime('%H:%M:%S')} ---")
 
                     if not self.is_market_open():
                         console.print("[yellow]Market closed. Waiting...[/yellow]")
@@ -1045,12 +1052,15 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             open_positions=open_pos,
                         )
 
-                    self.display_status()
+                    if cycle % 30 == 0:
+                        self.display_status()
 
-                    self.persist_state()
+                    if cycle % 6 == 0:
+                        self.persist_state()
 
                     if self.running and not self.is_force_exit_time():
-                        console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
+                        if cycle % 10 == 0:
+                            console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
                         time.sleep(interval)
 
                 except Exception as e:

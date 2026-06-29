@@ -82,6 +82,7 @@ class StrategyConfig(Base):
     eod_exit_minute = Column(Integer, default=45)
     screener_profiles = Column(String(500), nullable=True)  # JSON array: '["trending", "near_52w_breakout"]'
     custom_watchlist = Column(String(2000), nullable=True)  # JSON array: '["RELIANCE", "HDFCBANK"]'
+    scan_interval_secs = Column(Integer, default=5)
 
     brokerage_pct = Column(Float, default=0.0003)
     min_brokerage = Column(Float, default=20)
@@ -147,6 +148,7 @@ class StrategyConfig(Base):
             "custom_watchlist": json.loads(self.custom_watchlist) if self.custom_watchlist else [],
             "min_market_range_pct": getattr(self, 'min_market_range_pct', 1.0),
             "stock_ma50_filter": getattr(self, 'stock_ma50_filter', False),
+            "scan_interval_secs": self.scan_interval_secs,
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,

@@ -34,11 +34,16 @@ class RunnerRiskMixin:
             if not fetcher:
                 return or_levels
 
-            # Always fetch fresh data for latest_price
-            df = fetcher.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol,
-                interval='5'
-            )
+            # Check cycle cache before API call
+            intra_cache_key = f"intraday:{symbol}:5"
+            df = self._cycle_data_cache.get(intra_cache_key)
+            if df is None:
+                df = fetcher.upstox_api.fetch_intraday_data_v3(
+                    symbol=symbol,
+                    interval='5'
+                )
+                if df is not None and not df.empty:
+                    self._cycle_data_cache[intra_cache_key] = df
 
             if df is None or df.empty:
                 return or_levels
@@ -98,6 +103,12 @@ class RunnerRiskMixin:
     def fetch_daily_data(self, symbol: str) -> Optional[dict]:
         """Fetch daily OHLCV data for a symbol (used by swing strategies)."""
         try:
+            # Check cycle cache first
+            cache_key = f"daily_data:{symbol}"
+            cached = self._cycle_data_cache.get(cache_key)
+            if cached is not None:
+                return cached
+
             fetcher = self._get_data_fetcher()
             if not fetcher:
                 return None
@@ -144,9 +155,14 @@ class RunnerRiskMixin:
 
             current_price = closes[-1]
             try:
-                intraday = fetcher.upstox_api.fetch_intraday_data_v3(
-                    symbol=symbol, interval='1'
-                )
+                intra_cache_key = f"intraday:{symbol}:1"
+                intraday = self._cycle_data_cache.get(intra_cache_key)
+                if intraday is None:
+                    intraday = fetcher.upstox_api.fetch_intraday_data_v3(
+                        symbol=symbol, interval='1'
+                    )
+                    if intraday is not None and not intraday.empty:
+                        self._cycle_data_cache[intra_cache_key] = intraday
             except Exception:
                 intraday = None
 
@@ -159,7 +175,7 @@ class RunnerRiskMixin:
                 intraday_high, high_52w, days_since_52w_high,
             )
 
-            return {
+            result = {
                 'current_price': current_price,
                 'high_52w': high_52w,
                 'days_since_52w_high': days_since_52w_high,
@@ -174,6 +190,8 @@ class RunnerRiskMixin:
                 'prev_low': lows[-2] if len(lows) >= 2 else lows[-1],
                 'prev_close': closes[-2] if len(closes) >= 2 else closes[-1],
             }
+            self._cycle_data_cache[cache_key] = result
+            return result
 
         except Exception as e:
             from rich.console import Console
@@ -183,6 +201,11 @@ class RunnerRiskMixin:
 
     def fetch_previous_day_data(self, symbol: str) -> Optional[dict]:
         """Fetch previous day's HLC for pivot point calculation."""
+        cache_key = f"prev_day_data:{symbol}"
+        cached = self._cycle_data_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
         fetcher = self._get_data_fetcher()
         if not fetcher:
             return None
@@ -211,12 +234,14 @@ class RunnerRiskMixin:
         prev_row = df.iloc[-2]
         current_price = df.iloc[-1]['close']
 
-        return {
+        result = {
             'current_price': current_price,
             'prev_high': prev_row['high'],
             'prev_low': prev_row['low'],
             'prev_close': prev_row['close'],
         }
+        self._cycle_data_cache[cache_key] = result
+        return result
 
     def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21,
                         runner=None) -> Optional[dict]:
@@ -227,32 +252,38 @@ class RunnerRiskMixin:
         """
         from trading.ema_utils import calculate_ema
 
-        fetcher = self._get_data_fetcher()
-        if not fetcher:
-            return None
-
         ema_interval = 5
         min_range = 0.0
         if runner and hasattr(runner, 'config'):
             ema_interval = int(runner.config.get("ema_interval_minutes", runner.config.get("or_minutes", 5)))
             min_range = float(runner.config.get("min_market_range_pct", 0.0))
 
-        # Market range filter: check JUNIORBEES daily range before scanning
-        if min_range > 0:
-            market_ok = self._check_market_range(min_range)
-            if not market_ok:
+        # Check cycle cache before API call
+        intra_cache_key = f"intraday:{symbol}:{ema_interval}"
+        df = self._cycle_data_cache.get(intra_cache_key)
+        if df is None:
+            fetcher = self._get_data_fetcher()
+            if not fetcher:
                 return None
 
-        try:
-            df = fetcher.upstox_api.fetch_intraday_data_v3(
-                symbol=symbol,
-                interval=str(ema_interval),
-            )
-        except Exception as e:
-            from rich.console import Console
-            console = Console()
-            console.print(f"[dim red]Error fetching EMA data for {symbol}: {e}[/dim red]")
-            return None
+            # Market range filter: check JUNIORBEES daily range before scanning
+            if min_range > 0:
+                market_ok = self._check_market_range(min_range)
+                if not market_ok:
+                    return None
+
+            try:
+                df = fetcher.upstox_api.fetch_intraday_data_v3(
+                    symbol=symbol,
+                    interval=str(ema_interval),
+                )
+            except Exception as e:
+                from rich.console import Console
+                console = Console()
+                console.print(f"[dim red]Error fetching EMA data for {symbol}: {e}[/dim red]")
+                return None
+            if df is not None and not df.empty:
+                self._cycle_data_cache[intra_cache_key] = df
 
         if df is None or df.empty:
             return None

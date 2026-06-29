@@ -4,6 +4,7 @@ Signal handling and execution logic for MultiStrategyRunner.
 Contains scanning, signal generation, and trade execution methods.
 """
 
+import time as _time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -33,10 +34,15 @@ class RunnerSignalsMixin:
         return val
 
     def _fetch_live_price(self, symbol: str) -> float | None:
-        fetcher = self._get_data_fetcher()
-        if not fetcher:
-            return None
-        df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+        cache_key = f"intraday:{symbol}:1"
+        df = self._cycle_data_cache.get(cache_key)
+        if df is None:
+            fetcher = self._get_data_fetcher()
+            if not fetcher:
+                return None
+            df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+            if df is not None and not df.empty:
+                self._cycle_data_cache[cache_key] = df
         if df is not None and not df.empty:
             return float(df.iloc[-1]['close'])
         return None
@@ -169,10 +175,15 @@ class RunnerSignalsMixin:
                 buf = gen.breakout_buffer_pct / 100 if hasattr(gen, 'breakout_buffer_pct') else 0.01
                 r1_trigger = r1 * (1 + buf) if r1 else None
 
-                fetcher = self._get_data_fetcher()
-                if fetcher and r1_trigger:
-                    df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
-                    if df is not None and len(df) >= 2:
+                cache_key = f"intraday:{symbol}:1"
+                df = self._cycle_data_cache.get(cache_key)
+                if df is None:
+                    fetcher = self._get_data_fetcher()
+                    if fetcher and r1_trigger:
+                        df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+                        if df is not None and not df.empty:
+                            self._cycle_data_cache[cache_key] = df
+                if df is not None and len(df) >= 2:
                         # Check last 3 completed candles (skip current forming candle)
                         for i in range(max(0, len(df) - 4), len(df) - 1):
                             candle_close = float(df.iloc[i]['close'])
@@ -319,6 +330,7 @@ class RunnerSignalsMixin:
                 console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {signal.symbol} @ ₹{signal.price:.2f}[/green]")
 
             scan_items.append(scan_item)
+            _time.sleep(0.3)
 
         runner.last_scan_items = scan_items
         runner.last_scan_time = self._ist_now()
@@ -406,6 +418,7 @@ class RunnerSignalsMixin:
                 scan_item['reason'] = f'52W high distance: {distance_pct:.1f}%'
 
             scan_items.append(scan_item)
+            _time.sleep(0.3)
 
         runner.last_scan_items = scan_items
         runner.last_scan_time = self._ist_now()

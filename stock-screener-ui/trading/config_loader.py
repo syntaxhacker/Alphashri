@@ -77,6 +77,9 @@ class StrategyConfigData:
     screener_profiles: List[str] = field(default_factory=list)
     custom_watchlist: List[str] = field(default_factory=list)
 
+    # Scan Interval
+    scan_interval_secs: int = 5
+
     # Cost Parameters
     brokerage_pct: float = 0.0003
     min_brokerage: float = 20
@@ -132,6 +135,7 @@ class StrategyConfigData:
             custom_watchlist=json.loads(model.custom_watchlist) if isinstance(model.custom_watchlist, str) else [],
             ema_fast_period=model.ema_fast_period,
             ema_slow_period=model.ema_slow_period,
+            scan_interval_secs=model.scan_interval_secs,
             brokerage_pct=model.brokerage_pct,
             min_brokerage=model.min_brokerage,
             stt_pct=model.stt_pct,
@@ -186,6 +190,7 @@ class StrategyConfigData:
             "custom_watchlist": self.custom_watchlist,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,
+            "scan_interval_secs": self.scan_interval_secs,
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,

@@ -69,7 +69,7 @@ start_backend() {
   fi
   kill_port "$API_PORT"
   echo "Starting API on http://localhost:${API_PORT} ..."
-  uvicorn api_server_fastapi:app --host :: --port "$API_PORT" --reload >> "$API_LOG" 2>&1 &
+  uvicorn api_server_fastapi:app --host :: --port "$API_PORT" --reload --reload-delay 60 >> "$API_LOG" 2>&1 &
   echo $! > "$API_PID"
   wait_for "API" "http://localhost:${API_PORT}/api/replay/configs" 15
 }
