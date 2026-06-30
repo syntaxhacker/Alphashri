@@ -187,6 +187,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.strategy_watchlists = {}  # Per-strategy watchlists: {strategy_id: [symbols]}
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}
+        self._scan_cursors: dict = {}
+        self._streaming_started = False
         self._screener = None
         self._data_fetcher = None
         self._daily_summary_sent = False
@@ -555,6 +557,41 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         except Exception:
             pass
 
+    def _get_all_watchlist_symbols(self) -> list:
+        """Get deduplicated union of all watchlist symbols."""
+        return list(set(
+            list(self.watchlist) + sum(
+                (wl for wl in self.strategy_watchlists.values()), []
+            )
+        ))
+
+    def _start_websocket_stream(self):
+        """Start or restart WebSocket live price streaming for all watchlist symbols.
+        
+        Reconnects if the symbol set changed since last connect.
+        """
+        try:
+            fetcher = self._get_data_fetcher()
+            if fetcher and hasattr(fetcher, 'upstox_api') and fetcher.upstox_api:
+                api = fetcher.upstox_api
+                symbols = self._get_all_watchlist_symbols()
+                if not symbols:
+                    return
+                if self._streaming_started and hasattr(self, '_ws_symbols') and set(symbols) == self._ws_symbols:
+                    return
+                if self._streaming_started:
+                    try:
+                        api.stop_realtime_streaming()
+                    except Exception:
+                        pass
+                if api.setup_realtime_streaming(symbols, callback=api._default_tick_handler):
+                    api.start_realtime_streaming()
+                    self._streaming_started = True
+                    self._ws_symbols = set(symbols)
+                    console.print(f"[green]WebSocket live prices started for {len(symbols)} symbols[/green]")
+        except Exception as e:
+            console.print(f"[yellow]WebSocket stream init failed (non-fatal): {e}[/yellow]")
+
     def _load_positions_from_db(self):
         try:
             with self._db_session() as db:
@@ -841,25 +878,31 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         except Exception as e:
             console.print(f"[yellow]persist_state bot/strategy state failed: {e}[/yellow]")
 
-        scan_items = []
+        self._persist_scan_items_to_redis()
+        self._persist_scan_items_to_db()
+
+    def _build_scan_items(self) -> list:
+        items = []
         for strategy_id, runner in self.strategies.items():
             for item in getattr(runner, 'last_scan_items', []):
                 item_copy = dict(item)
                 item_copy['strategy_name'] = runner.strategy_name
                 item_copy['strategy_id'] = strategy_id
-                scan_items.append(item_copy)
+                items.append(item_copy)
+        return items
 
-        try:
-            with self._db_session() as db:
-                from db.models import BotRuntimeState
-                bot_state = db.query(BotRuntimeState).filter(
-                    BotRuntimeState.bot_id == self.bot_config.id
-                ).first()
-                if bot_state:
-                    bot_state.scan_items = _json.dumps(scan_items)
-        except Exception as e:
-            console.print(f"[yellow]persist_state scan_items DB failed: {e}[/yellow]")
+    def _has_meaningful_scan_items(self, items: list) -> bool:
+        """Check if scan_items have any symbols with real data (not all skipped/rejected)."""
+        for item in items:
+            status = item.get('status', '')
+            if status in ('watching', 'signal'):
+                return True
+        return False
 
+    def _persist_scan_items_to_redis(self):
+        scan_items = self._build_scan_items()
+        if not self._has_meaningful_scan_items(scan_items):
+            return
         try:
             from cache.redis_client import get_redis_client
             client = get_redis_client()
@@ -870,7 +913,22 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     _json.dumps(scan_items),
                 )
         except Exception as e:
-            console.print(f"[yellow]persist_state Redis failed: {e}[/yellow]")
+            console.print(f"[yellow]persist scan_items Redis failed: {e}[/yellow]")
+
+    def _persist_scan_items_to_db(self):
+        scan_items = self._build_scan_items()
+        if not self._has_meaningful_scan_items(scan_items):
+            return
+        try:
+            with self._db_session() as db:
+                from db.models import BotRuntimeState
+                bot_state = db.query(BotRuntimeState).filter(
+                    BotRuntimeState.bot_id == self.bot_config.id
+                ).first()
+                if bot_state:
+                    bot_state.scan_items = _json.dumps(scan_items)
+        except Exception as e:
+            console.print(f"[yellow]persist scan_items DB failed: {e}[/yellow]")
 
     def display_status(self):
         """Display current trading status."""
@@ -1017,19 +1075,27 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         for sid in self.strategies:
                             self.refresh_watchlist(sid)
 
+                    # Start WebSocket (reconnects if symbol set changed)
+                    if cycle == 1 or cycle % 10 == 0:
+                        self._start_websocket_stream()
+
+                    # Monitor positions FIRST — exits before entries
+                    self.monitor_positions()
+
                     for strategy_id, runner in self.strategies.items():
                         if runner.status == "running":
                             # Refresh per-strategy watchlist periodically (every 30 cycles)
                             if cycle % 30 == 0:
                                 self.refresh_watchlist(strategy_id)
+                                self._start_websocket_stream()
                             if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 30 != 0:
                                 continue
                             signals = self.scan_for_signals(strategy_id)
                             for signal in signals:
                                 self.execute_signal(strategy_id, signal)
 
+                    self._persist_scan_items_to_redis()
                     self._check_command_file()
-                    self.monitor_positions()
 
                     now_ist = self._ist_now()
                     if now_ist.hour >= 15 and now_ist.minute >= 30 and not self._daily_summary_sent:

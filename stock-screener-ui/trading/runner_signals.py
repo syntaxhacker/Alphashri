@@ -4,7 +4,6 @@ Signal handling and execution logic for MultiStrategyRunner.
 Contains scanning, signal generation, and trade execution methods.
 """
 
-import time as _time
 from datetime import datetime, timedelta
 from typing import Dict, List, Optional
 
@@ -34,12 +33,14 @@ class RunnerSignalsMixin:
         return val
 
     def _fetch_live_price(self, symbol: str) -> float | None:
+        fetcher = self._get_data_fetcher()
+        if fetcher and hasattr(fetcher, 'upstox_api') and fetcher.upstox_api:
+            ws_price = fetcher.upstox_api.get_realtime_price(symbol)
+            if ws_price is not None:
+                return ws_price
         cache_key = f"intraday:{symbol}:1"
         df = self._cycle_data_cache.get(cache_key)
-        if df is None:
-            fetcher = self._get_data_fetcher()
-            if not fetcher:
-                return None
+        if df is None and fetcher:
             df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
             if df is not None and not df.empty:
                 self._cycle_data_cache[cache_key] = df
@@ -108,6 +109,14 @@ class RunnerSignalsMixin:
 
         # Get per-strategy watchlist or fall back to shared
         watchlist = self.strategy_watchlists.get(strategy_id, self.watchlist)
+
+        # Round-robin cursor: start at a different position each cycle
+        if strategy_id:
+            cursor = self._scan_cursors.get(strategy_id, 0)
+            if cursor >= len(watchlist):
+                cursor = 0
+            watchlist = watchlist[cursor:] + watchlist[:cursor]
+            self._scan_cursors[strategy_id] = (cursor + 1) % max(1, len(watchlist))
 
         if runner.strategy_type in INTRADAY_STRATEGY_TYPES:
             return self._scan_intraday_strategy(strategy_id, watchlist)
@@ -245,7 +254,7 @@ class RunnerSignalsMixin:
                         'symbol': symbol,
                         'status': 'watching',
                         'side': None,
-                        'reason': 'Data fetch failed (rate limit)',
+                        'reason': 'Skipped — rate limited by Upstox, waiting for capacity',
                         'source': 'custom' if symbol in custom_watchlist_set else None,
                         'timestamp': self._ist_now().isoformat(),
                     })
@@ -330,7 +339,6 @@ class RunnerSignalsMixin:
                 console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {signal.symbol} @ ₹{signal.price:.2f}[/green]")
 
             scan_items.append(scan_item)
-            _time.sleep(0.3)
 
         runner.last_scan_items = scan_items
         runner.last_scan_time = self._ist_now()
@@ -418,7 +426,6 @@ class RunnerSignalsMixin:
                 scan_item['reason'] = f'52W high distance: {distance_pct:.1f}%'
 
             scan_items.append(scan_item)
-            _time.sleep(0.3)
 
         runner.last_scan_items = scan_items
         runner.last_scan_time = self._ist_now()

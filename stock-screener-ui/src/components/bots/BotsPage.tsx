@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Stack, Table } from "@mantine/core";
-import { IconRobot, IconChartLine, IconPlus } from "@tabler/icons-react";
+import { Box, Tabs, Button, Stack, Table, Group } from "@mantine/core";
+import { IconRobot, IconChartLine, IconPlus, IconPlayerStop } from "@tabler/icons-react";
 import {
   getBotsState,
   getCurrentView,
@@ -11,6 +11,7 @@ import {
   selectBot,
   startBotAction,
   stopBotAction,
+  stopAllBotsAction,
   deleteBotAction,
   clearError,
   startAutoRefresh,
@@ -278,13 +279,31 @@ export function BotsPage() {
         title="Bots"
         description="Manage bot configurations, live status, and execution controls."
         actions={
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreateModal}
-            data-testid="create-bot-btn"
-          >
-            New Bot
-          </Button>
+          <Group gap="sm">
+            <Button
+              variant="light"
+              color="orange"
+              size="sm"
+              leftSection={<IconPlayerStop size={16} />}
+              onClick={async () => {
+                const bots = getBotsState().bots;
+                const runningCount = bots.filter(b => b.running).length;
+                if (window.confirm(`Stop all ${runningCount} running bots?`)) {
+                  await stopAllBotsAction();
+                }
+              }}
+              disabled={!getBotsState().bots.some(b => b.running)}
+            >
+              Stop All ({getBotsState().bots.filter(b => b.running).length})
+            </Button>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreateModal}
+              data-testid="create-bot-btn"
+            >
+              New Bot
+            </Button>
+          </Group>
         }
       >
         {renderPageContent({

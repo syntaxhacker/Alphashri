@@ -202,6 +202,7 @@ export type BotLoadingKey =
   | "delete"
   | "start"
   | "stop"
+  | "stop-all"
   | "trades";
 
 // Bot state

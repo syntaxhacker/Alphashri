@@ -355,6 +355,55 @@ async def start_bot(
             db.close()
 
 
+@router.post("/stop-all")
+async def stop_all_bots(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db) if get_db else None
+):
+    """Stop all running bots for the current user."""
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    user_id = get_user_id(user)
+
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        import concurrent.futures
+        from db.models import BotConfig
+        bots = db.query(BotConfig).filter(
+            BotConfig.user_id == user_id,
+            BotConfig.is_active == True,
+        ).all()
+
+        running_bots = []
+        for bot in bots:
+            running, pid = is_bot_running(user_id, bot.id)
+            if running:
+                running_bots.append(bot)
+
+        stopped = []
+        with concurrent.futures.ThreadPoolExecutor(max_workers=10) as pool:
+            fut_to_bot = {
+                pool.submit(stop_bot_process, user_id, bot.id): bot
+                for bot in running_bots
+            }
+            for fut in concurrent.futures.as_completed(fut_to_bot):
+                bot = fut_to_bot[fut]
+                stopped.append({"id": bot.uuid, "name": bot.name})
+
+        return {
+            "message": f"Stopped {len(stopped)} bot(s)",
+            "stopped": stopped,
+        }
+    finally:
+        if close_db:
+            db.close()
+
+
 @router.post("/{bot_id}/stop")
 async def stop_bot(
     bot_id: str,

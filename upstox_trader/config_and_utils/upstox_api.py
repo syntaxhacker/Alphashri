@@ -20,12 +20,17 @@ from .api_helpers import (
     get_valid_symbol,
 )
 from .base_api_client import BaseAPIClient
+from upstox_trader.rate_limiter import UpstoxRateLimiter
 
 try:
     import upstox_client
     UPSTOX_SDK_AVAILABLE = True
 except ImportError:
     UPSTOX_SDK_AVAILABLE = False
+
+
+class RateLimitExceeded(Exception):
+    """Raised when the rate limiter cannot acquire capacity within timeout."""
 
 
 class UpstoxAPI(BaseAPIClient):
@@ -64,6 +69,29 @@ class UpstoxAPI(BaseAPIClient):
             raise ImportError("Authentication module not available")
 
         self.auth_handler = create_upstox_auth(api_key, api_secret, quiet)
+        self.rate_limiter: UpstoxRateLimiter | None = None
+
+    def _init_rate_limiter(self):
+        if self.rate_limiter is None:
+            self.rate_limiter = UpstoxRateLimiter()
+
+    def _request(self, method: str, url: str, **kwargs) -> requests.Response:
+        """Make an HTTP request with distributed rate limiting.
+
+        Returns the response on success. Raises RateLimitExceeded
+        when capacity cannot be acquired — callers should skip the
+        operation and retry next cycle.
+        """
+        self._init_rate_limiter()
+        if not self.rate_limiter.acquire():
+            short = url.split('/')[-1]
+            raise RateLimitExceeded(
+                f"Rate limited, cannot {method} .../{short}"
+            )
+        response = requests.request(method, url, **kwargs)
+        if response.status_code == 429:
+            self.rate_limiter.cancel_last()
+        return response
 
     def _get_headers(self) -> Dict[str, str]:
         """Constructs the required headers for API calls."""
@@ -73,7 +101,7 @@ class UpstoxAPI(BaseAPIClient):
         """Downloads, decompresses, and caches the NSE instruments list."""
         self._log(f"⬇️ Downloading instrument list from {INSTRUMENT_LIST_URL}...")
         try:
-            response = requests.get(INSTRUMENT_LIST_URL, stream=True)
+            response = self._request("GET", INSTRUMENT_LIST_URL, stream=True)
             response.raise_for_status()
 
             with gzip.open(response.raw, 'rt', encoding='utf-8') as gz_file:
@@ -217,7 +245,7 @@ class UpstoxAPI(BaseAPIClient):
         headers = self._get_headers()
 
         try:
-            response = requests.get(url, headers=headers, timeout=30)
+            response = self._request("GET", url, headers=headers, timeout=30)
             response.raise_for_status()
 
             data = response.json()
@@ -242,9 +270,19 @@ class UpstoxAPI(BaseAPIClient):
                 if not self.quiet:
                     print(f"❌ V3 Intraday API error for {symbol}: {data}")
                 return None
-        except requests.RequestException as e:
+        except RateLimitExceeded:
             if not self.quiet:
-                print(f"❌ V3 Intraday request failed for {symbol}: {e}")
+                print(f"⏳ Rate limited — skipped {symbol}")
+            return None
+        except requests.RequestException as e:
+            status_code = e.response.status_code if e.response is not None else None
+            if not self.quiet:
+                if status_code == 429:
+                    print(f"⏳ Upstox rate limited (429) {symbol}")
+                elif status_code is not None:
+                    print(f"❌ V3 Intraday HTTP {status_code} for {symbol}: {e}")
+                else:
+                    print(f"❌ V3 Intraday request failed for {symbol}: {e}")
             return None
         except Exception as e:
             if not self.quiet:
@@ -275,7 +313,7 @@ class UpstoxAPI(BaseAPIClient):
         url = f"{BASE_URL}/historical-candle/{instrument_key}/{interval}/{to_date}/{from_date}"
 
         try:
-            response = requests.get(url, headers=self._get_headers())
+            response = self._request("GET", url, headers=self._get_headers())
             response.raise_for_status()
 
             data = response.json().get('data', {}).get('candles', [])
@@ -292,9 +330,19 @@ class UpstoxAPI(BaseAPIClient):
                 print(f"✅ Successfully fetched {len(df)} records for {symbol}.")
             return df
 
-        except requests.RequestException as e:
+        except RateLimitExceeded:
             if not self.quiet:
-                print(f"❌ API Error fetching historical data for {symbol}: {e.response.text if e.response else e}")
+                print(f"⏳ Rate limited — skipped {symbol} historical")
+            return None
+        except requests.RequestException as e:
+            status_code = e.response.status_code if e.response is not None else None
+            if not self.quiet:
+                if status_code == 429:
+                    print(f"⏳ Upstox rate limited (429) {symbol} historical")
+                elif status_code is not None:
+                    print(f"❌ V2 Historical HTTP {status_code} for {symbol}: {e.response.text if e.response else e}")
+                else:
+                    print(f"❌ V2 Historical request failed for {symbol}: {e}")
             return None
 
     def fetch_historical_data_v3(self, symbol: str, unit: str, interval: int, to_date: str,
@@ -440,7 +488,7 @@ class UpstoxAPI(BaseAPIClient):
         headers = self._get_headers()
 
         try:
-            response = requests.get(url, headers=headers)
+            response = self._request("GET", url, headers=headers)
             response.raise_for_status()
 
             json_data = response.json()
@@ -462,11 +510,21 @@ class UpstoxAPI(BaseAPIClient):
 
             return df
 
+        except RateLimitExceeded:
+            if not self.quiet:
+                print(f"⏳ Rate limited — skipped {symbol} V3 historical")
+            return None
         except requests.RequestException as e:
             self._last_v3_error_status = e.response.status_code if e.response is not None else None
             self._last_v3_error_text = e.response.text if e.response is not None else str(e)
             if not self.quiet:
-                print(f"❌ V3 Historical API Error for {symbol}: {e.response.text if e.response else e}")
+                sc = e.response.status_code if e.response is not None else None
+                if sc == 429:
+                    print(f"⏳ Upstox rate limited (429) {symbol} V3 historical")
+                elif sc is not None:
+                    print(f"❌ V3 Historical HTTP {sc} for {symbol}: {e.response.text if e.response else e}")
+                else:
+                    print(f"❌ V3 Historical request failed for {symbol}: {e}")
             return None
 
     def place_order(self, symbol: str, transaction_type: str, quantity: int,
@@ -503,7 +561,7 @@ class UpstoxAPI(BaseAPIClient):
 
         try:
             from .api_helpers import ORDER_URL
-            response = requests.post(ORDER_URL, headers=headers, json=data)
+            response = self._request("POST", ORDER_URL, headers=headers, json=data)
             response.raise_for_status()
             return response.json()
         except requests.RequestException as e:
@@ -525,7 +583,7 @@ class UpstoxAPI(BaseAPIClient):
         headers['Accept'] = 'application/json'
         try:
             from .api_helpers import ORDER_BOOK_URL
-            response = requests.get(ORDER_BOOK_URL, headers=headers)
+            response = self._request("GET", ORDER_BOOK_URL, headers=headers)
             response.raise_for_status()
             data = response.json()
             if isinstance(data, list):
@@ -546,7 +604,7 @@ class UpstoxAPI(BaseAPIClient):
         headers['Accept'] = 'application/json'
         try:
             url = "https://api.upstox.com/v2/order/details"
-            response = requests.get(url, headers=headers, params={"order_id": order_id})
+            response = self._request("GET", url, headers=headers, params={"order_id": order_id})
             response.raise_for_status()
             data = response.json()
             if isinstance(data, dict) and data.get('status') == 'success':
@@ -564,7 +622,7 @@ class UpstoxAPI(BaseAPIClient):
         headers['Content-Type'] = 'application/json'
         headers['Accept'] = 'application/json'
         try:
-            response = requests.get("https://api.upstox.com/v3/user/get-funds-and-margin", headers=headers)
+            response = self._request("GET", "https://api.upstox.com/v3/user/get-funds-and-margin", headers=headers)
             response.raise_for_status()
             data = response.json()
             if isinstance(data, dict) and data.get('status') == 'success':
@@ -582,7 +640,7 @@ class UpstoxAPI(BaseAPIClient):
         headers['Content-Type'] = 'application/json'
         headers['Accept'] = 'application/json'
         try:
-            response = requests.get("https://api.upstox.com/v3/positions", headers=headers)
+            response = self._request("GET", "https://api.upstox.com/v3/positions", headers=headers)
             response.raise_for_status()
             data = response.json()
             if isinstance(data, dict) and data.get('status') == 'success':

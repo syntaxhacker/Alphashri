@@ -63,6 +63,15 @@ REFRESH_TOKEN_EXPIRE_DAYS = 7
 UPSTOX_API_KEY = os.getenv("UPSTOX_API_KEY") or os.getenv("UPSTOX_CLIENT_ID")
 UPSTOX_API_SECRET = os.getenv("UPSTOX_API_SECRET") or os.getenv("UPSTOX_CLIENT_SECRET")
 UPSTOX_ACCESS_TOKEN = os.getenv("UPSTOX_ACCESS_TOKEN")
+UPSTOX_CONFIG = {
+    "api_key": UPSTOX_API_KEY or "",
+    "api_secret": UPSTOX_API_SECRET or "",
+    "access_token": UPSTOX_ACCESS_TOKEN or "",
+    "api_key_primary": os.getenv("UPSTOX_API_KEY_PRIMARY", UPSTOX_API_KEY or ""),
+    "api_secret_primary": os.getenv("UPSTOX_API_SECRET_PRIMARY", UPSTOX_API_SECRET or ""),
+    "username": os.getenv("UPSTOX_USERNAME", ""),
+    "password": os.getenv("UPSTOX_PASSWORD", ""),
+}
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
 # --- Application URLs ---
