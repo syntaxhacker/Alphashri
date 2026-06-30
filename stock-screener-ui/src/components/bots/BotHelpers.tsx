@@ -1,3 +1,4 @@
+import { memo } from "react";
 import {
   Card,
   Text,
@@ -313,7 +314,7 @@ interface BotActionButtonsProps {
   onDelete: (botId: string) => Promise<void>;
 }
 
-export function BotActionButtons({
+export const BotActionButtons = memo(function BotActionButtons({
   bot,
   onView,
   onStart,
@@ -385,7 +386,7 @@ export function BotActionButtons({
       </ActionIcon>
     </Group>
   );
-}
+});
 
 interface BotSummaryCellProps {
   bot: BotConfig;

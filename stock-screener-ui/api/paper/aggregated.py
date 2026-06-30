@@ -1,19 +1,19 @@
-"""
-Aggregated multi-bot dashboard endpoints.
-"""
+"""Aggregated multi-bot dashboard endpoints."""
 
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Optional
 
 from fastapi import Depends
 
 from api.auth import get_current_user
 from db.models import User
+from db.models import Trade as TradeModel
 from db.database import SessionLocal
 from db.models.bot import BotConfig, StrategyConfig
 import config
 
 from .paper_api import router, _get_user_id
+from pathlib import Path
 
 
 @router.get("/aggregated")
@@ -23,6 +23,32 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
 
     with SessionLocal() as db:
         bots = db.query(BotConfig).filter(BotConfig.user_id == user_id).all()
+        bot_ids = [b.id for b in bots]
+
+        # Batch-load all strategies for all bots
+        all_strategies = db.query(StrategyConfig).filter(
+            StrategyConfig.bot_id.in_(bot_ids)
+        ).all() if bot_ids else []
+        strategies_by_bot: dict = {}
+        for s in all_strategies:
+            strategies_by_bot.setdefault(s.bot_id, []).append({
+                "id": s.id,
+                "name": s.name,
+                "strategy_type": s.strategy_type,
+            })
+
+        # Batch-load today's trades for all bots
+        today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start.replace(hour=23, minute=59, second=59)
+        all_trades = db.query(TradeModel).filter(
+            TradeModel.user_id == user_id,
+            TradeModel.is_test == False,
+            TradeModel.exit_time >= today_start,
+            TradeModel.exit_time <= today_end,
+        ).all() if bot_ids else []
+        trades_by_strategy: dict = {}
+        for t in all_trades:
+            trades_by_strategy.setdefault(t.strategy_id, []).append(t)
 
     bot_data = []
     total_positions = 0
@@ -31,15 +57,7 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
     total_value = 0.0
 
     for bot in bots:
-        strategies = []
-        with SessionLocal() as db:
-            cfgs = db.query(StrategyConfig).filter(StrategyConfig.bot_id == bot.id).all()
-            for s in cfgs:
-                strategies.append({
-                    "id": s.id,
-                    "name": s.name,
-                    "strategy_type": s.strategy_type,
-                })
+        strategies = strategies_by_bot.get(bot.id, [])
 
         running = False
         pid = None
@@ -67,24 +85,10 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
             pass
 
         daily_pnl = 0.0
-        try:
-            strat_ids = [s["id"] for s in strategies]
-            if strat_ids:
-                from db.models import Trade as TradeModel
-                today_start = datetime.now(config.IST).replace(hour=0, minute=0, second=0, microsecond=0)
-                today_end = today_start.replace(hour=23, minute=59, second=59)
-                with SessionLocal() as trade_db:
-                    today_db_trades = trade_db.query(TradeModel).filter(
-                        TradeModel.user_id == user_id,
-                        TradeModel.is_test == False,
-                        TradeModel.strategy_id.in_(strat_ids),
-                        TradeModel.exit_time >= today_start,
-                        TradeModel.exit_time <= today_end,
-                    ).all()
-                    for t in today_db_trades:
-                        daily_pnl += float(t.net_pnl or 0)
-        except Exception:
-            pass
+        strat_ids = [s["id"] for s in strategies]
+        for sid in strat_ids:
+            for t in trades_by_strategy.get(sid, []):
+                daily_pnl += float(t.net_pnl or 0)
 
         total_daily_pnl += daily_pnl
 

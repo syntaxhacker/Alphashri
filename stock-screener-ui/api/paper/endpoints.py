@@ -38,14 +38,14 @@ async def get_signals():
         df = screener.screen(limit=100, verify_nse=True)
 
         signals = []
-        for _, row in df.head(20).iterrows():
+        for row in df.head(20).itertuples():
             signals.append({
-                "symbol": row['name'],
-                "price": row['close'],
-                "rsi": round(row['RSI'], 1),
-                "adx": round(row['ADX'], 1),
-                "atr_pct": round(row.get('atr_pct', 0), 2),
-                "score": round(row.get('orb_score', 0), 1),
+                "symbol": row.name,
+                "price": row.close,
+                "rsi": round(row.RSI, 1),
+                "adx": round(row.ADX, 1),
+                "atr_pct": round(getattr(row, 'atr_pct', 0), 2),
+                "score": round(getattr(row, 'orb_score', 0), 1),
             })
 
         return {
@@ -439,18 +439,18 @@ async def get_paper_chart(
                 actual_date = f"{first_ts.strftime('%Y-%m-%d')} to {last_ts.strftime('%Y-%m-%d')}"
 
         candles = []
-        for idx, row in df.iterrows():
-            o, h, l, c = float(row['open']), float(row['high']), float(row['low']), float(row['close'])
+        for row in df.itertuples():
+            o, h, l, c = float(row.open), float(row.high), float(row.low), float(row.close)
             if any(math.isnan(v) or math.isinf(v) for v in [o, h, l, c]):
                 continue
-            time_str = idx.isoformat() if hasattr(idx, 'isoformat') else str(idx)
+            time_str = row.Index.isoformat() if hasattr(row.Index, 'isoformat') else str(row.Index)
             candles.append({
                 "time": time_str,
                 "open": o,
                 "high": h,
                 "low": l,
                 "close": c,
-                "volume": int(row.get('volume', 0)),
+                "volume": int(getattr(row, 'volume', 0)),
             })
 
         or_minutes = 45

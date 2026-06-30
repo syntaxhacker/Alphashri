@@ -181,20 +181,20 @@ def _format_candles_for_chart(df):
         return []
 
     candles = []
-    for idx, row in df.iterrows():
-        time_str = idx.strftime('%Y-%m-%dT%H:%M') if hasattr(idx, 'strftime') else str(idx)
-        date_str = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
-        time_display = idx.strftime('%H:%M') if hasattr(idx, 'strftime') else ''
+    for row in df.itertuples():
+        time_str = row.Index.strftime('%Y-%m-%dT%H:%M') if hasattr(row.Index, 'strftime') else str(row.Index)
+        date_str = row.Index.strftime('%Y-%m-%d') if hasattr(row.Index, 'strftime') else str(row.Index)[:10]
+        time_display = row.Index.strftime('%H:%M') if hasattr(row.Index, 'strftime') else ''
 
         candles.append({
             'time': time_str,
             'date': date_str,
             'time_str': time_display,
-            'open': _to_float(row.get('open', 0)),
-            'high': _to_float(row.get('high', 0)),
-            'low': _to_float(row.get('low', 0)),
-            'close': _to_float(row.get('close', 0)),
-            'volume': _to_float(row.get('volume', 0)),
+            'open': _to_float(getattr(row, 'open', 0)),
+            'high': _to_float(getattr(row, 'high', 0)),
+            'low': _to_float(getattr(row, 'low', 0)),
+            'close': _to_float(getattr(row, 'close', 0)),
+            'volume': _to_float(getattr(row, 'volume', 0)),
         })
 
     return candles
