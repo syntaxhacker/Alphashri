@@ -34,6 +34,22 @@ async def _get_last_trading_day(symbol: str) -> str:
 
     today = datetime.now(config.IST).date()
 
+    # Batch-load all trading holidays for the next 10 days in one query
+    try:
+        db = SessionLocal()
+        start = today - timedelta(days=10)
+        holidays = {
+            h.date
+            for h in db.query(MarketHoliday).filter(
+                MarketHoliday.date >= start,
+                MarketHoliday.date <= today,
+                MarketHoliday.type == HolidayType.TRADING
+            ).all()
+        }
+        db.close()
+    except Exception:
+        holidays = set()
+
     # Look back up to 10 days to find a trading day
     for i in range(10):
         candidate = today - timedelta(days=i)
@@ -42,19 +58,9 @@ async def _get_last_trading_day(symbol: str) -> str:
         if _is_weekend(candidate):
             continue
 
-        # Holiday check via DB
-        try:
-            db = SessionLocal()
-            holiday = db.query(MarketHoliday).filter(
-                MarketHoliday.date == candidate,
-                MarketHoliday.type == HolidayType.TRADING
-            ).first()
-            db.close()
-            if holiday:
-                continue  # Trading holiday, skip
-        except Exception:
-            # DB unavailable, fall back to weekend-only check
-            pass
+        # Holiday check (in-memory, no DB query per day)
+        if candidate in holidays:
+            continue
 
         return candidate.strftime('%Y-%m-%d')
 
