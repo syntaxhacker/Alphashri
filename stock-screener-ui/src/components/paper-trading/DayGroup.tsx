@@ -51,7 +51,7 @@ interface DayGroupProps {
   onSort: (column: string) => void;
 }
 
-function DaySummary({
+const DaySummary = memo(function DaySummary({
   date,
   trades,
   onToggle,
@@ -92,9 +92,9 @@ function DaySummary({
       </Group>
     </Group>
   );
-}
+});
 
-function TradeStats({ trade }: { trade: PaperTrade }) {
+const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   const grossPnl = trade.pnl;
   const grossColor = getPnLTextColor(grossPnl);
   const netPnl = trade.net_pnl;
@@ -146,9 +146,9 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
       </Grid.Col>
     </Grid>
   );
-}
+});
 
-function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
+const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
   const [reason, setReason] = useState(trade.reason || "");
   const [notes, setNotes] = useState(trade.notes || "");
   const [saving, setSaving] = useState(false);
@@ -201,16 +201,16 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
       </Group>
     </Stack>
   );
-}
+});
 
-function TradeDetail({ trade }: { trade: PaperTrade }) {
+const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
     <Stack gap="xs">
       <TradeStats trade={trade} />
       <TradeNotesEditor trade={trade} />
     </Stack>
   );
-}
+});
 
 const TradeRow = memo(function TradeRow({
   trade,
@@ -357,7 +357,7 @@ const TradeRow = memo(function TradeRow({
   );
 });
 
-export function DayGroup({
+export const DayGroup = memo(function DayGroup({
   date,
   trades,
   selectedSymbol: _selectedSymbol,
@@ -498,4 +498,4 @@ export function DayGroup({
       </Collapse>
     </Flex>
   );
-}
+});

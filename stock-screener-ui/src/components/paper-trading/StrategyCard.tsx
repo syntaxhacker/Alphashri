@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import { Badge, Text, Group, Progress, Tooltip, Button, Collapse } from "@mantine/core";
 import { IconX } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
@@ -30,7 +30,7 @@ function calcSummary(positions: PaperPosition[]) {
   return { totalPnl, count: positions.length };
 }
 
-export function StrategyCard({
+export const StrategyCard = memo(function StrategyCard({
   strategyName,
   positions,
   maxCapacity,
@@ -88,4 +88,4 @@ export function StrategyCard({
       </Collapse>
     </CompactPanel>
   );
-}
+});

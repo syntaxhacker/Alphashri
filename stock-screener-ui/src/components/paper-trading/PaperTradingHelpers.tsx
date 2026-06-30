@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useMemo } from "react";
 import dayjs from "dayjs";
 import { Flex, Tabs, Text, Group, Select } from "@mantine/core";
 import { TradingDatePicker } from "../common/TradingDatePicker";
@@ -177,8 +177,18 @@ export function HistoryFilters({
   state: ReturnType<typeof getPaperTradingState>;
   filters: ReturnType<typeof useHistoryFilters>;
 }) {
-  const symbols = [...new Set(state.trades.map((t: PaperTrade) => t.symbol))].sort();
-  const symbolOptions = symbols.map((s) => ({ value: s, label: s }));
+  const symbols = useMemo(
+    () => [...new Set(state.trades.map((t: PaperTrade) => t.symbol))].sort(),
+    [state.trades],
+  );
+  const symbolOptions = useMemo(
+    () => symbols.map((s) => ({ value: s, label: s })),
+    [symbols],
+  );
+  const allOptions = useMemo(
+    () => [{ value: "", label: "All" }, ...symbolOptions],
+    [symbolOptions],
+  );
 
   return (
     <Flex gap="xs" align="center" wrap="wrap">
@@ -214,7 +224,7 @@ export function HistoryFilters({
           size="sm"
           value={state.filterSymbol || ""}
           onChange={filters.handleFilterSymbol}
-          data={[{ value: "", label: "All" }, ...symbolOptions]}
+          data={allOptions}
           data-testid="filter-symbol"
           styles={{ input: { width: 120 } }}
           clearable

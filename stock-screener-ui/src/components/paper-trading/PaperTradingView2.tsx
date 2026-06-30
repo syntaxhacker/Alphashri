@@ -107,7 +107,10 @@ function usePaperTradingViewModel() {
   }, [loadInitialData]);
 
   useEffect(() => {
-    fetchBotSummaries().then(setBotSummaries);
+    const timer = setTimeout(() => {
+      fetchBotSummaries().then(setBotSummaries);
+    }, 2000);
+    return () => clearTimeout(timer);
   }, [state.botRunning]);
 
   const actions = usePaperViewActions(activeBotId);
