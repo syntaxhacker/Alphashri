@@ -14,6 +14,7 @@ from trading.strategy_runner import INTRADAY_STRATEGY_TYPES
 from trading.week52_utils import calculate_52w_high, days_since_52w_high_touch, check_intraday_52w_touch
 
 from trading.timezone import IST
+from trading.utils import MARKET_OPEN
 
 
 class RunnerRiskMixin:
@@ -93,9 +94,8 @@ class RunnerRiskMixin:
     def _is_or_period_complete(self, signal_gen) -> bool:
         """Check if the opening range period is complete at the current simulated time."""
         now = self._ist_now()
-        market_open_hour, market_open_min = getattr(signal_gen, 'MARKET_OPEN', (9, 15))
         or_minutes = getattr(signal_gen, 'or_minutes', 45)
-        or_end = now.replace(hour=market_open_hour, minute=market_open_min, second=0, microsecond=0)
+        or_end = now.replace(hour=MARKET_OPEN[0], minute=MARKET_OPEN[1], second=0, microsecond=0)
         from datetime import timedelta
         or_end += timedelta(minutes=or_minutes)
         return now >= or_end

@@ -29,6 +29,7 @@ except ImportError:
 # Import shared ORB utilities (single source of truth for OR calculations)
 from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
 from trading.base_signals import BaseSignalGenerator
+from trading.utils import MARKET_OPEN, OR_END, MARKET_CLOSE, FORCE_EXIT
 
 console = Console()
 
@@ -72,11 +73,10 @@ class ORBSignalGenerator(BaseSignalGenerator):
     5. Generate signals with SL/TP
     """
 
-    # Market timings (IST)
-    MARKET_OPEN = (9, 15)
-    OR_END = (10, 0)
-    MARKET_CLOSE = (15, 30)
-    FORCE_EXIT = (14, 45)
+    MARKET_OPEN = MARKET_OPEN
+    OR_END = OR_END
+    MARKET_CLOSE = MARKET_CLOSE
+    FORCE_EXIT = FORCE_EXIT
 
     def __init__(
         self,

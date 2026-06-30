@@ -22,6 +22,7 @@ from rich.text import Text
 
 from backtest.costs import calculate_trading_costs
 from trading.timezone import IST
+from trading.utils import PRE_MARKET, MARKET_OPEN, OR_END, FORCE_EXIT, MARKET_CLOSE
 
 
 class _TimestampedConsole(Console):
@@ -125,11 +126,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
     - Enforces global and per-strategy risk limits
     """
 
-    PRE_MARKET = (9, 0)
-    MARKET_OPEN = (9, 15)
-    OR_END = (10, 0)
-    FORCE_EXIT = (15, 30)
-    MARKET_CLOSE = (15, 30)
+    PRE_MARKET = PRE_MARKET
+    MARKET_OPEN = MARKET_OPEN
+    OR_END = OR_END
+    FORCE_EXIT = FORCE_EXIT
+    MARKET_CLOSE = MARKET_CLOSE
 
     def __init__(
         self,
