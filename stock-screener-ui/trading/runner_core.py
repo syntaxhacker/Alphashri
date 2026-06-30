@@ -50,7 +50,6 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
 }
 from trading.bot_heartbeat import BotHeartbeat
 from trading.global_risk_manager import GlobalRiskManager
-from trading.journal import get_journal
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
 from trading.runner_signals import RunnerSignalsMixin
 from trading.runner_risk import RunnerRiskMixin
@@ -173,7 +172,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.strategies: Dict[int, StrategyRunner] = {}
         self._load_strategies()
 
-        self.journal = get_journal(user_id)
         self._heartbeat = BotHeartbeat(
             user_id=self.user_id,
             bot_config_id=self.bot_config.id,
@@ -1143,7 +1141,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         else:
             console.print("\n[bold]Trading stopped. Final status:[/bold]")
             self.display_status()
-            self.journal.save_journal()
             ps = self.portfolio.get_portfolio_status()
             send_bot_status(
                 bot_name=self.bot_config.name,

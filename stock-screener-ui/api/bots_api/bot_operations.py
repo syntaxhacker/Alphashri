@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Optional, Dict
 
@@ -39,6 +39,7 @@ def _get_market_price(symbol: str) -> float | None:
 
 from api.auth import get_current_user
 from api.bot_state import get_bot_state
+from config import IST
 
 
 class CloseAllRequest(BaseModel):
@@ -147,37 +148,6 @@ def _get_sync_functions():
             trades = [t.to_dict() for t in query.all()]
             from api.paper.history import _resolve_trade_bot_ids
             trades = _resolve_trade_bot_ids(trades)
-
-            if not trades:
-                from trading.journal import get_journal
-                journal = get_journal(user_id)
-                journal.load_all_journals(days=30)
-                for trade in journal.trades:
-                    if trade.strategy_id in bot_strategy_ids:
-                        if strategy_internal_id is None or trade.strategy_id == strategy_internal_id:
-                            if not include_test and getattr(trade, 'is_test', False):
-                                continue
-                            trades.append({
-                                'trade_id': trade.trade_id,
-                                'symbol': trade.symbol,
-                                'side': trade.side,
-                                'quantity': trade.quantity,
-                                'entry_price': trade.entry_price,
-                                'exit_price': trade.exit_price,
-                                'entry_time': trade.entry_time,
-                                'exit_time': trade.exit_time,
-                                'pnl': trade.pnl,
-                                'pnl_pct': trade.pnl_pct,
-                                'exit_reason': trade.exit_reason,
-                                'costs': trade.costs,
-                                'net_pnl': trade.net_pnl,
-                                'strategy_id': trade.strategy_id,
-                                'strategy_name': trade.strategy_name,
-                                'is_test': getattr(trade, 'is_test', False),
-                                'source': getattr(trade, 'source', 'live'),
-                            })
-                trades.sort(key=lambda x: x.get('exit_time', ''), reverse=True)
-                trades = trades[:limit]
 
             return {
                 "bot_id": bot.uuid,
@@ -730,16 +700,18 @@ async def get_bot_trade_count(
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         try:
-            from trading.journal import get_journal
-            journal = get_journal(user_id)
-
+            from db.models import Trade as TradeModel
             with SessionLocal() as session:
                 result = session.execute(
                     bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
                 ).fetchall()
                 strategy_ids = [row.strategy_id for row in result]
 
-            count = sum(1 for t in journal.trades if t.strategy_id in strategy_ids)
+                count = session.query(TradeModel).filter(
+                    TradeModel.user_id == user_id,
+                    TradeModel.is_test == False,
+                    TradeModel.strategy_id.in_(strategy_ids),
+                ).count()
 
             return {"count": count}
 
@@ -773,25 +745,46 @@ async def get_strategy_performance(
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         try:
-            from trading.journal import get_journal
+            from db.models import Trade as TradeModel
             from db.models import bot_strategies
-            journal = get_journal(user_id)
+            from sqlalchemy import func
+            from collections import defaultdict
 
-            journal.load_all_journals(days=days)
+            cutoff = datetime.now(IST) - timedelta(days=days)
+            result = db.execute(
+                bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
+            ).fetchall()
+            bot_strategy_ids = [row.strategy_id for row in result]
 
-            all_strategy_perf = journal.get_strategy_performance(include_test=include_test)
+            all_trades = db.query(TradeModel).filter(
+                TradeModel.user_id == user_id,
+                TradeModel.exit_time.isnot(None),
+                TradeModel.exit_time >= cutoff,
+            )
+            if not include_test:
+                all_trades = all_trades.filter(TradeModel.is_test == False)
+            all_trades = all_trades.all()
 
-            if db is not None:
-                result = db.execute(
-                    bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
-                ).fetchall()
-                bot_strategy_ids = [row.strategy_id for row in result]
-            else:
-                with SessionLocal() as session:
-                    result = session.execute(
-                        bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
-                    ).fetchall()
-                    bot_strategy_ids = [row.strategy_id for row in result]
+            all_strategy_perf = {}
+            strat_trades = defaultdict(list)
+            for t in all_trades:
+                strat_trades[t.strategy_id].append(t)
+            for sid, sts in strat_trades.items():
+                wins = [t for t in sts if (t.net_pnl or 0) >= 0]
+                losses = [t for t in sts if (t.net_pnl or 0) < 0]
+                all_strategy_perf[sid] = {
+                    'strategy_id': sid,
+                    'strategy_name': sts[0].strategy_name,
+                    'trades': len(sts),
+                    'winners': len(wins),
+                    'losers': len(losses),
+                    'win_rate': round(len(wins) / len(sts) * 100, 2) if sts else 0,
+                    'total_pnl': round(sum(t.pnl or 0 for t in sts), 2),
+                    'net_pnl': round(sum(t.net_pnl or 0 for t in sts), 2),
+                    'total_costs': round(sum(t.costs or 0 for t in sts), 2),
+                    'avg_win': round(sum(t.net_pnl or 0 for t in wins) / len(wins), 2) if wins else 0,
+                    'avg_loss': round(sum(t.net_pnl or 0 for t in losses) / len(losses), 2) if losses else 0,
+                }
 
             bot_performance = {
                 str(sid): perf

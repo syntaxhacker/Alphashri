@@ -16,7 +16,6 @@ from rich.panel import Panel
 from trading.paper_trader import PaperTrader, OrderSide, get_paper_trader
 from trading.orb_signals import ORBSignalGenerator, SignalType, create_entry_signal
 from trading.risk_manager import RiskManager, get_risk_manager
-from trading.journal import TradeJournal, get_journal
 
 from .daily_scanner import (
     refresh_watchlist as _refresh_watchlist,
@@ -68,7 +67,6 @@ class DailyTradingRunner:
         self.trader = get_paper_trader()
         self.signal_generator = ORBSignalGenerator(config_name=config_name)
         self.risk_manager = get_risk_manager(config_name=config_name)
-        self.journal = get_journal()
 
         self.running = True
         self.or_levels = {}

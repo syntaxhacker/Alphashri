@@ -204,8 +204,14 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
             bot_strategies.select().where(bot_strategies.c.bot_id == bot.id)
         ).fetchall()
 
+        strategy_ids = [row.strategy_id for row in result]
+        strategies_map = {
+            s.id: s for s in db.query(StrategyConfig)
+            .filter(StrategyConfig.id.in_(strategy_ids)).all()
+        } if strategy_ids else {}
+
         for row in result:
-            strategy = db.query(StrategyConfig).filter(StrategyConfig.id == row.strategy_id).first()
+            strategy = strategies_map.get(row.strategy_id)
             if strategy:
                 strategies.append({
                     'id': strategy.uuid,

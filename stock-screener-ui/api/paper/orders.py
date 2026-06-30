@@ -12,7 +12,6 @@ class PositionNotesUpdate(BaseModel):
 
 from trading.paper_trader import get_paper_trader, OrderSide, ExitReason
 from trading.risk_manager import get_risk_manager
-from trading.journal import get_journal
 from api.auth import get_current_user
 from db.models import User
 
@@ -120,8 +119,6 @@ async def close_position(request: ClosePositionRequest, user: "User" = Depends(g
     )
 
     if trade is not None:
-        journal = get_journal(user_id)
-        journal.log_trade(build_trade_log_entry(trade))
         journal.save_journal()
         return {
             "trade_id": trade.trade_id,

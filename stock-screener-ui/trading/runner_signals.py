@@ -779,24 +779,6 @@ class RunnerSignalsMixin:
                     if self._replay_on_event:
                         self._replay_on_event(build_trade_close_event(trade, runner))
                 else:
-                    self.journal.log_trade({
-                        'trade_id': trade.trade_id,
-                        'symbol': trade.symbol,
-                        'side': trade.side.value,
-                        'quantity': trade.quantity,
-                        'entry_price': trade.entry_price,
-                        'exit_price': trade.exit_price,
-                        'entry_time': trade.entry_time.isoformat(),
-                        'exit_time': trade.exit_time.isoformat(),
-                        'pnl': trade.pnl,
-                        'pnl_pct': trade.pnl_pct,
-                        'exit_reason': trade.exit_reason,
-                        'costs': trade.costs,
-                        'net_pnl': trade.net_pnl,
-                        'strategy_id': trade.strategy_id,
-                        'strategy_name': trade.strategy_name,
-                    }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
-
                     self._persist_position_to_db({
                         'strategy_id': strategy_id,
                         'strategy_name': runner.strategy_name if runner else '',
@@ -857,9 +839,6 @@ class RunnerSignalsMixin:
                         elif trade.pnl is not None and trade.pnl > 0:
                             losses[sid] = 0
                         self._consecutive_losses = losses
-
-        if trade_logged and not self.replay_mode:
-            self.journal.save_journal()
 
         portfolio_status = self.portfolio.get_portfolio_status()
         daily_pnl = portfolio_status.get('daily_pnl', 0)

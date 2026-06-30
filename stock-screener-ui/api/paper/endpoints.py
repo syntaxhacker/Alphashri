@@ -12,7 +12,6 @@ from typing import Optional
 from fastapi import HTTPException, Depends
 from trading.paper_trader import get_paper_trader
 from trading.risk_manager import get_risk_manager
-from trading.journal import get_journal
 from trading.orb_signals import create_entry_signal
 from api.auth import get_current_user
 from db.models import User
@@ -552,28 +551,7 @@ async def get_paper_chart(
         uid = _get_user_id(user)
         symbol_trades = _get_symbol_trades_from_db(uid, symbol, date)
 
-        if not symbol_trades:
-            journal_dir = Path(__file__).parent.parent.parent / "journals" / str(uid)
-            date_str = date.replace('-', '')
-            journal_file = journal_dir / f"journal_{date_str}.json"
-
-            if journal_file.exists():
-                from trading.journal import TradeJournal
-                temp_journal = TradeJournal(user_id=uid)
-                try:
-                    temp_journal.load_journal(str(journal_file))
-                    symbol_trades = [
-                        t for t in temp_journal.trades
-                        if t.symbol == symbol.upper()
-                    ]
-                except Exception as e:
-                    console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
-            else:
-                journal = get_journal(uid)
-                symbol_trades = [
-                    t for t in journal.trades
-                    if t.symbol == symbol.upper() and t.exit_time.startswith(date)
-                ]
+        # Journal fallback removed — DB is the primary data source
 
         def _trade_to_dict(t):
             def _calc_hold(entry, exit_):

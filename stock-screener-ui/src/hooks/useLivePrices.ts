@@ -12,7 +12,7 @@ export interface LivePriceEvent {
   ts?: string;
 }
 
-export type LivePricesSubscriber = (prices: Record<string, LivePriceEvent>) => void;
+export type LivePricesSubscriber = (symbol: string, price: LivePriceEvent) => void;
 
 export function useLivePrices() {
   const pricesRef = useRef<Record<string, LivePriceEvent>>({});
@@ -78,17 +78,17 @@ export function useLivePrices() {
               try {
                 const data = JSON.parse(dataStr) as LivePriceEvent & { type: string };
                 if (data.symbol && data.ltp != null) {
-                  pricesRef.current = {
-                    ...pricesRef.current,
-                    [data.symbol]: {
+                  const prev = pricesRef.current[data.symbol];
+                  if (!prev || prev.ltp !== data.ltp) {
+                    pricesRef.current[data.symbol] = {
                       instrument_key: data.instrument_key,
                       symbol: data.symbol,
                       ltp: data.ltp,
                       ltq: data.ltq,
                       ts: data.ts,
-                    },
-                  };
-                  listenersRef.current.forEach((fn) => fn(pricesRef.current));
+                    };
+                    listenersRef.current.forEach((fn) => fn(data.symbol, pricesRef.current[data.symbol]));
+                  }
                 }
               } catch {
                 // skip malformed

@@ -11,11 +11,9 @@ from api.auth import get_current_user
 from db.models import User
 from db.database import SessionLocal
 from db.models.bot import BotConfig, StrategyConfig
-from trading.journal import TradeJournal
 import config
 
 from .paper_api import router, _get_user_id
-from pathlib import Path
 
 
 @router.get("/aggregated")
@@ -70,14 +68,20 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
 
         daily_pnl = 0.0
         try:
-            journal_dir = Path(__file__).parent.parent.parent / "journals" / str(user_id)
-            date_str = today.strftime('%Y%m%d')
-            journal_file = journal_dir / f"journal_{date_str}.json"
-            if journal_file.exists():
-                tj = TradeJournal(user_id=user_id)
-                tj.load_journal(str(journal_file))
-                for t in tj.trades:
-                    if any(str(t.strategy_id) == str(s["id"]) for s in strategies):
+            strat_ids = [s["id"] for s in strategies]
+            if strat_ids:
+                from db.models import Trade as TradeModel
+                today_start = datetime.now(config.IST).replace(hour=0, minute=0, second=0, microsecond=0)
+                today_end = today_start.replace(hour=23, minute=59, second=59)
+                with SessionLocal() as trade_db:
+                    today_db_trades = trade_db.query(TradeModel).filter(
+                        TradeModel.user_id == user_id,
+                        TradeModel.is_test == False,
+                        TradeModel.strategy_id.in_(strat_ids),
+                        TradeModel.exit_time >= today_start,
+                        TradeModel.exit_time <= today_end,
+                    ).all()
+                    for t in today_db_trades:
                         daily_pnl += float(t.net_pnl or 0)
         except Exception:
             pass
