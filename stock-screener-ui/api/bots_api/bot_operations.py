@@ -21,25 +21,15 @@ from .bots_router import (
     SessionLocal,
 )
 
-_BUY_SIDES = ("BUY", "LONG")
-
-
-def _get_market_price(symbol: str) -> float | None:
-    try:
-        import config as _cfg
-        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
-        _api = UpstoxAPI(api_key=_cfg.UPSTOX_API_KEY, api_secret=_cfg.UPSTOX_API_SECRET, quiet=True)
-        _df = _api.fetch_intraday_data_v3(symbol, "1")
-        if _df is not None and not _df.empty:
-            return float(_df.iloc[-1]["close"])
-    except Exception:
-        pass
-    return None
-
-
 from api.auth import get_current_user
+from api.utils import _BUY_SIDES, _get_market_price
 from api.bot_state import get_bot_state
 from config import IST
+
+
+def _calc_costs(entry_price: float, exit_price: float, quantity: int, side: str) -> float:
+    from backtest.costs import calculate_trading_costs
+    return calculate_trading_costs(entry_price, exit_price, quantity, side)['total_costs']
 
 
 class CloseAllRequest(BaseModel):
@@ -478,7 +468,6 @@ async def close_all_bot_positions(
         running, pid = is_bot_running(user_id, bot.id)
 
         from db.models import Position as _Pos, Trade as _Trade
-        from backtest.costs import calculate_trading_costs
         from config import IST
         positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
 
@@ -512,7 +501,7 @@ async def close_all_bot_positions(
                 else:
                     pnl = (pos.entry_price - exit_price) * pos.quantity
                     pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
-                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                costs = _calc_costs(pos.entry_price, exit_price, pos.quantity, side)
                 trade = _Trade(
                     user_id=user_id,
                     bot_id=bot.id,

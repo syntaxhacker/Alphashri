@@ -20,7 +20,6 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from backtest.costs import calculate_trading_costs
 from trading.timezone import IST
 from trading.utils import PRE_MARKET, MARKET_OPEN, OR_END, FORCE_EXIT, MARKET_CLOSE
 
@@ -321,7 +320,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             except Exception:
                 pass
             side = self._side_str(pos.side, "LONG_SHORT")
-            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+            costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
             order_mgr = self._get_order_manager()
             if order_mgr:
                 tag_str = self._build_order_tag(pos.strategy_name, pos.symbol)
@@ -380,7 +379,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 except Exception:
                     pass
                 side = self._side_str(pos.side, "LONG_SHORT")
-                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
                 self.portfolio.close_position(
                     strategy_id=pos.strategy_id,
                     symbol=pos.symbol,
@@ -609,12 +608,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 'side': p.side,
                                 'quantity': p.quantity,
                                 'entry_price': p.entry_price,
-                                'stop_loss': p.stop_loss or 0.0,
-                                'take_profit': p.take_profit or 0.0,
+                                'stop_loss': self._safe_stop_loss(p),
+                                'take_profit': self._safe_take_profit(p),
                                 'entry_time': p.entry_time.isoformat() if p.entry_time else None,
                                 'current_price': p.current_price or p.entry_price,
-                                'peak_price': getattr(p, 'peak_price', None) or p.entry_price,
-                                'low_price': getattr(p, 'low_price', None) or p.entry_price,
+                                'peak_price': self._safe_peak_price(p, p.entry_price),
+                                'low_price': self._safe_low_price(p, p.entry_price),
                                 'strategy_type': getattr(p, 'strategy_type', '') or '',
                                 'metadata': _json.loads(p.metadata_json) if getattr(p, 'metadata_json', None) else {},
                             }
@@ -662,7 +661,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 if exit_price <= 0:
                                     continue
                                 side = self._side_str(pos.side, "LONG_SHORT")
-                                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                                costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
                                 trade = self.portfolio.close_position(
                                     strategy_id=pos.strategy_id,
                                     symbol=pos.symbol,
@@ -710,8 +709,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         return _is_trading_hours(self._ist_now())
 
     def is_force_exit_time(self) -> bool:
-        now = self._ist_now()
-        return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
+        from trading.utils import is_force_exit_time
+        return is_force_exit_time(self._ist_now())
 
     def refresh_watchlist(self, strategy_id=None):
         """Refresh watchlist - per strategy if strategy_id provided."""
@@ -1339,7 +1338,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
                         continue
                     side = self._side_str(pos.side, "LONG_SHORT")
-                    costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
+                    costs = self._calc_costs(pos.entry_price, pos.current_price, pos.quantity, side)
                     trade = self.portfolio.close_position(
                         strategy_id=pos.strategy_id, symbol=pos.symbol,
                         exit_price=pos.current_price, exit_reason="FORCE_CLOSE",

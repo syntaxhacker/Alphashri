@@ -9,6 +9,8 @@ Centralizes:
 - make_cache_helpers factory to bind the above per-module without duplicating the 4 thin wrapper defs (~16-line clone).
 - Common data processing: _compute_pearson_correlation_matrix for sector/correlation corr calcs
   (eliminates the 6/10-line clones of diff/log/corrcoef/align logic).
+- Side constants (_BUY_SIDES, _SELL_SIDES) and market price helper (_get_market_price)
+  duplicated across bots_api/bot_operations.py and paper/orders.py.
 
 These were duplicated across api/screener_api/screener_models.py, api/sector.py,
 api/chart.py, backtest/api.py etc.
@@ -21,6 +23,28 @@ from typing import Any, Dict, Optional, Callable
 import json
 import math
 import time
+
+
+_BUY_SIDES = ("BUY", "LONG")
+_SELL_SIDES = ("SELL", "SHORT")
+
+
+def _get_market_price(symbol: str) -> float | None:
+    """Fetch current market price for a symbol.
+
+    Uses Upstox intraday V3 API, falling back to None on failure.
+    This is used to validate/override stale exit prices from the frontend.
+    """
+    try:
+        import config as _cfg
+        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        _api = UpstoxAPI(api_key=_cfg.UPSTOX_API_KEY, api_secret=_cfg.UPSTOX_API_SECRET, quiet=True)
+        _df = _api.fetch_intraday_data_v3(symbol, "1")
+        if _df is not None and not _df.empty:
+            return float(_df.iloc[-1]["close"])
+    except Exception:
+        pass
+    return None
 
 
 def _to_float(value: Any, default: float = 0.0) -> float:
