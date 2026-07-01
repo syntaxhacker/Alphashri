@@ -435,17 +435,8 @@ def invalidate_backtest_cache(user_id: int, strategy_id: Optional[str] = None) -
 
 
 def invalidate_news_cache() -> int:
-    deleted = 0
-    deleted += cache_delete_pattern("news:all:*")
-    deleted += cache_delete_pattern("news:recent:*")
-    deleted += cache_delete_pattern("news:sentiment:*")
-    deleted += cache_delete_pattern("news:llm:*")
-    deleted += cache_delete_pattern("news:article:*")
-    return deleted
-
-
-def invalidate_chart_cache() -> int:
-    return cache_delete_pattern("chart:*")
+    """Invalidate all news cache entries."""
+    return cache_delete_pattern("news:all:*") + cache_delete_pattern("news:recent:*") + cache_delete_pattern("news:sentiment:*") + cache_delete_pattern("news:llm:*") + cache_delete_pattern("news:article:*") + cache_delete_pattern("news:chart:*") + cache_delete_pattern("news:articles:*") + cache_delete_pattern("news:inst_articles:*")
 
 
 def invalidate_screener_cache() -> int:

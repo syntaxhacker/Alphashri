@@ -149,6 +149,13 @@ def _store_52w_ranges_in_redis(data: dict):
         cache_set(f"52w_range:{symbol}", info, ttl=_52W_RANGE_CACHE_TTL)
     cache_set("52w_range:all", clean, ttl=_52W_RANGE_CACHE_TTL)
 
+    # Also clear the paper trading 52W file cache
+    import shutil
+    paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
+    if paper_cache_dir.exists():
+        shutil.rmtree(paper_cache_dir)
+        paper_cache_dir.mkdir(parents=True, exist_ok=True)
+
 
 def _load_52w_ranges_from_redis() -> dict:
     """Load 52W ranges from Redis (bulk key) or return empty dict."""
@@ -249,6 +256,14 @@ async def compute_52w_ranges_task():
 
             n = invalidate_screener_cache()
             print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
+
+            # Also clear the paper trading 52W file cache
+            import shutil
+            from pathlib import Path
+            paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
+            if paper_cache_dir.exists():
+                shutil.rmtree(paper_cache_dir)
+                paper_cache_dir.mkdir(parents=True, exist_ok=True)
         except asyncio.CancelledError:
             break
         except Exception as e:

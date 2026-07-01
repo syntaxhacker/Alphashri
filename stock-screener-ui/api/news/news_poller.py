@@ -287,16 +287,9 @@ async def news_poller_task():
                                         )
                                         saved_count += 1
 
-                                        from cache.redis_client import cache_delete_pattern, is_cache_available
-                                        if is_cache_available():
-                                            cache_delete_pattern("news:all:*")
-                                            cache_delete_pattern("news:recent:*")
-                                            if analysis:
-                                                for sym in symbols:
-                                                    code = sym.get('code', '') if isinstance(sym, dict) else str(sym)
-                                                    if code:
-                                                        cache_delete_pattern(f"news:sentiment:{code.upper()}")
-                                            poller_logger.debug("Invalidated news cache after saving article")
+                                        from cache.redis_client import invalidate_news_cache
+                                        invalidate_news_cache()
+                                        poller_logger.debug("Invalidated news cache after saving article")
                                     except Exception as save_err:
                                         poller_logger.error(f"Failed to save article {url}: {save_err}")
 
