@@ -286,6 +286,7 @@ async def lifespan(app: FastAPI):
     prewarm = None
     _52w_task = None
     news_poller = None
+    _prefetch_task = None
     try:
         from db.database import init_db
         init_db()
@@ -305,7 +306,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
         try:
-            asyncio.create_task(news_startup_prefetch())
+            _prefetch_task = asyncio.create_task(news_startup_prefetch())
             print("📰 News prefetch scheduled")
         except Exception as e:
             print(f"⚠️ News prefetch failed: {e}")
@@ -339,6 +340,10 @@ async def lifespan(app: FastAPI):
         _52w_task.cancel()
     if news_poller:
         news_poller.cancel()
+    if _prefetch_task:
+        _prefetch_task.cancel()
+    if _recovery_task:
+        _recovery_task.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
     from db.database import engine

@@ -84,6 +84,8 @@ async def sector_poller_task():
                     print(f"⚠️ Error polling sector data for {market}: {e}")
 
             await asyncio.sleep(60)
+        except asyncio.CancelledError:
+            break
         except Exception as e:
             print(f"⚠️ Sector poller error: {e}")
             await asyncio.sleep(10)
@@ -325,6 +327,9 @@ async def news_poller_task():
             for source_id, items in results:
                 await _process_source(source_id, items)
 
+        except asyncio.CancelledError:
+            poller_logger.info("News poller cancelled")
+            break
         except Exception as e:
             poller_logger.error(f"Poller loop error: {e}")
 

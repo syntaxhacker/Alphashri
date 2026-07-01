@@ -852,6 +852,9 @@ async def bot_auto_recovery_task():
                             print(f"[Auto-Recovery] Bot {bot_id} restarted")
                         except Exception as e:
                             print(f"[Auto-Recovery] Restart failed for bot {bot_id}: {e}")
+        except asyncio.CancelledError:
+            print("[Auto-Recovery] Task cancelled")
+            break
         except Exception as e:
             print(f"[Auto-Recovery] Error: {e}")
 

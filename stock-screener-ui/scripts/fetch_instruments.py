@@ -20,7 +20,7 @@ def main():
     DEST.parent.mkdir(parents=True, exist_ok=True)
 
     print(f"Downloading instruments from Upstox...")
-    resp = urlopen(INSTRUMENTS_URL)
+    resp = urlopen(INSTRUMENTS_URL, timeout=30)
     raw = resp.read()
     decompressed = gzip.decompress(raw)
     data = json.loads(decompressed)
