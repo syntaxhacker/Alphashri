@@ -890,10 +890,17 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         return items
 
     def _has_meaningful_scan_items(self, items: list) -> bool:
-        """Check if scan_items have any symbols with real data (not all skipped/rejected)."""
+        """Check if scan_items have any data worth persisting.
+
+        Returns True if:
+        - At least one item has 'watching' or 'signal' status (real data), OR
+        - Items have actual scan results (not just rate-limit failures)
+        """
+        if not items:
+            return False
+        # If any item has a price, the scan actually ran — persist even if all skipped
         for item in items:
-            status = item.get('status', '')
-            if status in ('watching', 'signal'):
+            if item.get('price') is not None or item.get('status') in ('watching', 'signal'):
                 return True
         return False
 
