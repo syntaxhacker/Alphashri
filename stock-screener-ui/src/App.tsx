@@ -23,7 +23,7 @@ const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m =
 const ChartView = lazy(() => import("./pages/chart/ChartView"));
 const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
-const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage"));
+const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);

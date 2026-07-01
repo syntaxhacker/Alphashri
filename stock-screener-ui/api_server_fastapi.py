@@ -228,6 +228,11 @@ async def compute_52w_ranges_task():
 
             from api.admin_routes import _run_52w_batch_subprocess
 
+            # Invalidate stale cache BEFORE batch starts, so readers fall through to DB
+            from cache.redis_client import invalidate_52w_range_cache
+            invalidate_52w_range_cache()
+            print(f"[52W Range] Invalidated stale 52W range cache before batch")
+
             print(f"[52W Range] Starting scheduled incremental batch (every {interval}s)")
             await asyncio.to_thread(_run_52w_batch_subprocess, True, True, 0)
 

@@ -183,11 +183,8 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
     finally:
         db.close()
 
-    if redis:
-        from api_server_fastapi import _store_52w_ranges_in_redis
-
-        _store_52w_ranges_in_redis(data)
-
+    # Redis write is deferred to the merge step below (line ~348) so the bulk
+    # key is written ONCE with the complete merged data, not twice in a row.
     return added, updated
 
 
