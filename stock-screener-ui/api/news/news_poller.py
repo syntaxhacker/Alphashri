@@ -202,125 +202,128 @@ async def news_poller_task():
 
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
 
-            for source_id in source_ids:
+            # Skip sources that consistently return nothing (tracked across cycles)
+            if not hasattr(news_poller_task, '_dead_sources'):
+                news_poller_task._dead_sources = set()
+            active_sources = [s for s in source_ids if s not in news_poller_task._dead_sources]
+
+            async def _fetch_source(source_id: str) -> tuple:
+                """Fetch a single source with timeout."""
                 try:
-                    items = await asyncio.to_thread(fetch_news, source=source_id, limit=20)
-                    if not items:
-                        poller_logger.warning(f"No items returned from {source_id}")
-                        continue
-
-                    current_top_id = items[0].get('id')
-                    last_id = last_seen_ids.get(source_id)
-
-                    if last_id is None:
-                        last_seen_ids[source_id] = current_top_id
-                        poller_logger.info(f"Initialized tracking for {source_id}, top_id={current_top_id}")
-                        continue
-
-                    if current_top_id != last_id:
-                        new_items = []
-                        for item in items:
-                            if item.get('id') == last_id:
-                                break
-                            new_items.append(item)
-
-                        if new_items:
-                            poller_logger.info(f"Found {len(new_items)} new items from {source_id}")
-
-                            high_impact_items = []
-                            saved_count = 0
-                            skipped_count = 0
-
-                            for item in new_items:
-                                try:
-                                    headline = item.get('headline', '')
-                                    url = item.get('sourceUrl', '')
-
-                                    if not url or len(headline) < 30:
-                                        skipped_count += 1
-                                        continue
-
-                                    existing = persistence.get_article_by_url(url)
-                                    if existing:
-                                        continue
-
-                                    full_article = await asyncio.to_thread(fetch_article_content, url)
-                                    content = full_article.get('description', '')
-                                    symbols = full_article.get('symbols', [])
-
-                                    if 'error' in full_article or not content:
-                                        poller_logger.warning(f"Skipping empty article: {headline[:60]} | error={full_article.get('error', 'no content')}")
-                                        skipped_count += 1
-                                        continue
-
-                                    published_at = None
-                                    if full_article.get('publishedAt'):
-                                        try:
-                                            published_at = datetime.fromisoformat(full_article['publishedAt'].replace('Z', '+00:00'))
-                                        except Exception:
-                                            pass
-
-                                    analysis = None
-                                    if _llm_available and article_analyzer:
-                                        try:
-                                            analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
-                                            item['analysis'] = analysis
-
-                                            if analysis.get('impact_score', 0) >= 8:
-                                                high_impact_items.append(item)
-                                        except Exception as llm_err:
-                                            poller_logger.error(f"LLM analysis failed for {url}: {llm_err}")
-
-                                    try:
-                                        await asyncio.to_thread(
-                                            persistence.save_article,
-                                            url=url,
-                                            headline=headline,
-                                            content=content,
-                                            source=source_id,
-                                            source_url=url,
-                                            published_at=published_at,
-                                            symbols=symbols,
-                                            sentiment=analysis.get('sentiment') if analysis else None,
-                                            impact_score=analysis.get('impact_score') if analysis else None,
-                                            analysis=analysis
-                                        )
-                                        saved_count += 1
-
-                                        from cache.redis_client import invalidate_news_cache
-                                        invalidate_news_cache()
-                                        poller_logger.debug("Invalidated news cache after saving article")
-                                    except Exception as save_err:
-                                        poller_logger.error(f"Failed to save article {url}: {save_err}")
-
-                                except Exception as e:
-                                    poller_logger.error(f"Processing failed for {item.get('id')}: {e}")
-
-                            if saved_count > 0 or skipped_count > 0:
-                                poller_logger.info(f"Source {source_id}: saved={saved_count}, skipped={skipped_count}")
-
-                            await news_ws_manager.broadcast({
-                                "type": "new_items",
-                                "source": source_id,
-                                "items": new_items,
-                                "timestamp": datetime.now().isoformat()
-                            })
-
-                            if high_impact_items:
-                                poller_logger.info(f"Broadcasting {len(high_impact_items)} high impact alerts from {source_id}")
-                                await news_ws_manager.broadcast({
-                                    "type": "high_impact_alert",
-                                    "source": source_id,
-                                    "items": high_impact_items,
-                                    "timestamp": datetime.now().isoformat()
-                                })
-
-                        last_seen_ids[source_id] = current_top_id
-
+                    items = await asyncio.wait_for(
+                        asyncio.to_thread(fetch_news, source=source_id, limit=20),
+                        timeout=15,
+                    )
+                    return source_id, items or []
+                except asyncio.TimeoutError:
+                    return source_id, []
                 except Exception as e:
-                    poller_logger.error(f"Error polling {source_id}: {e}")
+                    poller_logger.warning(f"Error fetching {source_id}: {e}")
+                    return source_id, []
 
-                await asyncio.sleep(2)
+            results = await asyncio.gather(*[_fetch_source(s) for s in active_sources])
+
+            async def _process_source(source_id: str, items: list):
+                """Process fetched items for a single source."""
+                key = f"_empty_count_{source_id}"
+                if not items:
+                    count = getattr(news_poller_task, key, 0) + 1
+                    setattr(news_poller_task, key, count)
+                    if count >= 3:
+                        news_poller_task._dead_sources.add(source_id)
+                    poller_logger.warning(f"No items returned from {source_id} (empty count: {count})")
+                    return
+
+                setattr(news_poller_task, key, 0)
+                news_poller_task._dead_sources.discard(source_id)
+
+                current_top_id = items[0].get('id')
+                last_id = last_seen_ids.get(source_id)
+
+                if last_id is None:
+                    last_seen_ids[source_id] = current_top_id
+                    poller_logger.info(f"Initialized tracking for {source_id}, top_id={current_top_id}")
+                    return
+
+                if current_top_id == last_id:
+                    return
+
+                new_items = []
+                for item in items:
+                    if item.get('id') == last_id:
+                        break
+                    new_items.append(item)
+                if not new_items:
+                    return
+
+                poller_logger.info(f"Found {len(new_items)} new items from {source_id}")
+                high_impact_items = []
+                saved_count = 0
+                skipped_count = 0
+
+                for item in new_items:
+                    try:
+                        headline = item.get('headline', '')
+                        url = item.get('sourceUrl', '')
+                        if not url or len(headline) < 30:
+                            skipped_count += 1
+                            continue
+
+                        existing = persistence.get_article_by_url(url)
+                        if existing:
+                            continue
+
+                        full_article = await asyncio.to_thread(fetch_article_content, url)
+                        content = full_article.get('description', '')
+                        symbols = full_article.get('symbols', [])
+                        if 'error' in full_article or not content:
+                            skipped_count += 1
+                            continue
+
+                        published_at = None
+                        if full_article.get('publishedAt'):
+                            try:
+                                published_at = datetime.fromisoformat(full_article['publishedAt'].replace('Z', '+00:00'))
+                            except Exception:
+                                pass
+
+                        analysis = None
+                        if _llm_available and article_analyzer:
+                            try:
+                                analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
+                                if analysis.get('impact_score', 0) >= 8:
+                                    high_impact_items.append(item)
+                            except Exception as llm_err:
+                                poller_logger.error(f"LLM analysis failed: {llm_err}")
+
+                        try:
+                            await asyncio.to_thread(
+                                persistence.save_article, url=url, headline=headline,
+                                content=content, source=source_id, source_url=url,
+                                published_at=published_at, symbols=symbols,
+                                sentiment=analysis.get('sentiment') if analysis else None,
+                                impact_score=analysis.get('impact_score') if analysis else None,
+                                analysis=analysis,
+                            )
+                            saved_count += 1
+                            from cache.redis_client import invalidate_news_cache
+                            invalidate_news_cache()
+                        except Exception as save_err:
+                            poller_logger.error(f"Failed to save article: {save_err}")
+                    except Exception as e:
+                        poller_logger.error(f"Processing failed: {e}")
+
+                if saved_count or skipped_count:
+                    poller_logger.info(f"Source {source_id}: saved={saved_count}, skipped={skipped_count}")
+                await news_ws_manager.broadcast({"type": "new_items", "source": source_id, "items": new_items})
+                if high_impact_items:
+                    await news_ws_manager.broadcast({"type": "high_impact_alert", "source": source_id, "items": high_impact_items})
+
+                last_seen_ids[source_id] = current_top_id
+
+            # Process all sources (fetched in parallel above, processed here)
+            for source_id, items in results:
+                await _process_source(source_id, items)
 
         except Exception as e:
             poller_logger.error(f"Poller loop error: {e}")
