@@ -151,6 +151,7 @@ def _store_52w_ranges_in_redis(data: dict):
 
     # Also clear the paper trading 52W file cache
     import shutil
+    from pathlib import Path
     paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
     if paper_cache_dir.exists():
         shutil.rmtree(paper_cache_dir)
@@ -234,11 +235,6 @@ async def compute_52w_ranges_task():
                 continue
 
             from api.admin_routes import _run_52w_batch_subprocess
-
-            # Invalidate stale cache BEFORE batch starts, so readers fall through to DB
-            from cache.redis_client import invalidate_52w_range_cache
-            invalidate_52w_range_cache()
-            print(f"[52W Range] Invalidated stale 52W range cache before batch")
 
             print(f"[52W Range] Starting scheduled incremental batch (every {interval}s)")
             await asyncio.to_thread(_run_52w_batch_subprocess, True, True, 0)

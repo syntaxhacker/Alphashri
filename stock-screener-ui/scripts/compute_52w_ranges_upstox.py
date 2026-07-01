@@ -162,6 +162,7 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
                 cur.high_52w = info["high"]
                 cur.low_52w = info["low"]
                 cur.close = info["close"]
+                cur.days_ago = info.get("days_ago")
                 cur.updated_at = now
                 updated += 1
             else:
@@ -171,6 +172,7 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
                         high_52w=info["high"],
                         low_52w=info["low"],
                         close=info["close"],
+                        days_ago=info.get("days_ago"),
                         updated_at=now,
                     )
                 )
@@ -342,10 +344,20 @@ def main() -> None:
     if args.redis and not args.dry_run and all_ok:
         from api_server_fastapi import _load_52w_ranges_from_redis, _store_52w_ranges_in_redis
 
+        # Try Redis first (has days_ago), fall back to DB if cache was cleared
         merged = _load_52w_ranges_from_redis()
+        if not merged:
+            from db.database import SessionLocal
+            from db.models.stock_52w_touch import Stock52WeekRange
+            db = SessionLocal()
+            try:
+                rows = db.query(Stock52WeekRange).all()
+                merged = {r.symbol: {"high": r.high_52w, "low": r.low_52w, "close": r.close, "days_ago": r.days_ago} for r in rows}
+            finally:
+                db.close()
         merged.update(all_ok)
         _store_52w_ranges_in_redis(merged)
-        print(f"Redis cache updated ({len(all_ok)} symbols merged into bulk key).")
+        print(f"Redis cache updated ({len(merged)} symbols).")
 
     if args.dry_run and all_ok:
         sym, entry = next(iter(all_ok.items()))
