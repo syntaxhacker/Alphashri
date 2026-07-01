@@ -820,3 +820,39 @@ async def get_strategy_performance(
     finally:
         if close_db:
             db.close()
+
+
+async def bot_auto_recovery_task():
+    """Periodically check and restart crashed bots."""
+    from .bots_router import is_bot_running, start_bot_process
+    from db.database import SessionLocal
+    from db.models.bot import BotConfig
+
+    await asyncio.sleep(30)
+    while True:
+        try:
+            user_bots: dict[int, list[int]] = {}
+            with SessionLocal() as db:
+                bots = db.query(BotConfig).filter(
+                    BotConfig.is_active == True,
+                    BotConfig.user_id.isnot(None),
+                ).all()
+                for b in bots:
+                    if b.user_id not in user_bots:
+                        user_bots[b.user_id] = []
+                    user_bots[b.user_id].append(b.id)
+
+            for user_id, bot_ids in user_bots.items():
+                for bot_id in bot_ids:
+                    running, pid = is_bot_running(user_id, bot_id)
+                    if running is False:
+                        print(f"[Auto-Recovery] Bot {bot_id} (user {user_id}) crashed — restarting...")
+                        try:
+                            start_bot_process(user_id, bot_id)
+                            print(f"[Auto-Recovery] Bot {bot_id} restarted")
+                        except Exception as e:
+                            print(f"[Auto-Recovery] Restart failed for bot {bot_id}: {e}")
+        except Exception as e:
+            print(f"[Auto-Recovery] Error: {e}")
+
+        await asyncio.sleep(60)

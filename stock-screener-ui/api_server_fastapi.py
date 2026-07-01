@@ -49,6 +49,7 @@ from api.news_routes import (
     news_ws_manager, sector_ws_manager,
 )
 from api.news.news_poller import _init_news_modules
+from api.bots_api.bot_operations import bot_auto_recovery_task
 
 _news_available = False
 _llm_available = False
@@ -320,6 +321,12 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ 52W Range task failed: {e}")
             _52w_task = None
+
+        try:
+            _recovery_task = asyncio.create_task(bot_auto_recovery_task())
+            print("🔄 Bot auto-recovery task started")
+        except Exception as e:
+            print(f"⚠️ Bot auto-recovery task failed: {e}")
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -660,6 +667,13 @@ async def get_52w_range_bulk():
     finally:
         db.close()
 
+
+try:
+    from api.strategy_performance import router as strategy_performance_router
+    app.include_router(strategy_performance_router)
+    print("✅ Strategy Performance API loaded at /api/strategy-performance")
+except Exception as e:
+    print(f"⚠️ Could not load strategy performance API: {e}")
 
 # ======
 # Router includes — existing modules

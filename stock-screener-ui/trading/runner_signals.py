@@ -64,6 +64,19 @@ class RunnerSignalsMixin:
             item.update(extra)
         return item
 
+    def _remaining_scan_budget(self) -> int:
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is None:
+                return 15
+            now = __import__('time').time()
+            minute_count = client.zcount('upstox:rl:hits', now - 60, now)
+            remaining = max(1, 15 - minute_count // 10)
+            return min(15, remaining)
+        except Exception:
+            return 15
+
     def _mark_skipped(self, item: dict, reason: str) -> dict:
         item['status'] = 'skipped'
         item['reason'] = reason
@@ -201,7 +214,12 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
+        budget = self._remaining_scan_budget()
+        scanned = 0
         for symbol in watchlist:
+            if scanned >= budget and strategy_id not in (None, 'shared'):
+                break
+
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -219,7 +237,8 @@ class RunnerSignalsMixin:
                 prev_data = self.fetch_previous_day_data(symbol)
                 if not prev_data:
                     continue
-
+                scanned += 1
+                
                 gen = runner.signal_generator
                 pivot_points = gen.calculate_pivot_points(
                     prev_data['prev_high'], prev_data['prev_low'], prev_data['prev_close']
@@ -282,6 +301,7 @@ class RunnerSignalsMixin:
                 )
                 if not ema_data:
                     continue
+                scanned += 1
 
                 signal = runner.signal_generator.check_entry(symbol, ema_data)
 
@@ -297,6 +317,7 @@ class RunnerSignalsMixin:
                     continue
 
                 self.or_levels[symbol] = or_levels
+                scanned += 1
 
                 current_price = or_levels.get('latest_price', or_levels['or_close'])
                 or_high = or_levels['or_high']
@@ -392,7 +413,12 @@ class RunnerSignalsMixin:
         if strategy_id not in self._swing_entered_today:
             self._swing_entered_today[strategy_id] = set()
 
+        budget = self._remaining_scan_budget()
+        scanned = 0
         for symbol in watchlist:
+            if scanned >= budget:
+                break
+
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -405,6 +431,7 @@ class RunnerSignalsMixin:
             daily_data = self.fetch_daily_data(symbol)
             if not daily_data:
                 continue
+            scanned += 1
 
             market_data = {
                 'current_price': daily_data['current_price'],
