@@ -182,11 +182,4 @@ async def update_trade_notes(
         return trade.to_dict()
 
 
-@router.get("/journal/{path:path}")
-async def journal_deprecated(path: str):
-    """Journal endpoints are deprecated. Data is available through /api/bots endpoints."""
-    from fastapi.responses import JSONResponse
-    return JSONResponse(
-        content={"status": "deprecated", "message": "Journal is no longer used. Use /api/bots/{bot_id}/performance instead."},
-        status_code=410,
-    )
+

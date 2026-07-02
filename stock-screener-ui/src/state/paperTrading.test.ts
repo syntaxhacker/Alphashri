@@ -7,7 +7,6 @@ import {
   setPortfolio,
   setTrades,
   setDailySummary,
-  setPerformanceSummary,
   setSymbolPerformance,
   setFilterDate,
   setFilterFromDate,
@@ -42,7 +41,6 @@ import type {
   PaperTrade,
   PortfolioStatus,
   DailySummary,
-  PerformanceSummary,
   SymbolPerformance,
   StrategyConfig,
   BotInfo,
@@ -120,7 +118,6 @@ describe("paperTrading state", () => {
     expect(state.portfolio).toBeNull();
     expect(state.trades).toEqual([]);
     expect(state.dailySummary).toBeNull();
-    expect(state.performanceSummary).toBeNull();
     expect(state.symbolPerformance).toEqual([]);
     expect(state.filterDate).toBeNull();
     expect(state.filterFromDate).toBeNull();
@@ -238,28 +235,6 @@ describe("setter functions", () => {
   it("setDailySummary accepts null", () => {
     setDailySummary(null);
     expect(getPaperTradingState().dailySummary).toBeNull();
-  });
-
-  it("setPerformanceSummary updates performanceSummary", () => {
-    const summary: PerformanceSummary = {
-      total_trades: 100,
-      winners: 60,
-      losers: 40,
-      win_rate: 60,
-      total_pnl: 50000,
-      net_pnl: 45000,
-      total_costs: 5000,
-      avg_win: 1500,
-      avg_loss: 800,
-      profit_factor: 1.8,
-    };
-    setPerformanceSummary(summary);
-    expect(getPaperTradingState().performanceSummary).toEqual(summary);
-  });
-
-  it("setPerformanceSummary accepts null", () => {
-    setPerformanceSummary(null);
-    expect(getPaperTradingState().performanceSummary).toBeNull();
   });
 
   it("setSymbolPerformance updates symbolPerformance", () => {

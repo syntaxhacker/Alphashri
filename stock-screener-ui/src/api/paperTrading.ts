@@ -7,7 +7,6 @@ import type {
   PaperTrade,
   PortfolioStatus,
   DailySummary,
-  PerformanceSummary,
   SymbolPerformance,
   PaperChartData,
   StrategyConfig,
@@ -20,7 +19,6 @@ import {
   setPortfolio,
   setTrades,
   setDailySummary,
-  setPerformanceSummary,
   setSymbolPerformance,
   setChartData,
   setChartLoading,
@@ -224,19 +222,6 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
   }
 }
 
-// Fetch performance summary
-export async function fetchPerformanceSummary(): Promise<PerformanceSummary | null> {
-  try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/journal/summary`);
-    const data = await response.json();
-    setPerformanceSummary(data);
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch performance summary:", error);
-    return null;
-  }
-}
-
 // Fetch symbol performance
 export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
   try {
@@ -337,7 +322,6 @@ export async function refreshHistoryData(
     // If fromDate is provided, daysBack is ignored by fetchTrades (due to API logic)
     await Promise.all([
       fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack),
-      fetchPerformanceSummary(),
     ]);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Unknown error");

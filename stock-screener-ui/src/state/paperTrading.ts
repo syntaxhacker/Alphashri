@@ -9,7 +9,6 @@ import type {
   PaperTrade,
   PortfolioStatus,
   DailySummary,
-  PerformanceSummary,
   SymbolPerformance,
   PaperChartData,
   StrategyConfig,
@@ -32,7 +31,6 @@ export const initialPaperTradingState: PaperTradingState = {
 
   trades: [],
   dailySummary: null,
-  performanceSummary: null,
   symbolPerformance: [],
 
   filterDate: null,
@@ -136,11 +134,6 @@ export function setTrades(trades: PaperTrade[]) {
 
 export function setDailySummary(summary: DailySummary | null) {
   state = { ...state, dailySummary: summary };
-  notify();
-}
-
-export function setPerformanceSummary(summary: PerformanceSummary | null) {
-  state = { ...state, performanceSummary: summary };
   notify();
 }
 

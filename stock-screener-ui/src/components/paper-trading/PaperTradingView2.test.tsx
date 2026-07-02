@@ -10,7 +10,6 @@ const mockStateStore: any = {
   portfolio: null,
   trades: [],
   dailySummary: null,
-  performanceSummary: null,
   symbolPerformance: [],
   filterDate: null,
   filterFromDate: null,
