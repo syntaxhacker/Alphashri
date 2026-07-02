@@ -2,12 +2,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ScreenerContent } from "./ScreenerContent";
 import type { ReactElement } from "react";
 
 const renderWithProvider = (ui: ReactElement) =>
-  render(<MantineProvider>{ui}</MantineProvider>);
+  render(<UIProvider>{ui}</UIProvider>);
 
 vi.mock("./ScreenerSection", () => ({
   ScreenerSection: ({ title, description }: any) => (

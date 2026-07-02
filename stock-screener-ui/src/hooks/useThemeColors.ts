@@ -1,8 +1,9 @@
-import { useMantineColorScheme, useMantineTheme, rem, type MantineColor } from "@mantine/core";
+import { useColorScheme, useTheme, rem } from "@/ui";
+import type { MantineColor } from "@/ui";
 
 export function useThemeColors() {
-  const { colorScheme } = useMantineColorScheme();
-  const theme = useMantineTheme();
+  const { colorScheme } = useColorScheme();
+  const theme = useTheme();
   const isDark = colorScheme === "dark";
 
   return {

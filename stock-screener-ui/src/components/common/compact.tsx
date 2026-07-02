@@ -1,16 +1,6 @@
 import type { ReactNode, CSSProperties } from "react";
-import {
-  Card,
-  Group,
-  Box,
-  Paper,
-  SimpleGrid,
-  Stack,
-  Text,
-  Title,
-  type PaperProps,
-  type StackProps,
-} from "@mantine/core";
+import { Card, Group, Box, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
+import type { UIStackProps, UIPaperProps } from "@/ui";
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
@@ -24,7 +14,7 @@ const SCROLL_CONTAINER_STYLE: CSSProperties = {
   overflow: "auto",
 };
 
-interface CompactPageProps extends StackProps {
+interface CompactPageProps extends UIStackProps {
   title?: ReactNode;
   description?: ReactNode;
   actions?: ReactNode;
@@ -72,7 +62,7 @@ export function CompactPage({
   );
 }
 
-interface CompactPanelProps extends PaperProps {
+interface CompactPanelProps extends UIPaperProps {
   children: ReactNode;
   title?: ReactNode;
   description?: ReactNode;
@@ -132,7 +122,7 @@ export function CompactPanel({
   );
 }
 
-interface CompactStatProps extends PaperProps {
+interface CompactStatProps extends UIPaperProps {
   label: ReactNode;
   value: ReactNode;
   tone?: string;

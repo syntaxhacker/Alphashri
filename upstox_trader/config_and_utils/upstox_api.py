@@ -31,6 +31,7 @@ except ImportError:
 
 class RateLimitExceeded(Exception):
     """Raised when the rate limiter cannot acquire capacity within timeout."""
+    response = None
 
 
 class UpstoxAPI(BaseAPIClient):

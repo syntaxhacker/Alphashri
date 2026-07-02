@@ -7,9 +7,9 @@ import {
   ScrollArea,
   Progress,
   Stack,
-  useMantineColorScheme,
-  useMantineTheme,
-} from "@mantine/core";
+  useColorScheme,
+  useTheme,
+} from "@/ui";
 import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
 import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
@@ -44,10 +44,10 @@ function OptionColumn({
   maxOI: number;
   maxVolume: number;
   onRowClick: (c: OptionContract) => void;
-  theme: ReturnType<typeof useMantineTheme>;
+  theme: ReturnType<typeof useTheme>;
   isHovered: boolean;
 }) {
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const styles = getStyles(theme, colorScheme === "dark");
   if (!contract) {
     return (
@@ -300,8 +300,8 @@ function OptionChainTableInner({
   spotPrice,
   onRowClick,
 }: OptionChainTableProps) {
-  const theme = useMantineTheme();
-  const { colorScheme } = useMantineColorScheme();
+  const theme = useTheme();
+  const { colorScheme } = useColorScheme();
   const styles = getStyles(theme, colorScheme === "dark");
   const maxCE_OI = Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0), 1);
   const maxPE_OI = Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0), 1);

@@ -1,4 +1,4 @@
-import { Box, Group, Text, Badge, ThemeIcon, Timeline } from "@mantine/core";
+import { Box, Group, Text, Badge, ThemeIcon, Timeline, TimelineItem } from "@/ui";
 import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { CompactPanel } from "../../common/compact";
@@ -108,7 +108,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
           data-testid="options-alerts-timeline"
         >
           {alerts.map((alert, i) => (
-            <Timeline.Item
+            <TimelineItem
               key={i}
               bullet={alert.icon}
               color={alert.color}
@@ -128,7 +128,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
               <Text size="sm" c="dimmed" mt={4}>
                 {alert.description}
               </Text>
-            </Timeline.Item>
+            </TimelineItem>
           ))}
         </Timeline>
       )}

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { StrategiesPage } from "./StrategiesPage";
 import type { StrategiesPageProps } from "./types";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
@@ -45,36 +45,36 @@ const baseProps: StrategiesPageProps = {
 describe("StrategiesPage", () => {
   it("renders with data-testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategies-view")).toBeInTheDocument();
   });
 
   it("renders nav container", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategies-nav-container")).toBeInTheDocument();
   });
 
   it("renders content area", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategies-content")).toBeInTheDocument();
   });
 
   it("shows error state with Retry and Dismiss buttons", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} error="Something went wrong" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategies-error")).toBeInTheDocument();
     expect(screen.getByTestId("strategies-retry-btn")).toBeInTheDocument();
@@ -85,9 +85,9 @@ describe("StrategiesPage", () => {
     const onRefresh = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} error="Error" onRefresh={onRefresh} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("strategies-retry-btn"));
     expect(onRefresh).toHaveBeenCalledTimes(1);
@@ -97,9 +97,9 @@ describe("StrategiesPage", () => {
     const onClearError = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} error="Error" onClearError={onClearError} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("strategies-dismiss-btn"));
     expect(onClearError).toHaveBeenCalledTimes(1);
@@ -107,27 +107,27 @@ describe("StrategiesPage", () => {
 
   it("active view 'tree' renders TemplateTreeView", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} activeView="tree" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("template-tree-empty")).toBeInTheDocument();
   });
 
   it("active view 'performance' renders PerformanceView", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} activeView="performance" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("performance-empty-state")).toBeInTheDocument();
   });
 
   it("renders create modal when showCreateModal is true", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage {...baseProps} showCreateModal={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const modals = screen.getAllByTestId("strategy-form-modal");
     expect(modals.length).toBeGreaterThanOrEqual(1);
@@ -135,7 +135,7 @@ describe("StrategiesPage", () => {
 
   it("renders edit modal when showEditModal is true", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesPage
           {...baseProps}
           showEditModal={true}
@@ -159,7 +159,7 @@ describe("StrategiesPage", () => {
             gst_pct: 18, created_at: null, updated_at: null,
           }}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const modals = screen.getAllByTestId("strategy-form-modal");
     expect(modals.length).toBeGreaterThanOrEqual(1);

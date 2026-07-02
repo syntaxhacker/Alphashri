@@ -7,7 +7,7 @@ import {
   Tooltip,
   SegmentedControl,
   Box,
-} from "@mantine/core";
+} from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 
 type ScreenerViewMode = "table" | "heatmap";

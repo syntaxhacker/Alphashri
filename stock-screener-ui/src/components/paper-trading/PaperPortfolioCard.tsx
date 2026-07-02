@@ -1,4 +1,4 @@
-import { Group, Text } from "@mantine/core";
+import { Group, Text } from "@/ui";
 import { formatNumber, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
 export interface Portfolio {

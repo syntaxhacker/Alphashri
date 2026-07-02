@@ -1,4 +1,4 @@
-import { Text, Group, useMantineColorScheme, useMantineTheme } from "@mantine/core";
+import { Text, Group, useColorScheme, useTheme } from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { CompactPanel } from "../../common/compact";
@@ -23,8 +23,8 @@ interface IVSkewChartProps {
 }
 
 export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
-  const theme = useMantineTheme();
-  const { colorScheme } = useMantineColorScheme();
+  const theme = useTheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const chartData = useMemo(() => {

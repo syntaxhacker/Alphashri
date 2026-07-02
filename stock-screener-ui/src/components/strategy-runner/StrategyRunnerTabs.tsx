@@ -9,7 +9,7 @@ import {
   Box,
   Tooltip,
   ActionIcon,
-} from "@mantine/core";
+} from "@/ui";
 import {
   getPnLTextColor,
   formatTimeOnly,

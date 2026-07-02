@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Badge, Box, NavLink, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
+import { Badge, Box, NavLink, ScrollArea, Stack, Text, Tooltip } from "@/ui";
 import type { ScreenerOption } from "../../types";
 
 const RAIL_WIDTH = 152;

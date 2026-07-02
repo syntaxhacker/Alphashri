@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { ReplayConfigBar } from "./ReplayConfig";
 import type { ReplayConfig as ReplayConfigType } from "../../types/replay";
@@ -59,7 +59,7 @@ afterEach(() => {
 describe("ReplayConfig", () => {
   it("renders config bar with data-testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -68,7 +68,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-config")).toBeInTheDocument();
   });
@@ -78,7 +78,7 @@ describe("ReplayConfig", () => {
     const config: ReplayConfigType = { date: "2025-01-26", end_date: "", strategy: "ALL", symbols: [], refresh_cache: false, bot_uuid: "" };
     mockHolidays.holidays = [{ date: "2025-01-26", description: "Republic Day" }];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={config}
           isRunning={false}
@@ -87,7 +87,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(mockIsTradingHoliday).toHaveBeenCalledWith("2025-01-26");
   });
@@ -97,7 +97,7 @@ describe("ReplayConfig", () => {
     const config: ReplayConfigType = { date: "2025-01-26", end_date: "", strategy: "ALL", symbols: [], refresh_cache: false, bot_uuid: "" };
     mockHolidays.holidays = [{ date: "2025-01-26", description: "Republic Day" }];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={config}
           isRunning={false}
@@ -106,7 +106,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(mockIsTradingHoliday).toHaveBeenCalledWith("2025-01-26");
   });
@@ -114,7 +114,7 @@ describe("ReplayConfig", () => {
   it("clears holiday warning when date changed to non-holiday", () => {
     mockIsTradingHoliday.mockReturnValue(false);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -123,7 +123,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByText(/Trading holiday/)).not.toBeInTheDocument();
   });
@@ -131,7 +131,7 @@ describe("ReplayConfig", () => {
   it("clears holiday warning when date cleared", async () => {
     mockIsTradingHoliday.mockReturnValue(true);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={{ ...defaultConfig, date: "" }}
           isRunning={false}
@@ -140,14 +140,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByText(/Trading holiday/)).not.toBeInTheDocument();
   });
 
   it("renders Bot Select", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -156,14 +156,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-bot-select")).toBeInTheDocument();
   });
 
   it("renders From/To date picker inputs", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -172,7 +172,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-date-from")).toBeInTheDocument();
     expect(screen.getByTestId("replay-date-to")).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("ReplayConfig", () => {
 
   it("does NOT render Strategy Select (removed — bot has strategies)", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -189,14 +189,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("replay-strategy-select")).toBeNull();
   });
 
   it("renders Symbols Select", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -205,14 +205,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-symbols-select")).toBeInTheDocument();
   });
 
   it("renders Screener Load button next to symbols", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -221,14 +221,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-picker-btn")).toBeInTheDocument();
   });
 
   it("renders Refresh Cache switch", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -237,14 +237,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-refresh-cache-switch")).toBeInTheDocument();
   });
 
   it("renders Run Replay button when not running", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -253,14 +253,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-run-btn")).toBeInTheDocument();
   });
 
   it("Run Replay button is disabled when no date selected", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={{ ...defaultConfig, date: "" }}
           isRunning={false}
@@ -269,7 +269,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-run-btn")).toBeDisabled();
   });
@@ -278,7 +278,7 @@ describe("ReplayConfig", () => {
     const startReplay = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -287,7 +287,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("replay-run-btn"));
     expect(startReplay).toHaveBeenCalledTimes(1);
@@ -295,7 +295,7 @@ describe("ReplayConfig", () => {
 
   it("shows Stop button when isRunning is true", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={true}
@@ -304,7 +304,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-stop-btn")).toBeInTheDocument();
   });
@@ -313,7 +313,7 @@ describe("ReplayConfig", () => {
     const stopReplay = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={true}
@@ -322,7 +322,7 @@ describe("ReplayConfig", () => {
           stopReplay={stopReplay}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("replay-stop-btn"));
     expect(stopReplay).toHaveBeenCalledTimes(1);
@@ -330,7 +330,7 @@ describe("ReplayConfig", () => {
 
   it("shows Reset button when not running and date is set", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -339,14 +339,14 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-reset-btn")).toBeInTheDocument();
   });
 
   it("does not show Reset button when running", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={true}
@@ -355,7 +355,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("replay-reset-btn")).not.toBeInTheDocument();
   });
@@ -364,7 +364,7 @@ describe("ReplayConfig", () => {
     const reset = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayConfigBar
           config={defaultConfig}
           isRunning={false}
@@ -373,7 +373,7 @@ describe("ReplayConfig", () => {
           stopReplay={vi.fn()}
           reset={reset}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("replay-reset-btn"));
     expect(reset).toHaveBeenCalledTimes(1);

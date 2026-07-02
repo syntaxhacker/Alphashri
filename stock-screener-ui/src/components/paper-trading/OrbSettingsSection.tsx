@@ -1,4 +1,4 @@
-import { Text, Grid, Stack, NumberInput } from "@mantine/core";
+import { Text, Grid, Stack, NumberInput } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
 
 type ConfigValueHandler = (

@@ -3,10 +3,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerHeader } from "./ScreenerHeader";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 // Mock Mantine Select and SegmentedControl to native HTML elements for easier testing
-vi.mock("@mantine/core", async (importOriginal) => {
+vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -75,9 +75,9 @@ describe("ScreenerHeader", () => {
 
   it("renders compact header with status", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-header")).toBeInTheDocument();
     expect(screen.getByText("5 stocks")).toBeInTheDocument();
@@ -85,9 +85,9 @@ describe("ScreenerHeader", () => {
 
   it("calls onRefresh when refresh button clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
@@ -95,9 +95,9 @@ describe("ScreenerHeader", () => {
 
   it("shows loading state on refresh button", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const refreshBtn = screen.getByTestId("refresh-btn");
     expect(refreshBtn).toHaveAttribute("data-loading", "true");
@@ -105,9 +105,9 @@ describe("ScreenerHeader", () => {
 
   it("disables auto-refresh input when loading", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const autoRefreshInput = screen.getByTestId("auto-refresh-input");
     expect(autoRefreshInput).toBeDisabled();
@@ -115,9 +115,9 @@ describe("ScreenerHeader", () => {
 
   it("disables provider select when loading", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const providerSelect = screen.getByTestId("provider-select");
     expect(providerSelect).toBeDisabled();
@@ -125,9 +125,9 @@ describe("ScreenerHeader", () => {
 
   it("disables mode select when loading", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const modeSelect = screen.getByTestId("mode-select");
     expect(modeSelect).toBeDisabled();
@@ -135,9 +135,9 @@ describe("ScreenerHeader", () => {
 
   it("calls onAutoRefreshChange when auto-refresh value changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
     fireEvent.change(input, { target: { value: "120" } });
@@ -146,9 +146,9 @@ describe("ScreenerHeader", () => {
 
   it("renders provider select with correct options", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
     expect(select).toHaveValue("upstox");
@@ -158,9 +158,9 @@ describe("ScreenerHeader", () => {
 
   it("calls onProviderChange when provider changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
     fireEvent.change(select, { target: { value: "indmoney" } });
@@ -169,9 +169,9 @@ describe("ScreenerHeader", () => {
 
   it("renders mode select with correct options", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
     expect(select).toHaveValue("intraday");
@@ -181,9 +181,9 @@ describe("ScreenerHeader", () => {
 
   it("calls onModeChange when mode changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
     fireEvent.change(select, { target: { value: "historical" } });
@@ -192,9 +192,9 @@ describe("ScreenerHeader", () => {
 
   it("renders view mode toggle buttons", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("view-table")).toBeInTheDocument();
     expect(screen.getByTestId("view-heatmap")).toBeInTheDocument();
@@ -202,9 +202,9 @@ describe("ScreenerHeader", () => {
 
   it("calls onViewModeChange when table button clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("view-table"));
     expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("table");
@@ -212,9 +212,9 @@ describe("ScreenerHeader", () => {
 
   it("calls onViewModeChange when heatmap button clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("view-heatmap"));
     expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("heatmap");
@@ -222,9 +222,9 @@ describe("ScreenerHeader", () => {
 
   it("displays correct view mode state", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} viewMode="heatmap" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // The buttons themselves don't show active state in our mock, but we can verify they exist
     expect(screen.getByTestId("view-heatmap")).toBeInTheDocument();
@@ -232,9 +232,9 @@ describe("ScreenerHeader", () => {
 
   it("renders header controls", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("header-controls")).toBeInTheDocument();
     expect(screen.getByTestId("screener-view-toggle")).toBeInTheDocument();
@@ -242,9 +242,9 @@ describe("ScreenerHeader", () => {
 
   it("handles zero auto-refresh value", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} autoRefreshSeconds={0} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
     expect(input).toHaveValue("0");
@@ -252,9 +252,9 @@ describe("ScreenerHeader", () => {
 
   it("handles large auto-refresh value within limit", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} autoRefreshSeconds={3600} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
     expect(input).toHaveValue("3600");
@@ -262,9 +262,9 @@ describe("ScreenerHeader", () => {
 
   it("passes correct auto-refresh value to onAutoRefreshChange", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
     fireEvent.change(input, { target: { value: "300" } });
@@ -273,9 +273,9 @@ describe("ScreenerHeader", () => {
 
   it("handles provider change to indmoney", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const providerSelect = screen.getByTestId("provider-select");
     fireEvent.change(providerSelect, { target: { value: "indmoney" } });
@@ -284,9 +284,9 @@ describe("ScreenerHeader", () => {
 
   it("handles mode change to historical", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const modeSelect = screen.getByTestId("mode-select");
     fireEvent.change(modeSelect, { target: { value: "historical" } });
@@ -295,9 +295,9 @@ describe("ScreenerHeader", () => {
 
   it("renders with custom status", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeader {...defaultProps} status="Loading..." />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Loading...")).toBeInTheDocument();
   });

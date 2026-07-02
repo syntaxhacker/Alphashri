@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Stack } from "@mantine/core";
+import { Stack } from "@/ui";
 import { useTableSort } from "../../hooks/useTableSort";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";

@@ -4,7 +4,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -38,9 +38,9 @@ describe("NavbarLinksGroup", () => {
 
   it("renders nav item label", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("Screener")).toBeInTheDocument();
@@ -48,9 +48,9 @@ describe("NavbarLinksGroup", () => {
 
   it("renders with active state data attribute", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} active={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const navItem = screen.getByTestId("nav-screener");
@@ -59,9 +59,9 @@ describe("NavbarLinksGroup", () => {
 
   it("renders without data-active when inactive", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} active={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const navItem = screen.getByTestId("nav-screener");
@@ -70,9 +70,9 @@ describe("NavbarLinksGroup", () => {
 
   it("renders icon component", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("MockIcon")).toBeInTheDocument();
@@ -82,9 +82,9 @@ describe("NavbarLinksGroup", () => {
     const onNavigate = vi.fn();
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} onNavigate={onNavigate} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     // Get the navigate function returned by the mocked useNavigate hook
@@ -99,9 +99,9 @@ describe("NavbarLinksGroup", () => {
 
   it("renders with correct id based on label", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const navItem = screen.getByTestId("nav-screener");
@@ -111,9 +111,9 @@ describe("NavbarLinksGroup", () => {
   it("handles special label transformations for Paper Trading", () => {
     const props = { ...defaultProps, label: "Paper Trading" };
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("nav-paper")).toBeInTheDocument();
@@ -122,9 +122,9 @@ describe("NavbarLinksGroup", () => {
   it("handles Sector Analysis transformation", () => {
     const props = { ...defaultProps, label: "Sector Analysis" };
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("nav-sector")).toBeInTheDocument();
@@ -132,9 +132,9 @@ describe("NavbarLinksGroup", () => {
 
   it("renders tooltip wrapper when collapsed", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <NavbarLinksGroup {...defaultProps} collapsed={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const navItem = screen.getByTestId("nav-screener");

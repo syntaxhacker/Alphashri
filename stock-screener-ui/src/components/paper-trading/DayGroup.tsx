@@ -12,7 +12,7 @@ import {
   Stack,
   Textarea,
   Button,
-} from "@mantine/core";
+} from "@/ui";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,

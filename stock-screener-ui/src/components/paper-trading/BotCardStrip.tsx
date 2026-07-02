@@ -1,4 +1,4 @@
-import { Group, Stack, Box, Text } from "@mantine/core";
+import { Group, Stack, Box, Text } from "@/ui";
 import type { BotSummary } from "../../types/paperTrading";
 
 interface BotCardStripProps {

@@ -1,5 +1,5 @@
 import { memo, useMemo, useState } from "react";
-import { Accordion, Badge, Flex, Group, Table, Text } from "@mantine/core";
+import { Accordion, Badge, Flex, Group, Table, Text } from "@/ui";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";

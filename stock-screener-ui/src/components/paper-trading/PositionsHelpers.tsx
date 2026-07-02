@@ -1,5 +1,5 @@
 import { memo, useRef, useState, useEffect, Fragment } from "react";
-import { Table, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@mantine/core";
+import { Table, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
 import dayjs from "dayjs";
 import { DataTable, ClickableSymbol } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData, fetch52WLevels } from "../../api/paperTrading";

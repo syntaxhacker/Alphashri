@@ -15,7 +15,7 @@ import {
   Alert,
   ThemeIcon,
   Switch,
-} from "@mantine/core";
+} from "@/ui";
 import { IconPlus, IconTrash, IconInfoCircle } from "@tabler/icons-react";
 import type { BotConfig, AvailableStrategy, StrategyAllocation } from "../../types/bots";
 import {
@@ -231,13 +231,13 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 placeholder="e.g., Multi-ORB Test"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(val) => setName(val)}
                 data-testid="bot-name-input"
               />
               <Checkbox
                 label="Active"
                 checked={isActive}
-                onChange={(e) => setIsActive(e.currentTarget.checked)}
+                onChange={(checked) => setIsActive(checked)}
                 mt="xl"
                 data-testid="bot-active-checkbox"
               />
@@ -284,7 +284,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 label="Live Trading"
                 description="Places real orders via Upstox API. Use with caution!"
                 checked={liveTrading}
-                onChange={(e) => setLiveTrading(e.currentTarget.checked)}
+                onChange={(checked) => setLiveTrading(checked)}
                 color="red"
                 data-testid="bot-live-trading-switch"
               />

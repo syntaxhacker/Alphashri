@@ -10,8 +10,8 @@ import {
   Title,
   Text,
   MultiSelect,
-} from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
+} from "@/ui";
+import { useDebouncedValue } from "@/ui";
 import { IconInfoCircle, IconAlertTriangle } from "@tabler/icons-react";
 import type { StrategyFormProps, StrategyFormData } from "./types";
 import { DEFAULT_VALUES, getInitialValues } from "./strategyDefaults";

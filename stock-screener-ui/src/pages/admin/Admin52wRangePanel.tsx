@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Alert, Button, Checkbox, Group, Loader, Paper, Progress, Stack, Text, Badge,
-} from "@mantine/core";
+} from "@/ui";
 import { IconPlayerPlay, IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import { CompactPanel } from "../../components/common/compact";

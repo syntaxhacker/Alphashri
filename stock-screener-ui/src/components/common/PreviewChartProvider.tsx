@@ -18,7 +18,7 @@ import {
   ActionIcon,
   Box,
   Portal,
-} from "@mantine/core";
+} from "@/ui";
 import { IconArrowsMaximize } from "@tabler/icons-react";
 import { fetchChartPreview, type ChartPreviewData } from "../../api/chartPreview";
 import { buildChartOption } from "../chart/chartRenderer";

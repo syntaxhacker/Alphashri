@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Flex, Text, Paper, Badge, SimpleGrid, Loader, Center, ScrollArea } from "@mantine/core";
+import { Flex, Text, Paper, Badge, SimpleGrid, Loader, Center, ScrollArea } from "@/ui";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAggregatedDashboard } from "../../api/paperTrading";

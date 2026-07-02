@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import dayjs from "dayjs";
-import { Flex, Tabs, Text, Group, Select } from "@mantine/core";
+import { Flex, Tabs, Text, Group, Select } from "@/ui";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import {
   getPaperTradingState,

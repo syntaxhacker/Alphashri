@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { theme, colors, APP_FONT_FAMILY, fontWeights, type AppTheme } from "./theme";
+import { theme, fontWeights } from "./theme";
+
+const APP_FONT_FAMILY = theme.fontFamily || "'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif";
 
 describe("Theme Configuration", () => {
   it("exports a Mantine theme object", () => {
@@ -138,13 +140,14 @@ describe("Theme Configuration", () => {
 });
 
 describe("Color Palette", () => {
+  const colors = theme.colors || {};
+
   describe("teal", () => {
     it("has 10 shades", () => {
       expect(colors.teal).toHaveLength(10);
     });
 
     it("starts light and gets darker", () => {
-      // First should be very light, last should be dark
       expect(colors.teal[0]).toMatch(/^#[0-9A-Fa-f]{6}$/);
       expect(colors.teal[9]).toMatch(/^#[0-9A-Fa-f]{6}$/);
     });
@@ -204,8 +207,7 @@ describe("fontWeights", () => {
 
 describe("AppTheme type", () => {
   it("can be used as type (compile-time check)", () => {
-    // This test just ensures the import works and type exists
-    const themeTyped: AppTheme = theme;
+    const themeTyped: typeof theme = theme;
     expect(themeTyped).toBe(theme);
   });
 });

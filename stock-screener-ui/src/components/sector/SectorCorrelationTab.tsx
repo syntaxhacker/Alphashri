@@ -14,8 +14,8 @@ import {
   Tooltip,
   Button,
   SimpleGrid,
-  useMantineColorScheme,
-} from "@mantine/core";
+  useColorScheme,
+} from "@/ui";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import type { SectorCorrelationResponse } from "../../types/sector";
@@ -203,7 +203,7 @@ function ErrorState({ error }: { error: string }) {
 
 export function SectorCorrelationTab() {
   useStoreSubscription(subscribeToState);
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const data = stateData;
   const sortedSectors = useMemo(() => {

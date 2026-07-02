@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerStockView } from "./ScreenerStockView";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 vi.mock("./ScreenerTable", () => ({
   ScreenerTable: (props: any) => (
@@ -45,9 +45,9 @@ describe("ScreenerStockView", () => {
 
   it("renders ScreenerHeatmap when viewMode is heatmap", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerStockView {...defaultProps} viewMode="heatmap" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-heatmap-approaching")).toBeInTheDocument();
     expect(screen.queryByTestId("screener-table-approaching")).not.toBeInTheDocument();
@@ -55,9 +55,9 @@ describe("ScreenerStockView", () => {
 
   it("renders ScreenerTable when viewMode is table", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerStockView {...defaultProps} viewMode="table" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(screen.queryByTestId("screener-heatmap-approaching")).not.toBeInTheDocument();
@@ -65,16 +65,16 @@ describe("ScreenerStockView", () => {
 
   it("passes data-testid with section suffix for both views", () => {
     const { rerender } = render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerStockView {...defaultProps} viewMode="table" section="touched" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
 
     rerender(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerStockView {...defaultProps} viewMode="heatmap" section="touched" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
   });

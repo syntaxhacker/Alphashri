@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerEmpty } from "./ScreenerEmpty";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 describe("ScreenerEmpty", () => {
   beforeEach(() => {
@@ -16,9 +16,9 @@ describe("ScreenerEmpty", () => {
 
   it("renders with default message", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerEmpty />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
     expect(screen.getByTestId("status")).toBeInTheDocument();
@@ -26,18 +26,18 @@ describe("ScreenerEmpty", () => {
 
   it("renders with custom message", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerEmpty message="No stocks match your criteria" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("No stocks match your criteria")).toBeInTheDocument();
   });
 
   it("renders icon", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerEmpty />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // The IconDatabaseOff should be rendered
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
@@ -45,27 +45,27 @@ describe("ScreenerEmpty", () => {
 
   it("has correct test id", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerEmpty />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
 
   it("renders with empty string message", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerEmpty message="" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
 
   it("applies custom className", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerEmpty />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-empty")).toHaveClass("screener-empty");
   });

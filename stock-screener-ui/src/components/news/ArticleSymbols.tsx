@@ -1,4 +1,4 @@
-import { Box, Badge, Group, Text, Tooltip } from "@mantine/core";
+import { Box, Badge, Group, Text, Tooltip } from "@/ui";
 import { IconChartLine } from "@tabler/icons-react";
 import type { NewsSymbol } from "./news-types";
 

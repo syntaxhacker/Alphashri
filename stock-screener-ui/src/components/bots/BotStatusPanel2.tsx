@@ -1,4 +1,4 @@
-import { Box, Card, Text, Button, Group, Stack, Grid, Badge, Tooltip } from "@mantine/core";
+import { Box, Card, Text, Button, Group, Stack, Grid, Badge, Tooltip } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";

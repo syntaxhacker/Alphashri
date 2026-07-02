@@ -1,4 +1,4 @@
-import { Group, Select, Badge, Tooltip, ActionIcon } from "@mantine/core";
+import { Group, Select, Badge, Tooltip, ActionIcon } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
 

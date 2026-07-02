@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 const { mockUseReplayState } = vi.hoisted(() => ({
@@ -67,9 +67,9 @@ describe("ReplayPage", () => {
   it("renders page with data-testid", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-page")).toBeInTheDocument();
   });
@@ -77,9 +77,9 @@ describe("ReplayPage", () => {
   it("renders title and description text", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Replay Trading Day")).toBeInTheDocument();
     expect(screen.getByText("Simulate paper trading using historical candles")).toBeInTheDocument();
@@ -88,9 +88,9 @@ describe("ReplayPage", () => {
   it("renders ReplayConfigBar component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-config")).toBeInTheDocument();
   });
@@ -98,9 +98,9 @@ describe("ReplayPage", () => {
   it("renders ReplayStats component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-stats")).toBeInTheDocument();
   });
@@ -108,9 +108,9 @@ describe("ReplayPage", () => {
   it("hides ReplayPositions when no open positions", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("replay-positions")).not.toBeInTheDocument();
   });
@@ -118,9 +118,9 @@ describe("ReplayPage", () => {
   it("renders ReplayMainView component", async () => {
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-main-view")).toBeInTheDocument();
   });
@@ -159,9 +159,9 @@ describe("ReplayPage", () => {
     });
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await act(async () => {
       await new Promise((r) => setTimeout(r, 300));
@@ -202,9 +202,9 @@ describe("ReplayPage", () => {
     });
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-positions")).toBeInTheDocument();
   });
@@ -243,9 +243,9 @@ describe("ReplayPage", () => {
     });
     const { ReplayPage } = await import("./ReplayPage");
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPage />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await act(async () => {
       await new Promise((r) => setTimeout(r, 300));

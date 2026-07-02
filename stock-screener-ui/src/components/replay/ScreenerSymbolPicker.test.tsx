@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
 
 const mockFetchWithAuth = vi.fn();
@@ -26,12 +26,12 @@ const MOCK_STOCKS = {
 
 function renderPicker(props?: { symbols?: string[]; onAddSymbols?: any }) {
   return render(
-    <MantineProvider>
+    <UIProvider>
       <ScreenerSymbolPicker
         symbols={props?.symbols ?? []}
         onAddSymbols={props?.onAddSymbols ?? vi.fn()}
       />
-    </MantineProvider>,
+    </UIProvider>,
   );
 }
 

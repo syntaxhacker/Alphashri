@@ -1,4 +1,4 @@
-import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@mantine/core";
+import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@/ui";
 import type { SectorItem } from "../../types/sector";
 import { DataTable, TableEmptyState } from "../common";
 import { getPnLTextColor } from "../../utils/ui-helpers";

@@ -1,6 +1,6 @@
 import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Stack, Table, Group } from "@mantine/core";
+import { Box, Tabs, Button, Stack, Table, Group } from "@/ui";
 import { IconRobot, IconChartLine, IconPlus, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
   getBotsState,

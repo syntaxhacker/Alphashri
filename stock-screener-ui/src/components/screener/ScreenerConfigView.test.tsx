@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import type { ReactElement } from "react";
 
 let mockSelectedSymbols: string[] = [];
@@ -76,7 +76,7 @@ vi.mock("../../hooks/useScreenerApi", () => ({
 import { ScreenerConfigView } from "./ScreenerConfigView";
 
 const renderWithProvider = (ui: ReactElement) =>
-  render(<MantineProvider>{ui}</MantineProvider>);
+  render(<UIProvider>{ui}</UIProvider>);
 
 const mockOptions = [
   {
@@ -345,13 +345,13 @@ describe("ScreenerConfigView", () => {
       vi.useFakeTimers();
       const onChange = vi.fn();
       const { rerender } = render(
-        <MantineProvider>
+        <UIProvider>
           <ScreenerConfigView
             screenerOptions={defaultProps.screenerOptions}
             activeScreener="trending"
             onScreenerChange={onChange}
           />
-        </MantineProvider>,
+        </UIProvider>,
       );
 
       expect(mockRefreshPreview).not.toHaveBeenCalled();
@@ -363,13 +363,13 @@ describe("ScreenerConfigView", () => {
       mockRefreshPreview.mockClear();
 
       rerender(
-        <MantineProvider>
+        <UIProvider>
           <ScreenerConfigView
             screenerOptions={defaultProps.screenerOptions}
             activeScreener="new-highs"
             onScreenerChange={onChange}
           />
-        </MantineProvider>,
+        </UIProvider>,
       );
 
       expect(mockRefreshPreview).not.toHaveBeenCalled();

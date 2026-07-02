@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { TemplateTreeView } from "./TemplateTreeView";
 import type { StrategyConfig } from "../../types/strategies";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
@@ -44,7 +44,7 @@ const makeVariation = (id: number, parentId: number, overrides: Partial<Strategy
 describe("TemplateTreeView", () => {
   it("shows loading state when isLoading and no templates", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={[]}
           strategies={[]}
@@ -56,14 +56,14 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={true}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("template-tree-loading")).toBeInTheDocument();
   });
 
   it("shows empty state when no templates (and not loading)", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={[]}
           strategies={[]}
@@ -75,7 +75,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("template-tree-empty")).toBeInTheDocument();
   });
@@ -83,7 +83,7 @@ describe("TemplateTreeView", () => {
   it("renders tree panel with data-testid", () => {
     const templates = [makeTemplate(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={[]}
@@ -95,7 +95,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("template-tree-panel")).toBeInTheDocument();
   });
@@ -103,7 +103,7 @@ describe("TemplateTreeView", () => {
   it("renders column headers: Name, Type, SL%, TP%, MaxPos, Actions", () => {
     const templates = [makeTemplate(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={[]}
@@ -115,7 +115,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Name")).toBeInTheDocument();
     expect(screen.getByText("Type")).toBeInTheDocument();
@@ -128,7 +128,7 @@ describe("TemplateTreeView", () => {
   it("renders template nodes with their names", () => {
     const templates = [makeTemplate(1, { name: "ORB Template" })];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={[]}
@@ -140,7 +140,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("ORB Template")).toBeInTheDocument();
   });
@@ -148,7 +148,7 @@ describe("TemplateTreeView", () => {
   it("renders strategy type badge for template nodes", () => {
     const templates = [makeTemplate(1, { strategy_type: "ORB" })];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={[]}
@@ -160,7 +160,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("ORB")).toBeInTheDocument();
   });
@@ -168,7 +168,7 @@ describe("TemplateTreeView", () => {
   it("renders edit template button for templates", () => {
     const templates = [makeTemplate(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={[]}
@@ -180,7 +180,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("edit-template-btn-1")).toBeInTheDocument();
   });
@@ -189,7 +189,7 @@ describe("TemplateTreeView", () => {
     const templates = [makeTemplate(1)];
     const variations = [makeVariation(2, 1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={variations}
@@ -201,7 +201,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("edit-strategy-btn-2")).toBeInTheDocument();
   });
@@ -210,7 +210,7 @@ describe("TemplateTreeView", () => {
     const templates = [makeTemplate(1)];
     const variations = [makeVariation(2, 1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={variations}
@@ -222,7 +222,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("delete-strategy-btn-2")).toBeInTheDocument();
   });
@@ -232,7 +232,7 @@ describe("TemplateTreeView", () => {
     const userEvent = (await import("@testing-library/user-event")).default;
     const templates = [makeTemplate(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <TemplateTreeView
           templates={templates}
           strategies={[]}
@@ -244,7 +244,7 @@ describe("TemplateTreeView", () => {
           onUpdate={vi.fn().mockResolvedValue(undefined)}
           isLoading={false}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await userEvent.click(screen.getByTestId("edit-template-btn-1"));
     expect(onEditTemplate).toHaveBeenCalled();

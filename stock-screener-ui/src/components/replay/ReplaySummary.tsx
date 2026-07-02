@@ -1,4 +1,4 @@
-import { Table, Text } from "@mantine/core";
+import { Table, Text } from "@/ui";
 import { CompactPanel } from "../common/compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import type { ReplaySummary } from "../../types/replay";

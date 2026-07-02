@@ -1,4 +1,4 @@
-import { Progress, Text, Group, Stack } from "@mantine/core";
+import { Progress, Text, Group, Stack } from "@/ui";
 
 interface BacktestProgressProps {
   progress: {

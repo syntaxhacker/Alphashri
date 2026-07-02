@@ -1,4 +1,4 @@
-import { Stack, Group, Text, Loader, Button, Alert } from "@mantine/core";
+import { Stack, Group, Text, Loader, Button, Alert } from "@/ui";
 import { IconAlertCircle, IconDatabaseOff } from "@tabler/icons-react";
 import { CompactPanel } from "./compact";
 

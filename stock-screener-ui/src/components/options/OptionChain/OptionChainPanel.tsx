@@ -6,9 +6,12 @@ import {
   Loader,
   Alert,
   Tabs,
+  TabsList,
+  Tab,
+  TabsPanel,
   Button,
   Tooltip as MantineTooltip,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconRefresh,
   IconAlertCircle,
@@ -17,7 +20,7 @@ import {
   IconHelpCircle,
   IconClock,
 } from "@tabler/icons-react";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure } from "@/ui";
 import dayjs from "dayjs";
 import { OptionChainHeader } from "./OptionChainHeader";
 import { OptionChainFilters } from "./OptionChainFilters";
@@ -189,30 +192,30 @@ export function OptionChainPanel({
           defaultValue="table"
           data-testid="chain-view-tabs"
         >
-          <Tabs.List
+          <TabsList
             className="chain-view-tabs-list"
             mb="sm"
             data-testid="options-chain-view-tabs-list"
           >
-            <Tabs.Tab
+            <Tab
               value="table"
               className="chain-view-tab"
               leftSection={<IconTable size={14} />}
               data-testid="chain-tab-table"
             >
               Option Chain Table
-            </Tabs.Tab>
-            <Tabs.Tab
+            </Tab>
+            <Tab
               value="analysis"
               className="chain-view-tab"
               leftSection={<IconChartBar size={14} />}
               data-testid="chain-tab-analysis"
             >
               Deep OI Analysis
-            </Tabs.Tab>
-          </Tabs.List>
+            </Tab>
+          </TabsList>
 
-          <Tabs.Panel
+          <TabsPanel
             value="table"
             className="chain-tab-panel"
             data-testid="options-chain-table-panel"
@@ -231,15 +234,15 @@ export function OptionChainPanel({
                 onRowClick={(contract) => console.log("clicked", contract)}
               />
             </Stack>
-          </Tabs.Panel>
+          </TabsPanel>
 
-          <Tabs.Panel
+          <TabsPanel
             value="analysis"
             className="chain-tab-panel"
             data-testid="options-chain-analysis-panel"
           >
             <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
-          </Tabs.Panel>
+          </TabsPanel>
         </Tabs>
       )}
     </Stack>

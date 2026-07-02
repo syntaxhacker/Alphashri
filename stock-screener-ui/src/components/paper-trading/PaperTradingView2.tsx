@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Flex, Stack, Alert, ScrollArea } from "@mantine/core";
+import { Flex, Stack, Alert, ScrollArea } from "@/ui";
 import {
   getPaperTradingState,
   subscribe,

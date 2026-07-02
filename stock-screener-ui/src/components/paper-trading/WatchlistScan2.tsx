@@ -11,7 +11,7 @@ import {
   Text,
   TextInput,
   Tooltip,
-} from "@mantine/core";
+} from "@/ui";
 import { IconRefresh, IconSparkles } from "@tabler/icons-react";
 import { DataTable, SideBadge } from "../common";
 import { ClickableSymbol } from "../common";

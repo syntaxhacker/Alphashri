@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { Badge, Text, Group, Progress, Tooltip, Button, Collapse } from "@mantine/core";
+import { Badge, Text, Group, Progress, Tooltip, Button, Collapse } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 import { PositionsTableBody } from "./PositionsHelpers";

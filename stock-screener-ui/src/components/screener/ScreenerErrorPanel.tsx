@@ -1,4 +1,4 @@
-import { Stack, Text, Button } from "@mantine/core";
+import { Stack, Text, Button } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 
 interface ScreenerErrorPanelProps {

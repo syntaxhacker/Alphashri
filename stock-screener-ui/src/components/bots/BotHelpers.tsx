@@ -11,7 +11,7 @@ import {
   ActionIcon,
   Box,
   Tooltip,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconRefresh,
   IconPlayerPlay,

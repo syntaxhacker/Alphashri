@@ -1,4 +1,4 @@
-import { Group, NumberInput } from "@mantine/core";
+import { Group, NumberInput } from "@/ui";
 
 interface SlTpRowProps {
   slDefault?: number;

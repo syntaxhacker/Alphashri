@@ -1,4 +1,4 @@
-import { Table, Text, Badge, Group, Box } from "@mantine/core";
+import { Table, Text, Badge, Group, Box } from "@/ui";
 import { SideBadge } from "../common/BadgeComponents";
 import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
 import { formatTimeOnly } from "../../utils/ui-helpers";

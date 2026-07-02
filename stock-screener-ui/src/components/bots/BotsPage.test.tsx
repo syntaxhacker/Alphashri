@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import type { BotsState, BotsView } from "../../types/bots";
 
 const mockGetBotsState = vi.fn();
@@ -82,7 +82,7 @@ const baseState = (): BotsState =>
   }) as BotsState;
 
 function renderWithProviders(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  return render(<UIProvider>{ui}</UIProvider>);
 }
 
 function createBot(overrides: Record<string, any> = {}) {

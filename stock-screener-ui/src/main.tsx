@@ -1,16 +1,13 @@
-import "@mantine/core/styles.css";
-import "@mantine/dates/styles.css";
-import "@mantine/notifications/styles.css";
 import "./style.css";
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
-import { MantineProvider, ColorSchemeScript } from "@mantine/core";
-import { Notifications } from "@mantine/notifications";
+import { UIProvider } from "@/ui";
+import { Notifications } from "@/ui";
 import App from "./App";
 import { store } from "./state/store";
-import { theme } from "./config/theme";
+import "@/ui/styles.css";
 
 if (import.meta.env.VITE_SENTRY_DSN) {
   Sentry.init({
@@ -30,12 +27,11 @@ if (!root) {
 
 createRoot(root).render(
   <Provider store={store}>
-    <ColorSchemeScript defaultColorScheme="dark" />
-    <MantineProvider theme={theme} defaultColorScheme="dark">
+    <UIProvider defaultColorScheme="dark">
       <Notifications position="bottom-right" />
       <BrowserRouter>
         <App />
       </BrowserRouter>
-    </MantineProvider>
+    </UIProvider>
   </Provider>,
 );

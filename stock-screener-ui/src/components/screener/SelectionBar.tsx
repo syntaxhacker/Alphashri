@@ -1,4 +1,4 @@
-import { Group, Button, Badge } from "@mantine/core";
+import { Group, Button, Badge } from "@/ui";
 import { IconChartDots, IconX } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { selectedSymbols, clearSelectedSymbols, subscribe } from "../../state";

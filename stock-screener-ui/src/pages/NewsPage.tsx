@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMediaQuery } from "@mantine/hooks";
-import { Box, Stack, Flex, ScrollArea, Modal } from "@mantine/core";
+import { useMediaQuery, Box, Stack, Flex, ScrollArea, Modal } from "@/ui";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "../components/news/news-types";
 import { fetchArticle } from "../api/news";
 import { useNewsSourceGroups, getSourceOptions } from "../components/news/useNewsSourceGroups";

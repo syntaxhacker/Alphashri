@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { Table, ActionIcon, CopyButton, Tooltip, Checkbox } from "@mantine/core";
+import { Table, ActionIcon, CopyButton, Tooltip, Checkbox } from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { DataTable, SortableHeader } from "../common";
 import { StockRow } from "./StockRow";

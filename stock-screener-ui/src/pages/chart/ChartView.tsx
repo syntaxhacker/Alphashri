@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import { useMantineColorScheme } from "@mantine/core";
+import { useColorScheme } from "@/ui";
 import { useChartData } from "../../hooks/useChartData";
 import { useChartInstance } from "../../hooks/useChartInstance";
 import { ChartHeader } from "./ChartHeader";
@@ -11,7 +11,7 @@ import { ChartError } from "./ChartError";
 function useChartViewModel() {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const [timeframe, setTimeframe] = useState(15);

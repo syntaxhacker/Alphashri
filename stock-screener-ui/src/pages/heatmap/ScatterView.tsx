@@ -1,4 +1,4 @@
-import { Flex, Group, Select, Text, Box } from "@mantine/core";
+import { Flex, Group, Select, Text, Box } from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";

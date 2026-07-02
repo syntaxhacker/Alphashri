@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { NavbarNested } from "./NavbarNested";
-import { MantineProvider, AppShell } from "@mantine/core";
+import { UIProvider, AppShell } from "@/ui";
 import { useAuth } from "../auth/AuthProvider2";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -35,11 +35,13 @@ vi.mock("../auth/AuthProvider2", () => ({
 // Mock useMantineColorScheme - used by NavbarNested
 // Need to hoist the mock function so tests can reference it
 const mockToggleColorScheme = vi.fn();
-vi.mock("@mantine/core", async () => {
-  const actual = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+vi.mock("@/ui", async () => {
+  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...actual,
-    useMantineColorScheme: vi.fn(() => ({
+    ...core,
+    UIProvider: ui.UIProvider,
+    useColorScheme: vi.fn(() => ({
       colorScheme: "light",
       toggleColorScheme: mockToggleColorScheme,
     })),
@@ -65,11 +67,11 @@ describe("NavbarNested", () => {
 
   function renderNav(props = defaultProps) {
     return render(
-      <MantineProvider>
+      <UIProvider>
         <AppShell>
           <NavbarNested {...props} />
         </AppShell>
-      </MantineProvider>,
+      </UIProvider>,
     );
   }
 

@@ -87,10 +87,12 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-vi.mock("@mantine/core", async (importOriginal) => {
-  const actual = await importOriginal();
+vi.mock("@/ui", async () => {
+  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...actual,
+    ...core,
+    UIProvider: ui.UIProvider,
     Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
       <select
         data-testid={testId}

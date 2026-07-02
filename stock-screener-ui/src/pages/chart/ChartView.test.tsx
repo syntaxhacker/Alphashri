@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import ChartView from "./ChartView";
 import { fetchChartPreview } from "../../api/chartPreview";
 import { buildChartOption } from "../../components/chart/chartRenderer";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { useParams, useNavigate } from "react-router-dom";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -47,11 +47,11 @@ vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(),
 }));
 
-vi.mock("@mantine/core", async (importOriginal) => {
+vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    useMantineColorScheme: vi.fn(() => ({ colorScheme: "light" })),
+    useColorScheme: vi.fn(() => ({ colorScheme: "light" })),
   };
 });
 
@@ -78,9 +78,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("chart-view")).toBeInTheDocument();
   });
@@ -89,9 +89,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
@@ -104,9 +104,9 @@ describe("ChartView", () => {
       () => new Promise((resolve) => setTimeout(resolve, 1000)),
     );
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-loading")).toBeInTheDocument();
@@ -117,9 +117,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockRejectedValue(new Error("Failed to fetch"));
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-error")).toBeInTheDocument();
@@ -130,9 +130,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-timeframe-select")).toBeInTheDocument();
@@ -144,9 +144,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
@@ -160,9 +160,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-or-select")).toBeInTheDocument();
@@ -174,9 +174,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
@@ -190,9 +190,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-pivots-checkbox")).toBeInTheDocument();
@@ -203,9 +203,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-52w-checkbox")).toBeInTheDocument();
@@ -217,9 +217,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("candlestick-chart")).toBeInTheDocument();
@@ -234,9 +234,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-back-btn")).toBeInTheDocument();
@@ -250,9 +250,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-footer")).toBeInTheDocument();
@@ -268,9 +268,9 @@ describe("ChartView", () => {
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     vi.mocked(buildChartOption).mockReturnValue({});
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect((window as any).echarts.init).toHaveBeenCalled();
@@ -282,9 +282,9 @@ describe("ChartView", () => {
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     vi.mocked(buildChartOption).mockReturnValue({});
     const { unmount } = render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect((window as any).echarts.init).toHaveBeenCalled();
@@ -297,9 +297,9 @@ describe("ChartView", () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockRejectedValue(new Error("Network error"));
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-retry-btn")).toBeInTheDocument();
@@ -311,9 +311,9 @@ describe("ChartView", () => {
     vi.mocked(useNavigate).mockReturnValue(mockNavigate);
     vi.mocked(useParams).mockReturnValue({ symbol: "" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <ChartView />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await waitFor(() => {
       expect(screen.getByTestId("chart-view-error")).toBeInTheDocument();

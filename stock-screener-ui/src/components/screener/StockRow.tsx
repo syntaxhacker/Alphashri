@@ -10,7 +10,7 @@ import {
   ActionIcon,
   CopyButton,
   Checkbox,
-} from "@mantine/core";
+} from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";

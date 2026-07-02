@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ScreenerHeatmapView } from "./ScreenerHeatmapView";
 import type { Stock } from "../../types";
 
@@ -37,28 +37,28 @@ describe("ScreenerHeatmapView", () => {
 
   it("renders nothing when stocks empty", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeatmapView
           stocks={[]}
           activeScreener="trending"
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-empty"
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("screener-heatmap-empty")).not.toBeInTheDocument();
   });
 
   it("renders shared HeatmapTreemap with screener rows", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeatmapView
           stocks={[mockStock]}
           activeScreener="52w_high"
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-touched"
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const el = screen.getByTestId("screener-heatmap-touched");
     expect(el).toHaveAttribute("data-stocks", "1");
@@ -67,28 +67,28 @@ describe("ScreenerHeatmapView", () => {
 
   it("defaults metric to day_change for nifty_movers", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeatmapView
           stocks={[mockStock]}
           activeScreener="nifty_movers"
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-nifty"
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-heatmap-nifty")).toHaveAttribute("data-metric", "day_change");
   });
 
   it("defaults metric to score for non-52w screeners", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerHeatmapView
           stocks={[mockStock]}
           activeScreener="trending"
           onSymbolClick={onSymbolClick}
           testId="screener-heatmap-approaching"
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-heatmap-approaching")).toHaveAttribute("data-metric", "score");
   });

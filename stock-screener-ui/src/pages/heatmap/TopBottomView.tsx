@@ -1,4 +1,4 @@
-import { Flex, Table, Text, Group, Badge } from "@mantine/core";
+import { Flex, Table, Text, Group, Badge } from "@/ui";
 
 interface TopBottomViewProps {
   stocks: any[];

@@ -1,4 +1,4 @@
-import { Box, Tooltip, ActionIcon } from "@mantine/core";
+import { Box, Tooltip, ActionIcon } from "@/ui";
 import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 
 interface ChainScrollActionsProps {

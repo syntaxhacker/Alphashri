@@ -1,4 +1,4 @@
-import { Badge } from "@mantine/core";
+import { Badge } from "@/ui";
 import { SENTIMENT_CONFIG } from "./news-constants";
 
 interface SentimentBadgeProps {

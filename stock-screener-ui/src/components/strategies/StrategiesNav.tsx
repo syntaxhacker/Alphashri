@@ -1,4 +1,4 @@
-import { Group, SegmentedControl } from "@mantine/core";
+import { Group, SegmentedControl } from "@/ui";
 import type { StrategiesNavProps } from "./types";
 import { CompactPanel } from "../common/compact";
 

@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactElement } from "react";
 
@@ -81,7 +81,7 @@ import { CorrelationTab } from "./CorrelationTab";
 const renderWithProvider = (ui: ReactElement) =>
   render(
     <MemoryRouter>
-      <MantineProvider>{ui}</MantineProvider>
+      <UIProvider>{ui}</UIProvider>
     </MemoryRouter>,
   );
 
@@ -196,9 +196,9 @@ describe("CorrelationTab", () => {
       const { MemoryRouter } = await import("react-router-dom");
       render(
         <MemoryRouter initialEntries={["/?symbols=RELIANCE,TCS&timeframe=daily&period=90"]}>
-          <MantineProvider>
+          <UIProvider>
             <CorrelationTab />
-          </MantineProvider>
+          </UIProvider>
         </MemoryRouter>,
       );
       await waitFor(() => {
@@ -212,9 +212,9 @@ describe("CorrelationTab", () => {
       const { MemoryRouter } = await import("react-router-dom");
       render(
         <MemoryRouter initialEntries={["/?symbols=INFY,WIPRO&timeframe=intraday&period=1"]}>
-          <MantineProvider>
+          <UIProvider>
             <CorrelationTab />
-          </MantineProvider>
+          </UIProvider>
         </MemoryRouter>,
       );
       await waitFor(() => {
@@ -229,9 +229,9 @@ describe("CorrelationTab", () => {
       const { MemoryRouter, useSearchParams } = await import("react-router-dom");
       render(
         <MemoryRouter initialEntries={["/"]}>
-          <MantineProvider>
+          <UIProvider>
             <CorrelationTab />
-          </MantineProvider>
+          </UIProvider>
         </MemoryRouter>,
       );
       fireEvent.click(screen.getByRole("button", { name: /Calculate/ }));

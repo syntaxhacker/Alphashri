@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { OrbSettingsSection } from "./OrbSettingsSection";
 import type { StrategyConfig } from "../../types/strategies";
 import "@testing-library/jest-dom/vitest";
@@ -9,7 +9,7 @@ import "@testing-library/jest-dom/vitest";
 afterEach(cleanup);
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <UIProvider>{children}</UIProvider>;
 }
 
 function mockConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {

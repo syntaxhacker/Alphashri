@@ -1,4 +1,4 @@
-import { Box, Stack, ScrollArea } from "@mantine/core";
+import { Box, Stack, ScrollArea } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { GreeksPanel } from "./OptionGreeks/GreeksPanel";

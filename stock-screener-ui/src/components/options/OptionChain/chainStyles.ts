@@ -1,8 +1,8 @@
-import type { useMantineTheme } from "@mantine/core";
+import type { MantineTheme } from "@/ui";
 import { fontWeights } from "../../../config/theme";
 import { hexToRgba } from "./cellPalette";
 
-export type ThemeType = ReturnType<typeof useMantineTheme>;
+export type ThemeType = MantineTheme;
 
 export const getStyles = (theme: ThemeType, isDark: boolean) => ({
   container: {

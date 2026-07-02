@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Group, Select, Box, Button, Tooltip, Text } from "@mantine/core";
+import { Group, Select, Box, Button, Tooltip, Text } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotSummary } from "../../types/paperTrading";
 import { isMarketClosedToday } from "../../state/holidays";

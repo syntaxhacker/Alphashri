@@ -1,6 +1,6 @@
 import { useState, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
-import { Select, Text, Group, Loader, SegmentedControl, Flex, ScrollArea } from "@mantine/core";
+import { Select, Text, Group, Loader, SegmentedControl, Flex, ScrollArea } from "@/ui";
 import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
 import {
   getPaperTradingState,

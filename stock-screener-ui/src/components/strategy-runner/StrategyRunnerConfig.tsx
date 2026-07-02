@@ -10,8 +10,8 @@ import {
   Progress,
   Stack,
   Badge,
-} from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
+} from "@/ui";
+import { useDebouncedValue } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconRotate, IconX } from "@tabler/icons-react";
 import { searchSymbols } from "../../api/symbols";
 import type { SymbolResult } from "../../api/symbols";

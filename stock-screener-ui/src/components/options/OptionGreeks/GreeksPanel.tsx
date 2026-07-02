@@ -1,4 +1,4 @@
-import { Text, Stack, Paper } from "@mantine/core";
+import { Text, Stack, Paper } from "@/ui";
 
 export function GreeksPanel() {
   return (

@@ -1,4 +1,5 @@
-import { Group, Text, Stack, RingProgress, Divider } from "@mantine/core";
+import { Group, Text, Stack, Divider } from "@/ui";
+import { RingProgress } from "@/ui";
 import { useMemo } from "react";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
 

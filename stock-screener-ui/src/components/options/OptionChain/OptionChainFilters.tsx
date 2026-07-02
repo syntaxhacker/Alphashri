@@ -1,4 +1,4 @@
-import { Group, Select, NumberInput } from "@mantine/core";
+import { Group, Select, NumberInput } from "@/ui";
 
 export function OptionChainFilters({
   filters,

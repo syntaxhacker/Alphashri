@@ -1,4 +1,4 @@
-import { Card, Group, Box, Text } from "@mantine/core";
+import { Card, Group, Box, Text } from "@/ui";
 import type { NewsItem } from "./news-types";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 

@@ -6,7 +6,7 @@ import {
   Divider,
   Box,
   Button,
-} from "@mantine/core";
+} from "@/ui";
 import type { ScreenerOption, ProfileFilter, SortDirection } from "../../types";
 import * as state from "../../state";
 import { fetchData } from "../../api";

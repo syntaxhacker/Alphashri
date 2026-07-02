@@ -1,4 +1,4 @@
-import { Select, NumberInput, Checkbox } from "@mantine/core";
+import { Select, NumberInput, Checkbox } from "@/ui";
 import type { StrategyParam } from "../../types/backtest";
 
 export function ParamInput({
@@ -30,7 +30,7 @@ export function ParamInput({
       <Checkbox
         data-testid={testId}
         checked={value ?? param.default}
-        onChange={(e) => onChange(e.currentTarget.checked)}
+        onChange={(checked) => onChange(checked)}
         size="sm"
       />
     );

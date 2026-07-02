@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Table, Text, Title, Group, Paper } from "@mantine/core";
+import { Table, Text, Title, Group, Paper } from "@/ui";
 import { apiGet } from "../../api/utils";
 
 interface StrategyPerf {
