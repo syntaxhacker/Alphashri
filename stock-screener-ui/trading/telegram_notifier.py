@@ -143,18 +143,22 @@ def send_trade_exit(
     pnl_pct: float,
     exit_reason: str,
     entry_time: datetime,
+    costs: float = 0.0,
+    net_pnl: float = 0.0,
 ) -> None:
-    emoji = "💚" if pnl >= 0 else "❌"
+    display_pnl = net_pnl if net_pnl else pnl
+    emoji = "💚" if display_pnl >= 0 else "❌"
     direction = "LONG" if side.upper() == "BUY" else "SHORT"
     now_ist = datetime.now(config.IST).replace(tzinfo=None)
     entry_naive = entry_time.astimezone(config.IST).replace(tzinfo=None) if entry_time.tzinfo else entry_time
     hold = (now_ist - entry_naive).total_seconds() / 60
 
+    costs_line = f"\nGross: ₹{pnl:+,.2f} | Costs: ₹{costs:+,.2f}" if costs else ""
     msg = (
         f"{emoji} *TRADE EXIT* — {bot_name}\n\n"
         f"*{symbol}* | {direction} | `{strategy_name}`\n"
         f"Entry: ₹{entry_price:.2f} → Exit: ₹{exit_price:.2f}\n"
-        f"P&L: {pnl:+,.2f} ({pnl_pct:+.2f}%)\n"
+        f"P&L: ₹{display_pnl:+,.2f} ({pnl_pct:+.2f}%){costs_line}\n"
         f"Reason: *{exit_reason}*\n"
         f"Hold: {hold:.0f}m\n"
         f"⏰ {datetime.now(config.IST).strftime('%H:%M:%S IST')}"
