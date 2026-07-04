@@ -22,25 +22,26 @@ class RunnerRiskMixin:
     def fetch_or_data(self, symbol: str, runner=None) -> Optional[dict]:
         """Fetch opening range data for a symbol using the given runner's or_minutes.
         
-        Results are cached in Redis with a 60s TTL to avoid API rate limits.
+        Static OR levels (high/low/range) are cached in Redis with a 60s TTL.
+        The latest price is always fetched fresh so it reflects the current time,
+        even during fast replay where real-time seconds don't advance.
         """
         cache_key = f"orb:or_data:{symbol}"
-        cached = cache_get(cache_key)
-        if cached is not None:
-            return cached
+        or_levels = cache_get(cache_key)
 
         try:
             fetcher = self._get_data_fetcher()
             if not fetcher:
-                return None
+                return or_levels
 
+            # Always fetch fresh data for latest_price
             df = fetcher.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol,
                 interval='5'
             )
 
             if df is None or df.empty:
-                return None
+                return or_levels
 
             candles = []
             for idx, row in df.iterrows():
@@ -55,26 +56,44 @@ class RunnerRiskMixin:
             signal_gen = (runner.signal_generator if runner and runner.signal_generator
                           else next((r.signal_generator for r in self.strategies.values()
                                      if r.strategy_type == "ORB" and r.signal_generator), None))
-            if signal_gen:
-                or_levels = signal_gen.calculate_or_levels(candles)
-                if or_levels and candles:
-                    or_levels['latest_price'] = candles[-1]['close']
-                    or_levels['latest_high'] = candles[-1]['high']
-                    or_levels['latest_low'] = candles[-1]['low']
-                if or_levels:
-                    cache_set(cache_key, or_levels, ttl=60)
+            if not signal_gen:
                 return or_levels
 
-            return None
+            # If OR period isn't complete yet, discard any partial cached levels.
+            # (A 09:45 cache with only 30 min of data would give wrong OR high.)
+            if or_levels is not None and not self._is_or_period_complete(signal_gen):
+                or_levels = None
+
+            # (Re)calculate static OR levels on cache miss
+            if or_levels is None:
+                or_levels = signal_gen.calculate_or_levels(candles)
+                # Only cache once the OR period is complete
+                if or_levels and self._is_or_period_complete(signal_gen):
+                    cache_set(cache_key, or_levels, ttl=60)
+
+            # Latest price is always fresh — never cached
+            if or_levels and candles:
+                or_levels['latest_price'] = candles[-1]['close']
+                or_levels['latest_high'] = candles[-1]['high']
+                or_levels['latest_low'] = candles[-1]['low']
+
+            return or_levels
 
         except Exception as e:
             from rich.console import Console
             console = Console()
             console.print(f"[dim red]Error fetching OR for {symbol}: {e}[/dim red]")
-            # Return stale cache on error (better than nothing)
-            if cached is None:
-                cached = cache_get(cache_key)
-            return cached
+            return or_levels
+
+    def _is_or_period_complete(self, signal_gen) -> bool:
+        """Check if the opening range period is complete at the current simulated time."""
+        now = self._ist_now()
+        market_open_hour, market_open_min = getattr(signal_gen, 'MARKET_OPEN', (9, 15))
+        or_minutes = getattr(signal_gen, 'or_minutes', 45)
+        or_end = now.replace(hour=market_open_hour, minute=market_open_min, second=0, microsecond=0)
+        from datetime import timedelta
+        or_end += timedelta(minutes=or_minutes)
+        return now >= or_end
 
     def fetch_daily_data(self, symbol: str) -> Optional[dict]:
         """Fetch daily OHLCV data for a symbol (used by swing strategies)."""
@@ -198,18 +217,26 @@ class RunnerRiskMixin:
             'prev_close': prev_row['close'],
         }
 
-    def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21) -> Optional[dict]:
-        """Fetch intraday data and compute EMA crossover state for a symbol."""
+    def fetch_ema_data(self, symbol: str, ema_fast_period: int = 9, ema_slow_period: int = 21,
+                        runner=None) -> Optional[dict]:
+        """Fetch intraday data and compute EMA crossover state for a symbol.
+        
+        Uses configurable interval (ema_interval_minutes in runner config, default 5).
+        """
         from trading.ema_utils import calculate_ema
 
         fetcher = self._get_data_fetcher()
         if not fetcher:
             return None
 
+        ema_interval = 5
+        if runner and hasattr(runner, 'config'):
+            ema_interval = int(runner.config.get("ema_interval_minutes", runner.config.get("or_minutes", 5)))
+
         try:
             df = fetcher.upstox_api.fetch_intraday_data_v3(
                 symbol=symbol,
-                interval='5',
+                interval=str(ema_interval),
             )
         except Exception as e:
             from rich.console import Console

@@ -1,55 +1,55 @@
-# Autoresearch Worklog: ORB High Beta
+# Autoresearch Worklog: EMA Cross Trending
 
-**Start**: 2026-06-14
-**Universe**: 23 high-volatility F&O stocks (5-min data, Dec 2025 - Apr 2026)
-**Goal**: Maximize profit factor for ORB 45-min strategy on high beta stocks
+**Start**: 2026-06-26
+**Universe**: 34 liquid F&O stocks (5-min data, Jan 2026 - Jun 2026)
+**Goal**: Maximize profit factor for EMA crossover strategy
 
 ## Summary
 | Metric | Baseline | Best | Delta |
 |--------|----------|------|-------|
-| Profit Factor | 1.4051 | 1.9031 | +35.4% |
-| Win Rate | 36.8% | 55.7% | +18.9pp |
-| Total Trades | 800 | 291 | -64% |
-| Net P&L | Rs +128,401 | Rs +125,432 | -2% |
+| Profit Factor | 1.0585 | 1.4561 | +37.6% |
+| Win Rate | 49.3% | 48.0% | -1.3pp |
+| Total Trades | 3057 | 2242 | -27% |
+| Net P&L | Rs +53,299 | Rs +112,009 | +110% |
 
 ## Best Config
 ```
-OR_MIN=45, SL=1.2%, TP=2.0%, buffer=0.62%, cooldown=50 bars (250 min), shorts=OFF, EOD=15:00
-→ PF=1.90, WR=55.7%, 291 trades, net_pnl=+Rs 125,432
+FAST=12, SLOW=26, SL=0.5%, TP=2.4%, CD=35 bars (175 min), shorts=OFF, EOD=14:53
+→ PF=1.456, WR=48.0%, 2242 trades, net_pnl=+Rs 112,009
 ```
 
 ## Key Insights
-- **High beta stocks need wider buffer (0.62%) and longer cooldown (250 min)** vs general volatile stocks
-- EOD exit at 15:00 (vs 14:45) is a massive lever
-- SL=1.2% + TP=2.0% gives best R:R for high beta universe
-- Buffer sweet spot is 0.62% — too tight hurts entries, too wide kills trades
-- Cooldown plateaus at CD=40-55 (200-275 min), no benefit beyond CD=50
-- Shorts double trades but destroy PF (1.26 vs 1.90)
-- Max trades per day filter is redundant — cooldown already handles it
-- EOD at 15:15 or 15:30 both worse than 15:00
+- **SL=0.5% is the sweet spot** — tighter than EMA cross default (1.0%). Quick stop-outs prevent large drawdowns
+- **TP=2.4%** better than 2.0% or 2.5% — captures enough winners while staying reachable
+- **EMA 12/26** (vs 9/21) produces slightly fewer but higher-quality signals
+- **CD=35 bars (175 min)** cuts trades by 27% but improves PF by 37.6%
+- **EOD=14:53 is critical** — shifting from 14:45→14:53 gave +0.11 PF jump. 15:00 gives 1.402, 14:53 gives 1.456
+- Shorts hurt PF (1.27 vs 1.46) — same pattern as ORB
+- EMA cross has lower PF ceiling than ORB (1.46 vs 1.90) — trend following is inherently less precise than breakout
 
 ## Experiment History
-### Runs 1: Baseline (PF=1.4051)
-- EOD=15:00, SL=1.0 TP=1.5 CD=3 buffer=0.3
-
-### Runs 2-4: Cooldown sweep
-- CD=6: 1.21 (discard), CD=15: 1.39 (discard), CD=30: 1.54 (keep)
-
-### Runs 5-12: SL/TP grid with CD=30
-- Best: SL=1.2 TP=2.0 → PF=1.66
-
-### Runs 13-16: CD refine with SL=1.2 TP=2.0
-- CD=40 (1.69), CD=50 (1.69) plateau
-
-### Runs 17-18: EOD time sweep
-- 15:15 (1.61 discard), 15:30 (1.13 discard)
-
-### Runs 19-28: Buffer sweep
-- 0.1% (1.74), 0.5% (1.77), 0.6% (1.88), 0.7% (1.46)
-
-### Runs 29-39: Buffer fine-tune + SL re-check
-- buf=0.62% peak at PF=1.9031
-- SL=1.2 TP=2.0 confirmed best
-
-### Runs 40-42: Final CD refinement with buf=0.62
-- CD=45/50/55 all ~1.90 — plateau confirmed
+### Run 43 (baseline): FAST=9 SLOW=21 SL=1.0 TP=1.5 CD=3 shorts=off EOD=14:45 — PF=1.0585 (KEEP)
+### Run 44: FAST=9 SLOW=21 SL=0.5 TP=1.0 CD=3 — PF=1.1063 (KEEP)
+- SL=0.5 gives tighter stops, more trades, higher PF
+### Runs 45-53: SL/TP grid sweep
+- Best: SL=0.5 TP=2.0 → PF=1.1731. TP=2.0% best ratio
+- SL=0.8 and above all worse than SL=0.5
+### Runs 54-63: EMA period sweep
+- Best: FAST=12 SLOW=26 → PF=1.19. Longer EMAs filter noise
+### Runs 64-66: SL/TP refine with FAST=12 SLOW=26
+- SL=0.5 TP=2.0 confirmed best (re-tested with new EMAs)
+### Runs 67-78: Cooldown sweep
+- CD=35 → PF=1.343 (BEST). CD sweeps 5→15→20→30→35→40→50
+- CD=35 optimal, CD=30 close (1.321), CD=40 drops (1.330)
+### Runs 79-83: EOD time + shorts
+- EOD=15:00 → PF=1.376. EOD=15:30 drops to 1.267
+- Shorts: 1.270, worse than longs-only
+### Runs 84-92: TP refinement with CD=35 EOD=15:00
+- TP=2.4 → PF=1.402 (BEST). TP=2.2 (1.396), TP=2.5 (1.385)
+### Runs 93-98: CD + EMA refine with TP=2.4 EOD=15:00
+- CD=35 is peak, CD=34/36/38 close but lower
+- FAST=12/26 confirmed best EMA pair
+### Runs 99-115: EOD=14:53 breakthrough & final refine
+- EOD=14:53 → PF=1.4561 (breakthrough!)
+- EOD=14:50 (1.416), EOD=14:57 (1.402), EOD=15:05 (1.423)
+- Final SL/CD/EMA refine all confirm best config
