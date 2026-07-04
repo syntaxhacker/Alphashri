@@ -371,6 +371,8 @@ class RunnerSignalsMixin:
                 'today_intraday_high': daily_data.get('today_intraday_high', 0.0),
                 'days_since_52w_high': daily_data.get('days_since_52w_high', 0),
                 'daily_highs': daily_data['daily_highs'],
+                'daily_lows': daily_data.get('daily_lows', []),
+                'daily_closes': daily_data.get('daily_closes', []),
                 'volume': daily_data['volume'],
                 'avg_volume_20d': daily_data['avg_volume_20d'],
                 'ma50': daily_data['ma50'],

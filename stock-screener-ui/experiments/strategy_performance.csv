@@ -1,0 +1,10 @@
+Bot,Name,Strategy,Universe,PF(6mo),Net P&L(6mo),WR(6mo),Trades(6mo),SL%,TP%,Timeframe,Notes
+5,ORB High Beta Bot,ORB,volatility_trend,1.90,+125K,56%,291,1.2,2.0,Intraday,Original best ORB autoresearch
+6,EMA Cross Best Bot,EMA 60-min,TV screener 43,2.47,+1.29M,63%,292,8.0,12.0,60-min,With JUNIORBEES range>=1% filter
+7,ADX Trend Bot,ADX Trend,TV screener 43,2.81,+510K,68%,159,5.0,6.0,Swing,Best single-bot config
+8,ADX Trend Ultra-Large Bot,ADX Trend,trending,4.22,+480K,77%,105,5.0,6.0,Swing,Ultra-large caps (mktcap>5KCr)
+9,ADX Trend Volatility Bot,ADX Trend,volatility_trend,2.40,+339K,67%,97,5.0,6.0,Swing,High ATR stocks
+10,ADX Trend Momentum Bot,ADX Trend,high_momentum,2.35,+332K,65%,116,5.0,6.0,Swing,Momentum stocks
+11,EMA Cross Trending Bot,EMA 60-min,trending,2.24,+921K,60%,235,8.0,12.0,60-min,Ultra-large caps
+12,Volume Surge Bot,Volume Surge,buyer_interest,6.41,+188K,72%,25,8.0,10.0,Swing,Volume surge on buyer interest stocks
+13,Volume Surge Trending Bot,Volume Surge,trending,6.65,+442K,79%,73,8.0,10.0,Swing,Volume surge on ultra-large caps

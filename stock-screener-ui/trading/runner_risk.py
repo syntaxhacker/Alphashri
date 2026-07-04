@@ -151,7 +151,6 @@ class RunnerRiskMixin:
             except Exception:
                 intraday = None
 
-            intraday_high = 0.0
             if intraday is not None and not intraday.empty:
                 current_price = float(intraday['close'].iloc[-1])
                 today_intraday_high = float(intraday['high'].max())
@@ -166,6 +165,7 @@ class RunnerRiskMixin:
                 'today_intraday_high': today_intraday_high,
                 'days_since_52w_high': days_since_52w_high,
                 'daily_highs': highs,
+                'daily_lows': lows,
                 'daily_closes': closes,
                 'volume': volumes[-1] if volumes else 0.0,
                 'avg_volume_20d': avg_volume_20d,

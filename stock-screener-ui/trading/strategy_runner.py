@@ -11,7 +11,7 @@ from rich.console import Console
 console = Console()
 
 INTRADAY_STRATEGY_TYPES = {"ORB", "SR_BREAKOUT", "EMA_CROSS"}
-SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W"}
+SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W", "ADX_TREND", "SHORT_52W_FAILED", "VOLUME_SURGE"}
 
 
 @dataclass
@@ -61,6 +61,15 @@ class StrategyRunner:
         elif self.strategy_type == "EMA_CROSS":
             from trading.ema_cross_signals import EMACrossSignalGenerator
             self.signal_generator = EMACrossSignalGenerator(self.config)
+        elif self.strategy_type == "SHORT_52W_FAILED":
+            from trading.short_52w_failed_signals import Short52WFailedSignalGenerator
+            self.signal_generator = Short52WFailedSignalGenerator(self.config)
+        elif self.strategy_type == "ADX_TREND":
+            from trading.adx_trend_signals import ADXTrendSignalGenerator
+            self.signal_generator = ADXTrendSignalGenerator(self.config)
+        elif self.strategy_type == "VOLUME_SURGE":
+            from trading.volume_surge_signals import VolumeSurgeSignalGenerator
+            self.signal_generator = VolumeSurgeSignalGenerator(self.config)
         else:
             from trading.orb_signals import ORBSignalGenerator
             console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")
