@@ -83,6 +83,7 @@ function usePaperTradingViewModel() {
 
   const [activeBotId, setActiveBotId] = useState<string | null>(null);
   const [botSummaries, setBotSummaries] = useState<BotSummary[]>([]);
+  const [scanRefreshing, setScanRefreshing] = useState(false);
 
   const loadInitialData = useLoadInitialData(
     setAvailableBots,
@@ -116,6 +117,13 @@ function usePaperTradingViewModel() {
   const actions = usePaperViewActions(activeBotId);
   const filters = useHistoryFilters();
 
+  const handleScanRefresh = useCallback(async () => {
+    if (!activeBotId) return;
+    setScanRefreshing(true);
+    await refreshBotLiveData(activeBotId);
+    setScanRefreshing(false);
+  }, [activeBotId]);
+
   return {
     state,
     activeBotId,
@@ -124,14 +132,18 @@ function usePaperTradingViewModel() {
     handleClearError,
     actions,
     filters,
+    scanRefreshing,
+    handleScanRefresh,
   };
 }
 
 interface LiveViewProps {
   state: ReturnType<typeof getPaperTradingState>;
+  scanRefreshing: boolean;
+  handleScanRefresh: () => void;
 }
 
-function LiveView({ state }: LiveViewProps) {
+function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
   const selectedPosition = useMemo(() => {
     if (!state.selectedSymbol) return null;
     return state.positions.find((p) => p.symbol === state.selectedSymbol) || null;
@@ -158,7 +170,7 @@ function LiveView({ state }: LiveViewProps) {
             <PaperPositionsTable />
           </Flex>
         </ScrollArea>
-        <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} />
+        <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} onRefresh={handleScanRefresh} refreshing={scanRefreshing} />
       </Flex>
       <Flex
         direction="column"
@@ -285,7 +297,7 @@ function HeaderSection({
 }
 
 export function PaperTradingView() {
-  const { state, activeBotId, botSummaries, handleBotSelect, handleClearError, actions, filters } =
+  const { state, activeBotId, botSummaries, handleBotSelect, handleClearError, actions, filters, scanRefreshing, handleScanRefresh } =
     usePaperTradingViewModel();
 
   return (
@@ -317,7 +329,7 @@ export function PaperTradingView() {
         className="paper-content-area"
         id="paper-content"
       >
-        {state.currentView === "live" && <LiveView state={state} />}
+        {state.currentView === "live" && <LiveView state={state} scanRefreshing={scanRefreshing} handleScanRefresh={handleScanRefresh} />}
         {state.currentView === "history" && <HistoryView state={state} />}
         {state.currentView === "settings" && <SettingsView state={state} />}
         {state.currentView === "analytics" && (

@@ -30,7 +30,7 @@ export function ParamInput({
       <Checkbox
         data-testid={testId}
         checked={value ?? param.default}
-        onChange={(checked) => onChange(checked)}
+        onChange={(e) => onChange(e.currentTarget.checked)}
         size="sm"
       />
     );

@@ -6,7 +6,7 @@ export function Switch({ label, checked, defaultChecked, onChange, disabled, siz
     label={label}
     checked={checked}
     defaultChecked={defaultChecked}
-    onChange={onChange ? (e) => onChange(e.currentTarget.checked) : undefined}
+    onChange={onChange}
     disabled={disabled}
     size={size}
     color={color}

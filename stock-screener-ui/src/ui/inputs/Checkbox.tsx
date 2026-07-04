@@ -6,7 +6,7 @@ export function Checkbox({ label, checked, defaultChecked, onChange, disabled, s
     label={label}
     checked={checked}
     defaultChecked={defaultChecked}
-    onChange={onChange ? (e) => onChange(e.currentTarget.checked) : undefined}
+    onChange={onChange}
     disabled={disabled}
     size={size}
     color={color}

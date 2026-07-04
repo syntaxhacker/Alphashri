@@ -364,7 +364,7 @@ export interface UISwitchProps extends UIBaseProps {
   label?: ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (checked: boolean) => void;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;
@@ -377,7 +377,7 @@ export interface UICheckboxProps extends UIBaseProps {
   label?: ReactNode;
   checked?: boolean;
   defaultChecked?: boolean;
-  onChange?: (checked: boolean) => void;
+  onChange?: React.ChangeEventHandler<HTMLInputElement>;
   disabled?: boolean;
   size?: UISize;
   color?: UIColor;

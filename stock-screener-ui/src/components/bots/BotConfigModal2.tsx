@@ -237,7 +237,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
               <Checkbox
                 label="Active"
                 checked={isActive}
-                onChange={(checked) => setIsActive(checked)}
+                onChange={(e) => setIsActive(e.currentTarget.checked)}
                 mt="xl"
                 data-testid="bot-active-checkbox"
               />
@@ -284,7 +284,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 label="Live Trading"
                 description="Places real orders via Upstox API. Use with caution!"
                 checked={liveTrading}
-                onChange={(checked) => setLiveTrading(checked)}
+                onChange={(e) => setLiveTrading(e.currentTarget.checked)}
                 color="red"
                 data-testid="bot-live-trading-switch"
               />

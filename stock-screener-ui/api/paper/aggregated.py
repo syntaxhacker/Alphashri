@@ -9,7 +9,7 @@ from api.auth import get_current_user
 from db.models import User
 from db.models import Trade as TradeModel
 from db.database import SessionLocal
-from db.models.bot import BotConfig, StrategyConfig
+from db.models.bot import BotConfig, StrategyConfig, bot_strategies
 import config
 
 from .paper_api import router, _get_user_id
@@ -25,17 +25,26 @@ async def get_aggregated_dashboard(user: "User" = Depends(get_current_user)):
         bots = db.query(BotConfig).filter(BotConfig.user_id == user_id).all()
         bot_ids = [b.id for b in bots]
 
-        # Batch-load all strategies for all bots
-        all_strategies = db.query(StrategyConfig).filter(
-            StrategyConfig.bot_id.in_(bot_ids)
-        ).all() if bot_ids else []
+        # Batch-load all strategies for all bots (through bot_strategies association table)
         strategies_by_bot: dict = {}
-        for s in all_strategies:
-            strategies_by_bot.setdefault(s.bot_id, []).append({
-                "id": s.id,
-                "name": s.name,
-                "strategy_type": s.strategy_type,
-            })
+        if bot_ids:
+            rows = db.query(
+                bot_strategies.c.bot_id,
+                bot_strategies.c.strategy_id,
+                StrategyConfig.id,
+                StrategyConfig.name,
+                StrategyConfig.strategy_type,
+            ).join(
+                StrategyConfig, bot_strategies.c.strategy_id == StrategyConfig.id
+            ).filter(
+                bot_strategies.c.bot_id.in_(bot_ids)
+            ).all()
+            for row in rows:
+                strategies_by_bot.setdefault(row.bot_id, []).append({
+                    "id": row.id,
+                    "name": row.name,
+                    "strategy_type": row.strategy_type,
+                })
 
         # Batch-load today's trades for all bots
         today_start = today.replace(hour=0, minute=0, second=0, microsecond=0)

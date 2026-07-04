@@ -347,8 +347,6 @@ def main() -> None:
         # Try Redis first (has days_ago), fall back to DB if cache was cleared
         merged = _load_52w_ranges_from_redis()
         if not merged:
-            from db.database import SessionLocal
-            from db.models.stock_52w_touch import Stock52WeekRange
             db = SessionLocal()
             try:
                 rows = db.query(Stock52WeekRange).all()

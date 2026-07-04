@@ -297,7 +297,8 @@ async def start_bot(
         bot = get_bot_by_uuid(bot_id, user_id, db)
 
         if not bot.is_active:
-            raise HTTPException(status_code=400, detail="Bot is not active")
+            bot.is_active = True
+            db.commit()
 
         running, pid = is_bot_running(user_id, bot.id)
         if running:

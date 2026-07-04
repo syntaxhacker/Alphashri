@@ -1093,7 +1093,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             if cycle % 30 == 0:
                                 self.refresh_watchlist(strategy_id)
                                 self._start_websocket_stream()
-                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 30 != 0:
+                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 10 != 0:
                                 continue
                             signals = self.scan_for_signals(strategy_id)
                             for signal in signals:
