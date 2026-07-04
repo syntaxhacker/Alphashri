@@ -216,6 +216,11 @@ export async function openRootPage(page: Page) {
 }
 
 export async function gotoNewsPage(page: Page) {
-  await page.goto("/news");
-  await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 });
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/news", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="news-page"]', { timeout: 30000 }).catch((e) => {
+    if (errors.length > 0) throw new Error(`Page errors during gotoNewsPage: ${errors.join("; ")}`);
+    throw e;
+  });
 }

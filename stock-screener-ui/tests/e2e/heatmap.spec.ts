@@ -97,6 +97,7 @@ test.describe("Heatmap Page", () => {
 
   test("should filter by sector", async ({ page }) => {
     await page.waitForTimeout(1000);
+    await page.locator('[data-testid="heatmap-stock-count"]').waitFor({ state: "visible", timeout: 10000 });
     await page.locator('[data-testid="heatmap-sector-filter"]').click();
     const option = page.getByRole("option", { name: /Energy/ });
     await expect(option).toBeVisible({ timeout: 3000 });
@@ -106,7 +107,9 @@ test.describe("Heatmap Page", () => {
 
   test("should search by symbol", async ({ page }) => {
     await page.waitForTimeout(1000);
-    await page.locator('[data-testid="heatmap-search"]').fill("TCS");
+    const searchInput = page.locator('[data-testid="heatmap-search"]');
+    await searchInput.click();
+    await searchInput.pressSequentially("TCS", { delay: 30 });
     await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("1 stock");
   });
 

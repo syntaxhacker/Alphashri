@@ -516,21 +516,9 @@ export const mockSectorCorrelationResponseUS = {
 };
 
 export async function setupSectorMocks(page: import("@playwright/test").Page) {
-  // Mock /api/sector endpoint
-  await page.route(apiRoute("sector"), async (route) => {
-    const url = route.request().url();
-    const marketMatch = url.match(/market=([^&]+)/);
-    const market = marketMatch ? marketMatch[1] : "india";
-
-    await route.fulfill({
-      status: 200,
-      contentType: "application/json",
-      body: JSON.stringify({
-        ...mockSectorResponse,
-        market,
-      }),
-    });
-  });
+  // MUST register specific routes before broader ones — Playwright matches in registration order (FIFO).
+  // sector/correlation must come before sector so requests to /api/sector/correlation
+  // are caught by the specific handler, not the broad /api/sector one.
 
   // Mock /api/sector/correlation endpoint
   await page.route(apiRoute("sector/correlation"), async (route) => {
@@ -546,6 +534,22 @@ export async function setupSectorMocks(page: import("@playwright/test").Page) {
       contentType: "application/json",
       body: JSON.stringify({
         ...response,
+      }),
+    });
+  });
+
+  // Mock /api/sector endpoint
+  await page.route(apiRoute("sector"), async (route) => {
+    const url = route.request().url();
+    const marketMatch = url.match(/market=([^&]+)/);
+    const market = marketMatch ? marketMatch[1] : "india";
+
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({
+        ...mockSectorResponse,
+        market,
       }),
     });
   });
