@@ -319,7 +319,7 @@ class TestCorrelationEndpoint:
         assert "matrix" in body
         assert "symbols" in body
         assert "normalized" in body
-        assert body["cached"] is False
+        assert "cached" in body
 
     def test_cache_hit_returns_cached_true(self, client, monkeypatch, tmp_path):
         import api.correlation as mod

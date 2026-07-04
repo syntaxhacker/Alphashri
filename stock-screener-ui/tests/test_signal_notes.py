@@ -103,7 +103,7 @@ class TestORBSignalNotes:
         assert "0.64%" in signal.notes
 
     def test_eod_exit_notes_contain_pnl(self, orb_generator):
-        timestamp = datetime(2026, 4, 15, 14, 50, 0, tzinfo=IST)
+        timestamp = datetime(2026, 4, 15, 15, 35, 0, tzinfo=IST)
         signal = orb_generator.check_exit(
             symbol="RELIANCE",
             position_side="BUY",

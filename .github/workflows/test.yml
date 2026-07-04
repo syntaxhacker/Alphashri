@@ -47,7 +47,7 @@ jobs:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - run: |
           cd stock-screener-ui
-          uv run --python 3.12 pytest -m unit -q --tb=short --ignore=tests/api/test_llm_analyzer.py --ignore=tests/integration/test_bot_lifecycle.py --ignore=tests/test_multi_strategy_qa.py
+          uv run --python 3.12 pytest -m unit -q --tb=short --ignore=tests/api/test_llm_analyzer.py
         env:
           JWT_SECRET_KEY: test-secret
           DATABASE_URL: sqlite:///./test.db

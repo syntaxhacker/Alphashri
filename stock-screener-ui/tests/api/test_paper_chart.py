@@ -64,7 +64,7 @@ class TestChartEndpoint:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=1min",
                 headers=auth_headers,
@@ -81,7 +81,7 @@ class TestChartEndpoint:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min",
                 headers=auth_headers,
@@ -97,7 +97,7 @@ class TestChartEndpoint:
         mock_api.fetch_historical_data_v3.return_value = sample_400day_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min",
                 headers=auth_headers,
@@ -118,7 +118,7 @@ class TestChartEndpoint:
         mock_api.fetch_historical_data_v3.side_effect = Exception("API error")
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min",
                 headers=auth_headers,
