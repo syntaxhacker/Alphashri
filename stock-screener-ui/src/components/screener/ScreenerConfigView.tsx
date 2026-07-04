@@ -599,7 +599,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               label="Description"
               placeholder="Brief description of this screener"
               value={form.description}
-              onChange={(e) => setForm({ ...form, description: e.target.value })}
+              onChange={(val) => setForm({ ...form, description: val })}
             />
 
             <Text size="sm" fw={600}>

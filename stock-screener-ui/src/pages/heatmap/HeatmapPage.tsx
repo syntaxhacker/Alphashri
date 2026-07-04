@@ -119,7 +119,7 @@ export function HeatmapPage() {
             size="xs"
             placeholder="Search symbol..."
             value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
+            onChange={(val) => setSearchFilter(val)}
             style={{ width: 140 }}
           />
           {!isScatterView && (

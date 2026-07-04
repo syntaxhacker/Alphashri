@@ -344,17 +344,17 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
       <Box>
         <Text size="xs" c="dimmed" mb={2}>Notes</Text>
         <Group gap="xs">
-          <Textarea
-            size="xs"
-            value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
-            placeholder="Add notes..."
-            style={{ flex: 1 }}
-            maxLength={500}
-            autosize
-            minRows={1}
-            maxRows={3}
-          />
+<Textarea
+  size="xs"
+  value={notes}
+  onChange={(val) => setNotes(val)}
+  placeholder="Add notes..."
+  style={{ flex: 1 }}
+  maxLength={500}
+  autosize
+  minRows={1}
+  maxRows={3}
+/>
           <Button size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving}>Save</Button>
         </Group>
       </Box>

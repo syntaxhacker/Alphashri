@@ -107,9 +107,7 @@ test.describe("Heatmap Page", () => {
 
   test("should search by symbol", async ({ page }) => {
     await page.waitForTimeout(1000);
-    const searchInput = page.locator('[data-testid="heatmap-search"]');
-    await searchInput.click();
-    await searchInput.pressSequentially("TCS", { delay: 30 });
+    await page.locator('[data-testid="heatmap-search"]').fill("TCS");
     await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("1 stock");
   });
 

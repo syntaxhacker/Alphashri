@@ -346,14 +346,14 @@ export function ReplayConfigBar({
             label="Name"
             placeholder="e.g. 52W May 18-22"
             value={newConfigName}
-            onChange={(e) => setNewConfigName(e.currentTarget.value)}
+            onChange={(val) => setNewConfigName(val)}
             data-testid="replay-save-name-input"
           />
           <TextInput
             label="Description (optional)"
             placeholder="Touched 52W stocks with 52W bot"
             value={newConfigDescription}
-            onChange={(e) => setNewConfigDescription(e.currentTarget.value)}
+            onChange={(val) => setNewConfigDescription(val)}
             data-testid="replay-save-desc-input"
           />
           {saveError && (

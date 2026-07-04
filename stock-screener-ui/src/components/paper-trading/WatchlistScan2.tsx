@@ -213,7 +213,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           size="xs"
           placeholder="Search symbol"
           value={symbolQuery}
-          onChange={(e) => setSymbolQuery(e.currentTarget.value)}
+          onChange={(val) => setSymbolQuery(val)}
           style={{ width: 120 }}
         />
       </Group>

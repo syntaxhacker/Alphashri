@@ -181,7 +181,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
             minRows={2}
             maxRows={4}
             value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
+            onChange={(val) => setNotes(val)}
             placeholder="Any additional notes..."
             styles={{ input: { background: "var(--mantine-color-body)" } }}
             data-testid={`trade-notes-${trade.trade_id}`}
