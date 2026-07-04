@@ -173,7 +173,7 @@ vi.mock("@/ui", () => {
       <textarea
         data-testid={props["data-testid"]}
         value={value}
-        onChange={onChange}
+        onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
       />
     ),
