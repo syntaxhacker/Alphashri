@@ -1,55 +1,155 @@
-# Autoresearch Worklog: EMA Cross Trending
+# Worklog: Optimize Screener Filters for EMA Cross 60-min
 
-**Start**: 2026-06-26
-**Universe**: 34 liquid F&O stocks (5-min data, Jan 2026 - Jun 2026)
-**Goal**: Maximize profit factor for EMA crossover strategy
-
-## Summary
-| Metric | Baseline | Best | Delta |
-|--------|----------|------|-------|
-| Profit Factor | 1.0585 | 1.4561 | +37.6% |
-| Win Rate | 49.3% | 48.0% | -1.3pp |
-| Total Trades | 3057 | 2242 | -27% |
-| Net P&L | Rs +53,299 | Rs +112,009 | +110% |
-
-## Best Config
-```
-FAST=12, SLOW=26, SL=0.5%, TP=2.4%, CD=35 bars (175 min), shorts=OFF, EOD=14:53
-→ PF=1.456, WR=48.0%, 2242 trades, net_pnl=+Rs 112,009
-```
+Started: 2026-06-27
 
 ## Key Insights
-- **SL=0.5% is the sweet spot** — tighter than EMA cross default (1.0%). Quick stop-outs prevent large drawdowns
-- **TP=2.4%** better than 2.0% or 2.5% — captures enough winners while staying reachable
-- **EMA 12/26** (vs 9/21) produces slightly fewer but higher-quality signals
-- **CD=35 bars (175 min)** cuts trades by 27% but improves PF by 37.6%
-- **EOD=14:53 is critical** — shifting from 14:45→14:53 gave +0.11 PF jump. 15:00 gives 1.402, 14:53 gives 1.456
-- Shorts hurt PF (1.27 vs 1.46) — same pattern as ORB
-- EMA cross has lower PF ceiling than ORB (1.46 vs 1.90) — trend following is inherently less precise than breakout
+- **Larger market cap = better PF** — mcap≥15000Cr gives PF=2.082 vs baseline 1.529 (+36%)
+- **Price≥200 improves PF** at every mcap level (e.g., mcap≥10000: 1.940→2.032, mcap≥15000: 1.936→2.082)
+- **ATR% filter doesn't help** on top of mcap+price — it removes good stocks
+- **Volume filter** above 500K doesn't improve PF
+- Sweet spot: **mcap≥10000Cr + price≥200** gives best balance of PF (2.032) and stock count (41)
+- Peak PF: **mcap≥15000Cr + price≥200** at PF=2.082 but only 26 stocks
 
-## Experiment History
-### Run 43 (baseline): FAST=9 SLOW=21 SL=1.0 TP=1.5 CD=3 shorts=off EOD=14:45 — PF=1.0585 (KEEP)
-### Run 44: FAST=9 SLOW=21 SL=0.5 TP=1.0 CD=3 — PF=1.1063 (KEEP)
-- SL=0.5 gives tighter stops, more trades, higher PF
-### Runs 45-53: SL/TP grid sweep
-- Best: SL=0.5 TP=2.0 → PF=1.1731. TP=2.0% best ratio
-- SL=0.8 and above all worse than SL=0.5
-### Runs 54-63: EMA period sweep
-- Best: FAST=12 SLOW=26 → PF=1.19. Longer EMAs filter noise
-### Runs 64-66: SL/TP refine with FAST=12 SLOW=26
-- SL=0.5 TP=2.0 confirmed best (re-tested with new EMAs)
-### Runs 67-78: Cooldown sweep
-- CD=35 → PF=1.343 (BEST). CD sweeps 5→15→20→30→35→40→50
-- CD=35 optimal, CD=30 close (1.321), CD=40 drops (1.330)
-### Runs 79-83: EOD time + shorts
-- EOD=15:00 → PF=1.376. EOD=15:30 drops to 1.267
-- Shorts: 1.270, worse than longs-only
-### Runs 84-92: TP refinement with CD=35 EOD=15:00
-- TP=2.4 → PF=1.402 (BEST). TP=2.2 (1.396), TP=2.5 (1.385)
-### Runs 93-98: CD + EMA refine with TP=2.4 EOD=15:00
-- CD=35 is peak, CD=34/36/38 close but lower
-- FAST=12/26 confirmed best EMA pair
-### Runs 99-115: EOD=14:53 breakthrough & final refine
-- EOD=14:53 → PF=1.4561 (breakthrough!)
-- EOD=14:50 (1.416), EOD=14:57 (1.402), EOD=15:05 (1.423)
-- Final SL/CD/EMA refine all confirm best config
+## Next Ideas
+- Try combining mcap≥10000 with atr≥5% for mega-volatile large caps
+- Test if the best PF stocks individually are different from the aggregate best
+- Create bot with the top 2 filter combos
+
+## Experiments
+
+### Run 1: baseline — aggregate_pf=1.529 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: initial run with default filters (mcap>=1000, atr>=3%, price>=100, vol>=500k)
+- Result: PF=1.529, 130 stocks, 1454 trades, ₹3,040,839 net, 85.4% stocks profitable, avg PF=3.39
+- Insight: Baseline is solid. Wide filter catches many stocks but some are duds.
+- Next: Try tightening ATR% to 4% to filter out low-quality volatile stocks
+
+### Run 2: atr>=4% — aggregate_pf=1.520 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: min_atr_pct=4.0
+- Result: PF=1.520, 119 stocks, 1345 trades, ₹2.77M net, 84.0% prof
+- Insight: Tighter ATR removed some good stocks. Makes PF slightly worse.
+
+### Run 3: atr>=2% — aggregate_pf=1.529 (SAME)
+- Timestamp: 2026-06-27
+- What changed: min_atr_pct=2.0
+- Result: Identical to baseline — TV's volatility_trend profile already filters ATR high enough
+- Insight: Relaxing ATR doesn't add new stocks; TV profile is the natural ceiling
+
+### Run 4: atr>=5% — aggregate_pf=1.447 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: min_atr_pct=5.0
+- Result: PF=1.447, 102 stocks, 1175 trades, ₹2.14M net, 81.4% prof
+- Insight: Too aggressive — removes too many good large-cap stocks
+
+### Run 5: mcap>=2000Cr — aggregate_pf=1.579 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: min_mcap_cr=2000
+- Result: PF=1.579 (+3.3%), 112 stocks, 1207 trades, ₹2.72M net, 86.6% prof
+- Insight: Larger caps have more orderly EMA cross patterns. Clear improvement.
+
+### Run 6: mcap>=5000Cr — aggregate_pf=1.843 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: min_mcap_cr=5000
+- Result: PF=1.843 (+20.5%), 68 stocks, 662 trades, ₹2.00M net, 91.2% prof
+- Insight: Huge jump! Large caps clearly outperform. Avg PF per stock also well above baseline.
+
+### Run 7: mcap>=10000Cr — aggregate_pf=1.940 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: min_mcap_cr=10000
+- Result: PF=1.940 (+26.9%), 45 stocks, 383 trades, ₹1.25M net, 88.9% prof
+- Insight: Best single-param tweak. The mcap filter is the dominant factor.
+
+### Run 8: mcap>=10000Cr + atr>=4% — aggregate_pf=1.902 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: combined mcap>=10000 with atr>=4%
+- Result: PF=1.902, 40 stocks, 347 trades, ₹1.10M net
+- Insight: Adding ATR filter on top of mcap always makes things worse.
+
+### Run 9: mcap>=10000Cr + price>=200 — aggregate_pf=2.032 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: mcap>=10000 + price>=200
+- Result: PF=2.032 (+32.9%), 41 stocks, 339 trades, ₹1.18M net, 87.8% prof
+- Insight: Price filter synergizes well with mcap filter. Obvious in hindsight: cheap large-cap stocks tend to be value traps.
+
+### Run 10: mcap>=10000Cr + price>=200 + vol>=1M — aggregate_pf=2.018 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: added min_volume=1M
+- Result: PF=2.018, 32 stocks, 265 trades
+- Insight: Volume filter doesn't help — 500K is enough liquidity
+
+### Run 11: mcap>=10000Cr + price>=150 — aggregate_pf=1.987 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: price>=150 instead of 200
+- Result: PF=1.987, 43 stocks, 358 trades, ₹1.21M net
+- Insight: Price≥200 is the sweet spot — price≥150 gives worse PF even with more stocks
+
+### Run 12: mcap>=10000Cr + price>=300 — aggregate_pf=1.834 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: price>=300 instead of 200
+- Result: PF=1.834, 32 stocks, 249 trades
+- Insight: Too high — excludes too many good stocks in the 200-300 range
+
+### Run 13: mcap>=5000Cr + price>=200 — aggregate_pf=1.994 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: mcap>=5000 + price>=200
+- Result: PF=1.994 (+30.4%), 59 stocks, 552 trades, ₹1.88M net, 91.5% prof
+- Insight: Best diversification with PF-close-to-2.0. 59 stocks is a solid bot watchlist.
+
+### Run 14: mcap>=5000Cr + price>=200 + atr>=4% — aggregate_pf=2.022 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: added atr>=4%
+- Result: PF=2.022 (+32.2%), 52 stocks, 493 trades, ₹1.71M net, 90.4% prof
+- Insight: Surprisingly good — atr≥4% works here because mcap≥5000 already filters the junk
+
+### Run 15: mcap>=10000Cr + price>=200 + atr>=4% — aggregate_pf=1.997 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: mcap>=10000 + price>=200 + atr>=4%
+- Result: PF=1.997, 36 stocks
+- Insight: ATR filter not helpful at mcap≥10000 either
+
+### Run 16: mcap>=7500Cr + price>=200 — aggregate_pf=1.901 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: medium mcap threshold
+- Result: PF=1.901, 52 stocks
+- Insight: Not a threshold effect — PF scales monotonically with mcap
+
+### Run 17: mcap>=8000Cr + price>=200 — aggregate_pf=1.911 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: stepped mcap
+- Result: PF=1.911, 51 stocks
+
+### Run 18: mcap>=3000Cr + price>=200 — aggregate_pf=1.852 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: mcap>=3000 + price>=200
+- Result: PF=1.852, 76 stocks, 742 trades
+
+### Run 19: price>=200 (baseline mcap>=1000) — aggregate_pf=1.631 (KEEP)
+- Timestamp: 2026-06-27
+- What changed: just price>=200, no mcap change
+- Result: PF=1.631, 100 stocks, 1075 trades, ₹2.59M net, 87.0% prof
+- Insight: Price≥200 alone is a solid improvement (+6.7%) but mcap is the bigger lever
+
+### Run 20: mcap>=15000Cr + price>=200 — aggregate_pf=2.082 BEST (KEEP)
+- Timestamp: 2026-06-27
+- What changed: mcap>=15000 + price>=200
+- Result: PF=2.082 (+36.2%), 26 stocks, 203 trades, ₹0.73M net, 88.5% prof, avg PF=5.88
+- Insight: Peak PF. Larger caps with high beta are the sweet spot. Few stocks but excellent quality.
+
+### Run 21: mcap>=20000Cr + price>=200 — aggregate_pf=1.970 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: mcap>=20000 + price>=200
+- Result: PF=1.970, 21 stocks, 162 trades
+- Insight: Too few stocks and PF drops — mcap≥15000 is the peak
+
+### Run 22: mcap>=15000Cr (no price filter) — aggregate_pf=1.936 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: no price>=200 constraint
+- Result: PF=1.936, 29 stocks
+- Insight: Price≥200 adds +7.5% at this mcap level — always beneficial
+
+### Run 23: mcap>=15000Cr + price>=200 + atr>=4% — aggregate_pf=2.055 (DISCARD)
+- Timestamp: 2026-06-27
+- What changed: added atr>=4%
+- Result: PF=2.055, 22 stocks, 173 trades, ₹0.61M net
+- Insight: Slightly worse than without ATR filter. ATR never helps on top of mcap+price.

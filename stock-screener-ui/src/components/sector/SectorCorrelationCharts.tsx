@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 import { useECharts } from "../../hooks/useECharts";
 import type { SectorCorrelationResponse } from "../../types/sector";
 

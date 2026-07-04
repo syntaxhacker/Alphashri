@@ -3,13 +3,15 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerNav } from "./ScreenerNav";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import type { ScreenerOption } from "../../types";
 
-vi.mock("@mantine/core", async () => {
-  const actual = await vi.importActual("@mantine/core");
+vi.mock("@/ui", async () => {
+  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...actual,
+    ...core,
+    UIProvider: ui.UIProvider,
     Tooltip: ({ label, children }: { label: string; children: React.ReactNode }) => (
       <div data-testid="tooltip-wrapper" data-label={label}>
         {children}
@@ -46,9 +48,9 @@ describe("ScreenerNav", () => {
 
   it("renders navigation with all options", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-nav")).toBeInTheDocument();
     expect(screen.getByText("Trending")).toBeInTheDocument();
@@ -58,9 +60,9 @@ describe("ScreenerNav", () => {
 
   it("marks active screener with data-active", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
     expect(screen.getByTestId("screener-nav-option-new-highs")).not.toHaveAttribute("data-active");
@@ -68,9 +70,9 @@ describe("ScreenerNav", () => {
 
   it("calls onChange when option is clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("screener-nav-option-new-highs"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("new-highs");
@@ -78,9 +80,9 @@ describe("ScreenerNav", () => {
 
   it("calls onChange with correct id from RSI Reversal", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("rsi_reversal");
@@ -88,9 +90,9 @@ describe("ScreenerNav", () => {
 
   it("renders tooltips for options with descriptions", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Stocks with strong momentum")).toBeInTheDocument();
     expect(screen.getByText("Stocks at 52-week highs")).toBeInTheDocument();
@@ -100,9 +102,9 @@ describe("ScreenerNav", () => {
   it("handles options without descriptions", () => {
     const optionsWithoutDesc: ScreenerOption[] = [{ id: "simple", label: "Simple" }];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav options={optionsWithoutDesc} activeScreener="simple" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Simple")).toBeInTheDocument();
   });
@@ -114,9 +116,9 @@ describe("ScreenerNav", () => {
     };
 
     const { rerender } = render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
@@ -124,9 +126,9 @@ describe("ScreenerNav", () => {
     fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
 
     rerender(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav options={mockOptions} activeScreener={activeScreener} onChange={handleChange} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toHaveAttribute("data-active", "true");
@@ -134,9 +136,9 @@ describe("ScreenerNav", () => {
 
   it("renders correct number of options", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const nav = screen.getByTestId("screener-nav");
     expect(nav).toHaveAttribute("data-options-count", "3");
@@ -145,18 +147,18 @@ describe("ScreenerNav", () => {
   it("handles single option", () => {
     const singleOption: ScreenerOption[] = [{ id: "only", label: "Only Option" }];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav options={singleOption} activeScreener="only" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Only Option")).toBeInTheDocument();
   });
 
   it("handles empty options array", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav options={[]} activeScreener="" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const nav = screen.getByTestId("screener-nav");
     expect(nav).toHaveAttribute("data-options-count", "0");
@@ -164,9 +166,9 @@ describe("ScreenerNav", () => {
 
   it("renders with different active screener", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} activeScreener="new-highs" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-nav-option-new-highs")).toHaveAttribute("data-active", "true");
   });
@@ -177,13 +179,13 @@ describe("ScreenerNav", () => {
       { id: "near_52w_breakout", label: "Near 52W", status: "legacy" },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav
           options={optionsWithStatus}
           activeScreener="52w_high"
           onChange={vi.fn()}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("N")).toBeInTheDocument();
     expect(screen.getByText("L")).toBeInTheDocument();
@@ -192,9 +194,9 @@ describe("ScreenerNav", () => {
 
   it("each option has unique test id", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-nav-option-trending")).toBeInTheDocument();
     expect(screen.getByTestId("screener-nav-option-new-highs")).toBeInTheDocument();
@@ -203,9 +205,9 @@ describe("ScreenerNav", () => {
 
   it("calls onChange when option test id is clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerNav {...defaultProps} activeScreener="new-highs" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("screener-nav-option-trending"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("trending");

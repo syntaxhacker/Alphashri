@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { TradingChart } from "./TradingChart";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 const mockSetChartOption = vi.fn();
@@ -45,27 +45,27 @@ const baseInput = {
 describe("TradingChart", () => {
   it("renders without crashing and uses echarts ref", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <TradingChart input={baseInput} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect((window as any).echarts.init).toHaveBeenCalled();
   });
 
   it("shows Loader when isLoading is true", () => {
     const { container } = render(
-      <MantineProvider>
+      <UIProvider>
         <TradingChart input={baseInput} isLoading />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(container.querySelector(".mantine-Loader-root")).toBeTruthy();
   });
 
   it("calls buildChartOption and setChartOption with input", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <TradingChart input={baseInput} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect((window as any).echarts.init).toHaveBeenCalled();
   });
@@ -73,18 +73,18 @@ describe("TradingChart", () => {
   it("forwards zoomToTradeByTime and zoomToTradeByIndex via imperative handle", () => {
     const ref = vi.fn();
     render(
-      <MantineProvider>
+      <UIProvider>
         <TradingChart input={baseInput} ref={ref} />
-      </MantineProvider>,
+      </UIProvider>,
     );
   });
 
   it("handles trade click via scatter series click", () => {
     const onTradeClick = vi.fn();
     render(
-      <MantineProvider>
+      <UIProvider>
         <TradingChart input={baseInput} onTradeClick={onTradeClick} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect((window as any).echarts.init).toHaveBeenCalled();
   });
@@ -98,9 +98,9 @@ describe("TradingChart", () => {
       ],
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <TradingChart input={inputWithTimeStr} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect((window as any).echarts.init).toHaveBeenCalled();
   });

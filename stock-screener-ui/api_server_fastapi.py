@@ -49,6 +49,7 @@ from api.news_routes import (
     news_ws_manager, sector_ws_manager,
 )
 from api.news.news_poller import _init_news_modules
+from api.bots_api.bot_operations import bot_auto_recovery_task
 
 _news_available = False
 _llm_available = False
@@ -149,6 +150,14 @@ def _store_52w_ranges_in_redis(data: dict):
         cache_set(f"52w_range:{symbol}", info, ttl=_52W_RANGE_CACHE_TTL)
     cache_set("52w_range:all", clean, ttl=_52W_RANGE_CACHE_TTL)
 
+    # Also clear the paper trading 52W file cache
+    import shutil
+    from pathlib import Path
+    paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
+    if paper_cache_dir.exists():
+        shutil.rmtree(paper_cache_dir)
+        paper_cache_dir.mkdir(parents=True, exist_ok=True)
+
 
 def _load_52w_ranges_from_redis() -> dict:
     """Load 52W ranges from Redis (bulk key) or return empty dict."""
@@ -209,13 +218,18 @@ async def compute_52w_ranges_task():
     while True:
         try:
             if first:
+                # Prompt startup run when market is open (addresses stale data on `start.sh`).
+                # Subsequent cycles use the normal interval.
                 await asyncio.sleep(5)
                 first = False
             else:
                 await asyncio.sleep(interval)
 
             if not _is_market_hours():
+                # Only perform 52W batch + cache flush during market hours
+                # (consistent with prewarm behavior for other screeners).
                 continue
+
             job = get_job_status() or {}
             if job.get("status") == "running":
                 print("[52W Range] Scheduled run skipped — batch already running")
@@ -239,6 +253,14 @@ async def compute_52w_ranges_task():
 
             n = invalidate_screener_cache()
             print(f"[52W Range] Scheduled batch done (status={job.get('status')}); screener cache keys cleared: {n}")
+
+            # Also clear the paper trading 52W file cache
+            import shutil
+            from pathlib import Path
+            paper_cache_dir = Path(__file__).parent / "experiments" / "data" / "52w_cache"
+            if paper_cache_dir.exists():
+                shutil.rmtree(paper_cache_dir)
+                paper_cache_dir.mkdir(parents=True, exist_ok=True)
         except asyncio.CancelledError:
             break
         except Exception as e:
@@ -264,6 +286,7 @@ async def lifespan(app: FastAPI):
     prewarm = None
     _52w_task = None
     news_poller = None
+    _prefetch_task = None
     try:
         from db.database import init_db
         init_db()
@@ -283,7 +306,7 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
         try:
-            asyncio.create_task(news_startup_prefetch())
+            _prefetch_task = asyncio.create_task(news_startup_prefetch())
             print("📰 News prefetch scheduled")
         except Exception as e:
             print(f"⚠️ News prefetch failed: {e}")
@@ -299,6 +322,12 @@ async def lifespan(app: FastAPI):
         except Exception as e:
             print(f"⚠️ 52W Range task failed: {e}")
             _52w_task = None
+
+        try:
+            _recovery_task = asyncio.create_task(bot_auto_recovery_task())
+            print("🔄 Bot auto-recovery task started")
+        except Exception as e:
+            print(f"⚠️ Bot auto-recovery task failed: {e}")
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -311,6 +340,10 @@ async def lifespan(app: FastAPI):
         _52w_task.cancel()
     if news_poller:
         news_poller.cancel()
+    if _prefetch_task:
+        _prefetch_task.cancel()
+    if _recovery_task:
+        _recovery_task.cancel()
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
     from db.database import engine
@@ -639,6 +672,13 @@ async def get_52w_range_bulk():
     finally:
         db.close()
 
+
+try:
+    from api.strategy_performance import router as strategy_performance_router
+    app.include_router(strategy_performance_router)
+    print("✅ Strategy Performance API loaded at /api/strategy-performance")
+except Exception as e:
+    print(f"⚠️ Could not load strategy performance API: {e}")
 
 # ======
 # Router includes — existing modules

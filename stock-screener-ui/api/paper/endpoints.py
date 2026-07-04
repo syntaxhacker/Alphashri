@@ -12,7 +12,6 @@ from typing import Optional
 from fastapi import HTTPException, Depends
 from trading.paper_trader import get_paper_trader
 from trading.risk_manager import get_risk_manager
-from trading.journal import get_journal
 from trading.orb_signals import create_entry_signal
 from api.auth import get_current_user
 from db.models import User
@@ -28,6 +27,9 @@ from trading.timeframe_utils import parse_timeframe_minutes, calculate_or_candle
 
 console = Console()
 
+from .orb_utils import compute_orb_score, calculate_pivot_points
+from .chart_utils import format_candles_for_chart, calc_hold_duration
+
 @router.get("/signals")
 async def get_signals():
     """Get current ORB signals from screener."""
@@ -39,14 +41,14 @@ async def get_signals():
         df = screener.screen(limit=100, verify_nse=True)
 
         signals = []
-        for _, row in df.head(20).iterrows():
+        for row in df.head(20).itertuples():
             signals.append({
-                "symbol": row['name'],
-                "price": row['close'],
-                "rsi": round(row['RSI'], 1),
-                "adx": round(row['ADX'], 1),
-                "atr_pct": round(row.get('atr_pct', 0), 2),
-                "score": round(row.get('orb_score', 0), 1),
+                "symbol": row.name,
+                "price": row.close,
+                "rsi": round(row.RSI, 1),
+                "adx": round(row.ADX, 1),
+                "atr_pct": round(getattr(row, 'atr_pct', 0), 2),
+                "score": round(getattr(row, 'orb_score', 0), 1),
             })
 
         return {
@@ -440,18 +442,18 @@ async def get_paper_chart(
                 actual_date = f"{first_ts.strftime('%Y-%m-%d')} to {last_ts.strftime('%Y-%m-%d')}"
 
         candles = []
-        for idx, row in df.iterrows():
-            o, h, l, c = float(row['open']), float(row['high']), float(row['low']), float(row['close'])
+        for row in df.itertuples():
+            o, h, l, c = float(row.open), float(row.high), float(row.low), float(row.close)
             if any(math.isnan(v) or math.isinf(v) for v in [o, h, l, c]):
                 continue
-            time_str = idx.isoformat() if hasattr(idx, 'isoformat') else str(idx)
+            time_str = row.Index.isoformat() if hasattr(row.Index, 'isoformat') else str(row.Index)
             candles.append({
                 "time": time_str,
                 "open": o,
                 "high": h,
                 "low": l,
                 "close": c,
-                "volume": int(row.get('volume', 0)),
+                "volume": int(getattr(row, 'volume', 0)),
             })
 
         or_minutes = 45
@@ -552,44 +554,9 @@ async def get_paper_chart(
         uid = _get_user_id(user)
         symbol_trades = _get_symbol_trades_from_db(uid, symbol, date)
 
-        if not symbol_trades:
-            journal_dir = Path(__file__).parent.parent.parent / "journals" / str(uid)
-            date_str = date.replace('-', '')
-            journal_file = journal_dir / f"journal_{date_str}.json"
-
-            if journal_file.exists():
-                from trading.journal import TradeJournal
-                temp_journal = TradeJournal(user_id=uid)
-                try:
-                    temp_journal.load_journal(str(journal_file))
-                    symbol_trades = [
-                        t for t in temp_journal.trades
-                        if t.symbol == symbol.upper()
-                    ]
-                except Exception as e:
-                    console.print(f"[yellow]Could not load journal for {date}: {e}[/yellow]")
-            else:
-                journal = get_journal(uid)
-                symbol_trades = [
-                    t for t in journal.trades
-                    if t.symbol == symbol.upper() and t.exit_time.startswith(date)
-                ]
+        # Journal fallback removed — DB is the primary data source
 
         def _trade_to_dict(t):
-            def _calc_hold(entry, exit_):
-                if not entry or not exit_:
-                    return None
-                try:
-                    et = datetime.fromisoformat(entry)
-                    xt = datetime.fromisoformat(exit_)
-                    if et.tzinfo is None:
-                        et = et.replace(tzinfo=config.IST)
-                    if xt.tzinfo is None:
-                        xt = xt.replace(tzinfo=config.IST)
-                    return int((xt - et).total_seconds() / 60)
-                except (ValueError, TypeError):
-                    return None
-
             if isinstance(t, dict):
                 return {
                     "trade_id": t.get("trade_id", ""),
@@ -609,7 +576,7 @@ async def get_paper_chart(
                     "take_profit": t.get("take_profit", 0),
                     "peak_price": t.get("peak_price", 0),
                     "low_price": t.get("low_price", 0),
-                    "hold_duration_minutes": _calc_hold(t.get("entry_time"), t.get("exit_time")),
+                    "hold_duration_minutes": calc_hold_duration(t.get("entry_time"), t.get("exit_time")),
                     "strategy_id": t.get("strategy_id", 0),
                     "strategy_name": t.get("strategy_name", ""),
                     "reason": t.get("reason", ""),
@@ -636,7 +603,7 @@ async def get_paper_chart(
                 "take_profit": t.tp_price,
                 "peak_price": getattr(t, 'peak_price', 0),
                 "low_price": getattr(t, 'low_price', 0),
-                "hold_duration_minutes": _calc_hold(t.entry_time, t.exit_time),
+                "hold_duration_minutes": calc_hold_duration(t.entry_time, t.exit_time),
                 "strategy_id": t.strategy_id,
                 "strategy_name": t.strategy_name,
                 "reason": getattr(t, 'reason', ''),

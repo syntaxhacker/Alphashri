@@ -1,4 +1,4 @@
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 
 interface ChainSubHeaderProps {
   styles: ReturnType<typeof import("./chainStyles").getStyles>;

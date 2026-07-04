@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Box, Group, Text, Badge, Skeleton } from "@mantine/core";
+import { Box, Group, Text, Badge, Skeleton } from "@/ui";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import { useThemeColors } from "../../hooks/useThemeColors";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";

@@ -1,4 +1,4 @@
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 import { useAppDispatch, useAppSelector } from "../../state/store/hooks";
 import { removeNotification } from "../../state/store/notificationsSlice";
 import { NotificationItem } from "./Notification";

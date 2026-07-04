@@ -1,4 +1,4 @@
-import { Box, Tabs } from "@mantine/core";
+import { Box, Tabs } from "@/ui";
 import { CompactPage } from "../components/common/compact";
 import { LLMStatsPanel } from "./admin/LLMStatsPanel";
 import { Admin52wRangePanel } from "./admin/Admin52wRangePanel";

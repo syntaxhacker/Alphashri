@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 
 const API_BASE = "";
 

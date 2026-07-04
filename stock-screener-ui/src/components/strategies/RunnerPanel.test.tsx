@@ -2,7 +2,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider, Tabs } from "@mantine/core";
+import { UIProvider } from "@/ui";
+import { Tabs } from "@mantine/core";
 import { RunnerPanel } from "./RunnerPanel";
 import { DEFAULT_VALUES } from "./strategyDefaults";
 
@@ -12,11 +13,11 @@ afterEach(() => {
 
 function renderInTabs(isOrb = true) {
   return render(
-    <MantineProvider>
+    <UIProvider>
       <Tabs value="runner">
         <RunnerPanel initialValues={DEFAULT_VALUES} isOrb={isOrb} />
       </Tabs>
-    </MantineProvider>,
+    </UIProvider>,
   );
 }
 

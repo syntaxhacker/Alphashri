@@ -6,7 +6,7 @@ import {
   Divider,
   Box,
   Button,
-} from "@mantine/core";
+} from "@/ui";
 import type { ScreenerOption, ProfileFilter, SortDirection } from "../../types";
 import * as state from "../../state";
 import { fetchData } from "../../api";
@@ -39,6 +39,54 @@ export function screenerHasSideFilters(activeScreener: string): boolean {
   return Array.isArray(filters) && filters.length > 0;
 }
 
+function handleFilterChange(key: string, value: number | string | null) {
+  const newFilters = { ...state.profileFilters };
+  if (value === null || value === undefined || value === "") {
+    delete newFilters[key];
+  } else {
+    newFilters[key] = value;
+  }
+  state.setProfileFilters(newFilters);
+}
+
+function renderFilter(filter: ProfileFilter) {
+  const value = state.profileFilters[filter.key];
+
+  if (filter.type === "select" && filter.options) {
+    const selectData = normalizeSelectFilterOptions(filter.options);
+    const selected =
+      value !== undefined && value !== null && value !== ""
+        ? String(value)
+        : filter.default !== undefined
+          ? String(filter.default)
+          : null;
+    return (
+      <Select
+        key={filter.key}
+        label={filter.label}
+        data={selectData}
+        value={selected}
+        onChange={(val) => handleFilterChange(filter.key, val)}
+        size="xs"
+        clearable
+      />
+    );
+  }
+
+  return (
+    <NumberInput
+      key={filter.key}
+      label={filter.label}
+      value={(value as number) || filter.default || ""}
+      onChange={(val) => handleFilterChange(filter.key, val as number)}
+      min={filter.min}
+      max={filter.max}
+      step={filter.step}
+      size="xs"
+    />
+  );
+}
+
 export function ScreenerSidePanel({
   activeScreener,
 }: Props) {
@@ -49,56 +97,8 @@ export function ScreenerSidePanel({
     return null;
   }
 
-  const handleFilterChange = (key: string, value: number | string | null) => {
-    const newFilters = { ...state.profileFilters };
-    if (value === null || value === undefined || value === "") {
-      delete newFilters[key];
-    } else {
-      newFilters[key] = value;
-    }
-    state.setProfileFilters(newFilters);
-  };
-
   const handleApplyFilters = () => {
     fetchData("upstox", "intraday", activeScreener, "manual");
-  };
-
-  const renderFilter = (filter: ProfileFilter) => {
-    const value = state.profileFilters[filter.key];
-
-    if (filter.type === "select" && filter.options) {
-      const selectData = normalizeSelectFilterOptions(filter.options);
-      const selected =
-        value !== undefined && value !== null && value !== ""
-          ? String(value)
-          : filter.default !== undefined
-            ? String(filter.default)
-            : null;
-      return (
-        <Select
-          key={filter.key}
-          label={filter.label}
-          data={selectData}
-          value={selected}
-          onChange={(val) => handleFilterChange(filter.key, val)}
-          size="xs"
-          clearable
-        />
-      );
-    }
-
-    return (
-      <NumberInput
-        key={filter.key}
-        label={filter.label}
-        value={(value as number) || filter.default || ""}
-        onChange={(val) => handleFilterChange(filter.key, val as number)}
-        min={filter.min}
-        max={filter.max}
-        step={filter.step}
-        size="xs"
-      />
-    );
   };
 
   return (

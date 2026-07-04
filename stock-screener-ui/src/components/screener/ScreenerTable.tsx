@@ -1,4 +1,5 @@
-import { Table, ActionIcon, CopyButton, Tooltip, Checkbox } from "@mantine/core";
+import { useCallback } from "react";
+import { Table, ActionIcon, CopyButton, Tooltip, Checkbox } from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { DataTable, SortableHeader } from "../common";
 import { StockRow } from "./StockRow";
@@ -43,7 +44,7 @@ export function ScreenerTable({
     }
   };
 
-  const renderHeader = (column: ColumnDef) => {
+  const renderHeader = useCallback((column: ColumnDef) => {
     const isSymbolColumn = column.key === "symbol";
 
     return (
@@ -80,7 +81,7 @@ export function ScreenerTable({
         )}
       </SortableHeader>
     );
-  };
+  }, [sortColumn, sortDirection, onSortChange, allSymbols, stocks]);
 
   return (
     <DataTable

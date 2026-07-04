@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Stack, Box, Text, Title, Button, Progress, Group } from "@mantine/core";
+import { Stack, Box, Text, Title, Progress } from "@/ui";
 import { StrategyRunnerConfig as StrategyRunnerConfigComp } from "./StrategyRunnerConfig";
 import { StrategyRunnerStats } from "./StrategyRunnerStats";
 import { StrategyRunnerTabs } from "./StrategyRunnerTabs";
@@ -52,8 +52,6 @@ export function StrategyRunnerPage() {
 
   const configRef = useRef(config);
   configRef.current = config;
-  const startRunnerRef = useRef<(() => void) | null>(null);
-  const autoRunDone = useRef(false);
 
   const setConfig = useCallback((partial: Partial<StrategyRunnerConfig>) => {
     setConfigRaw((prev) => {
@@ -70,6 +68,7 @@ export function StrategyRunnerPage() {
   }, []);
 
   const startRunner = useCallback(async () => {
+    if (isRunning) return;
     const cfg = configRef.current;
     setIsRunning(true);
     setTrades([]);
@@ -89,35 +88,18 @@ export function StrategyRunnerPage() {
     } finally {
       setIsRunning(false);
     }
-  }, []);
-
-  startRunnerRef.current = startRunner;
-
-  // Auto-run on first load if URL has params (only once)
-  useEffect(() => {
-    if (autoRunDone.current) return;
-    const canRun = config.bot_uuids.length > 0 && config.date && config.symbols.length > 0 && !isRunning && trades.length === 0;
-    if (canRun) {
-      autoRunDone.current = true;
-      const timer = setTimeout(() => startRunnerRef.current?.(), 800);
-      return () => clearTimeout(timer);
-    }
-  }, [config.bot_uuids.length, config.date, config.symbols.length, isRunning, trades.length]);
+  }, [isRunning]);
 
   const stopRunner = useCallback(() => {
-    sseRef.current?.();
-    sseRef.current = null;
     setIsRunning(false);
   }, []);
 
   const reset = useCallback(() => {
-    sseRef.current?.();
-    sseRef.current = null;
     setTrades([]);
     setSummary(null);
     setError(null);
     setIsRunning(false);
-    collectedRef.current = [];
+
     writeConfigToURL({ bot_uuids: [], date: "", end_date: "", symbols: [] });
   }, []);
 
@@ -166,43 +148,4 @@ export function StrategyRunnerPage() {
   );
 }
 
-function computeSummary(trades: StrategyRunnerTrade[], setSummary: (s: StrategyRunnerSummary) => void) {
-  const wins = trades.filter((t) => t.pnl > 0);
-  const gp = wins.reduce((s, t) => s + t.pnl, 0);
-  const gl = Math.abs(trades.filter((t) => t.pnl <= 0).reduce((s, t) => s + t.pnl, 0));
 
-  const byBot: Record<string, any> = {};
-  for (const t of trades) {
-    const bn = t.bot_name || "?";
-    if (!byBot[bn]) byBot[bn] = { trades: [] };
-    byBot[bn].trades.push(t);
-  }
-  for (const [bn, d] of Object.entries(byBot)) {
-    const bt = d.trades;
-    const bw = bt.filter((t: any) => t.pnl > 0).length;
-    const bgp = bt.filter((t: any) => t.pnl > 0).reduce((s: number, t: any) => s + t.pnl, 0);
-    const bgl = Math.abs(bt.filter((t: any) => t.pnl <= 0).reduce((s: number, t: any) => s + t.pnl, 0));
-    d.summary = { total_trades: bt.length, winners: bw, win_rate: bt.length > 0 ? (bw / bt.length) * 100 : 0, net_pnl: bt.reduce((s: number, t: any) => s + t.net_pnl, 0), profit_factor: bgl > 0 ? bgp / bgl : bw > 0 ? Infinity : 0 };
-  }
-
-  const bySym: Record<string, any> = {};
-  for (const t of trades) {
-    const sym = t.symbol || "?";
-    if (!bySym[sym]) bySym[sym] = { trades: [], bots: new Set<string>() };
-    bySym[sym].trades.push(t);
-    bySym[sym].bots.add(t.bot_name || "?");
-  }
-  const symbolSummary: Record<string, any> = {};
-  for (const [sym, d] of Object.entries(bySym)) {
-    const st = d.trades;
-    const sw = st.filter((t: any) => t.pnl > 0).length;
-    const sgp = st.filter((t: any) => t.pnl > 0).reduce((s: number, t: any) => s + t.pnl, 0);
-    const sgl = Math.abs(st.filter((t: any) => t.pnl <= 0).reduce((s: number, t: any) => s + t.pnl, 0));
-    const botPnl: Record<string, number> = {};
-    for (const t of st) botPnl[t.bot_name || "?"] = (botPnl[t.bot_name || "?"] || 0) + t.net_pnl;
-    const best = Object.entries(botPnl).sort((a, b) => b[1] - a[1])[0]?.[0] || "";
-    symbolSummary[sym] = { total_trades: st.length, winners: sw, win_rate: st.length > 0 ? (sw / st.length) * 100 : 0, net_pnl: st.reduce((s: number, t: any) => s + t.net_pnl, 0), profit_factor: sgl > 0 ? sgp / sgl : sw > 0 ? Infinity : 0, bots_traded: d.bots.size, best_bot: best };
-  }
-
-  setSummary({ total_trades: trades.length, winners: wins.length, win_rate: trades.length > 0 ? (wins.length / trades.length) * 100 : 0, net_pnl: trades.reduce((s, t) => s + t.net_pnl, 0), profit_factor: gl > 0 ? gp / gl : wins.length > 0 ? Infinity : 0, by_bot: Object.fromEntries(Object.entries(byBot).map(([k, v]) => [k, { summary: v.summary }])), by_symbol: symbolSummary });
-}

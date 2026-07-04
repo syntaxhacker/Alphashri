@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import { Badge, Text, Group, Flex, Tooltip, Button } from "@mantine/core";
+import { useEffect, useMemo, useState, useCallback } from "react";
+import { Badge, Text, Group, Flex, Tooltip, Button } from "@/ui";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -123,25 +123,25 @@ export function PaperPositionsTable() {
     }
   }, [strategyGroups]);
 
-  const toggleCard = (id: number) => {
+  const toggleCard = useCallback((id: number) => {
     setExpandedCards((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  };
+  }, []);
 
-  const toggleAll = () => {
+  const toggleAll = useCallback(() => {
     if (allExpanded) {
       setExpandedCards(new Set());
     } else {
       setExpandedCards(new Set(strategyGroups.keys()));
     }
     setAllExpanded(!allExpanded);
-  };
+  }, [allExpanded, strategyGroups]);
 
-  const handleSelectSymbol = async (
+  const handleSelectSymbol = useCallback(async (
     symbol: string,
     _tradeId?: string,
     _strategyName?: string,
@@ -163,9 +163,9 @@ export function PaperPositionsTable() {
       strategyId ?? currentState.selectedStrategyId,
       fromDate,
     );
-  };
+  }, []);
 
-  const handleClosePosition = async (symbol: string, currentPrice: number) => {
+  const handleClosePosition = useCallback(async (symbol: string, currentPrice: number) => {
     if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
       try {
         await closePaperPosition(symbol, currentPrice, "MANUAL");
@@ -175,7 +175,7 @@ export function PaperPositionsTable() {
         alert("Failed to close position. Check console for details.");
       }
     }
-  };
+  }, []);
 
   if (isLoading && sortedPositions.length === 0) {
     return <LoadingState />;

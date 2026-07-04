@@ -20,6 +20,7 @@ import {
   updateBot,
   startBot,
   stopBot,
+  stopAllBots,
   deleteBot,
   getBotStatus,
   getBotTrades,
@@ -45,6 +46,7 @@ const initialState: BotsState = {
     "delete",
     "start",
     "stop",
+    "stop-all",
     "trades",
   ]),
   error: null,
@@ -325,6 +327,30 @@ export async function stopBotAction(botId: string): Promise<boolean> {
       ...state,
       error: error instanceof Error ? error.message : "Failed to stop bot",
       loading: setLoadingState<BotLoadingKey>(state.loading, "stop", false),
+    };
+    notify();
+    return false;
+  }
+}
+
+// Stop all bots
+export async function stopAllBotsAction(): Promise<boolean> {
+  setLoading("stop-all", true);
+  setError(null);
+  try {
+    await stopAllBots();
+    await loadBots();
+    state = {
+      ...state,
+      loading: setLoadingState<BotLoadingKey>(state.loading, "stop-all", false),
+    };
+    notify();
+    return true;
+  } catch (error) {
+    state = {
+      ...state,
+      error: error instanceof Error ? error.message : "Failed to stop bots",
+      loading: setLoadingState<BotLoadingKey>(state.loading, "stop-all", false),
     };
     notify();
     return false;

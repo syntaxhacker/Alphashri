@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { BotConfigModal } from "./BotConfigModal2";
 import type { BotConfig, AvailableStrategy } from "../../types/bots";
 
@@ -154,7 +154,7 @@ const mockStrategies: AvailableStrategy[] = [
 ];
 
 function renderWithProviders(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  return render(<UIProvider>{ui}</UIProvider>);
 }
 
 describe("BotConfigModal", () => {

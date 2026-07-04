@@ -7,17 +7,15 @@ export function LivePriceUpdater() {
   const { subscribe } = useLivePrices();
 
   useEffect(() => {
-    const unsub = subscribe((prices) => {
+    const unsub = subscribe((symbol, price) => {
+      if (price.ltp <= 0) return;
       const state = getPaperTradingState();
       const updated = state.positions.map((pos: PaperPosition) => {
-        const live = prices[pos.symbol];
-        if (live && live.ltp > 0) {
-          const side = pos.side === "BUY" ? 1 : -1;
-          const pnl = side * (live.ltp - pos.entry_price) * pos.quantity;
-          const pnlPct = side * ((live.ltp - pos.entry_price) / pos.entry_price) * 100;
-          return { ...pos, current_price: live.ltp, pnl, pnl_pct: pnlPct };
-        }
-        return pos;
+        if (pos.symbol !== symbol) return pos;
+        const side = pos.side === "BUY" ? 1 : -1;
+        const pnl = side * (price.ltp - pos.entry_price) * pos.quantity;
+        const pnlPct = side * ((price.ltp - pos.entry_price) / pos.entry_price) * 100;
+        return { ...pos, current_price: price.ltp, pnl, pnl_pct: pnlPct };
       });
       setPositions(updated);
     });

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -euo pipefail
 
 cd "$(dirname "$0")"
 
@@ -10,16 +10,6 @@ UI_PORT="${UI_PORT:-5173}"
 API_LOG="${API_LOG:-logs/alphashri.log}"
 API_PID="/tmp/alphashri-api.pid"
 UI_PID="/tmp/alphashri-ui.pid"
-
-# ── Cleanup trap (Ctrl+C for `dev` mode) ────────────────────────────────
-cleanup() {
-  echo
-  echo "Stopping services..."
-  stop_frontend 2>/dev/null || true
-  stop_backend 2>/dev/null || true
-  echo "All stopped."
-}
-trap cleanup INT TERM
 
 # ── Health check ──────────────────────────────────────────────────────
 wait_for() {
@@ -79,7 +69,7 @@ start_backend() {
   fi
   kill_port "$API_PORT"
   echo "Starting API on http://localhost:${API_PORT} ..."
-  uvicorn api_server_fastapi:app --host :: --port "$API_PORT" --reload >> "$API_LOG" 2>&1 &
+  uvicorn api_server_fastapi:app --host :: --port "$API_PORT" --reload --reload-delay 60 >> "$API_LOG" 2>&1 &
   echo $! > "$API_PID"
   wait_for "API" "http://localhost:${API_PORT}/api/replay/configs" 15
 }

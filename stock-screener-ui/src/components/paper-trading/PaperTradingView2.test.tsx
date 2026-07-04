@@ -10,7 +10,6 @@ const mockStateStore: any = {
   portfolio: null,
   trades: [],
   dailySummary: null,
-  performanceSummary: null,
   symbolPerformance: [],
   filterDate: null,
   filterFromDate: null,
@@ -106,10 +105,13 @@ vi.mock("./PaperSettings", () => ({
   PaperSettings: () => <div data-testid="paper-settings">Settings</div>,
 }));
 
-vi.mock("@mantine/core", async (importOriginal) => {
-  const actual = await importOriginal();
+vi.mock("@/ui", async () => {
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...actual,
+    ...ui,
+    DatePicker: ({ value, onChange, ...props }: any) => (
+      <input data-testid={props["data-testid"]} type="date" value={value} onChange={onChange} readOnly />
+    ),
     Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
       <select data-testid={testId} value={value || ""} onChange={(e: any) => { const val = e.target.value; onChange(val === "" ? null : val); }} {...rest}>
         {data?.map((opt: any) => <option key={opt.value} value={opt.value ?? ""}>{opt.label}</option>)}

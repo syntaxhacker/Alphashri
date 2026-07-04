@@ -1,4 +1,4 @@
-import { Button, Group } from "@mantine/core";
+import { Button, Group } from "@/ui";
 import { IconRefresh, IconDeviceFloppy } from "@tabler/icons-react";
 
 interface SettingsActionsProps {

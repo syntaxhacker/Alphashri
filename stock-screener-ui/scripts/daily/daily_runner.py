@@ -16,7 +16,7 @@ from rich.panel import Panel
 from trading.paper_trader import PaperTrader, OrderSide, get_paper_trader
 from trading.orb_signals import ORBSignalGenerator, SignalType, create_entry_signal
 from trading.risk_manager import RiskManager, get_risk_manager
-from trading.journal import TradeJournal, get_journal
+from trading.utils import PRE_MARKET, MARKET_OPEN, OR_END, FORCE_EXIT, MARKET_CLOSE
 
 from .daily_scanner import (
     refresh_watchlist as _refresh_watchlist,
@@ -40,11 +40,11 @@ console = Console()
 
 class DailyTradingRunner:
 
-    PRE_MARKET = (9, 0)
-    MARKET_OPEN = (9, 15)
-    OR_END = (10, 0)
-    FORCE_EXIT = (14, 45)
-    MARKET_CLOSE = (15, 30)
+    PRE_MARKET = PRE_MARKET
+    MARKET_OPEN = MARKET_OPEN
+    OR_END = OR_END
+    FORCE_EXIT = FORCE_EXIT
+    MARKET_CLOSE = MARKET_CLOSE
 
     def __init__(
         self,
@@ -68,7 +68,6 @@ class DailyTradingRunner:
         self.trader = get_paper_trader()
         self.signal_generator = ORBSignalGenerator(config_name=config_name)
         self.risk_manager = get_risk_manager(config_name=config_name)
-        self.journal = get_journal()
 
         self.running = True
         self.or_levels = {}

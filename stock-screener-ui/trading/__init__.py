@@ -11,11 +11,8 @@ Components:
 from .paper_trader import PaperTrader
 from .orb_signals import ORBSignalGenerator
 from .risk_manager import RiskManager
-from .journal import TradeJournal
-
 __all__ = [
     'PaperTrader',
     'ORBSignalGenerator',
     'RiskManager',
-    'TradeJournal',
 ]

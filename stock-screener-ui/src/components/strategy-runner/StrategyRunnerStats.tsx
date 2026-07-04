@@ -1,4 +1,4 @@
-import { Box, Text, Progress, Stack } from "@mantine/core";
+import { Box, Text, Progress, Stack } from "@/ui";
 import { CompactStat, CompactStatGrid } from "../common/compact";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 import type {

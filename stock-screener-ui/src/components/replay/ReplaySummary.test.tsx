@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ReplaySummaryPanel } from "./ReplaySummary";
 import type { ReplaySummary } from "../../types/replay";
 
@@ -13,9 +13,9 @@ afterEach(() => {
 describe("ReplaySummaryPanel", () => {
   it("returns null when summary is null", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={null} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByText("Per-Strategy Breakdown")).not.toBeInTheDocument();
   });
@@ -27,9 +27,9 @@ describe("ReplaySummaryPanel", () => {
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Per-Strategy Breakdown")).toBeInTheDocument();
   });
@@ -41,9 +41,9 @@ describe("ReplaySummaryPanel", () => {
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Strategy")).toBeInTheDocument();
     expect(screen.getByText("Trades")).toBeInTheDocument();
@@ -62,9 +62,9 @@ describe("ReplaySummaryPanel", () => {
       },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("ORB")).toBeInTheDocument();
     expect(screen.getByText("EMA")).toBeInTheDocument();
@@ -77,9 +77,9 @@ describe("ReplaySummaryPanel", () => {
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getAllByText("66.7%").length).toBeGreaterThanOrEqual(1);
   });
@@ -91,9 +91,9 @@ describe("ReplaySummaryPanel", () => {
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getAllByText("2.00").length).toBeGreaterThanOrEqual(1);
   });
@@ -105,9 +105,9 @@ describe("ReplaySummaryPanel", () => {
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Total")).toBeInTheDocument();
   });
@@ -119,9 +119,9 @@ describe("ReplaySummaryPanel", () => {
       strategy_breakdown: { ORB: { trades: 3, win_rate: 66.7, net_pnl: 600, profit_factor: 2.0 } },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplaySummaryPanel summary={summary} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getAllByText("3").length).toBeGreaterThanOrEqual(1);
     expect(screen.getAllByText("66.7%").length).toBeGreaterThanOrEqual(1);

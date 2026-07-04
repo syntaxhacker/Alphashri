@@ -1,4 +1,4 @@
-import { Group, Text, Stack, SimpleGrid, Title, Badge, ScrollArea } from "@mantine/core";
+import { Group, Text, Stack, SimpleGrid, Title, Badge, ScrollArea } from "@/ui";
 import { IconBellRinging, IconTrendingUp, IconClock } from "@tabler/icons-react";
 import { SectorTable } from "./SectorTable";
 import type { SectorResponse } from "../../types/sector";

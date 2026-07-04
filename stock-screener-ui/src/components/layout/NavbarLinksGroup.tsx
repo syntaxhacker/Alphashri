@@ -1,4 +1,4 @@
-import { Box, Flex, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@mantine/core";
+import { Box, Flex, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import classes from "./NavbarLinksGroup.module.css";
 

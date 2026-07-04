@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { BrowserRouter } from "react-router-dom";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -135,11 +135,11 @@ describe("NewsPanel2", () => {
 
   const renderComponent = () =>
     render(
-      <MantineProvider>
+      <UIProvider>
         <BrowserRouter>
           <NewsPanel2 />
         </BrowserRouter>
-      </MantineProvider>,
+      </UIProvider>,
     );
 
   it("renders the NEWS toggle button", () => {

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Text, Group, Stack, Loader, Paper, Badge, Button, ScrollArea, Table, Alert, Box } from "@mantine/core";
+import { Text, Group, Stack, Loader, Paper, Badge, Button, ScrollArea, Table, Alert, Box } from "@/ui";
 import { IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import type { LLMStats, LLMRun, ModelUsage } from "../../types/admin";

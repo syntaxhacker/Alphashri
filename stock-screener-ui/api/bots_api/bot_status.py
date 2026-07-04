@@ -138,6 +138,24 @@ def _sync_list_bots_summary(user_id: int, db: Session) -> list:
         for row in rows:
             position_counts[row[0]] = row[1]
 
+    strat_map: dict[int, list] = {}
+    if bot_ids:
+        all_strat_rows = db.execute(
+            text(
+                "SELECT bs.bot_id, sc.uuid, sc.name, sc.strategy_type "
+                "FROM bot_strategies bs "
+                "JOIN strategy_configs sc ON sc.id = bs.strategy_id "
+                "WHERE bs.bot_id IN ({})".format(
+                    ",".join(f":bid_{i}" for i in range(len(bot_ids)))
+                )
+            ),
+            {f"bid_{i}": bid for i, bid in enumerate(bot_ids)},
+        ).fetchall()
+        for sr in all_strat_rows:
+            strat_map.setdefault(sr.bot_id, []).append(
+                BotSummaryStrategy(id=sr.uuid, name=sr.name, strategy_type=sr.strategy_type)
+            )
+
     result = []
     for bot in bots:
         running, pid = is_bot_running(user_id, bot.id)
@@ -151,22 +169,7 @@ def _sync_list_bots_summary(user_id: int, db: Session) -> list:
         else:
             status = "STOPPED"
 
-        strategies = []
-        strat_rows = db.execute(
-            text(
-                "SELECT bs.strategy_id, sc.uuid, sc.name, sc.strategy_type "
-                "FROM bot_strategies bs "
-                "JOIN strategy_configs sc ON sc.id = bs.strategy_id "
-                "WHERE bs.bot_id = :bot_id"
-            ),
-            {"bot_id": bot.id},
-        ).fetchall()
-        for sr in strat_rows:
-            strategies.append(BotSummaryStrategy(
-                id=sr.uuid,
-                name=sr.name,
-                strategy_type=sr.strategy_type,
-            ))
+        strategies = strat_map.get(bot.id, [])
 
         result.append(BotSummaryResponse(
             id=bot.uuid,

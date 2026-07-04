@@ -1,4 +1,4 @@
-import { Box, Stack, Flex, Button, Group, Text } from "@mantine/core";
+import { Box, Stack, Flex, Button, Group, Text } from "@/ui";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplateTreeView } from "./TemplateTreeView";

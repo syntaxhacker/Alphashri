@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { Group, Box, Text, Select, Button, Switch, Loader, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
+import { Group, Box, Text, Select, Button, Switch, Loader, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@/ui";
+import { useDebouncedValue } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@tabler/icons-react";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
 import { listBots } from "../../api/bots";

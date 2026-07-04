@@ -1,4 +1,4 @@
-import { Stack, Select, NumberInput, Tabs } from "@mantine/core";
+import { Stack, Select, NumberInput, Tabs } from "@/ui";
 import type { StrategyFormData } from "./types";
 import { SlTpRow } from "./SlTpRow";
 

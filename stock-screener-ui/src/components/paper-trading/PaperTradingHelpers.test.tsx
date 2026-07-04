@@ -14,7 +14,6 @@ const mockStateStore: any = {
   portfolio: null,
   trades: [],
   dailySummary: null,
-  performanceSummary: null,
   symbolPerformance: [],
   filterDate: null,
   filterFromDate: null,
@@ -180,10 +179,12 @@ vi.mock("../common/TradingDatePicker", () => ({
 }));
 
 // Mock Mantine Select as a native <select> for easier testing
-vi.mock("@mantine/core", async (importOriginal) => {
-  const actual = await importOriginal();
+vi.mock("@/ui", async () => {
+  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...actual,
+    ...core,
+    UIProvider: ui.UIProvider,
     Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
       <select
         data-testid={testId}

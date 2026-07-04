@@ -1,4 +1,4 @@
-import { Box, Flex } from "@mantine/core";
+import { Box, Flex } from "@/ui";
 import type {
   ReplayTrade,
   ReplayChartOptions,

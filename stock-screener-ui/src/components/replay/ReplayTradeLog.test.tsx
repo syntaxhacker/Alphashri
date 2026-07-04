@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ReplayTradeLog } from "./ReplayTradeLog";
 import type { ReplayTrade } from "../../types/replay";
 
@@ -31,7 +31,7 @@ const makeTrade = (id: number, overrides: Partial<ReplayTrade> = {}): ReplayTrad
 describe("ReplayTradeLog", () => {
   it("renders with data-testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -39,14 +39,14 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-log")).toBeInTheDocument();
   });
 
   it("shows Trade Log title", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -54,7 +54,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Trade Log")).toBeInTheDocument();
   });
@@ -62,7 +62,7 @@ describe("ReplayTradeLog", () => {
   it("renders strategy filter Select with All Strategies + unique names", () => {
     const trades = [makeTrade(1), makeTrade(2, { id: 2, strategy: "52W", symbol: "INFY" })];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -70,7 +70,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-log-strategy-filter")).toBeInTheDocument();
   });
@@ -78,7 +78,7 @@ describe("ReplayTradeLog", () => {
   it("renders symbol filter Select with All Symbols + unique symbols", () => {
     const trades = [makeTrade(1), makeTrade(2, { id: 2, symbol: "INFY" })];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -86,7 +86,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-log-symbol-filter")).toBeInTheDocument();
   });
@@ -94,7 +94,7 @@ describe("ReplayTradeLog", () => {
   it("shows filtered trade count text", () => {
     const trades = [makeTrade(1), makeTrade(2)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -102,7 +102,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("2 trades")).toBeInTheDocument();
   });
@@ -110,7 +110,7 @@ describe("ReplayTradeLog", () => {
   it("shows '1 trade' for single trade", () => {
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -118,14 +118,14 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("1 trade")).toBeInTheDocument();
   });
 
   it("shows empty state when filtered trades empty", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -133,7 +133,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("No trades yet")).toBeInTheDocument();
   });
@@ -141,7 +141,7 @@ describe("ReplayTradeLog", () => {
   it("renders trade rows with index number", () => {
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -149,7 +149,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-row-1")).toBeInTheDocument();
   });
@@ -157,7 +157,7 @@ describe("ReplayTradeLog", () => {
   it("shows SideBadge for each trade side", () => {
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -165,14 +165,14 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-row-1")).toBeInTheDocument();
   });
 
   it("renders header columns", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={[]}
           strategyFilter="ALL"
@@ -180,7 +180,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Symbol")).toBeInTheDocument();
     expect(screen.getByText("Qty")).toBeInTheDocument();
@@ -192,7 +192,7 @@ describe("ReplayTradeLog", () => {
   it("highlights row when highlightedTradeId matches", () => {
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -200,7 +200,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={1}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const row = screen.getByTestId("replay-trade-row-1");
     expect(row.className).toContain("trade-row-highlighted");
@@ -211,7 +211,7 @@ describe("ReplayTradeLog", () => {
     const user = userEvent.setup();
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -220,7 +220,7 @@ describe("ReplayTradeLog", () => {
           highlightedTradeId={null}
           onTradeClick={onTradeClick}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("replay-trade-row-1"));
     expect(onTradeClick).toHaveBeenCalledWith(trades[0]);
@@ -231,7 +231,7 @@ describe("ReplayTradeLog", () => {
     const user = userEvent.setup();
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -239,7 +239,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const link = screen.getByTestId("replay-trade-strategy-link-1");
     await user.click(link);
@@ -249,7 +249,7 @@ describe("ReplayTradeLog", () => {
   it("shows exit reason as Badge with color", () => {
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -257,7 +257,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("TP")).toBeInTheDocument();
   });
@@ -265,7 +265,7 @@ describe("ReplayTradeLog", () => {
   it("falls back to gray for unknown exit reasons", () => {
     const trades = [makeTrade(1, { exit_reason: "MANUAL_CLOSE" })];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -273,7 +273,7 @@ describe("ReplayTradeLog", () => {
           isRunning={false}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("MANUAL_CLOSE")).toBeInTheDocument();
   });
@@ -283,7 +283,7 @@ describe("ReplayTradeLog", () => {
     Element.prototype.scrollIntoView = scrollIntoView;
     const trades = [makeTrade(1)];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayTradeLog
           trades={trades}
           strategyFilter="ALL"
@@ -291,7 +291,7 @@ describe("ReplayTradeLog", () => {
           isRunning={true}
           highlightedTradeId={null}
         />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(scrollIntoView).toHaveBeenCalledWith(
       expect.objectContaining({ behavior: "smooth", block: "end" }),

@@ -87,7 +87,6 @@ function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradi
     portfolio: null,
     trades: [],
     dailySummary: null,
-    performanceSummary: null,
     symbolPerformance: [],
     filterDate: null,
     filterFromDate: null,

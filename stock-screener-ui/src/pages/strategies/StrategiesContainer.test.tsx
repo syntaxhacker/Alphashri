@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { StrategiesContainer } from "./StrategiesContainer";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { initStrategiesState } from "../../state/strategies";
 
@@ -43,9 +43,9 @@ describe("StrategiesContainer", () => {
 
   it("renders strategies container", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("strategies-page")).toBeInTheDocument();
@@ -53,9 +53,9 @@ describe("StrategiesContainer", () => {
 
   it("calls initStrategiesState on mount", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(vi.mocked(initStrategiesState)).toHaveBeenCalledTimes(1);
@@ -63,9 +63,9 @@ describe("StrategiesContainer", () => {
 
   it("passes useStrategiesState props to StrategiesPage", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const page = screen.getByTestId("strategies-page");

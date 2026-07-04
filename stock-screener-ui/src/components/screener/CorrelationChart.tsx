@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Box, Loader, Flex, Stack, Text } from "@mantine/core";
+import { Box, Loader, Flex, Stack, Text } from "@/ui";
 import { useECharts } from "../../hooks/useECharts";
 import type { CorrelationDataPoint } from "../../api/correlation";
 

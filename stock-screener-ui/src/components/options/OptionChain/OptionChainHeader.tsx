@@ -1,4 +1,4 @@
-import { Group, Select } from "@mantine/core";
+import { Group, Select } from "@/ui";
 
 export function OptionChainHeader({
   selectedUnderlying,

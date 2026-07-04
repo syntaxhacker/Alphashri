@@ -1,4 +1,4 @@
-import { Stack, Paper, Group, Text, Badge } from "@mantine/core";
+import { Stack, Paper, Group, Text, Badge } from "@/ui";
 import type { SectorAlert } from "./sectorUtils";
 import { formatPercentage } from "../../utils/ui-helpers";
 import { TINT_POSITIVE, TINT_NEGATIVE } from "../../config/colors";

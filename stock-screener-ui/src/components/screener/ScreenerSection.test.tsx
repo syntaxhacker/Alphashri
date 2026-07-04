@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerSection } from "./ScreenerSection";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 vi.mock("./ScreenerStockView", () => ({
   ScreenerStockView: (props: any) => (
@@ -41,9 +41,9 @@ describe("ScreenerSection", () => {
 
   it("renders CompactPanel with title and description", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerSection {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Approaching (3)")).toBeInTheDocument();
     expect(screen.getByText("Stocks nearing the high")).toBeInTheDocument();
@@ -51,9 +51,9 @@ describe("ScreenerSection", () => {
 
   it("delegates to ScreenerStockView", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerSection {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-stock-view")).toBeInTheDocument();
   });

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { LoginForm, RegisterForm } from "./LoginForm2";
 
 const mockLogin = vi.fn();
@@ -23,7 +23,7 @@ vi.mock("./AuthProvider2", () => ({
 }));
 
 function renderWithProvider(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  return render(<UIProvider>{ui}</UIProvider>);
 }
 
 describe("LoginForm", () => {

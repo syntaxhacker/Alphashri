@@ -20,8 +20,8 @@ from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
 
-from backtest.costs import calculate_trading_costs
 from trading.timezone import IST
+from trading.utils import PRE_MARKET, MARKET_OPEN, OR_END, FORCE_EXIT, MARKET_CLOSE
 
 
 class _TimestampedConsole(Console):
@@ -50,7 +50,6 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
 }
 from trading.bot_heartbeat import BotHeartbeat
 from trading.global_risk_manager import GlobalRiskManager
-from trading.journal import get_journal
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
 from trading.runner_signals import RunnerSignalsMixin
 from trading.runner_risk import RunnerRiskMixin
@@ -126,11 +125,11 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
     - Enforces global and per-strategy risk limits
     """
 
-    PRE_MARKET = (9, 0)
-    MARKET_OPEN = (9, 15)
-    OR_END = (10, 0)
-    FORCE_EXIT = (15, 30)
-    MARKET_CLOSE = (15, 30)
+    PRE_MARKET = PRE_MARKET
+    MARKET_OPEN = MARKET_OPEN
+    OR_END = OR_END
+    FORCE_EXIT = FORCE_EXIT
+    MARKET_CLOSE = MARKET_CLOSE
 
     def __init__(
         self,
@@ -173,7 +172,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.strategies: Dict[int, StrategyRunner] = {}
         self._load_strategies()
 
-        self.journal = get_journal(user_id)
         self._heartbeat = BotHeartbeat(
             user_id=self.user_id,
             bot_config_id=self.bot_config.id,
@@ -187,9 +185,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         self.strategy_watchlists = {}  # Per-strategy watchlists: {strategy_id: [symbols]}
         self.or_levels = {}
         self.cooldown_stocks: Dict[str, datetime] = {}
+        self._scan_cursors: dict = {}
+        self._streaming_started = False
         self._screener = None
         self._data_fetcher = None
         self._daily_summary_sent = False
+        self._cycle_data_cache: dict = {}
         self.replay_mode = False
         self._replay_time = None
         self._replay_on_event = None
@@ -319,7 +320,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             except Exception:
                 pass
             side = self._side_str(pos.side, "LONG_SHORT")
-            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+            costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
             order_mgr = self._get_order_manager()
             if order_mgr:
                 tag_str = self._build_order_tag(pos.strategy_name, pos.symbol)
@@ -378,7 +379,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 except Exception:
                     pass
                 side = self._side_str(pos.side, "LONG_SHORT")
-                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
                 self.portfolio.close_position(
                     strategy_id=pos.strategy_id,
                     symbol=pos.symbol,
@@ -554,6 +555,41 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         except Exception:
             pass
 
+    def _get_all_watchlist_symbols(self) -> list:
+        """Get deduplicated union of all watchlist symbols."""
+        return list(set(
+            list(self.watchlist) + sum(
+                (wl for wl in self.strategy_watchlists.values()), []
+            )
+        ))
+
+    def _start_websocket_stream(self):
+        """Start or restart WebSocket live price streaming for all watchlist symbols.
+        
+        Reconnects if the symbol set changed since last connect.
+        """
+        try:
+            fetcher = self._get_data_fetcher()
+            if fetcher and hasattr(fetcher, 'upstox_api') and fetcher.upstox_api:
+                api = fetcher.upstox_api
+                symbols = self._get_all_watchlist_symbols()
+                if not symbols:
+                    return
+                if self._streaming_started and hasattr(self, '_ws_symbols') and set(symbols) == self._ws_symbols:
+                    return
+                if self._streaming_started:
+                    try:
+                        api.stop_realtime_streaming()
+                    except Exception:
+                        pass
+                if api.setup_realtime_streaming(symbols, callback=api._default_tick_handler):
+                    api.start_realtime_streaming()
+                    self._streaming_started = True
+                    self._ws_symbols = set(symbols)
+                    console.print(f"[green]WebSocket live prices started for {len(symbols)} symbols[/green]")
+        except Exception as e:
+            console.print(f"[yellow]WebSocket stream init failed (non-fatal): {e}[/yellow]")
+
     def _load_positions_from_db(self):
         try:
             with self._db_session() as db:
@@ -572,12 +608,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 'side': p.side,
                                 'quantity': p.quantity,
                                 'entry_price': p.entry_price,
-                                'stop_loss': p.stop_loss or 0.0,
-                                'take_profit': p.take_profit or 0.0,
+                                'stop_loss': self._safe_stop_loss(p),
+                                'take_profit': self._safe_take_profit(p),
                                 'entry_time': p.entry_time.isoformat() if p.entry_time else None,
                                 'current_price': p.current_price or p.entry_price,
-                                'peak_price': getattr(p, 'peak_price', None) or p.entry_price,
-                                'low_price': getattr(p, 'low_price', None) or p.entry_price,
+                                'peak_price': self._safe_peak_price(p, p.entry_price),
+                                'low_price': self._safe_low_price(p, p.entry_price),
                                 'strategy_type': getattr(p, 'strategy_type', '') or '',
                                 'metadata': _json.loads(p.metadata_json) if getattr(p, 'metadata_json', None) else {},
                             }
@@ -625,7 +661,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 if exit_price <= 0:
                                     continue
                                 side = self._side_str(pos.side, "LONG_SHORT")
-                                costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+                                costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
                                 trade = self.portfolio.close_position(
                                     strategy_id=pos.strategy_id,
                                     symbol=pos.symbol,
@@ -673,8 +709,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         return _is_trading_hours(self._ist_now())
 
     def is_force_exit_time(self) -> bool:
-        now = self._ist_now()
-        return now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]
+        from trading.utils import is_force_exit_time
+        return is_force_exit_time(self._ist_now())
 
     def refresh_watchlist(self, strategy_id=None):
         """Refresh watchlist - per strategy if strategy_id provided."""
@@ -840,25 +876,38 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         except Exception as e:
             console.print(f"[yellow]persist_state bot/strategy state failed: {e}[/yellow]")
 
-        scan_items = []
+        self._persist_scan_items_to_redis()
+        self._persist_scan_items_to_db()
+
+    def _build_scan_items(self) -> list:
+        items = []
         for strategy_id, runner in self.strategies.items():
             for item in getattr(runner, 'last_scan_items', []):
                 item_copy = dict(item)
                 item_copy['strategy_name'] = runner.strategy_name
                 item_copy['strategy_id'] = strategy_id
-                scan_items.append(item_copy)
+                items.append(item_copy)
+        return items
 
-        try:
-            with self._db_session() as db:
-                from db.models import BotRuntimeState
-                bot_state = db.query(BotRuntimeState).filter(
-                    BotRuntimeState.bot_id == self.bot_config.id
-                ).first()
-                if bot_state:
-                    bot_state.scan_items = _json.dumps(scan_items)
-        except Exception as e:
-            console.print(f"[yellow]persist_state scan_items DB failed: {e}[/yellow]")
+    def _has_meaningful_scan_items(self, items: list) -> bool:
+        """Check if scan_items have any data worth persisting.
 
+        Returns True if:
+        - At least one item has 'watching' or 'signal' status (real data), OR
+        - Items have actual scan results (not just rate-limit failures)
+        """
+        if not items:
+            return False
+        # If any item has a price, the scan actually ran — persist even if all skipped
+        for item in items:
+            if item.get('price') is not None or item.get('status') in ('watching', 'signal'):
+                return True
+        return False
+
+    def _persist_scan_items_to_redis(self):
+        scan_items = self._build_scan_items()
+        if not self._has_meaningful_scan_items(scan_items):
+            return
         try:
             from cache.redis_client import get_redis_client
             client = get_redis_client()
@@ -869,7 +918,22 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     _json.dumps(scan_items),
                 )
         except Exception as e:
-            console.print(f"[yellow]persist_state Redis failed: {e}[/yellow]")
+            console.print(f"[yellow]persist scan_items Redis failed: {e}[/yellow]")
+
+    def _persist_scan_items_to_db(self):
+        scan_items = self._build_scan_items()
+        if not self._has_meaningful_scan_items(scan_items):
+            return
+        try:
+            with self._db_session() as db:
+                from db.models import BotRuntimeState
+                bot_state = db.query(BotRuntimeState).filter(
+                    BotRuntimeState.bot_id == self.bot_config.id
+                ).first()
+                if bot_state:
+                    bot_state.scan_items = _json.dumps(scan_items)
+        except Exception as e:
+            console.print(f"[yellow]persist scan_items DB failed: {e}[/yellow]")
 
     def display_status(self):
         """Display current trading status."""
@@ -946,13 +1010,18 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         for strategy_id in self.strategies:
             self.stop_strategy(strategy_id)
 
-    def run(self, interval: int = 5):
+    def run(self, interval: int | None = None):
         """
         Run the multi-strategy trading loop.
 
         Args:
-            interval: Seconds between scan cycles
+            interval: Seconds between scan cycles. If None, computed from strategy configs.
         """
+        if interval is None:
+            interval = min(
+                (s.config.get('scan_interval_secs', 5) for s in self.strategies.values()),
+                default=5,
+            )
         from trading.telegram_notifier import send_bot_status, send_daily_summary
 
         mode_str = 'TEST' if self.test_mode else ('LIVE' if self.live_trading else 'PAPER')
@@ -983,6 +1052,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         try:
             while self.running:
                 cycle += 1
+                self._cycle_data_cache.clear()
 
                 try:
                     now_ist = self._ist_now()
@@ -993,7 +1063,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             self.risk_manager.reset_daily()
                         self._daily_summary_sent = False
 
-                    console.print(f"\n[dim]--- Cycle {cycle} @ {now_ist.strftime('%H:%M:%S')} ---[/dim]")
+                    print(f"\n--- Cycle {cycle} @ {now_ist.strftime('%H:%M:%S')} ---")
 
                     if not self.is_market_open():
                         console.print("[yellow]Market closed. Waiting...[/yellow]")
@@ -1010,19 +1080,27 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         for sid in self.strategies:
                             self.refresh_watchlist(sid)
 
+                    # Start WebSocket (reconnects if symbol set changed)
+                    if cycle == 1 or cycle % 10 == 0:
+                        self._start_websocket_stream()
+
+                    # Monitor positions FIRST — exits before entries
+                    self.monitor_positions()
+
                     for strategy_id, runner in self.strategies.items():
                         if runner.status == "running":
                             # Refresh per-strategy watchlist periodically (every 30 cycles)
                             if cycle % 30 == 0:
                                 self.refresh_watchlist(strategy_id)
-                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 30 != 0:
+                                self._start_websocket_stream()
+                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 10 != 0:
                                 continue
                             signals = self.scan_for_signals(strategy_id)
                             for signal in signals:
                                 self.execute_signal(strategy_id, signal)
 
+                    self._persist_scan_items_to_redis()
                     self._check_command_file()
-                    self.monitor_positions()
 
                     now_ist = self._ist_now()
                     if now_ist.hour >= 15 and now_ist.minute >= 30 and not self._daily_summary_sent:
@@ -1045,12 +1123,15 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             open_positions=open_pos,
                         )
 
-                    self.display_status()
+                    if cycle % 30 == 0:
+                        self.display_status()
 
-                    self.persist_state()
+                    if cycle % 6 == 0:
+                        self.persist_state()
 
                     if self.running and not self.is_force_exit_time():
-                        console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
+                        if cycle % 10 == 0:
+                            console.print(f"\n[dim]Waiting {interval}s until next scan...[/dim]")
                         time.sleep(interval)
 
                 except Exception as e:
@@ -1067,7 +1148,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         else:
             console.print("\n[bold]Trading stopped. Final status:[/bold]")
             self.display_status()
-            self.journal.save_journal()
             ps = self.portfolio.get_portfolio_status()
             send_bot_status(
                 bot_name=self.bot_config.name,
@@ -1260,11 +1340,12 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                 for key in list(self.portfolio.positions.keys()):
                     pos = self.portfolio.positions[key]
+                    # Skip swing strategy positions — they carry over between days
                     runner = self.strategies.get(pos.strategy_id)
                     if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
                         continue
                     side = self._side_str(pos.side, "LONG_SHORT")
-                    costs = calculate_trading_costs(pos.entry_price, pos.current_price, pos.quantity, side)['total_costs']
+                    costs = self._calc_costs(pos.entry_price, pos.current_price, pos.quantity, side)
                     trade = self.portfolio.close_position(
                         strategy_id=pos.strategy_id, symbol=pos.symbol,
                         exit_price=pos.current_price, exit_reason="FORCE_CLOSE",

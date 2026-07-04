@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Box, Text } from "@mantine/core";
+import { Box, Text } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../../components/common/TanStackTable";
 import type { HeatmapStock } from "../../api/heatmap";

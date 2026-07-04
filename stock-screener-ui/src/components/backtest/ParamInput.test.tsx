@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ParamInput } from "./ParamInput";
 import type { StrategyParam } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
@@ -9,7 +9,7 @@ import "@testing-library/jest-dom/vitest";
 afterEach(cleanup);
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <UIProvider>{children}</UIProvider>;
 }
 
 function mockParam(overrides: Partial<StrategyParam> = {}): StrategyParam {

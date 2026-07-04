@@ -220,11 +220,6 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
         # Optionally log trades to journal
         if log_to_journal and result.get('chart_data'):
             try:
-                from trading.journal import get_journal
-                # Use default user (admin) for backtest journal logging
-                journal = get_journal(user_id)
-                total_logged = 0
-
                 for symbol, data in result['chart_data'].items():
                     if data.get('trades'):
                         count = journal.log_backtest_trades(
@@ -317,10 +312,10 @@ class BacktestRequestHandler:
         """Mark progress as not running (shared)."""
         self.progress_state['running'] = False
 
-    def apply_result_to_cache(self, result: Dict) -> None:
+    def apply_result_to_cache(self, result: Dict, user_id: int = 1) -> None:
         """If no error, set the in-mem cache from result using the shared builder."""
         if 'error' not in result:
-            self.backtest_cache = build_backtest_inmem_cache(result)
+            self.backtest_cache[user_id] = build_backtest_inmem_cache(result)
 
     def handle_request(self, method: str, path: str, query_params: Dict, body: Optional[Dict] = None) -> Dict:
         """
@@ -354,9 +349,10 @@ class BacktestRequestHandler:
             self.reset_progress(len(body.get('symbols', [])))
 
             result = handle_run_backtest(body, self.progress_state)
+            user_id = body.get('user_id', 1)
 
             # Cache the result for chart data requests
-            self.apply_result_to_cache(result)
+            self.apply_result_to_cache(result, user_id)
 
             self.set_progress_done()
             return result
@@ -364,13 +360,16 @@ class BacktestRequestHandler:
         # GET /api/backtest/chart/{symbol}
         if method == 'GET' and parsed_path.startswith('/api/backtest/chart/'):
             symbol = parsed_path.split('/')[-1]
-            return handle_get_chart_data(symbol, self.backtest_cache)
+            user_id = int(query_params.get('user_id', 1)) if query_params else 1
+            return handle_get_chart_data(symbol, self.backtest_cache.get(user_id, {}))
 
         # GET /api/backtest/results
         if method == 'GET' and parsed_path == '/api/backtest/results':
+            user_id = int(query_params.get('user_id', 1)) if query_params else 1
+            cache = self.backtest_cache.get(user_id, {})
             return {
-                'results': self.backtest_cache.get('results', []),
-                'config': self.backtest_cache.get('config', {}),
+                'results': cache.get('results', []),
+                'config': cache.get('config', {}),
             }
 
         return {'error': 'Not found', 'path': path}

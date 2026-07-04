@@ -1,4 +1,4 @@
-import { Stack, Group, NumberInput, Switch, Tabs, Text, Divider } from "@mantine/core";
+import { Stack, Group, NumberInput, Switch, Tabs, Text, Divider } from "@/ui";
 import type { StrategyFormData } from "./types";
 
 interface RunnerPanelProps {

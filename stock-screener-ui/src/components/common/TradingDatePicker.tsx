@@ -1,5 +1,5 @@
 import { useCallback } from "react";
-import { DatePickerInput, type DatePickerInputProps } from "@mantine/dates";
+import { DatePicker, type UIDatePickerProps } from "@/ui";
 import { isTradingHoliday } from "../../state/holidays";
 
 function isNonTradingDay(date: string): boolean {
@@ -8,7 +8,7 @@ function isNonTradingDay(date: string): boolean {
   return day === 0 || day === 6;
 }
 
-export interface TradingDatePickerProps extends Omit<DatePickerInputProps, "onChange"> {
+export interface TradingDatePickerProps extends Omit<UIDatePickerProps, "onChange"> {
   value: string;
   onChange: (value: string) => void;
 }
@@ -22,7 +22,7 @@ export function TradingDatePicker({ value, onChange, ...rest }: TradingDatePicke
   );
 
   return (
-    <DatePickerInput
+    <DatePicker
       size="sm"
       value={value || null}
       onChange={handleChange}

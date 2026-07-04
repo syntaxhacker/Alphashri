@@ -11,7 +11,7 @@ import {
   Loader,
   Alert,
   Divider,
-} from "@mantine/core";
+} from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { getPaperTradingState, subscribe, updateConfigValue } from "../../state/paperTrading";
 import {

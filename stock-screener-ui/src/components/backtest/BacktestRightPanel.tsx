@@ -1,4 +1,4 @@
-import { Flex } from "@mantine/core";
+import { Flex } from "@/ui";
 import type { SymbolChartData, Trade } from "../../types/backtest";
 import { BacktestChartTabs, TradeHistoryTable } from "./mantine";
 

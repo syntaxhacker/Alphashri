@@ -1,5 +1,5 @@
 import { useState, type ReactNode } from "react";
-import { Box, ScrollArea } from "@mantine/core";
+import { Box, ScrollArea } from "@/ui";
 import {
   flexRender,
   getCoreRowModel,

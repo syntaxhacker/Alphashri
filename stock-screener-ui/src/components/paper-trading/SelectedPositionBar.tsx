@@ -1,4 +1,4 @@
-import { Text, Group, Button, Tooltip } from "@mantine/core";
+import { Text, Group, Button, Tooltip } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";

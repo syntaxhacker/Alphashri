@@ -1,5 +1,5 @@
 import { useRef, useCallback } from "react";
-import { Anchor } from "@mantine/core";
+import { Anchor } from "@/ui";
 import { useNavigate } from "react-router-dom";
 import { usePreviewChart } from "./PreviewChartProvider";
 

@@ -16,7 +16,6 @@ from typing import Optional
 
 from trading.paper_trader import get_paper_trader, reset_paper_trader
 from trading.risk_manager import get_risk_manager
-from trading.journal import get_journal
 from api.paper.paper_api import (
     router,
     _paper_bot_process,
@@ -37,10 +36,6 @@ from api.paper.bot_control import (
 from api.paper.history import (
     get_trades,
     delete_trade,
-    get_journal_summary,
-    get_symbol_performance,
-    get_daily_report,
-    export_journal,
 )
 from api.paper.endpoints import (
     get_signals,
@@ -83,10 +78,6 @@ __all__ = [
     "stop_paper_bot",
     "get_trades",
     "delete_trade",
-    "get_journal_summary",
-    "get_symbol_performance",
-    "get_daily_report",
-    "export_journal",
     "get_signals",
     "create_signal",
     "get_risk_config",
@@ -100,7 +91,6 @@ __all__ = [
     "get_paper_trader",
     "reset_paper_trader",
     "get_risk_manager",
-    "get_journal",
     "_paper_bot_process",
     "_paper_bot_log_file",
     "_paper_bot_pid_file",

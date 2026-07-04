@@ -2,7 +2,10 @@ import type { ColumnDef } from "./index";
 import type { Stock } from "../../../types";
 import { symbolCol, scoreCol, sectorCol, recentReturn5dCol, perfWCol, touched52wCol } from "./base";
 
-const formatSignedPercent = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(2)}%`;
+const formatSignedPercent = (v: number) => {
+  const n = v ?? 0;
+  return `${n > 0 ? "+" : ""}${n.toFixed(2)}%`;
+};
 
 export function getTrendingColumns(): ColumnDef[] {
   return [

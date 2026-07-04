@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
 import { sortTrades, TradeHistoryTable } from "./TradeHistoryTable";
 import type { Trade } from "../../types/backtest";
@@ -10,7 +10,7 @@ import "@testing-library/jest-dom/vitest";
 afterEach(cleanup);
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <UIProvider>{children}</UIProvider>;
 }
 
 function makeTrade(overrides: Partial<Trade> = {}): Trade {

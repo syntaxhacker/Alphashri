@@ -1,4 +1,4 @@
-import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Stack } from "@mantine/core";
+import { Table, Group, Text, Badge, ActionIcon, ScrollArea, Stack } from "@/ui";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";

@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Stack, Table } from "@mantine/core";
-import { IconRobot, IconChartLine, IconPlus } from "@tabler/icons-react";
+import { Box, Tabs, Button, Stack, Table, Group } from "@/ui";
+import { IconRobot, IconChartLine, IconPlus, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
   getBotsState,
   getCurrentView,
@@ -11,6 +11,7 @@ import {
   selectBot,
   startBotAction,
   stopBotAction,
+  stopAllBotsAction,
   deleteBotAction,
   clearError,
   startAutoRefresh,
@@ -28,6 +29,7 @@ import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
 import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
 import { BotRow } from "./BotHelpers";
+import { StrategyPerformance } from "./StrategyPerformance";
 
 function useViewChangeHandler() {
   return useCallback((view: string | null) => {
@@ -108,6 +110,13 @@ function BotsPageTabs({
             data-testid="bots-tab-status"
           >
             Status
+          </Tabs.Tab>
+          <Tabs.Tab
+            value="performance"
+            leftSection={<IconChartBar size={16} />}
+            data-testid="bots-tab-performance"
+          >
+            Performance
           </Tabs.Tab>
         </Tabs.List>
       </Tabs>
@@ -214,6 +223,8 @@ function renderPageContent({
           <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
             <InlineLoader size="lg" />
           </Stack>
+        ) : currentView === "performance" ? (
+          <StrategyPerformance />
         ) : currentView === "status" && state.selectedBot ? (
           <BotStatusPanel
             bot={state.selectedBot}
@@ -278,13 +289,31 @@ export function BotsPage() {
         title="Bots"
         description="Manage bot configurations, live status, and execution controls."
         actions={
-          <Button
-            leftSection={<IconPlus size={16} />}
-            onClick={openCreateModal}
-            data-testid="create-bot-btn"
-          >
-            New Bot
-          </Button>
+          <Group gap="sm">
+            <Button
+              variant="light"
+              color="orange"
+              size="sm"
+              leftSection={<IconPlayerStop size={16} />}
+              onClick={async () => {
+                const bots = getBotsState().bots;
+                const runningCount = bots.filter(b => b.running).length;
+                if (window.confirm(`Stop all ${runningCount} running bots?`)) {
+                  await stopAllBotsAction();
+                }
+              }}
+              disabled={!getBotsState().bots.some(b => b.running)}
+            >
+              Stop All ({getBotsState().bots.filter(b => b.running).length})
+            </Button>
+            <Button
+              leftSection={<IconPlus size={16} />}
+              onClick={openCreateModal}
+              data-testid="create-bot-btn"
+            >
+              New Bot
+            </Button>
+          </Group>
         }
       >
         {renderPageContent({

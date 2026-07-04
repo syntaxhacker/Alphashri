@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Text, useMantineColorScheme } from "@mantine/core";
+import { Box, Text, useColorScheme } from "@/ui";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
 import { normalizeTime } from "../../utils/ui-helpers";
@@ -124,7 +124,7 @@ export function BacktestChart({
   holidays,
 }: BacktestChartProps) {
   const chartRef = useRef<TradingChartHandle | null>(null);
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const [highlightedTradeId, setHighlightedTradeId] = useState<number | null>(null);
 

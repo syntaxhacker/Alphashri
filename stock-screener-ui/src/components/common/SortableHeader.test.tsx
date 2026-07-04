@@ -3,14 +3,12 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import { SortableHeader } from "./SortableHeader";
 
-vi.mock("@mantine/core", () => ({
-  Table: {
-    Th: ({ children, ...props }: any) => (
-      <th data-testid={props["data-testid"]} style={props.style} onClick={props.onClick}>
-        {children}
-      </th>
-    ),
-  },
+vi.mock("@/ui", () => ({
+  TableTh: ({ children, ...props }: any) => (
+    <th data-testid={props["data-testid"]} style={props.style} onClick={props.onClick}>
+      {children}
+    </th>
+  ),
   Group: ({ children, ...props }: any) => (
     <div data-testid="group" {...props}>
       {children}

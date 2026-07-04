@@ -10,7 +10,7 @@ import {
   PasswordInput,
   Button,
   Alert,
-} from "@mantine/core";
+} from "@/ui";
 
 interface LoginFormProps {
   onSuccess?: () => void;
@@ -98,7 +98,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
               type="email"
               data-testid="login-email-input"
               value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
+              onChange={(val) => setEmail(val)}
               placeholder="you@example.com"
               required
               autoComplete="email"
@@ -110,7 +110,7 @@ export function LoginForm({ onSuccess, onSwitchToRegister }: LoginFormProps) {
               id="password"
               data-testid="login-password-input"
               value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
+              onChange={(val) => setPassword(val)}
               placeholder="Enter your password"
               required
               autoComplete="current-password"
@@ -191,7 +191,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               type="email"
               data-testid="register-email-input"
               value={email}
-              onChange={(e) => setEmail(e.currentTarget.value)}
+              onChange={(val) => setEmail(val)}
               placeholder="you@example.com"
               required
               autoComplete="email"
@@ -203,7 +203,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               id="display-name"
               data-testid="display-name-input"
               value={displayName}
-              onChange={(e) => setDisplayName(e.currentTarget.value)}
+              onChange={(val) => setDisplayName(val)}
               placeholder="Your name"
               autoComplete="name"
               size="sm"
@@ -213,7 +213,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               id="reg-password"
               data-testid="register-password-input"
               value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
+              onChange={(val) => setPassword(val)}
               placeholder="Create a password (min 6 characters)"
               required
               autoComplete="new-password"
@@ -224,7 +224,7 @@ export function RegisterForm({ onSuccess, onSwitchToLogin }: RegisterFormProps) 
               id="confirm-password"
               data-testid="confirm-password-input"
               value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+              onChange={(val) => setConfirmPassword(val)}
               placeholder="Confirm your password"
               required
               autoComplete="new-password"

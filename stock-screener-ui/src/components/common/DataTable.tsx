@@ -1,5 +1,5 @@
 import type { CSSProperties, ReactNode } from "react";
-import { Table } from "@mantine/core";
+import { Table } from "@/ui";
 
 interface DataTableProps {
   children: ReactNode;

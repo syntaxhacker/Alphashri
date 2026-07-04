@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Text, Badge } from "@mantine/core";
+import { Text, Badge } from "@/ui";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface PnlTextProps {

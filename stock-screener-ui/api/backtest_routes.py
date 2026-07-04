@@ -100,7 +100,7 @@ async def run_backtest(
 
     cached = cache_get(cache_key) if is_cache_available() else None
     if cached is not None:
-        _backtest_handler.backtest_cache = build_backtest_inmem_cache(cached)
+        _backtest_handler.backtest_cache[user_id] = build_backtest_inmem_cache(cached)
         _backtest_handler.set_progress_done()
         response = _base_backtest_response(cached)
         response['from_cache'] = True
@@ -113,7 +113,7 @@ async def run_backtest(
 
     result = await asyncio.to_thread(handle_run_backtest, body, _backtest_handler.progress_state)
 
-    _backtest_handler.apply_result_to_cache(result)
+    _backtest_handler.apply_result_to_cache(result, user_id)
 
     if 'error' not in result:
         totals = result.get('totals', {})
@@ -124,6 +124,10 @@ async def run_backtest(
             cache_data['candles'] = result.get('candles', {})
             cache_data['chart_data'] = result.get('chart_data', {})
             cache_set(cache_key, cache_data, ttl=86400)
+
+        if body.get('save_to_history', False):
+            from cache.redis_client import cache_delete_pattern
+            cache_delete_pattern(f"backtest:{user_id}:history:list")
 
     _backtest_handler.set_progress_done()
 
@@ -156,23 +160,26 @@ async def run_backtest(
 async def get_chart_data(
     symbol: str,
     tf: Optional[str] = Query(None, description="Timeframe: 1,5,15,30,60,240,1440,10080,43200 (minutes)"),
+    current_user=Depends(get_current_user),
 ):
     import pandas as pd
     from datetime import datetime, timedelta
     import config as app_config
     from backtest.chart_data import build_chart_data_for_symbol
 
-    if symbol not in _backtest_handler.backtest_cache.get('candles', {}):
+    cache = _backtest_handler.backtest_cache.get(current_user.id, {})
+
+    if symbol not in cache.get('candles', {}):
         raise HTTPException(status_code=404, detail=f'No chart data for {symbol}')
 
-    if symbol not in _backtest_handler.backtest_cache.get('chart_data', {}):
+    if symbol not in cache.get('chart_data', {}):
         raise HTTPException(status_code=404, detail=f'No trade data for {symbol}')
 
     try:
-        native_candles_df = _backtest_handler.backtest_cache['candles'][symbol]
-        trades = _backtest_handler.backtest_cache['chart_data'][symbol]['trades']
-        cached_visuals = _backtest_handler.backtest_cache['chart_data'][symbol].get('visuals')
-        bt_config = _backtest_handler.backtest_cache.get('config', {})
+        native_candles_df = cache['candles'][symbol]
+        trades = cache['chart_data'][symbol]['trades']
+        cached_visuals = cache['chart_data'][symbol].get('visuals')
+        bt_config = cache.get('config', {})
         or_minutes = bt_config.get('params', {}).get('or_minutes', 45)
         strategy = bt_config.get('strategy', '')
 
@@ -243,10 +250,11 @@ async def get_chart_data(
 
 
 @router.get("/results")
-async def get_results():
+async def get_results(current_user=Depends(get_current_user)):
+    cache = _backtest_handler.backtest_cache.get(current_user.id, {})
     return {
-        'results': _backtest_handler.backtest_cache.get('results', []),
-        'config': _backtest_handler.backtest_cache.get('config', {}),
+        'results': cache.get('results', []),
+        'config': cache.get('config', {}),
     }
 
 

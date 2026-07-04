@@ -7,7 +7,6 @@ import type {
   PaperTrade,
   PortfolioStatus,
   DailySummary,
-  PerformanceSummary,
   SymbolPerformance,
   PaperChartData,
   StrategyConfig,
@@ -20,7 +19,6 @@ import {
   setPortfolio,
   setTrades,
   setDailySummary,
-  setPerformanceSummary,
   setSymbolPerformance,
   setChartData,
   setChartLoading,
@@ -224,19 +222,6 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
   }
 }
 
-// Fetch performance summary
-export async function fetchPerformanceSummary(): Promise<PerformanceSummary | null> {
-  try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/journal/summary`);
-    const data = await response.json();
-    setPerformanceSummary(data);
-    return data;
-  } catch (error) {
-    console.error("Failed to fetch performance summary:", error);
-    return null;
-  }
-}
-
 // Fetch symbol performance
 export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
   try {
@@ -312,6 +297,17 @@ export async function refreshLiveData(): Promise<void> {
   }
 }
 
+function getLimitFromDateRange(fromDate?: string | null, toDate?: string | null): number {
+  if (!fromDate) return 1000;
+  const from = new Date(fromDate);
+  const to = toDate ? new Date(toDate) : new Date();
+  const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
+  if (diffDays <= 1) return 50;
+  if (diffDays <= 7) return 200;
+  if (diffDays <= 30) return 500;
+  return 1000;
+}
+
 // Refresh history data with optional bot and date filtering
 export async function refreshHistoryData(
   botId?: string | null,
@@ -322,11 +318,10 @@ export async function refreshHistoryData(
   setLoading(true);
 
   try {
+    const limit = getLimitFromDateRange(fromDate, toDate);
     // If fromDate is provided, daysBack is ignored by fetchTrades (due to API logic)
     await Promise.all([
-      // Load a larger set so date-range filtering works reliably on the client.
-      fetchTrades(1000, botId, fromDate, toDate, fromDate ? 0 : daysBack),
-      fetchPerformanceSummary(),
+      fetchTrades(limit, botId, fromDate, toDate, fromDate ? 0 : daysBack),
     ]);
   } catch (error) {
     setError(error instanceof Error ? error.message : "Unknown error");

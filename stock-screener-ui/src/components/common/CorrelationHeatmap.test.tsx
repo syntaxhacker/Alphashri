@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { CorrelationHeatmap } from "./CorrelationHeatmap";
 
 const mockEcharts = {
@@ -26,7 +26,7 @@ afterEach(() => {
 });
 
 function renderWithProvider(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  return render(<UIProvider>{ui}</UIProvider>);
 }
 
 describe("CorrelationHeatmap", () => {

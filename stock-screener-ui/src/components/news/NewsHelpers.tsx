@@ -18,7 +18,7 @@ import {
   Text,
   Title,
   Tooltip,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconArrowLeft,
   IconChartLine,

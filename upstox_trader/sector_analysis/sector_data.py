@@ -162,7 +162,7 @@ class SectorDataFetcher:
                 "Authorization": f"Bearer {access_token}"
             }
             
-            response = requests.get(url, headers=headers)
+            response = requests.get(url, headers=headers, timeout=30)
             if response.status_code == 200:
                 data = response.json()
                 if data.get('status') == 'success' and data.get('data', {}).get('candles'):

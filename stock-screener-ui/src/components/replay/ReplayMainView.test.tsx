@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ReplayMainView } from "./ReplayMainView";
 
 afterEach(() => {
@@ -32,9 +32,9 @@ const baseProps = {
 describe("ReplayMainView", () => {
   it("renders container with fixed height", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayMainView {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const container = screen.getByTestId("replay-chart-empty").closest('[style*="height: 500px"]');
     expect(container).toBeTruthy();
@@ -42,18 +42,18 @@ describe("ReplayMainView", () => {
 
   it("flex layout includes both chart and trade log", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayMainView {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-log")).toBeInTheDocument();
   });
 
   it("passes props to ReplayTradeLog", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayMainView {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-trade-log")).toBeInTheDocument();
   });

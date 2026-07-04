@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, fireEvent, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { BrowserRouter } from "react-router-dom";
 import { ClickableSymbol } from "./ClickableSymbol";
 
@@ -27,9 +27,9 @@ vi.mock("./PreviewChartProvider", () => ({
 function renderComponent(props: Record<string, any> = {}) {
   return render(
     <BrowserRouter>
-      <MantineProvider>
+      <UIProvider>
         <ClickableSymbol symbol="RELIANCE" {...props} />
-      </MantineProvider>
+      </UIProvider>
     </BrowserRouter>,
   );
 }
@@ -68,12 +68,12 @@ describe("ClickableSymbol", () => {
     const parentHandler = vi.fn();
     render(
       <BrowserRouter>
-        <MantineProvider>
+        <UIProvider>
           {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
           <div onClick={parentHandler}>
             <ClickableSymbol symbol="RELIANCE" stopClickPropagation />
           </div>
-        </MantineProvider>
+        </UIProvider>
       </BrowserRouter>,
     );
     fireEvent.click(screen.getByText("RELIANCE"));

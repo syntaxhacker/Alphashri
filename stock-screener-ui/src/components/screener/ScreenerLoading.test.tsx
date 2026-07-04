@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerLoading } from "./ScreenerLoading";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 describe("ScreenerLoading", () => {
   beforeEach(() => {
@@ -16,9 +16,9 @@ describe("ScreenerLoading", () => {
 
   it("renders with default message", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerLoading />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
     expect(screen.getByText("Loading screener")).toBeInTheDocument();
@@ -26,45 +26,45 @@ describe("ScreenerLoading", () => {
 
   it("renders with custom message", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerLoading message="Fetching data..." />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Fetching data...")).toBeInTheDocument();
   });
 
   it("renders loader component", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerLoading />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-loader")).toBeInTheDocument();
   });
 
   it("has correct test id", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerLoading />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
   it("renders with empty string message", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerLoading message="" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
   it("applies custom className", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerLoading />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-loading")).toHaveClass("screener-loading");
   });

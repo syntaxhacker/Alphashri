@@ -1,5 +1,5 @@
 import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from "react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 const TOKEN_KEY = "alphashri_token";

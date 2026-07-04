@@ -1,12 +1,12 @@
 import { useCallback } from "react";
-import { notifications } from "@mantine/notifications";
+import { showNotification } from "@/ui";
 
 export function useNotification() {
   const show = useCallback((options: { title: string; message: string; color?: string }) => {
-    notifications.show({
+    showNotification({
       title: options.title,
       message: options.message,
-      color: options.color ?? "blue",
+      color: (options.color ?? "blue") as any,
     });
   }, []);
 
