@@ -368,6 +368,7 @@ class RunnerSignalsMixin:
             market_data = {
                 'current_price': daily_data['current_price'],
                 'high_52w': daily_data['high_52w'],
+                'today_intraday_high': daily_data.get('today_intraday_high', 0.0),
                 'days_since_52w_high': daily_data.get('days_since_52w_high', 0),
                 'daily_highs': daily_data['daily_highs'],
                 'daily_lows': daily_data.get('daily_lows', []),
@@ -817,6 +818,8 @@ class RunnerSignalsMixin:
                         pnl_pct=trade.pnl_pct,
                         exit_reason=trade.exit_reason,
                         entry_time=trade.entry_time,
+                        costs=trade.costs,
+                        net_pnl=trade.net_pnl,
                     )
 
                 trade_logged = True

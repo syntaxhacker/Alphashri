@@ -209,18 +209,13 @@ async def compute_52w_ranges_task():
     while True:
         try:
             if first:
-                # Prompt startup run when market is open (addresses stale data on `start.sh`).
-                # Subsequent cycles use the normal interval.
                 await asyncio.sleep(5)
                 first = False
             else:
                 await asyncio.sleep(interval)
 
             if not _is_market_hours():
-                # Only perform 52W batch + cache flush during market hours
-                # (consistent with prewarm behavior for other screeners).
                 continue
-
             job = get_job_status() or {}
             if job.get("status") == "running":
                 print("[52W Range] Scheduled run skipped — batch already running")

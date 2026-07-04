@@ -1260,7 +1260,6 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
                 for key in list(self.portfolio.positions.keys()):
                     pos = self.portfolio.positions[key]
-                    # Skip swing strategy positions — they carry over between days
                     runner = self.strategies.get(pos.strategy_id)
                     if runner and runner.strategy_type in SWING_STRATEGY_TYPES:
                         continue
