@@ -1,6 +1,5 @@
 import { useMemo, useRef } from "react";
-import { Box, Group, Select, Text, ScrollArea } from "@mantine/core";
-import { useMantineColorScheme } from "@mantine/core";
+import { Box, Group, Select, Text, ScrollArea, useColorScheme } from "@/ui";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
@@ -44,7 +43,7 @@ export function HeatmapTreemap({
   onSymbolClick,
   testId = "heatmap-treemap",
 }: HeatmapTreemapProps) {
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const chartRef = useRef<ReactECharts>(null);
 

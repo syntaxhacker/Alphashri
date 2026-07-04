@@ -22,7 +22,7 @@ import {
   Timeline,
   Title,
   Anchor,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconMessage,
   IconSend,
@@ -667,7 +667,7 @@ export function ChatPopup() {
               <TextInput
                 placeholder={isLoading ? "Analyzing..." : "Type a message..."}
                 value={input}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(value) => setInput(value)}
                 onKeyDown={handleKeyDown}
                 disabled={isLoading || isAvailable === false}
                 style={{ flex: 1 }}

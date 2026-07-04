@@ -1,4 +1,4 @@
-import { Box, Stack, Text, Group, Badge, useMantineColorScheme } from "@mantine/core";
+import { Box, Stack, Text, Group, Badge, useColorScheme } from "@/ui";
 import type { SectorItem, StockMover } from "../../types/sector";
 import { formatPercentage } from "../../utils/ui-helpers";
 import {
@@ -171,7 +171,7 @@ function TreemapTile({
 }
 
 export function SectorTreemap({ sectors }: { sectors: SectorItem[] }) {
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const rawTreemapData = buildTreemapData(sectors);

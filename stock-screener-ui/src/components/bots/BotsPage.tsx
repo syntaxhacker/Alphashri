@@ -1,7 +1,7 @@
 import { useEffect, useCallback } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Stack, Table, Group } from "@mantine/core";
-import { IconRobot, IconChartLine, IconPlus, IconPlayerStop } from "@tabler/icons-react";
+import { Box, Tabs, Button, Stack, Table, Group } from "@/ui";
+import { IconRobot, IconChartLine, IconPlus, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
   getBotsState,
   getCurrentView,
@@ -29,6 +29,7 @@ import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
 import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
 import { BotRow } from "./BotHelpers";
+import { StrategyPerformance } from "./StrategyPerformance";
 
 function useViewChangeHandler() {
   return useCallback((view: string | null) => {
@@ -109,6 +110,13 @@ function BotsPageTabs({
             data-testid="bots-tab-status"
           >
             Status
+          </Tabs.Tab>
+          <Tabs.Tab
+            value="performance"
+            leftSection={<IconChartBar size={16} />}
+            data-testid="bots-tab-performance"
+          >
+            Performance
           </Tabs.Tab>
         </Tabs.List>
       </Tabs>
@@ -215,6 +223,8 @@ function renderPageContent({
           <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
             <InlineLoader size="lg" />
           </Stack>
+        ) : currentView === "performance" ? (
+          <StrategyPerformance />
         ) : currentView === "status" && state.selectedBot ? (
           <BotStatusPanel
             bot={state.selectedBot}

@@ -3,20 +3,17 @@ Portfolio endpoints for Paper Trading API.
 """
 
 from datetime import timedelta
-from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends
 
 from trading.paper_trader import get_paper_trader
-from trading.journal import get_journal, TradeJournal
 from api.auth import get_current_user
 from db.models import User
 import config
 
 from .paper_api import router, _get_user_id
 from .requests import ResetRequest, UpdatePricesRequest
-from .helpers import build_trade_log_entry
 
 
 @router.get("/portfolio")
@@ -32,18 +29,26 @@ async def get_portfolio(user: "User" = Depends(get_current_user)):
     realized_pnl_today = 0.0
     daily_trades = 0
 
-    if user_id:
-        journal_dir = Path(__file__).parent.parent.parent / "journals" / str(user_id)
-    else:
-        journal_dir = Path(__file__).parent.parent.parent / "journals"
-    journal_file = journal_dir / f"journal_{today_str_compact}.json"
-    if journal_file.exists():
+    try:
+        from db.database import SessionLocal
+        from db.models import Trade as TradeModel
+        today_start = datetime.now(config.IST).replace(hour=0, minute=0, second=0, microsecond=0)
+        today_end = today_start.replace(hour=23, minute=59, second=59)
+        db = SessionLocal()
+        today_trades = db.query(TradeModel).filter(
+            TradeModel.user_id == user_id,
+            TradeModel.is_test == False,
+            TradeModel.exit_time >= today_start,
+            TradeModel.exit_time <= today_end,
+        ).all()
+        for t in today_trades:
+            realized_pnl_today += float(t.net_pnl or 0)
+            daily_trades += 1
+    except Exception:
+        pass
+    finally:
         try:
-            temp_journal = TradeJournal(user_id=user_id)
-            temp_journal.load_journal(str(journal_file))
-            for t in temp_journal.trades:
-                realized_pnl_today += float(t.net_pnl or 0)
-                daily_trades += 1
+            db.close()
         except Exception:
             pass
 
@@ -122,11 +127,7 @@ async def update_prices(request: UpdatePricesRequest, user: "User" = Depends(get
     new_trades_count = trades_after - trades_before
 
     if new_trades_count > 0:
-        journal = get_journal(user_id)
-        new_trades = trader.trades[-new_trades_count:]
-        for trade in new_trades:
-            journal.log_trade(build_trade_log_entry(trade))
-        journal.save_journal()
+        pass
 
     return {
         "status": "success",

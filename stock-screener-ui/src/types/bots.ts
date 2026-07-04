@@ -205,6 +205,9 @@ export type BotLoadingKey =
   | "stop-all"
   | "trades";
 
+// Bot views
+export type BotsView = "list" | "status" | "performance";
+
 // Bot state
 export interface BotsState {
   bots: BotConfig[];

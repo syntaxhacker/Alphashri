@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ReplayPositions } from "./ReplayPositions";
 import type { ReplayOpenPosition } from "../../types/replay";
 
@@ -13,9 +13,9 @@ afterEach(() => {
 describe("ReplayPositions", () => {
   it("returns null when positions array is empty", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={[]} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("replay-positions")).not.toBeInTheDocument();
   });
@@ -26,9 +26,9 @@ describe("ReplayPositions", () => {
       entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100,
     }];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-positions")).toBeInTheDocument();
   });
@@ -39,9 +39,9 @@ describe("ReplayPositions", () => {
       { id: 2, symbol: "INFY", strategy: "ORB", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Open Positions")).toBeInTheDocument();
   });
@@ -52,9 +52,9 @@ describe("ReplayPositions", () => {
       entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100,
     }];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Symbol")).toBeInTheDocument();
     expect(screen.getByText("Side")).toBeInTheDocument();
@@ -72,9 +72,9 @@ describe("ReplayPositions", () => {
       { id: 2, symbol: "INFY", strategy: "52W", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("TCS")).toBeInTheDocument();
     expect(screen.getByText("INFY")).toBeInTheDocument();
@@ -88,9 +88,9 @@ describe("ReplayPositions", () => {
       { id: 2, symbol: "INFY", strategy: "ORB", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const longBadges = screen.getAllByText("LONG");
     const shortBadges = screen.getAllByText("SHORT");
@@ -103,9 +103,9 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("100")).toBeInTheDocument();
   });
@@ -115,9 +115,9 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100.5, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("100.50")).toBeInTheDocument();
   });
@@ -127,9 +127,9 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90.5, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const slEl = screen.getByText("90.50");
     expect(slEl).toBeInTheDocument();
@@ -141,9 +141,9 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110.5, entry_time: "09:15", quantity: 100 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const tpEl = screen.getByText("110.50");
     expect(tpEl).toBeInTheDocument();
@@ -155,9 +155,9 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("ORB")).toBeInTheDocument();
   });
@@ -167,9 +167,9 @@ describe("ReplayPositions", () => {
       { id: 1, symbol: "TCS", strategy: "ORB", side: "LONG", entry_price: 100, sl: 90, tp: 110, entry_time: "09:15", quantity: 100 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("09:15")).toBeInTheDocument();
   });
@@ -180,9 +180,9 @@ describe("ReplayPositions", () => {
       { id: 2, symbol: "TCS", strategy: "52W", side: "SHORT", entry_price: 200, sl: 210, tp: 190, entry_time: "09:20", quantity: 50 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayPositions positions={positions} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getAllByText("TCS")).toHaveLength(2);
     expect(screen.getByText("ORB")).toBeInTheDocument();

@@ -4,7 +4,7 @@ import { ReplayStats } from "./ReplayStats";
 import { ReplayMainView } from "./ReplayMainView";
 import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
-import { Stack, Box, Text, Title } from "@mantine/core";
+import { Stack, Box, Text, Title } from "@/ui";
 import { useEffect, useRef } from "react";
 import type { ReplayTrade } from "../../types/replay";
 

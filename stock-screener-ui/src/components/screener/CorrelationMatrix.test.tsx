@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import React from "react";
 
 vi.mock("../common/CorrelationHeatmap", () => ({
@@ -23,7 +23,7 @@ vi.mock("../common/CorrelationHeatmap", () => ({
 import { CorrelationMatrix } from "./CorrelationMatrix";
 
 function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <MantineProvider>{children}</MantineProvider> });
+  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
 }
 
 describe("CorrelationMatrix", () => {

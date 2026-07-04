@@ -161,7 +161,7 @@ class UpstoxAuthHandler:
             'grant_type': 'authorization_code'
         }
         try:
-            response = requests.post(f"{BASE_URL_V2}/login/authorization/token", headers=headers, data=data)
+            response = requests.post(f"{BASE_URL_V2}/login/authorization/token", headers=headers, data=data, timeout=30)
             response.raise_for_status()
             return response.json().get('access_token')
         except requests.RequestException as e:

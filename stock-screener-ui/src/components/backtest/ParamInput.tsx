@@ -1,4 +1,4 @@
-import { Select, NumberInput, Checkbox } from "@mantine/core";
+import { Select, NumberInput, Checkbox } from "@/ui";
 import type { StrategyParam } from "../../types/backtest";
 
 export function ParamInput({

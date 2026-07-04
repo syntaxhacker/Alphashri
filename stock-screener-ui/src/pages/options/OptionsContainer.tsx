@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 import { useOptionsState } from "../../hooks/useOptionsState";
 import { OptionsPage } from "../../components/options/OptionsPage";
 

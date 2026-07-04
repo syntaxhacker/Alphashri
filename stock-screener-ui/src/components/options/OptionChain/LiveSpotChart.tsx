@@ -1,4 +1,4 @@
-import { Box, Text, useMantineTheme, Group, Skeleton, Stack } from "@mantine/core";
+import { Box, Text, useTheme, Group, Skeleton, Stack } from "@/ui";
 import { useEffect, useState, useMemo } from "react";
 
 interface HistoryPoint {
@@ -9,7 +9,7 @@ interface HistoryPoint {
 export function LiveSpotChart({ underlying }: { underlying: string }) {
   const [history, setHistory] = useState<HistoryPoint[]>([]);
   const [loading, setLoading] = useState(true);
-  const theme = useMantineTheme();
+  const theme = useTheme();
 
   useEffect(() => {
     async function fetchHistory() {

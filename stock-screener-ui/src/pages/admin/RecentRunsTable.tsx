@@ -1,4 +1,4 @@
-import { Text, Badge, Group, Table } from "@mantine/core";
+import { Text, Badge, Group, Table } from "@/ui";
 import type { LLMRun, ModelUsage } from "../../types/admin";
 import { getStatusColor } from "../../utils/ui-helpers";
 import { CompactPanel } from "../../components/common/compact";

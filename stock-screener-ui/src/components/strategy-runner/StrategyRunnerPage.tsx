@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Stack, Box, Text, Title, Progress } from "@mantine/core";
+import { Stack, Box, Text, Title, Progress } from "@/ui";
 import { StrategyRunnerConfig as StrategyRunnerConfigComp } from "./StrategyRunnerConfig";
 import { StrategyRunnerStats } from "./StrategyRunnerStats";
 import { StrategyRunnerTabs } from "./StrategyRunnerTabs";

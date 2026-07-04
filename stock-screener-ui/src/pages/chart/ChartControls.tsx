@@ -1,4 +1,4 @@
-import { Group, Stack } from "@mantine/core";
+import { Group, Stack } from "@/ui";
 import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
 
 interface ChartControlsProps {

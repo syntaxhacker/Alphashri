@@ -14,7 +14,7 @@ import {
   Select,
   NumberInput,
   ActionIcon,
-} from "@mantine/core";
+} from "@/ui";
 import type { ScreenerOption, Stock, ProfileFilter, ColumnDef } from "../../types";
 import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
@@ -593,7 +593,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               data-testid="screener-name-input"
               placeholder="e.g., My Custom Screener"
               value={form.label}
-              onChange={(e) => setForm({ ...form, label: e.target.value })}
+              onChange={(val) => setForm({ ...form, label: val })}
             />
             <TextInput
               label="Description"
@@ -612,7 +612,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                     key={ind}
                     label={ind}
                     checked={form.indicators.includes(ind)}
-                    onChange={(e) => handleIndicatorToggle(ind, e.target.checked)}
+                    onChange={(checked) => handleIndicatorToggle(ind, checked)}
                   />
                 ),
               )}

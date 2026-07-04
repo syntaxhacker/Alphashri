@@ -18,6 +18,7 @@ class Stock52WeekRange(Base):
     high_52w = Column(Float, nullable=False)
     low_52w = Column(Float, nullable=False)
     close = Column(Float, nullable=False)
+    days_ago = Column(Integer, nullable=True)
     updated_at = Column(DateTime, server_default=func.now(), nullable=False)
 
     def to_dict(self) -> dict:
@@ -26,6 +27,7 @@ class Stock52WeekRange(Base):
             "high_52w": self.high_52w,
             "low_52w": self.low_52w,
             "close": self.close,
+            "days_ago": self.days_ago,
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 

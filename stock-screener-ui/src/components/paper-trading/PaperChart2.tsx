@@ -7,16 +7,18 @@ import {
   Group,
   Select,
   Flex,
-  useMantineColorScheme,
+  useColorScheme,
   Badge,
   LoadingOverlay,
   ActionIcon,
   Popover,
+  PopoverTarget,
+  PopoverDropdown,
   Chip,
   Divider,
   Stack,
-} from "@mantine/core";
-import { DatePickerInput } from "@mantine/dates";
+  DatePicker,
+} from "@/ui";
 import { IconDots } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import {
@@ -256,7 +258,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         styles={{ input: { width: 64, minHeight: 26 } }}
       />
 
-      <DatePickerInput
+      <DatePicker
         type="range"
         size="xs"
         clearable
@@ -278,7 +280,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         opened={popoverOpened}
         onChange={setPopoverOpened}
       >
-        <Popover.Target>
+        <PopoverTarget>
           <ActionIcon
             size="sm"
             variant={hasActiveOverlays ? "light" : "subtle"}
@@ -288,8 +290,8 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           >
             <IconDots size={16} />
           </ActionIcon>
-        </Popover.Target>
-        <Popover.Dropdown p="xs">
+        </PopoverTarget>
+        <PopoverDropdown p="xs">
           <Stack gap="xs">
             <Text size="xs" fw={500} c="dimmed">Range</Text>
             <Group gap={4}>
@@ -324,7 +326,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
               ))}
             </Group>
           </Stack>
-        </Popover.Dropdown>
+        </PopoverDropdown>
       </Popover>
     </Flex>
   );
@@ -355,7 +357,7 @@ function getEmptyState(
 }
 
 export function PaperChart() {
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const state = getPaperTradingState();
 

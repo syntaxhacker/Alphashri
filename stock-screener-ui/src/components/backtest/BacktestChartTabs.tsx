@@ -1,4 +1,4 @@
-import { Tabs, Select, Group, Text, Box, Center } from "@mantine/core";
+import { Tabs, Select, Group, Text, Box, Center } from "@/ui";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { OptionsContainer } from "./OptionsContainer";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 beforeEach(() => {
@@ -38,9 +38,9 @@ vi.mock("../../components/options/OptionsPage", () => ({
 describe("OptionsContainer", () => {
   it("renders options container with testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <OptionsContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("options-container")).toBeInTheDocument();
@@ -48,9 +48,9 @@ describe("OptionsContainer", () => {
 
   it("renders OptionsPage child component", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <OptionsContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("options-page")).toBeInTheDocument();
@@ -58,9 +58,9 @@ describe("OptionsContainer", () => {
 
   it("passes activeTab and setActiveTab to OptionsPage", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <OptionsContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const optionsPage = screen.getByTestId("options-page");
@@ -69,9 +69,9 @@ describe("OptionsContainer", () => {
 
   it("passes useOptionsState props to OptionsPage", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <OptionsContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const optionsPage = screen.getByTestId("options-page");

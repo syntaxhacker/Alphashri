@@ -3,14 +3,12 @@ Analytics endpoints for Paper Trading — equity curve, P&L analytics.
 """
 
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends
 
 from api.auth import get_current_user
 from db.models import User
-from trading.journal import TradeJournal
 import config
 
 from .paper_api import router, _get_user_id
@@ -22,39 +20,30 @@ async def get_analytics(
     user: "User" = Depends(get_current_user),
 ):
     user_id = _get_user_id(user)
-    journal_dir = Path(__file__).parent.parent.parent / "journals" / str(user_id)
-
     all_trades = []
-    today = datetime.now(config.IST)
-    for i in range(days_back + 1):
-        day = today - timedelta(days=i)
-        date_str = day.strftime('%Y%m%d')
-        journal_file = journal_dir / f"journal_{date_str}.json"
-        if not journal_file.exists():
-            continue
-        try:
-            tj = TradeJournal(user_id=user_id)
-            tj.load_journal(str(journal_file))
-        except Exception:
-            continue
-        for t in tj.trades:
-            d = {
-                "symbol": t.symbol,
-                "side": t.side,
-                "quantity": t.quantity,
-                "entry_price": t.entry_price,
-                "exit_price": t.exit_price,
-                "entry_time": str(t.entry_time),
-                "exit_time": str(t.exit_time),
-                "pnl": t.pnl,
-                "pnl_pct": t.pnl_pct,
-                "net_pnl": t.net_pnl,
-                "costs": t.costs,
-                "exit_reason": t.exit_reason,
-                "strategy_name": t.strategy_name,
-                "hold_duration_minutes": getattr(t, "hold_duration_minutes", 0),
-            }
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+    cutoff = datetime.now(config.IST) - timedelta(days=days_back)
+    try:
+        db = SessionLocal()
+        trades = db.query(TradeModel).filter(
+            TradeModel.user_id == user_id,
+            TradeModel.is_test == False,
+            TradeModel.exit_time.isnot(None),
+            TradeModel.exit_time >= cutoff,
+        ).order_by(TradeModel.exit_time.asc()).all()
+        for t in trades:
+            d = t.to_dict()
+            d["exit_time"] = str(d["exit_time"]) if d.get("exit_time") else ""
+            d["entry_time"] = str(d["entry_time"]) if d.get("entry_time") else ""
             all_trades.append(d)
+    except Exception:
+        pass
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
     all_trades.sort(key=lambda x: x.get("exit_time", ""))
 

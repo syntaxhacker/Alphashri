@@ -1,5 +1,5 @@
 import { useEffect, useState, useCallback } from "react";
-import { Box, Stack, Switch, Text } from "@mantine/core";
+import { Box, Stack, Switch, Text } from "@/ui";
 import { useSearchParams } from "react-router-dom";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
 import {
@@ -118,7 +118,7 @@ export function SettingsPage() {
             <Switch
               size="sm"
               checked={showMarketTicker}
-              onChange={(e) => setShowMarketTicker(e.currentTarget.checked)}
+              onChange={(checked) => setShowMarketTicker(checked)}
             />
           </Box>
         </Stack>

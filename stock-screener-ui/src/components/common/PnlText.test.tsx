@@ -1,13 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { PnlText, PnlBadge } from "./PnlText";
 
 afterEach(cleanup);
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <UIProvider>{children}</UIProvider>;
 }
 
 describe("PnlText", () => {

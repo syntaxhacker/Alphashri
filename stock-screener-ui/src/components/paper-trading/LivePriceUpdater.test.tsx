@@ -33,7 +33,9 @@ vi.mock("../../hooks/useLivePrices", () => ({
 }));
 
 function notifyLivePrices(prices: Record<string, any>) {
-  mockListeners.forEach((fn) => fn(prices));
+  for (const [symbol, price] of Object.entries(prices)) {
+    mockListeners.forEach((fn) => fn(symbol, price));
+  }
 }
 
 function setState(overrides: any) {

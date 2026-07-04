@@ -1,6 +1,5 @@
 import { useState, useEffect } from "react";
-import { Box, Group, MultiSelect, Tooltip, Badge, ActionIcon } from "@mantine/core";
-import { useDebouncedValue } from "@mantine/hooks";
+import { Box, Group, MultiSelect, Tooltip, Badge, ActionIcon, useDebouncedValue } from "@/ui";
 import { IconChevronDown, IconChevronUp, IconX } from "@tabler/icons-react";
 import { searchSymbols } from "../../api/symbols";
 

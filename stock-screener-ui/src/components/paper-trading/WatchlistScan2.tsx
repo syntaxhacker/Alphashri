@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import {
+  ActionIcon,
   Badge,
   Checkbox,
   Group,
@@ -11,7 +12,7 @@ import {
   Text,
   TextInput,
   Tooltip,
-} from "@mantine/core";
+} from "@/ui";
 import { IconRefresh, IconSparkles } from "@tabler/icons-react";
 import { DataTable, SideBadge } from "../common";
 import { ClickableSymbol } from "../common";
@@ -25,6 +26,8 @@ import { nearBreakoutPct } from "./PositionsHelpers";
 interface WatchlistScan2Props {
   snapshot: PaperBotSnapshot | null;
   selectedSymbol: string | null;
+  onRefresh?: () => void;
+  refreshing?: boolean;
 }
 
 const STATUS_ORDER: Record<string, number> = {
@@ -48,7 +51,7 @@ function isNewSignal(item: PaperScanItem, snapshotTs: string | null) {
   return diffMs >= 0 && diffMs < 60_000;
 }
 
-export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props) {
+export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing }: WatchlistScan2Props) {
   const [statusFilter, setStatusFilter] = useState<"all" | "signal" | "watching" | "rejected">("all");
   const [strategyFilter, setStrategyFilter] = useState<string[]>([]);
   const [symbolQuery, setSymbolQuery] = useState("");
@@ -138,7 +141,11 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
             </Badge>
           </Group>
           <Group gap={2}>
-            <IconRefresh size={12} />
+            {onRefresh && (
+              <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing}>
+                <IconRefresh size={12} />
+              </ActionIcon>
+            )}
             <Text size="xs" c="dimmed">
               updated {scanTime}
             </Text>
@@ -164,13 +171,16 @@ export function WatchlistScan2({ snapshot, selectedSymbol }: WatchlistScan2Props
           </Badge>
         </Group>
         <Group gap={2}>
-          <IconRefresh size={12} />
+          {onRefresh && (
+            <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing}>
+              <IconRefresh size={12} />
+            </ActionIcon>
+          )}
           <Text size="xs" c="dimmed">
             updated {scanTime}
           </Text>
         </Group>
       </Group>
-
       {/* Filters */}
       <Group gap="xs" px={4} wrap="wrap">
         <SegmentedControl

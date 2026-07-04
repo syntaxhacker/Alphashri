@@ -39,7 +39,7 @@ import { mockTrade } from "./testFixtures";
 
 // Mantine component mocks
 // Note: MantineProvider is provided by TestWrapper wrapper, so we only mock individual components
-vi.mock("@mantine/core", () => {
+vi.mock("@/ui", () => {
   // Grid with nested Grid.Col
   const Grid = ({ children, grow, ...props }: any) => (
     <div
@@ -103,7 +103,12 @@ vi.mock("@mantine/core", () => {
     </th>
   );
   return {
-    MantineProvider: ({ children }: any) => <>{children}</>,
+    UIProvider: ({ children }: any) => <>{children}</>,
+    TableTh: Table.Th,
+    TableThead: Table.Thead,
+    TableTbody: Table.Tbody,
+    TableTr: Table.Tr,
+    TableTd: Table.Td,
     Anchor: ({ children, onClick, ...props }: any) => (
       <button
         data-testid={props["data-testid"]}

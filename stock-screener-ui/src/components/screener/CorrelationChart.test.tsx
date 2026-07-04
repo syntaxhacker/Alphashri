@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { CorrelationChart } from "./CorrelationChart";
 import type { CorrelationDataPoint } from "../../api/correlation";
 
@@ -18,7 +18,7 @@ vi.mock("../../hooks/useECharts", () => ({
 }));
 
 function r(jsx: React.ReactElement) {
-  return render(jsx, { wrapper: ({ children }) => <MantineProvider>{children}</MantineProvider> });
+  return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
 }
 
 describe("CorrelationChart", () => {

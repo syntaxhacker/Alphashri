@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useCallback } from "react";
-import { Badge, Text, Group, Flex, Tooltip, Button } from "@mantine/core";
+import { Badge, Text, Group, Flex, Tooltip, Button } from "@/ui";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";

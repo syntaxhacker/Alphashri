@@ -1,4 +1,4 @@
-import { Group, Text } from "@mantine/core";
+import { Group, Text } from "@/ui";
 import { IconDatabaseOff } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 import type { ScreenerEmptyProps } from "./types";

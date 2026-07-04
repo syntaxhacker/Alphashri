@@ -1,4 +1,4 @@
-import type { useMantineTheme } from "@mantine/core";
+import type { MantineTheme } from "@/ui";
 import { clamp } from "../../../utils/ui-helpers";
 
 function parseHex(hex: string) {
@@ -43,7 +43,7 @@ export type CellPaletteResult = {
   accent: string;
 };
 
-export type ThemeType = ReturnType<typeof useMantineTheme>;
+export type ThemeType = MantineTheme;
 
 function getSidePalette(theme: ThemeType, type: "CE" | "PE") {
   const colors = theme.colors || {};

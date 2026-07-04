@@ -18,7 +18,6 @@ from .bot_control import (
     start_paper_bot,
     stop_paper_bot,
 )
-from .history import get_trades, delete_trade, get_journal_summary
 
 __all__ = [
     "router",

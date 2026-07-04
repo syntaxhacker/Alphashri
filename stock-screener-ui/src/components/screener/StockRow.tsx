@@ -1,3 +1,5 @@
+import React, { useCallback, memo } from "react";
+
 import {
   Table,
   Anchor,
@@ -8,7 +10,7 @@ import {
   ActionIcon,
   CopyButton,
   Checkbox,
-} from "@mantine/core";
+} from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { Stock } from "../../types";
 import type { ColumnDef, FormattedCell } from "./columns";
@@ -26,7 +28,7 @@ interface StockRowProps {
   onSymbolHover: (symbol: string | null) => void;
 }
 
-export function StockRow({
+export const StockRow = memo(function StockRow({
   stock,
   columns,
   isTouched,
@@ -37,22 +39,47 @@ export function StockRow({
 }: StockRowProps) {
   const { showPreviewChart, hidePreviewChart } = usePreviewChart();
 
-  const handleMouseEnter = (e: React.MouseEvent, symbol: string) => {
-    onSymbolHover(symbol);
-    showPreviewChart(e, symbol);
-  };
+  const handleMouseEnter = useCallback(
+    (e: React.MouseEvent, symbol: string) => {
+      onSymbolHover(symbol);
+      showPreviewChart(e, symbol);
+    },
+    [onSymbolHover, showPreviewChart],
+  );
 
-  const handleMouseLeave = () => {
+  const handleMouseLeave = useCallback(() => {
     onSymbolHover(null);
     hidePreviewChart();
-  };
+  }, [onSymbolHover, hidePreviewChart]);
 
-  const handleClick = (symbol: string) => {
-    hidePreviewChart();
-    onSymbolClick(symbol);
-  };
+  const handleClick = useCallback(
+    (symbol: string) => {
+      hidePreviewChart();
+      onSymbolClick(symbol);
+    },
+    [hidePreviewChart, onSymbolClick],
+  );
 
-  const renderCell = (column: ColumnDef) => {
+  const handleSymbolClick = useCallback(() => {
+    handleClick(stock.symbol);
+  }, [handleClick, stock.symbol]);
+
+  const handleSymbolMouseEnter = useCallback(
+    (e: React.MouseEvent) => {
+      handleMouseEnter(e, stock.symbol);
+    },
+    [handleMouseEnter, stock.symbol],
+  );
+
+  const handleCheckboxChange = useCallback(() => {
+    toggleSymbolSelection(stock.symbol);
+  }, [stock.symbol]);
+
+  const handleCheckboxClick = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+  }, []);
+
+  const renderCell = useCallback((column: ColumnDef) => {
     const value = stock[column.key];
 
     if (column.format) {
@@ -87,8 +114,8 @@ export function StockRow({
             <Anchor
               component="button"
               type="button"
-              onClick={() => handleClick(stock.symbol)}
-              onMouseEnter={(e) => handleMouseEnter(e, stock.symbol)}
+              onClick={handleSymbolClick}
+              onMouseEnter={handleSymbolMouseEnter}
               onMouseLeave={handleMouseLeave}
               className="symbol-link"
               data-testid={`symbol-link-${stock.symbol}`}
@@ -167,7 +194,7 @@ export function StockRow({
     }
 
     return value ?? "-";
-  };
+  }, [stock, isTouched, badgeLabel, scoreFormula, handleClick, handleMouseEnter, handleMouseLeave]);
 
   return (
     <Table.Tr
@@ -179,9 +206,9 @@ export function StockRow({
         <Checkbox
           size="xs"
           checked={selectedSymbols.includes(stock.symbol)}
-          onChange={() => toggleSymbolSelection(stock.symbol)}
+          onChange={handleCheckboxChange}
           data-testid={`sel-checkbox-${stock.symbol}`}
-          onClick={(e) => e.stopPropagation()}
+          onClick={handleCheckboxClick}
         />
       </Table.Td>
       {columns.map((column) => (
@@ -195,4 +222,4 @@ export function StockRow({
       ))}
     </Table.Tr>
   );
-}
+});

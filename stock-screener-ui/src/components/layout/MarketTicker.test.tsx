@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { MarketTicker } from "./MarketTicker";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // Mock fetch
@@ -91,9 +91,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("market-ticker")).toBeInTheDocument();
@@ -106,9 +106,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
@@ -124,9 +124,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -142,9 +142,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -161,9 +161,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -177,9 +177,9 @@ describe("MarketTicker", () => {
     mockFetch.mockImplementationOnce(() => new Promise((resolve) => setTimeout(resolve, 1000)));
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const container = screen.getByTestId("market-ticker");
@@ -190,9 +190,9 @@ describe("MarketTicker", () => {
     mockFetch.mockRejectedValueOnce(new Error("Network error"));
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -210,9 +210,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -244,9 +244,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -261,9 +261,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -318,9 +318,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     await waitFor(() => {
@@ -341,9 +341,9 @@ describe("MarketTicker", () => {
     });
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     // Wait for initial fetch
@@ -362,9 +362,9 @@ describe("MarketTicker", () => {
     mockMarketTickerEnabled = false;
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <MarketTicker />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     // Market ticker container should not be in the document

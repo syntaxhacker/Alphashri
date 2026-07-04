@@ -26,7 +26,7 @@ from .paper_risk import (
     has_duplicate_position, simulate_fill,
     calculate_fill_price, calculate_margin_required, has_sufficient_cash,
 )
-from .paper_journal import load_todays_trades
+# Journal loading removed — DB is the primary data source
 
 console = Console()
 
@@ -105,7 +105,7 @@ class PaperTrader:
         self.daily_trades = 0
         self.day_start = datetime.now(app_config.IST).date()
 
-        self._load_todays_trades_from_journal()
+        self._init_trade_counter()
 
     def _generate_order_id(self) -> str:
         self._order_counter += 1
@@ -115,19 +115,19 @@ class PaperTrader:
         self._trade_counter += 1
         return f"TRADE-{self._trade_counter:06d}"
 
-    def _load_todays_trades_from_journal(self):
+    def _init_trade_counter(self):
+        """Initialize trade counter from DB."""
         try:
-            trades, max_counter = load_todays_trades(self.user_id)
-
-            for trade in trades:
-                self.trades.append(trade)
-                self._trade_counter = max(self._trade_counter, max_counter)
-                self.daily_pnl += trade.net_pnl
-                self.daily_trades += 1
-                self.cash += trade.net_pnl
-
-        except Exception as e:
-            console.print(f"[yellow]Warning: Could not load journal: {e}[/yellow]")
+            from db.database import SessionLocal
+            from db.models import Trade as TradeModel
+            with SessionLocal() as db:
+                max_id = db.query(TradeModel.id).filter(
+                    TradeModel.user_id == self.user_id,
+                ).order_by(TradeModel.id.desc()).first()
+                if max_id:
+                    self._trade_counter = max_id[0]
+        except Exception:
+            pass
 
     def calculate_costs(self, price: float, quantity: int, side: OrderSide) -> dict:
         trade_value = price * quantity

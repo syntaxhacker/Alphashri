@@ -5,7 +5,7 @@ import { EditableNumberCell } from "./EditableNumberCell";
 
 afterEach(cleanup);
 
-vi.mock("@mantine/core", () => ({
+vi.mock("@/ui", () => ({
   NumberInput: (props: any) => {
     const testId = props["data-testid"] || "number-input";
     return (

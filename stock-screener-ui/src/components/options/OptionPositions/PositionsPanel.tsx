@@ -1,4 +1,4 @@
-import { Table, Text, Stack, Badge, Paper, Alert } from "@mantine/core";
+import { Table, TableThead, TableTbody, TableTr, TableTh, TableTd, Text, Stack, Badge, Paper, Alert } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { DataTable } from "../../common/DataTable";
 import { getPnLTextColor, formatSignedPnl } from "../../../utils/ui-helpers";
@@ -81,41 +81,41 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
         data-testid="options-positions-table-container"
       >
         <DataTable striped={false} className="positions-table" dataTestId="options-positions-table">
-          <Table.Thead className="positions-table-head">
-            <Table.Tr className="positions-header-row">
-              <Table.Th className="positions-header-cell">Symbol</Table.Th>
-              <Table.Th className="positions-header-cell">Type</Table.Th>
-              <Table.Th className="positions-header-cell">Strike</Table.Th>
-              <Table.Th className="positions-header-cell">Qty</Table.Th>
-              <Table.Th className="positions-header-cell">Avg Price</Table.Th>
-              <Table.Th className="positions-header-cell">LTP</Table.Th>
-              <Table.Th className="positions-header-cell">P&L</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody className="positions-table-body">
+          <TableThead className="positions-table-head">
+            <TableTr className="positions-header-row">
+              <TableTh className="positions-header-cell">Symbol</TableTh>
+              <TableTh className="positions-header-cell">Type</TableTh>
+              <TableTh className="positions-header-cell">Strike</TableTh>
+              <TableTh className="positions-header-cell">Qty</TableTh>
+              <TableTh className="positions-header-cell">Avg Price</TableTh>
+              <TableTh className="positions-header-cell">LTP</TableTh>
+              <TableTh className="positions-header-cell">P&L</TableTh>
+            </TableTr>
+          </TableThead>
+          <TableTbody className="positions-table-body">
             {positions.length === 0 ? (
-              <Table.Tr className="positions-empty-row" data-testid="options-positions-empty">
-                <Table.Td colSpan={7} align="center">
+              <TableTr className="positions-empty-row" data-testid="options-positions-empty">
+                <TableTd colSpan={7} align="center">
                   <Text c="dimmed" py="md">
                     No open positions
                   </Text>
-                </Table.Td>
-              </Table.Tr>
+                </TableTd>
+              </TableTr>
             ) : (
               positions.map((pos, index) => (
-                <Table.Tr
+                <TableTr
                   key={pos.instrument_key}
                   className="position-row"
                   data-testid={`options-position-row-${index}`}
                 >
-                  <Table.Td
+                  <TableTd
                     fw={500}
                     className="position-symbol"
                     data-testid={`options-position-symbol-${index}`}
                   >
                     {pos.trading_symbol}
-                  </Table.Td>
-                  <Table.Td className="position-type">
+                  </TableTd>
+                  <TableTd className="position-type">
                     <Badge
                       size="sm"
                       color={pos.option_type === "CE" ? "green" : "red"}
@@ -124,26 +124,26 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
                     >
                       {pos.option_type}
                     </Badge>
-                  </Table.Td>
-                  <Table.Td
+                  </TableTd>
+                  <TableTd
                     className="position-strike"
                     data-testid={`options-position-strike-${index}`}
                   >
                     {pos.strike_price}
-                  </Table.Td>
-                  <Table.Td className="position-qty" data-testid={`options-position-qty-${index}`}>
+                  </TableTd>
+                  <TableTd className="position-qty" data-testid={`options-position-qty-${index}`}>
                     {pos.quantity}
-                  </Table.Td>
-                  <Table.Td
+                  </TableTd>
+                  <TableTd
                     className="position-avg-price"
                     data-testid={`options-position-avg-price-${index}`}
                   >
                     ₹{pos.average_price.toFixed(2)}
-                  </Table.Td>
-                  <Table.Td className="position-ltp" data-testid={`options-position-ltp-${index}`}>
+                  </TableTd>
+                  <TableTd className="position-ltp" data-testid={`options-position-ltp-${index}`}>
                     ₹{pos.current_price?.toFixed(2) ?? "-"}
-                  </Table.Td>
-                  <Table.Td className="position-pnl" data-testid={`options-position-pnl-${index}`}>
+                  </TableTd>
+                  <TableTd className="position-pnl" data-testid={`options-position-pnl-${index}`}>
                     {pos.pnl !== undefined ? (
                       <Text fw={600} c={getPnLTextColor(pos.pnl)}>
                         {formatSignedPnl(pos.pnl)}
@@ -151,11 +151,11 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
                     ) : (
                       "-"
                     )}
-                  </Table.Td>
-                </Table.Tr>
+                  </TableTd>
+                </TableTr>
               ))
             )}
-          </Table.Tbody>
+          </TableTbody>
         </DataTable>
       </Paper>
     </Stack>

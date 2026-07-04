@@ -31,6 +31,7 @@ except ImportError:
 
 class RateLimitExceeded(Exception):
     """Raised when the rate limiter cannot acquire capacity within timeout."""
+    response = None
 
 
 class UpstoxAPI(BaseAPIClient):
@@ -96,6 +97,66 @@ class UpstoxAPI(BaseAPIClient):
     def _get_headers(self) -> Dict[str, str]:
         """Constructs the required headers for API calls."""
         return self.auth_handler.get_headers()
+
+    def _candles_to_dataframe(self, candles: list) -> pd.DataFrame:
+        """Convert raw candle list to a DataFrame with datetime index."""
+        df = pd.DataFrame(candles, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
+        df['datetime'] = pd.to_datetime(df['datetime'])
+        df.set_index('datetime', inplace=True)
+        df = df.astype({'open': 'float', 'high': 'float', 'low': 'float', 'close': 'float', 'volume': 'float'})
+        df.sort_index(inplace=True)
+        return df
+
+    def _get_json_headers(self) -> dict:
+        headers = self._get_headers()
+        headers['Content-Type'] = 'application/json'
+        headers['Accept'] = 'application/json'
+        return headers
+
+    def _call_api(self, url: str, label: str = "", params: dict | None = None) -> dict | list | None:
+        """Make an authed GET request and unwrap the Upstox API response envelope.
+
+        Args:
+            url: Full API URL
+            label: Human-readable label for error messages (e.g., "order book")
+            params: Optional query parameters
+
+        Returns:
+            data dict/list on success, None on failure
+        """
+        if not self.auth_handler.access_token:
+            return None
+        headers = self._get_json_headers()
+        try:
+            response = self._request("GET", url, headers=headers, params=params)
+            response.raise_for_status()
+            data = response.json()
+            if isinstance(data, dict) and data.get('status') == 'success':
+                return data.get('data')
+            return None
+        except requests.RequestException as e:
+            if not self.quiet:
+                print(f"❌ API Error {label}: {e.response.text if e.response else e}")
+            return None
+
+    def _handle_request_error(self, e: Exception, symbol: str, context: str = "") -> None:
+        """Log API error. Always returns None for the caller."""
+        prefix = f" {context}" if context else ""
+        if isinstance(e, RateLimitExceeded):
+            if not self.quiet:
+                print(f"⏳ Rate limited — skipped {symbol}{prefix}")
+            return
+        if isinstance(e, requests.RequestException):
+            status_code = e.response.status_code if e.response is not None else None
+            if not self.quiet:
+                if status_code == 429:
+                    print(f"⏳ Upstox rate limited (429) {symbol}{prefix}")
+                elif status_code is not None:
+                    print(f"❌ HTTP {status_code} for {symbol}{prefix}: {e}")
+                else:
+                    print(f"❌ Request failed for {symbol}{prefix}: {e}")
+            return
+        raise
 
     def _download_and_cache_instruments(self):
         """Downloads, decompresses, and caches the NSE instruments list."""
@@ -256,12 +317,7 @@ class UpstoxAPI(BaseAPIClient):
                         print(f"⚠️ No intraday candles available for {symbol} today.")
                     return None
 
-                df = pd.DataFrame(candles, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
-                df['datetime'] = pd.to_datetime(df['datetime'])
-                df.set_index('datetime', inplace=True)
-                df = df.astype({'open': 'float', 'high': 'float', 'low': 'float', 'close': 'float', 'volume': 'float'})
-
-                df.sort_index(inplace=True)
+                df = self._candles_to_dataframe(candles)
 
                 if not self.quiet:
                     print(f"✅ Successfully fetched {len(df)} V3 intraday records for {symbol}.")
@@ -270,19 +326,8 @@ class UpstoxAPI(BaseAPIClient):
                 if not self.quiet:
                     print(f"❌ V3 Intraday API error for {symbol}: {data}")
                 return None
-        except RateLimitExceeded:
-            if not self.quiet:
-                print(f"⏳ Rate limited — skipped {symbol}")
-            return None
-        except requests.RequestException as e:
-            status_code = e.response.status_code if e.response is not None else None
-            if not self.quiet:
-                if status_code == 429:
-                    print(f"⏳ Upstox rate limited (429) {symbol}")
-                elif status_code is not None:
-                    print(f"❌ V3 Intraday HTTP {status_code} for {symbol}: {e}")
-                else:
-                    print(f"❌ V3 Intraday request failed for {symbol}: {e}")
+        except (RateLimitExceeded, requests.RequestException) as e:
+            self._handle_request_error(e, symbol)
             return None
         except Exception as e:
             if not self.quiet:
@@ -322,27 +367,14 @@ class UpstoxAPI(BaseAPIClient):
                     print(f"⚠️ No data returned for {symbol} in the given date range.")
                 return pd.DataFrame()
 
-            df = pd.DataFrame(data, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
-            df['datetime'] = pd.to_datetime(df['datetime'])
-            df.set_index('datetime', inplace=True)
+            df = self._candles_to_dataframe(data)
 
             if not self.quiet:
                 print(f"✅ Successfully fetched {len(df)} records for {symbol}.")
             return df
 
-        except RateLimitExceeded:
-            if not self.quiet:
-                print(f"⏳ Rate limited — skipped {symbol} historical")
-            return None
-        except requests.RequestException as e:
-            status_code = e.response.status_code if e.response is not None else None
-            if not self.quiet:
-                if status_code == 429:
-                    print(f"⏳ Upstox rate limited (429) {symbol} historical")
-                elif status_code is not None:
-                    print(f"❌ V2 Historical HTTP {status_code} for {symbol}: {e.response.text if e.response else e}")
-                else:
-                    print(f"❌ V2 Historical request failed for {symbol}: {e}")
+        except (RateLimitExceeded, requests.RequestException) as e:
+            self._handle_request_error(e, symbol)
             return None
 
     def fetch_historical_data_v3(self, symbol: str, unit: str, interval: int, to_date: str,
@@ -502,29 +534,14 @@ class UpstoxAPI(BaseAPIClient):
             if not candles:
                 return pd.DataFrame()
 
-            df = pd.DataFrame(candles, columns=['datetime', 'open', 'high', 'low', 'close', 'volume', 'oi'])
-            df['datetime'] = pd.to_datetime(df['datetime'])
-            df.set_index('datetime', inplace=True)
-
-            df.sort_index(inplace=True)
+            df = self._candles_to_dataframe(candles)
 
             return df
 
-        except RateLimitExceeded:
-            if not self.quiet:
-                print(f"⏳ Rate limited — skipped {symbol} V3 historical")
-            return None
-        except requests.RequestException as e:
+        except (RateLimitExceeded, requests.RequestException) as e:
             self._last_v3_error_status = e.response.status_code if e.response is not None else None
             self._last_v3_error_text = e.response.text if e.response is not None else str(e)
-            if not self.quiet:
-                sc = e.response.status_code if e.response is not None else None
-                if sc == 429:
-                    print(f"⏳ Upstox rate limited (429) {symbol} V3 historical")
-                elif sc is not None:
-                    print(f"❌ V3 Historical HTTP {sc} for {symbol}: {e.response.text if e.response else e}")
-                else:
-                    print(f"❌ V3 Historical request failed for {symbol}: {e}")
+            self._handle_request_error(e, symbol)
             return None
 
     def place_order(self, symbol: str, transaction_type: str, quantity: int,
@@ -539,8 +556,7 @@ class UpstoxAPI(BaseAPIClient):
         if not instrument_key:
             return None
 
-        headers = self._get_headers()
-        headers['Content-Type'] = 'application/json'
+        headers = self._get_json_headers()
 
         data = {
             "quantity": quantity,
@@ -570,86 +586,22 @@ class UpstoxAPI(BaseAPIClient):
             return None
 
     def get_order_book(self) -> Optional[List[Dict]]:
-        """Fetch all orders placed today using V2 API.
-
-        Returns a list of order dicts on success, None on failure.
-        V2 order/retrieve-all returns a JSON array on success,
-        or {"status":"error","errors":[...]} on failure.
-        """
-        if not self.auth_handler.access_token:
-            return None
-        headers = self._get_headers()
-        headers['Content-Type'] = 'application/json'
-        headers['Accept'] = 'application/json'
-        try:
-            from .api_helpers import ORDER_BOOK_URL
-            response = self._request("GET", ORDER_BOOK_URL, headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, list):
-                return data
-            if isinstance(data, dict) and data.get('status') == 'success':
-                return data.get('data', [])
-            return None
-        except requests.RequestException as e:
-            if not self.quiet:
-                print(f"❌ API Error fetching order book: {e.response.text if e.response else e}")
-            return None
+        """Fetch all orders placed today using V2 API."""
+        from .api_helpers import ORDER_BOOK_URL
+        return self._call_api(ORDER_BOOK_URL, "order book")
 
     def get_order_details(self, order_id: str) -> Optional[Dict]:
-        if not self.auth_handler.access_token:
-            return None
-        headers = self._get_headers()
-        headers['Content-Type'] = 'application/json'
-        headers['Accept'] = 'application/json'
-        try:
-            url = "https://api.upstox.com/v2/order/details"
-            response = self._request("GET", url, headers=headers, params={"order_id": order_id})
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, dict) and data.get('status') == 'success':
-                return data.get('data')
-            return None
-        except requests.RequestException as e:
-            if not self.quiet:
-                print(f"❌ API Error fetching order details for {order_id}: {e.response.text if e.response else e}")
-            return None
+        """Fetch details for a specific order."""
+        url = "https://api.upstox.com/v2/order/details"
+        return self._call_api(url, "order details", {"order_id": order_id})
 
     def get_funds(self) -> Optional[Dict]:
-        if not self.auth_handler.access_token:
-            return None
-        headers = self._get_headers()
-        headers['Content-Type'] = 'application/json'
-        headers['Accept'] = 'application/json'
-        try:
-            response = self._request("GET", "https://api.upstox.com/v3/user/get-funds-and-margin", headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, dict) and data.get('status') == 'success':
-                return data.get('data')
-            return None
-        except requests.RequestException as e:
-            if not self.quiet:
-                print(f"❌ API Error fetching funds: {e.response.text if e.response else e}")
-            return None
+        """Fetch user fund balance and margin details."""
+        return self._call_api("https://api.upstox.com/v3/user/get-funds-and-margin", "funds")
 
     def get_positions(self) -> Optional[List[Dict]]:
-        if not self.auth_handler.access_token:
-            return None
-        headers = self._get_headers()
-        headers['Content-Type'] = 'application/json'
-        headers['Accept'] = 'application/json'
-        try:
-            response = self._request("GET", "https://api.upstox.com/v3/positions", headers=headers)
-            response.raise_for_status()
-            data = response.json()
-            if isinstance(data, dict) and data.get('status') == 'success':
-                return data.get('data')
-            return None
-        except requests.RequestException as e:
-            if not self.quiet:
-                print(f"❌ API Error fetching positions: {e.response.text if e.response else e}")
-            return None
+        """Fetch current day trading positions."""
+        return self._call_api("https://api.upstox.com/v3/positions", "positions")
 
     def setup_realtime_streaming(self, symbols: List[str],
                                  callback: Optional[Callable] = None) -> bool:

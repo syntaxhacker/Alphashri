@@ -14,7 +14,7 @@ import {
   ActionIcon,
   Loader,
   Title,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconChartLine,
   IconExternalLink,

@@ -1,4 +1,4 @@
-import { Badge, Paper, Progress, Stack, Group, Text, Tooltip } from "@mantine/core";
+import { Badge, Paper, Progress, Stack, Group, Text, Tooltip } from "@/ui";
 
 interface ImpactScoreProps {
   score?: number;

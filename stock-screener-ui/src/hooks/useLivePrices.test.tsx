@@ -112,14 +112,14 @@ describe("useLivePrices", () => {
     render(<TestComponent />);
 
     await vi.waitFor(() => {
-      expect(subscriber).toHaveBeenCalled();
+      expect(subscriber).toHaveBeenCalledTimes(2);
     });
 
-    const pricesArg = subscriber.mock.calls[subscriber.mock.calls.length - 1][0];
-    expect(pricesArg["RELIANCE"]).toBeDefined();
-    expect(pricesArg["RELIANCE"].ltp).toBe(1417.4);
-    expect(pricesArg["TCS"]).toBeDefined();
-    expect(pricesArg["TCS"].ltp).toBe(2485.1);
+    const calls = subscriber.mock.calls;
+    expect(calls[0][0]).toBe("RELIANCE");
+    expect(calls[0][1].ltp).toBe(1417.4);
+    expect(calls[1][0]).toBe("TCS");
+    expect(calls[1][1].ltp).toBe(2485.1);
   });
 
   test("handles malformed SSE events gracefully", async () => {
@@ -157,8 +157,9 @@ describe("useLivePrices", () => {
       expect(subscriber).toHaveBeenCalled();
     });
 
-    const pricesArg = subscriber.mock.calls[subscriber.mock.calls.length - 1][0];
-    expect(pricesArg["RELIANCE"].ltp).toBe(100);
+    const lastCall = subscriber.mock.calls[subscriber.mock.calls.length - 1];
+    expect(lastCall[0]).toBe("RELIANCE");
+    expect(lastCall[1].ltp).toBe(100);
   });
 
   test("handles fetch failure gracefully", async () => {

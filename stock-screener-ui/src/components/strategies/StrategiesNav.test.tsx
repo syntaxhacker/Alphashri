@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { StrategiesNav } from "./StrategiesNav";
 
 afterEach(() => {
@@ -13,36 +13,36 @@ afterEach(() => {
 describe("StrategiesNav", () => {
   it("renders nav with data-testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesNav activeView="tree" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategies-nav")).toBeInTheDocument();
   });
 
   it("shows title 'Strategies'", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesNav activeView="tree" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Strategies")).toBeInTheDocument();
   });
 
   it("shows description text", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesNav activeView="tree" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Manage templates, variations, and performance in one place")).toBeInTheDocument();
   });
 
   it("renders segmented control with tabs", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesNav activeView="tree" onChange={vi.fn()} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategies-nav-tabs")).toBeInTheDocument();
   });
@@ -51,9 +51,9 @@ describe("StrategiesNav", () => {
     const onChange = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategiesNav activeView="tree" onChange={onChange} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const tabs = screen.getByTestId("strategies-nav-tabs");
     const performanceTab = tabs.querySelector('[data-value="performance"]');

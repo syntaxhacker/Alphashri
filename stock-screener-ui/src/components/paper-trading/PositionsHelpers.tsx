@@ -1,5 +1,5 @@
-import { useRef, useState, useEffect, Fragment } from "react";
-import { Table, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@mantine/core";
+import { memo, useRef, useState, useEffect, Fragment } from "react";
+import { Table, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
 import dayjs from "dayjs";
 import { DataTable, ClickableSymbol } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData, fetch52WLevels } from "../../api/paperTrading";
@@ -77,7 +77,7 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
 
 export { TABLE_STYLES as tableStyles };
 
-function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
+const PriceDisplay = memo(function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
   const [flash, setFlash] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -107,9 +107,9 @@ function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }
       ₹{price.toFixed(2)}
     </span>
   );
-}
+});
 
-function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
+const PnLDisplay = memo(function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
   const [flash, setFlash] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -149,7 +149,7 @@ function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
       </Text>
     </Text>
   );
-}
+});
 
 function usePrevPrice(price: number) {
   const ref = useRef(price);
@@ -183,7 +183,7 @@ function calcRowBg(current: number, entry: number, sl: number, tp: number): stri
   return `linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.12) ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, rgba(34,197,94,0.12) ${greenStart}%, rgba(34,197,94,0.08) 100%)`;
 }
 
-function PositionRow({
+const PositionRow = memo(function PositionRow({
   pos,
   onSelect,
   onClose,
@@ -260,9 +260,11 @@ function PositionRow({
       </Table.Tr>
     </Fragment>
   );
-}
+});
 
-function PositionDetail({ pos }: { pos: PaperPosition }) {
+const _52wCache: Record<string, { high_52w: number; low_52w: number }> = {};
+
+const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPosition }) {
   console.log("[PositionDetail] pos:", pos.symbol, "order_id:", pos.order_id, "id:", pos.id);
   const [notes, setNotes] = useState(pos.notes || "");
   const [saving, setSaving] = useState(false);
@@ -271,9 +273,15 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
 
   useEffect(() => {
     let cancelled = false;
+    if (_52wCache[pos.symbol]) {
+      setWeek52(_52wCache[pos.symbol]);
+      setLoading52(false);
+      return;
+    }
     setLoading52(true);
     fetch52WLevels(pos.symbol).then((data) => {
       if (!cancelled) {
+        _52wCache[pos.symbol] = data;
         setWeek52(data);
         setLoading52(false);
       }
@@ -352,7 +360,7 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
       </Box>
     </Stack>
   );
-}
+});
 
 export function getPositionAgeColor(entryTime: string): string {
   const elapsed = Date.now() - new Date(entryTime).getTime();

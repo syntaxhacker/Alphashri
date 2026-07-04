@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 import type { Notification } from "../../state/store/notificationsSlice";
 
 type NotificationItemProps = {

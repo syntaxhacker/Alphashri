@@ -10,7 +10,7 @@ import {
   Text,
   Badge,
   Divider,
-} from "@mantine/core";
+} from "@/ui";
 import { IconDatabase, IconPlus } from "@tabler/icons-react";
 import { fetchWithAuth } from "../../state/auth";
 import type { Stock } from "../../types";
@@ -198,7 +198,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                 <Checkbox
                   size="xs"
                   checked={allSelected}
-                  onChange={(e) => toggleAll(e.currentTarget.checked)}
+                  onChange={(checked) => toggleAll(checked)}
                   label={`All (${stocks.length})`}
                   data-testid="screener-select-all"
                 />
@@ -207,7 +207,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                     size="xs"
                     checked={touchedChecked}
                     indeterminate={!touchedChecked && [...selectedSet].some((s) => stocks.find((st) => st.symbol === s)?.touched_52w)}
-                    onChange={(e) => toggleTouched(e.currentTarget.checked)}
+                    onChange={(checked) => toggleTouched(checked)}
                     label={`Touched (${touchedCount})`}
                     data-testid="screener-select-touched"
                   />

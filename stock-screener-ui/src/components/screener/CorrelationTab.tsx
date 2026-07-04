@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Group, MultiSelect, SegmentedControl, Select, Button, Alert } from "@mantine/core";
+import { Stack, Group, MultiSelect, SegmentedControl, Select, Button, Alert } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {

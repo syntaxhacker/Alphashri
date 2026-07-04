@@ -1,4 +1,4 @@
-import { Table, Text, Group, Stack, Badge, Progress, Loader } from "@mantine/core";
+import { Table, Text, Group, Stack, Badge, Progress, Loader } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";

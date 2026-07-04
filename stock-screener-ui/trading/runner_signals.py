@@ -48,9 +48,82 @@ class RunnerSignalsMixin:
             return float(df.iloc[-1]['close'])
         return None
 
+    def _make_scan_item(self, symbol: str, runner, extra: dict | None = None) -> dict:
+        """Create a standardized scan item dict."""
+        item = {
+            'symbol': symbol,
+            'status': 'watching',
+            'side': None,
+            'reason': None,
+            'source': 'custom' if symbol in set(
+                runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else []
+            ) else None,
+            'timestamp': self._ist_now().isoformat(),
+        }
+        if extra:
+            item.update(extra)
+        return item
+
+    def _remaining_scan_budget(self) -> int:
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is None:
+                return 15
+            now = __import__('time').time()
+            minute_count = client.zcount('upstox:rl:hits', now - 60, now)
+            remaining = max(1, 15 - minute_count // 10)
+            return min(15, remaining)
+        except Exception:
+            return 15
+
+    def _mark_skipped(self, item: dict, reason: str) -> dict:
+        item['status'] = 'skipped'
+        item['reason'] = reason
+        return item
+
+    def _mark_signal(self, item: dict, side: str, reason: str) -> dict:
+        item['status'] = 'signal'
+        item['side'] = side
+        item['reason'] = reason
+        return item
+
     @staticmethod
     def _build_order_tag(strategy_name: str, symbol: str) -> str:
         return f"{strategy_name}_{symbol}"[:40]
+
+    @staticmethod
+    def _calc_pnl(side: str, entry_price: float, exit_price: float, quantity: int) -> float:
+        """Calculate PnL for a trade."""
+        if side.upper() in ("BUY", "LONG"):
+            return (exit_price - entry_price) * quantity
+        return (entry_price - exit_price) * quantity
+
+    @staticmethod
+    def _calc_costs(entry_price: float, exit_price: float, quantity: int, side: str) -> float:
+        """Calculate total trading costs."""
+        from backtest.costs import calculate_trading_costs
+        return calculate_trading_costs(entry_price, exit_price, quantity, side)['total_costs']
+
+    @staticmethod
+    def _safe_stop_loss(pos) -> float:
+        return getattr(pos, 'stop_loss', None) or 0.0
+
+    @staticmethod
+    def _safe_take_profit(pos) -> float:
+        return getattr(pos, 'take_profit', None) or 0.0
+
+    @staticmethod
+    def _safe_peak_price(pos, entry_price: float) -> float:
+        return getattr(pos, 'peak_price', None) or entry_price
+
+    @staticmethod
+    def _safe_low_price(pos, entry_price: float) -> float:
+        return getattr(pos, 'low_price', None) or entry_price
+
+    @staticmethod
+    def _safe_net_pnl(pnl: float, costs: float) -> float:
+        return (pnl or 0) - (costs or 0)
 
     def _check_cooldown(self, symbol: str, runner) -> bool:
         if symbol not in self.cooldown_stocks:
@@ -141,11 +214,12 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
-        custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
-        if custom_watchlist_set:
-            console.print(f"[cyan]Scan custom watchlist: {len(custom_watchlist_set)} stocks[/cyan]")
-
+        budget = self._remaining_scan_budget()
+        scanned = 0
         for symbol in watchlist:
+            if scanned >= budget and strategy_id not in (None, 'shared'):
+                break
+
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -163,7 +237,8 @@ class RunnerSignalsMixin:
                 prev_data = self.fetch_previous_day_data(symbol)
                 if not prev_data:
                     continue
-
+                scanned += 1
+                
                 gen = runner.signal_generator
                 pivot_points = gen.calculate_pivot_points(
                     prev_data['prev_high'], prev_data['prev_low'], prev_data['prev_close']
@@ -215,15 +290,7 @@ class RunnerSignalsMixin:
 
                 signal = gen.check_entry(symbol, market_data)
 
-                scan_item = {
-                    'symbol': symbol,
-                    'price': entry_price,
-                    'status': 'watching',
-                    'side': None,
-                    'reason': None,
-                    'source': 'custom' if symbol in custom_watchlist_set else None,
-                    'timestamp': self._ist_now().isoformat(),
-                }
+                scan_item = self._make_scan_item(symbol, runner, {'price': entry_price})
 
             elif runner.strategy_type == "EMA_CROSS":
                 ema_data = self.fetch_ema_data(
@@ -234,33 +301,23 @@ class RunnerSignalsMixin:
                 )
                 if not ema_data:
                     continue
+                scanned += 1
 
                 signal = runner.signal_generator.check_entry(symbol, ema_data)
 
-                scan_item = {
-                    'symbol': symbol,
-                    'price': ema_data.get('current_price', 0),
-                    'status': 'watching',
-                    'side': None,
-                    'reason': None,
-                    'source': 'custom' if symbol in custom_watchlist_set else None,
-                    'timestamp': self._ist_now().isoformat(),
-                }
+                scan_item = self._make_scan_item(symbol, runner, {'price': ema_data.get('current_price', 0)})
 
             else:
                 or_levels = self.fetch_or_data(symbol, runner=runner)
                 if not or_levels:
-                    scan_items.append({
-                        'symbol': symbol,
-                        'status': 'watching',
-                        'side': None,
+                    item = self._make_scan_item(symbol, runner, {
                         'reason': 'Skipped — rate limited by Upstox, waiting for capacity',
-                        'source': 'custom' if symbol in custom_watchlist_set else None,
-                        'timestamp': self._ist_now().isoformat(),
                     })
+                    scan_items.append(item)
                     continue
 
                 self.or_levels[symbol] = or_levels
+                scanned += 1
 
                 current_price = or_levels.get('latest_price', or_levels['or_close'])
                 or_high = or_levels['or_high']
@@ -277,25 +334,18 @@ class RunnerSignalsMixin:
                 }):
                     pass
 
-                scan_item = {
-                    'symbol': symbol,
+                scan_item = self._make_scan_item(symbol, runner, {
                     'price': current_price,
                     'or_high': or_high,
                     'or_low': or_low,
                     'or_range_pct': or_range_pct,
-                    'status': 'watching',
-                    'side': None,
-                    'reason': None,
-                    'source': 'custom' if symbol in custom_watchlist_set else None,
-                    'timestamp': self._ist_now().isoformat(),
-                }
+                })
 
                 min_or_pct = runner.signal_generator.min_or_range_pct
                 max_or_pct = runner.signal_generator.max_or_range_pct
 
                 if or_range_pct < min_or_pct or or_range_pct > max_or_pct:
-                    scan_item['status'] = 'skipped'
-                    scan_item['reason'] = f'OR range {or_range_pct:.2f}% outside [{min_or_pct}-{max_or_pct}]%'
+                    self._mark_skipped(scan_item, f'OR range {or_range_pct:.2f}% outside [{min_or_pct}-{max_or_pct}]%')
                     scan_items.append(scan_item)
                     continue
 
@@ -311,28 +361,22 @@ class RunnerSignalsMixin:
                         day_open = or_levels.get('or_open', current_price)
                         day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
                         if day_change_pct > 2.0:
-                            scan_item['status'] = 'skipped'
-                            scan_item['reason'] = f'Day already up {day_change_pct:.1f}%'
+                            self._mark_skipped(scan_item, f'Day already up {day_change_pct:.1f}%')
                             scan_items.append(scan_item)
                             continue
 
-                    scan_item['status'] = 'signal'
-                    scan_item['side'] = 'LONG'
-                    scan_item['reason'] = signal.notes or ''
+                    self._mark_signal(scan_item, 'LONG', signal.notes or '')
 
                 elif signal.signal_type == SignalType.SHORT_ENTRY:
                     if runner.strategy_type == "ORB":
                         day_open = or_levels.get('or_open', current_price)
                         day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
                         if day_change_pct > 1.0:
-                            scan_item['status'] = 'skipped'
-                            scan_item['reason'] = f'Uptrend, skip SHORT'
+                            self._mark_skipped(scan_item, f'Uptrend, skip SHORT')
                             scan_items.append(scan_item)
                             continue
 
-                    scan_item['status'] = 'signal'
-                    scan_item['side'] = 'SHORT'
-                    scan_item['reason'] = signal.notes or ''
+                    self._mark_signal(scan_item, 'SHORT', signal.notes or '')
 
                 new_signals.append(signal)
                 runner.signals_generated += 1
@@ -360,8 +404,6 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
-        custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
-
         today = self._ist_now().date()
         if not hasattr(self, '_swing_entered_today'):
             self._swing_entered_today: dict = {}
@@ -371,7 +413,12 @@ class RunnerSignalsMixin:
         if strategy_id not in self._swing_entered_today:
             self._swing_entered_today[strategy_id] = set()
 
+        budget = self._remaining_scan_budget()
+        scanned = 0
         for symbol in watchlist:
+            if scanned >= budget:
+                break
+
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -384,6 +431,7 @@ class RunnerSignalsMixin:
             daily_data = self.fetch_daily_data(symbol)
             if not daily_data:
                 continue
+            scanned += 1
 
             market_data = {
                 'current_price': daily_data['current_price'],
@@ -400,21 +448,13 @@ class RunnerSignalsMixin:
 
             signal = runner.signal_generator.check_entry(symbol, market_data)
 
-            scan_item = {
-                'symbol': symbol,
+            scan_item = self._make_scan_item(symbol, runner, {
                 'price': daily_data['current_price'],
                 'high_52w': daily_data['high_52w'],
-                'status': 'watching',
-                'side': None,
-                'reason': None,
-                'source': 'custom' if symbol in custom_watchlist_set else None,
-                'timestamp': self._ist_now().isoformat(),
-            }
+            })
 
             if signal:
-                scan_item['status'] = 'signal'
-                scan_item['side'] = 'LONG'
-                scan_item['reason'] = signal.notes or ''
+                self._mark_signal(scan_item, 'LONG', signal.notes or '')
 
                 self._swing_entered_today[strategy_id].add(symbol)
                 new_signals.append(signal)
@@ -422,8 +462,7 @@ class RunnerSignalsMixin:
                 console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {symbol} @ ₹{signal.price:.2f}[/green]")
             else:
                 distance_pct = ((daily_data['high_52w'] - daily_data['current_price']) / daily_data['current_price']) * 100 if daily_data['current_price'] > 0 else 0
-                scan_item['status'] = 'skipped'
-                scan_item['reason'] = f'52W high distance: {distance_pct:.1f}%'
+                self._mark_skipped(scan_item, f'52W high distance: {distance_pct:.1f}%')
 
             scan_items.append(scan_item)
 
@@ -761,7 +800,7 @@ class RunnerSignalsMixin:
         for strategy_id, symbol, exit_price, exit_reason in positions_to_close:
             pos = self.portfolio.positions[f"{strategy_id}_{symbol}"]
             side = self._side_str(pos.side, "LONG_SHORT")
-            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+            costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
 
             trade = self.portfolio.close_position(
                 strategy_id=strategy_id,
@@ -779,24 +818,6 @@ class RunnerSignalsMixin:
                     if self._replay_on_event:
                         self._replay_on_event(build_trade_close_event(trade, runner))
                 else:
-                    self.journal.log_trade({
-                        'trade_id': trade.trade_id,
-                        'symbol': trade.symbol,
-                        'side': trade.side.value,
-                        'quantity': trade.quantity,
-                        'entry_price': trade.entry_price,
-                        'exit_price': trade.exit_price,
-                        'entry_time': trade.entry_time.isoformat(),
-                        'exit_time': trade.exit_time.isoformat(),
-                        'pnl': trade.pnl,
-                        'pnl_pct': trade.pnl_pct,
-                        'exit_reason': trade.exit_reason,
-                        'costs': trade.costs,
-                        'net_pnl': trade.net_pnl,
-                        'strategy_id': trade.strategy_id,
-                        'strategy_name': trade.strategy_name,
-                    }, strategy_id=trade.strategy_id, strategy_name=trade.strategy_name, bot_id=self.bot_config.id, bot_name=self.bot_config.name)
-
                     self._persist_position_to_db({
                         'strategy_id': strategy_id,
                         'strategy_name': runner.strategy_name if runner else '',
@@ -857,9 +878,6 @@ class RunnerSignalsMixin:
                         elif trade.pnl is not None and trade.pnl > 0:
                             losses[sid] = 0
                         self._consecutive_losses = losses
-
-        if trade_logged and not self.replay_mode:
-            self.journal.save_journal()
 
         portfolio_status = self.portfolio.get_portfolio_status()
         daily_pnl = portfolio_status.get('daily_pnl', 0)

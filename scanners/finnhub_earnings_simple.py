@@ -206,7 +206,8 @@ def get_stock_symbols(limit=None, market='us'):
             for exchange in MARKET_CONFIG[market]['exchanges']:
                 response = requests.get(
                     'https://finnhub.io/api/v1/stock/symbol',
-                    params={'exchange': exchange, 'token': 'd3mkpb1r01qmso349jk0d3mkpb1r01qmso349jkg'}
+                    params={'exchange': exchange, 'token': 'd3mkpb1r01qmso349jk0d3mkpb1r01qmso349jkg'},
+                    timeout=15
                 )
                 if response.status_code == 200:
                     data = response.json()

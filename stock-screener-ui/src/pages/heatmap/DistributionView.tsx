@@ -1,4 +1,4 @@
-import { Flex, Text } from "@mantine/core";
+import { Flex, Text } from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { TOOLTIP_DARK_BG, TOOLTIP_LIGHT_BG, TOOLTIP_DARK_BORDER, TOOLTIP_LIGHT_BORDER, TOOLTIP_DARK_TEXT, TOOLTIP_LIGHT_TEXT, AXIS_DARK_LINE, AXIS_LIGHT_LINE, AXIS_DARK_SPLIT, AXIS_LIGHT_SPLIT } from "../../config/colors";

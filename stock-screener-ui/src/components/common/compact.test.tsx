@@ -3,7 +3,7 @@ import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 
-vi.mock("@mantine/core", () => ({
+vi.mock("@/ui", () => ({
   Group: ({ children, ...props }: any) => (
     <div data-testid="group" {...props}>
       {children}

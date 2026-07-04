@@ -8,7 +8,7 @@ import {
   TextInput,
   LoadingOverlay,
   Badge,
-} from "@mantine/core";
+} from "@/ui";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { fetchHeatmapData, fetchHeatmapSectors, type SectorInfo } from "../../api/heatmap";
 import { METRICS, getMetricValue, getMetricColor, getMetricTextColor } from "./heatmapUtils";

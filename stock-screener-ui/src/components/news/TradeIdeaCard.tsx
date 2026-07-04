@@ -1,4 +1,4 @@
-import { Card, Badge, Group, Text } from "@mantine/core";
+import { Card, Badge, Group, Text } from "@/ui";
 import type { TradeIdea } from "./news-types";
 
 interface TradeIdeaCardProps {

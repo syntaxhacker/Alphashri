@@ -1,6 +1,6 @@
 import { type ReactNode } from "react";
 import { render, type RenderResult } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { MemoryRouter } from "react-router-dom";
 import { vi } from "vitest";
 import { AuthProvider, type User } from "../components/auth/AuthProvider2";
@@ -52,9 +52,9 @@ export function TestWrapper({ children, initialRoute = "/", user = null }: TestW
 
   return (
     <MemoryRouter initialEntries={[initialRoute]}>
-      <MantineProvider>
+      <UIProvider>
         <AuthProvider>{children}</AuthProvider>
-      </MantineProvider>
+      </UIProvider>
     </MemoryRouter>
   );
 }

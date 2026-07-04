@@ -1,4 +1,4 @@
-import { Modal, Text, Stack, Group, Badge, List, ThemeIcon, Divider, Paper } from "@mantine/core";
+import { Modal, Text, Stack, Group, Badge, List, ListItem, ThemeIcon, Divider, Paper } from "@/ui";
 import { IconInfoCircle, IconTarget } from "@tabler/icons-react";
 
 interface OptionChainGuideProps {
@@ -58,26 +58,26 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
             </ThemeIcon>
           }
         >
-          <List.Item className="guide-indicator-item" data-testid="options-guide-pcr">
+          <ListItem className="guide-indicator-item" data-testid="options-guide-pcr">
             <Text component="span" fw={700}>
               PCR (Put-Call Ratio):
             </Text>{" "}
             If {">"} 1.2, more puts are being sold (Bullish). If {"<"} 0.7, more calls are being
             sold (Bearish).
-          </List.Item>
-          <List.Item className="guide-indicator-item" data-testid="options-guide-max-pain">
+          </ListItem>
+          <ListItem className="guide-indicator-item" data-testid="options-guide-max-pain">
             <Text component="span" fw={700}>
               Max Pain:
             </Text>{" "}
             The price level where option buyers lose the most money. Market often tends to gravitate
             towards this level on expiry.
-          </List.Item>
-          <List.Item className="guide-indicator-item" data-testid="options-guide-oi">
+          </ListItem>
+          <ListItem className="guide-indicator-item" data-testid="options-guide-oi">
             <Text component="span" fw={700}>
               Open Interest (OI):
             </Text>{" "}
             The total number of open contracts. High OI acts as a "Wall" (Support or Resistance).
-          </List.Item>
+          </ListItem>
         </List>
 
         <Divider

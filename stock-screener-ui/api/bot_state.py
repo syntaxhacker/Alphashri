@@ -35,19 +35,31 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
 
     strategies = {}
     max_daily_loss_pct = 0.03
+
+    # Batch-load all strategies and runtime states for this bot
+    strategy_ids = [row.strategy_id for row in strategies_rows]
+    cfg_map = {}
+    if strategy_ids:
+        for c in db.query(StrategyConfig).filter(StrategyConfig.id.in_(strategy_ids)).all():
+            cfg_map[c.id] = c
+    rt_map = {}
+    if strategy_ids:
+        for r in db.query(StrategyRuntimeState).filter(
+            StrategyRuntimeState.bot_id == bot_id,
+            StrategyRuntimeState.strategy_id.in_(strategy_ids),
+        ).all():
+            rt_map[r.strategy_id] = r
+
     for row in strategies_rows:
         sid = row.strategy_id
-        strategy_cfg = db.query(StrategyConfig).filter(StrategyConfig.id == sid).first()
+        strategy_cfg = cfg_map.get(sid)
         if not strategy_cfg:
             continue
 
         if hasattr(strategy_cfg, 'max_daily_loss_pct') and strategy_cfg.max_daily_loss_pct:
             max_daily_loss_pct = max(max_daily_loss_pct, strategy_cfg.max_daily_loss_pct)
 
-        s_runtime = db.query(StrategyRuntimeState).filter(
-            StrategyRuntimeState.bot_id == bot_id,
-            StrategyRuntimeState.strategy_id == sid,
-        ).first()
+        s_runtime = rt_map.get(sid)
 
         allocation_pct = row.capital_allocation_pct
         allocated_capital = bot_runtime.cash * allocation_pct if bot_runtime else 0

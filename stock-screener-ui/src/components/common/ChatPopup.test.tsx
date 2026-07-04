@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, waitFor, fireEvent, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ChatPopup } from "./ChatPopup";
 
 vi.mock("../../api/trading_agents", () => ({
@@ -28,7 +28,7 @@ const mockStreamAnalysis = vi.mocked(streamStockAnalysis);
 const mockSendChatMessage = vi.mocked(sendChatMessage);
 
 const renderWithProvider = (component: React.ReactElement) => {
-  return render(<MantineProvider>{component}</MantineProvider>);
+  return render(<UIProvider>{component}</UIProvider>);
 };
 
 describe("ChatPopup", () => {

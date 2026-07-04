@@ -20,7 +20,6 @@ import trading.runner_core
 import trading.strategy_runner
 import trading.orb_signals
 import trading.shared_portfolio
-import trading.journal
 
 MultiStrategyRunner = trading.runner_core.MultiStrategyRunner
 create_multi_strategy_runner = trading.runner_core.create_multi_strategy_runner
@@ -31,7 +30,6 @@ ORBSignal = trading.orb_signals.ORBSignal
 SignalType = trading.orb_signals.SignalType
 OrderSide = trading.shared_portfolio.OrderSide
 SharedPortfolioManager = trading.shared_portfolio.SharedPortfolioManager
-get_journal = trading.journal.get_journal
 
 _db_available = False
 SessionLocal = None
@@ -59,7 +57,6 @@ __all__ = [
     'SignalType',
     'OrderSide',
     'SharedPortfolioManager',
-    'get_journal',
     'SessionLocal',
     'BotConfig',
     'StrategyConfig',

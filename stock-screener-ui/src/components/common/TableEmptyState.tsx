@@ -1,4 +1,4 @@
-import { Flex, Text, Group } from "@mantine/core";
+import { Flex, Text, Group } from "@/ui";
 import type { ReactNode } from "react";
 
 interface TableEmptyStateProps {

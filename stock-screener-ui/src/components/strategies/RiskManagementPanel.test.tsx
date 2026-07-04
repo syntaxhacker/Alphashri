@@ -2,7 +2,8 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider, Tabs } from "@mantine/core";
+import { UIProvider } from "@/ui";
+import { Tabs } from "@mantine/core";
 import { RiskManagementPanel } from "./RiskManagementPanel";
 import { DEFAULT_VALUES } from "./strategyDefaults";
 
@@ -12,11 +13,11 @@ afterEach(() => {
 
 function renderInTabs(isIntraday = true) {
   return render(
-    <MantineProvider>
+    <UIProvider>
       <Tabs value="risk">
         <RiskManagementPanel initialValues={DEFAULT_VALUES} isIntraday={isIntraday} />
       </Tabs>
-    </MantineProvider>,
+    </UIProvider>,
   );
 }
 

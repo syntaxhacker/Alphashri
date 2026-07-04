@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { PerformanceView } from "./PerformanceView";
 import type { StrategyPerformance } from "../../types/strategies";
 
@@ -13,9 +13,9 @@ afterEach(() => {
 describe("PerformanceView", () => {
   it("shows loading state with Loader when isLoading", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={[]} strategies={[]} onSelectStrategy={vi.fn()} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("performance-loading-state")).toBeInTheDocument();
     expect(screen.getByText("Loading performance")).toBeInTheDocument();
@@ -23,9 +23,9 @@ describe("PerformanceView", () => {
 
   it("shows empty state when performance array empty", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={[]} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("performance-empty-state")).toBeInTheDocument();
     expect(screen.getByText("No performance data")).toBeInTheDocument();
@@ -36,9 +36,9 @@ describe("PerformanceView", () => {
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Active Strategies")).toBeInTheDocument();
     expect(screen.getByText("ORB v1")).toBeInTheDocument();
@@ -51,9 +51,9 @@ describe("PerformanceView", () => {
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("performance-table")).toBeInTheDocument();
     expect(screen.getByTestId("performance-table-header")).toBeInTheDocument();
@@ -65,9 +65,9 @@ describe("PerformanceView", () => {
       { strategy_id: 2, strategy_name: "EMA v2", total_trades: 5, winners: 1, losers: 4, win_rate: 20, total_pnl: -1000, net_pnl: -1050 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("ORB v1")).toBeInTheDocument();
     expect(screen.getByText("EMA v2")).toBeInTheDocument();
@@ -82,9 +82,9 @@ describe("PerformanceView", () => {
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={onSelectStrategy} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await userEvent.click(screen.getByTestId("performance-row-1"));
     expect(onSelectStrategy).toHaveBeenCalledWith(1);
@@ -96,9 +96,9 @@ describe("PerformanceView", () => {
       { strategy_id: 2, strategy_name: "EMA", total_trades: 10, winners: 3, losers: 7, win_rate: 30, total_pnl: -2000, net_pnl: -2050 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
   });
 
@@ -107,9 +107,9 @@ describe("PerformanceView", () => {
       { strategy_id: 1, strategy_name: "ORB", total_trades: 5, winners: 3, losers: 2, win_rate: 60, total_pnl: 1000, net_pnl: 950 },
     ];
     render(
-      <MantineProvider>
+      <UIProvider>
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={vi.fn()} isLoading={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
   });
 });

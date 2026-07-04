@@ -1,5 +1,5 @@
 import { useLocation } from "react-router-dom";
-import { AppShell, Group, Box, Text } from "@mantine/core";
+import { AppShell, AppShellHeader, AppShellNavbar, AppShellMain, Group, Box, Text } from "@/ui";
 import { useState } from "react";
 import { NavbarNested } from "./NavbarNested";
 import { MarketTicker } from "./MarketTicker";
@@ -29,7 +29,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       id="app-shell"
       data-testid="app-shell"
     >
-      <AppShell.Header
+      <AppShellHeader
         bg={colors.background}
         c={colors.text}
         id="app-header"
@@ -44,17 +44,17 @@ export function AppLayout({ children }: AppLayoutProps) {
           </Box>
           <NewsPanel2 />
         </Group>
-      </AppShell.Header>
+      </AppShellHeader>
 
-      <AppShell.Navbar id="app-navbar" data-testid="app-navbar">
+      <AppShellNavbar id="app-navbar" data-testid="app-navbar">
         <NavbarNested
           activePath={location.pathname}
           collapsed={collapsed}
           onToggleCollapse={toggleCollapsed}
         />
-      </AppShell.Navbar>
+      </AppShellNavbar>
 
-      <AppShell.Main
+      <AppShellMain
         bg={colors.background}
         c={colors.text}
         h="100%"
@@ -63,7 +63,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         data-testid="app-main"
       >
         {children}
-      </AppShell.Main>
+      </AppShellMain>
     </AppShell>
   );
 }

@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Box, Loader, Flex, Stack, Text, useMantineColorScheme } from "@mantine/core";
+import { Box, Loader, Flex, Stack, Text, useColorScheme } from "@/ui";
 import { useECharts } from "../../hooks/useECharts";
 
 const COLOR_STOPS = [
@@ -70,7 +70,7 @@ export function CorrelationHeatmap({
   testId,
   valueFormatter,
 }: CorrelationHeatmapProps) {
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = isDarkProp ?? colorScheme === "dark";
   const { chartRef, setChartOption } = useECharts({ isDark });
   const hasData = matrix && symbols && matrix.length > 0 && symbols.length > 0;

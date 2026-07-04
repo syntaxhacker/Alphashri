@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerContainer } from "./ScreenerContainer";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 vi.mock("react-router-dom", () => ({
@@ -59,9 +59,9 @@ describe("ScreenerContainer", () => {
   });
   it("renders screener page", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("screener-page")).toBeInTheDocument();
@@ -69,9 +69,9 @@ describe("ScreenerContainer", () => {
 
   it("passes screener options", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const page = screen.getByTestId("screener-page");
@@ -80,9 +80,9 @@ describe("ScreenerContainer", () => {
 
   it("passes active screener", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const page = screen.getByTestId("screener-page");
@@ -91,9 +91,9 @@ describe("ScreenerContainer", () => {
 
   it("passes loading state", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const page = screen.getByTestId("screener-page");
@@ -102,9 +102,9 @@ describe("ScreenerContainer", () => {
 
   it("passes all required props from useScreenerState", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerContainer />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const page = screen.getByTestId("screener-page");

@@ -8,9 +8,7 @@ import {
   Tree,
   useTree,
   getTreeExpandedState,
-  type TreeNodeData,
-  type RenderTreeNodePayload,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconChevronDown,
   IconEdit,
@@ -45,7 +43,7 @@ export function TemplateTreeView({
     return map;
   }, [templates, strategies]);
 
-  const treeData: TreeNodeData[] = useMemo(
+  const treeData = useMemo(
     () =>
       templates.map((t) => ({
         value: `tpl-${t.internal_id}`,
@@ -67,7 +65,7 @@ export function TemplateTreeView({
   });
 
   const renderNode = useCallback(
-    ({ node, expanded, hasChildren, elementProps }: RenderTreeNodePayload) => {
+    ({ node, expanded, hasChildren, elementProps }: any) => {
       const config = nodeMap.get(node.value);
       if (!config) return <span {...elementProps}>{node.label}</span>;
 
