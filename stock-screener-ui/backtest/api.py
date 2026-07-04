@@ -14,22 +14,12 @@ from typing import Dict, Any, Optional, List
 from .costs import get_cost_breakdown
 from .chart_data import build_chart_data_for_symbol
 
+from api.utils import _sanitize_for_json
+
 BACKTEST_CACHE_TTL = None  # No expiry — backtest results are deterministic
 
-
-def _sanitize_for_json(obj):
-    """Recursively sanitize objects for JSON serialization."""
-    import math
-
-    if isinstance(obj, dict):
-        return {k: _sanitize_for_json(v) for k, v in obj.items()}
-    if isinstance(obj, list):
-        return [_sanitize_for_json(v) for v in obj]
-    if isinstance(obj, float):
-        return obj if math.isfinite(obj) else None
-    if hasattr(obj, 'isoformat'):
-        return obj.isoformat()
-    return obj
+# Re-export for backward compatibility (tests import from backtest.api directly)
+# The implementation lives in api/utils.py to eliminate cross-file duplication.
 
 
 def build_backtest_cache_key(user_id: int, strategy_id: str, symbols: List[str],
@@ -44,6 +34,21 @@ def build_backtest_cache_key(user_id: int, strategy_id: str, symbols: List[str],
     }, sort_keys=True, default=str)
     hash_hex = hashlib.md5(canonical.encode()).hexdigest()[:16]
     return f"backtest:{user_id}:{strategy_id}:{hash_hex}"
+
+
+def build_backtest_inmem_cache(result: Dict) -> Dict:
+    """Build the standard in-memory backtest cache dict (candles/chart_data/config/results).
+
+    Eliminates 7-9 line duplicated dict literals between backtest/api.py (legacy handler)
+    and api/backtest_routes.py (FastAPI routes + redis cache handling).
+    Accepts either a run result or a cached payload (both use .get).
+    """
+    return {
+        'candles': result.get('candles', {}),
+        'chart_data': result.get('chart_data', {}),
+        'config': result.get('config', {}),
+        'results': result.get('results', []),
+    }
 
 
 def handle_get_strategies() -> Dict:
@@ -301,6 +306,22 @@ class BacktestRequestHandler:
             'running': False,
         }
 
+    def reset_progress(self, total: int = 0) -> None:
+        """Set progress state for start of a run (shared to DRY with api/backtest_routes.py)."""
+        self.progress_state['running'] = True
+        self.progress_state['current'] = 0
+        self.progress_state['total'] = total
+        self.progress_state['message'] = 'Starting...'
+
+    def set_progress_done(self) -> None:
+        """Mark progress as not running (shared)."""
+        self.progress_state['running'] = False
+
+    def apply_result_to_cache(self, result: Dict) -> None:
+        """If no error, set the in-mem cache from result using the shared builder."""
+        if 'error' not in result:
+            self.backtest_cache = build_backtest_inmem_cache(result)
+
     def handle_request(self, method: str, path: str, query_params: Dict, body: Optional[Dict] = None) -> Dict:
         """
         Handle a backtest API request.
@@ -330,23 +351,14 @@ class BacktestRequestHandler:
 
         # POST /api/backtest/run
         if method == 'POST' and parsed_path == '/api/backtest/run':
-            self.progress_state['running'] = True
-            self.progress_state['current'] = 0
-            self.progress_state['total'] = len(body.get('symbols', []))
-            self.progress_state['message'] = 'Starting...'
+            self.reset_progress(len(body.get('symbols', [])))
 
             result = handle_run_backtest(body, self.progress_state)
 
             # Cache the result for chart data requests
-            if 'error' not in result:
-                self.backtest_cache = {
-                    'candles': result.get('candles', {}),
-                    'chart_data': result.get('chart_data', {}),
-                    'config': result.get('config', {}),
-                    'results': result.get('results', []),
-                }
+            self.apply_result_to_cache(result)
 
-            self.progress_state['running'] = False
+            self.set_progress_done()
             return result
 
         # GET /api/backtest/chart/{symbol}

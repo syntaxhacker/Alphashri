@@ -8,7 +8,7 @@
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
@@ -64,7 +64,7 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - Barrel files (`mantine.ts`) point to current components — edit `*2.tsx` files, update barrel, never edit old files
 - Page-level routing components in `src/pages/<feature>/` (e.g., `pages/chart/ChartView.tsx`, `pages/sector/SectorPage.tsx`)
 - Shared components: `SortableHeader`, `BadgeComponents`, `PnlText`, `DataTable`, `compact.tsx`, `states.tsx` in `src/components/common/`
-- Shared utilities: `formatCurrencyIN`, `formatNumber`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
+- Shared utilities: `formatNumber`, `formatSignedPnl`, `formatPercentage`, `formatCurrencyCompact`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
 - Config/constants/theme consolidated in `src/config/` (constants.ts, theme.ts, backtestDefaults.ts)
 - ECharts: never wrap chart container in `ScrollArea` — ECharts needs explicit dimensions via `flex: 1` on a flex parent
 - **React keys**: never use `symbol` alone as key — always composite (`${strategy_id}-${symbol}`) or unique ID. Positions can have same symbol across strategies.
@@ -116,12 +116,51 @@ src/
 - **Chart endpoint** (`/api/paper/chart/{symbol}`): has a known timezone mismatch bug on production — `fetch_historical_data_v3` returns data with UTC index but filtering uses `config.IST` (UTC+5:30), causing 0 rows after date filter. Works locally because `railway run` may use different config. Investigate: compare `df_1m_full.index.tz` vs `config.IST` in the Docker container.
 - **Local dev data**: prod DB can be dumped to local SQLite via `python scripts/dump_prod_to_local.py`. Note: trades have `user_id=1` in prod, local user may be different — update `user_id` after dump.
 - **Trading costs**: `backtest/costs.py:calculate_trading_costs()` is the single source of truth. Both `runner_signals.py` and `paper_portfolio.py` use it — never use flat `trade_value * 0.0006`.
+- **Background screener tasks** (prewarm + 52W range batch) are started in the lifespan and gated to market hours. The 52W batch now does a prompt initial run shortly after `start.sh` (during market hours) rather than waiting the full interval — see the dedicated 52W section for agent behavior around this.
+
+## Signal Generator Architecture
+
+```
+BaseSignalGenerator (base_signals.py)
+  ├── SRBreakoutSignalGenerator (sr_breakout_signals.py)
+  ├── EMACrossSignalGenerator (ema_cross_signals.py)
+  └── Base52WSignalGenerator (week52_utils.py)  ← swing base, is_eod_exit_time() → False
+        ├── Week52ChaserSignalGenerator (week52_chaser_signals.py)
+        ├── Week52TargetSignalGenerator (week52_target_signals.py)
+        └── Blind52WSignalGenerator (blind_52w_signals.py)
+
+ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer standalone)
+```
+
+### Shared helpers on BaseSignalGenerator
+- `_calc_sl_tp(side, entry_price, sl_pct=None, tp_pct=None)` → `(sl, tp)` tuple — handles LONG/SHORT formulae
+- `_safe_float(market_data, key, default=0.0)` — safely extracts float from dict (handles None)
+- `_format_exit_note(reason, pnl_pct)` → `"reason (PnL: +x.xx%)"` — standardizes exit note formatting
+- `_calc_pnl_pct(side, entry, current)` — handles LONG/SHORT sign, div-by-zero guard
+
+### 52W swing strategies (Base52WSignalGenerator)
+- `is_eod_exit_time()` always returns `False` (swing = multi-day holds, no EOD exit)
+- `_extract_exit_kwargs(kwargs, current_price)` — extracts `days_in_position`, `max_holding_days`, `highest_price_since_entry`, `entry_52w_high`, `trailing_stop_pct` with instance-aware defaults
+
+### DRY rules for signal generators
+- Always use `_calc_sl_tp()` for SL/TP arithmetic, never inline
+- Always use `_safe_float()` for market_data extraction, never `get(..., 0) or 0`
+- Always use `_format_exit_note()` for exit signal notes
+- Always use `_calc_pnl_pct()` for PnL calculations, never inline formula
+
+### SR Breakout strategy specifics
+- `max_distance_from_r1_pct=5.0` — skips entries where price is >5% above R1 (prevents late breakout entries)
+- `breakout_buffer_pct=1.0` — minimum breakout trigger threshold (was 0.1%, now meaningful)
+- `eod_entry_cutoff_minutes=15` — blocks entries within 15 min of EOD exit (prevents wasted trades)
+- `max_consecutive_losses=3` — pauses strategy for the day after 3 consecutive losses
+- Uses **candle-close breakout detection**: checks last 3 completed 1-min candles for R1 cross instead of live LTP
+- Scan interval: **5s** (globally reduced from 60s for faster signal detection)
 
 ## Strategy Config Pipeline
 - **DB Model** (`db/models/bot.py:StrategyConfig`) → **Dataclass** (`trading/config_loader.py:StrategyConfigData`) → **Dict** (`runner.config`) → **SignalGenerator** / **RiskManager**
 - All strategy params flow through this pipeline. Adding a new param requires touching all 4 layers + API models + CRUD + migration.
-- `base_signals.py` is the abstract base for most signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, and `is_eod_exit_time()`. Each subclass overrides before `super().__init__()`.
-- **ORB** is standalone (does not extend BaseSignalGenerator). SL/TP passed as constructor args from `StrategyRunner`.
+- `base_signals.py` is the abstract base for ALL signal generators — owns `sl_pct`, `tp_pct`, `eod_exit_hour/minute`, `is_eod_exit_time()`, `_calc_sl_tp()`, `_safe_float()`, `_format_exit_note()`, and `_calc_pnl_pct()`. Each subclass overrides before `super().__init__()`.
+- **ORB** now extends `BaseSignalGenerator`. SL/TP passed as constructor args from `StrategyRunner`.
 - Each strategy has its own per-generator SL/TP defaults. Config comes from DB (seed_qa_data.py), not hardcoded here.
 - **StrategyRunner.ORB** passes individual params (not config dict): `self.config['sl_pct']`. All other strategies pass the full dict.
 - **DB model defaults** (`sl_pct=1.0, tp_pct=1.5`) apply when creating a new StrategyConfig row via API without explicit values.
@@ -129,6 +168,7 @@ src/
 - **Risk params**: `risk_per_trade_pct`, `max_capital_per_trade_pct` flow from `runner.config` → `global_risk_manager.validate_trade()`.
 - **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
+  - `runner_core.py:run(interval=5)` — global scan interval. Safe to keep but impacts all strategies.
   - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
   - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
   - `week52_chaser_signals.py:128-132` — ADX<25, RSI 50-70 filters. 52W-specific, could be config.
@@ -194,6 +234,16 @@ src/
 - Today's intraday fetch that returns empty (pre-market) does NOT fall through to historical — returns empty to avoid caching wrong day's data
 - Pre-market cache poisoning fix: when `date == today` and `fetch_intraday_data_v3` returns None/empty, early return (no fallback to historical)
 
+## 52W Range Screener Background Job
+- The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.
+- Both are gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
+- **Key `start.sh` behavior**: The range batch now performs a *prompt initial run* shortly after startup (during market hours) instead of sleeping the full interval first. This ensures that running `start.sh` when ranges are stale triggers an observable batch quickly (previous behavior waited up to 1 hour). After the initial run, it follows the normal `SCREENER_52W_INTERVAL_SEC` (default 3600, overrideable).
+- Scheduled runs are incremental only (`--skip-existing`). After the initial bootstrap, they usually process only a handful of symbols and finish in ~1-2 seconds.
+- The admin 52W panel shows the last job result from Redis (status usually stays "completed"). The live progress bar is only shown while the job status is actively "running" — because normal runs are so fast, it is rarely visible on the panel's 5s poll. Use "Clear cache + DB" followed by a manual "Run batch" (or full refresh) if you need to observe the progress UI.
+- "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
+- Prewarm keeps the 52w_high screener (and others) responsive during market hours.
+- Logs for the jobs appear in `logs/alphashri.log`.
+
 ## Trade Entry Reason Pipeline
 - Signal generators set `signal.notes` with detailed calculations (ORB: range%, SL%, ATR, ADX, RSI; SR Breakout: pivot type, buffer%; EMA Cross: gap, SL%; 52W Chaser: ADX, RSI; 52W Target: SL%, trail%)
 - `runner_signals.py:453` stores `signal.notes` in `position.metadata['entry_reason']`
@@ -218,6 +268,7 @@ See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI
 - Backend: pytest, files in `stock-screener-ui/tests/`
 - Run both before committing
 - **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
+- **E2E tests**: Never run the full E2E suite (`npx playwright test` without file filter) — it takes >10min. Only run spec files that failed in CI. Use `--workers=6` for speed. Verify locally before pushing.
 
 ### Running Targeted Tests (Fast)
 Use glob patterns to run only the changed feature's tests during development:
@@ -267,6 +318,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
+- **52W range batch progress in admin UI**: normal post-bootstrap runs are very fast (tiny candidate set after skip-existing), so the "running" state + progress bar is rarely caught by the panel's polling. The UI mostly shows the last completed result. Force a long run (clear DB first + full refresh) if you need to observe live progress.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.

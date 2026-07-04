@@ -10,8 +10,10 @@ import {
   updatePositionNotesAction,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
+import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
 import {
-  formatNumber,
+  formatSignedPnl,
+  formatPercentage,
   formatElapsed,
   formatCurrencyIN,
   getPnLTextColor,
@@ -73,30 +75,6 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   return { totalPnl, marginUsed, count: positions.length };
 }
 
-const TABLE_STYLES = {
-  thead: {
-    position: "sticky" as const,
-    top: 0,
-    zIndex: 1,
-    background: "var(--mantine-color-body)",
-  },
-  th: {
-    padding: "3px 5px",
-    fontSize: "10px",
-    fontWeight: 600,
-    textTransform: "uppercase" as const,
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-    letterSpacing: "0.5px",
-  },
-  td: {
-    padding: "3px 5px",
-    fontSize: "12px",
-    borderBottom: "1px solid var(--mantine-color-default-border)",
-    whiteSpace: "nowrap" as const,
-  },
-};
-
 export { TABLE_STYLES as tableStyles };
 
 function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
@@ -153,7 +131,6 @@ function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
   }, [pnl]);
 
   const pnlClass = getPnLTextColor(pnl);
-  const pnlSign = pnl >= 0 ? "+" : "";
 
   return (
     <Text
@@ -165,11 +142,10 @@ function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlPct: number }) {
       onAnimationEnd={() => setFlash(null)}
       style={{ display: "inline" }}
     >
-      {pnlSign}₹{formatNumber(pnl)}
+      {formatSignedPnl(pnl)}
       <Text span c="dimmed" fs="italic" size="sm">
         {" "}
-        ({pnlSign}
-        {pnlPct.toFixed(2)}%)
+        ({formatPercentage(pnlPct)})
       </Text>
     </Text>
   );
@@ -227,6 +203,7 @@ function PositionRow({
   const prevPrice = usePrevPrice(pos.current_price);
   const sideColor = getSideColor(pos.side);
   const rowBg = calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit);
+  const ageColor = "transparent";
   const tpLabel = pos.take_profit > 0 ? `₹${pos.take_profit.toFixed(2)}` : "trail";
 
   return (
@@ -275,7 +252,7 @@ function PositionRow({
       <Table.Tr key={`${pos.order_id || `${pos.strategy_id}-${pos.symbol}`}-detail`}>
         <Table.Td colSpan={5} style={{ padding: 0, border: "none" }}>
           <Collapse in={expanded}>
-            <Box p="sm" bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
+            <Box p="xs" bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
               <PositionDetail pos={pos} />
             </Box>
           </Collapse>
@@ -286,6 +263,7 @@ function PositionRow({
 }
 
 function PositionDetail({ pos }: { pos: PaperPosition }) {
+  console.log("[PositionDetail] pos:", pos.symbol, "order_id:", pos.order_id, "id:", pos.id);
   const [notes, setNotes] = useState(pos.notes || "");
   const [saving, setSaving] = useState(false);
   const [week52, setWeek52] = useState<{ high_52w: number; low_52w: number } | null>(null);
@@ -310,7 +288,7 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
   };
 
   return (
-    <Stack gap="xs">
+    <Stack gap={2}>
       <SimpleGrid cols={2} spacing="xs">
         <Box style={{ overflow: "hidden" }}>
           <Text size="xs" c="dimmed">Entry Reason</Text>
@@ -321,7 +299,7 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
           <Text size="sm" style={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
-      <SimpleGrid cols={4} spacing="xs">
+      <SimpleGrid cols={4} spacing={2}>
         <Box>
           <Text size="xs" c="dimmed">Stop Loss</Text>
           <Text size="sm" c="red">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
@@ -350,6 +328,10 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
             {loading52 ? <Loader size="xs" /> : week52?.low_52w ? `₹${week52.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
+        <Box>
+          <Text size="xs" c="dimmed">Position ID</Text>
+          <Text size="xs" style={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
+        </Box>
       </SimpleGrid>
       <Box>
         <Text size="xs" c="dimmed" mb={2}>Notes</Text>
@@ -372,14 +354,37 @@ function PositionDetail({ pos }: { pos: PaperPosition }) {
   );
 }
 
+export function getPositionAgeColor(entryTime: string): string {
+  const elapsed = Date.now() - new Date(entryTime).getTime();
+  const hours = elapsed / (1000 * 60 * 60);
+  if (hours > 4) return "var(--mantine-color-orange-1)";
+  if (hours > 2) return "var(--mantine-color-orange-0)";
+  return "transparent";
+}
+
 export function PositionsTableBody({
   positions,
   selectedSymbol: _selectedSymbol,
+  onSelect: externalOnSelect,
+  onClose: externalOnClose,
 }: {
   positions: PaperPosition[];
-  selectedSymbol: string | null;
+  selectedSymbol?: string | null;
+  onSelect?: (
+    symbol: string,
+    tradeId?: string,
+    strategyName?: string,
+    strategyType?: string,
+    strategyId?: number,
+    entryTime?: string,
+  ) => void;
+  onClose?: (symbol: string, price: number) => void;
 }) {
   const handleClosePosition = async (symbol: string, currentPrice: number) => {
+    if (externalOnClose) {
+      externalOnClose(symbol, currentPrice);
+      return;
+    }
     if (confirm(`Close position for ${symbol} at ₹${currentPrice.toFixed(2)}?`)) {
       try {
         await closePaperPosition(symbol, currentPrice, "MANUAL");
@@ -399,6 +404,10 @@ export function PositionsTableBody({
     strategyId?: number,
     entryTime?: string,
   ) => {
+    if (externalOnSelect) {
+      externalOnSelect(symbol, _tradeId, _strategyName, _strategyType, strategyId, entryTime);
+      return;
+    }
     setSelectedSymbol(symbol);
     setSelectedTradeId("-1");
     const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
@@ -472,7 +481,7 @@ export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null 
       className="paper-watchlist-scan"
       id="watchlist-scan"
     >
-      <Group justify="space-between" px="xs" py={2}>
+      <Group justify="space-between" px={4} py={2}>
         <Text fw={600} size="xs" c="dimmed" tt="uppercase">
           Watchlist Scan
         </Text>
@@ -543,8 +552,8 @@ export function StrategySummaryFooter({
   return (
     <Flex
       direction="column"
-      mt="xs"
-      pt="xs"
+      mt={2}
+      pt={2}
       style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
       data-testid="strategy-summary-footer"
       className="paper-strategy-summary"
@@ -574,7 +583,7 @@ export function StrategySummaryFooter({
               <Table.Td>₹{formatCurrencyIN(s.marginUsed)}</Table.Td>
               <Table.Td>
                 <Text c={getPnLTextColor(s.totalPnl)} fw={600} size="sm">
-                  {s.totalPnl >= 0 ? "+" : ""}₹{formatNumber(s.totalPnl)}
+                  {formatSignedPnl(s.totalPnl)}
                 </Text>
               </Table.Td>
             </Table.Tr>

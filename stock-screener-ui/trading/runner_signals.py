@@ -22,6 +22,42 @@ from trading.replay_utils import build_trade_close_event
 class RunnerSignalsMixin:
     """Mixin class providing signal handling and execution methods for MultiStrategyRunner."""
 
+    @staticmethod
+    def _side_str(signal_or_side, fmt: str = "BUY_SELL") -> str:
+        from trading.orb_signals import SignalType
+        if hasattr(signal_or_side, 'signal_type'):
+            return "BUY" if signal_or_side.signal_type == SignalType.LONG_ENTRY else "SELL"
+        val = getattr(signal_or_side, 'value', signal_or_side)
+        if fmt == "LONG_SHORT":
+            return "LONG" if val == "BUY" else "SHORT"
+        return val
+
+    def _fetch_live_price(self, symbol: str) -> float | None:
+        fetcher = self._get_data_fetcher()
+        if not fetcher:
+            return None
+        df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+        if df is not None and not df.empty:
+            return float(df.iloc[-1]['close'])
+        return None
+
+    @staticmethod
+    def _build_order_tag(strategy_name: str, symbol: str) -> str:
+        return f"{strategy_name}_{symbol}"[:40]
+
+    def _check_cooldown(self, symbol: str, runner) -> bool:
+        if symbol not in self.cooldown_stocks:
+            return False
+        exit_time = self.cooldown_stocks[symbol]
+        if runner.strategy_type in INTRADAY_STRATEGY_TYPES:
+            cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
+        else:
+            cooldown_end = exit_time + timedelta(days=runner.config.get('cooldown_days', 30))
+        if self._ist_now() < cooldown_end:
+            return True
+        del self.cooldown_stocks[symbol]
+        return False
+
     def _emit_once_per_symbol(self, attr: str, strategy_id: int, symbol: str, event: dict) -> bool:
         if not self.replay_mode or not self._replay_on_event:
             return False
@@ -46,6 +82,20 @@ class RunnerSignalsMixin:
         Dispatches to the appropriate scan method based on strategy type.
         Uses per-strategy watchlist if available, otherwise falls back to shared watchlist.
         """
+        # Reset consecutive loss counter on new day
+        losses = getattr(self, '_consecutive_losses', {})
+        runner = self.strategies.get(strategy_id)
+        if runner and runner.status == "paused":
+            today_date = self._ist_now().date()
+            paused_date = getattr(runner, '_paused_date', None)
+            if paused_date != today_date:
+                sid = str(runner.strategy_id)
+                losses.pop(sid, None)
+                runner.status = "running"
+                console.print(f"[green]{runner.strategy_name}: Unpaused - new trading day[/green]")
+                runner._paused_date = today_date
+        self._consecutive_losses = losses
+
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
             return []
@@ -76,18 +126,17 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
+        custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
+        if custom_watchlist_set:
+            console.print(f"[cyan]Scan custom watchlist: {len(custom_watchlist_set)} stocks[/cyan]")
+
         for symbol in watchlist:
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
 
-            if symbol in self.cooldown_stocks:
-                exit_time = self.cooldown_stocks[symbol]
-                cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
-                if self._ist_now() < cooldown_end:
-                    continue
-                else:
-                    del self.cooldown_stocks[symbol]
+            if self._check_cooldown(symbol, runner):
+                continue
 
             if runner.strategy_type == "SR_BREAKOUT":
                 now_ist = self._ist_now()
@@ -98,19 +147,6 @@ class RunnerSignalsMixin:
 
                 prev_data = self.fetch_previous_day_data(symbol)
                 if not prev_data:
-                    continue
-
-                live_price = None
-                try:
-                    fetcher = self._get_data_fetcher()
-                    if fetcher:
-                        df_1m = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
-                        if df_1m is not None and not df_1m.empty:
-                            live_price = float(df_1m.iloc[-1]['close'])
-                except Exception:
-                    pass
-
-                if live_price is None:
                     continue
 
                 gen = runner.signal_generator
@@ -126,8 +162,34 @@ class RunnerSignalsMixin:
                 }):
                     pass
 
+                # Candle-close breakout detection: check last 3 completed 1-min candles
+                # for a cross above R1, using candle close as trigger price
+                entry_price = None
+                r1 = pivot_points.get("R1")
+                buf = gen.breakout_buffer_pct / 100 if hasattr(gen, 'breakout_buffer_pct') else 0.01
+                r1_trigger = r1 * (1 + buf) if r1 else None
+
+                fetcher = self._get_data_fetcher()
+                if fetcher and r1_trigger:
+                    df = fetcher.upstox_api.fetch_intraday_data_v3(symbol=symbol, interval='1')
+                    if df is not None and len(df) >= 2:
+                        # Check last 3 completed candles (skip current forming candle)
+                        for i in range(max(0, len(df) - 4), len(df) - 1):
+                            candle_close = float(df.iloc[i]['close'])
+                            candle_high = float(df.iloc[i]['high'])
+                            if candle_high >= r1_trigger and candle_close >= r1_trigger:
+                                entry_price = candle_close
+                                break
+
+                # Fallback to current live price if no candle breakout detected
+                if entry_price is None:
+                    entry_price = self._fetch_live_price(symbol)
+
+                if entry_price is None:
+                    continue
+
                 market_data = {
-                    'current_price': live_price,
+                    'current_price': entry_price,
                     'pivot_points': pivot_points,
                 }
 
@@ -135,10 +197,12 @@ class RunnerSignalsMixin:
 
                 scan_item = {
                     'symbol': symbol,
-                    'price': live_price,
+                    'price': entry_price,
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'source': 'custom' if symbol in custom_watchlist_set else None,
+                    'timestamp': self._ist_now().isoformat(),
                 }
 
             elif runner.strategy_type == "EMA_CROSS":
@@ -146,6 +210,7 @@ class RunnerSignalsMixin:
                     symbol,
                     runner.config.get('ema_fast_period', 9),
                     runner.config.get('ema_slow_period', 21),
+                    runner=runner,
                 )
                 if not ema_data:
                     continue
@@ -158,11 +223,21 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'source': 'custom' if symbol in custom_watchlist_set else None,
+                    'timestamp': self._ist_now().isoformat(),
                 }
 
             else:
                 or_levels = self.fetch_or_data(symbol, runner=runner)
                 if not or_levels:
+                    scan_items.append({
+                        'symbol': symbol,
+                        'status': 'watching',
+                        'side': None,
+                        'reason': 'Data fetch failed (rate limit)',
+                        'source': 'custom' if symbol in custom_watchlist_set else None,
+                        'timestamp': self._ist_now().isoformat(),
+                    })
                     continue
 
                 self.or_levels[symbol] = or_levels
@@ -191,6 +266,8 @@ class RunnerSignalsMixin:
                     'status': 'watching',
                     'side': None,
                     'reason': None,
+                    'source': 'custom' if symbol in custom_watchlist_set else None,
+                    'timestamp': self._ist_now().isoformat(),
                 }
 
                 min_or_pct = runner.signal_generator.min_or_range_pct
@@ -263,6 +340,8 @@ class RunnerSignalsMixin:
         new_signals = []
         scan_items = []
 
+        custom_watchlist_set = set(runner.config.get('custom_watchlist', []) if hasattr(runner, 'config') else [])
+
         today = self._ist_now().date()
         if not hasattr(self, '_swing_entered_today'):
             self._swing_entered_today: dict = {}
@@ -279,14 +358,8 @@ class RunnerSignalsMixin:
             if symbol in self._swing_entered_today[strategy_id]:
                 continue
 
-            if symbol in self.cooldown_stocks:
-                exit_time = self.cooldown_stocks[symbol]
-                cooldown_days = runner.config.get('cooldown_days', 30)
-                cooldown_end = exit_time + timedelta(days=cooldown_days)
-                if self._ist_now() < cooldown_end:
-                    continue
-                else:
-                    del self.cooldown_stocks[symbol]
+            if self._check_cooldown(symbol, runner):
+                continue
 
             daily_data = self.fetch_daily_data(symbol)
             if not daily_data:
@@ -313,6 +386,8 @@ class RunnerSignalsMixin:
                 'status': 'watching',
                 'side': None,
                 'reason': None,
+                'source': 'custom' if symbol in custom_watchlist_set else None,
+                'timestamp': self._ist_now().isoformat(),
             }
 
             if signal:
@@ -341,7 +416,7 @@ class RunnerSignalsMixin:
 
         Returns True if successful, False otherwise.
         """
-        from trading.orb_signals import ORBSignal, SignalType
+        from trading.orb_signals import ORBSignal
         from trading.telegram_notifier import send_trade_entry, send_signal_rejected
 
         if self.replay_mode:
@@ -356,6 +431,13 @@ class RunnerSignalsMixin:
             now = self._ist_now()
             if runner.signal_generator.is_eod_exit_time(now.hour, now.minute):
                 return False
+
+            eod_entry_cutoff_minutes = getattr(runner.signal_generator, 'eod_entry_cutoff_minutes', 15)
+            if isinstance(eod_entry_cutoff_minutes, (int, float)) and eod_entry_cutoff_minutes > 0:
+                eod_dt = now.replace(hour=runner.signal_generator.eod_exit_hour, minute=runner.signal_generator.eod_exit_minute, second=0, microsecond=0)
+                if eod_dt - now < timedelta(minutes=eod_entry_cutoff_minutes):
+                    console.print(f"[yellow]{runner.strategy_name}: Entry blocked - within {eod_entry_cutoff_minutes}min of EOD exit ({runner.signal_generator.eod_exit_hour}:{runner.signal_generator.eod_exit_minute:02d})[/yellow]")
+                    return False
 
         runner, validation, position = self._execute_signal_core(strategy_id, signal, SignalType)
 
@@ -388,7 +470,7 @@ class RunnerSignalsMixin:
             bot_name=self.bot_config.name,
             strategy_name=runner.strategy_name,
             symbol=signal.symbol,
-            side="BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+            side=self._side_str(signal),
             price=signal.price,
             quantity=validation['shares'],
             sl=signal.stop_loss or 0.0,
@@ -400,7 +482,7 @@ class RunnerSignalsMixin:
             'strategy_id': strategy_id,
             'strategy_name': runner.strategy_name,
             'symbol': signal.symbol,
-            'side': "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+            'side': self._side_str(signal),
             'quantity': validation['shares'],
             'entry_price': entry_price,
             'stop_loss': signal.stop_loss or 0.0,
@@ -426,7 +508,7 @@ class RunnerSignalsMixin:
             self._replay_on_event({
                 "type": "trade_open", "strategy": runner.strategy_name,
                 "symbol": signal.symbol,
-                "side": "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL",
+                "side": self._side_str(signal),
                 "price": signal.price, "sl": signal.stop_loss or 0.0,
                 "tp": signal.take_profit or 0.0, "time": str(self._ist_now()),
                 "quantity": validation['shares'],
@@ -444,7 +526,7 @@ class RunnerSignalsMixin:
             return runner, None, None
 
         symbol_exposure = self.portfolio.get_symbol_exposure(signal.symbol)
-        side = "BUY" if signal.signal_type == SignalType.LONG_ENTRY else "SELL"
+        side = self._side_str(signal)
         validation = self.risk_manager.validate_trade(
             strategy_id=strategy_id,
             strategy_name=runner.strategy_name,
@@ -478,8 +560,8 @@ class RunnerSignalsMixin:
         filled_price = signal.price
         order_id = None
         if order_mgr:
-            tag = f"{runner.strategy_name}_{signal.symbol}"[:40]
-            side_str = "LONG" if signal.signal_type == SignalType.LONG_ENTRY else "SHORT"
+            tag = self._build_order_tag(runner.strategy_name, signal.symbol)
+            side_str = self._side_str(signal, "LONG_SHORT")
             try:
                 result = order_mgr.place_entry_order(
                     symbol=signal.symbol,
@@ -628,6 +710,7 @@ class RunnerSignalsMixin:
                             entry_52w_high=metadata.get('entry_52w_high'),
                             current_52w_high=metadata.get('current_52w_high'),
                             days_in_position=days_in_position,
+                            timestamp=self._ist_now(),
                     )
                     if exit_signal:
                         exit_triggered = True
@@ -638,8 +721,8 @@ class RunnerSignalsMixin:
                 order_mgr = self._get_order_manager()
                 exit_price_to_use = exit_price
                 if order_mgr:
-                    side_str = "LONG" if pos.side == OrderSide.BUY else "SHORT"
-                    tag_str = f"{pos.strategy_name}_{pos.symbol}"[:40]
+                    side_str = self._side_str(pos.side, "LONG_SHORT")
+                    tag_str = self._build_order_tag(pos.strategy_name, pos.symbol)
                     try:
                         result = order_mgr.place_exit_order(
                             symbol=pos.symbol,
@@ -656,7 +739,7 @@ class RunnerSignalsMixin:
         trade_logged = False
         for strategy_id, symbol, exit_price, exit_reason in positions_to_close:
             pos = self.portfolio.positions[f"{strategy_id}_{symbol}"]
-            side = 'LONG' if pos.side == OrderSide.BUY else 'SHORT'
+            side = self._side_str(pos.side, "LONG_SHORT")
             costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
 
             trade = self.portfolio.close_position(
@@ -739,6 +822,22 @@ class RunnerSignalsMixin:
 
                 trade_logged = True
                 self.cooldown_stocks[symbol] = self._ist_now()
+
+                # Consecutive loss tracking
+                if runner:
+                    max_consecutive = int(runner.config.get("max_consecutive_losses", 0))
+                    if max_consecutive > 0:
+                        losses = getattr(self, '_consecutive_losses', {})
+                        sid = str(trade.strategy_id)
+                        if trade.pnl is not None and trade.pnl < 0:
+                            losses[sid] = losses.get(sid, 0) + 1
+                            if losses[sid] >= max_consecutive:
+                                runner.status = "paused"
+                                runner._paused_date = self._ist_now().date()
+                                console.print(f"[red]{runner.strategy_name}: Paused - {losses[sid]} consecutive losses (limit: {max_consecutive})[/red]")
+                        elif trade.pnl is not None and trade.pnl > 0:
+                            losses[sid] = 0
+                        self._consecutive_losses = losses
 
         if trade_logged and not self.replay_mode:
             self.journal.save_journal()

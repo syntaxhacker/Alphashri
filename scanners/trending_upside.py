@@ -58,7 +58,7 @@ SCREENER_PROFILES = {
             ],
             'filters': [
                 Column('close') >= 10,
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 500_000,
                 Column('RSI').between(50, 80),
                 Column('change') >= -5,
@@ -80,7 +80,7 @@ SCREENER_PROFILES = {
                 'Perf.W', 'ATR',
             ],
             'filters': [
-                Column('market_cap_basic') >= 2_000_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 100_000,
                 Column('close') > 10,
                 Column('RSI') > 40,
@@ -102,7 +102,7 @@ SCREENER_PROFILES = {
                 'Perf.W', 'ATR',
             ],
             'filters': [
-                Column('market_cap_basic') >= 2_000_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 150_000,
                 Column('close') > 10,
             ],
@@ -123,7 +123,7 @@ SCREENER_PROFILES = {
                 'price_52_week_high',
             ],
             'filters': [
-                Column('market_cap_basic') >= 2_000_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 200_000,
                 Column('close') > 10,
                 Column('Volatility.D') > 1.0,
@@ -144,7 +144,7 @@ SCREENER_PROFILES = {
                 'price_52_week_high', 'Perf.W', 'ATR', 'relative_volume_10d_calc',
             ],
             'filters': [
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('close') > 20,
             ],
             'order_by': ('market_cap_basic', False),
@@ -181,7 +181,7 @@ SCREENER_PROFILES = {
             ],
             'filters': [
                 Column('close') >= 10,
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 1_000_000,
                 Column('RSI').between(45, 85),
                 Column('change') >= 0.5,
@@ -207,7 +207,7 @@ SCREENER_PROFILES = {
             ],
             'filters': [
                 Column('close') >= 10,
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 1_000_000,
                 Column('price_52_week_high') > 0,
                 Column('close').above_pct('price_52_week_high', 0.98),
@@ -227,7 +227,7 @@ SCREENER_PROFILES = {
                 'market_cap_basic', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX',
             ],
             'filters': [
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 100_000,
                 Column('close') > 20,
             ],
@@ -249,7 +249,7 @@ SCREENER_PROFILES = {
             'filters': [
                 Column('volume') > 10_000,
                 Column('open') > 10,
-                Column('market_cap_basic') > 1_000_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
             ],
             'order_by': ('volume', False),
         },
@@ -266,7 +266,7 @@ SCREENER_PROFILES = {
                 'description', 'sector', 'price_52_week_high', 'Perf.W', 'ATR', 'ADX',
             ],
             'filters': [
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('close') > 20,
             ],
             'order_by': ('market_cap_basic', False),
@@ -285,7 +285,7 @@ SCREENER_PROFILES = {
                 'relative_volume_10d_calc', 'ATR',
             ],
             'filters': [
-                Column('market_cap_basic') >= 500_000_000,
+                Column('market_cap_basic') >= 10_000_000_000,
                 Column('volume') > 500_000,
                 Column('close') > 20,
                 Column('relative_volume_10d_calc') > 0.5,

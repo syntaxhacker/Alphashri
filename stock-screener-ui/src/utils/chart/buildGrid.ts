@@ -1,6 +1,25 @@
 import type { ChartColors } from "./types";
 import { formatVolume } from "../chartUtils";
 
+const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatXAxisLabel(value: string): string {
+  if (!value) return value;
+  const spaceIdx = value.indexOf(" ");
+  if (spaceIdx === -1) return value;
+  const datePart = value.substring(0, spaceIdx);
+  const timePart = value.substring(spaceIdx + 1);
+  if (datePart.includes("-")) {
+    const [, m, d] = datePart.split("-");
+    return `${MONTHS[parseInt(m, 10) - 1]} ${parseInt(d, 10)}\n${timePart}`;
+  }
+  return value;
+}
+
+function isMultiDayLabel(value: string): boolean {
+  return value.includes(" ") && value.substring(0, value.indexOf(" ")).includes("-");
+}
+
 interface GridResult {
   grids: any[];
   xAxes: any[];
@@ -31,7 +50,13 @@ export function buildGrid(
           type: "category",
           boundaryGap: true,
           axisLine: { lineStyle: { color: colors.borderColor } },
-          axisLabel: { fontSize: 10, color: colors.mutedColor, rotate: 45 },
+          axisLabel: {
+            fontSize: 10,
+            color: colors.mutedColor,
+            rotate: 0,
+            interval: 0,
+            formatter: (value: string) => isMultiDayLabel(value) ? formatXAxisLabel(value) : value,
+          },
           splitLine: { show: false },
           min: "dataMin",
           max: "dataMax",
@@ -74,14 +99,19 @@ export function buildGrid(
         scale: true,
         splitLine: { show: false },
         axisLine: { lineStyle: { color: colors.borderColor } },
-        axisLabel: { color: colors.mutedColor, rotate: 45 },
+        axisLabel: {
+          color: colors.mutedColor,
+          rotate: 0,
+          interval: 0,
+          formatter: (value: string) => isMultiDayLabel(value) ? formatXAxisLabel(value) : value,
+        },
       },
     ],
     yAxes: [
       {
         type: "value",
         scale: true,
-        splitArea: { show: true },
+        splitArea: { show: false },
         splitLine: { lineStyle: { color: colors.gridLineColor } },
         axisLine: { lineStyle: { color: colors.borderColor } },
         axisLabel: {

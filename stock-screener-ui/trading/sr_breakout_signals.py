@@ -23,7 +23,8 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
         self.sl_pct = config.get("sl_pct", 1.5)
         self.tp_pct = config.get("tp_pct", 2.5)
         self.pivot_type = config.get("pivot_type", "classic")
-        self.breakout_buffer_pct = config.get("breakout_buffer_pct", 0.1)
+        self.breakout_buffer_pct = config.get("breakout_buffer_pct", 1.0)
+        self.max_distance_from_r1_pct = float(config.get("max_distance_from_r1_pct", 5.0))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 15))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
@@ -63,29 +64,34 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
         buf = self.breakout_buffer_pct / 100
 
+        # Skip if price is too far above R1 (already ran up too much)
+        max_price = r1 * (1 + self.max_distance_from_r1_pct / 100)
+        if current_price > max_price:
+            return None
+
         if current_price > r1 * (1 + buf):
-            sl = current_price * (1 - self.sl_pct / 100)
+            sl, default_tp = self._calc_sl_tp("BUY", current_price)
             r2 = pivot_points.get("R2")
-            tp = r2 if r2 and r2 > current_price else current_price * (1 + self.tp_pct / 100)
+            tp = r2 if r2 and r2 > current_price else default_tp
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.LONG_ENTRY,
                 price=current_price,
-                stop_loss=round(sl, 2),
-                take_profit=round(tp, 2),
+                stop_loss=sl,
+                take_profit=tp,
                 notes=f"Breakout above R1 ₹{r1:.2f} -> TP=R2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if r2 and r2 > current_price else f"Breakout above R1 ₹{r1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
 
         if current_price < s1 * (1 - buf):
-            sl = current_price * (1 + self.sl_pct / 100)
+            sl, default_tp = self._calc_sl_tp("SELL", current_price)
             s2 = pivot_points.get("S2")
-            tp = s2 if s2 and s2 < current_price else current_price * (1 - self.tp_pct / 100)
+            tp = s2 if s2 and s2 < current_price else default_tp
             return self.create_signal(
                 symbol=symbol,
                 signal_type=SignalType.SHORT_ENTRY,
                 price=current_price,
-                stop_loss=round(sl, 2),
-                take_profit=round(tp, 2),
+                stop_loss=sl,
+                take_profit=tp,
                 notes=f"Breakdown below S1 ₹{s1:.2f} -> TP=S2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if s2 and s2 < current_price else f"Breakdown below S1 ₹{s1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
 

@@ -53,10 +53,12 @@ export function ArticleDetail({
   onToggleFullContent,
   onSymbolClick,
 }: ArticleDetailProps) {
-  const hasLlmSummary = !!(
-    articleContent?.summary ||
-    (articleContent?.key_points && articleContent.key_points.length > 0)
-  );
+  const hasLlmSummary =
+    articleContent?.analysis_status === "done" &&
+    !!(
+      articleContent?.summary ||
+      (articleContent?.key_points && articleContent.key_points.length > 0)
+    );
 
   return (
     <Stack gap="sm" data-testid="article-detail" className="article-detail">
@@ -85,6 +87,21 @@ export function ArticleDetail({
             </Group>
           ) : (
             <>
+              {articleContent?.analysis_status === "failed" && (
+                <Alert icon={<IconInfoCircle size={16} />} title="Summary pending" color="yellow" variant="light">
+                  <Text size="sm">This article is queued for analysis and will be updated shortly.</Text>
+                </Alert>
+              )}
+
+              {articleContent?.analysis_status === "none" && (
+                <Alert icon={<IconInfoCircle size={16} />} title="Analysis pending" color="gray" variant="light">
+                  <Group gap="xs">
+                    <Loader size="xs" />
+                    <Text size="sm">Analysis will be available once processed.</Text>
+                  </Group>
+                </Alert>
+              )}
+
               {articleContent?.sentiment && (
                 <Group gap="sm">
                   <SentimentBadge sentiment={articleContent.sentiment} />
@@ -92,7 +109,7 @@ export function ArticleDetail({
                 </Group>
               )}
 
-              {articleContent?.summary && (
+              {articleContent?.summary && articleContent.analysis_status !== "failed" && (
                 <Alert
                   icon={<IconInfoCircle size={16} />}
                   title="Summary"

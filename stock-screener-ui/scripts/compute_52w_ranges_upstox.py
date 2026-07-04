@@ -157,17 +157,13 @@ def persist_ranges(data: dict, redis: bool) -> tuple[int, int]:
         for symbol, info in data.items():
             cur = existing.get(symbol)
             if cur:
-                changed = (
-                    cur.high_52w != info["high"]
-                    or cur.low_52w != info["low"]
-                    or cur.close != info["close"]
-                )
-                if changed:
-                    cur.high_52w = info["high"]
-                    cur.low_52w = info["low"]
-                    cur.close = info["close"]
-                    cur.updated_at = now
-                    updated += 1
+                # Always record the fresh computation time. Values are overwritten
+                # (even if unchanged) so that "updated_at" reflects last verification.
+                cur.high_52w = info["high"]
+                cur.low_52w = info["low"]
+                cur.close = info["close"]
+                cur.updated_at = now
+                updated += 1
             else:
                 db.add(
                     Stock52WeekRange(

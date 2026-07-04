@@ -44,6 +44,7 @@ class StrategyRunner:
                 min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
                 max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
                 breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
+                config_name=self.strategy_name,
             )
         elif self.strategy_type == "SR_BREAKOUT":
             from trading.sr_breakout_signals import SRBreakoutSignalGenerator
@@ -64,3 +65,8 @@ class StrategyRunner:
             from trading.orb_signals import ORBSignalGenerator
             console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")
             self.signal_generator = ORBSignalGenerator()
+
+        # Apply config-level overrides that all generators share
+        cutoff = self.config.get('eod_entry_cutoff_minutes')
+        if cutoff is not None:
+            self.signal_generator.eod_entry_cutoff_minutes = int(cutoff)

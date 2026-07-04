@@ -6,7 +6,13 @@ sources = {
     'livemint': 'https://www.livemint.com/market/stock-market-news',
     'financialexpress': 'https://www.financialexpress.com/market/',
     'business_standard': 'https://www.business-standard.com/markets/stock-market',
-    'cnbctv18': 'https://www.cnbctv18.com/market/'
+    'cnbctv18': 'https://www.cnbctv18.com/market/',
+    'zeebusiness': 'https://www.zeebiz.com/business/news',
+    'ndtvprofit': 'https://www.ndtvprofit.com/markets',
+    'thehindu_bl': 'https://www.thehindubusinessline.com/markets/stock-market-news',
+    'calcutta_financial_daily': 'https://www.caldaily.com/finance/news',
+    'equitymaster': 'https://www.equitymaster.com/news',
+    'goodreturns': 'https://www.goodreturns.in/investment-news'
 }
 
 for name, url in sources.items():

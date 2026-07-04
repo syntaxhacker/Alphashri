@@ -56,6 +56,7 @@ class StrategyConfig(Base):
 
     cooldown_minutes = Column(Integer, default=30)
     max_distance_from_or_pct = Column(Float, default=1.5)
+    max_distance_from_r1_pct = Column(Float, default=5.0)
 
     entry_threshold_pct = Column(Float, default=3.0)
     min_breakout_pct = Column(Float, default=0.5)
@@ -80,6 +81,7 @@ class StrategyConfig(Base):
     eod_exit_hour = Column(Integer, default=14)
     eod_exit_minute = Column(Integer, default=45)
     screener_profiles = Column(String(500), nullable=True)  # JSON array: '["trending", "near_52w_breakout"]'
+    custom_watchlist = Column(String(2000), nullable=True)  # JSON array: '["RELIANCE", "HDFCBANK"]'
 
     brokerage_pct = Column(Float, default=0.0003)
     min_brokerage = Column(Float, default=20)
@@ -123,6 +125,7 @@ class StrategyConfig(Base):
             "max_trade_value": self.max_trade_value,
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
+            "max_distance_from_r1_pct": self.max_distance_from_r1_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
             "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,
@@ -141,6 +144,8 @@ class StrategyConfig(Base):
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
             "screener_profiles": json.loads(self.screener_profiles) if self.screener_profiles else [],
+            "custom_watchlist": json.loads(self.custom_watchlist) if self.custom_watchlist else [],
+            "min_market_range_pct": getattr(self, 'min_market_range_pct', 1.0),
             "brokerage_pct": self.brokerage_pct,
             "min_brokerage": self.min_brokerage,
             "stt_pct": self.stt_pct,

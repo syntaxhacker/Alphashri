@@ -49,11 +49,14 @@ export function normalizePaper(
       },
     );
     if (candles.length > 0) {
+      const orbEndIdx = orb.or_candle_count != null
+        ? Math.min(orb.or_candle_count - 1, candles.length - 1)
+        : Math.min(8, candles.length - 1);
+      const firstTime = candles[0].time_str || candles[0].time.split(/[T ]/).pop()?.substring(0, 5) || "09:15";
+      const lastTime = candles[orbEndIdx].time_str || candles[orbEndIdx].time.split(/[T ]/).pop()?.substring(0, 5) || firstTime;
       markAreas.push({
-        from: candles[0].time.split(/[T ]/).pop()?.substring(0, 5) || "09:15",
-        to:
-          candles[Math.min(8, candles.length - 1)].time.split(/[T ]/).pop()?.substring(0, 5) ||
-          "09:25",
+        from: firstTime,
+        to: lastTime,
         fromY: orb.or_low,
         toY: orb.or_high,
         color: "rgba(33,150,243,0.15)",
@@ -140,16 +143,46 @@ export function normalizePaper(
     };
   }
 
-  const highlightedTradeId = selectedTradeId ? Number(selectedTradeId) : null;
+  const highlightedTradeId = selectedTradeId && data.trades
+    ? (() => {
+        const trade = data.trades.find(t => t.trade_id === selectedTradeId);
+        if (!trade) return null;
+        const idx = data.trades.indexOf(trade);
+        // Use index as ID to avoid fraction collision (e.g., "1.5" vs "1")
+        const mappedTrade = trades[idx];
+        return mappedTrade ? mappedTrade.id : idx;
+      })()
+    : null;
+
+  if (highlightedTradeId != null) {
+    const trade = trades.find(t => t.id === highlightedTradeId);
+    if (trade) {
+      if (trade.stop_loss && trade.stop_loss > 0) {
+        markLines.push({
+          yAxis: trade.stop_loss,
+          lineStyle: { color: "#FF5252", type: "dashed", width: 1 },
+          label: { position: "insideEndTop", formatter: `SL ${trade.stop_loss}` },
+        });
+      }
+      if (trade.take_profit && trade.take_profit > 0) {
+        markLines.push({
+          yAxis: trade.take_profit,
+          lineStyle: { color: "#69F0AE", type: "dashed", width: 1 },
+          label: { position: "insideEndTop", formatter: `TP ${trade.take_profit}` },
+        });
+      }
+    }
+  }
+
   return {
     candles,
     trades,
     overlays,
     emaData,
     livePosition,
-    markLines,
+    markLines: markLines.filter(m => m.yAxis != null && isFinite(m.yAxis)),
     markAreas,
-    showVolume: true,
+    showVolume: false,
     showDataZoomSlider: false,
     showLegend: false, // disabled in favor of custom ChartLegend in PaperChart2.tsx
     highlightedTradeId,

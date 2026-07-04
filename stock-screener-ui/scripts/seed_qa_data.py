@@ -134,6 +134,23 @@ STRATEGIES = [
         'max_positions': 5,
     },
     {
+        'name': 'ORB High Beta',
+        'strategy_type': 'ORB',
+        'template_name': 'ORB Template',
+        'description': 'ORB optimized via autoresearch for high beta F&O stocks: PF=1.90. Wider buffer, longer cooldown, no shorts.',
+        'or_minutes': 45,
+        'sl_pct': 1.2,
+        'tp_pct': 2.0,
+        'breakout_buffer_pct': 0.62,
+        'cooldown_minutes': 250,
+        'enable_shorts': False,
+        'eod_exit_hour': 15,
+        'eod_exit_minute': 0,
+        'max_positions': 5,
+        'screener_profiles': '["volatility_trend"]',
+        'custom_watchlist': '["ADANIENT","ASTRAL","BANDHANBNK","BPCL","CANBK","CHAMBLFERT","COROMANDEL","DALBHARAT","DIXON","HINDALCO","IEX","IFCI","INDUSINDBK","IRFC","JSWENERGY","KEI","SCHAEFFLER","SRF","SUZLON","TORNTPOWER","TRENT","UPL","VEDL"]',
+    },
+    {
         'name': 'Classic S/R Breakout',
         'strategy_type': 'SR_BREAKOUT',
         'template_name': 'S/R Template',
@@ -359,6 +376,44 @@ def create_bot(db, strategies: Dict[int, StrategyConfig], user_id: int, bot_name
     return bot
 
 
+def create_single_strategy_bot(db, strategy: StrategyConfig, user_id: int, bot_name: str) -> BotConfig:
+    """Create a bot with a single strategy at 100% allocation."""
+
+    bot = db.query(BotConfig).filter(
+        BotConfig.name == bot_name,
+        BotConfig.user_id == user_id
+    ).first()
+
+    if bot:
+        console.print(f"[yellow]Bot '{bot_name}' already exists (ID: {bot.id})[/yellow]")
+        return bot
+
+    bot = BotConfig(
+        name=bot_name,
+        user_id=user_id,
+        is_active=True,
+        max_total_positions=strategy.max_positions,
+        max_total_capital_pct=0.90,
+    )
+    db.add(bot)
+    db.commit()
+    db.refresh(bot)
+    console.print(f"[green]✓ Created bot '{bot.name}' (ID: {bot.id}) for User {user_id}[/green]")
+
+    db.execute(
+        bot_strategies.insert().values(
+            bot_id=bot.id,
+            strategy_id=strategy.id,
+            max_positions=strategy.max_positions,
+            capital_allocation_pct=1.0,
+        )
+    )
+    db.commit()
+    console.print(f"  [green]✓ Added {strategy.name} strategy (100% allocation)[/green]")
+
+    return bot
+
+
 def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, StrategyConfig]) -> List[dict]:
     """Generate dummy trades for a multi-strategy bot."""
     trades = []
@@ -561,6 +616,14 @@ def seed_qa_data(seed_journals: bool = False):
         # 4. Create bot for Admin user (ID 2)
         console.print("\n[bold]Step 4: Creating Multi-Strategy Bot for Admin[/bold]")
         admin_bot = create_bot(db, variations, 2, "Alpha Admin Bot")
+
+        # 4b. Create dedicated ORB High Beta bot
+        console.print("\n[bold]Step 4b: Creating ORB High Beta Bot[/bold]")
+        orb_hb = all_strategies.get('ORB High Beta')
+        if orb_hb:
+            create_single_strategy_bot(db, orb_hb, user.id, "ORB High Beta Bot")
+        else:
+            console.print("[yellow]ORB High Beta strategy not found — skipping bot[/yellow]")
 
         # 5. Generate trades for QA user (opt-in)
         trades = []

@@ -21,7 +21,9 @@ from typing import Dict, List, Optional
 
 import pandas as pd
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
+_BASE = str(Path(__file__).parent.parent)
+sys.path.insert(0, _BASE)
+sys.path.insert(0, str(Path(_BASE).parent))  # for upstox_trader
 
 import config
 

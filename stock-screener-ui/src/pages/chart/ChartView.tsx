@@ -16,8 +16,8 @@ function useChartViewModel() {
 
   const [timeframe, setTimeframe] = useState(15);
   const [orMinutes, setOrMinutes] = useState(45);
-  const [showPivots, setShowPivots] = useState(true);
-  const [show52wHigh, setShow52wHigh] = useState(true);
+  const [showPivots, setShowPivots] = useState(false);
+  const [show52wHigh, setShow52wHigh] = useState(false);
 
   const { data, loading, error } = useChartData({
     symbol: symbol || "",

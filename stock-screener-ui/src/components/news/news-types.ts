@@ -65,6 +65,7 @@ export interface ArticleResponse extends NewsItem {
   key_points?: string[];
   key_entities?: string[];
   trade_ideas?: TradeIdea[];
+  analysis_status?: "none" | "pending" | "processing" | "done" | "failed";
 }
 
 /**
@@ -116,6 +117,7 @@ export interface NewsArticle {
   key_entities?: string[];
   trade_ideas?: TradeIdea[];
   symbols?: NewsSymbol[];
+  analysis_status?: "none" | "pending" | "processing" | "done" | "failed";
 }
 
 /**

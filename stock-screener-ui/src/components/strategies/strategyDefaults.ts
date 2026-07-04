@@ -35,6 +35,7 @@ export const DEFAULT_VALUES: StrategyFormData = {
   eod_exit_hour: 15,
   eod_exit_minute: 30,
   screener_profiles: [],
+  custom_watchlist: [],
 };
 
 export function getInitialValues(props: {
@@ -80,6 +81,7 @@ export function getInitialValues(props: {
       eod_exit_hour: strategy.eod_exit_hour ?? 15,
       eod_exit_minute: strategy.eod_exit_minute ?? 30,
       screener_profiles: strategy.screener_profiles || [],
+      custom_watchlist: strategy.custom_watchlist || [],
     };
   }
 
@@ -119,6 +121,7 @@ export function getInitialValues(props: {
       eod_exit_hour: template.eod_exit_hour ?? 15,
       eod_exit_minute: template.eod_exit_minute ?? 30,
       screener_profiles: template.screener_profiles || [],
+      custom_watchlist: template.custom_watchlist || [],
     };
   }
 

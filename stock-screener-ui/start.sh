@@ -64,7 +64,7 @@ fi
 
 echo "Starting API on http://localhost:${API_PORT} ..."
 uvicorn api_server_fastapi:app \
-  --host 127.0.0.1 \
+  --host :: \
   --port "${API_PORT}" \
   --reload >> "$LOG_FILE" 2>&1 &
 API_PID=$!

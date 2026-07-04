@@ -20,19 +20,41 @@ IST = config.IST
 
 import pandas as pd
 
-from nautilus_trader.backtest.config import BacktestEngineConfig
-from nautilus_trader.backtest.engine import BacktestEngine
-from nautilus_trader.model import BarType, InstrumentId, Money, Symbol, TraderId, Venue
-from nautilus_trader.model.currencies import INR
-from nautilus_trader.model.enums import AccountType, OmsType, OrderSide
-from nautilus_trader.model.instruments import Equity
-from nautilus_trader.model.objects import Price, Quantity
-from nautilus_trader.persistence.wranglers import BarDataWrangler
-from nautilus_trader.trading.strategy import Strategy
-from nautilus_trader.config import StrategyConfig
+# Guarded + safe for DRY (no Rust required for import).
+try:
+    from nautilus_trader.backtest.config import BacktestEngineConfig
+    from nautilus_trader.backtest.engine import BacktestEngine
+    from nautilus_trader.model import BarType, InstrumentId, Money, Symbol, TraderId, Venue
+    from nautilus_trader.model.currencies import INR
+    from nautilus_trader.model.enums import AccountType, OmsType, OrderSide
+    from nautilus_trader.model.instruments import Equity
+    from nautilus_trader.model.objects import Price, Quantity
+    from nautilus_trader.persistence.wranglers import BarDataWrangler
+    from nautilus_trader.trading.strategy import Strategy
+    from nautilus_trader.config import StrategyConfig
+    _NAUTILUS_AVAILABLE = True
+except ImportError:
+    BacktestEngineConfig = None  # type: ignore
+    BacktestEngine = None  # type: ignore
+    BarType = None  # type: ignore
+    InstrumentId = None  # type: ignore
+    Money = None  # type: ignore
+    Symbol = None  # type: ignore
+    TraderId = None  # type: ignore
+    Venue = None  # type: ignore
+    INR = None  # type: ignore
+    AccountType = None  # type: ignore
+    OmsType = None  # type: ignore
+    OrderSide = None  # type: ignore
+    Equity = None  # type: ignore
+    Price = None  # type: ignore
+    Quantity = None  # type: ignore
+    BarDataWrangler = None  # type: ignore
+    Strategy = object  # type: ignore
+    StrategyConfig = object  # type: ignore
+    _NAUTILUS_AVAILABLE = False
 
-from .base import BaseStrategy, StrategyParam
-from ..costs import calculate_trading_costs
+from .base import BaseStrategy, StrategyParam, NautilusBacktestMixin, get_ist_time
 
 # Add project root to path for imports
 _current_file_dir = os.path.dirname(os.path.abspath(__file__))
@@ -47,17 +69,12 @@ if _project_root_dir not in sys.path:
 from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
 
 
-def get_ist_time(ts_ns: int) -> tuple:
-    """Convert nanosecond timestamp to IST time components."""
-    ts_sec = ts_ns / 1_000_000_000
-    dt_utc = datetime.fromtimestamp(ts_sec, tz=timezone.utc)
-    dt_ist = dt_utc.astimezone(IST)
-    return dt_ist.hour, dt_ist.minute, dt_ist.date()
-
-
 def run_single_stock_backtest(args):
     """Run backtest for a single stock in isolation."""
     symbol, params, days, access_token = args if len(args) == 4 else (*args, None)
+
+    if not _NAUTILUS_AVAILABLE:
+        return {"symbol": symbol, "success": False, "error": "nautilus_trader not available (requires Rust toolchain per AGENTS.md)"}
 
     try:
         from backtest.utils import get_upstox_client_from_db, get_upstox_client_with_token
@@ -222,229 +239,209 @@ def run_single_stock_backtest(args):
         return {'symbol': symbol, 'success': False, 'error': str(e)}
 
 
-class ORBNautilusStrategy(Strategy):
-    """Simplified ORB implementation aligned with paper flow.
-    Uses shared OR calculation utility from trading.orb_utils."""
+if _NAUTILUS_AVAILABLE:
+    class ORBNautilusStrategy(Strategy):  # mixin methods attached or duplicated; MI avoided for meta compat with real nautilus Strategy
+        """Simplified ORB implementation aligned with paper flow.
+        Uses shared OR calculation utility from trading.orb_utils."""
 
-    def __init__(self, config: 'ORBConfig'):
-        super().__init__(config)
-        self._instrument_id = config.instrument_id
-        self._bar_type = config.bar_type
-        self._or_minutes = config.or_minutes
-        self._sl_pct = config.sl_pct
-        self._tp_pct = config.tp_pct
-        self._trade_size = config.trade_size
-        self._enable_shorts = config.enable_shorts
-        self._cooldown_bars = config.cooldown_bars
-        self._breakout_buffer_pct = config.breakout_buffer_pct
+        def __init__(self, config: 'ORBConfig'):
+            super().__init__(config)
+            self._instrument_id = config.instrument_id
+            self._bar_type = config.bar_type
+            self._or_minutes = config.or_minutes
+            self._sl_pct = config.sl_pct
+            self._tp_pct = config.tp_pct
+            self._trade_size = config.trade_size
+            self._enable_shorts = config.enable_shorts
+            self._cooldown_bars = config.cooldown_bars
+            self._breakout_buffer_pct = config.breakout_buffer_pct
 
-        self._current_date = None
-        self._or_levels = None  # Dict from calculate_or_levels()
-        self._or_candles = []  # Collect OR candles for shared utility
-        self._or_defined = False
-        self._entry_price = None
-        self._position_side = None
-        self._last_exit_bar = None
-        self._bar_number = 0
+            self._current_date = None
+            self._or_levels = None  # Dict from calculate_or_levels()
+            self._or_candles = []  # Collect OR candles for shared utility
+            self._or_defined = False
+            self._entry_price = None
+            self._position_side = None
+            self._last_exit_bar = None
+            self._bar_number = 0
 
-        self.trades = []
-        self._current_entry_time = None
+            self.trades = []
+            self._current_entry_time = None
 
-        # Track peak and low during position
-        self._position_peak = None
-        self._position_low = None
+            # Track peak and low during position
+            self._position_peak = None
+            self._position_low = None
 
-    def on_start(self):
-        self.subscribe_bars(self._bar_type)
+        def on_start(self):
+            self.subscribe_bars(self._bar_type)
 
-    def on_bar(self, bar):
-        hour, minute, date = get_ist_time(bar.ts_event)
-        cur_min = hour * 60 + minute
-        close_f = float(bar.close)
-        high_f = float(bar.high)
-        low_f = float(bar.low)
-        bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
-        bar_time_ist = bar_time.astimezone(IST)
+        def on_bar(self, bar):
+            hour, minute, date = get_ist_time(bar.ts_event)
+            cur_min = hour * 60 + minute
+            close_f = float(bar.close)
+            high_f = float(bar.high)
+            low_f = float(bar.low)
+            bar_time = datetime.fromtimestamp(bar.ts_event / 1_000_000_000, tz=timezone.utc)
+            bar_time_ist = bar_time.astimezone(IST)
 
-        self._bar_number += 1
+            self._bar_number += 1
 
-        if self._current_date != date:
-            self._current_date = date
+            if self._current_date != date:
+                self._current_date = date
+                self._or_levels = None
+                self._or_candles = []
+                self._or_defined = False
+                self._last_exit_bar = None
+
+            mkt_open = 9 * 60 + 15
+            or_end = mkt_open + self._or_minutes
+
+            # Collect OR candles during OR period
+            if cur_min < or_end:
+                self._or_candles.append({
+                    'time': bar_time_ist.isoformat(),
+                    'open': float(bar.open),
+                    'high': high_f,
+                    'low': low_f,
+                    'close': close_f,
+                })
+                return
+
+            # OR period just ended - calculate OR levels using shared utility
+            if not self._or_defined and len(self._or_candles) > 0:
+                self._or_levels = utils_calculate_or_levels(
+                    candles=self._or_candles,
+                    or_minutes=self._or_minutes,
+                )
+                self._or_defined = True
+
+            if not self._or_defined or self._or_levels is None:
+                return
+
+            # EOD safety exit
+            if cur_min >= 14 * 60 + 45:
+                positions = self.cache.positions_open(instrument_id=self._instrument_id)
+                if positions:
+                    self._exit(bar, positions[0], "EOD", bar_time_ist)
+                return
+
+            positions = self.cache.positions_open(instrument_id=self._instrument_id)
+            if positions:
+                self._manage(bar, positions[0], bar_time_ist)
+                return
+
+            self._check_entry(close_f, bar_time_ist)
+
+        def _check_entry(self, close_f: float, bar_time_ist: datetime):
+            if self._or_levels is None:
+                return
+
+            if self._is_in_cooldown_bars(self._bar_number, self._last_exit_bar, self._cooldown_bars):
+                return
+
+            buffer = self._breakout_buffer_pct / 100
+            or_high = self._or_levels['or_high']
+            or_low = self._or_levels['or_low']
+            long_entry = close_f > or_high * (1 + buffer)
+            short_entry = close_f < or_low * (1 - buffer)
+
+            if short_entry and self._enable_shorts:
+                self._submit_market_entry(is_long=False)
+                self._position_side = "SHORT"
+                self._entry_price = close_f
+                self._current_entry_time = bar_time_ist
+                self._position_peak = close_f
+                self._position_low = close_f
+            elif long_entry:
+                self._submit_market_entry(is_long=True)
+                self._position_side = "LONG"
+                self._entry_price = close_f
+                self._current_entry_time = bar_time_ist
+                self._position_peak = close_f
+                self._position_low = close_f
+
+        def _manage(self, bar, position, bar_time_ist):
+            cur_price = float(bar.close)
+            high_f = float(bar.high)
+            low_f = float(bar.low)
+
+            # Update peak and low prices (via mixin helper)
+            self._update_position_peak_low(high_f, low_f)
+
+            if self._position_side == "SHORT":
+                pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
+            else:
+                pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
+
+            if pnl_pct >= self._tp_pct:
+                self._exit(bar, position, "TP", bar_time_ist)
+            elif pnl_pct <= -self._sl_pct:
+                self._exit(bar, position, "SL", bar_time_ist)
+
+        def _exit(self, bar, position, reason, bar_time_ist):
+            cur_price = float(bar.close)
+            pos_qty = int(float(position.quantity)) if position.quantity else 0
+
+            # Use mixin helpers for duplicated side pnl/costs/hold (preserves raw values and behavior)
+            pnl = self._calc_pnl_and_costs(self._entry_price, cur_price, pos_qty, self._position_side or "LONG")
+            hold_minutes = self._calc_hold_minutes(self._current_entry_time, bar_time_ist)
+
+            self.trades.append({
+                'entry_price': self._entry_price,
+                'exit_price': cur_price,
+                'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
+                'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
+                'quantity': abs(pos_qty),
+                'gross_pnl': pnl['gross_pnl'],
+                'gross_pnl_pct': pnl['gross_pnl_pct'],
+                'trading_costs': pnl['trading_costs'],
+                'net_pnl': pnl['net_pnl'],
+                'net_pnl_pct': pnl['net_pnl_pct'],
+                'exit_reason': reason,
+                'hold_duration_minutes': hold_minutes,
+                'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
+                'or_high': self._or_levels['or_high'] if self._or_levels else None,
+                'or_low': self._or_levels['or_low'] if self._or_levels else None,
+                'side': self._position_side,
+                'peak_price': round(self._position_peak, 2) if self._position_peak else cur_price,
+                'low_price': round(self._position_low, 2) if self._position_low else cur_price,
+            })
+
+            self.close_all_positions(self._instrument_id)
+            self._position_side = None
+            self._entry_price = None
+            self._current_entry_time = None
+            self._last_exit_bar = self._bar_number
+            self._position_peak = None
+            self._position_low = None
+
+        def on_stop(self):
+            pass
+
+        def on_reset(self):
+            self._current_date = None
             self._or_levels = None
             self._or_candles = []
             self._or_defined = False
-            self._last_exit_bar = None
+            self._position_side = None
+            self._entry_price = None
+else:
+    ORBNautilusStrategy = None
 
-        mkt_open = 9 * 60 + 15
-        or_end = mkt_open + self._or_minutes
-
-        # Collect OR candles during OR period
-        if cur_min < or_end:
-            self._or_candles.append({
-                'time': bar_time_ist.isoformat(),
-                'open': float(bar.open),
-                'high': high_f,
-                'low': low_f,
-                'close': close_f,
-            })
-            return
-
-        # OR period just ended - calculate OR levels using shared utility
-        if not self._or_defined and len(self._or_candles) > 0:
-            self._or_levels = utils_calculate_or_levels(
-                candles=self._or_candles,
-                or_minutes=self._or_minutes,
-            )
-            self._or_defined = True
-
-        if not self._or_defined or self._or_levels is None:
-            return
-
-        # EOD safety exit
-        if cur_min >= 14 * 60 + 45:
-            positions = self.cache.positions_open(instrument_id=self._instrument_id)
-            if positions:
-                self._exit(bar, positions[0], "EOD", bar_time_ist)
-            return
-
-        positions = self.cache.positions_open(instrument_id=self._instrument_id)
-        if positions:
-            self._manage(bar, positions[0], bar_time_ist)
-            return
-
-        self._check_entry(close_f, bar_time_ist)
-
-    def _check_entry(self, close_f: float, bar_time_ist: datetime):
-        if self._or_levels is None:
-            return
-
-        if self._last_exit_bar is not None and self._cooldown_bars > 0:
-            if (self._bar_number - self._last_exit_bar) < self._cooldown_bars:
-                return
-
-        buffer = self._breakout_buffer_pct / 100
-        or_high = self._or_levels['or_high']
-        or_low = self._or_levels['or_low']
-        long_entry = close_f > or_high * (1 + buffer)
-        short_entry = close_f < or_low * (1 - buffer)
-
-        if short_entry and self._enable_shorts:
-            order = self.order_factory.market(
-                instrument_id=self._instrument_id,
-                order_side=OrderSide.SELL,
-                quantity=Quantity.from_str(str(self._trade_size)),
-            )
-            self.submit_order(order)
-            self._position_side = "SHORT"
-            self._entry_price = close_f
-            self._current_entry_time = bar_time_ist
-            self._position_peak = close_f
-            self._position_low = close_f
-        elif long_entry:
-            order = self.order_factory.market(
-                instrument_id=self._instrument_id,
-                order_side=OrderSide.BUY,
-                quantity=Quantity.from_str(str(self._trade_size)),
-            )
-            self.submit_order(order)
-            self._position_side = "LONG"
-            self._entry_price = close_f
-            self._current_entry_time = bar_time_ist
-            self._position_peak = close_f
-            self._position_low = close_f
-
-    def _manage(self, bar, position, bar_time_ist):
-        cur_price = float(bar.close)
-        high_f = float(bar.high)
-        low_f = float(bar.low)
-
-        # Update peak and low prices
-        if self._position_peak is not None:
-            self._position_peak = max(self._position_peak, high_f)
-        if self._position_low is not None:
-            self._position_low = min(self._position_low, low_f)
-
-        if self._position_side == "SHORT":
-            pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
-        else:
-            pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
-
-        if pnl_pct >= self._tp_pct:
-            self._exit(bar, position, "TP", bar_time_ist)
-        elif pnl_pct <= -self._sl_pct:
-            self._exit(bar, position, "SL", bar_time_ist)
-
-    def _exit(self, bar, position, reason, bar_time_ist):
-        cur_price = float(bar.close)
-        pos_qty = int(float(position.quantity)) if position.quantity else 0
-
-        if self._position_side == "SHORT":
-            gross_pnl = (self._entry_price - cur_price) * abs(pos_qty)
-            gross_pnl_pct = ((self._entry_price - cur_price) / self._entry_price) * 100
-        else:
-            gross_pnl = (cur_price - self._entry_price) * abs(pos_qty)
-            gross_pnl_pct = ((cur_price - self._entry_price) / self._entry_price) * 100
-
-        costs = calculate_trading_costs(self._entry_price, cur_price, abs(pos_qty))
-        net_pnl = gross_pnl - costs['total_costs']
-        net_pnl_pct = (net_pnl / (self._entry_price * abs(pos_qty))) * 100 if pos_qty != 0 else 0
-
-        hold_minutes = 0
-        if self._current_entry_time and bar_time_ist:
-            hold_minutes = int((bar_time_ist - self._current_entry_time).total_seconds() / 60)
-
-        self.trades.append({
-            'entry_price': self._entry_price,
-            'exit_price': cur_price,
-            'entry_time': self._current_entry_time.strftime('%Y-%m-%dT%H:%M') if self._current_entry_time else None,
-            'exit_time': bar_time_ist.strftime('%Y-%m-%dT%H:%M') if bar_time_ist else None,
-            'quantity': abs(pos_qty),
-            'gross_pnl': gross_pnl,
-            'gross_pnl_pct': gross_pnl_pct,
-            'trading_costs': costs['total_costs'],
-            'net_pnl': net_pnl,
-            'net_pnl_pct': net_pnl_pct,
-            'exit_reason': reason,
-            'hold_duration_minutes': hold_minutes,
-            'date': self._current_entry_time.strftime('%Y-%m-%d') if self._current_entry_time else None,
-            'or_high': self._or_levels['or_high'] if self._or_levels else None,
-            'or_low': self._or_levels['or_low'] if self._or_levels else None,
-            'side': self._position_side,
-            'peak_price': round(self._position_peak, 2) if self._position_peak else cur_price,
-            'low_price': round(self._position_low, 2) if self._position_low else cur_price,
-        })
-
-        self.close_all_positions(self._instrument_id)
-        self._position_side = None
-        self._entry_price = None
-        self._current_entry_time = None
-        self._last_exit_bar = self._bar_number
-        self._position_peak = None
-        self._position_low = None
-
-    def on_stop(self):
-        pass
-
-    def on_reset(self):
-        self._current_date = None
-        self._or_levels = None
-        self._or_candles = []
-        self._or_defined = False
-        self._position_side = None
-        self._entry_price = None
-
-
-class ORBConfig(StrategyConfig, kw_only=True):
-    """Configuration for simplified ORB strategy."""
-    instrument_id: InstrumentId
-    bar_type: BarType
-    or_minutes: int = 45
-    sl_pct: float = 1.0
-    tp_pct: float = 1.5
-    trade_size: int = 100
-    enable_shorts: bool = False
-    cooldown_bars: int = 3
-    breakout_buffer_pct: float = 0.3
+if _NAUTILUS_AVAILABLE:
+    class ORBConfig(StrategyConfig, kw_only=True):
+        """Configuration for simplified ORB strategy."""
+        instrument_id: InstrumentId
+        bar_type: BarType
+        or_minutes: int = 45
+        sl_pct: float = 1.0
+        tp_pct: float = 1.5
+        trade_size: int = 100
+        enable_shorts: bool = False
+        cooldown_bars: int = 3
+        breakout_buffer_pct: float = 0.3
+else:
+    ORBConfig = None
 
 
 class ORBStrategy(BaseStrategy):
@@ -546,92 +543,26 @@ class ORBStrategy(BaseStrategy):
         return errors
 
     def run(self, symbols: List[str], days: int, params: Dict, progress_callback=None) -> Dict:
-        results = []
-        chart_data = {}
-        all_candles = {}
-        skipped_stocks = []
-
-        from multiprocessing import Pool, cpu_count
         from db.models import get_shared_broker_token
 
         token_data = get_shared_broker_token('upstox')
         access_token = token_data.get('access_token') if token_data else None
 
         worker_args = [(symbol, params, days, access_token) for symbol in symbols]
-        total = len(symbols)
-        completed = 0
-        num_workers = min(4, cpu_count() or 4, max(1, total))
-        use_parallel = total > 1 and num_workers > 1
 
-        if use_parallel:
-            if progress_callback:
-                progress_callback(0, total, f"Starting parallel backtest with {num_workers} workers...")
-            with Pool(processes=num_workers) as pool:
-                for result in pool.imap_unordered(run_single_stock_backtest, worker_args, chunksize=2):
-                    completed += 1
-                    if progress_callback:
-                        progress_callback(completed, total, f"Completed {result['symbol']}...")
-                    if result['success']:
-                        # Always include candles for chart display
-                        if result.get('candles'):
-                            all_candles[result['symbol']] = result['candles']
-                        if result.get('result'):
-                            results.append(result['result'])
-                        if result.get('trade_list'):
-                            chart_data[result['symbol']] = {
-                                'trades': result['trade_list'],
-                                'visuals': self.get_visuals(result['trade_list'], params)
-                            }
-                    else:
-                        skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
-        else:
-            for args in worker_args:
-                completed += 1
-                result = run_single_stock_backtest(args)
-                if progress_callback:
-                    progress_callback(completed, total, f"Completed {result['symbol']}...")
-                if result['success']:
-                    # Always include candles for chart display
-                    if result.get('candles'):
-                        all_candles[result['symbol']] = result['candles']
-                    if result.get('result'):
-                        results.append(result['result'])
-                    if result.get('trade_list'):
-                        chart_data[result['symbol']] = {
-                            'trades': result['trade_list'],
-                            'visuals': self.get_visuals(result['trade_list'], params)
-                        }
-                else:
-                    skipped_stocks.append({'symbol': result['symbol'], 'error': result.get('error', 'Unknown')})
-
-        total_gross = sum(r['gross_pnl'] for r in results)
-        total_costs = sum(r['total_costs'] for r in results)
-        total_net = sum(r['net_pnl'] for r in results)
-        total_trades = sum(r['trades'] for r in results)
-        total_wins = sum(r['wins'] for r in results)
-        total_win_rate = (total_wins / total_trades * 100) if total_trades > 0 else 0
-
-        return {
-            'strategy': 'orb',
-            'config': {
-                'symbols': symbols,
-                'days': days,
-                'params': params,
-            },
-            'results': results,
-            'totals': {
-                'gross_pnl': round(total_gross, 2),
-                'total_costs': round(total_costs, 2),
-                'net_pnl': round(total_net, 2),
-                'trades': total_trades,
-                'win_rate': round(total_win_rate, 1),
-                'stocks_tested': len(results) + len(skipped_stocks),
-            },
-            'chart_data': chart_data,
-            'candles': all_candles,
-            'skipped_stocks': skipped_stocks,
-            'run_time': datetime.now().isoformat(),
-        }
+        # Use shared helper (DRYs ~60 line boiler vs sr/chaser; note orb always added candles on success path which helper replicates)
+        return self.run_backtests(
+            symbols=symbols,
+            days=days,
+            params=params,
+            run_single_func=run_single_stock_backtest,
+            worker_args=worker_args,
+            progress_callback=progress_callback,
+            strategy_key='orb',
+            use_parallel=None,
+            include_config=True,
+            include_run_time=True,
+        )
 
     def get_visuals(self, trades: List[Dict], params: Dict) -> List[Dict]:
         """Return ORB zones as chart visuals."""

@@ -8,8 +8,8 @@ import { formatCurrencyIN } from "../../utils/ui-helpers";
 
 function BotCard({ bot }: { bot: any }) {
   return (
-    <Paper withBorder p="sm" radius="md" style={{ minWidth: 280 }}>
-      <Flex justify="space-between" align="center" mb="xs">
+    <Paper withBorder p="xs" radius="md" style={{ minWidth: 280 }}>
+      <Flex justify="space-between" align="center" mb={2}>
         <Text fw={600} size="sm">{bot.name}</Text>
         <Badge size="sm" color={bot.running ? "green" : "gray"} variant="light">
           {bot.running ? "Running" : "Stopped"}
@@ -22,7 +22,7 @@ function BotCard({ bot }: { bot: any }) {
         <CompactStat label="Strategies" value={bot.strategies.length.toString()} />
       </CompactStatGrid>
       {bot.strategies.length > 0 && (
-        <Flex gap="4px" wrap="wrap" mt="xs">
+        <Flex gap="4px" wrap="wrap" mt={2}>
           {bot.strategies.map((s: any) => (
             <Badge key={s.id} size="xs" variant="outline" color="gray" style={{ textTransform: "none" }}>
               {s.name}
@@ -69,11 +69,11 @@ export function AggregatedDashboard() {
   }
 
   return (
-    <Flex direction="column" gap="md">
+    <Flex direction="column" gap="sm">
       <Text fw={700} size="lg">Multi-Bot Dashboard</Text>
 
-      <Paper withBorder p="md" radius="md">
-        <SimpleGrid cols={{ base: 2, md: 4, lg: 6 }} spacing="md">
+      <Paper withBorder p="sm" radius="md">
+        <SimpleGrid cols={{ base: 2, md: 4, lg: 6 }} spacing="xs">
           <CompactStat label="Total Bots" value={summary.total_bots.toString()} />
           <CompactStat label="Running" value={summary.running_bots.toString()} />
           <CompactStat label="Open Positions" value={summary.total_positions.toString()} />
@@ -84,7 +84,7 @@ export function AggregatedDashboard() {
       </Paper>
 
       <ScrollArea>
-        <Flex gap="md" wrap="wrap">
+        <Flex gap="sm" wrap="wrap">
           {bots.map((bot) => (
             <BotCard key={bot.id} bot={bot} />
           ))}
@@ -93,13 +93,13 @@ export function AggregatedDashboard() {
 
       {bots.filter((b) => b.positions.length > 0).length > 0 && (
         <>
-          <Text fw={600} size="sm" mt="md">Open Positions</Text>
+          <Text fw={600} size="sm" mt="sm">Open Positions</Text>
           {bots.map((bot) =>
             bot.positions.length > 0 ? (
-              <Paper key={bot.id} withBorder p="sm" radius="md">
-                <Text fw={500} size="xs" mb="xs" c="dimmed">{bot.name} — {bot.positions.length} positions</Text>
+              <Paper key={bot.id} withBorder p="xs" radius="md">
+                <Text fw={500} size="xs" mb={2} c="dimmed">{bot.name} — {bot.positions.length} positions</Text>
                 {bot.positions.slice(0, 5).map((p: any, i: number) => (
-                  <Flex key={i} gap="md" p="2px 0" style={{ fontSize: 12 }}>
+                  <Flex key={i} gap="sm" p="2px 0" style={{ fontSize: 12 }}>
                     <Text w={80} fw={500}>{p.symbol}</Text>
                     <Badge size="xs" color={p.side === "BUY" ? "green" : "red"}>{p.side}</Badge>
                     <Text w={60}>{p.quantity} qty</Text>

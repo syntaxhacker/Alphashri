@@ -14,7 +14,7 @@ interface TradingCostsSectionProps {
 export function TradingCostsSection({ config, onChange }: TradingCostsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="costs-section">
-      <Text fw={600} size="xs" tt="uppercase" mb="xs">
+      <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Cost Parameters
       </Text>
       <Grid gutter={4}>
@@ -61,7 +61,7 @@ export function TradingCostsSection({ config, onChange }: TradingCostsSectionPro
           />
         </Grid.Col>
       </Grid>
-      <Grid gutter={4} mt={4}>
+      <Grid gutter={4} mt={2}>
         <Grid.Col span={{ base: 12, lg: 4 }}>
           <NumberInput
             label="Exchange %"
@@ -105,7 +105,7 @@ export function TradingCostsSection({ config, onChange }: TradingCostsSectionPro
           />
         </Grid.Col>
       </Grid>
-      <Grid gutter={4} mt={4}>
+      <Grid gutter={4} mt={2}>
         <Grid.Col span={12}>
           <NumberInput
             label="GST %"

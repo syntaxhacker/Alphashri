@@ -98,7 +98,7 @@ describe("buildGrid", () => {
     it("configures yAxis with splitArea", () => {
       const result = buildGrid(mockColors, false, false);
       expect(result.yAxes[0]).toMatchObject({
-        splitArea: { show: true },
+        splitArea: { show: false },
       });
     });
 
@@ -142,6 +142,49 @@ describe("buildGrid", () => {
         type: "slider",
         xAxisIndex: [0, 1],
       });
+    });
+  });
+
+  describe("x-axis label formatting", () => {
+    it("has a formatter function on xAxis", () => {
+      const result = buildGrid(mockColors, false, false);
+      expect(result.xAxes[0].axisLabel.formatter).toBeDefined();
+    });
+
+    it("passes through single-day time-only labels", () => {
+      const result = buildGrid(mockColors, false, false);
+      const formatter = result.xAxes[0].axisLabel.formatter as (value: string) => string;
+      expect(formatter("09:30")).toBe("09:30");
+      expect(formatter("14:45")).toBe("14:45");
+    });
+
+    it("formats multi-day labels to human-readable", () => {
+      const result = buildGrid(mockColors, false, false);
+      const formatter = result.xAxes[0].axisLabel.formatter as (value: string) => string;
+      const formatted = formatter("2026-06-12 09:30");
+      expect(formatted).toContain("Jun");
+      expect(formatted).toContain("12");
+      expect(formatted).toContain("09:30");
+    });
+
+    it("formats year-end multi-day labels correctly", () => {
+      const result = buildGrid(mockColors, false, false);
+      const formatter = result.xAxes[0].axisLabel.formatter as (value: string) => string;
+      const formatted = formatter("2026-01-05 10:00");
+      expect(formatted).toBe("Jan 5\n10:00");
+    });
+
+    it("formatter works with volume layout too", () => {
+      const result = buildGrid(mockColors, true, false);
+      const formatter = result.xAxes[0].axisLabel.formatter as (value: string) => string;
+      expect(formatter("09:30")).toBe("09:30");
+      const formatted = formatter("2026-06-12 09:30");
+      expect(formatted).toContain("Jun");
+    });
+
+    it("does not rotate labels", () => {
+      const result = buildGrid(mockColors, false, false);
+      expect(result.xAxes[0].axisLabel.rotate).toBe(0);
     });
   });
 

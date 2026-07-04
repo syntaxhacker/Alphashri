@@ -11,6 +11,7 @@ import config
 from fastapi import APIRouter, Query, HTTPException
 
 from api.screener import _to_float, _sanitize_for_json
+from api.utils import _ensure_datetime_index, _make_empty_chart_response
 
 router = APIRouter(tags=["chart"])
 
@@ -62,19 +63,9 @@ async def _get_last_trading_day(symbol: str) -> str:
 
 
 def _resample_candles(df, tf_minutes: int):
-    import pandas as pd
-
+    df = _ensure_datetime_index(df)
     if df is None or df.empty or tf_minutes <= 1:
         return df
-
-    if not isinstance(df.index, pd.DatetimeIndex):
-        if 'date' in df.columns:
-            df = df.set_index('date')
-        elif 'time' in df.columns:
-            df = df.set_index('time')
-
-    if not isinstance(df.index, pd.DatetimeIndex):
-        df.index = pd.to_datetime(df.index)
 
     agg_dict = {
         'open': 'first',
@@ -92,18 +83,10 @@ def _resample_candles(df, tf_minutes: int):
 
 
 def _calculate_orb_zones(df, or_minutes: int = 45):
-    import pandas as pd
-
     if df is None or df.empty:
         return []
 
-    if not isinstance(df.index, pd.DatetimeIndex):
-        if 'date' in df.columns:
-            df = df.set_index('date')
-        elif 'time' in df.columns:
-            df = df.set_index('time')
-        if not isinstance(df.index, pd.DatetimeIndex):
-            df.index = pd.to_datetime(df.index)
+    df = _ensure_datetime_index(df)
 
     zones = []
 
@@ -136,18 +119,10 @@ def _calculate_orb_zones(df, or_minutes: int = 45):
 
 
 def _calculate_pivot_points(df):
-    import pandas as pd
-
     if df is None or df.empty:
         return []
 
-    if not isinstance(df.index, pd.DatetimeIndex):
-        if 'date' in df.columns:
-            df = df.set_index('date')
-        elif 'time' in df.columns:
-            df = df.set_index('time')
-        if not isinstance(df.index, pd.DatetimeIndex):
-            df.index = pd.to_datetime(df.index)
+    df = _ensure_datetime_index(df)
 
     pivots = []
 
@@ -191,18 +166,10 @@ def _calculate_pivot_points(df):
 
 def _calculate_52w_high(df):
     """Calculate 52-week high from the full historical data."""
-    import pandas as pd
+    df = _ensure_datetime_index(df)
 
     if df is None or df.empty:
         return None
-
-    if not isinstance(df.index, pd.DatetimeIndex):
-        if 'date' in df.columns:
-            df = df.set_index('date')
-        elif 'time' in df.columns:
-            df = df.set_index('time')
-        if not isinstance(df.index, pd.DatetimeIndex):
-            df.index = pd.to_datetime(df.index)
 
     if 'high' not in df.columns:
         return None
@@ -235,8 +202,6 @@ def _format_candles_for_chart(df):
 
 def _filter_to_last_n_trading_days(df, n: int):
     """Filter DataFrame to include only the last N trading days."""
-    import pandas as pd
-
     if df is None or df.empty:
         return df
 
@@ -273,32 +238,18 @@ async def get_chart_preview(
     api_secret = app_config.UPSTOX_API_SECRET
 
     if not api_key or not api_secret:
-        return {
-            'symbol': symbol,
-            'candles': [],
-            'orb_zones': [],
-            'pivot_levels': [],
-            'high_52w': None,
-            'timeframe': tf,
-            'or_minutes': or_minutes,
-            'total_candles': 0,
-            'error': 'Upstox API credentials not configured'
-        }
+        return _make_empty_chart_response(
+            symbol, tf, or_minutes,
+            error='Upstox API credentials not configured'
+        )
 
     try:
         api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
     except Exception as e:
-        return {
-            'symbol': symbol,
-            'candles': [],
-            'orb_zones': [],
-            'pivot_levels': [],
-            'high_52w': None,
-            'timeframe': tf,
-            'or_minutes': or_minutes,
-            'total_candles': 0,
-            'error': f'Failed to initialize API: {str(e)}'
-        }
+        return _make_empty_chart_response(
+            symbol, tf, or_minutes,
+            error=f'Failed to initialize API: {str(e)}'
+        )
 
     try:
         # Compute the last trading day using weekend + holiday checks
@@ -332,15 +283,7 @@ async def get_chart_preview(
             pass
 
         if df is None or not hasattr(df, 'empty') or df.empty:
-            return {
-                'symbol': symbol,
-                'candles': [],
-                'orb_zones': [],
-                'pivot_levels': [],
-                'timeframe': tf,
-                'or_minutes': or_minutes,
-                'total_candles': 0,
-            }
+            return _make_empty_chart_response(symbol, tf, or_minutes, high_52w=False)
 
         # Filter to the last N trading days
         df = _filter_to_last_n_trading_days(df, days)
@@ -367,14 +310,4 @@ async def get_chart_preview(
         return result
 
     except Exception as e:
-        return {
-            'symbol': symbol,
-            'candles': [],
-            'orb_zones': [],
-            'pivot_levels': [],
-            'high_52w': None,
-            'timeframe': tf,
-            'or_minutes': or_minutes,
-            'total_candles': 0,
-            'error': str(e)
-        }
+        return _make_empty_chart_response(symbol, tf, or_minutes, error=str(e))

@@ -45,6 +45,7 @@ class StrategyConfigData:
     # Trading Runner Parameters
     cooldown_minutes: int = 30
     max_distance_from_or_pct: float = 1.5
+    max_distance_from_r1_pct: float = 5.0
 
     # 52W Chaser Parameters
     entry_threshold_pct: float = 3.0
@@ -74,6 +75,7 @@ class StrategyConfigData:
 
     # Screener Profiles (multi-select)
     screener_profiles: List[str] = field(default_factory=list)
+    custom_watchlist: List[str] = field(default_factory=list)
 
     # Cost Parameters
     brokerage_pct: float = 0.0003
@@ -110,6 +112,7 @@ class StrategyConfigData:
             max_trade_value=model.max_trade_value,
             cooldown_minutes=model.cooldown_minutes,
             max_distance_from_or_pct=model.max_distance_from_or_pct,
+            max_distance_from_r1_pct=model.max_distance_from_r1_pct,
             entry_threshold_pct=model.entry_threshold_pct,
             min_breakout_pct=model.min_breakout_pct,
             enable_trailing_stop=model.enable_trailing_stop,
@@ -126,6 +129,7 @@ class StrategyConfigData:
             eod_exit_hour=model.eod_exit_hour,
             eod_exit_minute=model.eod_exit_minute,
             screener_profiles=json.loads(model.screener_profiles) if isinstance(model.screener_profiles, str) else [],
+            custom_watchlist=json.loads(model.custom_watchlist) if isinstance(model.custom_watchlist, str) else [],
             ema_fast_period=model.ema_fast_period,
             ema_slow_period=model.ema_slow_period,
             brokerage_pct=model.brokerage_pct,
@@ -162,6 +166,7 @@ class StrategyConfigData:
             "max_trade_value": self.max_trade_value,
             "cooldown_minutes": self.cooldown_minutes,
             "max_distance_from_or_pct": self.max_distance_from_or_pct,
+            "max_distance_from_r1_pct": self.max_distance_from_r1_pct,
             "entry_threshold_pct": self.entry_threshold_pct,
             "min_breakout_pct": self.min_breakout_pct,
             "enable_trailing_stop": self.enable_trailing_stop,
@@ -178,6 +183,7 @@ class StrategyConfigData:
             "eod_exit_hour": self.eod_exit_hour,
             "eod_exit_minute": self.eod_exit_minute,
             "screener_profiles": self.screener_profiles,
+            "custom_watchlist": self.custom_watchlist,
             "ema_fast_period": self.ema_fast_period,
             "ema_slow_period": self.ema_slow_period,
             "brokerage_pct": self.brokerage_pct,

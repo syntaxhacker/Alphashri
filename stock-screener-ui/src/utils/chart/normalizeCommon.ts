@@ -19,6 +19,8 @@ interface RawTrade {
   side: string;
   net_pnl: number;
   costs: number;
+  stop_loss: number;
+  take_profit: number;
 }
 
 export function mapCandles(candles: RawCandle[]): UnifiedCandle[] {
@@ -54,5 +56,7 @@ export function mapTrades(
     side: t.side as "BUY" | "SELL",
     pnl: t.net_pnl,
     costs: t.costs,
+    stop_loss: t.stop_loss,
+    take_profit: t.take_profit,
   }));
 }
