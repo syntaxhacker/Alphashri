@@ -668,6 +668,13 @@ describe("refreshHistoryData", () => {
 });
 
 describe("fetchStrategyConfig", () => {
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),
+    } as Response);
+  });
+
   it("fetches config without strategy_id", async () => {
     mockedFetch.mockResolvedValue({
       json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),

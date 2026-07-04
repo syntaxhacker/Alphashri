@@ -118,7 +118,7 @@ export function SettingsPage() {
             <Switch
               size="sm"
               checked={showMarketTicker}
-              onChange={(checked) => setShowMarketTicker(checked)}
+              onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
             />
           </Box>
         </Stack>
