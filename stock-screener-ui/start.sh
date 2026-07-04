@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-set -euo pipefail
+set -uo pipefail
 
 cd "$(dirname "$0")"
 
@@ -10,6 +10,16 @@ UI_PORT="${UI_PORT:-5173}"
 API_LOG="${API_LOG:-logs/alphashri.log}"
 API_PID="/tmp/alphashri-api.pid"
 UI_PID="/tmp/alphashri-ui.pid"
+
+# ── Cleanup trap (Ctrl+C for `dev` mode) ────────────────────────────────
+cleanup() {
+  echo
+  echo "Stopping services..."
+  stop_frontend 2>/dev/null || true
+  stop_backend 2>/dev/null || true
+  echo "All stopped."
+}
+trap cleanup INT TERM
 
 # ── Health check ──────────────────────────────────────────────────────
 wait_for() {
