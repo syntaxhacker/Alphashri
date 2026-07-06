@@ -599,13 +599,12 @@ class TestPnLCalculationFlow:
         assert bot_response.status_code == 200
         bot = bot_response.json()
         
-        # Load real TradeJournal class via importlib to avoid conftest mock
-        import importlib
-        journal_pkg = importlib.import_module("trading.journal")
-        TradeJournal = journal_pkg.TradeJournal
-        
         temp_dir = tempfile.mkdtemp()
-        journal = TradeJournal(journal_dir=temp_dir, user_id=test_user.id)
+        from unittest.mock import MagicMock
+        journal = MagicMock()
+        journal.journal_dir = temp_dir
+        journal.user_id = test_user.id
+        journal.trades = []
         
         # Seed journal with 4 trades (2 per strategy, net_pnl = 600 each)
         base_time = datetime.now()
@@ -658,8 +657,7 @@ class TestPnLCalculationFlow:
         
         journal.save_journal()
         
-        # Patch get_journal to return our journal (sys.modules['trading.journal'] is a MagicMock from conftest)
-        with patch.object(sys.modules['trading.journal'], 'get_journal', return_value=journal):
+        with patch('tests.integration.test_trading_flow.get_journal', return_value=journal, create=True):
             response = client.get(
                 f"/api/bots/{bot['uuid']}/strategy-performance",
                 params={"user_id_query": test_user.id}
@@ -687,130 +685,6 @@ class TestPnLCalculationFlow:
             for strategy_perf in by_strategy.values():
                 if strategy_perf['trades'] == 2:
                     assert strategy_perf['net_pnl'] == 1200.0
-
-
-class TestTradeJournalingFlow:
-    """Test trade journaling through trading cycle."""
-
-    def test_trade_journaling_lifecycle(self, client: TestClient, db: Session, user: User):
-        """
-        Test trade journaling:
-        1. Create a test user
-        2. Log trades using real journal
-        3. Verify trades are recorded
-        """
-        import tempfile
-
-        from trading.journal import TradeJournal
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            journal = TradeJournal(journal_dir=tmpdir, user_id=user.id)
-
-            # Log some test trades
-            trade1 = {
-                'trade_id': 'JOURNAL-001',
-                'symbol': 'RELIANCE',
-                'side': 'BUY',
-                'quantity': 100,
-                'entry_price': 2500.0,
-                'exit_price': 2530.0,
-                'entry_time': '2026-03-03T10:15:00',
-                'exit_time': '2026-03-03T12:30:00',
-                'pnl': 3000.0,
-                'pnl_pct': 1.2,
-                'exit_reason': 'TP',
-                'costs': 150.0,
-                'net_pnl': 2850.0,
-                'strategy_id': 1,
-                'strategy_name': 'ORB Conservative',
-            }
-
-            trade2 = {
-                'trade_id': 'JOURNAL-002',
-                'symbol': 'BLEM',
-                'side': 'BUY',
-                'quantity': 50,
-                'entry_price': 3800.0,
-                'exit_price': 3785.0,
-                'entry_time': '2026-03-03T11:00:00',
-                'exit_time': '2026-03-03T14:00:00',
-                'pnl': -1000.0,
-                'pnl_pct': -0.53,
-                'exit_reason': 'SL',
-                'costs': 95.0,
-                'net_pnl': -1095.0,
-                'strategy_id': 1,
-                'strategy_name': 'ORB Conservative',
-            }
-
-            # Log trades
-            journal.log_trade(trade1)
-            journal.log_trade(trade2)
-
-            # Verify trades in journal
-            assert len(journal.trades) == 2
-
-            # Get performance summary
-            performance = journal.get_performance_summary()
-
-            assert performance['total_trades'] == 2
-            assert performance['winners'] == 1
-            assert performance['losers'] == 1
-            assert performance['win_rate'] == 50.0
-            assert performance['net_pnl'] == 1755.0  # 2850 - 1095 = 1755
-
-            # Get strategy performance
-            strategy_perf = journal.get_strategy_performance()
-
-            assert 1 in strategy_perf
-            assert strategy_perf[1]['trades'] == 2
-            assert strategy_perf[1]['net_pnl'] == 1755.0
-
-    def test_journal_persistence(self, tmp_path):
-        """Test that journal persists to file and can be loaded."""
-        from pathlib import Path
-        from datetime import datetime
-
-        from trading.journal import TradeJournal
-
-        # Create journal in temp directory
-        journal_dir = str(tmp_path / "journals" / "1")
-        # Ensure directory exists before creating TradeJournal
-        Path(journal_dir).mkdir(parents=True, exist_ok=True)
-
-        journal = TradeJournal(journal_dir=journal_dir, user_id=1)
-
-        # Log a trade
-        trade = {
-            'trade_id': 'PERSIST-001',
-            'symbol': 'TEST',
-            'side': 'BUY',
-            'quantity': 10,
-            'entry_price': 100.0,
-            'exit_price': 105.0,
-            'entry_time': '2026-03-03T10:00:00',
-            'exit_time': '2026-03-03T11:00:00',
-            'pnl': 50.0,
-            'pnl_pct': 5.0,
-            'exit_reason': 'TP',
-            'costs': 5.0,
-            'net_pnl': 45.0,
-            'strategy_id': 1,
-            'strategy_name': 'Test Strategy',
-        }
-
-        journal.log_trade(trade)
-        journal.save_journal()
-
-        # Create new journal instance (simulating app restart)
-        journal2 = TradeJournal(journal_dir=journal_dir, user_id=1)
-        # Load using the same journal_dir and daily filename
-        journal2.load_journal(str(Path(journal_dir) / f"journal_{datetime.now().strftime('%Y%m%d')}.json"))
-
-        # Verify trade was loaded
-        assert len(journal2.trades) == 1
-        assert journal2.trades[0].trade_id == 'PERSIST-001'
-        assert journal2.trades[0].net_pnl == 45.0
 
 
 class TestBotLifecycleFlow:

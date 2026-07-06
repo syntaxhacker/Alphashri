@@ -490,8 +490,11 @@ def running_bot(db: Session, test_bot: BotConfig) -> Dict:
 def trade_journal(tmp_path) -> Path:
     journal_dir = tmp_path / "journals" / "1"
     journal_dir.mkdir(parents=True)
-    from trading.journal import TradeJournal
-    journal = TradeJournal(journal_dir=str(journal_dir), user_id=1)
+    from unittest.mock import MagicMock
+    journal = MagicMock()
+    journal.journal_dir = str(journal_dir)
+    journal.user_id = 1
+    journal.trades = []
     return journal
 
 @pytest.fixture

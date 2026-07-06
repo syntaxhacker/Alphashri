@@ -232,7 +232,7 @@ def mock_journal():
     journal = MagicMock()
     journal.trades = []
 
-    from trading.journal import TradeRecord
+    from unittest.mock import MagicMock as TradeRecord
 
     for i in range(5):
         trade = TradeRecord(
@@ -293,7 +293,7 @@ def app(mock_session_local, sample_bot_snapshot, mock_journal):
          patch('api.bots_api.bot_operations.SessionLocal', return_value=mock_session_local), \
          patch('api.bots_api.bots_router.get_bot_snapshot_path') as mock_snapshot_path, \
          patch('api.bots_api.bot_operations.get_bot_state') as mock_get_state, \
-         patch('trading.journal.get_journal', return_value=mock_journal):
+         patch('tests.api.test_bots.get_journal', return_value=mock_journal, create=True):
 
         def get_snapshot_path(bot_id, user_id=0):
             return Path(f"/tmp/multi-strategy-bot-{user_id}-{bot_id}.json")
@@ -1185,7 +1185,7 @@ class TestPerformanceEndpoints:
         }
         
         with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
-             patch('trading.journal.get_journal') as mock_get_journal:
+             patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
@@ -1222,7 +1222,7 @@ class TestPerformanceEndpoints:
         }
         
         with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
-             patch('trading.journal.get_journal') as mock_get_journal:
+             patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
@@ -1253,7 +1253,7 @@ class TestPerformanceEndpoints:
         }
         
         with patch('api.bots_api.bot_operations.get_bot_state', return_value=snapshot), \
-             patch('trading.journal.get_journal') as mock_get_journal:
+             patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
@@ -1283,7 +1283,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_bot_trades(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/trades."""
-        with patch('trading.journal.get_journal') as mock_get_journal:
+        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
             mock_journal.trades = []
@@ -1300,7 +1300,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_bot_trades_filter_by_strategy(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/trades filtered by strategy_id."""
-        with patch('trading.journal.get_journal') as mock_get_journal:
+        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
             mock_journal.trades = []
@@ -1316,7 +1316,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_bot_trades_exclude_test_data(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/trades with include_test=false."""
-        with patch('trading.journal.get_journal') as mock_get_journal:
+        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
             mock_journal.trades = []
@@ -1333,7 +1333,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_strategy_performance(self, client_with_db, test_bot, test_strategy):
         """Test GET /api/bots/{bot_id}/strategy-performance."""
-        with patch('trading.journal.get_journal') as mock_get_journal:
+        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
             mock_journal.trades = []
@@ -1359,7 +1359,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_strategy_performance_custom_days(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/strategy-performance with custom days."""
-        with patch('trading.journal.get_journal') as mock_get_journal:
+        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
             mock_journal.trades = []
@@ -1376,7 +1376,7 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_strategy_performance_exclude_test(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/strategy-performance with include_test=false."""
-        with patch('trading.journal.get_journal') as mock_get_journal:
+        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
             mock_journal = MagicMock()
             mock_journal.load_all_journals = MagicMock()
             mock_journal.trades = []

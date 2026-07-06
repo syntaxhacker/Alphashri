@@ -9,11 +9,8 @@ Run with: python -m pytest tests/test_multi_strategy_qa.py -v
 
 import pytest
 import sys
-import json
-import tempfile
 from pathlib import Path
-from datetime import datetime, timedelta
-from unittest.mock import Mock, patch, MagicMock
+from datetime import datetime
 
 # Add project path
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -29,9 +26,6 @@ from trading.global_risk_manager import (
     GlobalRiskManager,
     GlobalRiskConfig,
 )
-from trading.journal import TradeJournal, TradeRecord
-
-
 # ============================================
 # Test Fixtures - Dummy Data
 # ============================================
@@ -116,13 +110,6 @@ def risk_manager():
     )
 
 
-@pytest.fixture
-def temp_journal_dir():
-    """Temporary directory for journal files."""
-    with tempfile.TemporaryDirectory() as tmpdir:
-        yield Path(tmpdir)
-
-
 # ============================================
 # QA Test: Complete Trading Day Simulation
 # ============================================
@@ -138,11 +125,9 @@ class TestCompleteTradingDay:
         portfolio_with_strategies,
         risk_manager,
         dummy_stock_prices,
-        temp_journal_dir,
     ):
         """Simulate a full trading day with entries, updates, and exits."""
         portfolio = portfolio_with_strategies
-        journal = TradeJournal(journal_dir=str(temp_journal_dir))
 
         # ========================================
         # PHASE 1: Market Open - Initial Positions
@@ -308,25 +293,6 @@ class TestCompleteTradingDay:
         assert trade_1.pnl > 0
         print(f"✓ RELIANCE closed at TP: P&L ₹{trade_1.pnl:.2f}, Net ₹{trade_1.net_pnl:.2f}")
 
-        # Log to journal
-        journal.log_trade({
-            'trade_id': trade_1.trade_id,
-            'symbol': trade_1.symbol,
-            'side': trade_1.side.value,
-            'quantity': trade_1.quantity,
-            'entry_price': trade_1.entry_price,
-            'exit_price': trade_1.exit_price,
-            'entry_time': trade_1.entry_time.isoformat(),
-            'exit_time': trade_1.exit_time.isoformat(),
-            'pnl': trade_1.pnl,
-            'pnl_pct': trade_1.pnl_pct,
-            'exit_reason': trade_1.exit_reason,
-            'costs': trade_1.costs,
-            'net_pnl': trade_1.net_pnl,
-            'strategy_id': trade_1.strategy_id,
-            'strategy_name': trade_1.strategy_name,
-        })
-
         # Close TCS at loss (SL hit)
         trade_2 = portfolio.close_position(
             strategy_id=2,
@@ -338,24 +304,6 @@ class TestCompleteTradingDay:
         assert trade_2 is not None
         assert trade_2.pnl < 0
         print(f"✓ TCS closed at SL: P&L ₹{trade_2.pnl:.2f}, Net ₹{trade_2.net_pnl:.2f}")
-
-        journal.log_trade({
-            'trade_id': trade_2.trade_id,
-            'symbol': trade_2.symbol,
-            'side': trade_2.side.value,
-            'quantity': trade_2.quantity,
-            'entry_price': trade_2.entry_price,
-            'exit_price': trade_2.exit_price,
-            'entry_time': trade_2.entry_time.isoformat(),
-            'exit_time': trade_2.exit_time.isoformat(),
-            'pnl': trade_2.pnl,
-            'pnl_pct': trade_2.pnl_pct,
-            'exit_reason': trade_2.exit_reason,
-            'costs': trade_2.costs,
-            'net_pnl': trade_2.net_pnl,
-            'strategy_id': trade_2.strategy_id,
-            'strategy_name': trade_2.strategy_name,
-        })
 
         # Close both INFY positions
         trade_3 = portfolio.close_position(
@@ -373,25 +321,6 @@ class TestCompleteTradingDay:
             costs=40,
         )
 
-        for t in [trade_3, trade_4]:
-            journal.log_trade({
-                'trade_id': t.trade_id,
-                'symbol': t.symbol,
-                'side': t.side.value,
-                'quantity': t.quantity,
-                'entry_price': t.entry_price,
-                'exit_price': t.exit_price,
-                'entry_time': t.entry_time.isoformat(),
-                'exit_time': t.exit_time.isoformat(),
-                'pnl': t.pnl,
-                'pnl_pct': t.pnl_pct,
-                'exit_reason': t.exit_reason,
-                'costs': t.costs,
-                'net_pnl': t.net_pnl,
-                'strategy_id': t.strategy_id,
-                'strategy_name': t.strategy_name,
-            })
-
         # ========================================
         # PHASE 5: Verify Final State
         # ========================================
@@ -401,40 +330,9 @@ class TestCompleteTradingDay:
         assert len(portfolio.positions) == 0
         print("✓ All positions closed")
 
-        # 4 trades recorded
+        # 4 trades recorded in portfolio
         assert len(portfolio.trades) == 4
-        assert len(journal.trades) == 4
-        print(f"✓ 4 trades recorded in journal")
-
-        # Strategy performance
-        strategy_perf = journal.get_strategy_performance()
-        assert 1 in strategy_perf  # ORB Conservative
-        assert 2 in strategy_perf  # ORB Aggressive
-        print(f"✓ Strategy performance tracked")
-
-        # Display results
-        print("\n--- Strategy Performance ---")
-        for sid, perf in strategy_perf.items():
-            print(f"  {perf['strategy_name']}:")
-            print(f"    Trades: {perf['trades']}, Win Rate: {perf['win_rate']}%")
-            print(f"    Net P&L: ₹{perf['net_pnl']:.2f}")
-
-        # Overall performance
-        overall = journal.get_performance_summary()
-        print(f"\n--- Overall Performance ---")
-        print(f"  Total Trades: {overall['total_trades']}")
-        print(f"  Win Rate: {overall['win_rate']:.1f}%")
-        print(f"  Net P&L: ₹{overall['net_pnl']:.2f}")
-        print(f"  Profit Factor: {overall['profit_factor']:.2f}")
-
-        # Save journal
-        journal.save_journal()
-        print("\n✓ Journal saved")
-
-        # Verify journal file
-        journal_files = list(temp_journal_dir.glob("*.json"))
-        assert len(journal_files) == 1
-        print(f"✓ Journal file created: {journal_files[0].name}")
+        print(f"✓ 4 trades recorded")
 
 
 # ============================================
@@ -577,90 +475,6 @@ class TestRiskManagementEdgeCases:
 
 
 # ============================================
-# QA Test: Journal and Performance Tracking
-# ============================================
-
-class TestJournalTracking:
-    """Test journal and performance tracking functionality."""
-
-    def test_strategy_performance_tracking(self, temp_journal_dir):
-        """Verify strategy-specific performance is tracked correctly."""
-        journal = TradeJournal(journal_dir=str(temp_journal_dir))
-
-        # Add trades for different strategies
-        trades = [
-            {'symbol': 'A', 'strategy_id': 1, 'strategy_name': 'Cons', 'net_pnl': 1000},
-            {'symbol': 'B', 'strategy_id': 1, 'strategy_name': 'Cons', 'net_pnl': -500},
-            {'symbol': 'C', 'strategy_id': 2, 'strategy_name': 'Aggr', 'net_pnl': 2000},
-            {'symbol': 'D', 'strategy_id': 2, 'strategy_name': 'Aggr', 'net_pnl': -300},
-            {'symbol': 'E', 'strategy_id': 2, 'strategy_name': 'Aggr', 'net_pnl': 1500},
-        ]
-
-        for i, t in enumerate(trades):
-            journal.log_trade({
-                'trade_id': f'TRADE-{i:03d}',
-                'symbol': t['symbol'],
-                'side': 'BUY',
-                'quantity': 10,
-                'entry_price': 100,
-                'exit_price': 100 + t['net_pnl'] / 10,
-                'entry_time': '2024-01-01T10:00:00',
-                'exit_time': '2024-01-01T11:00:00',
-                'pnl': t['net_pnl'] + 10,
-                'pnl_pct': 1.0,
-                'exit_reason': 'TP',
-                'costs': 10,
-                'net_pnl': t['net_pnl'],
-                'strategy_id': t['strategy_id'],
-                'strategy_name': t['strategy_name'],
-            })
-
-        # Get strategy performance
-        perf = journal.get_strategy_performance()
-
-        assert 1 in perf
-        assert 2 in perf
-        assert perf[1]['trades'] == 2
-        assert perf[2]['trades'] == 3
-        assert perf[1]['net_pnl'] == 500  # 1000 - 500
-        assert perf[2]['net_pnl'] == 3200  # 2000 - 300 + 1500
-        print(f"✓ Strategy performance tracked correctly")
-
-    def test_daily_summary_tracking(self, temp_journal_dir):
-        """Verify daily summaries are calculated correctly."""
-        journal = TradeJournal(journal_dir=str(temp_journal_dir))
-
-        today = datetime.now().strftime('%Y-%m-%d')
-
-        # Add trades
-        for i in range(5):
-            journal.log_trade({
-                'trade_id': f'TRADE-{i:03d}',
-                'symbol': f'STOCK{i}',
-                'side': 'BUY',
-                'quantity': 10,
-                'entry_price': 100,
-                'exit_price': 105 if i < 3 else 95,
-                'entry_time': f'{today}T10:00:00',
-                'exit_time': f'{today}T11:00:00',
-                'pnl': 50 if i < 3 else -50,
-                'pnl_pct': 5.0 if i < 3 else -5.0,
-                'exit_reason': 'TP' if i < 3 else 'SL',
-                'costs': 5,
-                'net_pnl': 45 if i < 3 else -55,
-                'strategy_id': 1,
-                'strategy_name': 'Test',
-            })
-
-        daily = journal.get_daily_report()
-        assert daily['trades'] == 5
-        assert daily['winners'] == 3
-        assert daily['losers'] == 2
-        assert daily['net_pnl'] == 25  # 3*45 - 2*55 = 135 - 110
-        print(f"✓ Daily summary: {daily['winners']}W/{daily['losers']}L, Net ₹{daily['net_pnl']}")
-
-
-# ============================================
 # QA Test: Concurrent Strategy Operations
 # ============================================
 
@@ -727,86 +541,6 @@ class TestConcurrentOperations:
         assert status2['available_capital'] == status2['allocated_capital']
         print(f"✓ Strategy 1 capital used: ₹{status1['capital_used']:,.0f}")
         print(f"✓ Strategy 2 capital available: ₹{status2['available_capital']:,.0f}")
-
-
-# ============================================
-# QA Test: Data Export and Persistence
-# ============================================
-
-class TestDataPersistence:
-    """Test data export and persistence."""
-
-    def test_journal_export_csv(self, temp_journal_dir):
-        """Test journal export to CSV."""
-        journal = TradeJournal(journal_dir=str(temp_journal_dir))
-
-        # Add some trades
-        for i in range(3):
-            journal.log_trade({
-                'trade_id': f'TRADE-{i:03d}',
-                'symbol': f'STOCK{i}',
-                'side': 'BUY',
-                'quantity': 10,
-                'entry_price': 100,
-                'exit_price': 110,
-                'entry_time': '2024-01-01T10:00:00',
-                'exit_time': '2024-01-01T11:00:00',
-                'pnl': 100,
-                'pnl_pct': 10.0,
-                'exit_reason': 'TP',
-                'costs': 5,
-                'net_pnl': 95,
-                'strategy_id': 1,
-                'strategy_name': 'Test',
-            })
-
-        # Export
-        csv_path = journal.export_to_csv()
-        assert Path(csv_path).exists()
-
-        # Read and verify
-        with open(csv_path, 'r') as f:
-            content = f.read()
-            assert 'TRADE-000' in content
-            assert 'STOCK0' in content
-            assert 'strategy_id' in content.lower() or 'Test' in content
-
-        print(f"✓ Journal exported to CSV: {csv_path}")
-
-    def test_journal_save_and_load(self, temp_journal_dir):
-        """Test journal save and load cycle."""
-        journal1 = TradeJournal(journal_dir=str(temp_journal_dir))
-
-        # Add trades
-        for i in range(5):
-            journal1.log_trade({
-                'trade_id': f'TRADE-{i:03d}',
-                'symbol': f'STOCK{i}',
-                'side': 'BUY',
-                'quantity': 10,
-                'entry_price': 100 + i * 10,
-                'exit_price': 110 + i * 10,
-                'entry_time': f'2024-01-0{i+1}T10:00:00',
-                'exit_time': f'2024-01-0{i+1}T11:00:00',
-                'pnl': 100,
-                'pnl_pct': 10.0,
-                'exit_reason': 'TP',
-                'costs': 5,
-                'net_pnl': 95,
-                'strategy_id': i % 2 + 1,
-                'strategy_name': f'Strategy{i % 2 + 1}',
-            })
-
-        journal1.save_journal()
-
-        # Create new journal and load
-        journal2 = TradeJournal(journal_dir=str(temp_journal_dir))
-        journal_files = list(temp_journal_dir.glob("*.json"))
-        journal2.load_journal(str(journal_files[0]))
-
-        assert len(journal2.trades) == 5
-        assert len(journal2.daily_summaries) > 0
-        print(f"✓ Journal saved and loaded: {len(journal2.trades)} trades")
 
 
 # ============================================

@@ -5,7 +5,6 @@ Components:
 - paper_trader: Simulated trading with virtual money
 - orb_signals: Live ORB signal generation
 - risk_manager: Position sizing and risk controls
-- journal: Trade logging and analysis
 """
 
 from .paper_trader import PaperTrader

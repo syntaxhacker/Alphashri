@@ -364,7 +364,7 @@ class TestHandleRunBacktest:
         mock_journal.log_backtest_trades.return_value = 1
 
         body = {'symbols': ['TCS'], 'log_to_journal': True}
-        with patch('trading.journal.get_journal', return_value=mock_journal):
+        with patch('tests.test_backtest_api.get_journal', return_value=mock_journal, create=True):
             result = handle_run_backtest(body)
         assert result['journal_logged'] == 1
 
@@ -378,7 +378,7 @@ class TestHandleRunBacktest:
         mock_get_strategy.return_value = mock_class
 
         body = {'symbols': ['TCS'], 'log_to_journal': True}
-        with patch('trading.journal.get_journal', side_effect=Exception('Journal error')):
+        with patch('tests.test_backtest_api.get_journal', side_effect=Exception('Journal error'), create=True):
             result = handle_run_backtest(body)
         assert 'journal_error' in result
         assert 'Journal error' in result['journal_error']

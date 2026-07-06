@@ -26,6 +26,10 @@ class Trade(PaperTradingMixin, Base):
     user = relationship("User", backref="trades")
     bot = relationship("BotConfig", backref="trades")
 
+    __table_args__ = (
+        UniqueConstraint("bot_id", "strategy_id", "symbol", "entry_time", name="uq_trade_bot_strategy_symbol_entry"),
+    )
+
     def to_dict(self):
         hold = None
         if self.entry_time and self.exit_time:

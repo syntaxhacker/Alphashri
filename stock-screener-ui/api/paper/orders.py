@@ -100,7 +100,6 @@ async def close_position(request: ClosePositionRequest, user: "User" = Depends(g
     )
 
     if trade is not None:
-        journal.save_journal()
         return {
             "trade_id": trade.trade_id,
             "symbol": trade.symbol,

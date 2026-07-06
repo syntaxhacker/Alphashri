@@ -471,32 +471,53 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         try:
             with self._db_session() as db:
                 from db.models import Trade
-                trade = Trade(
-                    user_id=self.user_id,
-                    bot_id=self.bot_config.id if self.bot_config else 0,
-                    strategy_id=trade_data.get('strategy_id', 0),
-                    strategy_name=trade_data.get('strategy_name', ''),
-                    symbol=trade_data['symbol'],
-                    side=trade_data['side'],
-                    quantity=trade_data['quantity'],
-                    entry_price=trade_data['entry_price'],
-                    exit_price=trade_data.get('exit_price'),
-                    entry_time=trade_data['entry_time'] if isinstance(trade_data['entry_time'], datetime) else datetime.fromisoformat(trade_data['entry_time']),
-                    exit_time=trade_data.get('exit_time'),
-                    stop_loss=trade_data.get('stop_loss', 0.0),
-                    take_profit=trade_data.get('take_profit', 0.0),
-                    pnl=trade_data.get('pnl', 0.0),
-                    pnl_pct=trade_data.get('pnl_pct', 0.0),
-                    costs=trade_data.get('costs', 0.0),
-                    net_pnl=trade_data.get('net_pnl', 0.0),
-                    exit_reason=trade_data.get('exit_reason', ''),
-                    reason=trade_data.get('reason', ''),
-                    peak_price=trade_data.get('peak_price', 0.0),
-                    low_price=trade_data.get('low_price', 0.0),
-                    is_test=self.test_mode,
-                    source='live' if not self.test_mode else 'test',
-                )
-                db.add(trade)
+                entry_time = trade_data['entry_time']
+                if isinstance(entry_time, str):
+                    entry_time = datetime.fromisoformat(entry_time)
+                existing = db.query(Trade).filter(
+                    Trade.bot_id == (self.bot_config.id if self.bot_config else 0),
+                    Trade.strategy_id == trade_data.get('strategy_id', 0),
+                    Trade.symbol == trade_data['symbol'],
+                    Trade.entry_time == entry_time,
+                ).first()
+                if existing:
+                    existing.exit_price = trade_data.get('exit_price')
+                    existing.exit_time = trade_data.get('exit_time')
+                    existing.pnl = trade_data.get('pnl', 0.0)
+                    existing.pnl_pct = trade_data.get('pnl_pct', 0.0)
+                    existing.costs = trade_data.get('costs', 0.0)
+                    existing.net_pnl = trade_data.get('net_pnl', 0.0)
+                    existing.exit_reason = trade_data.get('exit_reason', '')
+                    existing.reason = trade_data.get('reason', '')
+                    existing.peak_price = trade_data.get('peak_price', 0.0)
+                    existing.low_price = trade_data.get('low_price', 0.0)
+                else:
+                    trade = Trade(
+                        user_id=self.user_id,
+                        bot_id=self.bot_config.id if self.bot_config else 0,
+                        strategy_id=trade_data.get('strategy_id', 0),
+                        strategy_name=trade_data.get('strategy_name', ''),
+                        symbol=trade_data['symbol'],
+                        side=trade_data['side'],
+                        quantity=trade_data['quantity'],
+                        entry_price=trade_data['entry_price'],
+                        exit_price=trade_data.get('exit_price'),
+                        entry_time=entry_time,
+                        exit_time=trade_data.get('exit_time'),
+                        stop_loss=trade_data.get('stop_loss', 0.0),
+                        take_profit=trade_data.get('take_profit', 0.0),
+                        pnl=trade_data.get('pnl', 0.0),
+                        pnl_pct=trade_data.get('pnl_pct', 0.0),
+                        costs=trade_data.get('costs', 0.0),
+                        net_pnl=trade_data.get('net_pnl', 0.0),
+                        exit_reason=trade_data.get('exit_reason', ''),
+                        reason=trade_data.get('reason', ''),
+                        peak_price=trade_data.get('peak_price', 0.0),
+                        low_price=trade_data.get('low_price', 0.0),
+                        is_test=self.test_mode,
+                        source='live' if not self.test_mode else 'test',
+                    )
+                    db.add(trade)
         except Exception:
             pass
 
