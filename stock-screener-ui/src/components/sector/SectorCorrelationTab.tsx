@@ -217,7 +217,7 @@ export function SectorCorrelationTab() {
 
   if (stateLoading && !data) return <LoadingState />;
   if (stateError) return <ErrorState error={stateError} />;
-  if (!data || data.sector_names.length === 0) {
+  if (!data || !data.sector_names || data.sector_names.length === 0) {
     return (
       <CompactPanel title="No data" description="No correlation data available.">
         <Box />
