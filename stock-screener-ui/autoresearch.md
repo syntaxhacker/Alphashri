@@ -51,4 +51,6 @@ Data: yfinance daily (NSE/BSE)
 - Fast execution: 5 workers, yfinance cached data
 
 ## What's Been Tried
-(Baseline will be added after first run)
+- **Baseline** (SL=2%, TP=3%, entry>+0.5%, up_day): PF=0.8188, WR=39.3%, Net=₹-712K, 3689 trades across 79 stocks
+  - SL exits (1632) outnumber TP exits (1009) significantly — SL/TP ratio is asymmetric in favor of losses
+  - Most exits are via CLOSE (1048) — many trades held to expiration without hitting either target
