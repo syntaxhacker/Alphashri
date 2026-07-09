@@ -55,7 +55,12 @@ Data: yfinance daily (NSE/BSE)
   - 2% SL: PF=0.82, 1% SL: PF=1.08, 0.5% SL: PF=1.47, 0.1% SL: PF=2.74, 0.001% SL: PF=4.04
   - **No SL is worse** (PF=1.05) — SL is essential
 - **No TP beats any TP**: Removing TP gives PF=1.08 vs TP=3% gives PF=0.82
-- **any_day beats up_day**: No entry threshold gives PF=1.16 vs up_day PF=1.08 (buying after up-day means buying high)
-- **Higher mcap helps marginally**: mcap>=10000Cr gives PF=4.18 (best) vs mcap>=1000 gives PF=4.04
+- **any_day beats up_day**: No entry threshold gives PF=1.16 vs up_day PF=1.08
+- **volume_surge gives highest PF**: PF=4.20 (H1 2026) / PF=3.88 (full year) — fewer but higher-quality trades
+- **Higher mcap helps marginally**: mcap>=10000Cr gives PF=4.18 vs mcap>=1000 gives PF=4.04
 - **Price filter doesn't help**: price>=200 gave PF=4.10 vs baseline at same SL
+- **Full year robustness**: Best config PF=3.88 (volume_surge) / 2.85 (any_day) across Jul 2025-Jun 2026
 - **100% stocks profitable** at SL<=0.05% with any_day/no TP config
+- **Best configs**:
+  - Highest PF: volume_surge, SL=0.001%, no TP, mcap>=1000Cr (PF=3.88 FY / 4.20 H1)
+  - Most trades: any_day, SL=0.001%, no TP, mcap>=1000Cr (PF=2.85 FY / 4.04 H1)

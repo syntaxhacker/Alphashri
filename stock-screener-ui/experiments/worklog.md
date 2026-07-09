@@ -123,3 +123,51 @@ Started: 2026-07-09
 - What changed: SL=0.001%, any_day, no TP, mcap>=1000, price>=200
 - Result: PF=4.101, 8223 trades, 68 stocks, Net=₹+3.69M
 - Insight: Price filter doesn't help at tight SL levels.
+
+### Run 18: volume_surge — profit_factor=4.196 (KEEP, NEW BEST)
+- Timestamp: 2026-07-09
+- What changed: volume_surge entry mode, SL=0.001%, no TP, H1 2026
+- Result: PF=4.196 (+412%), 1109 trades, WR=13.6%, Net=₹+521K
+- Insight: volume_surge gives highest PF but fewest trades. Quality over quantity.
+
+### Run 19: volume_surge + mcap>=5000 — profit_factor=3.904 (DISCARD)
+- Timestamp: 2026-07-09
+- What changed: volume_surge, mcap>=5000, SL=0.001%, H1 2026
+- Result: PF=3.90, 608 trades, Net=₹+259K
+- Insight: mcap filter doesn't improve volume_surge either.
+
+### Run 20: H2 2025 regime test — profit_factor=1.626 (DISCARD)
+- Timestamp: 2026-07-09
+- What changed: any_day, SL=0.01%, no TP, Jul-Dec 2025
+- Result: PF=1.626, 8027 trades, WR=9.4%, Net=₹+815K
+- Insight: Strategy works across regimes but Jul-Dec 2025 was tougher.
+
+### Run 21: Full year (Jul 2025 - Jun 2026) — profit_factor=2.721 (KEEP)
+- Timestamp: 2026-07-09
+- What changed: any_day, SL=0.01%, no TP, full year
+- Result: PF=2.721, 18486 trades, WR=12.1%, Net=₹+5.0M
+- Insight: Solid full-year PF. July-Dec 2025 drags down the avg.
+
+### Run 22: SL=0.05% full year — profit_factor=2.327 (DISCARD)
+- Timestamp: 2026-07-09
+- What changed: SL=0.05%, any_day, no TP, full year
+- Result: PF=2.327, 18486 trades, Net=₹+4.7M
+- Insight: SL=0.01% still better than 0.05% on full year.
+
+### Run 23: SL=0.001% full year — profit_factor=2.850 (KEEP)
+- Timestamp: 2026-07-09
+- What changed: SL=0.001%, any_day, no TP, full year
+- Result: PF=2.850, 18486 trades, WR=12.0%, Net=₹+5.1M
+- Insight: Tighter SL still wins on full year. 98.7% stocks profitable.
+
+### Run 24: volume_surge full year — profit_factor=3.879 (KEEP, BEST FY)
+- Timestamp: 2026-07-09
+- What changed: volume_surge, SL=0.001%, no TP, full year
+- Result: PF=3.879, 1985 trades, WR=13.7%, Net=₹+839K
+- Insight: **Best full-year PF**. volume_surge filters noise effectively.
+
+### Run 25: volume_surge + mcap>=5000 full year — profit_factor=3.353 (DISCARD)
+- Timestamp: 2026-07-09
+- What changed: volume_surge, mcap>=5000, SL=0.001%, full year
+- Result: PF=3.353, 1055 trades, Net=₹+370K
+- Insight: mcap filter reduces both trades and PF.
