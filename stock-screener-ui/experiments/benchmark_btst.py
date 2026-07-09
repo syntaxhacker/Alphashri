@@ -19,6 +19,7 @@ Environment variables:
   BTST_DATE_START=2026-01-01
   BTST_DATE_END=2026-07-01
   BTST_TRADE_CAPITAL=100000  Capital per trade (INR)
+  BTST_SLIPPAGE_PCT=0.0     Slippage per trade (e.g. 0.1 = 0.1% worse price on entry AND exit)
 """
 import os, sys, time, math
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -46,6 +47,7 @@ ENV = {
     "DATE_START": os.environ.get("BTST_DATE_START", "2026-01-01"),
     "DATE_END": os.environ.get("BTST_DATE_END", "2026-07-01"),
     "TRADE_CAPITAL": float(os.environ.get("BTST_TRADE_CAPITAL", "100000")),
+    "SLIPPAGE_PCT": float(os.environ.get("BTST_SLIPPAGE_PCT", "0.0")),
 }
 
 # Delivery trading costs (BTST is delivery, not intraday)
@@ -103,6 +105,7 @@ def sim_symbol(df):
     entry_threshold = ENV["ENTRY_THRESHOLD"] / 100
     entry_mode = ENV["ENTRY_MODE"]
     capital = ENV["TRADE_CAPITAL"]
+    slippage = ENV["SLIPPAGE_PCT"] / 100
 
     closes = df['close'].values
     highs = df['high'].values
@@ -150,6 +153,10 @@ def sim_symbol(df):
         shares = int(capital / entry_price)
         if shares == 0:
             continue
+
+        if slippage > 0:
+            entry_price = entry_price * (1 + slippage)
+            exit_price = exit_price * (1 - slippage)
 
         gross_pnl = (exit_price - entry_price) * shares
         costs = calc_costs(entry_price, exit_price, shares)
@@ -200,6 +207,27 @@ def compute_metrics(all_trades):
         'total_costs': round(total_costs, 2),
         'avg_holding_days': round(total_holding / len(all_trades), 1) if all_trades else 0,
     }
+
+
+def nifty_return(start_date: str, end_date: str):
+    """Fetch Nifty 50 daily data and compute buy-and-hold return %."""
+    try:
+        nf = yf.download('^NSEI', start=start_date, end=end_date, progress=False)
+        if nf is None or nf.empty:
+            nf = yf.download('^NSETT', start=start_date, end=end_date, progress=False)
+        if nf is not None and not nf.empty:
+            if isinstance(nf.columns, pd.MultiIndex):
+                nf.columns = [c[0].lower() for c in nf.columns]
+            else:
+                nf.columns = [c.lower() for c in nf.columns]
+            nf = nf.sort_index()
+            first_close = float(nf['close'].iloc[0])
+            last_close = float(nf['close'].iloc[-1])
+            ret_pct = (last_close - first_close) / first_close * 100
+            return round(ret_pct, 2), round(first_close, 2), round(last_close, 2)
+    except Exception:
+        pass
+    return None, None, None
 
 
 def main():
@@ -301,6 +329,14 @@ def main():
           f"Stocks={total_count}/{len(symbols)} ProfRatio={profitable_ratio}% "
           f"AvgPF={avg_pf} ({elapsed:.0f}s)", file=sys.stderr)
     print(f"  SL/TP/CLOSE: {metrics['sl_exits']}/{metrics['tp_exits']}/{metrics['close_exits']}", file=sys.stderr)
+
+    nifty_ret, nifty_start, nifty_end = nifty_return(ENV['DATE_START'], ENV['DATE_END'])
+    if nifty_ret is not None:
+        print(f"  Nifty buy-and-hold: {nifty_ret}% ({nifty_start} → {nifty_end})", file=sys.stderr)
+    avg_trade_return = round(metrics['net_pnl'] / max(metrics['total_trades'], 1) / ENV['TRADE_CAPITAL'] * 100, 2)
+    print(f"  Avg return per trade: {avg_trade_return}%", file=sys.stderr)
+    if nifty_ret and avg_trade_return:
+        print(f"  BTST vs Nifty: {avg_trade_return}% vs {nifty_ret}% per-capital-unit", file=sys.stderr)
 
     print(f"METRIC profit_factor={metrics['profit_factor']}")
     print(f"METRIC win_rate={metrics['win_rate']}")
