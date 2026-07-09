@@ -1,0 +1,18 @@
+Name: Rohit Jogi
+Email: jrohit072@gmail.com
+Phone: +91 8179948668
+Location: Visakhapatnam, India
+CTC_Current: 18
+CTC_Expected: 25
+Notice_Period: 0
+Experience_Years: 5
+Stack_Primary: React, Node.js, Python, TypeScript
+Stack_Secondary: SQL, Redis, Docker, AWS
+Current_Employer: Imaginnovate
+Resume_Path: /home/mysyntax/Documents/Alphashri/rohit_jogi_resume.pdf
+LinkedIn: linkedin.com/in/rohitjogi
+Github: github.com/syntaxhacker
+Portfolio: https://www.rjis.online
+Remote_Only: false
+Onsite_Cities: Bengaluru, Hyderabad, Chennai, Pune
+Contract_OK: true

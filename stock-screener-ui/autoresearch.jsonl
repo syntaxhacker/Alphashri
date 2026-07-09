@@ -1,2 +1,1 @@
-{"type":"config","name":"optimize-screener-params","metricName":"aggregate_pf","metricUnit":"ratio","bestDirection":"higher"}
-{"run":1,"commit":"dddb1b5","metric":1.529,"metrics":{"qual_stocks":130,"total_trades":1454,"total_net_pnl":3040839,"avg_pf":3.3904,"profitable_ratio":85.4},"status":"keep","description":"baseline: mcap>=1000 atr>=3% price>=100 vol>=500k","timestamp":1782538780,"segment":0}
+{"type":"config","name":"btst-param-optimization","metricName":"profit_factor","metricUnit":"ratio","bestDirection":"higher"}

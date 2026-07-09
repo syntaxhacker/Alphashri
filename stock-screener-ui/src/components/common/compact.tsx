@@ -55,7 +55,7 @@ export function CompactPage({
           {actions}
         </Group>
       )}
-      <Box flex={1} style={{ minHeight: 0 }}>
+      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
         {children}
       </Box>
     </Stack>

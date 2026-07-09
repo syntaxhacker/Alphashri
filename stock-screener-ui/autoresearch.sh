@@ -7,13 +7,12 @@ cd "$SCRIPT_DIR"
 source .venv/bin/activate 2>/dev/null || true
 
 # Read params from env (set by autoresearch loop), with defaults matching baseline
-MIN_MCAP_CR="${MIN_MCAP_CR:-1000}"
-MIN_ATR_PCT="${MIN_ATR_PCT:-3.0}"
-MIN_PRICE="${MIN_PRICE:-100}"
-MIN_VOLUME="${MIN_VOLUME:-500000}"
+BTST_SL_PCT="${BTST_SL_PCT:-2.0}"
+BTST_TP_PCT="${BTST_TP_PCT:-3.0}"
+BTST_ENTRY_THRESHOLD="${BTST_ENTRY_THRESHOLD:-0.5}"
+BTST_ENTRY_MODE="${BTST_ENTRY_MODE:-up_day}"
+BTST_MIN_MCAP_CR="${BTST_MIN_MCAP_CR:-1000}"
+BTST_MIN_PRICE="${BTST_MIN_PRICE:-50}"
+BTST_LIMIT="${BTST_LIMIT:-100}"
 
-python3 experiments/benchmark_screener_params.py \
-    --min-mcap-cr "$MIN_MCAP_CR" \
-    --min-atr-pct "$MIN_ATR_PCT" \
-    --min-price "$MIN_PRICE" \
-    --min-volume "$MIN_VOLUME"
+python3 experiments/benchmark_btst.py

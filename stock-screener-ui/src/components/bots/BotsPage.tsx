@@ -216,9 +216,9 @@ function renderPageContent({
   }
 
   return (
-    <Stack id="bots-page" className="bots-page" h="100%" style={{ overflow: "hidden" }}>
+    <Stack id="bots-page" className="bots-page" h="100%">
       <BotsPageTabs currentView={currentView} onViewChange={handleViewChange} />
-      <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
+      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
         {isLoading ? (
           <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
             <InlineLoader size="lg" />

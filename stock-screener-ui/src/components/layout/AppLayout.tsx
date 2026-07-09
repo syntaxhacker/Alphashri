@@ -58,7 +58,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         bg={colors.background}
         c={colors.text}
         h="100%"
-        style={{ overflow: "hidden" }}
+        style={{ overflow: "auto" }}
         id="app-main"
         data-testid="app-main"
       >
