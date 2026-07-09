@@ -57,3 +57,9 @@
 {"run":56,"commit":"630c135","metric":1.284,"metrics":{"net_pnl":565927,"total_trades":4218,"win_rate":18.2},"status":"keep","description":"SR+BTST SL=0.3% 0.1%slip","timestamp":1783627593,"segment":0}
 {"run":57,"commit":"630c135","metric":1.3275,"metrics":{"net_pnl":727493,"total_trades":4218,"win_rate":21.8},"status":"keep","description":"SR+BTST SL=0.5% 0.05%slip","timestamp":1783627593,"segment":0}
 {"run":58,"commit":"630c135","metric":1.1201,"metrics":{"net_pnl":306139,"total_trades":4218,"win_rate":21.5},"status":"keep","description":"SR+BTST SL=0.5% 0.1%slip","timestamp":1783627593,"segment":0}
+{"run":59,"commit":"90576e9","metric":1.753,"metrics":{"net_pnl":1083253,"total_trades":3862,"win_rate":18.6},"status":"keep","description":"ADX(21)>35 adx_only SL=0.3% no_slip BEST","timestamp":1783628029,"segment":0}
+{"run":60,"commit":"90576e9","metric":1.674,"metrics":{"net_pnl":660477,"total_trades":2603,"win_rate":17.2},"status":"keep","description":"ADX(21)>35 adx_trend_up SL=0.3% no_slip","timestamp":1783628029,"segment":0}
+{"run":61,"commit":"90576e9","metric":1.665,"metrics":{"net_pnl":1458313,"total_trades":5845,"win_rate":18.3},"status":"keep","description":"ADX(21)>30 adx_only SL=0.3% no_slip","timestamp":1783628029,"segment":0}
+{"run":62,"commit":"90576e9","metric":1.594,"metrics":{"net_pnl":1531499,"total_trades":6839,"win_rate":18.0},"status":"keep","description":"ADX(14)>35 adx_only SL=0.3% no_slip","timestamp":1783628029,"segment":0}
+{"run":63,"commit":"90576e9","metric":1.398,"metrics":{"net_pnl":697212,"total_trades":3862,"win_rate":18.4},"status":"keep","description":"ADX(21)>35 adx_only SL=0.3% slip=0.05%","timestamp":1783628029,"segment":0}
+{"run":64,"commit":"90576e9","metric":1.151,"metrics":{"net_pnl":311219,"total_trades":3862,"win_rate":18.1},"status":"keep","description":"ADX(21)>35 adx_only SL=0.3% slip=0.1%","timestamp":1783628029,"segment":0}
