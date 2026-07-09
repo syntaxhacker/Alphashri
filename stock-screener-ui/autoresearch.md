@@ -51,6 +51,11 @@ Data: yfinance daily (NSE/BSE)
 - Fast execution: 5 workers, yfinance cached data
 
 ## What's Been Tried
-- **Baseline** (SL=2%, TP=3%, entry>+0.5%, up_day): PF=0.8188, WR=39.3%, Net=₹-712K, 3689 trades across 79 stocks
-  - SL exits (1632) outnumber TP exits (1009) significantly — SL/TP ratio is asymmetric in favor of losses
-  - Most exits are via CLOSE (1048) — many trades held to expiration without hitting either target
+- **SL Sensitivity**: PF increases monotonically as SL tightens (2%→0.001%)
+  - 2% SL: PF=0.82, 1% SL: PF=1.08, 0.5% SL: PF=1.47, 0.1% SL: PF=2.74, 0.001% SL: PF=4.04
+  - **No SL is worse** (PF=1.05) — SL is essential
+- **No TP beats any TP**: Removing TP gives PF=1.08 vs TP=3% gives PF=0.82
+- **any_day beats up_day**: No entry threshold gives PF=1.16 vs up_day PF=1.08 (buying after up-day means buying high)
+- **Higher mcap helps marginally**: mcap>=10000Cr gives PF=4.18 (best) vs mcap>=1000 gives PF=4.04
+- **Price filter doesn't help**: price>=200 gave PF=4.10 vs baseline at same SL
+- **100% stocks profitable** at SL<=0.05% with any_day/no TP config
