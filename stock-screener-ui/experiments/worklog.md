@@ -171,3 +171,27 @@ Started: 2026-07-09
 - What changed: volume_surge, mcap>=5000, SL=0.001%, full year
 - Result: PF=3.353, 1055 trades, Net=₹+370K
 - Insight: mcap filter reduces both trades and PF.
+
+### Run 26-29: volume_surge × SL sweep — tighter SL always better
+- Timestamp: 2026-07-09
+- What changed: volume_surge with SL=0.01%, 0.05%, 0.1%, 0.5% (full year)
+- Results: SL=0.01%→PF=3.69, 0.05%→PF=3.12, 0.1%→PF=2.62, 0.5%→PF=1.42
+- Insight: Pattern holds — tighter SL = better PF for ALL entry modes. All discarded vs SL=0.001%.
+
+### Run 30-31: up_day with ultra-tight SL
+- Timestamp: 2026-07-09
+- What changed: up_day with SL=0.01% and 0.001% (full year)
+- Results: SL=0.01%→PF=2.74, SL=0.001%→PF=2.88
+- Insight: up_day at SL=0.001% (PF=2.88) slightly beats any_day (PF=2.85). Volume_surge still king at 3.88.
+
+### Run 32-33: 200 stock universe
+- Timestamp: 2026-07-09
+- What changed: BTST_LIMIT=200 (140 qualifying stocks)
+- Results: any_day→PF=2.84 (32905 trades, ₹9M), vol_surge→PF=3.86 (3493 trades, ₹1.47M)
+- Insight: PF holds steady at larger universe. Strategy scales well.
+
+### Run 34-35: 300 stock universe
+- Timestamp: 2026-07-09
+- What changed: BTST_LIMIT=300 (195 qualifying stocks)
+- Results: any_day→PF=2.75 (45977 trades, ₹12M), vol_surge→PF=3.76 (4875 trades, ₹1.97M)
+- Insight: Slight PF degradation (2.85→2.75, 3.88→3.76) but still very strong. 99% stocks profitable.

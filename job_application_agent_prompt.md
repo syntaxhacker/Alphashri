@@ -22,21 +22,24 @@ Read this file at session start. It must contain:
 Name: Rohit Jogi
 Email: jrohit072@gmail.com
 Phone: +91 8179948668
-Location: Visakhapatnam, India
+Location: Visakhapatnam, Andhra Pradesh, India
 CTC_Current: 18
 CTC_Expected: 25
 Notice_Period: 0
 Experience_Years: 5
 Stack_Primary: React, Node.js, Python, TypeScript
-Stack_Secondary: SQL, Redis, Docker, AWS
+Stack_Secondary: SQL, Redis, Docker, AWS, GCP, ELK, D3.js
 Current_Employer: Imaginnovate
-Resume_Path: /home/mysyntax/Documents/Alphashri/rohit_jogi_resume.pdf
-LinkedIn: linkedin.com/in/rohitjogi
-Github: github.com/syntaxhacker
+Resume_Path: /home/mysyntax/Documents/me_2025/public/rohit_jogi_resume.pdf
+Resume_URL: https://www.rjis.online/rohit_jogi_resume.pdf
+LinkedIn: https://www.linkedin.com/in/rohitjogi/
+Github: https://github.com/syntaxhacker
 Portfolio: https://www.rjis.online
+DOB: 31 July 1998
 Remote_Only: false
 Onsite_Cities: Bengaluru, Hyderabad, Chennai, Pune
 Contract_OK: true
+Never_Connect: Imaginnovate
 ```
 
 ---
@@ -205,7 +208,8 @@ Edit this to change candidate info between sessions.
 - **Sequential numbering** in applied_jobs.txt
 - **Batch independent Exa calls** in parallel
 - **Verify company size** on LinkedIn before cold emailing
-- **Complete full cycle** per job (apply → log → connect → email) before moving on
+- **NEVER submit** an application without explicit user permission (fill only, wait for go-ahead)
+- **Complete full cycle** per job (fill → log → connect → email) before moving on
 
 ---
 
