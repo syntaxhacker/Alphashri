@@ -2,6 +2,9 @@ import { useLocation } from "react-router-dom";
 import { AppShell, AppShellHeader, AppShellNavbar, AppShellMain, Group, Box, Text } from "@/ui";
 import { useState } from "react";
 import { NavbarNested } from "./NavbarNested";
+import { NotificationsPanel } from "../notifications/NotificationsPanel";
+import { IconBell } from "@tabler/icons-react";
+import { ActionIcon } from "@/ui";
 import { MarketTicker } from "./MarketTicker";
 import { useThemeColors } from "../../hooks/useThemeColors";
 import NewsPanel2 from "../news/NewsPanel2";
@@ -14,6 +17,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
   const colors = useThemeColors();
   const [collapsed, setCollapsed] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
 
   const toggleCollapsed = () => setCollapsed((prev) => !prev);
 
@@ -43,8 +47,13 @@ export function AppLayout({ children }: AppLayoutProps) {
             <MarketTicker />
           </Box>
           <NewsPanel2 />
+          <ActionIcon variant="subtle" size="lg" onClick={() => setNotifOpen(true)} data-testid="notif-bell">
+            <IconBell size={20} />
+          </ActionIcon>
         </Group>
       </AppShellHeader>
+
+      <NotificationsPanel opened={notifOpen} onClose={() => setNotifOpen(false)} />
 
       <AppShellNavbar id="app-navbar" data-testid="app-navbar">
         <NavbarNested

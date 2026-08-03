@@ -16,6 +16,7 @@ from .broker import BrokerConnection, Instrument, get_shared_broker_token, save_
 from .holiday import MarketHoliday, HolidayType
 from .stock_52w_touch import Stock52WeekTouch, Stock52WeekRange
 from .screener import Screener
+from .price_surge import PriceSurgeEvent
 from .chat import ChatConversation, ChatMessage
 from .replay_saved_config import ReplaySavedConfig
 
