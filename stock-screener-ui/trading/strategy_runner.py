@@ -51,29 +51,22 @@ class StrategyRunner:
 
         if self.strategy_type in SIGNAL_GENERATOR_REGISTRY:
             module_path, class_name = SIGNAL_GENERATOR_REGISTRY[self.strategy_type]
-            try:
-                module = importlib.import_module(module_path)
-                cls = getattr(module, class_name)
-                if self.strategy_type == "ORB":
-                    self.signal_generator = cls(
-                        or_minutes=self.config.get('or_minutes', 45),
-                        sl_pct=self.config.get('sl_pct'),
-                        tp_pct=self.config.get('tp_pct'),
-                        min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
-                        max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
-                        breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
-                        config_name=self.strategy_name,
-                    )
-                else:
-                    self.signal_generator = cls(self.config)
-            except (ImportError, AttributeError) as e:
-                console.print(f"[red]Failed to load signal generator for {self.strategy_type}: {e}[/red]")
-                from trading.orb_signals import ORBSignalGenerator
-                self.signal_generator = ORBSignalGenerator()
+            module = importlib.import_module(module_path)
+            cls = getattr(module, class_name)
+            if self.strategy_type == "ORB":
+                self.signal_generator = cls(
+                    or_minutes=self.config.get('or_minutes', 45),
+                    sl_pct=self.config.get('sl_pct'),
+                    tp_pct=self.config.get('tp_pct'),
+                    min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
+                    max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
+                    breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
+                    config_name=self.strategy_name,
+                )
+            else:
+                self.signal_generator = cls(self.config)
         else:
-            console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")
-            from trading.orb_signals import ORBSignalGenerator
-            self.signal_generator = ORBSignalGenerator()
+            raise ValueError(f"Unknown strategy type '{self.strategy_type}' — not in SIGNAL_GENERATOR_REGISTRY")
 
         # Apply config-level overrides that all generators share
         cutoff = self.config.get('eod_entry_cutoff_minutes')
