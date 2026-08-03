@@ -316,6 +316,48 @@ async def start_bot(
             db.close()
 
 
+@router.post("/start-all")
+async def start_all_bots(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db) if get_db else None
+):
+    """Start all inactive/stopped bots for the current user."""
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    user_id = get_user_id(user)
+
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        from db.models import BotConfig
+        bots = db.query(BotConfig).filter(
+            BotConfig.user_id == user_id,
+            BotConfig.is_active == True,
+        ).all()
+
+        started = []
+        for bot in bots:
+            running, _ = is_bot_running(user_id, bot.id)
+            if not running:
+                try:
+                    start_bot_process(user_id, bot.id)
+                    started.append({"id": bot.uuid, "name": bot.name})
+                except Exception as e:
+                    console.print(f"[red]Failed to start bot {bot.name}: {e}[/red]")
+
+        return {
+            "message": f"Started {len(started)} bot(s)",
+            "started": started,
+        }
+    finally:
+        if close_db:
+            db.close()
+
+
 @router.post("/stop-all")
 async def stop_all_bots(
     user=Depends(get_current_user),
@@ -473,8 +515,10 @@ async def close_all_bot_positions(
         positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
 
         if running:
-            import json
-            cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
+            import json, uuid
+            cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+            cmd_dir.mkdir(parents=True, exist_ok=True)
+            cmd_path = cmd_dir / f"{uuid.uuid4().hex}.json"
             cmd_path.write_text(json.dumps({
                 "action": "close_all",
                 "prices": request.prices,
@@ -487,8 +531,10 @@ async def close_all_bot_positions(
             }
 
         closed_count = 0
-        cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
-        cmd_path.unlink(missing_ok=True)
+        cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+        if cmd_dir.is_dir():
+            import shutil
+            shutil.rmtree(cmd_dir, ignore_errors=True)
         if positions:
             for pos in positions:
                 exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
