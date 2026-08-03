@@ -43,7 +43,9 @@ const SCREENER_PROFILE_OPTIONS = [
   { value: "rsi_reversal", label: "RSI Reversal" },
   { value: "market_open_gap", label: "Gap Open" },
   { value: "nifty_movers", label: "Nifty Movers" },
-  { value: "intraday_momentum", label: "Intraday Momentum" },
+  { value: "intraday_5m", label: "5-Min Movers" },
+  { value: "intraday_10m", label: "10-Min Movers" },
+  { value: "intraday_15m", label: "15-Min Movers" },
 ];
 
 const INTRADAY_TYPES = ["ORB", "SR_BREAKOUT", "EMA_CROSS"];

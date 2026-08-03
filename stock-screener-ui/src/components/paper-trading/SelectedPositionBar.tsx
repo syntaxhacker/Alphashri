@@ -1,7 +1,10 @@
-import { Text, Group, Button, Tooltip } from "@/ui";
+import { Text, Group, Button, Tooltip, Box } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
+
+const TINT_POSITIVE = "rgba(64, 192, 87, 0.06)";
+const TINT_NEGATIVE = "rgba(250, 82, 82, 0.06)";
 
 interface SelectedPositionBarProps {
   position: PaperPosition | null;
@@ -25,6 +28,7 @@ export function SelectedPositionBar({ position, onClose }: SelectedPositionBarPr
   }
 
   const sideColor = position.side === "BUY" ? "teal" : "red";
+  const bgTint = position.pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE;
 
   return (
     <Group
@@ -33,31 +37,43 @@ export function SelectedPositionBar({ position, onClose }: SelectedPositionBarPr
       justify="space-between"
       style={{
         borderTop: "1px solid var(--mantine-color-default-border)",
-        background: "var(--mantine-color-body)",
+        background: bgTint,
       }}
     >
       <Group gap="md">
         <Text size="sm" fw={600}>{position.symbol}</Text>
-        <Badge size="xs" color={sideColor}>{position.side}</Badge>
-        <Text size="xs" c="dimmed">Qty {position.quantity}</Text>
+        <Box
+          px={6}
+          py={2}
+          style={{ borderRadius: 4, backgroundColor: `var(--mantine-color-${sideColor}-1)` }}
+        >
+          <Text size="xs" fw={600} c={`${sideColor}.8`}>{position.side}</Text>
+        </Box>
+        <Text size="xs" c="dimmed">Qty <Text span fw={500}>{position.quantity}</Text></Text>
         <Group gap={4}>
           <Text size="xs" c="dimmed">Entry</Text>
-          <Text size="xs">₹{position.entry_price.toFixed(2)}</Text>
+          <Text size="xs" fw={500}>₹{position.entry_price.toFixed(2)}</Text>
         </Group>
         <Group gap={4}>
           <Text size="xs" c="dimmed">Curr</Text>
-          <Text size="xs">₹{position.current_price.toFixed(2)}</Text>
+          <Text size="xs" fw={500}>₹{position.current_price.toFixed(2)}</Text>
         </Group>
-        <Text size="xs" c={getPnLTextColor(position.pnl)} fw={600}>
-          {position.pnl >= 0 ? "+" : ""}₹{formatNumber(position.pnl)} ({position.pnl_pct.toFixed(2)}%)
-        </Text>
+        <Box
+          px={6}
+          py={2}
+          style={{ borderRadius: 4, backgroundColor: `rgba(${position.pnl >= 0 ? "64, 192, 87" : "250, 82, 82"}, 0.1)` }}
+        >
+          <Text size="xs" c={getPnLTextColor(position.pnl)} fw={700}>
+            {position.pnl >= 0 ? "+" : ""}₹{formatNumber(position.pnl)} ({position.pnl_pct.toFixed(2)}%)
+          </Text>
+        </Box>
         <Group gap={4}>
           <Text size="xs" c="dimmed">TP</Text>
-          <Text size="xs" c="teal">{position.take_profit > 0 ? `₹${position.take_profit.toFixed(2)}` : "—"}</Text>
+          <Text size="xs" c="teal" fw={500}>{position.take_profit > 0 ? `₹${position.take_profit.toFixed(2)}` : "—"}</Text>
         </Group>
         <Group gap={4}>
           <Text size="xs" c="dimmed">SL</Text>
-          <Text size="xs" c="red">{position.stop_loss > 0 ? `₹${position.stop_loss.toFixed(2)}` : "—"}</Text>
+          <Text size="xs" c="red" fw={500}>{position.stop_loss > 0 ? `₹${position.stop_loss.toFixed(2)}` : "—"}</Text>
         </Group>
       </Group>
       {onClose && (

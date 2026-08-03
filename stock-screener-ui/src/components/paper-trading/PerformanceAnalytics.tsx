@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Flex, Text, Paper, SimpleGrid, Loader, Center, SegmentedControl } from "@/ui";
+import { Box, Flex, Text, Paper, SimpleGrid, Loader, Center, SegmentedControl, Group, Badge } from "@/ui";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAnalytics } from "../../api/paperTrading";
@@ -33,6 +33,8 @@ const currencyFmt = (v: number) => `₹${v.toFixed(2)}`;
 const pctFmt = (v: number) => `${v.toFixed(2)}%`;
 
 function EquityCurveChart({ data }: { data: EquityCurvePoint[] }) {
+  const isPositive = data.length > 0 && data[data.length - 1].cumulative_pnl >= 0;
+  const lineColor = isPositive ? "#228be6" : "#fa5252";
   return (
     <ReactECharts
       style={{ height: 140 }}
@@ -45,8 +47,17 @@ function EquityCurveChart({ data }: { data: EquityCurvePoint[] }) {
             type: "line",
             data: data.map((d) => d.cumulative_pnl),
             smooth: true,
-            lineStyle: { color: "#228be6", width: 2 },
-            areaStyle: { color: "rgba(34,139,230,0.1)" },
+            lineStyle: { color: lineColor, width: 2 },
+            areaStyle: {
+              color: {
+                type: "linear",
+                x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: isPositive ? "rgba(34,139,230,0.3)" : "rgba(250,82,82,0.3)" },
+                  { offset: 1, color: isPositive ? "rgba(34,139,230,0.02)" : "rgba(250,82,82,0.02)" },
+                ],
+              },
+            },
             showSymbol: false,
           },
         ],
@@ -68,8 +79,23 @@ function DailyPnLChart({ data }: { data: DailyPnLPoint[] }) {
             type: "bar",
             data: data.map((d) => ({
               value: d.net_pnl,
-              itemStyle: { color: d.net_pnl >= 0 ? "#40c057" : "#fa5252" },
+              itemStyle: {
+                color: d.net_pnl >= 0 ? "#20c997" : "#fa5252",
+                borderRadius: [2, 2, 0, 0],
+              },
             })),
+            barMaxWidth: 20,
+          },
+          {
+            type: "line",
+            data: [],
+            markLine: {
+              silent: true,
+              symbol: "none",
+              lineStyle: { color: "rgba(128,128,128,0.3)", type: "dashed", width: 1 },
+              data: [{ yAxis: 0 }],
+              label: { show: false },
+            },
           },
         ],
       })}
@@ -91,7 +117,16 @@ function DrawdownChart({ data }: { data: any[] }) {
             data: data.map((d) => d.drawdown_pct),
             smooth: true,
             lineStyle: { color: "#fa5252", width: 2 },
-            areaStyle: { color: "rgba(250,82,82,0.1)" },
+            areaStyle: {
+              color: {
+                type: "linear",
+                x: 0, y: 0, x2: 0, y2: 1,
+                colorStops: [
+                  { offset: 0, color: "rgba(250,82,82,0.25)" },
+                  { offset: 1, color: "rgba(250,82,82,0.02)" },
+                ],
+              },
+            },
             showSymbol: false,
           },
         ],
@@ -113,8 +148,23 @@ function MonthlyChart({ data }: { data: any[] }) {
             type: "bar",
             data: data.map((d) => ({
               value: d.pnl,
-              itemStyle: { color: d.pnl >= 0 ? "#40c057" : "#fa5252" },
+              itemStyle: {
+                color: d.pnl >= 0 ? "#20c997" : "#fa5252",
+                borderRadius: [2, 2, 0, 0],
+              },
             })),
+            barMaxWidth: 24,
+          },
+          {
+            type: "line",
+            data: [],
+            markLine: {
+              silent: true,
+              symbol: "none",
+              lineStyle: { color: "rgba(128,128,128,0.3)", type: "dashed", width: 1 },
+              data: [{ yAxis: 0 }],
+              label: { show: false },
+            },
           },
         ],
       })}
@@ -169,9 +219,13 @@ export function PerformanceAnalytics() {
   return (
     <Flex direction="column" gap="xs">
       <Flex justify="space-between" align="center">
-        <Text fw={700} size="lg">Performance Analytics</Text>
+        <Group gap="xs">
+          <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
+          <Text fw={700} size="lg">Performance Analytics</Text>
+        </Group>
         <SegmentedControl
           size="xs"
+          color="cyan"
           value={daysBack.toString()}
           onChange={(v) => setDaysBack(Number(v))}
           data={[
@@ -188,22 +242,34 @@ export function PerformanceAnalytics() {
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper withBorder p="xs" radius="md">
-          <Text fw={600} size="xs" mb={2}>Equity Curve</Text>
+          <Group gap="xs" mb={2}>
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
+            <Text fw={600} size="xs">Equity Curve</Text>
+          </Group>
           <EquityCurveChart data={equity_curve} />
         </Paper>
         <Paper withBorder p="xs" radius="md">
-          <Text fw={600} size="xs" mb={2}>Daily P&L</Text>
+          <Group gap="xs" mb={2}>
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
+            <Text fw={600} size="xs">Daily P&L</Text>
+          </Group>
           <DailyPnLChart data={daily_pnl} />
         </Paper>
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper withBorder p="xs" radius="md">
-          <Text fw={600} size="xs" mb={2}>Drawdown</Text>
+          <Group gap="xs" mb={2}>
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-red-6)" }} />
+            <Text fw={600} size="xs">Drawdown</Text>
+          </Group>
           <DrawdownChart data={drawdown} />
         </Paper>
         <Paper withBorder p="xs" radius="md">
-          <Text fw={600} size="xs" mb={2}>Monthly P&L</Text>
+          <Group gap="xs" mb={2}>
+            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
+            <Text fw={600} size="xs">Monthly P&L</Text>
+          </Group>
           <MonthlyChart data={monthly_pnl} />
         </Paper>
       </SimpleGrid>

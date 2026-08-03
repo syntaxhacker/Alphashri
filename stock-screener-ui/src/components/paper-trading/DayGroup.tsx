@@ -1,8 +1,7 @@
-import { memo, useCallback, useRef, useEffect, useState } from "react";
+import { memo, useCallback, useRef, useEffect, useState, useMemo } from "react";
 import {
   Anchor,
   Collapse,
-  Table,
   Badge,
   Text,
   Group,
@@ -12,7 +11,9 @@ import {
   Stack,
   Textarea,
   Button,
+  Box,
 } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
@@ -21,12 +22,11 @@ import {
   formatDateHeader,
   formatDuration,
   getPnLTextColor,
-  sortByField,
   getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge } from "../common";
 import { ClickableSymbol } from "../common";
-import { SortableHeader } from "../common/SortableHeader";
+import { TanStackTable } from "../common/TanStackTable";
 import { setFilterStrategy, setFilterBot, updateTradeNotesAction } from "../../state/paperTrading";
 
 interface DayGroupProps {
@@ -46,9 +46,6 @@ interface DayGroupProps {
   expanded: boolean;
   onToggle: () => void;
   tableStyles: Record<string, any>;
-  sortColumn: string | null;
-  sortDirection: "asc" | "desc";
-  onSort: (column: string) => void;
 }
 
 const DaySummary = memo(function DaySummary({
@@ -163,9 +160,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
     <Stack gap={2}>
       <Group gap="xs" align="flex-start" grow>
         <Stack gap={1} style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">
-            Reason
-          </Text>
+          <Text size="xs" c="dimmed">Reason</Text>
           <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }} data-testid={`trade-reason-${trade.trade_id}`}>
             {trade.reason || "-"}
           </Text>
@@ -173,9 +168,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
       </Group>
       <Group gap="sm" align="flex-start" grow>
         <Stack gap={1} style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">
-            Notes
-          </Text>
+          <Text size="xs" c="dimmed">Notes</Text>
           <Textarea
             size="xs"
             minRows={2}
@@ -189,13 +182,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
         </Stack>
       </Group>
       <Group justify="flex-end">
-        <Button
-          size="xs"
-          variant="light"
-          loading={saving}
-          onClick={handleSave}
-          data-testid={`trade-notes-save-${trade.trade_id}`}
-        >
+        <Button size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`}>
           Save
         </Button>
       </Group>
@@ -212,176 +199,170 @@ const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) 
   );
 });
 
-const TradeRow = memo(function TradeRow({
-  trade,
-  onSelectSymbol,
-  onDeleteTrade,
-  selectedTradeId,
-}: {
-  trade: PaperTrade;
-  onSelectSymbol: (
-    s: string,
-    t?: string,
-    tradeId?: string,
-    strategyType?: string,
-    strategyId?: number,
-    entryTime?: string,
-  ) => void;
-  onDeleteTrade: (id: string) => void;
-  selectedTradeId: string | null;
-}) {
-  const rowRef = useRef<HTMLTableRowElement>(null);
-  const isSelected = trade.trade_id === selectedTradeId;
-  const [detailExpanded, setDetailExpanded] = useState(false);
-
-  useEffect(() => {
-    if (isSelected && rowRef.current) {
-      rowRef.current.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [isSelected]);
-
-  const handleRowClick = useCallback(() => {
-    onSelectSymbol(
-      trade.symbol,
-      trade.exit_time,
-      trade.trade_id,
-      trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined),
-      trade.strategy_id,
-      trade.entry_time,
-    );
-  }, [onSelectSymbol, trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_type, trade.strategy_name, trade.strategy_id, trade.entry_time]);
-
-  const handleToggleDetail = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDetailExpanded((v) => !v);
-  }, []);
-
-  const handleStrategyFilter = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFilterStrategy(trade.strategy_id || null);
-  }, [trade.strategy_id]);
-
-  const handleBotFilter = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setFilterBot(trade.bot_id || null);
-  }, [trade.bot_id]);
-
-  const pnlColor = getPnLTextColor(trade.net_pnl);
-  const pnlPctColor = getPnLTextColor(trade.pnl_pct);
-
-  return (
-    <>
-      <Table.Tr
-        ref={rowRef}
-        key={trade.trade_id}
-        onClick={handleRowClick}
-        className={isSelected ? "trade-row-highlighted" : undefined}
-        style={{ cursor: "pointer" }}
-        data-testid={`trade-row-${trade.trade_id}`}
-      >
-        <Table.Td p={0}>
-          <ActionIcon
-            variant="subtle"
-            color="gray"
-            size="sm"
-            onClick={handleToggleDetail}
-            data-testid={`trade-detail-toggle-${trade.trade_id}`}
-          >
-            {detailExpanded ? "▼" : "▶"}
-          </ActionIcon>
-        </Table.Td>
-        <Table.Td>
-          <ClickableSymbol symbol={trade.symbol} />
-        </Table.Td>
-        <Table.Td>
-          <SideBadge side={trade.side} />
-        </Table.Td>
-        <Table.Td>{trade.quantity}</Table.Td>
-        <Table.Td>₹{trade.entry_price.toFixed(2)}</Table.Td>
-        <Table.Td>{trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-"}</Table.Td>
-        <Table.Td>
-          <Text size="sm" c="dimmed">
-            {trade.hold_duration_minutes != null
-              ? formatDuration(trade.hold_duration_minutes)
-              : "-"}
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <Text size="sm">
-            {trade.stop_loss != null ? `₹${trade.stop_loss.toFixed(2)}` : "-"}
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <Text size="sm">
-            {trade.take_profit != null && trade.take_profit > 0
-              ? `₹${trade.take_profit.toFixed(2)}`
-              : "-"}
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <Text c={pnlPctColor} fw={600} size="sm">
-            {trade.pnl_pct != null ? `${trade.pnl_pct >= 0 ? "+" : ""}${trade.pnl_pct.toFixed(2)}%` : "-"}
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <Text c={pnlColor} fw={600} size="sm">
-            ₹{formatNumber(trade.net_pnl)}
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <ExitReasonBadge reason={trade.exit_reason} />
-        </Table.Td>
-        <Table.Td>
-          <Anchor
-            component="button"
-            size="xs"
-            onClick={handleStrategyFilter}
-            data-testid={`trade-strategy-filter-${trade.trade_id}`}
-          >
-            {trade.strategy_name || "default"}
-          </Anchor>
-        </Table.Td>
-        <Table.Td>
-          <Anchor
-            component="button"
-            size="xs"
-            onClick={handleBotFilter}
-            data-testid={`trade-bot-filter-${trade.trade_id}`}
-          >
-            {trade.bot_name || "-"}
-          </Anchor>
-        </Table.Td>
-      </Table.Tr>
-      <Table.Tr>
-        <Table.Td colSpan={14} p={0}>
-          <Collapse in={detailExpanded}>
-            <div style={{ padding: "6px 8px", background: "var(--mantine-color-body)" }}>
-              <TradeDetail trade={trade} />
-            </div>
-          </Collapse>
-        </Table.Td>
-      </Table.Tr>
-    </>
-  );
-});
-
 export const DayGroup = memo(function DayGroup({
   date,
   trades,
-  selectedSymbol: _selectedSymbol,
+  selectedSymbol,
   selectedTradeId,
   onSelectSymbol,
-  onDeleteTrade,
   expanded,
   onToggle,
-  tableStyles,
-  sortColumn,
-  sortDirection,
-  onSort,
 }: DayGroupProps) {
-  const sortedTrades = sortColumn
-    ? sortByField(trades, sortColumn as keyof PaperTrade, sortDirection)
-    : [...trades].sort((a, b) => b.exit_time.localeCompare(a.exit_time));
+  const sortedTrades = [...trades].sort((a, b) => b.exit_time.localeCompare(a.exit_time));
+
+  const handleSelectSymbol = useCallback(
+    (trade: PaperTrade) => {
+      onSelectSymbol(
+        trade.symbol,
+        trade.exit_time,
+        trade.trade_id,
+        trade.strategy_type || getStrategyTypeFromName(trade.strategy_name),
+        trade.strategy_id,
+        trade.entry_time,
+      );
+    },
+    [onSelectSymbol],
+  );
+
+  useEffect(() => {
+    if (selectedTradeId) {
+      const el = document.querySelector(`[data-testid="trade-row-${selectedTradeId}"]`);
+      if (el) {
+        el.scrollIntoView({ behavior: "smooth", block: "center" });
+      }
+    }
+  }, [selectedTradeId]);
+
+  const columns: ColumnDef<PaperTrade>[] = [
+    {
+      id: "toggle",
+      header: "",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          onClick={(e) => {
+            e.stopPropagation();
+            row.toggleExpanded();
+          }}
+          data-testid={`trade-detail-toggle-${row.original.trade_id}`}
+        >
+          {row.getIsExpanded() ? "▼" : "▶"}
+        </ActionIcon>
+      ),
+    },
+    {
+      id: "symbol",
+      header: "Symbol",
+      accessorKey: "symbol",
+      cell: ({ row }) => <ClickableSymbol symbol={row.original.symbol} />,
+    },
+    {
+      id: "side",
+      header: "Side",
+      accessorKey: "side",
+      cell: ({ row }) => <SideBadge side={row.original.side} />,
+    },
+    { id: "quantity", header: "Qty", accessorKey: "quantity", cell: ({ row }) => <>{row.original.quantity}</> },
+    {
+      id: "entry_price",
+      header: "Entry",
+      accessorKey: "entry_price",
+      cell: ({ row }) => <>₹{row.original.entry_price.toFixed(2)}</>,
+    },
+    {
+      id: "exit_price",
+      header: "Exit",
+      accessorKey: "exit_price",
+      cell: ({ row }) => <>{row.original.exit_price != null ? `₹${row.original.exit_price.toFixed(2)}` : "-"}</>,
+    },
+    {
+      id: "hold_duration_minutes",
+      header: "Hold",
+      accessorKey: "hold_duration_minutes",
+      cell: ({ row }) => (
+        <Text size="sm" c="dimmed">
+          {row.original.hold_duration_minutes != null ? formatDuration(row.original.hold_duration_minutes) : "-"}
+        </Text>
+      ),
+    },
+    {
+      id: "stop_loss",
+      header: "SL",
+      accessorKey: "stop_loss",
+      cell: ({ row }) => <>{row.original.stop_loss != null ? `₹${row.original.stop_loss.toFixed(2)}` : "-"}</>,
+    },
+    {
+      id: "take_profit",
+      header: "TP",
+      accessorKey: "take_profit",
+      cell: ({ row }) => (
+        <>{row.original.take_profit != null && row.original.take_profit > 0 ? `₹${row.original.take_profit.toFixed(2)}` : "-"}</>
+      ),
+    },
+    {
+      id: "pnl_pct",
+      header: "P&L%",
+      accessorKey: "pnl_pct",
+      cell: ({ row }) => {
+        const pct = row.original.pnl_pct;
+        return (
+          <Text c={getPnLTextColor(pct)} fw={600} size="sm">
+            {pct != null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : "-"}
+          </Text>
+        );
+      },
+    },
+    {
+      id: "net_pnl",
+      header: "P&L",
+      accessorKey: "net_pnl",
+      cell: ({ row }) => (
+        <Text c={getPnLTextColor(row.original.net_pnl)} fw={600} size="sm">
+          ₹{formatNumber(row.original.net_pnl)}
+        </Text>
+      ),
+    },
+    {
+      id: "exit_reason",
+      header: "Exit",
+      accessorKey: "exit_reason",
+      enableSorting: false,
+      cell: ({ row }) => <ExitReasonBadge reason={row.original.exit_reason} />,
+    },
+    {
+      id: "strategy_name",
+      header: "Strategy",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Anchor
+          component="button"
+          size="xs"
+          onClick={(e) => { e.stopPropagation(); setFilterStrategy(row.original.strategy_id || null); }}
+          data-testid={`trade-strategy-filter-${row.original.trade_id}`}
+        >
+          {row.original.strategy_name || "default"}
+        </Anchor>
+      ),
+    },
+    {
+      id: "bot_name",
+      header: "Bot",
+      enableSorting: false,
+      cell: ({ row }) => (
+        <Anchor
+          component="button"
+          size="xs"
+          onClick={(e) => { e.stopPropagation(); setFilterBot(row.original.bot_id || null); }}
+          data-testid={`trade-bot-filter-${row.original.trade_id}`}
+        >
+          {row.original.bot_name || "-"}
+        </Anchor>
+      ),
+    },
+  ];
 
   return (
     <Flex
@@ -393,115 +374,22 @@ export const DayGroup = memo(function DayGroup({
       <DaySummary date={date} trades={trades} onToggle={onToggle} />
       <Collapse in={expanded}>
         <div style={{ overflowX: "auto" }}>
-          <Table striped highlightOnHover styles={tableStyles}>
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th p={0} />
-                <SortableHeader
-                  label="Symbol"
-                  columnKey="symbol"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Side"
-                  columnKey="side"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Qty"
-                  columnKey="quantity"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Entry"
-                  columnKey="entry_price"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Exit"
-                  columnKey="exit_price"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Hold"
-                  columnKey="hold_duration_minutes"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="SL"
-                  columnKey="stop_loss"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="TP"
-                  columnKey="take_profit"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="P&L%"
-                  columnKey="pnl_pct"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="P&L"
-                  columnKey="net_pnl"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Exit"
-                  columnKey="exit_reason"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Strategy"
-                  columnKey="strategy_name"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-                <SortableHeader
-                  label="Bot"
-                  columnKey="bot_name"
-                  sortColumn={sortColumn}
-                  sortDirection={sortDirection}
-                  onSort={onSort}
-                />
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {sortedTrades.map((trade) => (
-                <TradeRow
-                  key={trade.trade_id}
-                  trade={trade}
-                  onSelectSymbol={onSelectSymbol}
-                  onDeleteTrade={onDeleteTrade}
-                  selectedTradeId={selectedTradeId}
-                />
-              ))}
-            </Table.Tbody>
-          </Table>
+          <TanStackTable<PaperTrade>
+            data={sortedTrades}
+            columns={columns}
+            enableSorting
+            getRowCanExpand={() => true}
+            renderSubComponent={(trade) => (
+              <Box p="xs" style={{ background: "var(--mantine-color-body)" }}>
+                <TradeDetail trade={trade} />
+              </Box>
+            )}
+            onRowClick={(trade) => handleSelectSymbol(trade)}
+            getRowTestId={(trade) => `trade-row-${trade.trade_id}`}
+            getRowClassName={(trade) =>
+              selectedTradeId === trade.trade_id ? "trade-row-highlighted" : undefined
+            }
+          />
         </div>
       </Collapse>
     </Flex>

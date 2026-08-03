@@ -24,7 +24,9 @@ const SCREENER_OPTIONS = [
   { value: "trending", label: "Trending" },
   { value: "high_momentum", label: "High Momentum" },
   { value: "buyer_interest", label: "Buyer Interest" },
-  { value: "intraday_momentum", label: "Intraday Momentum" },
+  { value: "intraday_5m", label: "5-Min Movers" },
+  { value: "intraday_10m", label: "10-Min Movers" },
+  { value: "intraday_15m", label: "15-Min Movers" },
 ];
 
 function getScoreColor(score: number): string {

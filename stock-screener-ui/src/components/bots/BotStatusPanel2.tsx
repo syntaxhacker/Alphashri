@@ -60,28 +60,30 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
           withBorder
           id="bot-header-card"
           data-testid="bot-header-card"
+          style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
         >
           <Group justify="space-between">
             <Stack gap={4}>
-              <Text fw={700} size="lg" data-testid="bot-name">
+              <Text fw={700} size="lg" c="var(--mantine-color-blue-4)" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <StatusBadge
-                running={status?.running ?? false}
-                pid={status?.pid ?? undefined}
-                statusUnknown={status?.status === "unknown"}
-                data-testid="bot-running-badge"
-              />
-              {(bot as any).live_trading && (
-                <Badge color="red" variant="filled" size="sm" data-testid="live-trading-badge">
-                  LIVE
-                </Badge>
-              )}
-              {!(bot as any).live_trading && (
-                <Badge color="green" variant="filled" size="sm" data-testid="paper-trading-badge">
-                  PAPER
-                </Badge>
-              )}
+              <Group gap="xs">
+                <StatusBadge
+                  running={status?.running ?? false}
+                  pid={status?.pid ?? undefined}
+                  statusUnknown={status?.status === "unknown"}
+                  data-testid="bot-running-badge"
+                />
+                {(bot as any).live_trading ? (
+                  <Badge color="red" variant="filled" size="sm" data-testid="live-trading-badge">
+                    LIVE
+                  </Badge>
+                ) : (
+                  <Badge color="green" variant="filled" size="sm" data-testid="paper-trading-badge">
+                    PAPER
+                  </Badge>
+                )}
+              </Group>
             </Stack>
             <Group gap="xs">
               {status?.running ? (
@@ -115,7 +117,8 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               )}
               <Button
                 leftSection={<IconRefresh size={16} />}
-                variant="subtle"
+                variant="light"
+                color="gray"
                 onClick={handleRefresh}
                 data-testid="refresh-bot-status-btn"
               >
@@ -144,9 +147,15 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
 
         {status?.strategies && (
           <Stack gap={0} data-testid="strategies-status">
-            <Text fw={600} mb="sm">
-              Strategy Status
-            </Text>
+            <Group gap="xs" mb="sm">
+              <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-violet-6)" }} />
+              <Text fw={600}>
+                Strategy Status
+              </Text>
+              <Badge size="sm" variant="light" color="violet">
+                {Object.keys(status.strategies).length}
+              </Badge>
+            </Group>
             <Grid>
               {Object.values(status.strategies).map((s) => (
                 <Grid.Col key={s.strategy_id} span={{ base: 12, sm: 6, md: 4 }}>

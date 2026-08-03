@@ -86,18 +86,18 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
   if (hasTrades) {
     items.push(
-      { color: "#00FFFF", label: "Entry", shape: "square" },
-      { color: "#FFFF00", label: "TP", shape: "circle" },
-      { color: "#FF00FF", label: "SL", shape: "circle" },
+      { color: "var(--mantine-color-cyan-5)", label: "Entry", shape: "square" },
+      { color: "var(--mantine-color-lime-5)", label: "TP", shape: "circle" },
+      { color: "var(--mantine-color-pink-5)", label: "SL", shape: "circle" },
     );
   }
-  if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" });
-  if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" });
+  if (orbLabel) items.push({ color: "var(--mantine-color-blue-6)", label: orbLabel, shape: "square" });
+  if (hasWeek52) items.push({ color: "var(--mantine-color-pink-6)", label: "52W High", shape: "square" });
 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend">
+    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
       {items.map((item, i) => (
         <Flex key={i} align="center" gap={2}>
           <Box className={`legend-marker ${item.label.toLowerCase()}`} w={8} h={8} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
@@ -154,6 +154,14 @@ const OVERLAY_ITEMS = [
   { label: "52W", key: "show52wLines" as const, setter: setShow52wLines },
   { label: "EMA", key: "showEmaLines" as const, setter: setShowEmaLines },
 ] as const;
+
+const OVERLAY_COLORS: Record<string, string> = {
+  showAllTrades: "blue",
+  showOrbLines: "grape",
+  showPivotLines: "cyan",
+  show52wLines: "pink",
+  showEmaLines: "lime",
+};
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
   const [range, setRange] = useState<[Date | null, Date | null]>([null, null]);
@@ -283,7 +291,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         <PopoverTarget>
           <ActionIcon
             size="sm"
-            variant={hasActiveOverlays ? "light" : "subtle"}
+            variant={hasActiveOverlays ? "filled" : "subtle"}
             color={hasActiveOverlays ? "blue" : "gray"}
             data-testid="chart-more-button"
             onClick={() => setPopoverOpened((o) => !o)}
@@ -293,23 +301,34 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         </PopoverTarget>
         <PopoverDropdown p="xs">
           <Stack gap="xs">
-            <Text size="xs" fw={500} c="dimmed">Range</Text>
+            <Group gap="xs">
+              <Box w={3} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
+              <Text size="xs" fw={600}>Range</Text>
+            </Group>
             <Group gap={4}>
-              {QUICK_RANGES.map((r) => (
-                <Button
-                  key={r.label}
-                  size="compact-xs"
-                  variant="subtle"
-                  onClick={() => handleQuickRange(r.days)}
-                >
-                  {r.label}
-                </Button>
-              ))}
+              {QUICK_RANGES.map((r) => {
+                const rangeColors = ["blue", "cyan", "teal", "grape", "orange", "pink"];
+                const idx = QUICK_RANGES.indexOf(r);
+                return (
+                  <Button
+                    key={r.label}
+                    size="compact-xs"
+                    variant="light"
+                    color={rangeColors[idx]}
+                    onClick={() => handleQuickRange(r.days)}
+                  >
+                    {r.label}
+                  </Button>
+                );
+              })}
             </Group>
 
             <Divider my={1} />
 
-            <Text size="xs" fw={500} c="dimmed">Overlays</Text>
+            <Group gap="xs">
+              <Box w={3} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
+              <Text size="xs" fw={600}>Overlays</Text>
+            </Group>
             <Group gap={4}>
               {OVERLAY_ITEMS.map(({ label, key, setter }) => (
                 <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
@@ -317,6 +336,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
                     size="xs"
                     variant="light"
                     radius="sm"
+                    color={OVERLAY_COLORS[key] || "blue"}
                     checked={state[key]}
                     onChange={(checked) => setter(checked)}
                   >
@@ -406,7 +426,13 @@ export function PaperChart() {
       className="paper-chart-container"
       id="paper-chart"
       h="100%"
-      style={{ padding: 0, overflow: "hidden", display: "flex", flexDirection: "column", minHeight: 0 }}
+      style={{
+        padding: 0,
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        minHeight: 0,
+      }}
     >
       <ChartHeader state={state} />
       <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>

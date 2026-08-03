@@ -1,13 +1,12 @@
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
-import { Table, Text, Select, ScrollArea, Group, Badge, Box, Anchor } from "@/ui";
+import { Text, Select, ScrollArea, Group, Badge, Box, Anchor } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   getPnLTextColor,
   formatTimeOnly,
   formatDuration,
-  getNextSortDirection,
-  sortByField,
 } from "../../utils/ui-helpers";
-import { SortableHeader } from "../common/SortableHeader";
+import { TanStackTable } from "../common/TanStackTable";
 import { SideBadge } from "../common/BadgeComponents";
 import type { ReplayTrade } from "../../types/replay";
 
@@ -55,16 +54,12 @@ export function ReplayTradeLog({
 }: ReplayTradeLogProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const [symbolFilter, setSymbolFilter] = useState("ALL");
-  const [sortField, setSortField] = useState<string | null>(null);
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
 
   const strategyOptions = useMemo(() => {
     const names = new Set(trades.map((t) => t.strategy));
     return [
       { value: "ALL", label: "All Strategies" },
-      ...Array.from(names)
-        .sort()
-        .map((name) => ({ value: name, label: name })),
+      ...Array.from(names).sort().map((name) => ({ value: name, label: name })),
     ];
   }, [trades]);
 
@@ -72,9 +67,7 @@ export function ReplayTradeLog({
     const symbols = new Set(trades.map((t) => t.symbol));
     return [
       { value: "ALL", label: "All Symbols" },
-      ...Array.from(symbols)
-        .sort()
-        .map((s) => ({ value: s, label: s })),
+      ...Array.from(symbols).sort().map((s) => ({ value: s, label: s })),
     ];
   }, [trades]);
 
@@ -86,11 +79,6 @@ export function ReplayTradeLog({
     }
     return result;
   }, [trades, strategyFilter, symbolFilter]);
-
-  const sortedTrades = useMemo(() => {
-    if (!sortField) return filteredTrades;
-    return sortByField(filteredTrades, sortField as keyof ReplayTrade, sortDirection);
-  }, [filteredTrades, sortField, sortDirection]);
 
   useEffect(() => {
     if (isRunning && bottomRef.current) {
@@ -107,16 +95,119 @@ export function ReplayTradeLog({
     [onTradeClick],
   );
 
-  const handleSort = useCallback(
-    (column: string) => {
-      const nextDir = getNextSortDirection(sortField ?? "", column, sortDirection);
-      setSortField(column);
-      setSortDirection(nextDir);
-    },
-    [sortField, sortDirection],
+  const columns = useMemo<ColumnDef<ReplayTrade>[]>(
+    () => [
+      {
+        id: "index",
+        header: "#",
+        enableSorting: false,
+        cell: ({ row }) => <Text size="xs" c="dimmed">{row.index + 1}</Text>,
+      },
+      {
+        id: "symbol",
+        header: "Symbol",
+        accessorKey: "symbol",
+        cell: ({ row }) => <Text size="xs" fw={500}>{row.original.symbol}</Text>,
+      },
+      {
+        id: "side",
+        header: "Side",
+        accessorKey: "side",
+        cell: ({ row }) => <SideBadge side={row.original.side} size="xs" />,
+      },
+      {
+        id: "quantity",
+        header: "Qty",
+        accessorKey: "quantity",
+        enableSorting: false,
+        cell: ({ row }) => <Text size="xs" ta="center">{row.original.quantity}</Text>,
+      },
+      {
+        id: "entry_time",
+        header: "Entry",
+        accessorKey: "entry_time",
+        cell: ({ row }) => <Text size="xs">{formatTimeOnly(row.original.entry_time)}</Text>,
+      },
+      {
+        id: "exit_time",
+        header: "Exit",
+        accessorKey: "exit_time",
+        cell: ({ row }) => <Text size="xs">{row.original.exit_time ? formatTimeOnly(row.original.exit_time) : "-"}</Text>,
+      },
+      {
+        id: "hold",
+        header: "Hold",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Text size="xs" c="dimmed">
+            {formatHoldDuration(row.original.entry_time, row.original.exit_time)}
+          </Text>
+        ),
+      },
+      {
+        id: "entry_price",
+        header: "Entry",
+        accessorKey: "entry_price",
+        enableSorting: false,
+        cell: ({ row }) => <Text size="xs" ta="right">{row.original.entry_price.toFixed(2)}</Text>,
+      },
+      {
+        id: "exit_price",
+        header: "Exit",
+        accessorKey: "exit_price",
+        enableSorting: false,
+        cell: ({ row }) => <Text size="xs" ta="right">{row.original.exit_price.toFixed(2)}</Text>,
+      },
+      {
+        id: "pnl",
+        header: "P&L",
+        accessorKey: "pnl",
+        cell: ({ row }) => (
+          <Text size="xs" fw={500} c={getPnLTextColor(row.original.pnl)} ta="right">
+            {row.original.pnl >= 0 ? "+" : ""}
+            {row.original.pnl.toFixed(2)}
+          </Text>
+        ),
+      },
+      {
+        id: "net_pnl",
+        header: "Net",
+        accessorKey: "net_pnl",
+        cell: ({ row }) => (
+          <Text size="xs" fw={500} c={getPnLTextColor(row.original.net_pnl)} ta="right">
+            {row.original.net_pnl >= 0 ? "+" : ""}
+            {row.original.net_pnl.toFixed(2)}
+          </Text>
+        ),
+      },
+      {
+        id: "strategy",
+        header: "Strategy",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Anchor
+            component="button"
+            size="xs"
+            onClick={() => setStrategyFilter(row.original.strategy)}
+            data-testid={`replay-trade-strategy-link-${row.original.id}`}
+          >
+            {row.original.strategy}
+          </Anchor>
+        ),
+      },
+      {
+        id: "exit_reason",
+        header: "Reason",
+        enableSorting: false,
+        cell: ({ row }) => (
+          <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="light">
+            {row.original.exit_reason}
+          </Badge>
+        ),
+      },
+    ],
+    [setStrategyFilter],
   );
-
-  const totalColumns = 13;
 
   return (
     <Box
@@ -124,9 +215,7 @@ export function ReplayTradeLog({
       style={{ display: "flex", flexDirection: "column", height: "100%" }}
     >
       <Group gap="sm" mb="xs" style={{ flex: "0 0 auto" }}>
-        <Text size="xs" fw={500}>
-          Trade Log
-        </Text>
+        <Text size="xs" fw={500}>Trade Log</Text>
         <Select
           size="xs"
           w={160}
@@ -151,148 +240,24 @@ export function ReplayTradeLog({
       </Group>
 
       <ScrollArea style={{ flex: 1 }} h="100%">
-        <Table
-          striped
-          highlightOnHover
-          size="xs"
-          className="trade-history-table"
-          style={{ cursor: onTradeClick ? "pointer" : undefined }}
-        >
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th w={30}>#</Table.Th>
-              <SortableHeader
-                label="Symbol"
-                columnKey="symbol"
-                sortColumn={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              <SortableHeader
-                label="Side"
-                columnKey="side"
-                sortColumn={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              <Table.Th ta="center">Qty</Table.Th>
-              <SortableHeader
-                label="Entry"
-                columnKey="entry_time"
-                sortColumn={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              <SortableHeader
-                label="Exit"
-                columnKey="exit_time"
-                sortColumn={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              <Table.Th>Hold</Table.Th>
-              <Table.Th ta="right">Entry</Table.Th>
-              <Table.Th ta="right">Exit</Table.Th>
-              <SortableHeader
-                label="P&L"
-                columnKey="pnl"
-                sortColumn={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              <SortableHeader
-                label="Net"
-                columnKey="net_pnl"
-                sortColumn={sortField}
-                sortDirection={sortDirection}
-                onSort={handleSort}
-              />
-              <Table.Th>Strategy</Table.Th>
-              <Table.Th>Reason</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {sortedTrades.length === 0 ? (
-              <Table.Tr>
-                <Table.Td colSpan={totalColumns}>
-                  <Text c="dimmed" ta="center" py="md">
-                    No trades yet
-                  </Text>
-                </Table.Td>
-              </Table.Tr>
-            ) : (
-              sortedTrades.map((trade, idx) => (
-                <Table.Tr
-                  key={trade.id}
-                  onClick={() => handleRowClick(trade)}
-                  className={highlightedTradeId === trade.id ? "trade-row-highlighted" : undefined}
-                  data-testid={`replay-trade-row-${trade.id}`}
-                >
-                  <Table.Td>
-                    <Text size="xs" c="dimmed">
-                      {idx + 1}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" fw={500}>
-                      {trade.symbol}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <SideBadge side={trade.side} size="xs" />
-                  </Table.Td>
-                  <Table.Td ta="center">
-                    <Text size="xs">{trade.quantity}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{formatTimeOnly(trade.entry_time)}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs">{trade.exit_time ? formatTimeOnly(trade.exit_time) : "-"}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" c="dimmed">
-                      {formatHoldDuration(trade.entry_time, trade.exit_time)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="xs">{trade.entry_price.toFixed(2)}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="xs">{trade.exit_price.toFixed(2)}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="xs" fw={500} c={getPnLTextColor(trade.pnl)}>
-                      {trade.pnl >= 0 ? "+" : ""}
-                      {trade.pnl.toFixed(2)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="xs" fw={500} c={getPnLTextColor(trade.net_pnl)}>
-                      {trade.net_pnl >= 0 ? "+" : ""}
-                      {trade.net_pnl.toFixed(2)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Anchor
-                      component="button"
-                      size="xs"
-                      onClick={() => setStrategyFilter(trade.strategy)}
-                      data-testid={`replay-trade-strategy-link-${trade.id}`}
-                    >
-                      {trade.strategy}
-                    </Anchor>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge size="xs" color={getExitBadgeColor(trade.exit_reason)} variant="light">
-                      {trade.exit_reason}
-                    </Badge>
-                  </Table.Td>
-                </Table.Tr>
-              ))
-            )}
-          </Table.Tbody>
-        </Table>
+        <TanStackTable<ReplayTrade>
+          data={filteredTrades}
+          columns={columns}
+          dataTestId="replay-trade-log-table"
+          emptyMessage="No trades yet"
+          getRowStyle={(row) => ({
+            cursor: onTradeClick ? "pointer" : undefined,
+            backgroundColor:
+              highlightedTradeId === row.id
+                ? "var(--mantine-color-blue-light)"
+                : undefined,
+          })}
+          getRowClassName={(row) =>
+            highlightedTradeId === row.id ? "trade-row-highlighted" : ""
+          }
+          getRowTestId={(row) => `replay-trade-row-${row.id}`}
+          onRowClick={onTradeClick ? handleRowClick : undefined}
+        />
         <div ref={bottomRef} />
       </ScrollArea>
     </Box>

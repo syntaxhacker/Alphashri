@@ -1,8 +1,9 @@
-import { Box, Table, Text, Group } from "@/ui";
+import { useMemo } from "react";
+import { Box, Text, Group } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { BacktestResult } from "../../types/backtest";
 import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
-import { SortableHeader } from "../common/SortableHeader";
-import { DataTable } from "../common/DataTable";
+import { TanStackTable } from "../common/TanStackTable";
 
 interface BacktestResultsTableProps {
   results: BacktestResult[];
@@ -13,21 +14,6 @@ interface BacktestResultsTableProps {
   onSort: (column: string) => void;
 }
 
-interface ColumnDef {
-  key: string;
-  label: string;
-  sortable: boolean;
-}
-
-const columns: ColumnDef[] = [
-  { key: "symbol", label: "Symbol", sortable: true },
-  { key: "net_pnl", label: "Net PnL", sortable: true },
-  { key: "trades", label: "Trades", sortable: true },
-  { key: "win_rate", label: "WR%", sortable: true },
-  { key: "pf", label: "PF", sortable: true },
-  { key: "tp_sl", label: "TP/SL", sortable: false },
-];
-
 export function BacktestResultsTable({
   results,
   selectedSymbol,
@@ -36,51 +22,87 @@ export function BacktestResultsTable({
   onRowClick,
   onSort,
 }: BacktestResultsTableProps) {
-  const renderRow = (result: BacktestResult) => {
-    const isSelected = selectedSymbol === result.symbol;
-    const pnlColor = getPnLTextColor(result.net_pnl);
-    const wrColor = getWinRateColor(result.win_rate);
-
-    return (
-      <Table.Tr
-        key={result.symbol}
-        style={{
-          backgroundColor: isSelected ? "var(--mantine-color-blue-light)" : undefined,
-        }}
-        onClick={() => onRowClick(result.symbol)}
-        data-testid={`result-row-${result.symbol}`}
-      >
-        <Table.Td data-testid={`symbol-${result.symbol}`}>
-          <Text fw={500}>{result.symbol}</Text>
-        </Table.Td>
-        <Table.Td data-testid={`net-pnl-${result.symbol}`}>
-          <Text c={pnlColor} fw={500}>
-            {formatPnl(result.net_pnl)}
+  const columns = useMemo<ColumnDef<BacktestResult>[]>(
+    () => [
+      {
+        id: "symbol",
+        header: "Symbol",
+        accessorKey: "symbol",
+        cell: (info) => (
+          <Text fw={500} data-testid={`symbol-${info.getValue<string>()}`}>
+            {info.getValue<string>()}
           </Text>
-        </Table.Td>
-        <Table.Td data-testid={`trades-${result.symbol}`}>
-          <Text>{result.trades}</Text>
-        </Table.Td>
-        <Table.Td data-testid={`wr-${result.symbol}`}>
-          <Text c={wrColor}>{(result.win_rate ?? 0).toFixed(0)}%</Text>
-        </Table.Td>
-        <Table.Td data-testid={`pf-${result.symbol}`}>
-          <Text>{(result.pf ?? 0).toFixed(1)}</Text>
-        </Table.Td>
-        <Table.Td data-testid={`tpsl-${result.symbol}`}>
-          <Group gap={2}>
-            <Text c="green" size="sm">
-              {result.tp_exits}
+        ),
+      },
+      {
+        id: "net_pnl",
+        header: "Net PnL",
+        accessorKey: "net_pnl",
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text c={getPnLTextColor(val)} fw={500} data-testid={`net-pnl-${info.row.original.symbol}`}>
+              {formatPnl(val)}
             </Text>
-            <Text size="sm">/</Text>
-            <Text c="red" size="sm">
-              {result.sl_exits}
+          );
+        },
+      },
+      {
+        id: "trades",
+        header: "Trades",
+        accessorKey: "trades",
+        cell: (info) => (
+          <Text data-testid={`trades-${info.row.original.symbol}`}>
+            {info.getValue<number>()}
+          </Text>
+        ),
+      },
+      {
+        id: "win_rate",
+        header: "WR%",
+        accessorKey: "win_rate",
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text c={getWinRateColor(val)} data-testid={`wr-${info.row.original.symbol}`}>
+              {(val ?? 0).toFixed(0)}%
             </Text>
-          </Group>
-        </Table.Td>
-      </Table.Tr>
-    );
-  };
+          );
+        },
+      },
+      {
+        id: "pf",
+        header: "PF",
+        accessorKey: "pf",
+        cell: (info) => (
+          <Text data-testid={`pf-${info.row.original.symbol}`}>
+            {(info.getValue<number>() ?? 0).toFixed(1)}
+          </Text>
+        ),
+      },
+      {
+        id: "tp_sl",
+        header: "TP/SL",
+        enableSorting: false,
+        accessorFn: (row) => `${row.tp_exits}/${row.sl_exits}`,
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <Group gap={2} data-testid={`tpsl-${row.symbol}`}>
+              <Text c="green" size="sm">
+                {row.tp_exits}
+              </Text>
+              <Text size="sm">/</Text>
+              <Text c="red" size="sm">
+                {row.sl_exits}
+              </Text>
+            </Group>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
   if (!results || results.length === 0) {
     return (
@@ -94,25 +116,19 @@ export function BacktestResultsTable({
 
   return (
     <Box id="results-table" className="backtest-results-table" data-testid="results-table-wrapper">
-      <DataTable withTableBorder stickyHeader className="results-table">
-        <Table.Thead>
-          <Table.Tr>
-            {columns.map((column) => (
-              <SortableHeader
-                key={column.key}
-                label={column.label}
-                columnKey={column.key}
-                sortColumn={sortColumn}
-                sortDirection={sortDirection}
-                onSort={onSort}
-                sortable={column.sortable}
-                testId={`th-${column.key}`}
-              />
-            ))}
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody data-testid="results-tbody">{results.map(renderRow)}</Table.Tbody>
-      </DataTable>
+      <TanStackTable<BacktestResult>
+        data={results}
+        columns={columns}
+        dataTestId="results-table"
+        enableSorting
+        initialState={{ sorting: [{ id: sortColumn, desc: sortDirection === "desc" }] }}
+        getRowTestId={(row) => `result-row-${row.symbol}`}
+        getRowStyle={(row) => ({
+          backgroundColor:
+            selectedSymbol === row.symbol ? "var(--mantine-color-blue-light)" : undefined,
+        })}
+        onRowClick={(row) => onRowClick(row.symbol)}
+      />
     </Box>
   );
 }

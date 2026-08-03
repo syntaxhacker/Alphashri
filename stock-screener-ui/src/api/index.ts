@@ -8,6 +8,7 @@ import * as state from "../state";
 import { getBacktestState } from "../state/backtest";
 import { detectAddedSymbols } from "../utils/runtime_utils";
 import { pushNotification, markNewSymbols } from "../utils/notifications";
+import { checkPriceSurges } from "../utils/surgeNotifications";
 import { abortPendingRequest, isAbortError } from "../hooks/useFetch";
 import { fetchWithAuth } from "../state/auth";
 import { isMarketClosedToday } from "../state/holidays";
@@ -77,9 +78,19 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
     description: "Weighted impact (market-cap × move) logic",
   },
   {
-    id: "intraday_momentum",
-    label: "Intraday Momentum",
-    description: "Stocks with rapid price runs in last 5/15/30 mins",
+    id: "intraday_5m",
+    label: "5-Min Movers",
+    description: "Stocks with biggest price move in last 5 minutes",
+  },
+  {
+    id: "intraday_10m",
+    label: "10-Min Movers",
+    description: "Stocks with biggest price move in last 10 minutes",
+  },
+  {
+    id: "intraday_15m",
+    label: "15-Min Movers",
+    description: "Stocks with biggest price move in last 15 minutes",
   },
   {
     id: "undervalued",
@@ -90,10 +101,17 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
 
 export function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {
   const { addedPrimary, addedSecondary } = detectAddedSymbols(prev, next);
-  if (addedPrimary.length === 0 && addedSecondary.length === 0) return;
 
   const screenLabel =
     state.screenerOptions.find((s) => s.id === next?.screener)?.label || next?.screener || "";
+
+  // Check for price surges on every auto-refresh regardless of new symbols
+  if (next) {
+    checkPriceSurges(next, next.screener, screenLabel);
+  }
+
+  if (addedPrimary.length === 0 && addedSecondary.length === 0) return;
+
   markNewSymbols([...addedPrimary, ...addedSecondary]);
 
   if (addedPrimary.length > 0) {
@@ -231,6 +249,8 @@ export async function loadScreeners(resetActive: boolean = true): Promise<void> 
   }
 }
 
+const INTRADAY_PROFILES = new Set(["intraday_5m", "intraday_10m", "intraday_15m"]);
+
 export function setupAutoRefresh() {
   if (state.autoRefreshInterval) {
     clearInterval(state.autoRefreshInterval);
@@ -240,16 +260,15 @@ export function setupAutoRefresh() {
     renderCallback();
     return;
   }
+  // Intraday movers: refresh every 10s during market hours for live deltas
+  const isIntradayMover = INTRADAY_PROFILES.has(state.activeScreener);
+  const isOpen = !isMarketClosedToday();
+  const intervalMs = isIntradayMover && isOpen ? 10_000 : state.autoRefreshSeconds * 1000;
   const interval = setInterval(() => {
-    // Only auto-refresh if on screener view (not backtest)
-    if (getBacktestState().currentView === "backtest") {
-      return;
-    }
+    if (getBacktestState().currentView === "backtest") return;
     const params = new URLSearchParams(window.location.search);
     const activeTab = params.get("tab");
-    if (activeTab === "config" || activeTab === "correlation") {
-      return;
-    }
+    if (activeTab === "config" || activeTab === "correlation") return;
     if (isMarketClosedToday()) return;
     if (state.data && !state.isLoading) {
       fetchData(
@@ -259,7 +278,7 @@ export function setupAutoRefresh() {
         "auto",
       );
     }
-  }, state.autoRefreshSeconds * 1000);
+  }, intervalMs);
   state.setAutoRefreshInterval(interval);
   renderCallback();
 }

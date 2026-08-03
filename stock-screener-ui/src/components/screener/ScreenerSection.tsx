@@ -11,9 +11,6 @@ interface ScreenerSectionProps {
   touchedSymbols: Set<string>;
   badgeLabel?: string;
   scoreFormula?: string;
-  sortColumn: string;
-  sortDirection: "asc" | "desc";
-  onSortChange: (column: string) => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   viewMode: "table" | "heatmap";
@@ -30,9 +27,6 @@ export function ScreenerSection({
   touchedSymbols,
   badgeLabel,
   scoreFormula,
-  sortColumn,
-  sortDirection,
-  onSortChange,
   onSymbolClick,
   onSymbolHover,
   viewMode,
@@ -52,9 +46,6 @@ export function ScreenerSection({
         touchedSymbols={touchedSymbols}
         badgeLabel={badgeLabel}
         scoreFormula={scoreFormula}
-        sortColumn={sortColumn}
-        sortDirection={sortDirection}
-        onSortChange={onSortChange}
         onSymbolClick={onSymbolClick}
         onSymbolHover={onSymbolHover}
         viewMode={viewMode}

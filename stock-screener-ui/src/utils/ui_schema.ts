@@ -24,7 +24,10 @@ export type ColumnKey =
   | "market_cap_b"
   | "volume_m"
   | "is_bullish"
-  | "move_pct";
+  | "move_pct"
+  | "move_5m"
+  | "move_10m"
+  | "move_15m";
 
 export const COLUMN_LABELS: Record<ColumnKey, string> = {
   symbol: "Symbol",
@@ -53,6 +56,9 @@ export const COLUMN_LABELS: Record<ColumnKey, string> = {
   volume_m: "Volume M",
   is_bullish: "Sentiment",
   move_pct: "Move %",
+  move_5m: "5-Min Move",
+  move_10m: "10-Min Move",
+  move_15m: "15-Min Move",
 };
 
 export const COLUMN_TOOLTIPS: Record<ColumnKey, string> = {
@@ -83,6 +89,9 @@ export const COLUMN_TOOLTIPS: Record<ColumnKey, string> = {
   volume_m: "Volume in millions",
   is_bullish: "Market sentiment direction",
   move_pct: "Price change % over lookback period (5/15/30 min)",
+  move_5m: "Price change % in last 5 minutes from Upstox 1-min candles",
+  move_10m: "Price change % in last 10 minutes from Upstox 1-min candles",
+  move_15m: "Price change % in last 15 minutes from Upstox 1-min candles",
 };
 
 export const NUMERIC_COLUMNS = new Set<ColumnKey>([
@@ -109,6 +118,9 @@ export const NUMERIC_COLUMNS = new Set<ColumnKey>([
   "adx",
   "interest_score",
   "move_pct",
+  "move_5m",
+  "move_10m",
+  "move_15m",
 ]);
 
 export function getColumnKeysForProfile(screener: string, _touched: boolean): ColumnKey[] {
@@ -186,13 +198,52 @@ export function getColumnKeysForProfile(screener: string, _touched: boolean): Co
       "sector",
     ];
   }
+  if (screener === "intraday_5m") {
+    return [
+      "symbol",
+      "move_5m",
+      "score",
+      "volume_surge",
+      "rsi",
+      "upstox_price",
+      "day_change",
+      "volume_m",
+      "sector",
+    ];
+  }
+  if (screener === "intraday_10m") {
+    return [
+      "symbol",
+      "move_10m",
+      "score",
+      "volume_surge",
+      "rsi",
+      "upstox_price",
+      "day_change",
+      "volume_m",
+      "sector",
+    ];
+  }
+  if (screener === "intraday_15m") {
+    return [
+      "symbol",
+      "move_15m",
+      "score",
+      "volume_surge",
+      "rsi",
+      "upstox_price",
+      "day_change",
+      "volume_m",
+      "sector",
+    ];
+  }
 
   const cols: ColumnKey[] = [
     "symbol",
     "score",
     "tv_price",
     "upstox_price",
-    "broker_diff",
+    "day_change",
     "high_52w",
     "to_52w_high",
   ];

@@ -1,7 +1,8 @@
-import { memo, useRef, useState, useEffect, Fragment } from "react";
-import { Table, Text, Group, Flex, Tooltip, ActionIcon, ScrollArea, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
+import { memo, useRef, useState, useEffect, useMemo } from "react";
+import { Text, Group, Flex, Tooltip, ActionIcon, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import dayjs from "dayjs";
-import { DataTable, ClickableSymbol } from "../common";
+import { ClickableSymbol } from "../common";
 import { fetchPaperChart, closePaperPosition, refreshLiveData, fetch52WLevels } from "../../api/paperTrading";
 import {
   getPaperTradingState,
@@ -10,7 +11,7 @@ import {
   updatePositionNotesAction,
 } from "../../state/paperTrading";
 import type { PaperPosition, PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
-import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
+import { TanStackTable } from "../common/TanStackTable";
 import {
   formatSignedPnl,
   formatPercentage,
@@ -25,7 +26,6 @@ export function nearBreakoutPct(item: PaperScanItem): number {
   const orLow = item.or_low;
   const high52w = item.high_52w;
 
-  // Use 52W high if ORB levels not available
   if (
     (orHigh == null || orLow == null || orHigh <= 0 || orLow <= 0) &&
     high52w != null &&
@@ -75,7 +75,16 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
   return { totalPnl, marginUsed, count: positions.length };
 }
 
-export { TABLE_STYLES as tableStyles };
+const PriceCell = memo(function PriceCell({ price, quantity, entry }: { price: number; quantity: number; entry: number }) {
+  const prevPrice = usePrevPrice(price);
+  return (
+    <Text size="sm">
+      {quantity}×₹{entry.toFixed(0)}
+      <Text span c="dimmed" size="xs">→</Text>
+      <PriceDisplay price={price} prevPrice={prevPrice} />
+    </Text>
+  );
+});
 
 const PriceDisplay = memo(function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
   const [flash, setFlash] = useState<string | null>(null);
@@ -183,89 +192,9 @@ function calcRowBg(current: number, entry: number, sl: number, tp: number): stri
   return `linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.12) ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, rgba(34,197,94,0.12) ${greenStart}%, rgba(34,197,94,0.08) 100%)`;
 }
 
-const PositionRow = memo(function PositionRow({
-  pos,
-  onSelect,
-  onClose,
-}: {
-  pos: PaperPosition;
-  onSelect: (
-    symbol: string,
-    tradeId?: string,
-    strategyName?: string,
-    strategyType?: string,
-    strategyId?: number,
-    entryTime?: string,
-  ) => void;
-  onClose: (symbol: string, price: number) => void;
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const prevPrice = usePrevPrice(pos.current_price);
-  const sideColor = getSideColor(pos.side);
-  const rowBg = calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit);
-  const ageColor = "transparent";
-  const tpLabel = pos.take_profit > 0 ? `₹${pos.take_profit.toFixed(2)}` : "trail";
-
-  return (
-    <Fragment key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}>
-      <Table.Tr
-        onClick={() => setExpanded((e) => !e)}
-        style={{
-          cursor: "pointer",
-          background: rowBg,
-          borderLeft: `3px solid ${sideColor}`,
-          transition: "background 0.5s ease",
-        }}
-        data-testid={`position-row-${pos.symbol}`}
-      >
-        <Table.Td>
-          <Text span size="xs" c="dimmed" mr={4}>{expanded ? "▼" : "▶"}</Text>
-          <Tooltip label={`SL: ₹${pos.stop_loss.toFixed(2)} | TP: ${tpLabel}`}>
-            <ClickableSymbol
-              symbol={pos.symbol}
-              showPreview
-              onClick={() => onSelect(pos.symbol, pos.order_id, pos.strategy_name, undefined, pos.strategy_id, pos.entry_time)}
-            />
-          </Tooltip>
-        </Table.Td>
-        <Table.Td>
-          <Text size="sm">
-            {pos.quantity}×₹{pos.entry_price.toFixed(0)}
-            <Text span c="dimmed" size="xs">→</Text>
-            <PriceDisplay price={pos.current_price} prevPrice={prevPrice} />
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <PnLDisplay pnl={pos.pnl} pnlPct={pos.pnl_pct} />
-        </Table.Td>
-        <Table.Td>
-          <Text size="xs" c="dimmed">{formatElapsed(pos.entry_time)}</Text>
-        </Table.Td>
-        <Table.Td>
-          <Tooltip label="Close position">
-            <ActionIcon variant="subtle" color="gray" size="sm" onClick={(e) => { e.stopPropagation(); onClose(pos.symbol, pos.current_price); }} data-testid={`close-position-${pos.symbol}`}>
-              ✕
-            </ActionIcon>
-          </Tooltip>
-        </Table.Td>
-      </Table.Tr>
-      <Table.Tr key={`${pos.order_id || `${pos.strategy_id}-${pos.symbol}`}-detail`}>
-        <Table.Td colSpan={5} style={{ padding: 0, border: "none" }}>
-          <Collapse in={expanded}>
-            <Box p="xs" bg="dark.7" style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
-              <PositionDetail pos={pos} />
-            </Box>
-          </Collapse>
-        </Table.Td>
-      </Table.Tr>
-    </Fragment>
-  );
-});
-
 const _52wCache: Record<string, { high_52w: number; low_52w: number }> = {};
 
 const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPosition }) {
-  console.log("[PositionDetail] pos:", pos.symbol, "order_id:", pos.order_id, "id:", pos.id);
   const [notes, setNotes] = useState(pos.notes || "");
   const [saving, setSaving] = useState(false);
   const [week52, setWeek52] = useState<{ high_52w: number; low_52w: number } | null>(null);
@@ -344,17 +273,17 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
       <Box>
         <Text size="xs" c="dimmed" mb={2}>Notes</Text>
         <Group gap="xs">
-<Textarea
-  size="xs"
-  value={notes}
-  onChange={(val) => setNotes(val)}
-  placeholder="Add notes..."
-  style={{ flex: 1 }}
-  maxLength={500}
-  autosize
-  minRows={1}
-  maxRows={3}
-/>
+          <Textarea
+            size="xs"
+            value={notes}
+            onChange={(val) => setNotes(val)}
+            placeholder="Add notes..."
+            style={{ flex: 1 }}
+            maxLength={500}
+            autosize
+            minRows={1}
+            maxRows={3}
+          />
           <Button size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving}>Save</Button>
         </Group>
       </Box>
@@ -412,137 +341,137 @@ export function PositionsTableBody({
     strategyId?: number,
     entryTime?: string,
   ) => {
-    if (externalOnSelect) {
-      externalOnSelect(symbol, _tradeId, _strategyName, _strategyType, strategyId, entryTime);
-      return;
+    try {
+      if (externalOnSelect) {
+        externalOnSelect(symbol, _tradeId, _strategyName, _strategyType, strategyId, entryTime);
+        return;
+      }
+      setSelectedSymbol(symbol);
+      setSelectedTradeId("-1");
+      const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
+      const fromDate = entryDate
+        ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
+        : undefined;
+      const state = getPaperTradingState();
+      await fetchPaperChart(
+        symbol,
+        entryDate,
+        state.chartTimeframe,
+        strategyId ?? state.selectedStrategyId,
+        fromDate,
+      );
+    } catch (err) {
+      console.error("handleSelect failed:", err);
     }
-    setSelectedSymbol(symbol);
-    setSelectedTradeId("-1");
-    const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
-    const fromDate = entryDate
-      ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
-      : undefined;
-    const state = getPaperTradingState();
-    await fetchPaperChart(
-      symbol,
-      entryDate,
-      state.chartTimeframe,
-      strategyId ?? state.selectedStrategyId,
-      fromDate,
-    );
   };
 
+  const columns = useMemo<ColumnDef<PaperPosition>[]>(() => [
+    {
+      id: "toggle",
+      header: "",
+      size: 32,
+      enableSorting: false,
+      cell: ({ row }) => (
+        <ActionIcon
+          variant="subtle"
+          color="gray"
+          size="sm"
+          onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
+          data-testid={`position-expand-${row.original.symbol}`}
+        >
+          {row.getIsExpanded() ? "▼" : "▶"}
+        </ActionIcon>
+      ),
+    },
+    {
+      id: "symbol",
+      header: "Symbol",
+      size: 100,
+      accessorKey: "symbol",
+      cell: ({ row }) => {
+        const pos = row.original;
+        const tpLabel = pos.take_profit > 0 ? `₹${pos.take_profit.toFixed(2)}` : "trail";
+        return (
+          <Tooltip label={`SL: ₹${pos.stop_loss.toFixed(2)} | TP: ${tpLabel}`}>
+            <ClickableSymbol
+              symbol={pos.symbol}
+              showPreview
+              onClick={() => {
+                handleSelect(pos.symbol, pos.order_id, pos.strategy_name, undefined, pos.strategy_id, pos.entry_time)
+                  .catch((err) => console.error("Position select failed:", err));
+              }}
+            />
+          </Tooltip>
+        );
+      },
+    },
+    {
+      id: "price",
+      header: "Entry→Curr",
+      size: 160,
+      accessorFn: (row) => row.current_price - row.entry_price,
+      cell: ({ row }) => {
+        const pos = row.original;
+        return <PriceCell price={pos.current_price} quantity={pos.quantity} entry={pos.entry_price} />;
+      },
+    },
+    {
+      id: "pnl",
+      header: "P&L",
+      size: 100,
+      accessorFn: (row) => row.pnl,
+      cell: ({ row }) => <PnLDisplay pnl={row.original.pnl} pnlPct={row.original.pnl_pct} />,
+    },
+    {
+      id: "age",
+      header: "Age",
+      size: 80,
+      accessorFn: (row) => row.entry_time,
+      cell: ({ row }) => <Text size="xs" c="dimmed">{formatElapsed(row.original.entry_time)}</Text>,
+    },
+    {
+      id: "close",
+      header: "",
+      size: 40,
+      enableSorting: false,
+      cell: ({ row }) => {
+        const pos = row.original;
+        return (
+          <Tooltip label="Close position">
+            <ActionIcon
+              variant="subtle"
+              color="gray"
+              size="sm"
+              onClick={(e) => { e.stopPropagation(); handleClosePosition(pos.symbol, pos.current_price); }}
+              data-testid={`close-position-${pos.symbol}`}
+            >
+              ✕
+            </ActionIcon>
+          </Tooltip>
+        );
+      },
+    },
+  ], [externalOnSelect, externalOnClose]);
+
   return (
-    <DataTable styles={TABLE_STYLES} dataTestId="positions-table">
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Symbol</Table.Th>
-          <Table.Th>Entry→Curr</Table.Th>
-          <Table.Th>P&L</Table.Th>
-          <Table.Th>Age</Table.Th>
-          <Table.Th></Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {positions.map((pos) => (
-          <PositionRow
-            key={pos.order_id || `${pos.strategy_id}-${pos.symbol}`}
-            pos={pos}
-            onSelect={handleSelect}
-            onClose={handleClosePosition}
-          />
-        ))}
-      </Table.Tbody>
-    </DataTable>
-  );
-}
-
-export function WatchlistScan({ snapshot }: { snapshot: PaperBotSnapshot | null }) {
-  const state = getPaperTradingState();
-
-  const handleSelectSymbol = async (symbol: string) => {
-    setSelectedSymbol(symbol);
-    const currentState = getPaperTradingState();
-    await fetchPaperChart(
-      symbol,
-      undefined,
-      currentState.chartTimeframe,
-      currentState.selectedStrategyId,
-    );
-  };
-
-  if (!snapshot || !snapshot.scan_items || snapshot.scan_items.length === 0) return null;
-
-  const scanTime = snapshot.timestamp ? new Date(snapshot.timestamp).toLocaleTimeString() : "-";
-
-  let scanItems = snapshot.scan_items;
-  if (state.selectedStrategyTab && state.selectedStrategyTab !== "all") {
-    scanItems = scanItems.filter((item) => item.status === state.selectedStrategyTab);
-  }
-
-  const rows = [...scanItems].sort((a, b) => nearBreakoutPct(a) - nearBreakoutPct(b)).slice(0, 12);
-
-  return (
-    <Flex
-      direction="column"
-      data-testid="watchlist-scan-card"
-      className="paper-watchlist-scan"
-      id="watchlist-scan"
-    >
-      <Group justify="space-between" px={4} py={2}>
-        <Text fw={600} size="xs" c="dimmed" tt="uppercase">
-          Watchlist Scan
-        </Text>
-        <Text size="xs" c="dimmed">
-          {scanTime}
-        </Text>
-      </Group>
-      <ScrollArea flex={1} style={{ minHeight: 0 }}>
-        <div style={{ overflowX: "auto" }}>
-          <DataTable styles={TABLE_STYLES} dataTestId="scan-table">
-            <Table.Thead>
-              <Table.Tr>
-                <Table.Th>Sym</Table.Th>
-                <Table.Th>Status</Table.Th>
-                <Table.Th>Price</Table.Th>
-                <Table.Th>OR H/L</Table.Th>
-                <Table.Th>Near</Table.Th>
-                <Table.Th>Reason</Table.Th>
-              </Table.Tr>
-            </Table.Thead>
-            <Table.Tbody>
-              {rows.map((item) => (
-                <Table.Tr
-                  key={item.strategy_id ? `${item.strategy_id}-${item.symbol}` : item.symbol}
-                  onClick={() => handleSelectSymbol(item.symbol)}
-                  style={{ cursor: "pointer" }}
-                  data-testid={`scan-row-${item.symbol}`}
-                >
-                  <Table.Td>
-                    <Text fw={600} size="sm">
-                      {item.symbol}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Badge variant="outline" color="blue" size="xs">
-                      {item.status || "-"}
-                    </Badge>
-                  </Table.Td>
-                  <Table.Td>{item.price ? `₹${item.price.toFixed(2)}` : "-"}</Table.Td>
-                  <Table.Td>
-                    {item.or_high && item.or_low
-                      ? `₹${item.or_high.toFixed(2)} / ₹${item.or_low.toFixed(2)}`
-                      : "-"}
-                  </Table.Td>
-                  <Table.Td>{formatNear(item)}</Table.Td>
-                  <Table.Td>{item.reason || "-"}</Table.Td>
-                </Table.Tr>
-              ))}
-            </Table.Tbody>
-          </DataTable>
-        </div>
-      </ScrollArea>
-    </Flex>
+    <TanStackTable<PaperPosition>
+      data={positions}
+      columns={columns}
+      getRowCanExpand={() => true}
+      renderSubComponent={(pos) => (
+        <Box p="xs" style={{ background: "var(--mantine-color-dark-7)", borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
+          <PositionDetail pos={pos} />
+        </Box>
+      )}
+      getRowStyle={(pos) => ({
+        cursor: "pointer",
+        background: calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit),
+        borderLeft: `3px solid ${getSideColor(pos.side)}`,
+        transition: "background 0.5s ease",
+      })}
+      getRowTestId={(pos) => `position-row-${pos.symbol}`}
+      dataTestId="positions-table"
+    />
   );
 }
 
@@ -557,6 +486,22 @@ export function StrategySummaryFooter({
     ...calcStrategySummary(positions),
   }));
 
+  const columns: ColumnDef<(typeof summaries)[0]>[] = [
+    { id: "name", header: "Strategy", accessorKey: "name", cell: ({ row }) => <Text fw={600} size="sm">{row.original.name}</Text> },
+    { id: "count", header: "Pos", accessorKey: "count", cell: ({ row }) => <>{row.original.count}</> },
+    { id: "marginUsed", header: "Margin", accessorKey: "marginUsed", cell: ({ row }) => <>₹{formatCurrencyIN(row.original.marginUsed)}</> },
+    {
+      id: "totalPnl",
+      header: "P&L",
+      accessorKey: "totalPnl",
+      cell: ({ row }) => (
+        <Text c={getPnLTextColor(row.original.totalPnl)} fw={600} size="sm">
+          {formatSignedPnl(row.original.totalPnl)}
+        </Text>
+      ),
+    },
+  ];
+
   return (
     <Flex
       direction="column"
@@ -570,34 +515,12 @@ export function StrategySummaryFooter({
       <Text fw={600} size="xs" c="dimmed" tt="uppercase" mb={2}>
         Strategy Summary
       </Text>
-      <DataTable highlightOnHover={false} styles={TABLE_STYLES} dataTestId="strategy-summary-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Strategy</Table.Th>
-            <Table.Th>Pos</Table.Th>
-            <Table.Th>Margin</Table.Th>
-            <Table.Th>P&L</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {summaries.map((s) => (
-            <Table.Tr key={s.name}>
-              <Table.Td>
-                <Text fw={600} size="sm">
-                  {s.name}
-                </Text>
-              </Table.Td>
-              <Table.Td>{s.count}</Table.Td>
-              <Table.Td>₹{formatCurrencyIN(s.marginUsed)}</Table.Td>
-              <Table.Td>
-                <Text c={getPnLTextColor(s.totalPnl)} fw={600} size="sm">
-                  {formatSignedPnl(s.totalPnl)}
-                </Text>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </DataTable>
+      <TanStackTable
+        data={summaries}
+        columns={columns}
+        enableSorting={false}
+        dataTestId="strategy-summary-table"
+      />
     </Flex>
   );
 }

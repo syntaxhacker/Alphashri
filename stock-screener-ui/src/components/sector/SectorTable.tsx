@@ -1,6 +1,8 @@
-import { Table, Text, Badge, Group, ScrollArea, Progress, Box } from "@/ui";
+import { useMemo } from "react";
+import { Text, Badge, Group, Progress, Box, ScrollArea } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { SectorItem } from "../../types/sector";
-import { DataTable, TableEmptyState } from "../common";
+import { TanStackTable } from "../common/TanStackTable";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
 interface SectorTableProps {
@@ -29,72 +31,89 @@ function getMovementBar(pctChange: number) {
     </Box>
   );
 }
+
 export function SectorTable({ sectors }: SectorTableProps) {
-  const rows = sectors.map((row) => {
-    const pnlColor = getPnLTextColor(row.avg_change);
-    const adColor = row.advances > row.declines ? "green" : "red";
-
-    const { label: strength, color: strColor } = getStrengthInfo(row.avg_adx);
-
-    return (
-      <Table.Tr
-        key={row.sector}
-        data-testid={`sector-row-${row.sector.toLowerCase().replace(/\s+/g, "-")}`}
-      >
-        <Table.Td fw={700}>{row.sector}</Table.Td>
-        <Table.Td align="right">
-          <Text c={pnlColor} fw={700}>
-            {row.avg_change >= 0 ? "+" : ""}
-            {row.avg_change.toFixed(2)}%
-          </Text>
-        </Table.Td>
-        <Table.Td>
-          <Group justify="center">{getMovementBar(row.avg_change)}</Group>
-        </Table.Td>
-        <Table.Td align="center">
-          <Text c={adColor} size="sm" fw={600}>
-            {row.advances} : {row.declines}
-          </Text>
-        </Table.Td>
-        <Table.Td align="center">
-          <Badge color={strColor} variant="light" size="sm">
-            {strength}
-          </Badge>
-        </Table.Td>
-        <Table.Td>
+  const columns = useMemo<ColumnDef<SectorItem>[]>(
+    () => [
+      {
+        id: "sector",
+        header: "Sector",
+        accessorKey: "sector",
+        cell: (info) => <span style={{ fontWeight: 700, fontSize: 13 }}>{info.getValue<string>()}</span>,
+      },
+      {
+        id: "avg_change",
+        header: "Change",
+        accessorKey: "avg_change",
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <span style={{ color: getPnLTextColor(val), fontWeight: 700, fontSize: 12, textAlign: "right", display: "block" }}>
+              {val >= 0 ? "+" : ""}
+              {val.toFixed(2)}%
+            </span>
+          );
+        },
+      },
+      {
+        id: "movement",
+        header: "Movement",
+        accessorKey: "avg_change",
+        cell: (info) => <Group justify="center">{getMovementBar(info.getValue<number>())}</Group>,
+      },
+      {
+        id: "ad_ratio",
+        header: "A/D Ratio",
+        accessorFn: (row) => `${row.advances} : ${row.declines}`,
+        cell: (info) => {
+          const row = info.row.original;
+          const adColor = row.advances > row.declines ? "green" : "red";
+          return (
+            <span style={{ color: adColor, fontSize: 12, fontWeight: 600, textAlign: "center", display: "block" }}>
+              {row.advances} : {row.declines}
+            </span>
+          );
+        },
+      },
+      {
+        id: "strength",
+        header: "Strength",
+        accessorKey: "avg_adx",
+        cell: (info) => {
+          const { label, color } = getStrengthInfo(info.getValue<number>());
+          return (
+            <Group justify="center">
+              <Badge color={color} variant="light" size="sm">
+                {label}
+              </Badge>
+            </Group>
+          );
+        },
+      },
+      {
+        id: "top_movers",
+        header: "Top Movers",
+        accessorKey: "top_movers",
+        cell: (info) => (
           <Text size="sm" c="dimmed" lineClamp={1}>
-            {row.top_movers}
+            {info.getValue<string>()}
           </Text>
-        </Table.Td>
-      </Table.Tr>
-    );
-  });
+        ),
+      },
+    ],
+    [],
+  );
 
   return (
     <ScrollArea h="100%" offsetScrollbars>
-      <DataTable withTableBorder stickyHeader id="sector-table" dataTestId="sector-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Sector</Table.Th>
-            <Table.Th align="right">Change</Table.Th>
-            <Table.Th align="center">Movement</Table.Th>
-            <Table.Th align="center">A/D Ratio</Table.Th>
-            <Table.Th align="center">Strength</Table.Th>
-            <Table.Th>Top Movers</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {sectors.length === 0 ? (
-            <Table.Tr>
-              <Table.Td colSpan={6}>
-                <TableEmptyState message="No sector data available" />
-              </Table.Td>
-            </Table.Tr>
-          ) : (
-            rows
-          )}
-        </Table.Tbody>
-      </DataTable>
+      <TanStackTable<SectorItem>
+        data={sectors}
+        columns={columns}
+        enableSorting={false}
+        emptyMessage="No sector data available"
+        dataTestId="sector-table"
+        getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
+      />
     </ScrollArea>
   );
 }

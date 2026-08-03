@@ -1,8 +1,11 @@
-import { Table, Text, Group, Stack, Badge, Progress, Loader } from "@/ui";
+import { useMemo } from "react";
+import { Text, Group, Stack, Badge, Loader } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
+import type { StrategyPerformance } from "../../types/strategies";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
-import { DataTable } from "../common/DataTable";
+import { TanStackTable } from "../common/TanStackTable";
 
 export function PerformanceView({
   performance,
@@ -45,58 +48,78 @@ export function PerformanceView({
     );
   }
 
-  // Calculate summary stats
   const totalTrades = performance.reduce((sum, p) => sum + p.total_trades, 0);
   const totalWinners = performance.reduce((sum, p) => sum + p.winners, 0);
   const totalLosers = performance.reduce((sum, p) => sum + p.losers, 0);
   const overallWinRate = totalTrades > 0 ? (totalWinners / totalTrades) * 100 : 0;
   const totalPnl = performance.reduce((sum, p) => sum + p.net_pnl, 0);
 
-  const rows = performance.map((perf) => {
-    const winRate = perf.total_trades > 0 ? perf.win_rate : 0;
-    const pnlColor = perf.net_pnl >= 0 ? "teal" : "red";
-
-    return (
-      <Table.Tr
-        key={perf.strategy_id}
-        onClick={() => onSelectStrategy(perf.strategy_id)}
-        data-testid={`performance-row-${perf.strategy_id}`}
-      >
-        <Table.Td>
+  const columns = useMemo<ColumnDef<StrategyPerformance>[]>(
+    () => [
+      {
+        id: "strategy_name",
+        header: "Strategy",
+        accessorKey: "strategy_name",
+        cell: (info) => (
           <Text fw={500} size="sm">
-            {perf.strategy_name}
+            {info.getValue<string>()}
           </Text>
-        </Table.Td>
-        <Table.Td>
-          <Text size="sm">{perf.total_trades}</Text>
-        </Table.Td>
-        <Table.Td>
+        ),
+      },
+      {
+        id: "total_trades",
+        header: "Total Trades",
+        accessorKey: "total_trades",
+        cell: (info) => <Text size="sm">{info.getValue<number>()}</Text>,
+      },
+      {
+        id: "wl",
+        header: "W / L",
+        accessorFn: (row) => `${row.winners}/${row.losers}`,
+        cell: (info) => (
           <Group gap={4}>
             <Text size="sm" c="teal">
-              {perf.winners}
+              {info.row.original.winners}
             </Text>
             <Text size="sm" c="dimmed">
               /
             </Text>
             <Text size="sm" c="red">
-              {perf.losers}
+              {info.row.original.losers}
             </Text>
           </Group>
-        </Table.Td>
-        <Table.Td>
-          <Badge size="sm" color={winRate >= 50 ? "teal" : "red"} variant="light">
-            {winRate.toFixed(1)}%
-          </Badge>
-        </Table.Td>
-        <Table.Td>
-          <Text size="sm" c={pnlColor} fw={500}>
-            {perf.net_pnl >= 0 ? "+" : ""}
-            {perf.net_pnl.toFixed(2)}
-          </Text>
-        </Table.Td>
-      </Table.Tr>
-    );
-  });
+        ),
+      },
+      {
+        id: "win_rate",
+        header: "Win Rate",
+        accessorKey: "win_rate",
+        cell: (info) => {
+          const winRate = info.getValue<number>();
+          return (
+            <Badge size="sm" color={winRate >= 50 ? "teal" : "red"} variant="light">
+              {winRate.toFixed(1)}%
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "net_pnl",
+        header: "Net P&L",
+        accessorKey: "net_pnl",
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <span style={{ color: val >= 0 ? "teal" : "red", fontWeight: 500, fontSize: 13 }}>
+              {val >= 0 ? "+" : ""}
+              {val.toFixed(2)}
+            </span>
+          );
+        },
+      },
+    ],
+    [],
+  );
 
   return (
     <Stack
@@ -113,22 +136,13 @@ export function PerformanceView({
           className="performance-card performance-card-trades"
           testId="performance-card-trades"
         />
-
         <CompactStat
           label="Win Rate"
           value={`${overallWinRate.toFixed(1)}%`}
-          hint={
-            <Progress
-              value={overallWinRate}
-              color={overallWinRate >= 50 ? "teal" : "red"}
-              size="sm"
-            />
-          }
           tone={overallWinRate >= 50 ? "positive" : "negative"}
           className="performance-card performance-card-winrate"
           testId="performance-card-winrate"
         />
-
         <CompactStat
           label="Total P&L"
           value={`${totalPnl >= 0 ? "+" : ""}${totalPnl.toFixed(2)}`}
@@ -137,7 +151,6 @@ export function PerformanceView({
           className="performance-card performance-card-pnl"
           testId="performance-card-pnl"
         />
-
         <CompactStat
           label="Active Strategies"
           value={performance.length}
@@ -154,27 +167,13 @@ export function PerformanceView({
         description="Click a row to inspect the strategy's trade history"
         scrollable
       >
-        <DataTable
-          withTableBorder
-          verticalSpacing="xs"
-          horizontalSpacing="sm"
-          className="performance-table"
-          id="performance-table"
+        <TanStackTable<StrategyPerformance>
+          data={performance}
+          columns={columns}
+          onRowClick={(row) => onSelectStrategy(row.strategy_id)}
           dataTestId="performance-table"
-        >
-          <Table.Thead className="performance-table-header" data-testid="performance-table-header">
-            <Table.Tr>
-              <Table.Th>Strategy</Table.Th>
-              <Table.Th>Total Trades</Table.Th>
-              <Table.Th>W / L</Table.Th>
-              <Table.Th>Win Rate</Table.Th>
-              <Table.Th>Net P&L</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody className="performance-table-body" data-testid="performance-table-body">
-            {rows}
-          </Table.Tbody>
-        </DataTable>
+          stickyHeader={false}
+        />
       </CompactPanel>
     </Stack>
   );

@@ -109,11 +109,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [form, setForm] = useState<ScreenerForm>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
-  const [sortColumn, setSortColumn] = useState<string | null>("score");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [touchedSymbols] = useState<Set<string>>(new Set());
-  const [modalSortColumn, setModalSortColumn] = useState<string | null>("score");
-  const [modalSortDirection, setModalSortDirection] = useState<"asc" | "desc">("desc");
 
   const activeOption = screenerOptions.find((o) => o.id === activeScreener);
   const columns = activeOption?.columns || [
@@ -163,18 +159,6 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     label: ALL_COLUMNS.find((c) => c.key === key)?.label || key,
     sortable: true,
   }));
-
-  const handleSortChange = useCallback(
-    (column: string) => {
-      if (sortColumn === column) {
-        setSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-      } else {
-        setSortColumn(column);
-        setSortDirection("desc");
-      }
-    },
-    [sortColumn],
-  );
 
   const handleSymbolClick = useCallback((_symbol: string) => {
     // No-op for config preview - could open detail modal in future
@@ -515,9 +499,6 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               stocks={stocks}
               columns={columnDefs}
               touchedSymbols={touchedSymbols}
-              sortColumn={sortColumn}
-              sortDirection={sortDirection}
-              onSortChange={handleSortChange}
               onSymbolClick={handleSymbolClick}
               onSymbolHover={handleSymbolHover}
               data-testid="preview-table"
@@ -700,16 +681,6 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                     sortable: true,
                   }))}
                   touchedSymbols={touchedSymbols}
-                  sortColumn={modalSortColumn}
-                  sortDirection={modalSortDirection}
-                  onSortChange={(col) => {
-                    if (modalSortColumn === col) {
-                      setModalSortDirection((d) => (d === "asc" ? "desc" : "asc"));
-                    } else {
-                      setModalSortColumn(col);
-                      setModalSortDirection("desc");
-                    }
-                  }}
                   onSymbolClick={() => {}}
                   onSymbolHover={() => {}}
                 />
