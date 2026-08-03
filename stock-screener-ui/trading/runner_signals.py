@@ -64,16 +64,15 @@ class RunnerSignalsMixin:
             item.update(extra)
         return item
 
-    def _remaining_scan_budget(self) -> int:
+    def _remaining_scan_budget(self, swing: bool = False) -> int:
         try:
-            from cache.redis_client import get_redis_client
-            client = get_redis_client()
-            if client is None:
-                return 15
-            now = __import__('time').time()
-            minute_count = client.zcount('upstox:rl:hits', now - 60, now)
-            remaining = max(1, 15 - minute_count // 10)
-            return min(15, remaining)
+            from upstox_trader.rate_limiter import UpstoxRateLimiter
+            rl = UpstoxRateLimiter()
+            remaining = rl.remaining_minute_budget()
+            # Swing strategies scan every 10 cycles (5 min vs 30s for intraday),
+            # so they get a higher budget per scan to compensate.
+            divisor = 10 if swing else 33
+            return min(15, max(1, remaining // divisor))
         except Exception:
             return 15
 
@@ -392,6 +391,7 @@ class RunnerSignalsMixin:
         """Scan for signals using daily data (52W_CHASER, 52W_TARGET)."""
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
+            console.print(f"[dim]_scan_swing_strategy({strategy_id}): runner not running[/dim]")
             return []
 
         if not self.is_market_open():
@@ -413,7 +413,7 @@ class RunnerSignalsMixin:
         if strategy_id not in self._swing_entered_today:
             self._swing_entered_today[strategy_id] = set()
 
-        budget = self._remaining_scan_budget()
+        budget = self._remaining_scan_budget(swing=True)
         scanned = 0
         for symbol in watchlist:
             if scanned >= budget:

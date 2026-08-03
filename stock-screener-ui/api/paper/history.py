@@ -56,6 +56,9 @@ async def get_trades(
     user_id = _get_user_id(user)
     all_trades = _get_trades_from_db(user_id, bot_id, symbol, strategy_id, from_date, to_date, days_back, limit)
 
+    if not all_trades:
+        all_trades = _get_trades_from_journals(user_id, limit, symbol, from_date, to_date)
+
     all_trades = _resolve_trade_bot_ids(all_trades)
 
     return {
@@ -113,6 +116,30 @@ def _get_trades_from_db(
             db.close()
         except Exception:
             pass
+
+
+def _get_trades_from_journals(
+    user_id: int,
+    limit: int = 50,
+    symbol: Optional[str] = None,
+    from_date: Optional[str] = None,
+    to_date: Optional[str] = None,
+) -> list:
+    """Fallback: load trades from JSON journal files when DB returns empty."""
+    try:
+        from trading.journal import Journal
+        journal = Journal(user_id=user_id)
+        journal.load_all_journals()
+        trades = journal.trades or []
+        if symbol:
+            trades = [t for t in trades if t.get('symbol', '').upper() == symbol.upper()]
+        if from_date:
+            trades = [t for t in trades if t.get('exit_time', '') >= from_date]
+        if to_date:
+            trades = [t for t in trades if t.get('exit_time', '') <= to_date + ' 23:59:59']
+        return trades[:limit]
+    except Exception:
+        return []
 
 
 

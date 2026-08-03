@@ -238,7 +238,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.
 - Both are gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).
 - **Key `start.sh` behavior**: The range batch now performs a *prompt initial run* shortly after startup (during market hours) instead of sleeping the full interval first. This ensures that running `start.sh` when ranges are stale triggers an observable batch quickly (previous behavior waited up to 1 hour). After the initial run, it follows the normal `SCREENER_52W_INTERVAL_SEC` (default 3600, overrideable).
-- Scheduled runs are incremental only (`--skip-existing`). After the initial bootstrap, they usually process only a handful of symbols and finish in ~1-2 seconds.
+- Scheduled runs use daily staleness refresh (`--skip-updated-today`): symbols whose `updated_at` is already today are skipped. The first run each day refreshes the full NSE_EQ universe (~5-15 min at 3 workers × 0.35s delay). Subsequent hourly runs find everything fresh and no-op in ~1s. Mid-day restarts only refresh symbols not yet updated today.
 - The admin 52W panel shows the last job result from Redis (status usually stays "completed"). The live progress bar is only shown while the job status is actively "running" — because normal runs are so fast, it is rarely visible on the panel's 5s poll. Use "Clear cache + DB" followed by a manual "Run batch" (or full refresh) if you need to observe the progress UI.
 - "Latest DB update" (max row `updated_at`) only moves forward when the script actually inserts or changes range data for a symbol (not on every job execution).
 - Prewarm keeps the 52w_high screener (and others) responsive during market hours.
@@ -318,7 +318,7 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **ExitReasonBadge missing cases**: `FORCE_CLOSE`, `TRAILING_STOP`, `MAX_HOLDING`, `NEW_52W_HIGH` — all show as raw gray text
 - **Portfolio summary compact redesign** — mentioned but not started
 - **52W daily data caching** — fetches 400 days per chart request with no caching
-- **52W range batch progress in admin UI**: normal post-bootstrap runs are very fast (tiny candidate set after skip-existing), so the "running" state + progress bar is rarely caught by the panel's polling. The UI mostly shows the last completed result. Force a long run (clear DB first + full refresh) if you need to observe live progress.
+- **52W range batch progress in admin UI**: The first daily run refreshes all stale symbols (~5-15 min at 3 workers × 0.35s delay), so the progress bar is visible during that window. Subsequent hourly runs are fast (everything already fresh → no-op in ~1s). Use the admin panel's "Clear cache + DB" or adjust `SCREENER_52W_INTERVAL_SEC` to control freshness.
 - **`_filter_to_date_or_recent` timezone bug** — see [PRODUCTION.md](./PRODUCTION.md) (known production issue)
 - **TradingAgents auth**: `get_current_user` dependency has compatibility issues with this router (langgraph_sdk/chaining chainlit interference). All trading_agents endpoints use no auth or hardcoded user_id=3 for now.
 - **Analysis speed**: Multi-agent analysis takes 60-120s (15+ DeepSeek LLM calls). First analysis on any ticker is slow, subsequent requests are instant from file cache.
