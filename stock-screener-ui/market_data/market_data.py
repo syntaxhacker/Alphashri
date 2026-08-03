@@ -22,8 +22,8 @@ from typing import Dict, List, Optional
 import pandas as pd
 
 _BASE = str(Path(__file__).parent.parent)
-sys.path.insert(0, _BASE)
 sys.path.insert(0, str(Path(_BASE).parent))  # for upstox_trader
+sys.path.insert(0, _BASE)
 
 import config
 
@@ -62,7 +62,7 @@ def get_api_client():
     if _client_cache is not None:
         return _client_cache
 
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     from backtest.utils import get_upstox_client_from_db
 
     try:

@@ -24,8 +24,10 @@ from pathlib import Path
 from threading import Lock
 
 _project_root = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(_project_root))
+# Parent first so project_root ends up at sys.path[0]: config/db/trading must resolve
+# to stock-screener-ui (its DB has stock_52w_range), not the parent project.
 sys.path.insert(0, str(_project_root.parent))
+sys.path.insert(0, str(_project_root))
 
 from dotenv import load_dotenv
 
@@ -49,9 +51,9 @@ NSE_INSTRUMENTS_JSON = (
 )
 
 LOOKBACK_CALENDAR_DAYS = 400
-DEFAULT_WORKERS = 3
-DEFAULT_DELAY_SEC = 0.35
-DB_FLUSH_EVERY = 100
+DEFAULT_WORKERS = 5
+DEFAULT_DELAY_SEC = 0.15
+DB_FLUSH_EVERY = 500
 
 
 def load_symbols(
@@ -215,6 +217,11 @@ def main() -> None:
     parser.add_argument("--redis", action="store_true", help="Also update Redis 52w_range cache")
     parser.add_argument("--skip-existing", action="store_true", help="Skip symbols already in stock_52w_range")
     parser.add_argument(
+        "--skip-updated-today",
+        action="store_true",
+        help="Skip symbols whose updated_at is today (IST) — daily staleness refresh",
+    )
+    parser.add_argument(
         "--migrate",
         action="store_true",
         help="Run Alembic migrations before processing (default: skip, set SKIP_ALEMBIC=1)",
@@ -247,6 +254,21 @@ def main() -> None:
         finally:
             db.close()
 
+    if args.skip_updated_today and not args.dry_run:
+        db = SessionLocal()
+        try:
+            today = datetime.now(config.IST).date()
+            fresh = {
+                r.symbol
+                for r in db.query(Stock52WeekRange.symbol, Stock52WeekRange.updated_at).all()
+                if r.updated_at and r.updated_at.date() >= today
+            }
+            before = len(symbols)
+            symbols = [s for s in symbols if s not in fresh]
+            print(f"Skip-updated-today: {before - len(symbols)} already fresh today, {len(symbols)} remaining")
+        finally:
+            db.close()
+
     if args.limit > 0:
         symbols = symbols[: args.limit]
 
@@ -260,7 +282,9 @@ def main() -> None:
         print("UPSTOX_API_KEY and UPSTOX_API_SECRET must be set (config / .env)")
         sys.exit(1)
 
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
+
+    api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
 
     if not args.dry_run and args.migrate:
         init_db()
@@ -272,9 +296,8 @@ def main() -> None:
         if existing and existing.get("status") == "running":
             print("Another 52W batch job is already running (see Admin > 52W Range).")
             sys.exit(1)
-        start_job(len(symbols), skip_existing=args.skip_existing)
+        start_job(len(symbols), skip_existing=args.skip_existing, skip_updated_today=args.skip_updated_today)
 
-    api = UpstoxAPI(api_key=api_key, api_secret=api_secret, quiet=True)
     rate_lock = Lock()
     last_call = [0.0]
 
@@ -315,13 +338,20 @@ def main() -> None:
                 pending[symbol] = entry
                 all_ok[symbol] = entry
                 if not args.dry_run and (done <= 5 or done % 25 == 0 or done == len(symbols)):
+                    elapsed = time.monotonic() - t0
+                    rate = done / elapsed if elapsed > 0 else 0
+                    eta_sec = (len(symbols) - done) / rate if rate > 0 else 0
                     update_job_progress(
                         done, len(symbols), ok=ok, failed=failed, skipped=skipped, last_symbol=symbol
                     )
                 if done <= 5 or done % 50 == 0 or done == len(symbols):
+                    elapsed = time.monotonic() - t0
+                    rate = done / elapsed if elapsed > 0 else 0
+                    eta_sec = (len(symbols) - done) / rate if rate > 0 else 0
                     print(
                         f"  [{done}/{len(symbols)}] {symbol}: "
                         f"H={entry['high']:.2f} L={entry['low']:.2f} C={entry['close']:.2f}"
+                        + (f" | {int(eta_sec // 60)}m{int(eta_sec % 60)}s remaining" if eta_sec > 60 else "")
                     )
             elif err == "no_data":
                 skipped += 1

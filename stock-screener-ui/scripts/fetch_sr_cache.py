@@ -36,7 +36,7 @@ CACHE_FILE = CACHE_DIR / "sr_data_cache.pkl"
 
 
 def main():
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     from trading.sr_breakout_signals import SRBreakoutSignalGenerator
 
     api_key = os.getenv("UPSTOX_API_KEY") or os.getenv("UPSTOX_CLIENT_ID")

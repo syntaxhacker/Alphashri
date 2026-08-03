@@ -47,11 +47,26 @@ def _extract_domain(key: str) -> str:
     return key.split(":")[0] if ":" in key else "other"
 
 
+_REDIS_HEALTH_CHECK_INTERVAL = 30  # seconds between explicit ping health checks
+_last_health_check_time = 0.0
+
+
 def get_redis_client():
-    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES
+    global _redis_client, _redis_available, _CONSECUTIVE_FAILURES, _last_health_check_time
 
     if _redis_client is not None:
-        return _redis_client
+        now = time.time()
+        if now - _last_health_check_time < _REDIS_HEALTH_CHECK_INTERVAL:
+            return _redis_client
+        try:
+            _redis_client.ping()
+            _last_health_check_time = now
+            return _redis_client
+        except Exception:
+            _redis_client = None
+            _redis_available = False
+            _CONSECUTIVE_FAILURES += 1
+            logger.warning("Redis connection lost, will attempt reconnect")
 
     try:
         import redis
@@ -63,10 +78,12 @@ def get_redis_client():
             socket_connect_timeout=5,
             socket_timeout=5,
             retry_on_timeout=True,
+            health_check_interval=30,
         )
         _redis_client.ping()
         _redis_available = True
         _CONSECUTIVE_FAILURES = 0
+        _last_health_check_time = time.time()
         logger.info("Redis connected: %s", url)
     except Exception as e:
         _redis_client = None
@@ -466,22 +483,63 @@ def cache_ttl(key: str) -> Optional[int]:
         return None
 
 
-def _try_acquire_lock(key: str, lock_ttl: int = 30) -> bool:
+_RELEASE_LOCK_LUA = """
+if redis.call('GET', KEYS[1]) == ARGV[1] then
+    return redis.call('DEL', KEYS[1])
+else
+    return 0
+end
+"""
+
+
+def _try_acquire_lock(key: str, lock_ttl: int = 30, token: Optional[str] = None) -> str | None:
+    """Try to acquire a lock. Returns the lock token if acquired, None otherwise."""
+    import uuid
     client = get_redis_client()
     if client is None:
-        return False
+        return None
+    token = token or str(uuid.uuid4())
     try:
-        return bool(client.set(key, "1", nx=True, ex=lock_ttl))
+        if client.set(key, token, nx=True, ex=lock_ttl):
+            return token
     except Exception:
-        return False
+        pass
+    return None
 
 
-def _release_lock(key: str) -> bool:
+def _release_lock(key: str, token: str) -> bool:
+    """Release a lock ONLY if the value matches token (atomic check-and-delete).
+
+    Uses a Lua script for atomicity on real Redis. Falls back to
+    WATCH/MULTI/EXEC optimistic locking when Lua is unavailable
+    (e.g. fakeredis in tests).
+    """
     client = get_redis_client()
     if client is None:
         return False
     try:
-        return bool(client.delete(key))
+        script = client.register_script(_RELEASE_LOCK_LUA)
+        result = script(keys=[key], args=[token])
+        return bool(result)
+    except Exception:
+        pass
+
+    # Fallback: WATCH/MULTI/EXEC optimistic locking
+    try:
+        import redis as _redis
+        pipe = client.pipeline()
+        while True:
+            try:
+                pipe.watch(key)
+                if pipe.get(key) == token:
+                    pipe.multi()
+                    pipe.delete(key)
+                    pipe.execute()
+                    return True
+                pipe.unwatch()
+                return False
+            except _redis.WatchError:
+                continue
     except Exception:
         return False
 
@@ -521,7 +579,8 @@ async def stale_while_revalidate(
         if is_fresh:
             return data, "fresh"
 
-        if _try_acquire_lock(lock_key, lock_ttl):
+        lock_token = _try_acquire_lock(lock_key, lock_ttl)
+        if lock_token:
 
             async def _background_refresh():
                 try:
@@ -532,14 +591,14 @@ async def stale_while_revalidate(
                 except Exception as e:
                     logger.warning("SWR background refresh failed for %s: %s", key, e)
                 finally:
-                    _release_lock(lock_key)
+                    _release_lock(lock_key, lock_token)
 
             asyncio.ensure_future(_background_refresh())
         return data, "stale"
 
-    acquired = _try_acquire_lock(lock_key, lock_ttl)
+    lock_token = _try_acquire_lock(lock_key, lock_ttl)
     try:
-        if acquired:
+        if lock_token:
             result = await asyncio.to_thread(compute_fn)
             if result is not None:
                 cache_set(key, result, ttl=stale_ttl)
@@ -562,5 +621,5 @@ async def stale_while_revalidate(
     except Exception:
         raise
     finally:
-        if acquired:
-            _release_lock(lock_key)
+        if lock_token:
+            _release_lock(lock_key, lock_token)

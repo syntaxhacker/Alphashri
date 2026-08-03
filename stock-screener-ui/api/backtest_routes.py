@@ -209,7 +209,7 @@ async def get_chart_data(
                 from_date = (date_range_start - timedelta(days=2)).strftime('%Y-%m-%d')
                 to_date = (date_range_end + timedelta(days=2)).strftime('%Y-%m-%d')
 
-                from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+                from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
                 upstox_api = UpstoxAPI(
                     api_key=app_config.UPSTOX_API_KEY or "",
                     api_secret=app_config.UPSTOX_API_SECRET or "",

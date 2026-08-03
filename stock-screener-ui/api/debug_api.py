@@ -11,7 +11,7 @@ router = APIRouter(tags=["debug"])
 
 
 def _fetch_daily_data_for_debug(symbol: str, date_str: Optional[str] = None) -> dict:
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     import config as app_config
 
     api_key = app_config.UPSTOX_API_KEY

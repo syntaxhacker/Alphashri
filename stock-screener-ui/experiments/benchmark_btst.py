@@ -20,6 +20,8 @@ Environment variables:
   BTST_DATE_END=2026-07-01
   BTST_TRADE_CAPITAL=100000  Capital per trade (INR)
   BTST_SLIPPAGE_PCT=0.0     Slippage per trade (e.g. 0.1 = 0.1% worse price on entry AND exit)
+  BTST_TV_PROFILE=volatility_trend  TV screener profile (trending, near_52w_breakout, buyer_interest, etc.)
+  BTST_USE_NIFTY=0          Set to 1 to use Nifty 50 stocks instead of TV screener
 """
 import os, sys, time, math
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -34,6 +36,7 @@ import pandas as pd
 import numpy as np
 import yfinance as yf
 from trending_upside import fetch_trending_stocks
+from utils.tv_utils import get_nifty_50
 
 ENV = {
     "SL_PCT": float(os.environ.get("BTST_SL_PCT", "2.0")),
@@ -48,6 +51,8 @@ ENV = {
     "DATE_END": os.environ.get("BTST_DATE_END", "2026-07-01"),
     "TRADE_CAPITAL": float(os.environ.get("BTST_TRADE_CAPITAL", "100000")),
     "SLIPPAGE_PCT": float(os.environ.get("BTST_SLIPPAGE_PCT", "0.0")),
+    "TV_PROFILE": os.environ.get("BTST_TV_PROFILE", "volatility_trend"),
+    "USE_NIFTY": int(os.environ.get("BTST_USE_NIFTY", "0")),
 }
 
 # Delivery trading costs (BTST is delivery, not intraday)
@@ -231,28 +236,34 @@ def nifty_return(start_date: str, end_date: str):
 
 
 def main():
+    profile = ENV['TV_PROFILE']
     desc = (f"SL={ENV['SL_PCT']}% TP={ENV['TP_PCT']}% thresh={ENV['ENTRY_THRESHOLD']}% "
-            f"mode={ENV['ENTRY_MODE']} mcap>={ENV['MIN_MCAP_CR']}Cr price>={ENV['MIN_PRICE']}")
+            f"mode={ENV['ENTRY_MODE']} profile={profile} mcap>={ENV['MIN_MCAP_CR']}Cr price>={ENV['MIN_PRICE']}")
     print(f"  Params: {desc}", file=sys.stderr)
     t0 = time.time()
 
-    tv = fetch_trending_stocks(limit=ENV['LIMIT'], profile='volatility_trend')
-    if tv is None or tv.empty:
-        tv = fetch_trending_stocks(limit=ENV['LIMIT'], profile='trending')
-    if tv is None or tv.empty:
-        print("ERROR: No TV data returned", file=sys.stderr)
-        sys.exit(1)
-
     symbols = []
-    for _, row in tv.iterrows():
-        price = float(row.get('close', 0))
-        vol = float(row.get('volume', 0))
-        mcap = float(row.get('market_cap_basic', 0)) / 1e7
-        if mcap < ENV['MIN_MCAP_CR'] or price < ENV['MIN_PRICE'] or vol < ENV['MIN_VOLUME']:
-            continue
-        symbols.append(str(row.get('name', '')).upper())
+    if ENV['USE_NIFTY']:
+        nifty = get_nifty_50()
+        symbols = [s.upper() for s in nifty if s]
+        print(f"  Nifty 50 stocks: {len(symbols)}", file=sys.stderr)
+    else:
+        tv = fetch_trending_stocks(limit=ENV['LIMIT'], profile=profile)
+        if tv is None or tv.empty:
+            tv = fetch_trending_stocks(limit=ENV['LIMIT'], profile='trending')
+        if tv is None or tv.empty:
+            print("ERROR: No TV data returned", file=sys.stderr)
+            sys.exit(1)
 
-    print(f"  TV stocks: {len(tv)}, qualifying: {len(symbols)}", file=sys.stderr)
+        for _, row in tv.iterrows():
+            price = float(row.get('close', 0))
+            vol = float(row.get('volume', 0))
+            mcap = float(row.get('market_cap_basic', 0)) / 1e7
+            if mcap < ENV['MIN_MCAP_CR'] or price < ENV['MIN_PRICE'] or vol < ENV['MIN_VOLUME']:
+                continue
+            symbols.append(str(row.get('name', '')).upper())
+
+        print(f"  {profile}: {len(tv)} stocks, qualifying: {len(symbols)}", file=sys.stderr)
     if len(symbols) < 5:
         print("ERROR: <5 qualifying stocks", file=sys.stderr)
         print("METRIC profit_factor=0")

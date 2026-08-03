@@ -231,7 +231,7 @@ async def get_chart_preview(
 ):
     from cache.redis_client import cache_get, cache_set, make_cache_key
     import config as app_config
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     import pandas as pd
 
     cache_key = make_cache_key("chart", symbol.upper(), tf=tf, days=days, or_minutes=or_minutes)

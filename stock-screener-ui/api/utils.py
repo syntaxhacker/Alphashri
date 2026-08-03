@@ -37,7 +37,7 @@ def _get_market_price(symbol: str) -> float | None:
     """
     try:
         import config as _cfg
-        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
         _api = UpstoxAPI(api_key=_cfg.UPSTOX_API_KEY, api_secret=_cfg.UPSTOX_API_SECRET, quiet=True)
         _df = _api.fetch_intraday_data_v3(symbol, "1")
         if _df is not None and not _df.empty:
