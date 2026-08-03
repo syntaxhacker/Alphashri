@@ -46,6 +46,7 @@ class BotResponse(BaseModel):
     pid: Optional[int] = None
     error: Optional[str] = None
     watchlist: List[str] = []
+    strategy_watchlists: Dict[str, List[str]] = {}
 
 
 class BotStatusResponse(BaseModel):

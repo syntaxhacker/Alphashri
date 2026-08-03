@@ -27,6 +27,16 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
         pos_dict['strategy_type'] = getattr(p, 'strategy_type', '') or ''
         pos_dict['peak_price'] = getattr(p, 'peak_price', 0.0) or 0.0
         pos_dict['low_price'] = getattr(p, 'low_price', 0.0) or 0.0
+
+        if p.current_price and p.entry_price and p.quantity:
+            side = -1 if (p.side or 'BUY') == 'SELL' else 1
+            computed_pnl = round(side * (p.current_price - p.entry_price) * p.quantity, 2)
+            computed_pct = round(side * ((p.current_price - p.entry_price) / p.entry_price) * 100, 4) if p.entry_price else 0.0
+            if not pos_dict.get('unrealized_pnl'):
+                pos_dict['unrealized_pnl'] = computed_pnl
+            if not pos_dict.get('unrealized_pnl_pct'):
+                pos_dict['unrealized_pnl_pct'] = computed_pct
+
         positions_list.append(pos_dict)
 
     strategies_rows = db.execute(
@@ -111,9 +121,15 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
         except Exception:
             pass
     watchlist = []
+    strategy_watchlists = {}
     if bot_runtime and getattr(bot_runtime, 'watchlist', None):
         try:
-            watchlist = json.loads(bot_runtime.watchlist)
+            parsed = json.loads(bot_runtime.watchlist)
+            if isinstance(parsed, dict):
+                watchlist = parsed.get("shared", [])
+                strategy_watchlists = parsed.get("per_strategy", {})
+            elif isinstance(parsed, list):
+                watchlist = parsed
         except Exception:
             pass
     if not scan_items:
@@ -137,6 +153,7 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
         'bot_name': bot.name,
         'running': True,
         'watchlist': watchlist,
+        'strategy_watchlists': strategy_watchlists,
         'portfolio': {
             'initial_capital': initial_capital,
             'cash': cash,

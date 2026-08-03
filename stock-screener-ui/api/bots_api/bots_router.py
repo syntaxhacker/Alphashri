@@ -4,6 +4,7 @@ import signal
 import sys
 import os
 import uuid as uuid_module
+import threading
 from pathlib import Path
 from datetime import datetime
 from typing import Optional, List, Dict
@@ -31,6 +32,7 @@ router = APIRouter(prefix="/api/bots", tags=["Bots"])
 
 _bot_processes: Dict[int, Dict[int, any]] = {}
 _bot_logs: Dict[int, Path] = {}
+_bot_processes_lock = threading.Lock()
 
 
 def get_user_id(user) -> int:
@@ -119,25 +121,30 @@ def load_bot_snapshot(bot_id: int, user_id: int) -> Optional[dict]:
 
 
 def is_bot_running(user_id: int, bot_id: int) -> tuple:
-    if user_id in _bot_processes and bot_id in _bot_processes[user_id]:
-        process = _bot_processes[user_id][bot_id]
-        if process.poll() is None:
-            return True, process.pid
-        else:
-            del _bot_processes[user_id][bot_id]
+    with _bot_processes_lock:
+        if user_id in _bot_processes and bot_id in _bot_processes[user_id]:
+            process = _bot_processes[user_id][bot_id]
+            if process.poll() is None:
+                return True, process.pid
+            else:
+                del _bot_processes[user_id][bot_id]
 
     try:
         from cache.redis_client import get_redis_client
         client = get_redis_client()
         if client is None:
             return None, None
-        val = client.get(f"bot:{user_id}:{bot_id}:status")
-        if val:
-            pid = get_bot_pid(user_id, bot_id)
-            if pid and _is_pid_alive(pid):
-                return True, pid
-            else:
-                client.delete(f"bot:{user_id}:{bot_id}:status")
+        pid = get_bot_pid(user_id, bot_id)
+        status_key = f"bot:{user_id}:{bot_id}:status"
+        status_val = client.get(status_key)
+
+        if pid and _is_pid_alive(pid):
+            if not status_val:
+                _set_bot_status_redis(user_id, bot_id, pid)
+            return True, pid
+
+        if pid or status_val:
+            _clear_bot_process_state(user_id, bot_id)
         return False, None
     except Exception:
         pass
@@ -164,6 +171,20 @@ def get_bot_pid(user_id: int, bot_id: int) -> Optional[int]:
     except Exception:
         pass
     return None
+
+
+def _clear_bot_process_state(user_id: int, bot_id: int):
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            client.delete(
+                f"bot:{user_id}:{bot_id}:status",
+                f"bot:{user_id}:{bot_id}:pid",
+                f"bot:{user_id}:{bot_id}:start_lock",
+            )
+    except Exception:
+        pass
 
 
 def _set_bot_status_redis(user_id: int, bot_id: int, pid: int, ttl: int = 90):
@@ -224,12 +245,18 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
                 })
 
         watchlist = []
+        strategy_watchlists = {}
         bot_runtime = db.query(BotRuntimeState).filter(BotRuntimeState.bot_id == bot.id).first()
         if bot_runtime and getattr(bot_runtime, "watchlist", None):
             try:
-                watchlist = json.loads(bot_runtime.watchlist)
+                parsed = json.loads(bot_runtime.watchlist)
+                if isinstance(parsed, dict):
+                    watchlist = parsed.get("shared", [])
+                    strategy_watchlists = parsed.get("per_strategy", {})
+                elif isinstance(parsed, list):
+                    watchlist = parsed
             except Exception:
-                watchlist = []
+                pass
     finally:
         if should_close:
             db.close()
@@ -252,82 +279,146 @@ def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = No
         pid=pid if pid else None,
         error="Redis unavailable — status may be inaccurate" if status_unknown else None,
         watchlist=watchlist,
+        strategy_watchlists=strategy_watchlists,
     )
 
 
 def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False, live_trading: bool = False):
     import subprocess
-    
-    running, _ = is_bot_running(user_id, bot_id)
-    if running:
-        stop_bot_process(user_id, bot_id)
 
-    log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
-    runner_script = PROJECT_ROOT / "trading" / "runner_cli.py"
-
-    if not runner_script.exists():
-        console.print(f"[red]Bot runner script not found: {runner_script}[/red]")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Bot runner script not found at {runner_script}. "
-                   f"PROJECT_ROOT={PROJECT_ROOT} — check file structure.",
-        )
-
-    cmd = [
-        sys.executable,
-        str(runner_script),
-        f"--bot-id={bot_id}",
-        f"--user-id={user_id}",
-    ]
-    if test_mode:
-        cmd.append("--test")
-    if live_trading:
-        cmd.append("--live")
-
-    env = {**os.environ, "PYTHONPATH": f"{PROJECT_ROOT}:{PROJECT_ROOT.parent}"}
-
-    log_file = open(log_path, 'a')
-    process = subprocess.Popen(
-        cmd,
-        stdout=log_file,
-        stderr=log_file,
-        cwd=str(PROJECT_ROOT),
-        start_new_session=True,
-        env=env,
-    )
-
-    if user_id not in _bot_processes:
-        _bot_processes[user_id] = {}
-    _bot_processes[user_id][bot_id] = process
-    _bot_logs[bot_id] = log_path
-    _set_bot_status_redis(user_id, bot_id, process.pid)
+    lock_key = f"bot:{user_id}:{bot_id}:start_lock"
+    lock_token = str(uuid_module.uuid4())
+    lock_acquired = False
 
     try:
-        from cache.redis_client import get_redis_client
-        client = get_redis_client()
-        if client:
-            client.setex(f"bot:{user_id}:{bot_id}:pid", 86400, str(process.pid))
-    except Exception:
-        pass
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client is not None:
+                lock_acquired = bool(client.set(lock_key, lock_token, nx=True, ex=30))
+                if not lock_acquired:
+                    running, pid = is_bot_running(user_id, bot_id)
+                    if running:
+                        raise HTTPException(
+                            status_code=409,
+                            detail=f"Bot {bot_id} is already running (PID: {pid})",
+                        )
+        except HTTPException:
+            raise
+        except Exception:
+            pass
 
-    console.print(f"[green]Started bot {bot_id} (PID: {process.pid})[/green]")
-    return process
+        running, _ = is_bot_running(user_id, bot_id)
+        if running:
+            stop_bot_process(user_id, bot_id)
+
+        log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
+        runner_script = PROJECT_ROOT / "trading" / "runner_cli.py"
+
+        if not runner_script.exists():
+            console.print(f"[red]Bot runner script not found: {runner_script}[/red]")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Bot runner script not found at {runner_script}. "
+                       f"PROJECT_ROOT={PROJECT_ROOT} — check file structure.",
+            )
+
+        cmd = [
+            sys.executable,
+            str(runner_script),
+            f"--bot-id={bot_id}",
+            f"--user-id={user_id}",
+        ]
+        if test_mode:
+            cmd.append("--test")
+        if live_trading:
+            cmd.append("--live")
+
+        env = {**os.environ, "PYTHONPATH": f"{PROJECT_ROOT}:{PROJECT_ROOT.parent}"}
+
+        log_file = open(log_path, 'a')
+        process = subprocess.Popen(
+            cmd,
+            stdout=log_file,
+            stderr=log_file,
+            cwd=str(PROJECT_ROOT),
+            start_new_session=True,
+            env=env,
+        )
+
+        with _bot_processes_lock:
+            if user_id not in _bot_processes:
+                _bot_processes[user_id] = {}
+            _bot_processes[user_id][bot_id] = process
+        _bot_logs[bot_id] = log_path
+        _set_bot_status_redis(user_id, bot_id, process.pid)
+
+        try:
+            from cache.redis_client import get_redis_client
+            client = get_redis_client()
+            if client:
+                client.setex(f"bot:{user_id}:{bot_id}:pid", 86400, str(process.pid))
+        except Exception:
+            pass
+
+        console.print(f"[green]Started bot {bot_id} (PID: {process.pid})[/green]")
+        return process
+    finally:
+        if lock_acquired:
+            try:
+                from cache.redis_client import _release_lock
+                _release_lock(lock_key, lock_token)
+            except Exception:
+                pass
+
+
+@router.get("/internal/status", include_in_schema=False)
+async def bots_internal_status():
+    """Return running bot count. No auth required — for start.sh status."""
+    with _bot_processes_lock:
+        snapshot = {
+            uid: {bid: proc for bid, proc in bots.items()}
+            for uid, bots in _bot_processes.items()
+        }
+    count = 0
+    details = []
+    for user_id, bots in snapshot.items():
+        for bot_id, proc in bots.items():
+            if proc.poll() is None:
+                count += 1
+                details.append({"user_id": user_id, "bot_id": bot_id, "pid": proc.pid})
+    return {"running": count, "bots": details}
+
+
+@router.post("/internal/stop-all", include_in_schema=False)
+async def stop_all_bots_internal():
+    """Stop all running bot processes. No auth required — for shutdown use only."""
+    with _bot_processes_lock:
+        entries = [(uid, bid) for uid, bots in _bot_processes.items() for bid in list(bots.keys())]
+    stopped = []
+    for user_id, bot_id in entries:
+        try:
+            stop_bot_process(user_id, bot_id)
+            stopped.append({"user_id": user_id, "bot_id": bot_id})
+        except Exception as e:
+            console.print(f"[red]Error stopping bot {user_id}/{bot_id}: {e}[/red]")
+    console.print(f"[yellow]Stopped {len(stopped)} bot(s) via internal shutdown[/yellow]")
+    return {"stopped": len(stopped), "bots": stopped}
+
 
 
 def stop_bot_process(user_id: int, bot_id: int):
     import subprocess
     
-    if user_id in _bot_processes and bot_id in _bot_processes[user_id]:
-        process = _bot_processes[user_id][bot_id]
-        if process.poll() is None:
-            process.terminate()
-            try:
-                process.wait(timeout=5)
-            except subprocess.TimeoutExpired:
-                process.kill()
-                process.wait()
-
-        del _bot_processes[user_id][bot_id]
+    with _bot_processes_lock:
+        process = _bot_processes.get(user_id, {}).pop(bot_id, None) if user_id in _bot_processes else None
+    if process is not None and process.poll() is None:
+        process.terminate()
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait()
         _clear_bot_status_redis(user_id, bot_id)
         try:
             from cache.redis_client import get_redis_client

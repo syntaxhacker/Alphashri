@@ -704,7 +704,7 @@ class TestResponseShape:
 
         expected_keys = {
             'timestamp', 'bot_id', 'bot_name', 'running',
-            'watchlist', 'portfolio', 'strategies', 'positions', 'scan_items',
+            'watchlist', 'strategy_watchlists', 'portfolio', 'strategies', 'positions', 'scan_items',
         }
         assert set(result.keys()) == expected_keys
 

@@ -177,6 +177,7 @@ export interface PaperScanItem {
 export interface PaperBotSnapshot {
   timestamp: string | null;
   watchlist: string[];
+  strategy_watchlists: Record<string, string[]>;
   open_positions: string[];
   scan_items: PaperScanItem[];
   signals: Array<{
@@ -266,6 +267,8 @@ export interface PaperTradingState {
   // Aggregated dashboard
   aggregatedData: AggregatedDashboardData | null;
   aggregatedLoading: boolean;
+  dashboardAnalyticsData: PaperDashboardAnalyticsData | null;
+  dashboardAnalyticsLoading: boolean;
 
 }
 
@@ -373,6 +376,119 @@ export interface AggregatedDashboardData {
     total_unrealized_pnl: number;
     total_value: number;
   };
+}
+
+export interface PaperDashboardPeriod {
+  preset: string;
+  from_date: string | null;
+  to_date: string;
+  bot_id: string;
+  trade_count: number;
+}
+
+export interface PaperDashboardSummary {
+  total_trades: number;
+  winners: number;
+  losers: number;
+  win_rate: number;
+  total_gross_pnl: number;
+  total_net_pnl: number;
+  total_costs: number;
+  avg_win: number;
+  avg_loss: number;
+  profit_factor: number | null;
+  avg_hold_minutes: number;
+  max_drawdown: number;
+  max_drawdown_pct: number;
+  best_day: PaperDashboardDailyPoint | null;
+  worst_day: PaperDashboardDailyPoint | null;
+}
+
+export interface PaperDashboardDailyPoint {
+  date: string;
+  net_pnl: number;
+  trades: number;
+  winners: number;
+  losers: number;
+}
+
+export interface PaperDashboardEquityPoint {
+  date: string;
+  cumulative_pnl: number;
+}
+
+export interface PaperDashboardDrawdownPoint {
+  date: string;
+  drawdown: number;
+  drawdown_pct: number;
+}
+
+export interface PaperDashboardBotRanking {
+  bot_id: string;
+  bot_name: string;
+  running: boolean;
+  total_net_pnl: number;
+  total_trades: number;
+  win_rate: number;
+  profit_factor: number | null;
+  max_drawdown: number;
+  max_drawdown_pct: number;
+  avg_hold_minutes: number;
+}
+
+export interface PaperDashboardStrategyRanking {
+  bot_id: string;
+  bot_name: string;
+  strategy_id: number;
+  strategy_name: string;
+  total_net_pnl: number;
+  total_trades: number;
+  win_rate: number;
+  profit_factor: number | null;
+  avg_hold_minutes: number;
+}
+
+export interface PaperDashboardTradeItem {
+  trade_id: string;
+  symbol: string;
+  bot_id: string | null;
+  bot_name: string;
+  strategy_id: number | null;
+  strategy_name: string;
+  side: string;
+  entry_time: string | null;
+  exit_time: string | null;
+  net_pnl: number;
+  pnl_pct: number;
+  exit_reason: string;
+  hold_duration_minutes: number | null;
+}
+
+export interface PaperDashboardSymbolPerformance {
+  symbol: string;
+  total_net_pnl: number;
+  total_trades: number;
+  win_rate: number;
+}
+
+export interface PaperDashboardExitReason {
+  reason: string;
+  count: number;
+  pct: number;
+}
+
+export interface PaperDashboardAnalyticsData {
+  period: PaperDashboardPeriod;
+  summary: PaperDashboardSummary;
+  bot_rankings: PaperDashboardBotRanking[];
+  strategy_rankings: PaperDashboardStrategyRanking[];
+  daily_pnl: PaperDashboardDailyPoint[];
+  equity_curve: PaperDashboardEquityPoint[];
+  drawdown: PaperDashboardDrawdownPoint[];
+  biggest_winners: PaperDashboardTradeItem[];
+  biggest_losers: PaperDashboardTradeItem[];
+  symbol_performance: PaperDashboardSymbolPerformance[];
+  exit_reasons: PaperDashboardExitReason[];
 }
 
 export interface BotSummaryStrategy {
