@@ -162,6 +162,9 @@ class TestScreenersList:
             'market_open_gap',
             'nifty_movers',
             'intraday_momentum',
+            'intraday_5m',
+            'intraday_10m',
+            'intraday_15m',
             'high_momentum',
         ]
 
@@ -376,19 +379,18 @@ class TestScreenerDataRetrieval:
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
     @patch.object(trending_upside, 'fetch_trending_stocks')
-    def test_fetch_screener_data_intraday_momentum(
+    def test_fetch_screener_data_intraday_15m(
         self, mock_fetch, mock_api, mock_trending_stocks
     ):
-        """Test fetching screener data for 'intraday_momentum' profile."""
+        """Test fetching screener data for 'intraday_15m' profile."""
         mock_fetch.return_value = mock_trending_stocks
         mock_api.side_effect = ValueError('No credentials')
 
         result = fetch_screener_data(
             provider='upstox',
             mode='intraday',
-            screener='intraday_momentum',
+            screener='intraday_15m',
             profile_filters={
-                'lookback_minutes': '15',
                 'min_move_pct': '0.5'
             }
         )

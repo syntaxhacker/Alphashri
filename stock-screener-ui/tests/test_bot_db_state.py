@@ -665,8 +665,8 @@ class TestPersistState:
         sr.trades_executed = 0
         sr.last_scan_time = None
         sr.last_scan_items = [
-            {"symbol": "RELIANCE", "signal": "LONG_ENTRY"},
-            {"symbol": "TCS", "signal": "SHORT_ENTRY"},
+            {"symbol": "RELIANCE", "signal": "LONG_ENTRY", "status": "signal"},
+            {"symbol": "TCS", "signal": "SHORT_ENTRY", "status": "signal"},
         ]
         runner.strategies = {strategy_id: sr}
 
@@ -725,8 +725,8 @@ class TestPersistState:
         sr.trades_executed = 0
         sr.last_scan_time = None
         sr.last_scan_items = [
-            {"symbol": "RELIANCE", "signal": "LONG_ENTRY"},
-            {"symbol": "TCS", "signal": "SHORT_ENTRY"},
+            {"symbol": "RELIANCE", "signal": "LONG_ENTRY", "status": "signal"},
+            {"symbol": "TCS", "signal": "SHORT_ENTRY", "status": "signal"},
         ]
         runner.strategies = {strategy_id: sr}
 

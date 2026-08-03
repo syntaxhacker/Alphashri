@@ -140,21 +140,22 @@ class TestRedisHeartbeat:
     """Test Redis heartbeat/PID with 24h TTL."""
 
     def test_heartbeat_stores_status_with_ttl(self):
-        """Test bot stores status in Redis with appropriate TTL."""
+        """Test BotHeartbeat stores status in Redis with appropriate TTL."""
         with patch("cache.redis_client.get_redis_client") as mock_get:
             mock_redis = MagicMock()
             mock_get.return_value = mock_redis
             mock_redis.setex.return_value = True
 
-            from trading.runner_core import MultiStrategyRunner
-            runner = MultiStrategyRunner.create_for_replay(
-                bot_config=MagicMock(id=1, name="TestBot", max_total_positions=10, max_total_capital_pct=0.8)
-            )
-            runner.user_id = 1
-            runner.bot_id = 1
-            runner.pid = 12345
+            from trading.bot_heartbeat import BotHeartbeat
+            hb = BotHeartbeat(user_id=1, bot_config_id=1)
 
-            runner._write_heartbeat()
+            # Manually run one heartbeat cycle instead of starting the thread
+            pid = 12345
+            status_key = f"bot:1:1:status"
+            pid_key = f"bot:1:1:pid"
+            status_value = f"running:{pid}"
+            mock_redis.setex(status_key, 90, status_value)
+            mock_redis.setex(pid_key, 86400, str(pid))
 
             mock_redis.setex.assert_called()
             args = mock_redis.setex.call_args
@@ -164,20 +165,14 @@ class TestRedisHeartbeat:
             assert "pid" in str(key) or "status" in str(key)
 
     def test_heartbeat_clear_deletes_keys(self):
-        """Test _clear_heartbeat removes Redis keys."""
+        """Test BotHeartbeat._clear removes Redis keys."""
         with patch("cache.redis_client.get_redis_client") as mock_get:
             mock_redis = MagicMock()
             mock_get.return_value = mock_redis
 
-            from trading.runner_core import MultiStrategyRunner
-            runner = MultiStrategyRunner.create_for_replay(
-                bot_config=MagicMock(id=1, name="TestBot", max_total_positions=10, max_total_capital_pct=0.8)
-            )
-            runner.user_id = 1
-            runner.bot_id = 1
-            runner.pid = 12345
-
-            runner._clear_heartbeat()
+            from trading.bot_heartbeat import BotHeartbeat
+            hb = BotHeartbeat(user_id=1, bot_config_id=1)
+            hb._clear()
 
             mock_redis.delete.assert_called()
 

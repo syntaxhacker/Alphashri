@@ -620,9 +620,9 @@ class TestBotControl:
 
     @pytest.mark.integration
     def test_start_inactive_bot(self, client_with_db, test_db, test_user):
-        """Test POST /api/bots/{bot_id}/start with inactive bot."""
+        """Test POST /api/bots/{bot_id}/start auto-activates inactive bot."""
         from db.models import BotConfig
-        
+
         bot = BotConfig(
             name=f"Inactive Bot {uuid_module.uuid4()}",
             user_id=test_user.id,
@@ -632,12 +632,14 @@ class TestBotControl:
         test_db.commit()
         test_db.refresh(bot)
 
-        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)):
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
+             patch('api.bots_api.bots_router.start_bot_process') as mock_start:
+            mock_start.return_value = MagicMock(pid=99999)
 
             response = client_with_db.post(f"/api/bots/{bot.uuid}/start")
 
-            assert response.status_code == 400
-            assert "not active" in response.json()["detail"].lower()
+            assert response.status_code == 200
+            assert "started" in response.json()["message"].lower()
 
     @pytest.mark.integration
     def test_start_nonexistent_bot(self, client_with_db):
@@ -1359,36 +1361,28 @@ class TestPerformanceEndpoints:
     @pytest.mark.integration
     def test_get_strategy_performance_custom_days(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/strategy-performance with custom days."""
-        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
-            mock_journal = MagicMock()
-            mock_journal.load_all_journals = MagicMock()
-            mock_journal.trades = []
-            mock_journal.get_strategy_performance = MagicMock(return_value={})
-            mock_get_journal.return_value = mock_journal
-            
-            response = client_with_db.get(
-                f"/api/bots/{test_bot.uuid}/strategy-performance?days=7"
-            )
+        response = client_with_db.get(
+            f"/api/bots/{test_bot.uuid}/strategy-performance?days=7"
+        )
 
-            assert response.status_code == 200
-            mock_journal.load_all_journals.assert_called()
+        assert response.status_code == 200
+        data = response.json()
+        assert data["bot_id"] == test_bot.uuid
+        assert "by_strategy" in data
+        assert "combined" in data
 
     @pytest.mark.integration
     def test_get_strategy_performance_exclude_test(self, client_with_db, test_bot):
         """Test GET /api/bots/{bot_id}/strategy-performance with include_test=false."""
-        with patch('tests.api.test_bots.get_journal', create=True) as mock_get_journal:
-            mock_journal = MagicMock()
-            mock_journal.load_all_journals = MagicMock()
-            mock_journal.trades = []
-            mock_journal.get_strategy_performance = MagicMock(return_value={})
-            mock_get_journal.return_value = mock_journal
-            
-            response = client_with_db.get(
-                f"/api/bots/{test_bot.uuid}/strategy-performance?include_test=false"
-            )
+        response = client_with_db.get(
+            f"/api/bots/{test_bot.uuid}/strategy-performance?include_test=false"
+        )
 
-            assert response.status_code == 200
-            mock_journal.get_strategy_performance.assert_called_with(include_test=False)
+        assert response.status_code == 200
+        data = response.json()
+        assert data["bot_id"] == test_bot.uuid
+        assert "by_strategy" in data
+        assert "combined" in data
 
 
 # ============================================================================
