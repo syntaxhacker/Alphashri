@@ -25,6 +25,9 @@ from typing import Dict, List, Optional
 import pandas as pd
 import requests
 
+from ..brokers import BrokerClient, BrokerRegistry
+from ..brokers.upstox.adapter import UpstoxClientAdapter
+
 from .api_helpers import (
     API_VERSION,
     BASE_URL,
@@ -37,7 +40,7 @@ from .api_helpers import (
 from .base_api_client import BaseAPIClient
 from .indmoney_api import INDMONEYApi
 from .token_manager import TokenManager
-from .upstox_api import UpstoxAPI
+from .upstox_api import UpstoxAPI as _UpstoxAPIDirect
 from .websocket_utils import (
     WEBSOCKET_CLIENT_AVAILABLE,
     WEBSOCKETS_AVAILABLE,
@@ -53,6 +56,24 @@ except ImportError:
     UPSTOX_SDK_AVAILABLE = False
 
 warnings.filterwarnings('ignore')
+
+
+def UpstoxAPI(
+    api_key: str,
+    api_secret: str,
+    quiet: bool = False,
+) -> "UpstoxClientAdapter":
+    """Broker-backed replacement for the old UpstoxAPI constructor.
+
+    All argument signatures match the original UpstoxAPI.__init__.
+    Returns an UpstoxClientAdapter that delegates to the broker layer.
+    """
+    client = BrokerRegistry.get("upstox")
+    client.auth.api_key = api_key
+    client.auth.api_secret = api_secret
+    client.auth.quiet = quiet
+    client.auth.load_token()
+    return UpstoxClientAdapter(client, quiet=quiet)
 
 
 class TradingAPIFactory:
@@ -109,6 +130,17 @@ class TradingAPIFactory:
             return INDMONEYApi(access_token=access_token, quiet=quiet)
 
     @classmethod
+    def create_broker(cls, provider: str, quiet: bool = False) -> BrokerClient:
+        """Create a broker client using the new abstraction layer.
+
+        Preferred over create_client/create_from_config for new code.
+        Returns a BrokerClient composite with .auth, .market_data, .orders, .streaming.
+        """
+        client = BrokerRegistry.get(provider)
+        client.auth.quiet = quiet
+        return client
+
+    @classmethod
     def create_from_config(cls, provider: str, quiet: bool = False) -> BaseAPIClient:
         """Create an API client using credentials from the global config."""
         try:
@@ -128,11 +160,12 @@ class TradingAPIFactory:
                     "Please set 'api_key' and 'api_secret' in config.py"
                 )
 
-            return UpstoxAPI(
-                api_key=UPSTOX_CONFIG['api_key'],
-                api_secret=UPSTOX_CONFIG['api_secret'],
-                quiet=quiet
-            )
+            client = BrokerRegistry.get('upstox')
+            client.auth.api_key = UPSTOX_CONFIG['api_key']
+            client.auth.api_secret = UPSTOX_CONFIG['api_secret']
+            client.auth.quiet = quiet
+            client.auth.load_token()
+            return UpstoxClientAdapter(client, quiet=quiet)
 
         elif provider_lower == 'indmoney':
             if not INDMONEY_CONFIG.get('access_token'):

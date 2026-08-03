@@ -20,7 +20,7 @@ from .api_helpers import (
     get_valid_symbol,
 )
 from .base_api_client import BaseAPIClient
-from upstox_trader.rate_limiter import UpstoxRateLimiter
+from upstox_trader.queued_rate_limiter import QueuedRateLimiter
 
 try:
     import upstox_client
@@ -30,7 +30,8 @@ except ImportError:
 
 
 class RateLimitExceeded(Exception):
-    """Raised when the rate limiter cannot acquire capacity within timeout."""
+    """Legacy exception — no longer raised by _request (queued rate limiter).
+    Kept for backwards-compat with callers that catch it in except clauses."""
     response = None
 
 
@@ -70,29 +71,21 @@ class UpstoxAPI(BaseAPIClient):
             raise ImportError("Authentication module not available")
 
         self.auth_handler = create_upstox_auth(api_key, api_secret, quiet)
-        self.rate_limiter: UpstoxRateLimiter | None = None
+        self.queued_rl: QueuedRateLimiter | None = None
 
-    def _init_rate_limiter(self):
-        if self.rate_limiter is None:
-            self.rate_limiter = UpstoxRateLimiter()
+    def _init_queued_rl(self):
+        if self.queued_rl is None:
+            self.queued_rl = QueuedRateLimiter()
 
     def _request(self, method: str, url: str, **kwargs) -> requests.Response:
         """Make an HTTP request with distributed rate limiting.
 
-        Returns the response on success. Raises RateLimitExceeded
-        when capacity cannot be acquired — callers should skip the
-        operation and retry next cycle.
+        If the rate-limit window is full the request is queued and
+        processed in FIFO order when capacity opens up — no more
+        RateLimitExceeded errors from this method.
         """
-        self._init_rate_limiter()
-        if not self.rate_limiter.acquire():
-            short = url.split('/')[-1]
-            raise RateLimitExceeded(
-                f"Rate limited, cannot {method} .../{short}"
-            )
-        response = requests.request(method, url, **kwargs)
-        if response.status_code == 429:
-            self.rate_limiter.cancel_last()
-        return response
+        self._init_queued_rl()
+        return self.queued_rl.execute(method, url, **kwargs)
 
     def _get_headers(self) -> Dict[str, str]:
         """Constructs the required headers for API calls."""
@@ -784,8 +777,8 @@ class UpstoxAPI(BaseAPIClient):
     def _is_market_open(self) -> bool:
         """Check if Indian stock market is currently open."""
         now = datetime.now().time()
-        market_open = time(9, 15)
-        market_close = time(15, 30)
+        market_open = datetime.time(9, 15)
+        market_close = datetime.time(15, 30)
 
         current_weekday = datetime.now().weekday()
         if current_weekday >= 5:
