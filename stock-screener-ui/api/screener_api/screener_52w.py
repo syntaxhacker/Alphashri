@@ -259,8 +259,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         )
     else:
         try:
-            from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
-            has_upstox = isinstance(api, UpstoxAPI)
+            has_upstox = getattr(api, '_IS_BROKER_BACKED', False)
         except ImportError:
             has_upstox = False
         if has_upstox:

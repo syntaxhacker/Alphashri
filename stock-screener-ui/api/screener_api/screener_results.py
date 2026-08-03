@@ -37,7 +37,11 @@ def _build_rationale(screener, stock_data):
         return f"ATR% {_to_float(stock_data.get('atr_pct'), 0):.2f}% | ADX {_to_float(stock_data.get('adx'), 0):.1f} | RSI {rsi:.1f} | PerfW {perfw:+.1f}%"
     if screener == 'nifty50_activity':
         return f"Interest {_to_float(stock_data.get('interest_score'), 0):.0f} | VolSurge {_to_float(stock_data.get('volume_surge'), 0):.2f}x | RSI {rsi:.1f} | Day {day:+.2f}%"
-    if screener == 'intraday_momentum':
+    if screener == 'price_surge':
+        move = _to_float(stock_data.get('day_change'), 0)
+        return f"Surge {move:+.2f}% | Vol {vol:.2f}M | RSI {rsi:.1f} | Score {int(score)}"
+
+    if screener in ('intraday_momentum', 'intraday_5m', 'intraday_10m', 'intraday_15m'):
         move = _to_float(stock_data.get('move_pct'), 0)
         lookback = stock_data.get('lookback_minutes', 15)
         return f"Move {move:+.2f}% ({lookback}m) | VolSurge {_to_float(stock_data.get('volume_surge'), 0):.2f}x | RSI {rsi:.1f}"
@@ -123,7 +127,15 @@ def _summary_items_for(screener, approaching, touched):
             {'label': 'Avg Day %', 'value': f"{avg('day_change'):+.2f}%"}
         ]
 
-    if screener == 'intraday_momentum':
+    if screener == 'price_surge':
+        max_surge = max((_to_float(r.get('day_change'), 0) for r in rows), default=0.0)
+        return [
+            {'label': 'Avg Surge', 'value': f"{avg('day_change'):+.2f}%"},
+            {'label': 'Max Surge', 'value': f"{max_surge:+.2f}%"},
+            {'label': 'Avg Vol M', 'value': f"{avg('volume_m'):.2f}"}
+        ]
+
+    if screener in ('intraday_momentum', 'intraday_5m', 'intraday_10m', 'intraday_15m'):
         max_move = max((_to_float(r.get('move_pct'), 0) for r in rows), default=0.0)
         return [
             {'label': 'Avg Move', 'value': f"{avg('move_pct'):+.2f}%"},

@@ -37,6 +37,7 @@ def _build_stock_data(
     atr_pct, adx, interest_score, gap_pct, premarket_change,
     impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
     is_bullish, sentiment, score, broker_diff,
+    move_5m=None, move_10m=None, move_15m=None,
 ):
     return {
         'symbol': symbol,
@@ -68,6 +69,9 @@ def _build_stock_data(
         'reversal_signal': reversal_signal,
         'is_bullish': is_bullish,
         'sentiment': sentiment,
+        'move_5m': round(move_5m, 2) if move_5m is not None else None,
+        'move_10m': round(move_10m, 2) if move_10m is not None else None,
+        'move_15m': round(move_15m, 2) if move_15m is not None else None,
     }
 
 
@@ -146,7 +150,9 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         return _to_float(stock_data.get('rsi'), 100) <= num('max_rsi', 100) and _to_float(stock_data.get('stoch_k'), 0) >= num('min_stoch_k', 0)
     if screener == 'nifty_movers':
         return abs(_to_float(stock_data.get('impact_score'), 0)) >= num('min_impact', 0) and _to_float(stock_data.get('market_cap_b'), 0) >= num('min_cap_b', 0)
-    if screener == 'intraday_momentum':
+    if screener == 'price_surge':
+        return abs(_to_float(stock_data.get('day_change'), 0)) >= num('min_surge_pct', 5) and _to_float(stock_data.get('volume_m'), 0) >= num('min_volume_m', 0)
+    if screener in ('intraday_momentum', 'intraday_5m', 'intraday_10m', 'intraday_15m'):
         return abs(_to_float(stock_data.get('move_pct'), 0)) >= num('min_move_pct', 0)
     if screener == 'undervalued':
         pe = _to_float(stock_data.get('pe'), 0)
@@ -293,6 +299,8 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             perf_w = float(row_data.get('Perf.W', 2))
             recent_return = float(row_data.get('change', 0))
             score = min(99, int(adx + max(recent_return, 0) * 2 + max(rsi - 50, 0) * 0.5 + max(row_data.get('relative_volume_10d_calc', 0), 0) * 2))
+            if screener_clean == 'price_surge':
+                score = min(99, int(abs(day_change) * 3 + max(_to_float(row_data.get('relative_volume_10d_calc'), 1), 0) * 5))
             broker_diff = round(random.uniform(-0.5, 0.5), 2)
             upstox_price = tv_price * (1 + broker_diff / 100)
 
@@ -322,7 +330,11 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 atr_pct, adx_val, interest_score, gap_pct, premarket_change,
                 impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
+                move_5m=0.0, move_10m=0.0, move_15m=0.0,
             )
+
+            stock_data['move_pct'] = 0.0
+            stock_data['lookback_minutes'] = 15
 
             stock_data['rationale'] = _build_rationale(screener, stock_data)
 
@@ -391,7 +403,24 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
 
             score = min(99, int(adx + max(recent_return, 0) * 2 + max(rsi - 50, 0) * 0.5 + max(volume_surge, 0) * 2))
+            if screener_clean == 'price_surge':
+                score = min(99, int(abs(day_change) * 3 + volume_surge * 5))
             broker_diff = round(diff_pct, 2)
+
+            # Calculate all three intraday lookbacks from 1-min candles
+            move_5m = 0.0
+            move_10m = 0.0
+            move_15m = 0.0
+            if df_hist is not None and not df_hist.empty:
+                closes = df_hist['close'].values
+                n = len(closes)
+                current_close = float(closes[-1])
+                if n >= 6:
+                    move_5m = ((current_close / float(closes[-6])) - 1) * 100
+                if n >= 11:
+                    move_10m = ((current_close / float(closes[-11])) - 1) * 100
+                if n >= 16:
+                    move_15m = ((current_close / float(closes[-16])) - 1) * 100
 
             turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
@@ -401,30 +430,28 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
                 atr_pct, adx, interest_score, gap_pct, premarket_change,
                 impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
+                move_5m=move_5m, move_10m=move_10m, move_15m=move_15m,
             )
 
             stock_data['move_pct'] = 0.0
             stock_data['lookback_minutes'] = 15
 
-            if screener == 'intraday_momentum':
-                lookback_minutes = int(profile_filters.get('lookback_minutes', 15)) if profile_filters else 15
-                stock_data['lookback_minutes'] = lookback_minutes
-                try:
-                    df_5m = api.fetch_intraday_data_v3(symbol=symbol, interval='5')
-                    if df_5m is not None and len(df_5m) >= 2:
-                        candles_back = max(1, lookback_minutes // 5)
-                        if len(df_5m) > candles_back:
-                            current = float(df_5m['close'].iloc[-1])
-                            past = float(df_5m['close'].iloc[-(candles_back + 1)])
-                            move_pct = ((current - past) / past) * 100 if past > 0 else 0.0
-                            stock_data['move_pct'] = round(move_pct, 2)
-                            stock_data['score'] = min(99, int(
-                                abs(move_pct) * 15 +
-                                volume_surge * 5 +
-                                max(0, _to_float(row_data.get('RSI'), 50) - 50)
-                            ))
-                except Exception:
-                    pass
+            if screener_clean in ('intraday_5m', 'intraday_10m', 'intraday_15m', 'intraday_momentum'):
+                period_map = {
+                    'intraday_5m': 'move_5m',
+                    'intraday_10m': 'move_10m',
+                    'intraday_15m': 'move_15m',
+                    'intraday_momentum': 'move_15m',
+                }
+                key = period_map.get(screener_clean, 'move_15m')
+                move_val = _to_float(stock_data.get(key), 0.0)
+                stock_data['move_pct'] = round(move_val, 2)
+                stock_data['lookback_minutes'] = int(key.replace('move_', '').replace('m', ''))
+                stock_data['score'] = min(99, int(
+                    abs(move_val) * 15 +
+                    volume_surge * 5 +
+                    max(0, _to_float(row_data.get('RSI'), 50) - 50)
+                ))
 
             stock_data['rationale'] = _build_rationale(screener, stock_data)
 

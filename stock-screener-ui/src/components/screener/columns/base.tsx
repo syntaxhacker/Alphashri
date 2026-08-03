@@ -84,6 +84,25 @@ export const touched52wCol: ColumnDef = {
   },
 };
 
+export const volumeSurgeCol: ColumnDef = {
+  key: "volume_surge",
+  label: "Vol Surge",
+  type: "number",
+  sortable: true,
+  format: (value: number) => (value ?? 1).toFixed(1) + "x",
+};
+
+export const moveCol = (key: string, label: string): ColumnDef => ({
+  key,
+  label,
+  type: "number",
+  sortable: true,
+  format: (value: number) => ({
+    value: value != null ? `${value > 0 ? "+" : ""}${value.toFixed(2)}%` : "-",
+    className: value != null ? getPnLTextColor(value) : "",
+  }),
+});
+
 function pctFormat(value: number) {
   const cls = value > 0 ? "green" : "red";
   return { value: `${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
