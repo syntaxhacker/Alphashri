@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, test } from "vitest";
 import {
   nearBreakoutPct,
   formatNear,
@@ -197,6 +197,31 @@ describe("PositionsHelpers", () => {
       expect(result.totalPnl).toBe(0);
       expect(result.marginUsed).toBe(0);
       expect(result.count).toBe(1);
+    });
+  });
+
+  describe("nearBreakoutPct edge cases", () => {
+    test("handles NaN price without crashing", () => {
+      const item = { symbol: "TEST", price: NaN as any, or_high: 2850, or_low: 2750 };
+      const result = nearBreakoutPct(item);
+      expect(Number.isNaN(result) || result === 9999).toBe(true);
+    });
+
+    test("handles Infinity price without crashing", () => {
+      const item = { symbol: "TEST", price: Infinity, or_high: 2850, or_low: 2750 };
+      const result = nearBreakoutPct(item);
+      expect(Number.isFinite(result)).toBe(false);
+    });
+
+    test("handles orHigh/orLow both null with 52w_high = 0", () => {
+      const item = { symbol: "TEST", price: 2800, or_high: null, or_low: null, high_52w: 0 };
+      expect(nearBreakoutPct(item)).toBe(9999);
+    });
+
+    test("handles very large price values", () => {
+      const item = { symbol: "TEST", price: 1e10, or_high: 2850, or_low: 2750 };
+      const result = nearBreakoutPct(item);
+      expect(Number.isFinite(result)).toBe(true);
     });
   });
 });

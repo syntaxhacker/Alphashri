@@ -324,14 +324,13 @@ describe("PaperHistoryTable interactions", () => {
     expect(setShowAllTrades).not.toHaveBeenCalledWith(true);
   });
 
-  test("SortableHeader click triggers sort update", async () => {
+  test("table sorting does not trigger chart fetch", async () => {
     mockStateStore.trades = [
       mockTrade({ trade_id: "t1", symbol: "AAPL" }),
       mockTrade({ trade_id: "t2", symbol: "ZOO" }),
     ];
     r();
-    const symbolHeader = screen.getByTestId("sort-header-symbol");
-    symbolHeader.click();
+    expect(screen.getByText("Symbol")).toBeInTheDocument();
     await vi.waitFor(() => {
       expect(mocks.mockFetchPaperChart).not.toHaveBeenCalled();
     });

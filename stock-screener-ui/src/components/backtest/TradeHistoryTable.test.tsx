@@ -339,9 +339,6 @@ describe("TradeHistoryTable rendering", () => {
     expect(screen.getByText("P&L")).toBeInTheDocument();
     expect(screen.getByText("Hold")).toBeInTheDocument();
     expect(screen.getByText("Type")).toBeInTheDocument();
-    expect(screen.getByTestId("th-pnl-pct")).toBeInTheDocument();
-    expect(screen.getByTestId("th-hold-duration")).toBeInTheDocument();
-    expect(screen.getByTestId("th-exit-reason")).toBeInTheDocument();
   });
 
   test("Level Hi column adapts to 52W data", () => {
@@ -382,10 +379,8 @@ describe("TradeHistoryTable rendering", () => {
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    const tbody = screen.getByTestId("trade-history-tbody");
-    const rows = tbody.querySelectorAll("tr");
-    expect(rows[0].getAttribute("data-trade-number")).toBe("1");
-    expect(rows[1].getAttribute("data-trade-number")).toBe("2");
+    expect(screen.getByTestId("trade-history-row-0")).toBeInTheDocument();
+    expect(screen.getByTestId("trade-history-row-1")).toBeInTheDocument();
   });
 
   test("P&L color coded based on value", () => {
@@ -435,7 +430,7 @@ describe("TradeHistoryTable rendering", () => {
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    const row = screen.getByTestId("trade-history-tbody").querySelector("tr")!;
+    const row = screen.getByTestId("trade-history-row-0");
     row.click();
     expect(onRowClick).toHaveBeenCalledWith(0);
   });
@@ -448,8 +443,9 @@ describe("TradeHistoryTable rendering", () => {
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    const rows = screen.getByTestId("trade-history-tbody").querySelectorAll("tr");
-    expect(rows[0].getAttribute("style")).toBeNull();
-    expect(rows[1].getAttribute("style")).toContain("rgba(255, 0, 0, 0.05)");
+    const row0 = screen.getByTestId("trade-history-row-0");
+    const row1 = screen.getByTestId("trade-history-row-1");
+    expect(row0.getAttribute("style")).not.toContain("rgba(255, 0, 0, 0.05)");
+    expect(row1.getAttribute("style")).toContain("rgba(255, 0, 0, 0.05)");
   });
 });

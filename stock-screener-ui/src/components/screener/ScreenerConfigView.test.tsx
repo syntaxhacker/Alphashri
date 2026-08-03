@@ -17,10 +17,6 @@ vi.mock("../../state", () => ({
   subscribe: vi.fn(() => vi.fn()),
   screenerOptions: [],
   profileMetaById: {},
-  sortColumn: null,
-  sortDirection: "desc",
-  setSortColumn: vi.fn(),
-  setSortDirection: vi.fn(),
 }));
 
 vi.mock("../../hooks/useStoreSubscription", () => ({
@@ -36,13 +32,9 @@ vi.mock("./ScreenerTable", () => ({
     <div data-testid={props["data-testid"] || "screener-table"}>
       Table
       {props.columns.map((col: any) => (
-        <button
-          key={col.key}
-          data-testid={`preview-sort-header-${col.key}`}
-          onClick={() => props.onSortChange(col.key)}
-        >
+        <span key={col.key} data-testid={`preview-sort-header-${col.key}`}>
           {col.label}
-        </button>
+        </span>
       ))}
     </div>
   ),
@@ -404,12 +396,6 @@ describe("ScreenerConfigView", () => {
       expect(screen.getByTestId("preview-table")).toBeInTheDocument();
     });
 
-    it("Preview has sortable table", () => {
-      mockPreviewStocks = [{ symbol: "RELIANCE", score: 85 }];
-      renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      const symbolSort = screen.getByTestId("preview-sort-header-symbol");
-      expect(symbolSort).toBeInTheDocument();
-      fireEvent.click(symbolSort);
-    });
+
   });
 });

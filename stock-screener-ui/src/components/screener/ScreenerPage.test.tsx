@@ -77,8 +77,6 @@ vi.mock("./ScreenerTable", () => ({
     <div
       data-testid={props["data-testid"] || "screener-table"}
       data-stocks-count={props.stocks.length}
-      data-sort-column={props.sortColumn}
-      data-sort-direction={props.sortDirection}
     >
       {props.stocks.map((stock: Stock) => (
         <div key={stock.symbol} data-testid={`row-${stock.symbol}`}>
@@ -135,10 +133,6 @@ vi.mock("../../hooks/useTableSort", () => ({
 
 // Mock the state module
 vi.mock("../../state", () => ({
-  setSortColumn: vi.fn(),
-  setSortDirection: vi.fn(),
-  sortColumn: null,
-  sortDirection: "desc",
   profileMetaById: {
     trending: { section_labels: { primary: "Approaching", secondary: "Touched" } },
   },
@@ -434,18 +428,6 @@ describe("ScreenerPage", () => {
     const select = screen.getByTestId("mode-select");
     fireEvent.change(select, { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("resets sort when activeScreener changes (via useEffect)", async () => {
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    // The effect should run when activeScreener changes
-    // We can verify by checking if setSortColumn/SortDirection were called
-    // Since we're using mocked state with empty profileMetaById, no reset occurs
-    // This test would need profileMetaById mock to be meaningful
   });
 
   it("computes total stocks count correctly in status", () => {

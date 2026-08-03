@@ -18,6 +18,12 @@ vi.mock("../state/paperTrading", () => ({
   setStrategyConfig: vi.fn(),
   setConfigLoading: vi.fn(),
   setConfigError: vi.fn(),
+  setAnalyticsLoading: vi.fn(),
+  setAnalyticsData: vi.fn(),
+  setActivityLoading: vi.fn(),
+  setActivityEvents: vi.fn(),
+  setAggregatedLoading: vi.fn(),
+  setAggregatedData: vi.fn(),
 }));
 
 vi.mock("../state/auth", () => ({
@@ -48,6 +54,9 @@ import {
   fetchStrategyConfig,
   updateStrategyConfig,
   resetStrategyConfig,
+  fetchAnalytics,
+  fetchActivityFeed,
+  fetchAggregatedDashboard,
 } from "./paperTrading";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
@@ -768,5 +777,171 @@ describe("resetStrategyConfig", () => {
     const result = await resetStrategyConfig();
 
     expect(result).toBe(false);
+  });
+});
+
+describe("fetchAnalytics", () => {
+  it("calls fetchWithAuth with correct URL and days_back param", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ total_pnl: 5000 }),
+    } as Response);
+
+    await fetchAnalytics(30);
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/analytics?days_back=30"),
+    );
+  });
+
+  it("calls setAnalyticsLoading(true) before fetch", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ total_pnl: 5000 }),
+    } as Response);
+
+    const { setAnalyticsLoading } = await import("../state/paperTrading");
+
+    await fetchAnalytics();
+
+    expect(setAnalyticsLoading).toHaveBeenCalledWith(true);
+  });
+
+  it("calls setAnalyticsData on success", async () => {
+    const data = { total_pnl: 5000, win_rate: 0.6 };
+    mockedFetch.mockResolvedValue({
+      json: async () => data,
+    } as Response);
+
+    const { setAnalyticsData } = await import("../state/paperTrading");
+
+    await fetchAnalytics();
+
+    expect(setAnalyticsData).toHaveBeenCalledWith(data);
+  });
+
+  it("returns data on success", async () => {
+    const data = { total_pnl: 5000, win_rate: 0.6 };
+    mockedFetch.mockResolvedValue({
+      json: async () => data,
+    } as Response);
+
+    const result = await fetchAnalytics();
+
+    expect(result).toEqual(data);
+  });
+
+  it("returns null and clears loading on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const { setAnalyticsLoading } = await import("../state/paperTrading");
+
+    const result = await fetchAnalytics();
+
+    expect(result).toBeNull();
+    expect(setAnalyticsLoading).toHaveBeenCalledWith(false);
+  });
+});
+
+describe("fetchActivityFeed", () => {
+  it("calls fetchWithAuth without since param", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ events: [] }),
+    } as Response);
+
+    await fetchActivityFeed();
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/activity/feed"),
+    );
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).not.toContain("since=");
+  });
+
+  it("calls fetchWithAuth with since param", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ events: [] }),
+    } as Response);
+
+    await fetchActivityFeed("2024-01-01T00:00:00Z");
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(decodeURIComponent(calledUrl)).toContain("since=2024-01-01T00:00:00Z");
+  });
+
+  it("calls setActivityEvents with events array", async () => {
+    const events = [{ type: "trade" as const, symbol: "TATASTEEL", pnl: 500, quantity: 10, price: 100 }];
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ events }),
+    } as Response);
+
+    const { setActivityEvents } = await import("../state/paperTrading");
+
+    await fetchActivityFeed();
+
+    expect(setActivityEvents).toHaveBeenCalledWith(events);
+  });
+
+  it("returns events array on success", async () => {
+    const events = [{ type: "trade" as const, symbol: "TATASTEEL", pnl: 500, quantity: 10, price: 100 }];
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ events }),
+    } as Response);
+
+    const result = await fetchActivityFeed();
+
+    expect(result).toEqual(events);
+  });
+
+  it("returns empty array on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchActivityFeed();
+
+    expect(result).toEqual([]);
+  });
+});
+
+describe("fetchAggregatedDashboard", () => {
+  it("calls fetchWithAuth with correct URL", async () => {
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ total_value: 100000 }),
+    } as Response);
+
+    await fetchAggregatedDashboard();
+
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/paper/aggregated"),
+    );
+  });
+
+  it("calls setAggregatedData on success", async () => {
+    const data = { total_value: 100000, cash: 50000 };
+    mockedFetch.mockResolvedValue({
+      json: async () => data,
+    } as Response);
+
+    const { setAggregatedData } = await import("../state/paperTrading");
+
+    await fetchAggregatedDashboard();
+
+    expect(setAggregatedData).toHaveBeenCalledWith(data);
+  });
+
+  it("returns data on success", async () => {
+    const data = { total_value: 100000, cash: 50000 };
+    mockedFetch.mockResolvedValue({
+      json: async () => data,
+    } as Response);
+
+    const result = await fetchAggregatedDashboard();
+
+    expect(result).toEqual(data);
+  });
+
+  it("returns null on error", async () => {
+    mockedFetch.mockRejectedValue(new Error("Network error"));
+
+    const result = await fetchAggregatedDashboard();
+
+    expect(result).toBeNull();
   });
 });

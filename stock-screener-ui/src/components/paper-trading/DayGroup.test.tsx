@@ -192,6 +192,11 @@ vi.mock("@/ui", () => {
         {children}
       </button>
     ),
+    ScrollArea: ({ children, ...props }: any) => <div {...props}>{children}</div>,
+    Box: ({ component, children, ...props }: any) =>
+      component === "table"
+        ? <table data-testid={props["data-testid"]} style={props.style}>{children}</table>
+        : <div {...props}>{children}</div>,
   };
 });
 vi.mock("@tabler/icons-react", () => ({
@@ -910,15 +915,6 @@ describe("Sorting", () => {
       exit_time: "2026-04-24T10:00:00Z",
     }),
   ];
-  it("SortableHeader clicks call onSort with columnKey", () => {
-    render(<DayGroup {...defaultProps} trades={trades} expanded={true} />, {
-      wrapper: TestWrapper,
-    });
-    fireEvent.click(screen.getByTestId("sort-header-symbol"));
-    expect(defaultProps.onSort).toHaveBeenCalledWith("symbol");
-    fireEvent.click(screen.getByTestId("sort-header-net_pnl"));
-    expect(defaultProps.onSort).toHaveBeenCalledWith("net_pnl");
-  });
   it("trades rendered in default order when no sorting (sorted by exit_time desc)", () => {
     render(<DayGroup {...defaultProps} trades={trades} expanded={true} />, {
       wrapper: TestWrapper,
@@ -928,7 +924,7 @@ describe("Sorting", () => {
     const tradeRows = rows.filter((r) => r.getAttribute("data-testid")?.startsWith("trade-row-"));
     expect(tradeRows.length).toBe(3);
   });
-  it("trades rendered in sorted order when sortColumn is set", () => {
+  it("trades rendered in default order when sortColumn is set", () => {
     render(
       <DayGroup
         {...defaultProps}
@@ -944,60 +940,6 @@ describe("Sorting", () => {
     const rows = screen.getAllByRole("row");
     const tradeRows = rows.filter((r) => r.getAttribute("data-testid")?.startsWith("trade-row-"));
     expect(tradeRows.length).toBe(3);
-  });
-  it("SortableHeader shows sort indicator when active", () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={trades}
-        sortColumn="symbol"
-        sortDirection="asc"
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    const header = screen.getByTestId("sort-header-symbol");
-    expect(header).toHaveAttribute("data-sorted", "true");
-    expect(header).toHaveAttribute("data-direction", "asc");
-    expect(screen.getByTestId("icon-arrow-up")).toBeInTheDocument();
-  });
-  it("SortableHeader shows descending indicator when direction is desc", () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={trades}
-        sortColumn="symbol"
-        sortDirection="desc"
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    const header = screen.getByTestId("sort-header-symbol");
-    expect(header).toHaveAttribute("data-direction", "desc");
-    expect(screen.getByTestId("icon-arrow-down")).toBeInTheDocument();
-  });
-  it("SortableHeader hides indicator when not the active column", () => {
-    render(
-      <DayGroup
-        {...defaultProps}
-        trades={trades}
-        sortColumn="net_pnl"
-        sortDirection="asc"
-        expanded={true}
-      />,
-      {
-        wrapper: TestWrapper,
-      },
-    );
-    const header = screen.getByTestId("sort-header-symbol");
-    expect(header).toHaveAttribute("data-sorted", "false");
-    // Symbol header should not contain sort indicator
-    expect(within(header).queryByTestId("icon-arrow-up")).not.toBeInTheDocument();
-    expect(within(header).queryByTestId("icon-arrow-down")).not.toBeInTheDocument();
   });
 });
 
@@ -1133,7 +1075,7 @@ describe("Edge cases", () => {
       wrapper: TestWrapper,
     });
     expect(screen.getByTestId("trade-row-trade-1")).toBeInTheDocument();
-    expect(screen.getAllByRole("row").length).toBe(3); // header + 1 trade row + 1 detail row
+    expect(screen.getAllByRole("row").length).toBe(2); // header + 1 trade row
   });
   it("multiple trades same day render all rows", () => {
     const trades = [

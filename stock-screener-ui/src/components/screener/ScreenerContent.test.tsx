@@ -48,9 +48,6 @@ vi.mock("../../state", () => ({
 const defaultProps = {
   approachingStocks: [] as any[],
   touchedStocks: [] as any[],
-  sortColumn: null as string | null,
-  sortDirection: "asc" as const,
-  handleSortChange: vi.fn(),
   isLoading: false,
   error: null as string | null,
   totalStocks: 0,

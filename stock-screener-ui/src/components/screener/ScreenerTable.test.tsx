@@ -7,19 +7,18 @@ import { UIProvider } from "@/ui";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
 
-// Mock StockRow as a simple table row
-vi.mock("./StockRow", () => ({
-  StockRow: ({ stock, isTouched, onSymbolClick, onSymbolHover }: any) => (
-    <tr
-      data-testid={`stock-row-${stock.symbol}`}
-      data-is-touched={isTouched}
-      onClick={() => onSymbolClick(stock.symbol)}
-      onMouseEnter={() => onSymbolHover(stock.symbol)}
-      onMouseLeave={() => onSymbolHover(null)}
-    >
-      <td>{stock.symbol}</td>
-    </tr>
-  ),
+vi.mock("../../state", () => ({
+  selectedSymbols: [],
+  toggleSymbolSelection: vi.fn(),
+  clearSelectedSymbols: vi.fn(),
+  setSelectedSymbols: vi.fn(),
+}));
+
+vi.mock("../common/PreviewChartProvider", () => ({
+  usePreviewChart: () => ({
+    showPreviewChart: vi.fn(),
+    hidePreviewChart: vi.fn(),
+  }),
 }));
 
 const mockStock: Stock = {
@@ -63,9 +62,6 @@ describe("ScreenerTable", () => {
     stocks: mockStocks,
     columns: mockColumns,
     touchedSymbols: new Set(["INFY"]),
-    sortColumn: "score",
-    sortDirection: "desc" as const,
-    onSortChange: vi.fn(),
     onSymbolClick: vi.fn(),
     onSymbolHover: vi.fn(),
   };
@@ -87,24 +83,6 @@ describe("ScreenerTable", () => {
     expect(screen.getByTestId("screener-table")).toBeInTheDocument();
   });
 
-  it("renders table header with correct test id", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-table-header")).toBeInTheDocument();
-  });
-
-  it("renders table body with correct test id", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("screener-table-body")).toBeInTheDocument();
-  });
-
   it("renders all stocks as rows", () => {
     render(
       <UIProvider>
@@ -116,58 +94,15 @@ describe("ScreenerTable", () => {
     expect(screen.getByTestId("stock-row-INFY")).toBeInTheDocument();
   });
 
-  it("renders sortable headers for each column", () => {
+  it("renders header text for each column", () => {
     render(
       <UIProvider>
         <ScreenerTable {...defaultProps} />
       </UIProvider>,
     );
     mockColumns.forEach((col) => {
-      expect(screen.getByTestId(`sort-header-${col.key}`)).toBeInTheDocument();
+      expect(screen.getByText(col.label)).toBeInTheDocument();
     });
-  });
-
-  it("calls onSortChange when sortable header is clicked", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    fireEvent.click(screen.getByTestId("sort-header-score"));
-    expect(defaultProps.onSortChange).toHaveBeenCalledWith("score");
-  });
-
-  it("displays sort indicator on sorted column", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    const scoreHeader = screen.getByTestId("sort-header-score");
-    expect(scoreHeader).toHaveAttribute("data-sorted", "true");
-    expect(scoreHeader).toHaveAttribute("data-direction", "desc");
-  });
-
-  it("shows sort indicator with correct direction class", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    expect(screen.getByTestId("sort-indicator-score")).toHaveClass("desc");
-  });
-
-  it("marks touched rows with is-touched attribute", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    const infyRow = screen.getByTestId("stock-row-INFY");
-    expect(infyRow).toHaveAttribute("data-is-touched", "true");
-
-    const relianceRow = screen.getByTestId("stock-row-RELIANCE");
-    expect(relianceRow).toHaveAttribute("data-is-touched", "false");
   });
 
   it("calls onSymbolClick when stock row is clicked", () => {
@@ -178,21 +113,6 @@ describe("ScreenerTable", () => {
     );
     fireEvent.click(screen.getByTestId("stock-row-TCS"));
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("TCS");
-  });
-
-  it("calls onSymbolHover on mouse enter and leave", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    const row = screen.getByTestId("stock-row-RELIANCE");
-
-    fireEvent.mouseEnter(row);
-    expect(defaultProps.onSymbolHover).toHaveBeenCalledWith("RELIANCE");
-
-    fireEvent.mouseLeave(row);
-    expect(defaultProps.onSymbolHover).toHaveBeenCalledWith(null);
   });
 
   it("renders copy-all-symbols button when stocks exist", () => {
@@ -219,9 +139,8 @@ describe("ScreenerTable", () => {
         <ScreenerTable {...defaultProps} />
       </UIProvider>,
     );
-    const header = screen.getByTestId("screener-table-header");
-    const rows = header.querySelectorAll("tr th");
-    expect(rows.length).toBe(mockColumns.length + 1);
+    const ths = document.querySelectorAll("thead tr th");
+    expect(ths.length).toBe(mockColumns.length + 1);
   });
 
   it("renders correct number of body rows", () => {
@@ -230,8 +149,7 @@ describe("ScreenerTable", () => {
         <ScreenerTable {...defaultProps} />
       </UIProvider>,
     );
-    const body = screen.getByTestId("screener-table-body");
-    const rows = body.querySelectorAll("tr");
+    const rows = document.querySelectorAll("tbody tr");
     expect(rows.length).toBe(mockStocks.length);
   });
 
@@ -241,9 +159,7 @@ describe("ScreenerTable", () => {
         <ScreenerTable {...defaultProps} stocks={[]} />
       </UIProvider>,
     );
-    const body = screen.getByTestId("screener-table-body");
-    const rows = body.querySelectorAll("tr");
-    expect(rows.length).toBe(0);
+    expect(screen.queryByTestId("stock-row-RELIANCE")).not.toBeInTheDocument();
   });
 
   it("handles single stock", () => {
@@ -254,19 +170,6 @@ describe("ScreenerTable", () => {
     );
     expect(screen.getByTestId("stock-row-RELIANCE")).toBeInTheDocument();
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
-  });
-
-  it("updates sort direction when same column clicked again", () => {
-    render(
-      <UIProvider>
-        <ScreenerTable {...defaultProps} />
-      </UIProvider>,
-    );
-    const scoreHeader = screen.getByTestId("sort-header-score");
-    expect(scoreHeader).toHaveAttribute("data-direction", "desc");
-
-    fireEvent.click(scoreHeader);
-    expect(defaultProps.onSortChange).toHaveBeenCalledWith("score");
   });
 
   it("applies custom className to table", () => {

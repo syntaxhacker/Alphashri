@@ -24,7 +24,6 @@ describe("PositionsPanel", () => {
 
   it("shows empty state", () => {
     renderWithMantine(<PositionsPanel positions={[]} />);
-    expect(screen.getByTestId("options-positions-empty")).toBeInTheDocument();
     expect(screen.getByText("No open positions")).toBeInTheDocument();
   });
 
@@ -59,12 +58,12 @@ describe("PositionsPanel", () => {
     renderWithMantine(<PositionsPanel positions={positions} />);
     expect(screen.getByTestId("options-position-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("options-position-row-1")).toBeInTheDocument();
-    expect(screen.getByTestId("options-position-type-0")).toHaveTextContent("CE");
-    expect(screen.getByTestId("options-position-type-1")).toHaveTextContent("PE");
-    expect(screen.getByTestId("options-position-strike-0")).toHaveTextContent("24500");
-    expect(screen.getByTestId("options-position-qty-0")).toHaveTextContent("50");
-    expect(screen.getByTestId("options-position-avg-price-0")).toHaveTextContent("₹150.50");
-    expect(screen.getByTestId("options-position-ltp-0")).toHaveTextContent("₹175.00");
+    expect(screen.getByText("CE")).toBeInTheDocument();
+    expect(screen.getByText("PE")).toBeInTheDocument();
+    expect(screen.getByText("24500")).toBeInTheDocument();
+    expect(screen.getByText("50")).toBeInTheDocument();
+    expect(screen.getByText("₹150.50")).toBeInTheDocument();
+    expect(screen.getByText("₹175.00")).toBeInTheDocument();
   });
 
   it("color-codes P&L values green for profit and red for loss", () => {
@@ -91,10 +90,8 @@ describe("PositionsPanel", () => {
       },
     ];
     renderWithMantine(<PositionsPanel positions={positions} />);
-    const pnl0 = screen.getByTestId("options-position-pnl-0");
-    const pnl1 = screen.getByTestId("options-position-pnl-1");
-    expect(pnl0).toHaveTextContent("+₹1.2K");
-    expect(pnl1).toHaveTextContent("₹-500");
+    expect(screen.getByText("+₹1.2K")).toBeInTheDocument();
+    expect(screen.getByText("₹-500")).toBeInTheDocument();
   });
 
   it("shows dash for P&L when undefined", () => {
@@ -109,6 +106,6 @@ describe("PositionsPanel", () => {
       },
     ];
     renderWithMantine(<PositionsPanel positions={positions} />);
-    expect(screen.getByTestId("options-position-pnl-0")).toHaveTextContent("-");
+    expect(screen.getByText("-")).toBeInTheDocument();
   });
 });

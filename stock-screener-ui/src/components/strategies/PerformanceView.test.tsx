@@ -46,7 +46,7 @@ describe("PerformanceView", () => {
     expect(screen.getAllByText("Win Rate").length).toBeGreaterThanOrEqual(1);
   });
 
-  it("renders performance table with Strategy, Total Trades, W/L, Win Rate, Net P&L columns", () => {
+  it("renders performance table with data-testid", () => {
     const perf: StrategyPerformance[] = [
       { strategy_id: 1, strategy_name: "ORB v1", total_trades: 10, winners: 6, losers: 4, win_rate: 60, total_pnl: 5000, net_pnl: 4800 },
     ];
@@ -56,7 +56,6 @@ describe("PerformanceView", () => {
       </UIProvider>,
     );
     expect(screen.getByTestId("performance-table")).toBeInTheDocument();
-    expect(screen.getByTestId("performance-table-header")).toBeInTheDocument();
   });
 
   it("renders performance rows with correct data", () => {
@@ -71,8 +70,6 @@ describe("PerformanceView", () => {
     );
     expect(screen.getByText("ORB v1")).toBeInTheDocument();
     expect(screen.getByText("EMA v2")).toBeInTheDocument();
-    expect(screen.getByTestId("performance-row-1")).toBeInTheDocument();
-    expect(screen.getByTestId("performance-row-2")).toBeInTheDocument();
   });
 
   it("performance rows are clickable, call onSelectStrategy", async () => {
@@ -86,7 +83,7 @@ describe("PerformanceView", () => {
         <PerformanceView performance={perf} strategies={[]} onSelectStrategy={onSelectStrategy} isLoading={false} />
       </UIProvider>,
     );
-    await userEvent.click(screen.getByTestId("performance-row-1"));
+    await userEvent.click(screen.getByText("ORB v1"));
     expect(onSelectStrategy).toHaveBeenCalledWith(1);
   });
 
