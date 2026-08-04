@@ -798,6 +798,13 @@ except Exception as e:
     print(f"⚠️ Could not load backtest API: {e}")
 
 try:
+    from api.experiment_routes import router as experiments_router
+    app.include_router(experiments_router)
+    print("✅ Experiments API loaded at /api/experiments")
+except Exception as e:
+    print(f"⚠️ Could not load experiments API: {e}")
+
+try:
     from api.chart import router as chart_router
     app.include_router(chart_router)
     print("✅ Chart API loaded at /api/chart")
