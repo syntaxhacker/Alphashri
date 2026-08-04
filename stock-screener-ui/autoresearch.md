@@ -64,3 +64,42 @@ Data: yfinance daily (NSE/BSE)
 - **Best configs**:
   - Highest PF: volume_surge, SL=0.001%, no TP, mcap>=1000Cr (PF=3.88 FY / 4.20 H1)
   - Most trades: any_day, SL=0.001%, no TP, mcap>=1000Cr (PF=2.85 FY / 4.04 H1)
+
+---
+
+# Autoresearch Session: NEWGEN Intraday Parallel (2026-08-05)
+
+## Objective
+Find the best intraday strategy configs for the single stock **NEWGEN**, across 8 fully-parallel autonomous sessions (ORB on 5/10/15/60-min candles × OR durations, SR Breakout, EMA Cross, Supertrend, BB + short-only + volume surge). **Upstox API only** (no yfinance/TradingView).
+
+## Metrics
+- **Primary**: `profit_factor` (higher is better). Secondaries: win_rate, net_pnl, total_trades, tp/sl/eod exits.
+- Trust rule: configs with <10 trades are flagged unreliable (single-stock small-sample noise).
+
+## How to Run
+```bash
+source .venv/bin/activate
+python3 experiments/newgen_data.py            # rebuild Upstox cache (tf 5/10/15/60)
+python3 experiments/newgen/common.py --tf 5   # sanity check
+python3 experiments/newgen/newgen-orb-5m/benchmark.py   # one session's benchmark
+```
+
+## Files in Scope
+- `experiments/newgen_data.py` — Upstox-only data fetcher → `experiments/data/newgen_cache.pkl`
+- `experiments/newgen/common.py` — shared load_newgen/calc_costs/compute_metrics/ORB sim (READ-ONLY)
+- `experiments/newgen/<session>/` — one dir per session: benchmark.py, autoresearch_<session>.jsonl/.md, worklog, dashboard
+- `autoresearch-newgen.jsonl` — consolidated 570-run state
+- `autoresearch-dashboard-newgen.md` — final summary dashboard
+- `experiments/worklog_newgen.md` — master worklog
+
+## Off Limits
+`trading/`, `api/`, `src/`, `backtest/`, `db/`, `upstox_trader/` — only `experiments/` + autoresearch files.
+
+## What's Been Tried (NEWGEN)
+- **ORB best by candle tf**: 5m PF=5.86 (OR15/SL1.0/no-TP/EOD845/mor1.3, 11t), 10m PF=8.24 (OR5/SL1.5/TP3.5/EOD855/mor2.5, 10t), 15m PF=9.91 (1-bar OR/SL1.25/TP8.5/EOD13:00/mor0.8, 10t), 1h NOT viable (5 trades, curve-fit).
+- **Common ORB levers**: only the first candle's range has edge; afternoon fades → early EOD (13:00–14:15); shorts hurt; min_or_range volatility filter is huge.
+- **EMA Cross tf5** fast=12 slow=26 SL=1.75 TP=1.0 shorts=on EOD=850 → PF=2.16, 67 trades (most statistically reliable).
+- **SR Breakout tf5** classic SL=5.0 → R1→R2 scalper (PF 400 on 14t, inflated by zero SL hits).
+- **Supertrend tf15** ATR=20 mult=1.0 SL=1.0 TP=2.0 shorts=on → PF=2.08 (22t); mult 2–4 never flips.
+- **Short-only breakout_fail tf5** SL=2.0 TP=4.5 → PF=2.28 (19t). BB bounce tf15 PF=1.32. Volume surge marginal (1.15).
+- **All configs are single-stock fits — validate out-of-sample before deployment.**
