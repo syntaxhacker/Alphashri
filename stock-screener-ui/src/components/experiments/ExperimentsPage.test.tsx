@@ -13,10 +13,19 @@ let currentState: ExperimentsState;
 vi.mock("../../state/experiments", () => ({
   getExperimentState: vi.fn(() => currentState),
   subscribe: vi.fn(() => vi.fn()),
+  fetchStrategies: vi.fn().mockResolvedValue([]),
   fetchSessions: vi.fn().mockResolvedValue([]),
   selectSession: vi.fn().mockResolvedValue(null),
   startPolling: vi.fn(),
   stopPolling: vi.fn(),
+}));
+
+vi.mock("./ExperimentsConfig", () => ({
+  ExperimentsConfig: () => <div data-testid="mock-config">Config</div>,
+}));
+
+vi.mock("./ExperimentsProgress", () => ({
+  ExperimentsProgress: () => <div data-testid="mock-progress">Progress</div>,
 }));
 
 vi.mock("./ExperimentsResultsTable", () => ({
@@ -91,6 +100,12 @@ describe("ExperimentsPage", () => {
     render(<ExperimentsPage />, { wrapper: Wrapper });
     const { fetchSessions } = await import("../../state/experiments");
     expect(fetchSessions).toHaveBeenCalled();
+  });
+
+  it("calls fetchStrategies on mount", async () => {
+    render(<ExperimentsPage />, { wrapper: Wrapper });
+    const { fetchStrategies } = await import("../../state/experiments");
+    expect(fetchStrategies).toHaveBeenCalled();
   });
 
   it("renders the session list with session info", () => {

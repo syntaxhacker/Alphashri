@@ -121,7 +121,7 @@ describe("experiments state", () => {
     expect(state.activeSession).toBeNull();
     expect(state.config).toEqual({
       strategy: "orb",
-      symbols: [],
+      symbols: ["NEWGEN"],
       tf: 5,
       dateStart: "",
       dateEnd: "",
@@ -171,7 +171,11 @@ describe("experiments state", () => {
     await fetchStrategies();
     addSweepParam("sl_pct");
     const state = getExperimentState();
-    expect(state.sweeps[0]).toMatchObject({ key: "sl_pct", label: "Stop Loss %", values: [1.0] });
+    expect(state.sweeps.find((s) => s.key === "sl_pct")).toMatchObject({
+      key: "sl_pct",
+      label: "Stop Loss %",
+      values: [1.0],
+    });
   });
 
   it("addSweepParam ignores duplicate keys", () => {
@@ -211,7 +215,7 @@ describe("experiments state", () => {
 
     resetConfig();
     const state = getExperimentState();
-    expect(state.config.symbols).toEqual([]);
+    expect(state.config.symbols).toEqual(["NEWGEN"]);
     expect(state.config.description).toBe("");
     expect(state.config.strategy).toBe("orb");
     expect(state.fixedParams).toHaveProperty("or_minutes", 45);
@@ -280,7 +284,12 @@ describe("experiments fetch actions", () => {
     expect(state.config.strategy).toBe("orb");
     expect(state.fixedParams.or_minutes).toBe(45);
     expect(state.fixedParams.enable_shorts).toBe(false);
-    expect(state.sweeps).toEqual([]);
+    // orb strategy gets a seeded default sweep so Start works immediately
+    expect(state.sweeps).toHaveLength(1);
+    expect(state.sweeps[0]).toMatchObject({
+      key: "or_minutes",
+      values: [5, 10, 15],
+    });
   });
 
   it("fetchStrategies keeps current strategy defaults when already selected", async () => {
@@ -363,7 +372,8 @@ describe("experiments fetch actions", () => {
         symbols: ["RELIANCE", "TCS"],
         tf: 5,
         param_space: expect.objectContaining({
-          or_minutes: 45,
+          // or_minutes is swept (seeded default [5,10,15]); sl_pct swept to [1.0,2.0]
+          or_minutes: [5, 10, 15],
           sl_pct: [1.0, 2.0],
           enable_shorts: false,
         }),

@@ -1,62 +1,20 @@
-import { useEffect, useState, type ComponentType, type ReactNode } from "react";
+import { useEffect } from "react";
 import { Alert, Badge, Box, Flex, Group, Paper, Stack, Text } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   fetchSessions,
+  fetchStrategies,
   getExperimentState,
   selectSession,
   startPolling,
   stopPolling,
   subscribe,
 } from "../../state/experiments";
+import { ExperimentsConfig } from "./ExperimentsConfig";
+import { ExperimentsProgress } from "./ExperimentsProgress";
 import { ExperimentsResultsTable } from "./ExperimentsResultsTable";
 import { ExperimentsChart } from "./ExperimentsChart";
-
-const ExperimentsConfigLoaders = import.meta.glob<{
-  default: ComponentType<Record<string, unknown>>;
-}>("./ExperimentsConfig.tsx");
-
-const ExperimentsProgressLoaders = import.meta.glob<{
-  default: ComponentType<Record<string, unknown>>;
-}>("./ExperimentsProgress.tsx");
-
-function GuardedLazy({
-  loaders,
-  fallback = null,
-}: {
-  loaders: Record<
-    string,
-    () => Promise<{ default: ComponentType<Record<string, unknown>> }>
-  >;
-  fallback?: ReactNode;
-}) {
-  const [Comp, setComp] = useState<ComponentType<
-    Record<string, unknown>
-  > | null>(null);
-
-  useEffect(() => {
-    const key = Object.keys(loaders)[0];
-    if (!key) {
-      setComp(null);
-      return;
-    }
-    let cancelled = false;
-    loaders[key]()
-      .then((mod) => {
-        if (!cancelled) setComp(() => mod.default);
-      })
-      .catch(() => {
-        if (!cancelled) setComp(null);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loaders]);
-
-  if (!Comp) return fallback;
-  return <Comp />;
-}
 
 function sessionStatusColor(status: string): string {
   switch (status) {
@@ -76,6 +34,7 @@ export function ExperimentsPage() {
   const state = getExperimentState();
 
   useEffect(() => {
+    void fetchStrategies();
     void fetchSessions();
   }, []);
 
@@ -113,7 +72,7 @@ export function ExperimentsPage() {
       )}
 
       <Box flex="0 0 auto" mb="md">
-        <GuardedLazy loaders={ExperimentsConfigLoaders} />
+        <ExperimentsConfig />
       </Box>
 
       <Flex flex={1} gap="md" style={{ minHeight: 0 }}>
@@ -181,7 +140,7 @@ export function ExperimentsPage() {
         </Box>
 
         <Box style={{ flex: "1 1 55%", minHeight: 0, overflow: "auto" }}>
-          <GuardedLazy loaders={ExperimentsProgressLoaders} />
+          <ExperimentsProgress />
           <ExperimentsResultsTable />
         </Box>
 

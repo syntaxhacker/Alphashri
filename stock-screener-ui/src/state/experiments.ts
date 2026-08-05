@@ -53,7 +53,7 @@ export const initialExperimentState: ExperimentsState = {
 
   config: {
     strategy: "orb",
-    symbols: [],
+    symbols: ["NEWGEN"],
     tf: 5,
     dateStart: "",
     dateEnd: "",
@@ -250,9 +250,10 @@ export async function fetchStrategies(): Promise<ExperimentStrategy[]> {
       const known = strategies.find((s) => s.key === state.config.strategy);
       const strategy = known || strategies[0];
       const { fixedParams, sweeps } = buildParamDefaults(strategy);
+      const defaultSweeps = seedDefaultSweeps(strategy, sweeps);
       patchState({
         fixedParams,
-        sweeps,
+        sweeps: defaultSweeps,
         config: { ...state.config, strategy: strategy.key },
       });
     }
@@ -260,6 +261,23 @@ export async function fetchStrategies(): Promise<ExperimentStrategy[]> {
   } finally {
     setStrategiesLoading(false);
   }
+}
+
+function seedDefaultSweeps(
+  strategy: ExperimentStrategy,
+  sweeps: SweepParam[],
+): SweepParam[] {
+  // Pre-populate one sweep param so the user can hit Start immediately.
+  if (strategy.key === "orb") {
+    const orMin = strategy.params.find((p) => p.key === "or_minutes");
+    if (orMin) {
+      const existing = sweeps.find((s) => s.key === "or_minutes");
+      if (!existing) {
+        return [...sweeps, { key: "or_minutes", label: orMin.label, values: [5, 10, 15] }];
+      }
+    }
+  }
+  return sweeps;
 }
 
 export async function fetchSessions(): Promise<ExperimentSession[]> {

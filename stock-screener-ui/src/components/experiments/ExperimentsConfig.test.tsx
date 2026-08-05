@@ -28,6 +28,7 @@ import {
   fetchStrategies as storeFetchStrategies,
   setConfig,
   addSweepParam,
+  removeSweepParam,
   setSweep,
   setSessionState,
 } from "../../state/experiments";
@@ -60,6 +61,12 @@ async function seedStrategies() {
   });
 }
 
+// seedStrategies now pre-populates the or_minutes sweep for immediate Start;
+// tests that want a clean slate remove it explicitly.
+function clearDefaultSweep() {
+  removeSweepParam("or_minutes");
+}
+
 afterEach(cleanup);
 
 describe("ExperimentsConfig", () => {
@@ -76,10 +83,11 @@ describe("ExperimentsConfig", () => {
     expect(screen.getByTestId("experiments-tf-select")).toBeInTheDocument();
   });
 
-  it("renders fixed param inputs for every param of the selected strategy", async () => {
+  it("renders fixed param inputs for non-swept params and sweep input for seeded sweep", async () => {
     await seedStrategies();
     renderWithMantine(<ExperimentsConfig />);
-    expect(screen.getByTestId("fixed-param-or_minutes")).toBeInTheDocument();
+    // or_minutes is the seeded default sweep
+    expect(screen.getByTestId("sweep-value-or_minutes-0")).toBeInTheDocument();
     expect(screen.getByTestId("fixed-param-sl_pct")).toBeInTheDocument();
     expect(screen.getByTestId("fixed-param-enable_shorts")).toBeInTheDocument();
     expect(screen.getByTestId("fixed-param-pivot_type")).toBeInTheDocument();
@@ -92,15 +100,27 @@ describe("ExperimentsConfig", () => {
 
   it("start button disabled without symbols and without sweep values", async () => {
     await seedStrategies();
+    clearDefaultSweep();
+    setConfig({ symbols: [] });
     renderWithMantine(<ExperimentsConfig />);
     expect(screen.getByTestId("experiments-start-btn")).toBeDisabled();
   });
 
   it("start button disabled with symbols but no sweep values", async () => {
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE"] });
     renderWithMantine(<ExperimentsConfig />);
     expect(screen.getByTestId("experiments-start-btn")).toBeDisabled();
+  });
+
+  it("start is enabled by default (NEWGEN symbol + seeded OR sweep)", async () => {
+    await seedStrategies();
+    renderWithMantine(<ExperimentsConfig />);
+    expect(screen.getByTestId("experiments-start-btn")).not.toBeDisabled();
+    expect(screen.getByTestId("experiments-candidates-count")).toHaveTextContent(
+      "candidates = 3 x 1 symbols = 3",
+    );
   });
 
   it("start button disabled when experiment is running", async () => {
@@ -127,6 +147,7 @@ describe("ExperimentsConfig", () => {
   it("adding a sweep value increases the candidates count and enables start", async () => {
     const user = userEvent.setup();
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE", "TCS"] });
     renderWithMantine(<ExperimentsConfig />);
 
@@ -148,6 +169,7 @@ describe("ExperimentsConfig", () => {
   it("removing a sweep value shrinks the candidates count", async () => {
     const user = userEvent.setup();
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE", "TCS"] });
     addSweepParam("sl_pct");
     setSweep("sl_pct", [1.0, 2.0, 3.0]);
@@ -166,6 +188,7 @@ describe("ExperimentsConfig", () => {
   it("moving a param back out of the sweep restores its fixed input", async () => {
     const user = userEvent.setup();
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE"] });
     addSweepParam("sl_pct");
     renderWithMantine(<ExperimentsConfig />);
@@ -179,6 +202,7 @@ describe("ExperimentsConfig", () => {
 
   it("shows a warning badge when candidates exceed 500", async () => {
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["A", "B", "C", "D", "E"] });
     addSweepParam("sl_pct");
     setSweep("sl_pct", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
@@ -194,6 +218,7 @@ describe("ExperimentsConfig", () => {
 
   it("does not show warning badge under 500 candidates", async () => {
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE"] });
     addSweepParam("sl_pct");
     setSweep("sl_pct", [1.0, 2.0]);
@@ -204,6 +229,7 @@ describe("ExperimentsConfig", () => {
   it("start calls startExperiment with the configured grid", async () => {
     const user = userEvent.setup();
     await seedStrategies();
+    clearDefaultSweep();
     setConfig({ symbols: ["RELIANCE", "TCS"] });
     addSweepParam("sl_pct");
     setSweep("sl_pct", [1.0, 2.0]);
@@ -225,7 +251,7 @@ describe("ExperimentsConfig", () => {
     );
   });
 
-  it("reset restores default config", async () => {
+  it("reset restores default config (NEWGEN symbol, no sweeps)", async () => {
     const user = userEvent.setup();
     await seedStrategies();
     setConfig({ symbols: ["RELIANCE", "TCS"], description: "sweep run" });
@@ -235,7 +261,7 @@ describe("ExperimentsConfig", () => {
     await user.click(screen.getByTestId("experiments-reset-btn"));
 
     expect(screen.getByTestId("experiments-candidates-count")).toHaveTextContent(
-      "candidates = 1 x 0 symbols = 0",
+      "candidates = 1 x 1 symbols = 1",
     );
   });
 });
