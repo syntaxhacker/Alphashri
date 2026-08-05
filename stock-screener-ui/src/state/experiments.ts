@@ -339,6 +339,7 @@ export async function startExperiment(): Promise<{ session: string } | null> {
 
   if (result && result.session) {
     setActiveSession(result.session);
+    await Promise.all([fetchSessionState(result.session), fetchResults(result.session)]);
     await fetchSessions();
   }
   return result;

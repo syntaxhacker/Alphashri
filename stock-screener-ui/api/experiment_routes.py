@@ -20,7 +20,7 @@ from __future__ import annotations
 import json
 import math
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
@@ -47,7 +47,7 @@ class StartExperimentRequest(BaseModel):
     strategy: str
     symbols: List[str]
     tf: int = 5
-    param_space: Dict[str, List]
+    param_space: Dict[str, Any]
     date_start: Optional[str] = ""
     date_end: Optional[str] = ""
     include_costs: bool = True
@@ -210,7 +210,9 @@ async def start_experiment(
     if not request.param_space:
         raise HTTPException(status_code=400, detail="param_space must be non-empty")
 
-    grid_size = math.prod(len(v) for v in request.param_space.values())
+    grid_size = math.prod(
+        len(v) if isinstance(v, list) else 1 for v in request.param_space.values()
+    )
     if grid_size > autoresearch_engine.MAX_CANDIDATES:
         raise HTTPException(
             status_code=400,

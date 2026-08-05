@@ -130,6 +130,36 @@ class TestStartAndState:
         state = client.get("/api/experiments/nope/state").json()
         assert state["status"] == "idle"
 
+    def test_start_accepts_mixed_scalar_and_list_params(self, client):
+        """Fixed (scalar) params mixed with swept (list) params must not 500."""
+        payload = start_payload("s_mixed", param_space={
+            "sl_pct": [0.5, 1.0],
+            "tp_pct": 1.5,
+            "shorts": False,
+        })
+        resp = client.post("/api/experiments/start", json=payload)
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["status"] == "started"
+        # grid = 2 (sl_pct) x 1 (tp_pct scalar) x 1 (shorts scalar)
+        assert data["total"] == 2
+        state = _wait_state(client, "s_mixed")
+        assert state["status"] == "completed"
+        assert state["current"] == 2
+
+    def test_start_with_only_scalar_params(self, client):
+        payload = start_payload("s_scalars", param_space={
+            "sl_pct": 1.0,
+            "tp_pct": 1.5,
+            "shorts": False,
+        })
+        resp = client.post("/api/experiments/start", json=payload)
+        assert resp.status_code == 200
+        assert resp.json()["total"] == 1
+        state = _wait_state(client, "s_scalars")
+        assert state["status"] == "completed"
+        assert state["current"] == 1
+
 
 class TestResults:
 

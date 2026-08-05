@@ -46,11 +46,16 @@ def _sanitize(obj):
 
 
 def build_grid(param_space: Dict[str, List]) -> List[Dict]:
-    """Cartesian product of param value lists. Each entry = one config dict."""
+    """Cartesian product of param value lists. Each entry = one config dict.
+
+    Scalar values (non-list) are treated as a single-element list so the same
+    structure can carry both fixed params and swept params.
+    """
     if not param_space:
         return [{}]
     keys = list(param_space.keys())
-    lists = [param_space[k] for k in keys]
+    lists = [param_space[k] if isinstance(param_space[k], list) else [param_space[k]]
+             for k in keys]
     configs = []
     for combo in itertools.product(*lists):
         configs.append({k: v for k, v in zip(keys, combo)})
