@@ -440,7 +440,7 @@ test.describe("Paper Trading - Watchlist Scan", () => {
 
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
-    await expect(scanCard).toContainText("No scan data");
+    await expect(scanCard).toContainText("No recent scan results");
   });
 });
 

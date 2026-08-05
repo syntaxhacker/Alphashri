@@ -8,6 +8,25 @@ from db.models import Position, BotRuntimeState, StrategyRuntimeState, BotConfig
 from cache.redis_client import get_redis_client
 from config import IST
 
+# Max age of a scan item before it's considered stale and dropped from the UI.
+# The bot re-stamps scan items on every persist (~30s), so anything older than
+# this is from a stopped bot or a strategy that stopped producing scan results.
+SCAN_ITEM_STALE_SECONDS = 15 * 60
+
+
+def _is_fresh_scan_item(item: dict, now_ist: datetime) -> bool:
+    """Return True if the scan item has a recent enough timestamp to show."""
+    ts = item.get('timestamp')
+    if not ts:
+        return False
+    try:
+        parsed = datetime.fromisoformat(str(ts))
+        if parsed.tzinfo is None:
+            parsed = parsed.replace(tzinfo=IST)
+        return (now_ist - parsed).total_seconds() <= SCAN_ITEM_STALE_SECONDS
+    except Exception:
+        return False
+
 
 def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
     bot = db.query(BotConfig).filter(BotConfig.id == bot_id, BotConfig.user_id == user_id).first()
@@ -142,13 +161,41 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
         except Exception:
             pass
 
+    now_ist = datetime.now(IST)
+    scan_items = [it for it in scan_items if _is_fresh_scan_item(it, now_ist)]
+
+    # DB column may hold stale items (bot stopped / empty scans) while Redis
+    # still has fresh ones — retry Redis only after filtering DB items.
+    if not scan_items and bot_runtime and getattr(bot_runtime, 'scan_items', None):
+        try:
+            client = get_redis_client()
+            if client:
+                raw = client.get(f"bot:{bot_id}:scan_items")
+                if raw:
+                    redis_items = json.loads(raw)
+                    scan_items = [it for it in redis_items if _is_fresh_scan_item(it, now_ist)]
+        except Exception:
+            pass
+
     for item in scan_items:
         sid = item.get('strategy_id')
         if sid is not None and str(sid) in strategies:
             strategies[str(sid)]['scan_items'].append(item)
 
+    served_ts = None
+    if scan_items:
+        timestamps = [it['timestamp'] for it in scan_items if it.get('timestamp')]
+        if timestamps:
+            served_ts = max(timestamps)
+    if served_ts is None:
+        served_ts = (
+            bot_runtime.updated_at.isoformat()
+            if bot_runtime and bot_runtime.updated_at
+            else now_ist.isoformat()
+        )
+
     return {
-        'timestamp': bot_runtime.updated_at.isoformat() if bot_runtime and bot_runtime.updated_at else datetime.now(IST).isoformat(),
+        'timestamp': served_ts,
         'bot_id': bot.id,
         'bot_name': bot.name,
         'running': True,

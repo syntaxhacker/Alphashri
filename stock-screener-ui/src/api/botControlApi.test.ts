@@ -431,14 +431,22 @@ describe("fetchBotPositions", () => {
 });
 
 describe("fetchBotScanItems", () => {
-  it("fetches scan items without filter", async () => {
-    const response = { scan_items: [{ symbol: "INFY" }] };
+  it("fetches scan items and timestamp", async () => {
+    const response = { scan_items: [{ symbol: "INFY" }], timestamp: "2026-08-04T11:00:00+05:30" };
     mockedApiFetch.mockResolvedValue(response);
 
     const result = await fetchBotScanItems("bot-1");
 
-    expect(result).toEqual(response.scan_items);
+    expect(result).toEqual({ items: response.scan_items, timestamp: response.timestamp });
     expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-1/scan", expect.objectContaining({}));
+  });
+
+  it("returns empty items and null timestamp when scan_items missing", async () => {
+    mockedApiFetch.mockResolvedValue({});
+
+    const result = await fetchBotScanItems("bot-1");
+
+    expect(result).toEqual({ items: [], timestamp: null });
   });
 
   it("adds strategy_id query param when provided", async () => {
@@ -450,12 +458,12 @@ describe("fetchBotScanItems", () => {
     expect(calledUrl).toContain("strategy_id=strategy-1");
   });
 
-  it("returns empty array on error", async () => {
+  it("returns empty items and null timestamp on error", async () => {
     mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchBotScanItems("bot-1");
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ items: [], timestamp: null });
   });
 });
 
@@ -501,6 +509,7 @@ describe("fetchBotStrategyPerformance", () => {
 
 describe("refreshBotLiveData", () => {
   it("refreshes all bot data and updates state", async () => {
+    const scanTimestamp = "2026-08-04T11:00:00+05:30";
     mockedApiFetch
       .mockResolvedValueOnce(({ running: true, pid: 12345, log_file: "test.log" }))
       .mockResolvedValueOnce(({
@@ -508,7 +517,7 @@ describe("refreshBotLiveData", () => {
           watchlist: ["RELIANCE", "INFY"],
         }))
       .mockResolvedValueOnce(({ positions: [{ symbol: "TATASTEEL", side: "BUY" }] }))
-      .mockResolvedValueOnce(({ scan_items: [{ symbol: "INFY" }] }));
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "INFY" }], timestamp: scanTimestamp }));
 
     mockFetchTrades.mockResolvedValue([
       { exit_time: new Date().toISOString(), net_pnl: 500, pnl: 500 },
@@ -523,12 +532,27 @@ describe("refreshBotLiveData", () => {
     ]);
     expect(setBotSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        timestamp: expect.any(String),
+        timestamp: scanTimestamp,
         watchlist: ["RELIANCE", "INFY"],
         open_positions: ["TATASTEEL"],
         scan_items: [{ symbol: "INFY" }],
       }),
     );
+  });
+
+  it("falls back to browser timestamp when backend timestamp missing", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 1, initial_capital: 1 }, watchlist: [] }))
+      .mockResolvedValueOnce(({ positions: [] }))
+      .mockResolvedValueOnce(({ scan_items: [], timestamp: null }));
+
+    mockFetchTrades.mockResolvedValue([]);
+
+    await refreshBotLiveData("bot-1");
+
+    const snapshot = vi.mocked(setBotSnapshot).mock.calls[0][0];
+    expect(snapshot.timestamp).toEqual(expect.any(String));
   });
 
   it("does not throw when individual APIs return null/empty", async () => {
@@ -546,6 +570,28 @@ describe("refreshBotLiveData", () => {
     expect(setBotStatus).toHaveBeenCalledWith(false, null, null);
     expect(setPortfolio).not.toHaveBeenCalled(); // because portfolioData is null
     expect(setLoading).toHaveBeenCalledWith(false);
+  });
+
+  it("updates scan snapshot even when portfolio fetch fails", async () => {
+    const scanTimestamp = "2026-08-04T11:00:00+05:30";
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true }))
+      .mockResolvedValueOnce(null) // portfolio fails
+      .mockResolvedValueOnce(({ positions: [{ symbol: "TATASTEEL", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "INFY" }], timestamp: scanTimestamp }));
+
+    mockFetchTrades.mockResolvedValue([]);
+
+    await refreshBotLiveData("bot-1");
+
+    expect(setPortfolio).not.toHaveBeenCalled();
+    expect(setBotSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timestamp: scanTimestamp,
+        scan_items: [{ symbol: "INFY" }],
+        open_positions: ["TATASTEEL"],
+      }),
+    );
   });
 
   it("ignores stale responses when newer request started before first completed", async () => {

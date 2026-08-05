@@ -187,22 +187,27 @@ export async function fetchBotPositions(
   }
 }
 
+export interface ScanItemsResponse {
+  items: any[];
+  timestamp: string | null;
+}
+
 // Get bot scan items (optionally filtered by strategy)
 export async function fetchBotScanItems(
   botId: string,
   strategyId?: string,
   signal?: AbortSignal,
-): Promise<any[]> {
+): Promise<ScanItemsResponse> {
   try {
     const params = new URLSearchParams();
     if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/scan${params.toString() ? "?" + params : ""}`;
     const data = await apiFetch(url, { signal });
-    return data.scan_items || [];
+    return { items: data.scan_items || [], timestamp: data.timestamp || null };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to fetch bot scan items:", error);
-    return [];
+    return { items: [], timestamp: null };
   }
 }
 
@@ -266,13 +271,15 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
   const reqId = ++_botDataReqId;
   setLoading(true);
   try {
-    const [botInfo, portfolioData, positions, scanItems] = await Promise.all([
+    const [botInfo, portfolioData, positions, scanRes] = await Promise.all([
       getBot(botId, signal),
       fetchBotPortfolio(botId, signal),
       fetchBotPositions(botId, undefined, signal),
       fetchBotScanItems(botId, undefined, signal),
     ]);
     if (reqId !== _botDataReqId) return;
+    const scanItems = scanRes?.items ?? [];
+    const scanTimestamp = scanRes?.timestamp ?? null;
     const trades = await fetchTrades(200, botId, undefined, undefined, undefined, signal, true);
     const todayString = new Date().toDateString();
     const realizedToday = trades
@@ -290,57 +297,59 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
 
     if (reqId !== _botDataReqId) return;
 
-    if (portfolioData) {
-      const watchlist = Array.isArray(portfolioData.watchlist)
+    const watchlist =
+      portfolioData && Array.isArray(portfolioData.watchlist)
         ? portfolioData.watchlist
         : Array.from(new Set(scanItems.map((item: any) => item?.symbol).filter(Boolean)));
 
-      // Convert bot positions to paper positions format
-      const paperPositions = positions.map((p: any) => {
-        const cp = p.current_price || p.entry_price;
-        const side = p.side === "SELL" ? -1 : 1;
-        let pnl = p.unrealized_pnl ?? 0;
-        let pnlPct = p.unrealized_pnl_pct ?? 0;
-        if (!pnl && cp && p.entry_price && p.quantity) {
-          pnl = side * (cp - p.entry_price) * p.quantity;
-          pnlPct = side * ((cp - p.entry_price) / p.entry_price) * 100;
-        }
-        return {
-          symbol: p.symbol,
-          side: p.side,
-          quantity: p.quantity,
-          entry_price: p.entry_price,
-          current_price: cp,
-          entry_time: p.entry_time,
-          stop_loss: p.stop_loss || 0,
-          take_profit: p.take_profit || 0,
-          pnl,
-          pnl_pct: pnlPct,
-          margin_used: p.margin_used || 0,
-          strategy_id: p.strategy_id,
-          strategy_name: p.strategy_name,
-          entry_reason: p.entry_reason || p.reason || "",
-          exit_reason: null,
-          peak_price: p.peak_price || 0,
-          low_price: p.low_price || 0,
-          notes: p.notes || "",
-          id: p.id || "",
-          order_id: p.order_id || "",
-        };
-      });
+    // Convert bot positions to paper positions format
+    const paperPositions = positions.map((p: any) => {
+      const cp = p.current_price || p.entry_price;
+      const side = p.side === "SELL" ? -1 : 1;
+      let pnl = p.unrealized_pnl ?? 0;
+      let pnlPct = p.unrealized_pnl_pct ?? 0;
+      if (!pnl && cp && p.entry_price && p.quantity) {
+        pnl = side * (cp - p.entry_price) * p.quantity;
+        pnlPct = side * ((cp - p.entry_price) / p.entry_price) * 100;
+      }
+      return {
+        symbol: p.symbol,
+        side: p.side,
+        quantity: p.quantity,
+        entry_price: p.entry_price,
+        current_price: cp,
+        entry_time: p.entry_time,
+        stop_loss: p.stop_loss || 0,
+        take_profit: p.take_profit || 0,
+        pnl,
+        pnl_pct: pnlPct,
+        margin_used: p.margin_used || 0,
+        strategy_id: p.strategy_id,
+        strategy_name: p.strategy_name,
+        entry_reason: p.entry_reason || p.reason || "",
+        exit_reason: null,
+        peak_price: p.peak_price || 0,
+        low_price: p.low_price || 0,
+        notes: p.notes || "",
+        id: p.id || "",
+        order_id: p.order_id || "",
+      };
+    });
 
+    // Scan/watchlist state updates independently of the portfolio fetch so a
+    // transient portfolio failure never freezes the watchlist scan card.
+    setPositions(paperPositions);
+    setBotSnapshot({
+      timestamp: scanTimestamp ?? new Date().toISOString(),
+      watchlist,
+      strategy_watchlists: portfolioData?.strategy_watchlists ?? {},
+      open_positions: positions.map((p: any) => p.symbol),
+      scan_items: scanItems,
+      signals: [],
+    });
+
+    if (portfolioData) {
       setPortfolio(normalizeBotPortfolio(portfolioData.portfolio, positions, realizedToday));
-      setPositions(paperPositions);
-
-      // Convert scan items to bot snapshot format
-      setBotSnapshot({
-        timestamp: new Date().toISOString(),
-        watchlist,
-        strategy_watchlists: portfolioData.strategy_watchlists ?? {},
-        open_positions: positions.map((p: any) => p.symbol),
-        scan_items: scanItems,
-        signals: [],
-      });
     }
   } catch (error) {
     if (reqId === _botDataReqId) {

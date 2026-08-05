@@ -134,7 +134,7 @@ describe("WatchlistScan2", () => {
     test("renders No data when snapshot is null", () => {
       r(<WatchlistScan2 snapshot={null} selectedSymbol={null} />);
       expect(card()).toBeInTheDocument();
-      expect(screen.getByText(/No scan data/)).toBeInTheDocument();
+      expect(screen.getByText(/No recent scan results/)).toBeInTheDocument();
       expect(screen.getByText("No data")).toBeInTheDocument();
     });
 
@@ -152,7 +152,7 @@ describe("WatchlistScan2", () => {
         />,
       );
       expect(card()).toBeInTheDocument();
-      expect(screen.getByText(/No scan data/)).toBeInTheDocument();
+      expect(screen.getByText(/No recent scan results/)).toBeInTheDocument();
     });
   });
 

@@ -259,7 +259,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           </Group>
         </Group>
         <Text size="xs" c="orange" fs="italic" ta="center" py="xs">
-          No scan data — API rate limit or connection issue
+          No recent scan results — bot may be idle, stopped, or rate-limited
         </Text>
       </Stack>
     );
