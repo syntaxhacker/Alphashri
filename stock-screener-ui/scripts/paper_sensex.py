@@ -348,10 +348,42 @@ def oi_anchors_from_live(token=None) -> tuple:
 # ---------------------------------------------------------------------------
 # multi-day strategy sweep
 # ---------------------------------------------------------------------------
+# Option trading charges (NSE/BSE index options, premium-based, per lot):
+#   STT 0.1% on sell side only, brokerage 0.03% (min ₹20) both sides,
+#   exchange 0.03503% both sides, SEBI ₹10/crore, GST 18% on brk+exch+sebi,
+#   stamp 0.003% buy side. Charged on PREMIUM value (premium × lot).
+OPT_BROKERAGE_PCT = 0.0003
+OPT_STT_PCT = 0.001         # 0.1% on sell side (options)
+OPT_EXCHANGE_PCT = 0.0003503
+OPT_SEBI_PCT = 0.000001
+OPT_STAMP_PCT = 0.00003
+OPT_GST_PCT = 0.18
+OPT_MIN_BROKERAGE = 20.0
+
+
+def option_costs(entry_premium: float, exit_premium: float, lot: int) -> float:
+    """Round-trip trading charges on a SENSEX option trade (premium value based)."""
+    buy_val = entry_premium * lot
+    sell_val = exit_premium * lot
+    buy_brk = min(OPT_MIN_BROKERAGE, buy_val * OPT_BROKERAGE_PCT)
+    buy_exch = buy_val * OPT_EXCHANGE_PCT
+    buy_sebi = buy_val * OPT_SEBI_PCT
+    buy_stamp = buy_val * OPT_STAMP_PCT
+    buy_gst = OPT_GST_PCT * (buy_brk + buy_exch + buy_sebi)
+    buy_total = buy_brk + buy_stamp + buy_exch + buy_sebi + buy_gst
+    sell_brk = min(OPT_MIN_BROKERAGE, sell_val * OPT_BROKERAGE_PCT)
+    sell_stt = sell_val * OPT_STT_PCT
+    sell_exch = sell_val * OPT_EXCHANGE_PCT
+    sell_sebi = sell_val * OPT_SEBI_PCT
+    sell_gst = OPT_GST_PCT * (sell_brk + sell_exch + sell_sebi)
+    sell_total = sell_brk + sell_stt + sell_exch + sell_sebi + sell_gst
+    return round(buy_total + sell_total, 2)
+
+
 def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
                   target: float, sl: float, trail_trigger: float, trail_dist: float,
                   t_years: float, iv: float = 0.19, lot: int = LOT_SIZE,
-                  cooldown_min: int = 5) -> dict:
+                  cooldown_min: int = 5, include_costs: bool = True) -> dict:
     """Replay one strategy config on one day's 1-min candles. Returns day metrics."""
     if not rows:
         return {"trades": 0, "net": 0.0, "wins": 0, "losses": 0, "max_dd": 0.0}
@@ -405,15 +437,22 @@ def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
             pnl_lo = (bs_premium(pos["side"], float(r[3]), pos["strike"], t_years, iv) - pos["premium"]) * lot
             pos["peak"] = max(pos.get("peak", pnl_lo), pnl_hi, pnl_lo)
             reason = None
+            exit_prem = None
             if pnl_lo <= sl:
                 pos.update(reason="SL", pnl=sl)
+                exit_prem = pos["premium"] + sl / lot
             elif pos.get("peak") >= trail_trigger and pnl_hi <= pos["peak"] - trail_dist:
                 pos.update(reason="TRAIL", pnl=round(pos["peak"] - trail_dist, 2))
+                exit_prem = pos["premium"] + (pos["peak"] - trail_dist) / lot
             elif pnl_hi >= target:
                 pos.update(reason="TARGET", pnl=target)
+                exit_prem = pos["premium"] + target / lot
             elif hm >= "15:20":
-                pos.update(reason="EOD", pnl=round((bs_premium(pos["side"], spot, pos["strike"], t_years, iv) - pos["premium"]) * lot, 2))
+                exit_prem = bs_premium(pos["side"], spot, pos["strike"], t_years, iv)
+                pos.update(reason="EOD", pnl=round((exit_prem - pos["premium"]) * lot, 2))
             if pos.get("reason"):
+                if include_costs and exit_prem is not None:
+                    pos["pnl"] = round(pos["pnl"] - option_costs(pos["premium"], exit_prem, lot), 2)
                 trades.append(pos)
                 pos = None
                 cooldown_until = i + cooldown_min
@@ -432,7 +471,10 @@ def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
                    "time": hm, "peak": 0.0, "signal": decision.get("reason", "")}
 
     if pos:
-        pos.update(reason="EOD", pnl=round((bs_premium(pos["side"], spot, pos["strike"], t_years, iv) - pos["premium"]) * lot, 2))
+        exit_prem = bs_premium(pos["side"], spot, pos["strike"], t_years, iv)
+        pos.update(reason="EOD", pnl=round((exit_prem - pos["premium"]) * lot, 2))
+        if include_costs:
+            pos["pnl"] = round(pos["pnl"] - option_costs(pos["premium"], exit_prem, lot), 2)
         trades.append(pos)
 
     wins = [t for t in trades if t["pnl"] > 0]
@@ -466,7 +508,7 @@ def cmd_sweep(args):
         for date, rows in days:
             r = run_day_sweep(cfg, rows, oi_sup, oi_res,
                               cfg["target"], cfg["sl"], cfg["trail_trigger"], cfg["trail_dist"],
-                              t_years, iv=0.19)
+                              t_years, iv=0.19, include_costs=not args.no_costs)
             per_day.append(r)
         nets = [r["net"] for r in per_day]
         pos_days = [r for r in per_day if r["net"] > 0]
@@ -754,13 +796,17 @@ def cmd_close(args):
     ltp = get_contract_ltp(chain, p["strike"], p["type"], token)
     exit_p = args.premium if args.premium else ltp
     gross = (exit_p - p["premium"]) * p["qty"] * LOT_SIZE
+    costs = option_costs(p["premium"], exit_p, p["qty"] * LOT_SIZE)
     p["exit_premium"] = exit_p
     p["closed_at"] = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
     p["status"] = "CLOSED"
     p["exit_reason"] = args.reason or "MANUAL"
     p["gross_pnl"] = round(gross, 2)
+    p["costs"] = costs
+    p["net_pnl"] = round(gross - costs, 2)
     save_positions(positions)
-    print(f"CLOSE #{args.id}: exit ₹{exit_p:.2f} → gross P&L ₹{gross:+,.2f} ({p['exit_reason']})")
+    print(f"CLOSE #{args.id}: exit ₹{exit_p:.2f} → gross ₹{gross:+,.2f} "
+          f"(costs ₹{costs:.2f}, net ₹{p['net_pnl']:+,.2f}) ({p['exit_reason']})")
 
 
 def cmd_pnl(args):
@@ -772,21 +818,24 @@ def cmd_pnl(args):
     spot = fetch_spot(token)
     print(f"SENSEX spot: {spot:,.2f}  ({datetime.now(IST).strftime('%H:%M:%S')} IST)")
     total = 0.0
-    print(f"{'id':>3} {'type':>4} {'strike':>9} {'qty':>4} {'entry':>9} {'ltp':>9} {'pnl':>11} {'target':>9} {'sl':>9} {'status':>7}")
+    print(f"{'id':>3} {'type':>4} {'strike':>9} {'qty':>4} {'entry':>9} {'ltp':>9} {'pnl':>11} {'costs':>7} {'target':>9} {'sl':>9} {'status':>7}")
     for p in positions:
         if p["status"] == "OPEN":
             chain = fetch_chain(p["expiry"], token)
             ltp = get_contract_ltp(chain, p["strike"], p["type"], token)
             pnl = (ltp - p["premium"]) * p["qty"] * LOT_SIZE
+            costs = p.get("costs", 0)
         else:
             ltp = p.get("exit_premium", 0)
             pnl = p.get("gross_pnl", 0)
+            costs = p.get("costs", 0)
+            pnl = pnl - costs if p.get("net_pnl") is None else p.get("net_pnl", 0)
         total += pnl
         tgt = f"{p['target']:,.0f}" if p.get("target") else "-"
         sl = f"{p['sl']:,.0f}" if p.get("sl") else "-"
         print(f"{p['id']:>3} {p['type']:>4} {p['strike']:>9,.0f} {p['qty']:>4} "
-              f"{p['premium']:>9.2f} {ltp:>9.2f} {pnl:>+11,.2f} {tgt:>9} {sl:>9} {p['status']:>7}")
-    print(f"TOTAL paper P&L: ₹{total:+,.2f}")
+              f"{p['premium']:>9.2f} {ltp:>9.2f} {pnl:>+11,.2f} {costs:>7.2f} {tgt:>9} {sl:>9} {p['status']:>7}")
+    print(f"TOTAL paper P&L (net of costs): ₹{total:+,.2f}")
 
 
 def cmd_positions(args):
@@ -839,11 +888,12 @@ def cmd_check(args):
     spot = lv["spot"]
     opens = [p for p in positions if p["status"] == "OPEN"]
     closed = [p for p in positions if p["status"] == "CLOSED"]
-    total = sum(p.get("gross_pnl", 0) for p in closed)
+    total = sum(p.get("net_pnl", p.get("gross_pnl", 0)) for p in closed)
     for p in opens:
         chain = fetch_chain(p["expiry"])
         ltp = get_contract_ltp(chain, p["strike"], p["type"])
-        total += (ltp - p["premium"]) * p["qty"] * p["lot_size"]
+        costs = option_costs(p["premium"], ltp, p["qty"] * p["lot_size"])
+        total += (ltp - p["premium"]) * p["qty"] * p["lot_size"] - costs
     snap = {
         "time": datetime.now(IST).strftime("%H:%M:%S"),
         "spot": spot, "day": lv["day"],
@@ -864,7 +914,8 @@ def cmd_check(args):
             print(f"    OPEN #{p['id']} {p['type']} {p['strike']:,.0f} @ {p['premium']:.2f} "
                   f"tgt={p.get('target')} sl={p.get('sl')}")
         else:
-            print(f"    CLOSED #{p['id']} {p['type']} {p['strike']:,.0f} {p.get('gross_pnl'):+,.0f} ({p.get('exit_reason')})")
+            netp = p.get("net_pnl", p.get("gross_pnl", 0))
+            print(f"    CLOSED #{p['id']} {p['type']} {p['strike']:,.0f} {netp:+,.0f} ({p.get('exit_reason')})")
 
 
 def cmd_force(args):
@@ -921,7 +972,7 @@ def sample_once(ts, token, strategy=None, poll_index=0):
     total = 0.0
     for p in positions:
         if p["status"] != "OPEN":
-            total += p.get("gross_pnl", 0)
+            total += p.get("net_pnl", p.get("gross_pnl", 0))
             continue
         expiry = p["expiry"]
         if expiry not in chain_cache:
@@ -949,8 +1000,11 @@ def sample_once(ts, token, strategy=None, poll_index=0):
             p["closed_at"] = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
             p["status"] = "CLOSED"
             p["exit_reason"] = reason
+            p["costs"] = option_costs(p["premium"], ltp, p["lot_size"] * p["qty"])
             p["gross_pnl"] = round(pnl, 2)
-            print(f"  AUTO-CLOSE #{p['id']} ({reason}) @ ₹{ltp:.2f} → ₹{pnl:+,.2f}", flush=True)
+            p["net_pnl"] = round(pnl - p["costs"], 2)
+            print(f"  AUTO-CLOSE #{p['id']} ({reason}) @ ₹{ltp:.2f} → ₹{pnl:+,.2f} "
+                  f"(costs ₹{p['costs']:.2f}, net ₹{p['net_pnl']:+,.2f})", flush=True)
             if strategy:
                 strategy.mark_closed(poll_index)
         total += pnl
@@ -1101,6 +1155,7 @@ def main():
 
     p = sub.add_parser("sweep", help="multi-day backtest sweep across all strategy configs")
     p.add_argument("--days", type=int, default=0, help="limit to last N day-files (0=all)")
+    p.add_argument("--no-costs", action="store_true", help="exclude option trading charges")
     p.set_defaults(func=cmd_sweep)
 
     p = sub.add_parser("sweep-live", help="live signal board across all strategy configs")
