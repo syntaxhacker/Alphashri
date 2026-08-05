@@ -156,6 +156,60 @@ async function setupBacktest(page: Page) {
   await waitForBacktestResult(page, "results-summary");
 }
 
+async function getChartOption(page: Page): Promise<any | null> {
+  await page.waitForTimeout(1000);
+  return page.evaluate(() => {
+    const echarts = (window as any).echarts;
+    if (!echarts) return null;
+    const container = document.querySelector('[data-testid="echarts-container"]');
+    if (!container) return null;
+    const child = container.firstElementChild;
+    if (!child) return null;
+    const instance = echarts.getInstanceByDom(child);
+    if (!instance) {
+      const allDivs = container.querySelectorAll("div");
+      for (const div of allDivs) {
+        const inst = echarts.getInstanceByDom(div);
+        if (inst) return inst.getOption();
+      }
+      return null;
+    }
+    return instance.getOption();
+  });
+}
+
+async function openTradeHistoryForReliance(page: Page) {
+  // RELIANCE is the only mock symbol whose chart data includes trades. Clicking its
+  // result row opens the chart and populates the trade history panel.
+  const relianceRow = page.locator('[data-testid="result-row-RELIANCE"]');
+  await expect(relianceRow).toBeVisible({ timeout: 15000 });
+  await relianceRow.click();
+  await expect(page.locator('[data-testid="trade-history-panel"]')).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(page.locator('[data-testid="trade-history-row-0"]')).toHaveCount(1, {
+    timeout: 15000,
+  });
+}
+
+async function expectChartHighlighted(page: Page) {
+  // New behavior: clicking a trade row zooms the chart to that trade and highlights its
+  // markers. The highlighted entry/exit markers render as scatter series with gold
+  // (#FFD700) styling (see BacktestChart.zoomToTrade / normalizeBacktest).
+  const option = await getChartOption(page);
+  const series = option?.series || [];
+  const hasHighlightedMarker = series.some(
+    (s: any) =>
+      s.type === "scatter" &&
+      Array.isArray(s.data) &&
+      s.data.length > 0 &&
+      (s.id === "highlight-entry" ||
+        s.id === "highlight-exit" ||
+        s.data.some((d: any) => d?.itemStyle?.color === "#FFD700")),
+  );
+  expect(hasHighlightedMarker).toBeTruthy();
+}
+
 test.describe("Backtest - Mantine Features", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
@@ -237,25 +291,20 @@ test.describe("Backtest - Mantine Features", () => {
     test("should highlight trade row when clicked", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await withTradeHistoryPanel(page, async () => {
-        const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
-        if (await firstTradeRow.isVisible()) {
-          await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
-          await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
+      await openTradeHistoryForReliance(page);
 
-          // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-          await page.evaluate(() => {
-            const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
-            row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-          });
+      const firstTradeRow = page.locator('[data-testid="trade-history-row-0"]');
+      await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+      await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
 
-          // Check immediately - highlight removed after 3s via setTimeout in component
-          const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-          expect(
-            await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
-          ).toBe(true);
-        }
+      // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+      await page.evaluate(() => {
+        const row = document.querySelector('[data-testid="trade-history-row-0"]');
+        row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       });
+
+      // New behavior: clicking a row zooms the chart to that trade and highlights its markers
+      await expectChartHighlighted(page);
     });
   });
 
@@ -263,49 +312,47 @@ test.describe("Backtest - Mantine Features", () => {
     test("should highlight trade row with golden background when clicked", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await withTradeHistoryPanel(page, async () => {
-        const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
-        if (await firstTradeRow.isVisible()) {
-          await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
-          await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
+      await openTradeHistoryForReliance(page);
 
-          // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-          await page.evaluate(() => {
-            const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
-            row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-          });
+      const firstTradeRow = page.locator('[data-testid="trade-history-row-0"]');
+      await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+      await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
 
-          // Check immediately - highlight removed after 3s via setTimeout
-          const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-          expect(
-            await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
-          ).toBe(true);
-        }
+      // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+      await page.evaluate(() => {
+        const row = document.querySelector('[data-testid="trade-history-row-0"]');
+        row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       });
+
+      // The trade's entry/exit markers are re-rendered with gold (#FFD700) styling
+      await expectChartHighlighted(page);
     });
 
-    test("should remove highlight after timeout", async ({ page }) => {
+    test("should keep chart highlighted after click (no stale timeout state)", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await withTradeHistoryPanel(page, async () => {
-        const firstTradeRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
-        if (await firstTradeRow.isVisible()) {
-          await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
-          await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
+      await openTradeHistoryForReliance(page);
 
-          // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
-          await page.evaluate(() => {
-            const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
-            row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
-          });
+      const firstTradeRow = page.locator('[data-testid="trade-history-row-0"]');
+      await firstTradeRow.scrollIntoViewIfNeeded({ timeout: 15000 });
+      await expect(firstTradeRow).toBeVisible({ timeout: 15000 });
 
-          // Wait for 3s highlight timeout + buffer
-          await page.waitForTimeout(4000);
-          const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-          expect(
-            await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
-          ).toBe(false);
-        }
+      // Use native dispatchEvent - Playwright click({ force: true }) doesn't reliably trigger React onClick
+      await page.evaluate(() => {
+        const row = document.querySelector('[data-testid="trade-history-row-0"]');
+        row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
+      });
+
+      // New behavior (replaces the removed 3s CSS-class timeout): the highlight is applied
+      // to the chart markers rather than a transient CSS class. Verify the chart and the
+      // trade history panel stay intact after the old timeout window.
+      await expectChartHighlighted(page);
+      await page.waitForTimeout(4000);
+      await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({
+        timeout: 10000,
+      });
+      await expect(page.locator('[data-testid="trade-history-row-0"]')).toBeVisible({
+        timeout: 10000,
       });
     });
   });
@@ -314,27 +361,49 @@ test.describe("Backtest - Mantine Features", () => {
     test("should sort results when clicking column header", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible();
-      const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
+      await expect(page.locator('[data-testid="results-table"]')).toBeVisible();
+      // TanStackTable renders native <th> headers — select the Net PnL header by text
+      const netPnlHeader = page.locator('[data-testid="results-table"] th', {
+        hasText: /Net PnL/i,
+      });
       await expect(netPnlHeader).toBeVisible();
       await netPnlHeader.click();
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+      await expect(page.locator('[data-testid="results-table"]')).toBeVisible({
         timeout: 5000,
       });
+      // Sort state changed: header shows ascending indicator and lowest P&L row is first
+      await expect(netPnlHeader).toContainText("▲");
+      await expect(
+        page.locator('[data-testid="results-table"] tbody tr').first(),
+      ).toHaveAttribute("data-testid", "result-row-NETWEB");
     });
 
     test("should toggle sort direction when clicking same column twice", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      const netPnlHeader = page.locator('[data-testid="th-net_pnl"]');
+      const netPnlHeader = page.locator('[data-testid="results-table"] th', {
+        hasText: /Net PnL/i,
+      });
+      // Click 1: flips initial desc sort to asc
       await netPnlHeader.click();
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+      await expect(page.locator('[data-testid="results-table"]')).toBeVisible({
         timeout: 5000,
       });
+      await expect(netPnlHeader).toContainText("▲");
+      await expect(
+        page.locator('[data-testid="results-table"] tbody tr').first(),
+      ).toHaveAttribute("data-testid", "result-row-NETWEB");
+      // Click 2: TanStackTable cycles desc -> asc -> cleared, so the sort indicator is
+      // removed and rows fall back to the parent's default (desc) ordering
       await netPnlHeader.click();
-      await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+      await expect(page.locator('[data-testid="results-table"]')).toBeVisible({
         timeout: 5000,
       });
+      await expect(netPnlHeader).not.toContainText("▲");
+      await expect(netPnlHeader).not.toContainText("▼");
+      await expect(
+        page.locator('[data-testid="results-table"] tbody tr').first(),
+      ).toHaveAttribute("data-testid", "result-row-RELIANCE");
     });
   });
 
@@ -417,25 +486,26 @@ test.describe("Backtest - Mantine Features", () => {
     test("should sort trade history by time", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await withTradeHistoryPanel(page, async () => {
-        const timeHeader = page.locator('[data-testid="th-entry_time"]');
-        if (await timeHeader.isVisible()) {
-          await timeHeader.click();
-          await page.waitForLoadState("networkidle");
-        }
-      });
+      await openTradeHistoryForReliance(page);
+      // TanStackTable renders native <th> headers — the time column header is "Entry"
+      const timeHeader = page
+        .locator('[data-testid="trade-history-table"] th', { hasText: /^Entry/ })
+        .first();
+      await expect(timeHeader).toBeVisible();
+      await timeHeader.click();
+      await expect(page.locator('[data-testid="trade-history-table"]')).toBeVisible();
     });
 
     test("should sort trade history by P&L", async ({ page }) => {
       await gotoBacktest(page);
       await setupBacktest(page);
-      await withTradeHistoryPanel(page, async () => {
-        const pnlHeader = page.locator('[data-testid="th-net_pnl"]');
-        if (await pnlHeader.isVisible()) {
-          await pnlHeader.click();
-          await page.waitForLoadState("networkidle");
-        }
+      await openTradeHistoryForReliance(page);
+      const pnlHeader = page.locator('[data-testid="trade-history-table"] th', {
+        hasText: /^P&L/,
       });
+      await expect(pnlHeader).toBeVisible();
+      await pnlHeader.click();
+      await expect(page.locator('[data-testid="trade-history-table"]')).toBeVisible();
     });
   });
 
