@@ -20,18 +20,18 @@ test.describe("Alphashri", () => {
 
   test("should display data table", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 30000 });
-    const rows = page.locator(".mantine-Table-tr");
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 30000 });
+    const rows = page.locator('[data-testid="screener-table"] tbody tr');
     await expect(rows.first()).toBeVisible();
   });
 
   test("should display mock stock data", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", { timeout: 30000 });
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 30000 });
 
     // Check that mock data is displayed - use more specific selector
     const firstSymbol = mockTrendingResponse.approaching[0].symbol;
-    await expect(page.getByRole("cell", { name: firstSymbol })).toBeVisible();
+    await expect(page.locator(`[data-testid="symbol-cell-${firstSymbol}"]`)).toBeVisible();
   });
 });
 
