@@ -233,6 +233,8 @@ class RangeStrategy:
         self._cooldown_until = 0
         self.target_net = TARGET_NET
         self.sl_net = SL_NET
+        self._anchor_low = None   # fixed day-low anchor for breakdown (down-day)
+        self._anchor_high = None  # fixed day-high anchor for breakout (up-day)
 
     def _momentum(self, spot: float) -> float:
         if len(self._recent) < 2:
@@ -261,26 +263,50 @@ class RangeStrategy:
         low, high = day.get("low", 0), day.get("high", 0)
         if high <= low:
             return {"action": "none"}
-        sup = levels.get("next_support") or low
-        res = levels.get("next_resistance") or high
+        # Trend filter: only trade WITH the day's direction.
+        # spot < open = down-day -> shorts only (PE). spot > open = up-day -> longs only (CE).
+        day_open = day.get("open", 0)
+        down_day = day_open > 0 and spot < day_open
+        up_day = day_open > 0 and spot > day_open
+
+        # Anchor the breakdown/breakout level ONCE and FREEZE it.
+        # The bug: the day-low ratchets down on every new low in a cascade, so
+        # `spot <= daylow - 15` never triggers (it chases the falling low).
+        # Fix: lock the anchor at the day-low captured when the strategy FIRST
+        # observes a down-day, and never move it lower. A genuine break below a
+        # fixed level then fires the PE.
+        if down_day and self._anchor_low is None:
+            self._anchor_low = low
+        if up_day and self._anchor_high is None:
+            self._anchor_high = high
+        sup_anchor = self._anchor_low if self._anchor_low is not None else low
+        res_anchor = self._anchor_high if self._anchor_high is not None else high
+
+        sup = levels.get("next_support") or sup_anchor
+        res = levels.get("next_resistance") or res_anchor
         sup_zone = sup + ZONE_PTS
         res_zone = res - ZONE_PTS
         sup_break = sup - BREAK_BUFFER
         res_break = res + BREAK_BUFFER
         mom = self._momentum(spot)
-        extra = f"support={sup:,.0f} resistance={res:,.0f} maxpain={levels.get('max_pain',0):,.0f}"
-        if spot <= sup_zone and mom >= 0 and self._consecutive_in_zone(lambda s: s <= sup_zone):
-            return {"action": "open", "side": "CE", "bias": "LONG",
-                    "reason": f"OI/pivot support bounce @ {spot:,.0f} ({extra})"}
-        if spot >= res_zone and mom <= 0 and self._consecutive_in_zone(lambda s: s >= res_zone):
-            return {"action": "open", "side": "PE", "bias": "SHORT",
-                    "reason": f"OI/pivot resistance reject @ {spot:,.0f} ({extra})"}
-        if spot <= sup_break and mom <= 0 and self._consecutive_in_zone(lambda s: s <= sup_break):
-            return {"action": "open", "side": "PE", "bias": "SHORT",
-                    "reason": f"support BREAKDOWN @ {spot:,.0f} (broke {sup:,.0f})"}
-        if spot >= res_break and mom >= 0 and self._consecutive_in_zone(lambda s: s >= res_break):
-            return {"action": "open", "side": "CE", "bias": "LONG",
-                    "reason": f"resistance BREAKOUT @ {spot:,.0f} (broke {res:,.0f})"}
+        trend = "down" if down_day else ("up" if up_day else "flat")
+        extra = f"support={sup:,.0f} resistance={res:,.0f} maxpain={levels.get('max_pain',0):,.0f} trend={trend}"
+        # LONG-side rules only on an up/flat day
+        if not down_day:
+            if spot <= sup_zone and mom >= 0 and self._consecutive_in_zone(lambda s: s <= sup_zone):
+                return {"action": "open", "side": "CE", "bias": "LONG",
+                        "reason": f"OI/pivot support bounce @ {spot:,.0f} ({extra})"}
+            if spot >= res_break and mom >= 0 and self._consecutive_in_zone(lambda s: s >= res_break):
+                return {"action": "open", "side": "CE", "bias": "LONG",
+                        "reason": f"resistance BREAKOUT @ {spot:,.0f} (broke {res:,.0f})"}
+        # SHORT-side rules only on a down/flat day
+        if not up_day:
+            if spot >= res_zone and mom <= 0 and self._consecutive_in_zone(lambda s: s >= res_zone):
+                return {"action": "open", "side": "PE", "bias": "SHORT",
+                        "reason": f"OI/pivot resistance reject @ {spot:,.0f} ({extra})"}
+            if spot <= sup_break and mom <= 0 and self._consecutive_in_zone(lambda s: s <= sup_break):
+                return {"action": "open", "side": "PE", "bias": "SHORT",
+                        "reason": f"support BREAKDOWN @ {spot:,.0f} (broke {sup:,.0f})"}
         return {"action": "none"}
 
     def mark_closed(self, poll_index: int):
