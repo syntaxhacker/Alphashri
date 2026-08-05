@@ -151,8 +151,11 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--interval", type=int, default=300)
     parser.add_argument("--max-samples", type=int, default=96)
+    parser.add_argument("--until", default="15:30", help="stop time HH:MM IST (default 15:30)")
     parser.add_argument("--strategy", action="store_true", help="run range strategy auto-entry")
     args = parser.parse_args()
+
+    stop_h, stop_m = (int(x) for x in args.until.split(":"))
 
     strategy = None
     if args.strategy:
@@ -165,8 +168,8 @@ def main():
     samples = 0
     while samples < args.max_samples:
         now = datetime.now(IST)
-        if now.hour >= 15 and now.minute >= 30:
-            print("Market closed; stopping monitor.", file=sys.stderr)
+        if now.hour > stop_h or (now.hour == stop_h and now.minute >= stop_m):
+            print(f"Reached stop time {args.until}; stopping monitor.", file=sys.stderr)
             break
         ts = now.strftime("%Y-%m-%d %H:%M:%S")
         try:
@@ -179,8 +182,16 @@ def main():
                     write_header = False
                 for r in rows:
                     w.writerow(r)
-            tag = "  [strategy]" if strategy else ""
-            print(f"{ts}  spot={spot:,.2f}  total_pnl={total:+,.2f}{tag}", flush=True)
+            # rich S/R analysis line
+            try:
+                from scripts.paper_sr_levels import scan as sr_scan
+                lv = sr_scan(token)
+                print(f"{ts}  spot={spot:,.2f}  total_pnl={total:+,.2f}  "
+                      f"sup={lv['next_support']:,.0f} res={lv['next_resistance']:,.0f} "
+                      f"maxpain={lv['max_pain']:,.0f}  [strategy]", flush=True)
+            except Exception:
+                tag = "  [strategy]" if strategy else ""
+                print(f"{ts}  spot={spot:,.2f}  total_pnl={total:+,.2f}{tag}", flush=True)
         except Exception as e:
             print(f"{ts}  ERROR: {e}", file=sys.stderr, flush=True)
         samples += 1
