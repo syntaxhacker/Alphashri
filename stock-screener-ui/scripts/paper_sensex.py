@@ -45,6 +45,7 @@ DATA = Path(__file__).parent.parent / "experiments" / "data"
 POSITIONS_FILE = DATA / "paper_sensex_options.json"
 LOG_FILE = DATA / "paper_sensex_log.csv"
 STATUS_FILE = DATA / "paper_sensex_status.txt"
+CANDLE_CACHE_DIR = DATA / "sensex_1m_cache"
 LOT_SIZE = 20
 INDEX_KEY = "BSE_INDEX|SENSEX"
 DEFAULT_EXPIRY = "2026-08-06"
@@ -59,6 +60,37 @@ TRAIL_TRIGGER = 400.0    # activate trailing once P&L reaches this (₹)
 TRAIL_DIST = 250.0       # trailing stop distance behind the peak (₹)
 COOLDOWN_POLLS = 4
 MAX_OPEN = 1
+
+# --- strategy config registry (multi-strategy sweep) ---
+# Each entry is one named strategy config. Rule variants:
+#   all-rules      = support_bounce + resistance_reject + breakdown + breakout
+#   breakdown-only = only breakdown (PE) on down-days
+#   bounce-reject  = only support_bounce (CE) + resistance_reject (PE)
+#   no-trend       = all rules but trend_filter off (chases bounces too)
+ALL_RULES = ["support_bounce", "resistance_reject", "breakdown", "breakout"]
+BREAKDOWN_ONLY = ["breakdown"]
+BOUNCE_REJECT = ["support_bounce", "resistance_reject"]
+
+def _mk(name, target, sl, trail_trigger, trail_dist, rules, trend_filter=True, **kw):
+    return {"name": name, "target": target, "sl": sl,
+            "trail_trigger": trail_trigger, "trail_dist": trail_dist,
+            "rules": rules, "trend_filter": trend_filter, **kw}
+
+def strategy_configs():
+    """Curated ~24-30 configs spanning targets × SL × trail × rule variants."""
+    cfgs = []
+    for rules, tf, tag in [
+        (ALL_RULES, True, "all"),
+        (BREAKDOWN_ONLY, True, "brk"),
+        (BOUNCE_REJECT, True, "bnc"),
+        (ALL_RULES, False, "notrend"),
+    ]:
+        for target in (300.0, 600.0, 900.0):
+            for sl in (-200.0, -400.0):
+                for trail, t_trig, t_dist in [("off", 1e9, 250.0), ("on", 400.0, 250.0)]:
+                    name = f"{tag}-t{target:.0f}-sl{abs(sl):.0f}-{trail}"
+                    cfgs.append(_mk(name, target, sl, t_trig, t_dist, rules, tf))
+    return cfgs
 
 # ---------------------------------------------------------------------------
 # api helpers
@@ -227,14 +259,309 @@ def scan_levels(token: str | None = None, expiry: str = DEFAULT_EXPIRY) -> dict:
 
 
 # ---------------------------------------------------------------------------
+# multi-day 1-min candle cache (for sweep)
+# ---------------------------------------------------------------------------
+def fetch_candles_range(from_date: str, to_date: str, token: str | None = None) -> list:
+    """Fetch SENSEX 1-min candles for a date range (Upstox V2 historical). Returns raw rows."""
+    import urllib.parse
+    token = token or get_token()
+    key = urllib.parse.quote(INDEX_KEY, safe="")
+    url = f"https://api.upstox.com/v2/historical-candle/{key}/1minute/{to_date}/{from_date}"
+    j = _get(url, timeout=30).json()
+    if j.get("status") != "success":
+        raise SystemExit(f"fetch_candles_range API error: {j}")
+    return j["data"]["candles"]
+
+
+def cmd_fetch_candles(args):
+    """Fetch last N days of SENSEX 1-min candles into sensex_1m_cache/<date>.json."""
+    CANDLE_CACHE_DIR.mkdir(parents=True, exist_ok=True)
+    token = get_token()
+    from_date = (datetime.now(IST) - timedelta(days=args.days)).strftime("%Y-%m-%d")
+    to_date = datetime.now(IST).strftime("%Y-%m-%d")
+    print(f"Fetching SENSEX 1-min candles {from_date} .. {to_date} ...", file=sys.stderr)
+    rows = fetch_candles_range(from_date, to_date, token)
+    rows.sort(key=lambda r: r[0])
+    # group by date
+    by_day = {}
+    for r in rows:
+        d = r[0][:10]
+        by_day.setdefault(d, []).append(r)
+    saved = 0
+    for d, day_rows in sorted(by_day.items()):
+        out = CANDLE_CACHE_DIR / f"{d}.json"
+        with open(out, "w") as f:
+            json.dump(day_rows, f)
+        saved += 1
+        print(f"  {d}: {len(day_rows)} candles -> {out.name}", file=sys.stderr)
+    print(f"Saved {saved} day-files to {CANDLE_CACHE_DIR}", file=sys.stderr)
+
+
+def load_candle_days() -> list:
+    """Return sorted list of (date_str, candles_asc) from the cache."""
+    if not CANDLE_CACHE_DIR.exists():
+        return []
+    days = []
+    for p in sorted(CANDLE_CACHE_DIR.glob("*.json")):
+        with open(p) as f:
+            rows = json.load(f)
+        rows.sort(key=lambda r: r[0])
+        days.append((p.stem, rows))
+    return days
+
+
+def day_ohlc_from_candles(rows: list) -> dict:
+    if not rows:
+        return {"open": 0, "high": 0, "low": 0, "close": 0}
+    return {
+        "open": float(rows[0][1]),
+        "high": max(float(r[2]) for r in rows),
+        "low": min(float(r[3]) for r in rows),
+        "close": float(rows[-1][4]),
+    }
+
+
+def oi_anchors_from_live(token=None) -> tuple:
+    """Approximate OI support/resistance from the live chain (res=high CE OI, sup=high PE OI)."""
+    try:
+        chain = fetch_chain(token=token)
+        ce, pe = [], []
+        for c in chain.get("data", []):
+            st = c.get("strike_price")
+            if not st:
+                continue
+            ce_oi = ((c.get("call_options") or {}).get("market_data") or {}).get("oi", 0) or 0
+            pe_oi = ((c.get("put_options") or {}).get("market_data") or {}).get("oi", 0) or 0
+            if ce_oi > 2_000_000:
+                ce.append((float(st), float(ce_oi)))
+            if pe_oi > 1_500_000:
+                pe.append((float(st), float(pe_oi)))
+        ce.sort(key=lambda x: x[1], reverse=True)
+        pe.sort(key=lambda x: x[1], reverse=True)
+        oi_res = min(ce[:3], key=lambda x: abs(x[0] - 79000))[0] if ce else 79000.0
+        oi_sup = max(pe[:3], key=lambda x: abs(x[0] - 79000))[0] if pe else 78500.0
+        return oi_sup, oi_res
+    except Exception:
+        return 78500.0, 79000.0
+
+
+# ---------------------------------------------------------------------------
+# multi-day strategy sweep
+# ---------------------------------------------------------------------------
+def run_day_sweep(cfg: dict, rows: list, oi_sup: float, oi_res: float,
+                  target: float, sl: float, trail_trigger: float, trail_dist: float,
+                  t_years: float, iv: float = 0.19, lot: int = LOT_SIZE,
+                  cooldown_min: int = 5) -> dict:
+    """Replay one strategy config on one day's 1-min candles. Returns day metrics."""
+    if not rows:
+        return {"trades": 0, "net": 0.0, "wins": 0, "losses": 0, "max_dd": 0.0}
+    day_ohlc = day_ohlc_from_candles(rows)
+    day_open = day_ohlc["open"]
+    from scripts.paper_sensex import RangeStrategy
+    strat = RangeStrategy(**cfg)
+    cum_low, cum_high = float("inf"), 0.0
+    anchor_low = None
+    cooldown_until = 0.0
+    trades = []
+    pos = None
+    t0 = None
+
+    def bs_premium(side, spot, strike, t, iv, r=0.05):
+        import math
+        def ncdf(x): return 0.5 * (1 + math.erf(x / math.sqrt(2)))
+        if t <= 1e-6:
+            t = 1e-6
+        d1 = (math.log(spot / strike) + (r + iv * iv / 2) * t) / (iv * math.sqrt(t))
+        d2 = d1 - iv * math.sqrt(t)
+        if side == "CE":
+            bs = spot * ncdf(d1) - strike * math.exp(-r * t) * ncdf(d2)
+        else:
+            bs = strike * math.exp(-r * t) * ncdf(-d2) - spot * ncdf(-d1)
+        intr = max(spot - strike, 0) if side == "CE" else max(strike - spot, 0)
+        return max(bs, intr)
+
+    for i, r in enumerate(rows):
+        ts = r[0]
+        hm = ts[11:16]
+        spot = float(r[4])
+        cum_low = min(cum_low, float(r[3]))
+        cum_high = max(cum_high, float(r[2]))
+
+        sup_cands = [x for x in [oi_sup, cum_low] if x < spot]
+        res_cands = [x for x in [oi_res, cum_high] if x > spot]
+        sup = max(sup_cands) if sup_cands else cum_low
+        res = min(res_cands) if res_cands else cum_high
+        down_day = spot < day_open
+        up_day = spot > day_open
+        if down_day and anchor_low is None:
+            anchor_low = cum_low
+        sup_anchor = anchor_low if anchor_low is not None else cum_low
+
+        levels = {"day": {"open": day_open, "high": cum_high, "low": cum_low},
+                  "next_support": sup, "next_resistance": res, "max_pain": day_open}
+
+        if pos:
+            pnl_hi = (bs_premium(pos["side"], float(r[2]), pos["strike"], t_years, iv) - pos["premium"]) * lot
+            pnl_lo = (bs_premium(pos["side"], float(r[3]), pos["strike"], t_years, iv) - pos["premium"]) * lot
+            pos["peak"] = max(pos.get("peak", pnl_lo), pnl_hi, pnl_lo)
+            reason = None
+            if pnl_lo <= sl:
+                pos.update(reason="SL", pnl=sl)
+            elif pos.get("peak") >= trail_trigger and pnl_hi <= pos["peak"] - trail_dist:
+                pos.update(reason="TRAIL", pnl=round(pos["peak"] - trail_dist, 2))
+            elif pnl_hi >= target:
+                pos.update(reason="TARGET", pnl=target)
+            elif hm >= "15:20":
+                pos.update(reason="EOD", pnl=round((bs_premium(pos["side"], spot, pos["strike"], t_years, iv) - pos["premium"]) * lot, 2))
+            if pos.get("reason"):
+                trades.append(pos)
+                pos = None
+                cooldown_until = i + cooldown_min
+            continue
+
+        if i < cooldown_until:
+            continue
+
+        decision = strat.decide_with_levels(spot, levels, i, 1 if pos else 0)
+        if decision.get("action") == "open":
+            side = decision["side"]
+            base = round(spot / 100) * 100
+            strike = base + (100 if side == "CE" else -100)  # strike just above/below spot
+            premium = bs_premium(side, spot, strike, t_years, iv)
+            pos = {"side": side, "strike": strike, "entry": spot, "premium": premium,
+                   "time": hm, "peak": 0.0, "signal": decision.get("reason", "")}
+
+    if pos:
+        pos.update(reason="EOD", pnl=round((bs_premium(pos["side"], spot, pos["strike"], t_years, iv) - pos["premium"]) * lot, 2))
+        trades.append(pos)
+
+    wins = [t for t in trades if t["pnl"] > 0]
+    losses = [t for t in trades if t["pnl"] <= 0]
+    net = round(sum(t["pnl"] for t in trades), 2)
+    # max drawdown from cumulative P&L
+    cum, peak, mdd = 0.0, 0.0, 0.0
+    for t in trades:
+        cum += t["pnl"]
+        peak = max(peak, cum)
+        mdd = min(mdd, cum - peak)
+    return {"trades": len(trades), "wins": len(wins), "losses": len(losses),
+            "net": net, "max_dd": round(mdd, 2), "day": day_ohlc["close"]}
+
+
+def cmd_sweep(args):
+    """Multi-day backtest sweep over all strategy configs; rank by robustness."""
+    days = load_candle_days()
+    if not days:
+        raise SystemExit("No candle cache. Run: python3 scripts/paper_sensex.py fetch-candles")
+    if args.days:
+        days = days[-args.days:]
+    oi_sup, oi_res = oi_anchors_from_live()
+    dte = (datetime(2026, 8, 6, tzinfo=IST) - datetime.now(IST)).total_seconds() / 86400.0
+    t_years = max(dte, 1) / 365.0
+
+    cfgs = strategy_configs()
+    results = []
+    for cfg in cfgs:
+        per_day = []
+        for date, rows in days:
+            r = run_day_sweep(cfg, rows, oi_sup, oi_res,
+                              cfg["target"], cfg["sl"], cfg["trail_trigger"], cfg["trail_dist"],
+                              t_years, iv=0.19)
+            per_day.append(r)
+        nets = [r["net"] for r in per_day]
+        pos_days = [r for r in per_day if r["net"] > 0]
+        total_trades = sum(r["trades"] for r in per_day)
+        wins = sum(r["wins"] for r in per_day)
+        losses = sum(r["losses"] for r in per_day)
+        import statistics
+        median = statistics.median(nets)
+        results.append({
+            "config": cfg["name"], "params": cfg,
+            "days": len(per_day), "median_net": round(median, 2),
+            "mean_net": round(statistics.mean(nets), 2),
+            "pct_profitable_days": round(len(pos_days) / len(per_day) * 100, 1) if per_day else 0,
+            "total_net": round(sum(nets), 2),
+            "total_trades": total_trades, "wins": wins, "losses": losses,
+            "win_rate": round(wins / total_trades * 100, 1) if total_trades else 0,
+            "max_dd": round(min(r["max_dd"] for r in per_day), 2),
+            "per_day": per_day,
+        })
+
+    # rank by median day P&L (primary), then % profitable days
+    results.sort(key=lambda r: (r["median_net"], r["pct_profitable_days"]), reverse=True)
+
+    print(f"\n=== SENSEX STRATEGY SWEEP — {len(days)} days ({days[0][0]}..{days[-1][0]}) ===")
+    print(f"Configs: {len(cfgs)} | ranked by median day P&L (robustness)")
+    print(f"{'#':>2} {'config':<28} {'days':>4} {'med':>8} {'mean':>8} {'%pos':>5} {'net':>9} {'tr':>4} {'WR%':>5} {'maxDD':>8}")
+    for i, r in enumerate(results, 1):
+        print(f"{i:>2} {r['config']:<28} {r['days']:>4} {r['median_net']:>8,.0f} {r['mean_net']:>8,.0f} "
+              f"{r['pct_profitable_days']:>5.0f} {r['total_net']:>9,.0f} {r['total_trades']:>4} "
+              f"{r['win_rate']:>5.1f} {r['max_dd']:>8,.0f}")
+
+    # hold-out: last 2 days excluded -> confirm winner holds
+    if len(days) > 3:
+        hold = [r for r in results]
+        print("\n=== HOLD-OUT CHECK (last 2 days) ===")
+        for r in results[:5]:
+            hold_nets = [d["net"] for d in r["per_day"][-2:]]
+            print(f"  {r['config']:<28} last-2-day net {sum(hold_nets):>+9,.0f}")
+
+    # save JSONL + trade logs
+    sweep_json = DATA / f"paper_sensex_sweep_{datetime.now(IST).strftime('%Y-%m-%d')}.jsonl"
+    with open(sweep_json, "w") as f:
+        for r in results:
+            slim = {k: v for k, v in r.items() if k != "per_day"}
+            slim["per_day_nets"] = [d["net"] for d in r["per_day"]]
+            f.write(json.dumps(slim) + "\n")
+    print(f"\nsaved: {sweep_json}")
+
+
+def cmd_sweep_live(args):
+    """Live signal board across all strategy configs (read-only, virtual P&L)."""
+    import time as _t
+    cfgs = strategy_configs()
+    strats = [RangeStrategy(**{k: v for k, v in c.items() if k != "name"}) for c in cfgs]
+    poll = 0
+    runs = 1 if args.once else 10**9
+    while poll < runs:
+        lv = scan_levels()
+        spot = lv["spot"]
+        lines = []
+        lines.append(f"[{datetime.now(IST).strftime('%H:%M:%S')}] SENSEX {spot:,.0f}  "
+                     f"(down-day {spot < lv['day']['open']})  sup {lv['next_support']:,.0f} res {lv['next_resistance']:,.0f}")
+        lines.append(f"{'#':>2} {'config':<24} {'signal':<14} {'zone':<12}")
+        for i, (cfg, strat) in enumerate(zip(cfgs, strats), 1):
+            decision = strat.decide_with_levels(spot, lv, poll, 0)
+            sig = "LONG/CE" if decision.get("action") == "open" and decision.get("side") == "CE" else \
+                  ("SHORT/PE" if decision.get("action") == "open" and decision.get("side") == "PE" else "WAIT")
+            lines.append(f"{i:>2} {cfg['name']:<24} {sig:<14} {_zone(spot, lv):<12}")
+        out = "\n".join(lines)
+        print(out, flush=True)
+        poll += 1
+        _t.sleep(5 if args.follow else 30)
+
+
+# ---------------------------------------------------------------------------
 # strategy
 # ---------------------------------------------------------------------------
 class RangeStrategy:
-    def __init__(self):
+    def __init__(self, **params):
         self._recent = []
         self._cooldown_until = 0
-        self.target_net = TARGET_NET
-        self.sl_net = SL_NET
+        # exit params
+        self.target_net = float(params.get("target", TARGET_NET))
+        self.sl_net = float(params.get("sl", SL_NET))
+        self.trail_trigger = float(params.get("trail_trigger", TRAIL_TRIGGER))
+        self.trail_dist = float(params.get("trail_dist", TRAIL_DIST))
+        # entry params
+        self.zone_pts = float(params.get("zone_pts", ZONE_PTS))
+        self.break_buffer = float(params.get("break_buffer", BREAK_BUFFER))
+        self.confirm_samples = int(params.get("confirm_samples", CONFIRM_SAMPLES))
+        self.cooldown_polls = int(params.get("cooldown_polls", COOLDOWN_POLLS))
+        self.max_open = int(params.get("max_open", MAX_OPEN))
+        # rule flags (which signals fire)
+        self.rules = set(params.get("rules", ["support_bounce", "resistance_reject", "breakdown", "breakout"]))
+        self.trend_filter = bool(params.get("trend_filter", True))
         self._anchor_low = None   # fixed day-low anchor for breakdown (down-day)
         self._anchor_high = None  # fixed day-high anchor for breakout (up-day)
 
@@ -250,14 +577,14 @@ class RangeStrategy:
             self._recent.pop(0)
 
     def _consecutive_in_zone(self, zone_check) -> bool:
-        if len(self._recent) < CONFIRM_SAMPLES:
+        if len(self._recent) < self.confirm_samples:
             return False
-        return all(zone_check(s) for s, _ in self._recent[-CONFIRM_SAMPLES:])
+        return all(zone_check(s) for s, _ in self._recent[-self.confirm_samples:])
 
     def decide_with_levels(self, spot: float, levels: dict, poll_index: int,
                            open_positions: int) -> dict:
         self.update(spot)
-        if open_positions >= MAX_OPEN:
+        if open_positions >= self.max_open:
             return {"action": "none"}
         if poll_index < self._cooldown_until:
             return {"action": "none"}
@@ -270,6 +597,11 @@ class RangeStrategy:
         day_open = day.get("open", 0)
         down_day = day_open > 0 and spot < day_open
         up_day = day_open > 0 and spot > day_open
+        if self.trend_filter:
+            allow_long = not down_day
+            allow_short = not up_day
+        else:
+            allow_long = allow_short = True
 
         # Anchor the breakdown/breakout level ONCE and FREEZE it.
         # The bug: the day-low ratchets down on every new low in a cascade, so
@@ -284,35 +616,43 @@ class RangeStrategy:
         sup_anchor = self._anchor_low if self._anchor_low is not None else low
         res_anchor = self._anchor_high if self._anchor_high is not None else high
 
-        sup = levels.get("next_support") or sup_anchor
-        res = levels.get("next_resistance") or res_anchor
-        sup_zone = sup + ZONE_PTS
-        res_zone = res - ZONE_PTS
-        sup_break = sup - BREAK_BUFFER
-        res_break = res + BREAK_BUFFER
+        # On a down-day, the breakdown anchor MUST be the frozen first-day low
+        # (not the moving next_support which ratchets down and never triggers).
+        if down_day:
+            sup = sup_anchor
+        else:
+            sup = levels.get("next_support") or sup_anchor
+        if up_day:
+            res = res_anchor
+        else:
+            res = levels.get("next_resistance") or res_anchor
+        sup_zone = sup + self.zone_pts
+        res_zone = res - self.zone_pts
+        sup_break = sup - self.break_buffer
+        res_break = res + self.break_buffer
         mom = self._momentum(spot)
         trend = "down" if down_day else ("up" if up_day else "flat")
         extra = f"support={sup:,.0f} resistance={res:,.0f} maxpain={levels.get('max_pain',0):,.0f} trend={trend}"
         # LONG-side rules only on an up/flat day
-        if not down_day:
-            if spot <= sup_zone and mom >= 0 and self._consecutive_in_zone(lambda s: s <= sup_zone):
+        if allow_long:
+            if "support_bounce" in self.rules and spot <= sup_zone and mom >= 0 and self._consecutive_in_zone(lambda s: s <= sup_zone):
                 return {"action": "open", "side": "CE", "bias": "LONG",
                         "reason": f"OI/pivot support bounce @ {spot:,.0f} ({extra})"}
-            if spot >= res_break and mom >= 0 and self._consecutive_in_zone(lambda s: s >= res_break):
+            if "breakout" in self.rules and spot >= res_break and mom >= 0 and self._consecutive_in_zone(lambda s: s >= res_break):
                 return {"action": "open", "side": "CE", "bias": "LONG",
                         "reason": f"resistance BREAKOUT @ {spot:,.0f} (broke {res:,.0f})"}
         # SHORT-side rules only on a down/flat day
-        if not up_day:
-            if spot >= res_zone and mom <= 0 and self._consecutive_in_zone(lambda s: s >= res_zone):
+        if allow_short:
+            if "resistance_reject" in self.rules and spot >= res_zone and mom <= 0 and self._consecutive_in_zone(lambda s: s >= res_zone):
                 return {"action": "open", "side": "PE", "bias": "SHORT",
                         "reason": f"OI/pivot resistance reject @ {spot:,.0f} ({extra})"}
-            if spot <= sup_break and mom <= 0 and self._consecutive_in_zone(lambda s: s <= sup_break):
+            if "breakdown" in self.rules and spot <= sup_break and mom <= 0 and self._consecutive_in_zone(lambda s: s <= sup_break):
                 return {"action": "open", "side": "PE", "bias": "SHORT",
                         "reason": f"support BREAKDOWN @ {spot:,.0f} (broke {sup:,.0f})"}
         return {"action": "none"}
 
     def mark_closed(self, poll_index: int):
-        self._cooldown_until = poll_index + COOLDOWN_POLLS
+        self._cooldown_until = poll_index + self.cooldown_polls
 
     def pick_strike(self, spot: float, side: str, chain: dict) -> float | None:
         best, best_diff = None, float("inf")
@@ -754,6 +1094,19 @@ def main():
     p = sub.add_parser("status")
     p.add_argument("--interval", type=int, default=300); p.add_argument("--until", default="15:30")
     p.set_defaults(func=cmd_status)
+
+    p = sub.add_parser("fetch-candles", help="fetch N days of SENSEX 1-min candles into cache")
+    p.add_argument("--days", type=int, default=20)
+    p.set_defaults(func=cmd_fetch_candles)
+
+    p = sub.add_parser("sweep", help="multi-day backtest sweep across all strategy configs")
+    p.add_argument("--days", type=int, default=0, help="limit to last N day-files (0=all)")
+    p.set_defaults(func=cmd_sweep)
+
+    p = sub.add_parser("sweep-live", help="live signal board across all strategy configs")
+    p.add_argument("--follow", type=int, default=0, help="config index to promote to real position mgmt")
+    p.add_argument("--once", action="store_true", help="print one snapshot and exit")
+    p.set_defaults(func=cmd_sweep_live)
 
     args = parser.parse_args()
     args.func(args)
