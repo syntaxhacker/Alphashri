@@ -66,13 +66,31 @@ class QueuedRateLimiter:
             self._tls.rl = rl
         return rl
 
+    def _wait_for_circuit(self) -> None:
+        """Block while the shared 429 circuit breaker is open (Cloudflare block).
+
+        All processes share the cooldown via Redis, so when Upstox returns
+        429 (Error 1015) they pause together instead of hammering the block.
+        """
+        rl = self._thread_rl()
+        deadline = time.time() + max(self._max_wait_time, 1.0)
+        while True:
+            wait = rl.circuit_seconds_to_wait()
+            if wait <= 0:
+                return
+            remaining = deadline - time.time()
+            if remaining <= 0:
+                return
+            time.sleep(min(wait, remaining, 5.0))
+
     def execute(self, method: str, url: str, **kwargs) -> requests.Response:
         """Enqueue an HTTP request and wait for the response.
 
         Blocks the calling thread until:
-        1. A pool worker dequeues the request,
-        2. A rate-limit slot is acquired (blocks on Redis Lua),
-        3. The HTTP call completes.
+        1. The shared 429 circuit breaker (if open) is cleared,
+        2. A pool worker dequeues the request,
+        3. A rate-limit slot is acquired (blocks on Redis Lua),
+        4. The HTTP call completes.
 
         If ``max_pending > 0`` and the internal queue is full the
         caller blocks at the submission point (backpressure).
@@ -93,6 +111,7 @@ class QueuedRateLimiter:
             rl = self._thread_rl()
             deadline_start = time.time()
             try:
+                self._wait_for_circuit()
                 while not rl.acquire(timeout=3.0):
                     if time.time() - deadline_start > self._max_wait_time:
                         raise TimeoutError(
@@ -102,6 +121,9 @@ class QueuedRateLimiter:
                 response = requests.request(method, url, **kwargs_copy)
                 if response.status_code == 429:
                     rl.cancel_last()
+                    rl.record_failure()
+                else:
+                    rl.record_success()
                 return response
             finally:
                 with self._pending_lock:

@@ -7,6 +7,11 @@ Upstox rate limits (Standard APIs — historical candles, quotes, etc.):
   - Per minute:    500 requests
   - Per 30 min:   2000 requests
 
+Also includes a Redis-backed 429 circuit breaker. When Upstox/Cloudflare
+returns HTTP 429 (Error 1015 — "you are being rate limited"), all bot
+processes share a cooldown so they stop hammering the blocked endpoint.
+This lets the WAF block clear instead of being continuously re-triggered.
+
 Uses a Redis Lua script for atomic check-and-add so that 14 concurrent
 bot processes cannot all pass the check before any entry is recorded.
 
@@ -17,6 +22,11 @@ The score is the timestamp for efficient range cleanup.
 
 import itertools
 import time
+
+# --- 429 circuit breaker settings ---
+CIRCUIT_FAIL_THRESHOLD = 5          # consecutive 429s before opening the circuit
+CIRCUIT_COOLDOWN_SECONDS = 60       # how long the circuit stays open
+CIRCUIT_MAX_WAIT_SECONDS = 300      # max seconds execute() will block while open
 
 ACQUIRE_LUA = """
 local key = KEYS[1]
@@ -117,6 +127,53 @@ class UpstoxRateLimiter:
             except Exception:
                 pass
         self._last_added = None
+
+    # ------------------------------------------------------------------
+    # 429 circuit breaker (shared across processes via Redis)
+    # ------------------------------------------------------------------
+    def circuit_seconds_to_wait(self) -> int:
+        """Seconds to wait before making another request, 0 if the circuit is closed.
+
+        When Cloudflare/Upstox opens a 429 block, this returns the remaining
+        cooldown so callers can sleep instead of hammering the endpoint.
+        """
+        client = self._get_redis()
+        if client is None:
+            return 0
+        try:
+            raw = client.get('upstox:circuit:until')
+            if raw:
+                wait = float(raw) - time.time()
+                return int(max(0, wait))
+        except Exception:
+            pass
+        return 0
+
+    def record_failure(self):
+        """Record a 429 failure. Opens the shared circuit after N consecutive hits."""
+        client = self._get_redis()
+        if client is None:
+            return
+        try:
+            fails = client.incr('upstox:circuit:fails')
+            client.expire('upstox:circuit:fails', 120)
+            if fails >= CIRCUIT_FAIL_THRESHOLD:
+                until = time.time() + CIRCUIT_COOLDOWN_SECONDS
+                client.set('upstox:circuit:until', until)
+                client.expire('upstox:circuit:until', CIRCUIT_COOLDOWN_SECONDS + 60)
+                client.delete('upstox:circuit:fails')
+        except Exception:
+            pass
+
+    def record_success(self):
+        """Reset the failure counter on a successful request."""
+        client = self._get_redis()
+        if client is None:
+            return
+        try:
+            client.delete('upstox:circuit:fails')
+        except Exception:
+            pass
 
     def remaining_minute_budget(self) -> int:
         """How many requests remain in the current 60s window (across all processes).
