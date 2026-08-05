@@ -102,3 +102,39 @@ consolidating into ONE `scripts/paper_sensex.py` (single source of truth).
 - ✅ Use `force --dry-run` then `force` for instant confirmed entries.
 - ✅ Keep the monitor on 60s interval until 15:30.
 - ✅ Update this log after every mistake/lesson.
+
+---
+
+## 7. Multi-day sweep: single-day ranking is misleading
+
+**What we learned:** Picking a strategy by ONE day's backtest = overfitting. The max of
+28-48 configs always beats the average even if all are noise. Today's winner may be
+tomorrow's loser (we proved it: brk-only won today but has median ₹0 across 15 days).
+
+**Fix (implemented in paper_sensex.py):**
+- `fetch-candles` → multi-day 1-min cache (14+ days verified).
+- `sweep` → per-day P&L matrix; **rank by MEDIAN day P&L** (primary), % profitable
+  days, max drawdown, trade count. Hold-out: confirm winner on last 2 days.
+- 15-day sweep result: `notrend-t600-sl200-on` median +₹1,454/day (93% profitable
+  days) — trades both directions (no trend filter), highest robustness.
+  `brk-t600-sl400-on` (breakdown-only) has median ₹0 / 40% pos days — only trades
+  down-days, idle on up/flat days. Today brk=+₹197 (down-day) vs notrend +₹1,165.
+- `sweep-live`: live signal board across all 48 configs.
+
+**RULE #7:** Always evaluate a strategy over multiple days and rank by median day P&L
+(robustness), not single-day net. Single-day = preview; multi-day = verdict.
+
+---
+
+## 8. Always include option charges
+
+Added realistic premium-based charges to backtest + live paper tracking:
+STT 0.1% (sell), brokerage 0.03% (min ₹20), exchange 0.03503%, SEBI, GST 18%,
+stamp 0.003% — ≈₹15-16 per round-trip on a ~₹6k option trade.
+
+**Impact on the sweep (15 days):**
+- notrend-t600-sl200-on: +₹18,452 → **+₹13,850** net; profitable days 93% → **87%**
+- High-churn configs (343+ trades) hurt most — every trade pays ~₹15.
+
+**RULE #8:** Always model charges — a strategy's edge can disappear after costs,
+especially for high-frequency configs. `sweep --no-costs` shows the difference.
