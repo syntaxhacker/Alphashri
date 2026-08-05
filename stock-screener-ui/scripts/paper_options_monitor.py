@@ -134,7 +134,7 @@ def sample_once(ts, token, strategy=None, poll_index=0):
                     "strike": strike, "type": decision["side"], "qty": 1,
                     "premium": premium, "lot_size": 20,
                     "cost": premium * 20,
-                    "target": strategy.TARGET_NET, "sl": strategy.SL_NET,
+                    "target": strategy.target_net, "sl": strategy.sl_net,
                     "opened_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
                     "closed_at": None, "exit_premium": None, "exit_reason": None,
                     "status": "OPEN", "entry_spot": ohlc["last"],

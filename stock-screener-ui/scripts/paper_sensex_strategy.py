@@ -37,6 +37,8 @@ class RangeStrategy:
     def __init__(self):
         self._recent = []          # [(spot, ts)] momentum buffer
         self._cooldown_until = 0   # poll count
+        self.target_net = TARGET_NET
+        self.sl_net = SL_NET
 
     def _momentum(self, spot: float) -> float:
         """Slope of the last few spot samples (pts per sample). Positive = rising."""
