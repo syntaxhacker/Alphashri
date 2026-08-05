@@ -1042,8 +1042,19 @@ def sample_once(ts, token, strategy=None, poll_index=0):
 def cmd_monitor(args):
     strategy = None
     if args.strategy:
-        strategy = RangeStrategy()
-        print("Range strategy ENABLED (support→CE / resistance→PE, momentum-confirmed)", file=sys.stderr)
+        cfg = None
+        if args.config:
+            cfg = next((c for c in strategy_configs() if c["name"] == args.config), None)
+            if cfg is None:
+                raise SystemExit(f"Unknown config '{args.config}'. Available: " +
+                                 ", ".join(c["name"] for c in strategy_configs()))
+            strategy = RangeStrategy(**{k: v for k, v in cfg.items() if k != "name"})
+            print(f"Strategy ENABLED: config={args.config} (target {strategy.target_net:,.0f} "
+                  f"SL {strategy.sl_net:,.0f} trail {strategy.trail_trigger:,.0f}/{strategy.trail_dist:,.0f})",
+                  file=sys.stderr)
+        else:
+            strategy = RangeStrategy()
+            print("Range strategy ENABLED (default config)", file=sys.stderr)
     stop_h, stop_m = (int(x) for x in args.until.split(":"))
     LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
     write_header = not LOG_FILE.exists()
@@ -1143,6 +1154,7 @@ def main():
     p = sub.add_parser("monitor")
     p.add_argument("--interval", type=int, default=120); p.add_argument("--max-samples", type=int, default=100000)
     p.add_argument("--until", default="15:30"); p.add_argument("--strategy", action="store_true")
+    p.add_argument("--config", help="named strategy config to run (e.g. notrend-t600-sl200-on)")
     p.set_defaults(func=cmd_monitor)
 
     p = sub.add_parser("status")
