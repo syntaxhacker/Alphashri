@@ -70,6 +70,8 @@ def main():
     parser.add_argument("--end", default="15:30")
     parser.add_argument("--target", type=float, default=600.0)
     parser.add_argument("--sl", type=float, default=-400.0)
+    parser.add_argument("--trail-trigger", type=float, default=300.0)
+    parser.add_argument("--trail-dist", type=float, default=250.0)
     args = parser.parse_args()
 
     candles = load_1m(args.file)
@@ -136,10 +138,13 @@ def main():
         if pos:
             pnl_hi = (bs_premium(pos["side"], c["high"], pos["strike"], t_years, IV) - pos["premium"]) * LOT
             pnl_lo = (bs_premium(pos["side"], c["low"], pos["strike"], t_years, IV) - pos["premium"]) * LOT
-            if pnl_hi >= args.target:
-                pos.update(reason="TARGET", pnl=args.target, exit=spot)
-            elif pnl_lo <= args.sl:
+            pos["peak"] = max(pos.get("peak", pnl_lo), pnl_hi, pnl_lo)
+            if pnl_lo <= args.sl:
                 pos.update(reason="SL", pnl=args.sl, exit=spot)
+            elif pos.get("peak") >= args.trail_trigger and pnl_hi <= pos["peak"] - args.trail_dist:
+                pos.update(reason="TRAIL", pnl=round(pos["peak"] - 250, 2), exit=spot)
+            elif pnl_hi >= args.target:
+                pos.update(reason="TARGET", pnl=args.target, exit=spot)
             elif hm >= "15:20":
                 pos.update(reason="EOD", pnl=round((bs_premium(pos["side"], spot, pos["strike"], t_years, IV) - pos["premium"]) * LOT, 2), exit=spot)
             if pos.get("reason"):

@@ -55,6 +55,8 @@ BREAK_BUFFER = 15.0
 CONFIRM_SAMPLES = 2
 TARGET_NET = 600.0
 SL_NET = -400.0
+TRAIL_TRIGGER = 400.0    # activate trailing once P&L reaches this (₹)
+TRAIL_DIST = 250.0       # trailing stop distance behind the peak (₹)
 COOLDOWN_POLLS = 4
 MAX_OPEN = 1
 
@@ -373,7 +375,7 @@ def cmd_open(args):
         "id": pid, "underlying": "SENSEX", "expiry": expiry,
         "strike": args.strike, "type": args.type, "qty": args.qty,
         "premium": premium, "lot_size": LOT_SIZE, "cost": premium * args.qty * LOT_SIZE,
-        "target": args.target, "sl": args.sl,
+        "target": args.target, "sl": args.sl, "peak_pnl": 0.0,
         "opened_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
         "closed_at": None, "exit_premium": None, "exit_reason": None,
         "status": "OPEN", "entry_spot": spot,
@@ -557,7 +559,7 @@ def cmd_force(args):
         "id": pid, "underlying": "SENSEX", "expiry": expiry,
         "strike": strike, "type": decision["side"], "qty": 1,
         "premium": premium, "lot_size": LOT_SIZE, "cost": premium * LOT_SIZE,
-        "target": strat.target_net, "sl": strat.sl_net,
+        "target": strat.target_net, "sl": strat.sl_net, "peak_pnl": 0.0,
         "opened_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
         "closed_at": None, "exit_premium": None, "exit_reason": None,
         "status": "OPEN", "entry_spot": spot,
@@ -586,11 +588,22 @@ def sample_once(ts, token, strategy=None, poll_index=0):
             chain_cache[expiry] = fetch_chain(expiry, token)
         ltp = get_contract_ltp(chain_cache[expiry], p["strike"], p["type"], token)
         pnl = (ltp - p["premium"]) * p["qty"] * p["lot_size"]
+        # track peak P&L for trailing
+        peak = p.get("peak_pnl") if p.get("peak_pnl") is not None else pnl
+        if pnl > peak:
+            p["peak_pnl"] = pnl
+            peak = pnl
         reason = None
-        if p.get("target") is not None and pnl >= p["target"]:
-            reason = "TARGET"
-        elif p.get("sl") is not None and pnl <= p["sl"]:
+        # fixed SL first
+        if p.get("sl") is not None and pnl <= p["sl"]:
             reason = "SL"
+        # trailing: once past trigger, stop out if it gives back TRAIL_DIST from peak
+        elif p.get("peak_pnl") is not None and p["peak_pnl"] >= TRAIL_TRIGGER:
+            if pnl <= p["peak_pnl"] - TRAIL_DIST:
+                reason = "TRAIL"
+        # fixed target as a backstop (still closes a solid win)
+        elif p.get("target") is not None and pnl >= p["target"]:
+            reason = "TARGET"
         if reason:
             p["exit_premium"] = round(ltp, 2)
             p["closed_at"] = datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S")
@@ -620,7 +633,7 @@ def sample_once(ts, token, strategy=None, poll_index=0):
                     "id": pid, "underlying": "SENSEX", "expiry": expiry,
                     "strike": strike, "type": decision["side"], "qty": 1,
                     "premium": premium, "lot_size": LOT_SIZE, "cost": premium * LOT_SIZE,
-                    "target": strategy.target_net, "sl": strategy.sl_net,
+                    "target": strategy.target_net, "sl": strategy.sl_net, "peak_pnl": 0.0,
                     "opened_at": datetime.now(IST).strftime("%Y-%m-%d %H:%M:%S"),
                     "closed_at": None, "exit_premium": None, "exit_reason": None,
                     "status": "OPEN", "entry_spot": lv["spot"],
@@ -721,7 +734,7 @@ def main():
 
     p = sub.add_parser("close")
     p.add_argument("--id", type=int, required=True); p.add_argument("--premium", type=float)
-    p.add_argument("--reason", choices=["MANUAL","TARGET","SL","EOD"])
+    p.add_argument("--reason", choices=["MANUAL","TARGET","SL","EOD","TRAIL"])
     p.set_defaults(func=cmd_close)
 
     p = sub.add_parser("pnl"); p.set_defaults(func=cmd_pnl)
