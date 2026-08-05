@@ -777,6 +777,25 @@ class ScalpStrategy:
     def mark_closed(self, poll_index: int):
         self._cooldown_until = poll_index + self.cooldown
 
+    def pick_strike(self, spot: float, side: str, chain: dict) -> float | None:
+        best, best_diff = None, float("inf")
+        for c in chain.get("data", []):
+            st = c.get("strike_price")
+            if st is None:
+                continue
+            ltp = ((c.get("call_options") or {}).get("market_data") or {}).get("ltp", 0) \
+                if side == "CE" else ((c.get("put_options") or {}).get("market_data") or {}).get("ltp", 0)
+            if ltp and ltp > 0 and abs(st - spot) < best_diff:
+                best_diff, best = abs(st - spot), st
+        return best
+
+    def premium_for(self, chain: dict, strike: float, side: str) -> float:
+        for c in chain.get("data", []):
+            if abs((c.get("strike_price") or 0) - strike) < 1:
+                side_d = c.get("call_options" if side == "CE" else "put_options") or {}
+                return float((side_d.get("market_data") or {}).get("ltp", 0) or 0)
+        return 0.0
+
 
 # ---------------------------------------------------------------------------
 # position commands
@@ -1185,6 +1204,130 @@ def cmd_status(args):
 
 
 # ---------------------------------------------------------------------------
+# top-5 horse-race (parallel virtual books, live)
+# ---------------------------------------------------------------------------
+TOP5 = [
+    {"name": "momentum-lb5-t300", "type": "scalp", "style": "momentum", "lb": 5, "thr": 10, "target": 300, "sl": -150},
+    {"name": "momentum-lb3-t500", "type": "scalp", "style": "momentum", "lb": 3, "thr": 10, "target": 500, "sl": -200},
+    {"name": "range-lb5-t300", "type": "scalp", "style": "range", "lb": 5, "thr": 10, "target": 300, "sl": -150},
+    {"name": "range-lb3-t300", "type": "scalp", "style": "range", "lb": 3, "thr": 10, "target": 300, "sl": -150},
+    {"name": "notrend-t600-sl200", "type": "range", "config": "notrend-t600-sl200-on"},
+]
+
+
+def cmd_top5(args):
+    """Run 5 strategies as parallel virtual books on live spot; log all trades to CSV.
+
+    Each strategy gets the same live spot each poll. Each keeps its own virtual
+    open position with target/SL (from its config). Every trade (open + close)
+    is appended to experiments/data/top5_live_<date>.csv so we can compare
+    live performance across the 5 OOS-validated strategies.
+    """
+    import time as _t
+    # build strategies
+    strats = []
+    for s in TOP5:
+        if s["type"] == "scalp":
+            strats.append({
+                "name": s["name"], "obj": ScalpStrategy(style=s["style"], lookback=s["lb"],
+                                                        thr=s["thr"], target=s["target"], sl=s["sl"]),
+                "target": s["target"], "sl": s["sl"], "pos": None, "wins": 0, "losses": 0,
+                "net": 0.0, "trades": 0, "last_entry": None,
+            })
+        else:
+            cfg = next(c for c in strategy_configs() if c["name"] == s["config"])
+            strats.append({
+                "name": s["name"], "obj": RangeStrategy(**{k: v for k, v in cfg.items() if k != "name"}),
+                "target": cfg["target"], "sl": cfg["sl"], "pos": None, "wins": 0, "losses": 0,
+                "net": 0.0, "trades": 0, "last_entry": None,
+            })
+
+    csv_path = DATA / f"top5_live_{datetime.now(IST).strftime('%Y-%m-%d')}.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    write_hdr = not csv_path.exists()
+
+    stop_h, stop_m = (int(x) for x in args.until.split(":"))
+    poll = 0
+    # day-open for the range strategy's levels
+    ohlc = fetch_day_ohlc()
+    day_open = ohlc["open"]
+
+    while True:
+        now = datetime.now(IST)
+        if now.hour > stop_h or (now.hour == stop_h and now.minute >= stop_m):
+            print(f"[top5] reached {args.until}; stopping.", file=sys.stderr)
+            break
+        ts = now.strftime("%H:%M:%S")
+        token = get_token()
+        lv = scan_levels(token)
+        spot = lv["spot"]
+
+        # update each strategy's virtual book
+        with open(csv_path, "a", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["ts", "config", "side", "strike", "entry", "premium",
+                                              "exit", "reason", "pnl", "net_cum"])
+            if write_hdr:
+                w.writeheader(); write_hdr = False
+            for s in strats:
+                obj = s["obj"]
+                if isinstance(obj, ScalpStrategy):
+                    obj.update(spot)
+                # manage open virtual position
+                if s["pos"]:
+                    ltp = get_contract_ltp(fetch_chain(s["pos"]["expiry"], token), s["pos"]["strike"], s["pos"]["type"], token)
+                    pnl = (ltp - s["pos"]["premium"]) * LOT_SIZE
+                    reason = None
+                    if pnl <= s["sl"]:
+                        reason = "SL"
+                    elif pnl >= s["target"]:
+                        reason = "TARGET"
+                    elif now.hour >= 15:
+                        reason = "EOD"
+                    if reason:
+                        costs = option_costs(s["pos"]["premium"], ltp, LOT_SIZE)
+                        net = pnl - costs
+                        s["net"] += net; s["trades"] += 1
+                        s["wins" if net > 0 else "losses"] += 1
+                        w.writerow({"ts": ts, "config": s["name"], "side": s["pos"]["type"],
+                                    "strike": s["pos"]["strike"], "entry": s["pos"]["entry"],
+                                    "premium": s["pos"]["premium"], "exit": round(ltp, 2),
+                                    "reason": reason, "pnl": round(net, 2), "net_cum": round(s["net"], 2)})
+                        s["pos"] = None
+                        obj.mark_closed(poll)
+                        continue
+                # entry decision
+                open_count = 1 if s["pos"] else 0
+                if isinstance(obj, ScalpStrategy):
+                    dec = obj.decide(spot, poll, open_count)
+                else:
+                    dec = obj.decide_with_levels(spot, lv, poll, open_count)
+                if dec.get("action") == "open":
+                    expiry = nearest_expiry(token)
+                    chain = fetch_chain(expiry, token)
+                    strike = obj.pick_strike(spot, dec["side"], chain)
+                    premium = obj.premium_for(chain, strike, dec["side"]) if strike else 0.0
+                    if strike and premium > 0:
+                        s["pos"] = {"side": dec["side"], "strike": strike, "type": dec["side"],
+                                    "premium": premium, "entry": spot, "expiry": expiry, "entry_time": ts}
+                        s["last_entry"] = ts
+                        w.writerow({"ts": ts, "config": s["name"], "side": dec["side"],
+                                    "strike": strike, "entry": round(spot, 2), "premium": round(premium, 2),
+                                    "exit": "", "reason": "OPEN", "pnl": 0, "net_cum": round(s["net"], 2)})
+
+        # live board
+        print(f"\n[{ts}] SENSEX {spot:,.0f}")
+        print(f"{'strategy':<18} {'pos':>6} {'net':>10} {'trades':>7} {'W/L':>8}")
+        for s in strats:
+            side = f"{s['pos']['side']}@{s['pos']['strike']:,.0f}" if s["pos"] else "-"
+            print(f"{s['name']:<18} {side:>6} {s['net']:>10,.0f} {s['trades']:>7} "
+                  f"{s['wins']}/{s['losses']}")
+        poll += 1
+        _t.sleep(args.interval)
+
+    print(f"[top5] results -> {csv_path}")
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def main():
@@ -1249,6 +1392,11 @@ def main():
     p.add_argument("--follow", type=int, default=0, help="config index to promote to real position mgmt")
     p.add_argument("--once", action="store_true", help="print one snapshot and exit")
     p.set_defaults(func=cmd_sweep_live)
+
+    p = sub.add_parser("top5", help="live horse-race: 5 OOS-validated strategies, parallel virtual books")
+    p.add_argument("--interval", type=int, default=60)
+    p.add_argument("--until", default="15:30")
+    p.set_defaults(func=cmd_top5)
 
     args = parser.parse_args()
     args.func(args)
