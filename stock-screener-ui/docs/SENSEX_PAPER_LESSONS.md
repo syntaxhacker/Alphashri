@@ -138,3 +138,21 @@ stamp 0.003% — ≈₹15-16 per round-trip on a ~₹6k option trade.
 
 **RULE #8:** Always model charges — a strategy's edge can disappear after costs,
 especially for high-frequency configs. `sweep --no-costs` shows the difference.
+
+---
+
+## 9. Data limits: 1-min intraday is capped ~30 days
+
+Upstox 1-min historical is hard-capped at ~30 days (all intervals return 400 past 45d).
+yfinance 5m/15m ~60d. Only 60-min gives months (6mo verified for SENSEX).
+
+**Validation ladder:**
+- 1-min (real live strategy): extend cache to full ~30d → 23 trading days. Winner
+  `notrend-t600-sl200-on` median +₹1,134/day, 78% pos days, +₹21,506 net. Stable as data grows.
+- 60-min (adapted hourly variant, 3 months): `notrend-t900-sl200-on` mean +₹495/day,
+  47% pos days (median 0 = >50% of days no hourly signal), +₹59,949 net over 121 days.
+  Holds out-of-sample. Costs ~-3%, no rank flips. Caveat: re-tuned thresholds for hourly.
+
+**RULE #9:** Match the backtest horizon to data availability. For the LIVE 1-min strategy,
+the honest validation window is ~20-30 days (Upstox cap). Longer horizons require adapting
+to 60-min bars — a different (hourly) variant, not the same strategy. Both are now tooled.
