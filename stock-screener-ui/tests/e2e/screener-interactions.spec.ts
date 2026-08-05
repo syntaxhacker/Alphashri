@@ -9,7 +9,7 @@ test.describe("Screener - Interactions", () => {
 
   test("should copy all symbols to clipboard", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
@@ -24,7 +24,7 @@ test.describe("Screener - Interactions", () => {
       timeout: 10000,
     });
 
-    await page.waitForSelector('[data-testid="screener-table-body"] .mantine-Table-tr', {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
 
@@ -39,12 +39,12 @@ test.describe("Screener - Interactions", () => {
 
   test("should navigate to chart on symbol click", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
 
     const stockSymbolLink = page
-      .locator('[data-testid="screener-table-body"] button[data-testid^="symbol-link-"]')
+      .locator('[data-testid="screener-table"] tbody button[data-testid^="symbol-link-"]')
       .first();
     await expect(stockSymbolLink).toBeVisible({ timeout: 5000 });
     await stockSymbolLink.click();
@@ -54,7 +54,7 @@ test.describe("Screener - Interactions", () => {
 
   test("should display side panel with screener info", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
 

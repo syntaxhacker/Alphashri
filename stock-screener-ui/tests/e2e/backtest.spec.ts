@@ -30,7 +30,7 @@ test.describe("Backtest View - Navigation", () => {
     await options.first().click();
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
-    await expect(page.locator('[data-testid="results-table-wrapper"]')).toBeVisible({
+    await expect(page.locator('[data-testid="results-table"]')).toBeVisible({
       timeout: 15000,
     });
   });

@@ -8,40 +8,40 @@ test.describe("Screener - Data Display", () => {
   });
   test("should display stock data table", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
-    const rows = page.locator(".mantine-Table-tr");
+    const rows = page.locator('[data-testid="screener-table"] tbody tr');
     const count = await rows.count();
     expect(count).toBeGreaterThan(0);
   });
   test("@smoke should display correct columns in table", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-th", {
+    await page.waitForSelector('[data-testid="screener-table"] th', {
       timeout: 10000,
     });
-    const headerTexts = await page.locator(".mantine-Table-th").allTextContents();
+    const headerTexts = await page.locator('[data-testid="screener-table"] th').allTextContents();
     expect(headerTexts).toContain("Symbol");
     expect(headerTexts).toContain("Score");
   });
   test("should display stock symbols as clickable links", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     const firstSymbol = page
-      .locator('[data-testid="screener-table-body"] button[data-testid^="symbol-link-"]')
+      .locator('[data-testid="screener-table"] tbody button[data-testid^="symbol-link-"]')
       .first();
     await expect(firstSymbol).toBeVisible();
   });
   test("should display approaching and touched sections", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
 
     // Just check that the table has rows
-    const rowCount = await page.locator(".mantine-Table-tr").count();
+    const rowCount = await page.locator('[data-testid="screener-table"] tbody tr').count();
     expect(rowCount).toBeGreaterThan(0);
   });
   test("should display last updated timestamp", async ({ page }) => {
@@ -72,7 +72,7 @@ test.describe("Screener - Screener Navigation", () => {
     await page.waitForLoadState("networkidle");
 
     // Wait for table rows to be ready first
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 15000,
     });
 
@@ -97,13 +97,13 @@ test.describe("Screener - Screener Navigation", () => {
     });
 
     // After switching, wait for table rows to be visible again
-    await expect(page.locator(".mantine-Table-tr").first()).toBeVisible({
+    await expect(page.locator('[data-testid="screener-table"] tbody tr').first()).toBeVisible({
       timeout: 10000,
     });
   });
   test("should show active screener highlighted", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
@@ -120,7 +120,7 @@ test.describe("Screener - Auto Refresh", () => {
   });
   test("should have auto-refresh input", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
@@ -151,7 +151,7 @@ test.describe("Screener - Summary Strip", () => {
   });
   test("should display summary strip when data available", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     const summaryStrip = page.locator('[data-testid="summary-strip"]');
@@ -161,7 +161,7 @@ test.describe("Screener - Summary Strip", () => {
   });
   test("should show market summary metrics", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     const summaryStrip = page.locator('[data-testid="summary-strip"]');
@@ -178,7 +178,7 @@ test.describe("Screener - Trading List", () => {
   });
   test("should display trading list textarea", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     const tradingList = page.locator('[data-testid="trading-list"]');
@@ -188,7 +188,7 @@ test.describe("Screener - Trading List", () => {
   });
   test("should copy trading list to clipboard", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector(".mantine-Table-tr", {
+    await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
