@@ -18,6 +18,11 @@ import requests
 
 from upstox_trader.rate_limiter import UpstoxRateLimiter
 
+# Max seconds a request waits for the 429 circuit breaker before failing fast.
+# Short so a persistently-open circuit (Cloudflare block) fails each request
+# quickly and the scan loop logs a skip rather than freezing the bot.
+_CIRCUIT_WAIT_MAX = 10.0
+
 
 class QueuedRateLimiter:
     """Rate limiter with a bounded in-process request queue.
@@ -67,20 +72,25 @@ class QueuedRateLimiter:
         return rl
 
     def _wait_for_circuit(self) -> None:
-        """Block while the shared 429 circuit breaker is open (Cloudflare block).
+        """Wait briefly while the shared 429 circuit breaker is open.
 
-        All processes share the cooldown via Redis, so when Upstox returns
-        429 (Error 1015) they pause together instead of hammering the block.
+        The circuit opens when Upstox/Cloudflare is 429-ing requests. We wait
+        a short bounded time so a single blocked request doesn't hold a pool
+        worker (or the caller) indefinitely; if it stays open we raise so the
+        scan loop can record a skip and move on instead of freezing.
         """
         rl = self._thread_rl()
-        deadline = time.time() + max(self._max_wait_time, 1.0)
+        deadline = time.time() + _CIRCUIT_WAIT_MAX
         while True:
             wait = rl.circuit_seconds_to_wait()
             if wait <= 0:
                 return
             remaining = deadline - time.time()
             if remaining <= 0:
-                return
+                raise requests.ConnectionError(
+                    "Upstox 429 circuit breaker open — request skipped to avoid "
+                    "hammering a rate-limited endpoint"
+                )
             time.sleep(min(wait, remaining, 5.0))
 
     def execute(self, method: str, url: str, **kwargs) -> requests.Response:
@@ -106,6 +116,10 @@ class QueuedRateLimiter:
             self._pending_count += 1
 
         kwargs_copy = dict(kwargs)
+        # Always enforce a connect/read timeout so a blackholed endpoint
+        # (e.g. Cloudflare WAF block) fails fast instead of freezing the
+        # bot's scan loop indefinitely. Callers may override via kwargs.
+        kwargs_copy.setdefault("timeout", 30)
 
         def _run() -> requests.Response:
             rl = self._thread_rl()
@@ -125,6 +139,12 @@ class QueuedRateLimiter:
                 else:
                     rl.record_success()
                 return response
+            except requests.RequestException:
+                # A failed request (incl. timeout) is not necessarily a 429,
+                # but a hung connection often accompanies the Cloudflare block.
+                # Record it so the circuit opens if the endpoint stays down.
+                rl.record_failure()
+                raise
             finally:
                 with self._pending_lock:
                     self._pending_count -= 1

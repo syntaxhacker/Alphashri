@@ -153,10 +153,20 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
 
 
 def _is_pid_alive(pid: int) -> bool:
+    """Check if a PID is a live, running process (not just existing).
+
+    os.kill(pid, 0) alone returns True for zombie/defunct processes, which
+    would make auto-recovery believe a crashed bot is still running. Read
+    /proc/<pid>/stat instead so zombies are treated as dead.
+    """
     try:
-        os.kill(pid, 0)
-        return True
-    except (OSError, ProcessLookupError):
+        with open(f"/proc/{pid}/stat") as f:
+            parts = f.read().split()
+        # state is field 3 of /proc/<pid>/stat
+        state = parts[2] if len(parts) > 2 else "?"
+        # 'Z' = zombie/defunct
+        return state != "Z"
+    except (OSError, ProcessLookupError, FileNotFoundError, IndexError):
         return False
 
 

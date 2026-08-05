@@ -299,6 +299,10 @@ class RunnerSignalsMixin:
                     runner=runner,
                 )
                 if not ema_data:
+                    item = self._make_scan_item(symbol, runner, {
+                        'reason': 'Skipped — rate limited by Upstox, waiting for capacity',
+                    })
+                    scan_items.append(item)
                     continue
                 scanned += 1
 
@@ -430,6 +434,20 @@ class RunnerSignalsMixin:
 
             daily_data = self.fetch_daily_data(symbol)
             if not daily_data:
+                # Surface the failure reason so the watchlist shows why the
+                # symbol was skipped instead of an empty "No data" panel.
+                skip_item = self._make_scan_item(symbol, runner, {'price': 0.0, 'high_52w': 0.0})
+                fetcher = self._get_data_fetcher()
+                api = getattr(fetcher, 'upstox_api', None)
+                reason = 'data unavailable'
+                if api is not None:
+                    status = getattr(api, '_last_v3_error_status', None)
+                    if status == 429:
+                        reason = 'Upstox rate limited (429) — retrying next scan'
+                    elif status is not None:
+                        reason = f'Upstox API error (HTTP {status})'
+                self._mark_skipped(skip_item, reason)
+                scan_items.append(skip_item)
                 continue
             scanned += 1
 
