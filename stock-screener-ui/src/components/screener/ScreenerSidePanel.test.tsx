@@ -112,7 +112,7 @@ describe("ScreenerSidePanel", () => {
     expect(screen.getByText("Trend")).toBeInTheDocument();
   });
 
-  it("renders select filter with numeric options without crashing", () => {
+  it("renders number filter with numeric options without crashing", () => {
     mockProfileMetaById = {
       intraday_15m: {
         filters: [
@@ -122,7 +122,7 @@ describe("ScreenerSidePanel", () => {
     };
     renderWithProvider(
       <ScreenerSidePanel
-        activeScreener="trending"
+        activeScreener="intraday_15m"
         screenerOptions={[]}
       />,
     );

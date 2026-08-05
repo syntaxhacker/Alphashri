@@ -553,7 +553,7 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
   );
 }
 
-function getBotRowStyle(isSelected: boolean, _bot: BotConfig): React.CSSProperties {
+export function getBotRowStyle(isSelected: boolean, _bot: BotConfig): React.CSSProperties {
   return {
     backgroundColor: isSelected ? BOT_SELECTED_BG : undefined,
   };
@@ -573,7 +573,7 @@ interface BotRowProps {
   onDelete: (botId: string) => Promise<void>;
 }
 
-function BotRow({
+export function BotRow({
   bot,
   isSelected,
   onView,

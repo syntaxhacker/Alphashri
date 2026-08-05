@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ScreenerData } from "../types";
 
 const { mockShow } = vi.hoisted(() => ({
@@ -33,8 +33,16 @@ function makeSurgeData(
 
 describe("checkPriceSurges", () => {
   beforeEach(() => {
+    // Pin the clock to a weekday inside Indian market hours (3:45-10:00 UTC)
+    // so checkPriceSurges does not early-return from its isMarketHours() gate.
+    vi.useFakeTimers();
+    vi.setSystemTime(new Date("2026-08-05T04:00:00Z")); // Wed 09:30 IST
     vi.clearAllMocks();
     clearSurgeCache();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows notification for stock above surge threshold", () => {
