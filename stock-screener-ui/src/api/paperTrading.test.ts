@@ -27,14 +27,14 @@ vi.mock("../state/paperTrading", () => ({
 }));
 
 vi.mock("../state/auth", () => ({
-  fetchWithAuth: vi.fn(),
+  apiFetch: vi.fn(),
 }));
 
 vi.mock("../state/holidays", () => ({
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 
-import { fetchWithAuth } from "../state/auth";
+import { apiFetch } from "../state/auth";
 import {
   normalizeBotPortfolio,
   fetchPositions,
@@ -59,7 +59,7 @@ import {
   fetchAggregatedDashboard,
 } from "./paperTrading";
 
-const mockedFetch = vi.mocked(fetchWithAuth);
+const mockedFetch = vi.mocked(apiFetch);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -182,9 +182,7 @@ describe("normalizeBotPortfolio", () => {
 
 describe("fetchPositions", () => {
   it("extracts positions array from response", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ positions: [{ symbol: "TATASTEEL" }] }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ positions: [{ symbol: "TATASTEEL" }] }));
 
     const result = await fetchPositions();
 
@@ -193,9 +191,7 @@ describe("fetchPositions", () => {
   });
 
   it("returns empty array when response has no positions key", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({}),
-    } as Response);
+    mockedFetch.mockResolvedValue(({}));
 
     const result = await fetchPositions();
 
@@ -213,9 +209,7 @@ describe("fetchPositions", () => {
 
 describe("fetchTrades", () => {
   it("builds URL with all params", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ trades: [], total_trades: 0 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ trades: [], total_trades: 0 }));
 
     await fetchTrades(50, "bot-1", "2024-01-01", "2024-01-31", 60);
 
@@ -228,9 +222,7 @@ describe("fetchTrades", () => {
   });
 
   it("omits optional params when not provided", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ trades: [], total_trades: 0 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ trades: [], total_trades: 0 }));
 
     await fetchTrades();
 
@@ -247,9 +239,7 @@ describe("fetchTrades", () => {
       { id: 1, pnl: 500 },
       { id: 2, pnl: -200 },
     ];
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ trades, total_trades: 2 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ trades, total_trades: 2 }));
 
     const result = await fetchTrades();
 
@@ -257,9 +247,7 @@ describe("fetchTrades", () => {
   });
 
   it("returns empty array when response has no trades key", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ total_trades: 0 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ total_trades: 0 }));
 
     const result = await fetchTrades();
 
@@ -281,9 +269,7 @@ describe("fetchSymbolPerformance", () => {
       TATASTEEL: { symbol: "TATASTEEL", pnl: 1000 },
       INFY: { symbol: "INFY", pnl: -500 },
     };
-    mockedFetch.mockResolvedValue({
-      json: async () => data,
-    } as Response);
+    mockedFetch.mockResolvedValue(data);
 
     const result = await fetchSymbolPerformance();
 
@@ -297,9 +283,7 @@ describe("fetchSymbolPerformance", () => {
   });
 
   it("returns empty array for empty response object", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({}),
-    } as Response);
+    mockedFetch.mockResolvedValue(({}));
 
     const result = await fetchSymbolPerformance();
 
@@ -317,9 +301,7 @@ describe("fetchSymbolPerformance", () => {
 
 describe("fetchDailyReport", () => {
   it("includes date param when provided", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ date: "2024-01-01", pnl: 500 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ date: "2024-01-01", pnl: 500 }));
 
     await fetchDailyReport("2024-01-01");
 
@@ -328,9 +310,7 @@ describe("fetchDailyReport", () => {
   });
 
   it("omits date param when not provided", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ date: "2024-01-01", pnl: 500 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ date: "2024-01-01", pnl: 500 }));
 
     await fetchDailyReport();
 
@@ -349,10 +329,7 @@ describe("fetchDailyReport", () => {
 
 describe("closeAllPositions", () => {
   it("sends POST to close-all with prices body", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ message: "All positions closed" }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ message: "All positions closed" }));
 
     const prices = { TATASTEEL: 150, INFY: 1800 };
     const result = await closeAllPositions("bot-1", prices);
@@ -369,10 +346,7 @@ describe("closeAllPositions", () => {
   });
 
   it("throws on non-ok response", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: "Bot not found" }),
-    } as Response);
+    mockedFetch.mockRejectedValue(new Error("API 400: " + JSON.stringify({ detail: "Bot not found" })));
 
     await expect(closeAllPositions("bad-bot", {})).rejects.toThrow("Bot not found");
   });
@@ -381,10 +355,7 @@ describe("closeAllPositions", () => {
 describe("updateTradeNotes", () => {
   it("sends PATCH with notes and reason", async () => {
     const tradeData = { id: "trade-1", notes: "Updated notes", reason: "SL hit" };
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => tradeData,
-    } as Response);
+    mockedFetch.mockResolvedValue(tradeData);
 
     const result = await updateTradeNotes("trade-1", "Updated notes", "SL hit");
 
@@ -399,10 +370,7 @@ describe("updateTradeNotes", () => {
   });
 
   it("throws on non-ok response", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: "Trade not found" }),
-    } as Response);
+    mockedFetch.mockRejectedValue(new Error("API 400: " + JSON.stringify({ detail: "Trade not found" })));
 
     await expect(updateTradeNotes("bad-id", "notes", "reason")).rejects.toThrow("Trade not found");
   });
@@ -411,10 +379,7 @@ describe("updateTradeNotes", () => {
 describe("fetchPaperChart", () => {
   it("builds URL with symbol with no optional params", async () => {
     const chartData = { candles: [] };
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => chartData,
-    } as Response);
+    mockedFetch.mockResolvedValue(chartData);
 
     const result = await fetchPaperChart("TATASTEEL");
 
@@ -425,10 +390,7 @@ describe("fetchPaperChart", () => {
   });
 
   it("includes date, timeframe, and strategyId params", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ candles: [] }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ candles: [] }));
 
     await fetchPaperChart("TATASTEEL", "2024-01-15", "1h", 2);
 
@@ -439,10 +401,7 @@ describe("fetchPaperChart", () => {
   });
 
   it("includes from_date when provided", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ candles: [] }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ candles: [] }));
 
     await fetchPaperChart("TATASTEEL", undefined, undefined, null, "2024-01-01");
 
@@ -451,10 +410,7 @@ describe("fetchPaperChart", () => {
   });
 
   it("returns null when data has error field", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ error: "No data" }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ error: "No data" }));
 
     const result = await fetchPaperChart("BAD");
 
@@ -473,9 +429,7 @@ describe("fetchPaperChart", () => {
 describe("fetchPortfolio", () => {
   it("fetches and returns portfolio data", async () => {
     const portfolio = { total_value: 100000, cash: 50000 };
-    mockedFetch.mockResolvedValue({
-      json: async () => portfolio,
-    } as Response);
+    mockedFetch.mockResolvedValue(portfolio);
 
     const result = await fetchPortfolio();
 
@@ -496,9 +450,7 @@ describe("fetchPortfolio", () => {
 
 describe("healthCheck", () => {
   it("returns true when status is healthy", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ status: "healthy" }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ status: "healthy" }));
 
     const result = await healthCheck();
 
@@ -506,9 +458,7 @@ describe("healthCheck", () => {
   });
 
   it("returns false when status is not healthy", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ status: "unhealthy" }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ status: "unhealthy" }));
 
     const result = await healthCheck();
 
@@ -526,10 +476,7 @@ describe("healthCheck", () => {
 
 describe("closePaperPosition", () => {
   it("sends correct POST body with uppercased symbol", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ pnl: 500 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ pnl: 500 }));
 
     const result = await closePaperPosition("tatamotors", 1500, "MANUAL");
 
@@ -545,10 +492,7 @@ describe("closePaperPosition", () => {
   });
 
   it("uses default reason when not provided", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ pnl: 0 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ pnl: 0 }));
 
     await closePaperPosition("TATASTEEL", 100);
 
@@ -557,11 +501,7 @@ describe("closePaperPosition", () => {
   });
 
   it("throws on non-ok response", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      status: 400,
-      json: async () => ({ detail: "Position not found" }),
-    } as Response);
+    mockedFetch.mockRejectedValue(new Error("API 400: " + JSON.stringify({ detail: "Position not found" })));
 
     await expect(closePaperPosition("BAD", 0)).rejects.toThrow("Position not found");
   });
@@ -569,10 +509,7 @@ describe("closePaperPosition", () => {
 
 describe("deleteTrade", () => {
   it("includes tradeId in URL", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ message: "Trade deleted" }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ message: "Trade deleted" }));
 
     await deleteTrade("trade-123");
 
@@ -583,30 +520,24 @@ describe("deleteTrade", () => {
   });
 
   it("throws on non-ok response with detail", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({ detail: "Trade not found" }),
-    } as Response);
+    mockedFetch.mockRejectedValue(new Error("API 400: " + JSON.stringify({ detail: "Trade not found" })));
 
     await expect(deleteTrade("bad-id")).rejects.toThrow("Trade not found");
   });
 
   it("throws generic error when no detail provided", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: false,
-      json: async () => ({}),
-    } as Response);
+    mockedFetch.mockRejectedValue(new Error("API 400: " + JSON.stringify({})));
 
-    await expect(deleteTrade("bad-id")).rejects.toThrow("Failed to delete trade");
+    await expect(deleteTrade("bad-id")).rejects.toThrow("API 400");
   });
 });
 
 describe("refreshLiveData", () => {
   it("fetches portfolio, positions, and bot status in parallel", async () => {
     mockedFetch
-      .mockResolvedValueOnce({ json: async () => ({ total_value: 100000 }) })
-      .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "TATASTEEL" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 12345 }) });
+      .mockResolvedValueOnce({ total_value: 100000 })
+      .mockResolvedValueOnce({ positions: [{ symbol: "TATASTEEL" }] })
+      .mockResolvedValueOnce({ running: true, pid: 12345 });
 
     const { setPortfolio, setPositions, setBotStatus, setBotSnapshot, setLoading, setError } =
       await import("../state/paperTrading");
@@ -637,10 +568,9 @@ describe("refreshLiveData", () => {
 });
 
 describe("refreshHistoryData", () => {
-  it("fetches trades and performance summary in parallel", async () => {
+  it("fetches trades and updates loading state", async () => {
     mockedFetch
-      .mockResolvedValueOnce({ json: async () => ({ trades: [], total_trades: 0 }) })
-      .mockResolvedValueOnce({ json: async () => ({ total_pnl: 1000 }) });
+      .mockResolvedValueOnce({ trades: [], total_trades: 0 });
 
     const { setLoading, setError } = await import("../state/paperTrading");
 
@@ -653,8 +583,7 @@ describe("refreshHistoryData", () => {
 
   it("passes botId, fromDate, toDate to fetchTrades", async () => {
     mockedFetch
-      .mockResolvedValueOnce({ json: async () => ({ trades: [], total_trades: 0 }) })
-      .mockResolvedValueOnce({ json: async () => ({ total_pnl: 1000 }) });
+      .mockResolvedValueOnce({ trades: [], total_trades: 0 });
 
     await refreshHistoryData("bot-1", "2024-01-01", "2024-01-31");
 
@@ -679,15 +608,11 @@ describe("refreshHistoryData", () => {
 describe("fetchStrategyConfig", () => {
   beforeEach(() => {
     mockedFetch.mockReset();
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ config: { sl_pct: 1.0, tp_pct: 1.5 } }));
   });
 
   it("fetches config without strategy_id", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ config: { sl_pct: 1.0, tp_pct: 1.5 } }));
 
     const result = await fetchStrategyConfig();
 
@@ -698,9 +623,7 @@ describe("fetchStrategyConfig", () => {
   });
 
   it("includes strategy_id when provided", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ config: { sl_pct: 2.0 } }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ config: { sl_pct: 2.0 } }));
 
     await fetchStrategyConfig(5);
 
@@ -717,9 +640,7 @@ describe("fetchStrategyConfig", () => {
   });
 
   it("returns null when response has no config key", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({}),
-    } as Response);
+    mockedFetch.mockResolvedValue(({}));
 
     const result = await fetchStrategyConfig();
 
@@ -729,10 +650,7 @@ describe("fetchStrategyConfig", () => {
 
 describe("updateStrategyConfig", () => {
   it("sends PUT with config body", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ config: { sl_pct: 2.0 } }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ config: { sl_pct: 2.0 } }));
 
     const result = await updateStrategyConfig({ sl_pct: 2.0 });
 
@@ -757,10 +675,7 @@ describe("updateStrategyConfig", () => {
 
 describe("resetStrategyConfig", () => {
   it("sends POST to reset endpoint", async () => {
-    mockedFetch.mockResolvedValue({
-      ok: true,
-      json: async () => ({ config: { sl_pct: 1.0 } }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ config: { sl_pct: 1.0 } }));
 
     const result = await resetStrategyConfig();
 
@@ -781,10 +696,8 @@ describe("resetStrategyConfig", () => {
 });
 
 describe("fetchAnalytics", () => {
-  it("calls fetchWithAuth with correct URL and days_back param", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ total_pnl: 5000 }),
-    } as Response);
+  it("calls apiFetch with correct URL and days_back param", async () => {
+    mockedFetch.mockResolvedValue(({ total_pnl: 5000 }));
 
     await fetchAnalytics(30);
 
@@ -794,9 +707,7 @@ describe("fetchAnalytics", () => {
   });
 
   it("calls setAnalyticsLoading(true) before fetch", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ total_pnl: 5000 }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ total_pnl: 5000 }));
 
     const { setAnalyticsLoading } = await import("../state/paperTrading");
 
@@ -807,9 +718,7 @@ describe("fetchAnalytics", () => {
 
   it("calls setAnalyticsData on success", async () => {
     const data = { total_pnl: 5000, win_rate: 0.6 };
-    mockedFetch.mockResolvedValue({
-      json: async () => data,
-    } as Response);
+    mockedFetch.mockResolvedValue(data);
 
     const { setAnalyticsData } = await import("../state/paperTrading");
 
@@ -820,9 +729,7 @@ describe("fetchAnalytics", () => {
 
   it("returns data on success", async () => {
     const data = { total_pnl: 5000, win_rate: 0.6 };
-    mockedFetch.mockResolvedValue({
-      json: async () => data,
-    } as Response);
+    mockedFetch.mockResolvedValue(data);
 
     const result = await fetchAnalytics();
 
@@ -842,10 +749,8 @@ describe("fetchAnalytics", () => {
 });
 
 describe("fetchActivityFeed", () => {
-  it("calls fetchWithAuth without since param", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ events: [] }),
-    } as Response);
+  it("calls apiFetch without since param", async () => {
+    mockedFetch.mockResolvedValue(({ events: [] }));
 
     await fetchActivityFeed();
 
@@ -856,10 +761,8 @@ describe("fetchActivityFeed", () => {
     expect(calledUrl).not.toContain("since=");
   });
 
-  it("calls fetchWithAuth with since param", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ events: [] }),
-    } as Response);
+  it("calls apiFetch with since param", async () => {
+    mockedFetch.mockResolvedValue(({ events: [] }));
 
     await fetchActivityFeed("2024-01-01T00:00:00Z");
 
@@ -869,9 +772,7 @@ describe("fetchActivityFeed", () => {
 
   it("calls setActivityEvents with events array", async () => {
     const events = [{ type: "trade" as const, symbol: "TATASTEEL", pnl: 500, quantity: 10, price: 100 }];
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ events }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ events }));
 
     const { setActivityEvents } = await import("../state/paperTrading");
 
@@ -882,9 +783,7 @@ describe("fetchActivityFeed", () => {
 
   it("returns events array on success", async () => {
     const events = [{ type: "trade" as const, symbol: "TATASTEEL", pnl: 500, quantity: 10, price: 100 }];
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ events }),
-    } as Response);
+    mockedFetch.mockResolvedValue(({ events }));
 
     const result = await fetchActivityFeed();
 
@@ -901,10 +800,8 @@ describe("fetchActivityFeed", () => {
 });
 
 describe("fetchAggregatedDashboard", () => {
-  it("calls fetchWithAuth with correct URL", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ total_value: 100000 }),
-    } as Response);
+  it("calls apiFetch with correct URL", async () => {
+    mockedFetch.mockResolvedValue(({ total_value: 100000 }));
 
     await fetchAggregatedDashboard();
 
@@ -915,9 +812,7 @@ describe("fetchAggregatedDashboard", () => {
 
   it("calls setAggregatedData on success", async () => {
     const data = { total_value: 100000, cash: 50000 };
-    mockedFetch.mockResolvedValue({
-      json: async () => data,
-    } as Response);
+    mockedFetch.mockResolvedValue(data);
 
     const { setAggregatedData } = await import("../state/paperTrading");
 
@@ -928,9 +823,7 @@ describe("fetchAggregatedDashboard", () => {
 
   it("returns data on success", async () => {
     const data = { total_value: 100000, cash: 50000 };
-    mockedFetch.mockResolvedValue({
-      json: async () => data,
-    } as Response);
+    mockedFetch.mockResolvedValue(data);
 
     const result = await fetchAggregatedDashboard();
 

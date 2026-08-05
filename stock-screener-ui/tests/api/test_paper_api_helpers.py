@@ -201,7 +201,9 @@ class TestIsPidAlive:
 
     @pytest.mark.unit
     def test_handles_exception_gracefully(self):
-        with patch("subprocess.run", side_effect=OSError("fail")):
+        # _is_pid_alive reads /proc/<pid>/stat directly (no subprocess),
+        # so simulate a procfs read failure to exercise the graceful path.
+        with patch("builtins.open", side_effect=OSError("fail")):
             assert _is_pid_alive(1) is False
 
 
