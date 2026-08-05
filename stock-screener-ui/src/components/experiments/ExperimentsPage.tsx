@@ -54,7 +54,7 @@ export function ExperimentsPage() {
         flexDirection: "column",
         padding: "var(--mantine-spacing-md)",
         minHeight: 0,
-        overflow: "hidden",
+        overflow: "auto",
       }}
     >
       {state.error && (
@@ -71,7 +71,12 @@ export function ExperimentsPage() {
         </Alert>
       )}
 
-      <Box flex="0 0 auto" mb="md">
+      <Box
+        flex="0 0 auto"
+        mb="md"
+        style={{ maxHeight: "45vh", overflow: "auto" }}
+        data-testid="experiments-config-scroll"
+      >
         <ExperimentsConfig />
       </Box>
 
