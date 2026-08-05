@@ -717,6 +717,68 @@ class RangeStrategy:
 
 
 # ---------------------------------------------------------------------------
+# scalp strategy (momentum / range — OOS-validated)
+# ---------------------------------------------------------------------------
+class ScalpStrategy:
+    """Momentum or range scalp on 1-min SENSEX. OOS-validated configs:
+    momentum lb5 thr10 tgt300/sl150 (best OOS +857), range lb5 tgt300/sl150.
+    Needs the live spot series (fed each poll). target/sl are ₹ net per lot.
+    """
+    def __init__(self, style="momentum", lookback=5, thr=10.0,
+                 target=300.0, sl=-150.0, cooldown=2):
+        self.style = style
+        self.lookback = lookback
+        self.thr = thr
+        self.target = target
+        self.sl = sl
+        self.cooldown = cooldown
+        self._spots = []
+        self._cooldown_until = 0
+        self._pos_side = None
+        self.target_net = target
+        self.sl_net = sl
+
+    def _momentum(self):
+        if len(self._spots) < self.lookback + 1:
+            return 0.0
+        return self._spots[-1] - self._spots[-self.lookback - 1]
+
+    def update(self, spot: float):
+        self._spots.append(spot)
+        if len(self._spots) > 60:
+            self._spots = self._spots[-60:]
+
+    def decide(self, spot: float, poll_index: int, open_positions: int) -> dict:
+        self.update(spot)
+        if open_positions >= 1:
+            return {"action": "none"}
+        if poll_index < self._cooldown_until:
+            return {"action": "none"}
+        if len(self._spots) < self.lookback + 1:
+            return {"action": "none"}
+        side = None
+        if self.style == "momentum":
+            mom = self._momentum()
+            if mom >= self.thr:
+                side = "CE"
+            elif mom <= -self.thr:
+                side = "PE"
+        elif self.style == "range":
+            lo = min(self._spots[-self.lookback:])
+            hi = max(self._spots[-self.lookback:])
+            if spot <= lo + 5:
+                side = "CE"
+            elif spot >= hi - 5:
+                side = "PE"
+        if not side:
+            return {"action": "none"}
+        return {"action": "open", "side": side, "reason": f"{self.style} scalp (lb={self.lookback} thr={self.thr})"}
+
+    def mark_closed(self, poll_index: int):
+        self._cooldown_until = poll_index + self.cooldown
+
+
+# ---------------------------------------------------------------------------
 # position commands
 # ---------------------------------------------------------------------------
 def cmd_chain(args):
@@ -1015,7 +1077,10 @@ def sample_once(ts, token, strategy=None, poll_index=0):
     if strategy is not None:
         open_count = sum(1 for p in positions if p["status"] == "OPEN")
         lv = scan_levels(token)
-        decision = strategy.decide_with_levels(lv["spot"], lv, poll_index, open_count)
+        if isinstance(strategy, ScalpStrategy):
+            decision = strategy.decide(lv["spot"], poll_index, open_count)
+        else:
+            decision = strategy.decide_with_levels(lv["spot"], lv, poll_index, open_count)
         if decision.get("action") == "open":
             expiry = nearest_expiry(token)
             chain = fetch_chain(expiry, token)
@@ -1042,8 +1107,12 @@ def sample_once(ts, token, strategy=None, poll_index=0):
 def cmd_monitor(args):
     strategy = None
     if args.strategy:
-        cfg = None
-        if args.config:
+        if args.scalp:
+            strategy = ScalpStrategy(style=args.scalp_style, lookback=args.scalp_lb,
+                                     thr=args.scalp_thr, target=args.scalp_tgt, sl=args.scalp_sl)
+            print(f"SCALP strategy ENABLED: style={args.scalp_style} lb={args.scalp_lb} "
+                  f"thr={args.scalp_thr} tgt+{args.scalp_tgt}/sl{args.scalp_sl}", file=sys.stderr)
+        elif args.config:
             cfg = next((c for c in strategy_configs() if c["name"] == args.config), None)
             if cfg is None:
                 raise SystemExit(f"Unknown config '{args.config}'. Available: " +
@@ -1155,6 +1224,12 @@ def main():
     p.add_argument("--interval", type=int, default=120); p.add_argument("--max-samples", type=int, default=100000)
     p.add_argument("--until", default="15:30"); p.add_argument("--strategy", action="store_true")
     p.add_argument("--config", help="named strategy config to run (e.g. notrend-t600-sl200-on)")
+    p.add_argument("--scalp", action="store_true", help="run scalp strategy instead of range")
+    p.add_argument("--scalp-style", default="momentum", choices=["momentum", "range"])
+    p.add_argument("--scalp-lb", type=int, default=5, help="scalp lookback bars")
+    p.add_argument("--scalp-thr", type=float, default=10.0, help="momentum threshold pts")
+    p.add_argument("--scalp-tgt", type=float, default=300.0, help="scalp target ₹ net")
+    p.add_argument("--scalp-sl", type=float, default=-150.0, help="scalp SL ₹ net")
     p.set_defaults(func=cmd_monitor)
 
     p = sub.add_parser("status")
