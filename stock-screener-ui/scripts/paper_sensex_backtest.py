@@ -72,6 +72,8 @@ def main():
     parser.add_argument("--sl", type=float, default=-400.0)
     parser.add_argument("--trail-trigger", type=float, default=300.0)
     parser.add_argument("--trail-dist", type=float, default=250.0)
+    parser.add_argument("--strike-offset", type=float, default=0.0,
+                        help="strike offset pts (CE: base+offset, PE: base-offset)")
     args = parser.parse_args()
 
     candles = load_1m(args.file)
@@ -174,7 +176,12 @@ def main():
             if spot <= sup_anchor - 15 and mom <= 0:
                 signal = f"breakdown below {sup_anchor:,.0f}"; side = "PE"
         if signal and side:
-            strike = round(spot / 100) * 100
+            # strike selection: nearest 100-strike + optional offset (positive=above spot, negative=below)
+            base = round(spot / 100) * 100
+            if side == "CE":
+                strike = base + args.strike_offset
+            else:
+                strike = base - args.strike_offset
             premium = bs_premium(side, spot, strike, t_years, IV)
             pos = {"side": side, "strike": strike, "entry": spot, "premium": premium,
                    "time": hm, "signal": signal}
