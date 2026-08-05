@@ -24,6 +24,16 @@ from upstox_trader.rate_limiter import UpstoxRateLimiter
 _CIRCUIT_WAIT_MAX = 10.0
 
 
+class CircuitOpenError(requests.ConnectionError):
+    """Raised when the shared 429 circuit breaker is open.
+
+    Subclasses requests.ConnectionError so existing callers that catch
+    requests.RequestException still handle it gracefully, but it is
+    distinguishable so we do NOT count a circuit-skip as a fresh failure
+    (otherwise 5 skips re-arm the circuit and it never recovers).
+    """
+
+
 class QueuedRateLimiter:
     """Rate limiter with a bounded in-process request queue.
 
@@ -47,14 +57,16 @@ class QueuedRateLimiter:
         kicks in.  ``0`` means unbounded.
     max_wait_time:
         Maximum seconds a request can wait in the rate-limit queue before
-        raising TimeoutError.  Default 300s (5 minutes).  0 = no limit.
+        raising requests.Timeout.  Default 30s — kept short so a saturated
+        window fails fast instead of freezing the caller (bots, scans).
+        0 = no limit.
     """
 
     def __init__(
         self,
         max_workers: int = 5,
         max_pending: int = 0,
-        max_wait_time: float = 300.0,
+        max_wait_time: float = 30.0,
     ):
         self._max_pending = max_pending
         self._max_wait_time = max_wait_time
@@ -87,7 +99,7 @@ class QueuedRateLimiter:
                 return
             remaining = deadline - time.time()
             if remaining <= 0:
-                raise requests.ConnectionError(
+                raise CircuitOpenError(
                     "Upstox 429 circuit breaker open — request skipped to avoid "
                     "hammering a rate-limited endpoint"
                 )
@@ -128,7 +140,7 @@ class QueuedRateLimiter:
                 self._wait_for_circuit()
                 while not rl.acquire(timeout=3.0):
                     if time.time() - deadline_start > self._max_wait_time:
-                        raise TimeoutError(
+                        raise requests.Timeout(
                             f"Rate limit queue exceeded max wait time ({self._max_wait_time}s)"
                         )
                     time.sleep(0.5)
@@ -139,6 +151,11 @@ class QueuedRateLimiter:
                 else:
                     rl.record_success()
                 return response
+            except CircuitOpenError:
+                # The circuit was already open — this is NOT a new failure, so
+                # don't record_failure() (5 skips would re-arm the circuit and
+                # it would never recover even after Upstox clears the block).
+                raise
             except requests.RequestException:
                 # A failed request (incl. timeout) is not necessarily a 429,
                 # but a hung connection often accompanies the Cloudflare block.
@@ -149,7 +166,17 @@ class QueuedRateLimiter:
                 with self._pending_lock:
                     self._pending_count -= 1
 
-        return self._executor.submit(_run).result()
+        try:
+            future = self._executor.submit(_run)
+        except BaseException:
+            # If submit() itself raised (executor shut down), the pending count
+            # was incremented but no worker will ever decrement it — the
+            # backpressure loop above would then spin forever. _run's finally
+            # has NOT executed here, so this is the only decrement.
+            with self._pending_lock:
+                self._pending_count -= 1
+            raise
+        return future.result()
 
     def shutdown(self, wait: bool = True):
         """Shut down the thread pool. Call on process exit."""

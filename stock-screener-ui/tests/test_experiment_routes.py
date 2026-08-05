@@ -220,7 +220,7 @@ class TestPauseResumeCancel:
                 return {"status": "cancelled", "session": session}
 
         stub = StubEngine()
-        monkeypatch.setattr(experiment_routes, "_get_engine", lambda session: stub)
+        monkeypatch.setattr(experiment_routes, "_get_engine", lambda session, user_id: stub)
 
         pause = client.post("/api/experiments/s_pause/pause")
         assert pause.status_code == 200
@@ -244,7 +244,7 @@ class TestPauseResumeCancel:
             def is_paused(self, session):
                 return False
 
-        monkeypatch.setattr(experiment_routes, "_get_engine", lambda session: StubEngine())
+        monkeypatch.setattr(experiment_routes, "_get_engine", lambda session, user_id: StubEngine())
         assert client.post("/api/experiments/s_done/pause").json()["status"] == "not_running"
         assert client.post("/api/experiments/s_done/resume").json()["status"] == "not_paused"
 
@@ -281,7 +281,9 @@ class TestPauseResumeCancel:
 
             engine.resume("s_pause_real", 1)
             await task
-            assert calls["n"] == 4
+            # Data is loaded once and cached across the whole grid (not N×M
+            # fetches), so the loader is called exactly once.
+            assert calls["n"] == 1
 
         asyncio.run(scenario())
         assert engine.get_status("s_pause_real", 1)["status"] == "completed"

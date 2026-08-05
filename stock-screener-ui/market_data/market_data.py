@@ -30,6 +30,7 @@ import config
 _TF_TO_UPSTOX: Dict[int, tuple] = {
     1: ("minutes", 1),
     5: ("minutes", 5),
+    10: ("minutes", 10),
     15: ("minutes", 15),
     30: ("minutes", 30),
     60: ("hours", 1),
@@ -42,6 +43,7 @@ _TF_TO_UPSTOX: Dict[int, tuple] = {
 _RESAMPLE_RULE: Dict[int, str] = {
     1: "1min",
     5: "5min",
+    10: "10min",
     15: "15min",
     30: "30min",
     60: "1h",

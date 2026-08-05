@@ -337,7 +337,7 @@ export function ExperimentsConfig() {
               size="sm"
               data-testid="experiments-start-btn"
               leftSection={<IconPlayerPlay size={12} />}
-              disabled={!hasSymbols || !hasSweepValues || running}
+              disabled={!hasSymbols || !hasSweepValues || running || tooLarge}
               loading={running}
               onClick={() => void startExperiment()}
             >

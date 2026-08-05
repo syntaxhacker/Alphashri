@@ -109,12 +109,14 @@ class ExperimentSession:
     def __init__(self, session: str, user_id: int):
         self.name = session
         self.user_id = user_id
-        self.path = SESSIONS_DIR / f"{session}.jsonl"
+        # Scope the file by user so two users can't collide on the same
+        # session name (duplicate run numbers / interleaved results).
+        self.path = SESSIONS_DIR / f"user_{user_id}_{session}.jsonl"
         self._config_header_written = False
 
     def ensure_header(self, config_meta: dict):
-        if self.path.exists() and not self._config_header_written:
-            # Header already exists if file non-empty; do nothing.
+        if self.path.exists() and self.path.stat().st_size > 0 and not self._config_header_written:
+            # Header already exists if file is non-empty; do nothing.
             self._config_header_written = True
             return
         if self._config_header_written:
@@ -163,13 +165,15 @@ class ExperimentSession:
     def append_result(self, result: Dict):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         line = json.dumps(result, default=str) + "\n"
-        # atomic append (write temp, rename) to avoid partial lines on crash
-        tmp = self.path.with_suffix(".jsonl.tmp")
-        with open(tmp, "a") as f:
-            f.write(line)
-        with open(self.path, "a") as f:
-            f.write(line)
-        tmp.unlink(missing_ok=True)
+        # Append a single line in one syscall (O_APPEND) so a crash cannot
+        # leave a partially-written line or a stray .tmp file. Serialized by
+        # the engine's single task per session.
+        import os as _os
+        fd = _os.open(self.path, _os.O_WRONLY | _os.O_CREAT | _os.O_APPEND, 0o644)
+        try:
+            _os.write(fd, line.encode("utf-8"))
+        finally:
+            _os.close(fd)
 
 
 class AutoresearchEngine:
@@ -206,10 +210,20 @@ class AutoresearchEngine:
             if client:
                 raw = client.get(self._status_key(session, user_id))
                 if raw:
-                    return json.loads(raw)
+                    status = json.loads(raw)
+                    # If Redis says "running" but this process has no live task
+                    # for the session, the API was restarted mid-run — the
+                    # background task is gone. Report it as interrupted instead
+                    # of leaving the UI stuck on a forever-"running" bar.
+                    if status.get("status") == "running" and not self.is_running(session):
+                        status["status"] = "interrupted"
+                    return status
         except Exception:
             pass
-        return self._status.get(session, {"status": "idle", "current": 0, "total": 0})
+        status = self._status.get(session, {"status": "idle", "current": 0, "total": 0})
+        if status.get("status") == "running" and not self.is_running(session):
+            status["status"] = "interrupted"
+        return status
 
     def is_running(self, session: str) -> bool:
         task = self._tasks.get(session)
@@ -294,14 +308,27 @@ class AutoresearchEngine:
             best_pf = 0.0
             best_desc = ""
             current = 0
+
+            # Load market data lazily on the first candidate (after the pause
+            # wait) and cache it for the whole session run — NOT per candidate —
+            # so a large grid doesn't hammer Upstox with N×M REST fetches.
+            data = None
+
             for cfg in pending:
                 if self._cancel.get(session):
                     self._update_status(session, user_id, status="cancelled", current=current)
                     return
                 await self._paused[session].wait()
 
+                if data is None:
+                    try:
+                        data = self.data_loader(meta["tf"]) or {}
+                    except Exception as e:
+                        print(f"[autoresearch] data load failed for {session}: {e}", file=sys.stderr)
+                        data = {}
+
                 desc = self._config_desc(cfg)
-                per_symbol, combined, trades_map = self._evaluate(session, cfg, meta)
+                per_symbol, combined, trades_map = self._evaluate(session, cfg, meta, data)
 
                 run_num = es.next_run_number()
                 status = "keep" if combined["profit_factor"] > best_pf else "discard"
@@ -349,32 +376,40 @@ class AutoresearchEngine:
     def _config_desc(self, cfg: Dict) -> str:
         return " ".join(f"{k}={v}" for k, v in sorted(cfg.items()))
 
-    def _evaluate(self, session: str, cfg: Dict, meta: Dict):
+    def _evaluate(self, session: str, cfg: Dict, meta: Dict, data: Optional[dict] = None):
         """Run one config across all symbols. Returns (per_symbol, combined, trades_map)."""
         strategy = meta["strategy"]
         tf = meta["tf"]
         sim = STRATEGY_SIMS[strategy]
         per_symbol = {}
         trades_map = {}
-        try:
-            data = self.data_loader(tf)
-        except Exception as e:
-            data = {}
+        if data is None:
+            try:
+                data = self.data_loader(tf)
+            except Exception as e:
+                data = {}
         for sym in meta["symbols"]:
             df = data.get(sym)
             if df is None or len(df) < 30:
-                per_symbol[sym] = compute_metrics([])
+                per_symbol[sym] = {**compute_metrics([]), "error": "no data"}
                 trades_map[sym] = []
                 continue
             params = {**cfg, "symbol": sym, "include_costs": meta.get("include_costs", True)}
             try:
                 trades = sim(df, params)
+                m = compute_metrics(trades)
             except Exception as e:
+                m = {**compute_metrics([]), "error": f"{type(e).__name__}: {e}"}
                 trades = []
-            m = compute_metrics(trades)
             per_symbol[sym] = m
             trades_map[sym] = trades
         combined = aggregate_metrics(per_symbol, trades_map)
+        # Flag a session where every symbol errored so it's not mistaken for
+        # a legitimate "strategy found no trades" result.
+        if meta["symbols"] and all(
+            per_symbol[s].get("error") for s in meta["symbols"]
+        ):
+            combined = {**combined, "data_error": "all symbols failed to load/scan"}
         return per_symbol, combined, trades_map
 
     def rerun_for_chart(self, session: str, user_id: int, run_id: int, symbol: str):

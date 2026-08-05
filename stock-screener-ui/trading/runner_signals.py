@@ -74,7 +74,8 @@ class RunnerSignalsMixin:
             divisor = 10 if swing else 33
             return min(15, max(1, remaining // divisor))
         except Exception:
-            return 15
+            # Conservative floor on any limiter error — never assume full budget.
+            return 1
 
     def _mark_skipped(self, item: dict, reason: str) -> dict:
         item['status'] = 'skipped'
@@ -125,16 +126,18 @@ class RunnerSignalsMixin:
         return (pnl or 0) - (costs or 0)
 
     def _check_cooldown(self, symbol: str, runner) -> bool:
-        if symbol not in self.cooldown_stocks:
+        sid = getattr(runner, 'strategy_id', None)
+        key = (sid, symbol) if sid is not None else symbol
+        if key not in self.cooldown_stocks:
             return False
-        exit_time = self.cooldown_stocks[symbol]
+        exit_time = self.cooldown_stocks[key]
         if runner.strategy_type in INTRADAY_STRATEGY_TYPES:
             cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
         else:
             cooldown_end = exit_time + timedelta(days=runner.config.get('cooldown_days', 30))
         if self._ist_now() < cooldown_end:
             return True
-        del self.cooldown_stocks[symbol]
+        del self.cooldown_stocks[key]
         return False
 
     def _emit_once_per_symbol(self, attr: str, strategy_id: int, symbol: str, event: dict) -> bool:
@@ -422,7 +425,6 @@ class RunnerSignalsMixin:
         for symbol in watchlist:
             if scanned >= budget:
                 break
-
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -448,6 +450,9 @@ class RunnerSignalsMixin:
                         reason = f'Upstox API error (HTTP {status})'
                 self._mark_skipped(skip_item, reason)
                 scan_items.append(skip_item)
+                # Consume budget on fetch failure too, so a rate-limited scan
+                # does not hammer the entire watchlist in one pass.
+                scanned += 1
                 continue
             scanned += 1
 
@@ -879,7 +884,11 @@ class RunnerSignalsMixin:
                     )
 
                 trade_logged = True
-                self.cooldown_stocks[symbol] = self._ist_now()
+                # Key cooldown by (strategy_id, symbol) so an intraday exit
+                # (e.g. ORB scalp, cooldown_minutes) doesn't poison the same
+                # symbol for a swing runner (cooldown_days, default 30).
+                cooldown_key = (trade.strategy_id, symbol)
+                self.cooldown_stocks[cooldown_key] = self._ist_now()
 
                 # Consecutive loss tracking
                 if runner:

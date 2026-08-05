@@ -1013,14 +1013,23 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
     def _has_meaningful_scan_items(self, items: list) -> bool:
         """Check if scan_items have any data worth persisting.
 
-        Returns True if:
-        - At least one item has 'watching' or 'signal' status (real data), OR
-        - Items have actual scan results (not just rate-limit failures), OR
-        - Items exist at all (avoids stale timestamps in the UI)
+        Returns True if at least one item is a real 'watching'/'signal' result.
+        A snapshot where EVERY item was skipped purely due to rate-limiting /
+        data-unavailable is not meaningful: persisting it would overwrite the
+        last good snapshot (Redis TTL 300s) with a wall of error rows.
         """
         if not items:
             return False
-        return True
+        for item in items:
+            status = item.get('status')
+            if status in ('watching', 'signal'):
+                return True
+            reason = (item.get('reason') or '')
+            if status != 'skipped' or not any(
+                tok in reason.lower() for tok in ('rate limit', 'rate-limited', 'unavailable', 'error')
+            ):
+                return True
+        return False
 
     def _persist_scan_items_to_redis(self):
         scan_items = self._build_scan_items()
@@ -1236,16 +1245,28 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             self._reload_strategy_config(sid)
 
                     for strategy_id, runner in self.strategies.items():
-                        if runner.status == "running":
-                            # Refresh per-strategy watchlist periodically (every 30 cycles)
-                            if cycle % 30 == 0:
-                                self.refresh_watchlist(strategy_id)
-                                self._start_websocket_stream()
-                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 10 != 0:
-                                continue
-                            signals = self.scan_for_signals(strategy_id)
-                            for signal in signals:
-                                self.execute_signal(strategy_id, signal)
+                        try:
+                            if runner.status == "running":
+                                # Refresh per-strategy watchlist periodically (every 30 cycles)
+                                if cycle % 30 == 0:
+                                    self.refresh_watchlist(strategy_id)
+                                    self._start_websocket_stream()
+                                if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 10 != 0:
+                                    continue
+                                signals = self.scan_for_signals(strategy_id)
+                                for signal in signals:
+                                    try:
+                                        self.execute_signal(strategy_id, signal)
+                                    except Exception as e:
+                                        console.print(f"[red]execute_signal error ({strategy_id}): {e}[/red]")
+                        except Exception as e:
+                            # Isolate per-strategy failures so one flaky strategy
+                            # (e.g. a symbol that makes check_entry raise) doesn't
+                            # stall every other strategy this cycle or skip the
+                            # persist/command-file handling below.
+                            console.print(f"[red]scan_for_signals error ({strategy_id}): {e}[/red]")
+                            import traceback as tb
+                            console.print(tb.format_exc())
 
                     self._persist_scan_items_to_redis()
                     self._check_command_file()

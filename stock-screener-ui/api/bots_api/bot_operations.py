@@ -460,7 +460,7 @@ async def get_bot_scan(
 
         state = get_bot_state(bot.id, user_id, db)
         scan_items = state['scan_items'] if state else []
-        running = state is not None
+        running, _ = is_bot_running(user_id, bot.id)
 
         # Filter out scan items that already have open positions
         positions = state['positions'] if state and state.get('positions') else []
@@ -878,24 +878,33 @@ async def bot_auto_recovery_task():
     await asyncio.sleep(30)
     while True:
         try:
-            user_bots: dict[int, list[int]] = {}
+            user_bots: dict[int, list[tuple[int, bool]]] = {}
             with SessionLocal() as db:
                 bots = db.query(BotConfig).filter(
                     BotConfig.is_active == True,
                     BotConfig.user_id.isnot(None),
                 ).all()
                 for b in bots:
-                    if b.user_id not in user_bots:
-                        user_bots[b.user_id] = []
-                    user_bots[b.user_id].append(b.id)
+                    user_bots.setdefault(b.user_id, []).append(
+                        (b.id, bool(getattr(b, 'live_trading', False)))
+                    )
 
-            for user_id, bot_ids in user_bots.items():
-                for bot_id in bot_ids:
+            for user_id, bot_entries in user_bots.items():
+                for bot_id, live_trading in bot_entries:
+                    # Don't restart a bot the user explicitly stopped.
+                    from .bots_router import _is_bot_intentionally_stopped
+                    if _is_bot_intentionally_stopped(user_id, bot_id):
+                        continue
                     running, pid = is_bot_running(user_id, bot_id)
+                    if running is None:
+                        # Redis/process-table status unknown — don't restart.
+                        continue
                     if running is False:
                         print(f"[Auto-Recovery] Bot {bot_id} (user {user_id}) crashed — restarting...")
                         try:
-                            start_bot_process(user_id, bot_id)
+                            # Preserve the bot's trading mode — a LIVE bot must
+                            # not silently come back as PAPER (and vice versa).
+                            start_bot_process(user_id, bot_id, live_trading=live_trading)
                             print(f"[Auto-Recovery] Bot {bot_id} restarted")
                         except Exception as e:
                             print(f"[Auto-Recovery] Restart failed for bot {bot_id}: {e}")

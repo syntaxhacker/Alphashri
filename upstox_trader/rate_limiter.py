@@ -26,7 +26,6 @@ import time
 # --- 429 circuit breaker settings ---
 CIRCUIT_FAIL_THRESHOLD = 5          # consecutive 429s before opening the circuit
 CIRCUIT_COOLDOWN_SECONDS = 60       # how long the circuit stays open
-CIRCUIT_MAX_WAIT_SECONDS = 300      # max seconds execute() will block while open
 
 ACQUIRE_LUA = """
 local key = KEYS[1]
@@ -178,16 +177,17 @@ class UpstoxRateLimiter:
     def remaining_minute_budget(self) -> int:
         """How many requests remain in the current 60s window (across all processes).
 
-        Returns 500 (full budget) when Redis is unavailable so callers
-        can fall back to a safe default.
+        Returns 0 when Redis is unavailable so callers shrink their scan
+        budget (fail-safe) instead of assuming a full 500/min budget while
+        throttling is actually disabled.
         """
         client = self._get_redis()
         if client is None:
-            return 500
+            return 0
         try:
             now = time.time()
             client.zremrangebyscore('upstox:rl:hits', 0, now - 1800)
             count = client.zcount('upstox:rl:hits', now - 60, now)
             return max(0, 500 - count)
         except Exception:
-            return 500
+            return 0

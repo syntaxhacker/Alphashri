@@ -303,12 +303,23 @@ export async function fetchResults(session: string): Promise<ExperimentRun[] | n
   return runs;
 }
 
+let _selectToken = 0;
+
 export async function selectSession(session: string): Promise<ExperimentState | null> {
+  const token = ++_selectToken;
   setActiveSession(session);
   setSelectedRun(null);
   setChartData(null);
-  const [expState] = await Promise.all([fetchSessionState(session), fetchResults(session)]);
-  return expState;
+  const [expState, runs] = await Promise.all([
+    api.fetchSessionState(session),
+    api.fetchResults(session),
+  ]);
+  // Ignore stale responses from a previous rapid click (A then B) so the
+  // slower session A fetch can't overwrite the store while B is active.
+  if (token !== _selectToken) return null;
+  if (expState) setSessionState(expState);
+  if (runs) setResults(runs);
+  return expState ?? null;
 }
 
 function buildParamSpace(): Record<string, any> {

@@ -147,9 +147,10 @@ def is_bot_running(user_id: int, bot_id: int) -> tuple:
             _clear_bot_process_state(user_id, bot_id)
         return False, None
     except Exception:
-        pass
-
-    return False, None
+        # Redis unavailable — we can't tell if the bot is running from the
+        # process table or Redis. Return "unknown" (None, None) so auto-recovery
+        # does NOT mass-restart bots that may still be alive.
+        return None, None
 
 
 def _is_pid_alive(pid: int) -> bool:
@@ -215,6 +216,32 @@ def _clear_bot_status_redis(user_id: int, bot_id: int):
             client.delete(f"bot:{user_id}:{bot_id}:status")
     except Exception:
         pass
+
+
+def _mark_bot_intentionally_stopped(user_id: int, bot_id: int, ttl: int = 120):
+    """Mark a bot as cleanly stopped so auto-recovery won't restart it.
+
+    The recovery task polls every 60s; a short TTL covers that window without
+    permanently suppressing auto-restart (e.g. after a machine reboot).
+    """
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            client.setex(f"bot:{user_id}:{bot_id}:stopped", ttl, "1")
+    except Exception:
+        pass
+
+
+def _is_bot_intentionally_stopped(user_id: int, bot_id: int) -> bool:
+    try:
+        from cache.redis_client import get_redis_client
+        client = get_redis_client()
+        if client is not None:
+            return bool(client.get(f"bot:{user_id}:{bot_id}:stopped"))
+    except Exception:
+        pass
+    return False
 
 
 def bot_to_response(bot: BotConfig, user_id: int = 0, db: Optional[Session] = None) -> "BotResponse":
@@ -419,7 +446,9 @@ async def stop_all_bots_internal():
 
 def stop_bot_process(user_id: int, bot_id: int):
     import subprocess
-    
+
+    _mark_bot_intentionally_stopped(user_id, bot_id)
+
     with _bot_processes_lock:
         process = _bot_processes.get(user_id, {}).pop(bot_id, None) if user_id in _bot_processes else None
     if process is not None and process.poll() is None:

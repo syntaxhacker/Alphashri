@@ -205,10 +205,12 @@ class UpstoxAPI(BaseAPIClient):
                         instrument.get('instrument_type') == instrument_type):
                     return instrument.get('instrument_key')
             elif instrument_type in ['CE', 'PE']:
+                expiry_ts = instrument.get('expiry')
                 if (instrument.get('name') == symbol and
                         instrument.get('instrument_type') == option_type and
                         instrument.get('strike_price') == strike_price and
-                        datetime.fromtimestamp(instrument.get('expiry') / 1000).strftime('%Y-%m-%d') == expiry_date):
+                        expiry_ts and
+                        datetime.fromtimestamp(expiry_ts / 1000).strftime('%Y-%m-%d') == expiry_date):
                     return instrument.get('instrument_key')
 
         self._log(f"❌ Instrument key for '{clean_symbol}' (original: '{symbol}') not found with the specified criteria.")

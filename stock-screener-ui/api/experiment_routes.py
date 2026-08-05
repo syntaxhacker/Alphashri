@@ -91,9 +91,9 @@ def _make_data_loader(symbols: List[str], tf: int, date_start: str = "", date_en
     return data_loader
 
 
-def _read_session_meta(session: str) -> Dict:
-    """Read the config header line of a session's JSONL, if present."""
-    path = autoresearch_engine.SESSIONS_DIR / f"{session}.jsonl"
+def _read_session_meta(session: str, user_id: int) -> Dict:
+    """Read the config header line of a user's session JSONL, if present."""
+    path = autoresearch_engine.ExperimentSession(session, user_id).path
     if not path.exists():
         return {}
     try:
@@ -114,15 +114,21 @@ def _read_session_meta(session: str) -> Dict:
     return {}
 
 
-def _get_engine(session: str) -> autoresearch_engine.AutoresearchEngine:
+def _engine_key(user_id: int, session: str) -> tuple:
+    return (user_id, session)
+
+
+def _get_engine(session: str, user_id: int) -> autoresearch_engine.AutoresearchEngine:
     """Return the engine for a session, lazily creating one if the API restarted.
 
     A lazily-created engine rebuilds its loader from the persisted session header
     (symbols/tf/dates) so ``rerun_for_chart`` can still re-evaluate logged runs.
+    Keyed by (user_id, session) so users never share an engine or file.
     """
-    engine = _engines.get(session)
+    key = _engine_key(user_id, session)
+    engine = _engines.get(key)
     if engine is None:
-        meta = _read_session_meta(session)
+        meta = _read_session_meta(session, user_id)
         engine = autoresearch_engine.AutoresearchEngine(
             _make_data_loader(
                 meta.get("symbols", []),
@@ -131,7 +137,7 @@ def _get_engine(session: str) -> autoresearch_engine.AutoresearchEngine:
                 meta.get("date_end", ""),
             )
         )
-        _engines[session] = engine
+        _engines[key] = engine
     return engine
 
 
@@ -219,7 +225,7 @@ async def start_experiment(
             detail=f"Grid too large: {grid_size} candidates (max {autoresearch_engine.MAX_CANDIDATES})",
         )
 
-    existing = _engines.get(session)
+    existing = _engines.get(_engine_key(current_user.id, session))
     if existing is not None and existing.is_running(session):
         raise HTTPException(status_code=409, detail=f"Session '{session}' already running")
 
@@ -231,7 +237,7 @@ async def start_experiment(
             request.date_end or "",
         )
     )
-    _engines[session] = engine
+    _engines[_engine_key(current_user.id, session)] = engine
 
     result = engine.start(
         session,
@@ -252,7 +258,7 @@ async def start_experiment(
 
 @router.post("/{session}/pause")
 async def pause_experiment(session: str, current_user=Depends(get_current_user)):
-    engine = _get_engine(session)
+    engine = _get_engine(session, current_user.id)
     if not engine.is_running(session):
         # Avoid corrupting a finished/absent session's status to "paused".
         return {"status": "not_running", "session": session}
@@ -261,7 +267,7 @@ async def pause_experiment(session: str, current_user=Depends(get_current_user))
 
 @router.post("/{session}/resume")
 async def resume_experiment(session: str, current_user=Depends(get_current_user)):
-    engine = _get_engine(session)
+    engine = _get_engine(session, current_user.id)
     if not engine.is_paused(session):
         return {"status": "not_paused", "session": session}
     return _sanitize_for_json(engine.resume(session, current_user.id))
@@ -269,19 +275,22 @@ async def resume_experiment(session: str, current_user=Depends(get_current_user)
 
 @router.post("/{session}/cancel")
 async def cancel_experiment(session: str, current_user=Depends(get_current_user)):
-    return _sanitize_for_json(_get_engine(session).cancel(session, current_user.id))
+    return _sanitize_for_json(_get_engine(session, current_user.id).cancel(session, current_user.id))
 
 
 @router.get("/list")
 async def list_sessions(current_user=Depends(get_current_user)):
     sessions = []
+    prefix = f"user_{current_user.id}_"
     sessions_dir = autoresearch_engine.SESSIONS_DIR
     if sessions_dir.exists():
         for path in sorted(sessions_dir.glob("*.jsonl")):
-            session = path.stem
-            meta = _read_session_meta(session)
+            if not path.stem.startswith(prefix):
+                continue
+            session = path.stem[len(prefix):]
+            meta = _read_session_meta(session, current_user.id)
             runs = len(autoresearch_engine.ExperimentSession(session, current_user.id).load_runs())
-            engine = _get_engine(session)
+            engine = _get_engine(session, current_user.id)
             status = "running" if engine.is_running(session) else "completed"
             sessions.append({
                 "session": session,
@@ -296,7 +305,7 @@ async def list_sessions(current_user=Depends(get_current_user)):
 
 @router.get("/{session}/state")
 async def get_session_state(session: str, current_user=Depends(get_current_user)):
-    return _sanitize_for_json(_get_engine(session).get_status(session, current_user.id))
+    return _sanitize_for_json(_get_engine(session, current_user.id).get_status(session, current_user.id))
 
 
 @router.get("/{session}/results")
@@ -319,8 +328,8 @@ async def get_session_chart(
     symbol: str = Query("NEWGEN", description="Symbol to chart; NEWGEN uses the shared cache"),
     current_user=Depends(get_current_user),
 ):
-    engine = _get_engine(session)
-    meta = _read_session_meta(session)
+    engine = _get_engine(session, current_user.id)
+    meta = _read_session_meta(session, current_user.id)
     tf = meta.get("tf", 5)
     strategy = meta.get("strategy", "")
     or_minutes = 15 if strategy == "orb" else 45

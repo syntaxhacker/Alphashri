@@ -46,9 +46,9 @@ def _costs(entry: float, exit_p: float, qty: int, side: str) -> float:
 
 
 def _trade(symbol: str, side: str, entry: float, exit_p: float, qty: int,
-           reason: str, entry_time, exit_time, date) -> dict:
+           reason: str, entry_time, exit_time, date, include_costs: bool = True) -> dict:
     gross = (exit_p - entry) * qty if side == "LONG" else (entry - exit_p) * qty
-    costs = _costs(entry, exit_p, qty, side)
+    costs = _costs(entry, exit_p, qty, side) if include_costs else 0.0
     return {
         "symbol": symbol, "side": side,
         "entry_price": round(entry, 2), "exit_price": round(exit_p, 2),
@@ -125,7 +125,7 @@ def simulate_orb(df: pd.DataFrame, params: Dict) -> List[dict]:
                     continue
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, pos["side"], pos["entry"], ep, qty,
-                                     reason, pos["entry_time"], idx, date))
+                                     reason, pos["entry_time"], idx, date, include_costs))
                 pos = None
                 last_exit = i
                 day_trades += 1
@@ -167,6 +167,7 @@ def simulate_sr_breakout(df: pd.DataFrame, params: Dict) -> List[dict]:
     shorts = bool(params.get("shorts", False))
     capital = float(params.get("capital", DEFAULT_CAPITAL))
     symbol = str(params.get("symbol", getattr(df, "attrs", {}).get("symbol", "?")))
+    include_costs = bool(params.get("include_costs", True))
 
     df = df.copy()
     df["ist_time"] = df.index.map(lambda x: x.tz_convert(IST))
@@ -199,6 +200,14 @@ def simulate_sr_breakout(df: pd.DataFrame, params: Dict) -> List[dict]:
             ct = row["tmin"]
             if ct < min_entry:
                 continue
+            if pos and ct >= eod:
+                # Close any open position at the EOD close before leaving the day.
+                qty = int(capital / pos["entry"])
+                trades.append(_trade(symbol, pos["side"], pos["entry"], row["close"], qty,
+                                     "EOD", pos["entry_time"], idx, day_date.date(), include_costs))
+                pos = None
+                last_exit = idx
+                break
             if ct >= eod:
                 break
             if pos:
@@ -206,13 +215,11 @@ def simulate_sr_breakout(df: pd.DataFrame, params: Dict) -> List[dict]:
                     ep, reason = pos["sl"], "SL"
                 elif row["high"] >= pos["tp"]:
                     ep, reason = pos["tp"], "TP"
-                elif ct >= eod:
-                    ep, reason = row["close"], "EOD"
                 else:
                     continue
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, pos["side"], pos["entry"], ep, qty,
-                                     reason, pos["entry_time"], idx, day_date.date()))
+                                     reason, pos["entry_time"], idx, day_date.date(), include_costs))
                 pos = None
                 last_exit = idx
                 continue
@@ -245,6 +252,7 @@ def simulate_ema_cross(df: pd.DataFrame, params: Dict) -> List[dict]:
     eod = int(params.get("eod_exit_minutes", DEFAULT_EOD))
     capital = float(params.get("capital", DEFAULT_CAPITAL))
     symbol = str(params.get("symbol", getattr(df, "attrs", {}).get("symbol", "?")))
+    include_costs = bool(params.get("include_costs", True))
 
     df = df.copy()
     df["ist_time"] = df.index.map(lambda x: x.tz_convert(IST))
@@ -269,7 +277,7 @@ def simulate_ema_cross(df: pd.DataFrame, params: Dict) -> List[dict]:
             if pos:
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, pos["side"], pos["entry"], closes[i], qty,
-                                     "EOD", pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date()))
+                                     "EOD", pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date(), include_costs))
                 pos = None
             continue
 
@@ -307,7 +315,7 @@ def simulate_ema_cross(df: pd.DataFrame, params: Dict) -> List[dict]:
             if reason:
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, pos["side"], pos["entry"], ep, qty,
-                                     reason, pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date()))
+                                     reason, pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date(), include_costs))
                 pos = None
                 last_exit = i
     return trades
@@ -355,6 +363,7 @@ def simulate_supertrend(df: pd.DataFrame, params: Dict) -> List[dict]:
     eod = int(params.get("eod_exit_minutes", DEFAULT_EOD))
     capital = float(params.get("capital", DEFAULT_CAPITAL))
     symbol = str(params.get("symbol", getattr(df, "attrs", {}).get("symbol", "?")))
+    include_costs = bool(params.get("include_costs", True))
 
     df = df.copy()
     df["ist_time"] = df.index.map(lambda x: x.tz_convert(IST))
@@ -403,7 +412,7 @@ def simulate_supertrend(df: pd.DataFrame, params: Dict) -> List[dict]:
             if ep is not None:
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, pos["side"], pos["entry"], ep, qty,
-                                     reason, pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date()))
+                                     reason, pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date(), include_costs))
                 pos = None
     return trades
 
@@ -428,6 +437,7 @@ def _bb_common(entries, df, params) -> List[dict]:
     exit_mid = bool(params.get("exit_middle", True))
     eod = int(params.get("eod_exit_minutes", DEFAULT_EOD))
     capital = float(params.get("capital", DEFAULT_CAPITAL))
+    include_costs = bool(params.get("include_costs", True))
     symbol = str(params.get("symbol", getattr(df, "attrs", {}).get("symbol", "?")))
     mid = _bb(df["close"].values, int(params.get("bb_period", 20)),
               float(params.get("bb_std", 2.0)))[0]
@@ -475,7 +485,7 @@ def _bb_common(entries, df, params) -> List[dict]:
             if ep is not None:
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, pos["side"], pos["entry"], ep, qty,
-                                     reason, pos["entry_time"], idxs[i], df2["ist_time"].iloc[i].date()))
+                                     reason, pos["entry_time"], idxs[i], df2["ist_time"].iloc[i].date(), include_costs))
                 pos = None
                 last_exit = i
     return trades
@@ -559,6 +569,7 @@ def simulate_short(df: pd.DataFrame, params: Dict) -> List[dict]:
     cooldown = int(params.get("cooldown_minutes", 30))
     capital = float(params.get("capital", DEFAULT_CAPITAL))
     symbol = str(params.get("symbol", getattr(df, "attrs", {}).get("symbol", "?")))
+    include_costs = bool(params.get("include_costs", True))
 
     df = df.copy()
     df["ist_time"] = df.index.map(lambda x: x.tz_convert(IST))
@@ -647,7 +658,7 @@ def simulate_short(df: pd.DataFrame, params: Dict) -> List[dict]:
                     continue
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, "SHORT", pos["entry"], ep, qty, reason,
-                                     pos["entry_time"], idxs[j], day_date.date()))
+                                     pos["entry_time"], idxs[j], day_date.date(), include_costs))
                 pos = None
                 last_exit = idxs[j]
     return trades
@@ -664,6 +675,7 @@ def simulate_volume_surge(df: pd.DataFrame, params: Dict) -> List[dict]:
     eod = int(params.get("eod_exit_minutes", DEFAULT_EOD))
     capital = float(params.get("capital", DEFAULT_CAPITAL))
     symbol = str(params.get("symbol", getattr(df, "attrs", {}).get("symbol", "?")))
+    include_costs = bool(params.get("include_costs", True))
 
     df = df.copy()
     df["ist_time"] = df.index.map(lambda x: x.tz_convert(IST))
@@ -695,7 +707,7 @@ def simulate_volume_surge(df: pd.DataFrame, params: Dict) -> List[dict]:
             if ep is not None:
                 qty = int(capital / pos["entry"])
                 trades.append(_trade(symbol, "LONG", pos["entry"], ep, qty, reason,
-                                     pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date()))
+                                     pos["entry_time"], idxs[i], df["ist_time"].iloc[i].date(), include_costs))
                 pos = None
     return trades
 
