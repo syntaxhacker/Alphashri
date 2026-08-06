@@ -1,5 +1,5 @@
 import { useCallback, useMemo, useEffect, useRef, useState } from "react";
-import { Text, Group, Stack, Loader, Paper, Badge, Button, ScrollArea, Alert, Box } from "@/ui";
+import { Text, Group, Stack, Loader, Paper, Badge, Button, ScrollArea, Alert } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
