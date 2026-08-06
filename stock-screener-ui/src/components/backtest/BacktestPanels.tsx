@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Box, Flex, Tabs } from "@/ui";
 import { IconTable, IconHistory } from "@tabler/icons-react";
 import {

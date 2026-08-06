@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
   Group,
   Text,
@@ -139,7 +139,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
     }
   };
 
-  const columns: ColumnDef<BacktestHistoryItem>[] = [
+  const columns = useMemo<ColumnDef<BacktestHistoryItem>[]>(() => [
       {
         id: "date",
         header: "Date",
@@ -236,7 +236,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           );
         },
       },
-  ];
+  ]);
 
   if (loading) {
     return (

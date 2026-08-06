@@ -133,9 +133,12 @@ export function TradeHistoryTable({
     });
   }, [trades, sortColumn, sortDirection]);
 
-  const totalPnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
-  const wins = trades.filter((t) => t.net_pnl > 0).length;
-  const winRate = trades.length > 0 ? ((wins / trades.length) * 100).toFixed(1) : "0";
+  const { totalPnl, wins, winRate } = useMemo(() => {
+    const pnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
+    const w = trades.filter((t) => t.net_pnl > 0).length;
+    const wr = trades.length > 0 ? ((w / trades.length) * 100).toFixed(1) : "0";
+    return { totalPnl: pnl, wins: w, winRate: wr };
+  }, [trades]);
   const has52w =
     (trades[0]?.["52w_high"] !== undefined && trades[0]?.["52w_high"] !== null);
 

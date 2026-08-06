@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useCallback } from "react";
 import {
   ActionIcon,
   Badge,
@@ -61,7 +61,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
   const [symbolQuery, setSymbolQuery] = useState("");
   const [showSkipped, setShowSkipped] = useState(false);
 
-  const handleSelectSymbol = async (symbol: string) => {
+  const handleSelectSymbol = useCallback(async (symbol: string) => {
     setSelectedSymbol(symbol);
     const currentState = getPaperTradingState();
     await fetchPaperChart(
@@ -70,7 +70,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
       currentState.chartTimeframe,
       currentState.selectedStrategyId,
     );
-  };
+  }, []);
 
   const allItems = useMemo(() => snapshot?.scan_items || [], [snapshot?.scan_items]);
 

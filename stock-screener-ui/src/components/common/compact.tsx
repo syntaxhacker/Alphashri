@@ -161,7 +161,7 @@ export function CompactStat({
             {hint}
           </Text>
         ) : (
-          <div style={{ marginTop: 4 }}>{hint}</div>
+          <Box mt={4}>{hint}</Box>
         )
       ) : null}
     </Card>

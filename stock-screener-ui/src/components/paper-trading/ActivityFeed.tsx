@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, memo } from "react";
 import { Flex, Text, Badge, ScrollArea, Loader, Center, ActionIcon } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -8,7 +8,7 @@ import { formatTimeOnly } from "../../utils/ui-helpers";
 import type { ActivityEvent } from "../../types/paperTrading";
 import { CompactPanel } from "../common/compact";
 
-function EventRow({ event }: { event: ActivityEvent }) {
+const EventRow = memo(function EventRow({ event }: { event: ActivityEvent }) {
   const isEntry = event.type === "entry" || (!event.exit_price && event.entry_price);
   const isExit = event.type === "trade_exit" || !!event.exit_price;
   const pnl = event.net_pnl ?? event.pnl ?? 0;
@@ -66,7 +66,7 @@ function EventRow({ event }: { event: ActivityEvent }) {
       )}
     </Flex>
   );
-}
+});
 
 export function ActivityFeed() {
   useStoreSubscription(subscribe);

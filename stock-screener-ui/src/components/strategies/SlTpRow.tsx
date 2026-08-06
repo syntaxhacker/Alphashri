@@ -10,6 +10,7 @@ export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
   return (
     <Group grow>
       <NumberInput
+        size="sm"
         label="Stop Loss %"
         name="sl_pct"
         defaultValue={slDefault}
@@ -21,6 +22,7 @@ export function SlTpRow({ slDefault, tpDefault, isSwing }: SlTpRowProps) {
         data-testid="strategy-sl-pct-input"
       />
       <NumberInput
+        size="sm"
         label="Take Profit %"
         name="tp_pct"
         defaultValue={tpDefault}

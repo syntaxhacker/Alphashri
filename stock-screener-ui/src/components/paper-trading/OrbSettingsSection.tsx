@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Text, Grid, Stack, NumberInput } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
 
@@ -11,7 +12,7 @@ interface OrbSettingsSectionProps {
   onChange: ConfigValueHandler;
 }
 
-export function OrbSettingsSection({ config, onChange }: OrbSettingsSectionProps) {
+export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onChange }: OrbSettingsSectionProps) {
   const slPctError = config.sl_pct < 0.1 || config.sl_pct > 5;
 
   return (
@@ -97,4 +98,4 @@ export function OrbSettingsSection({ config, onChange }: OrbSettingsSectionProps
       </Grid>
     </Stack>
   );
-}
+});

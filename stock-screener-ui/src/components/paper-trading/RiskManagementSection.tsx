@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Text, Grid, Stack, NumberInput } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
 
@@ -11,7 +12,7 @@ interface RiskManagementSectionProps {
   onChange: ConfigValueHandler;
 }
 
-export function RiskManagementSection({ config, onChange }: RiskManagementSectionProps) {
+export const RiskManagementSection = memo(function RiskManagementSection({ config, onChange }: RiskManagementSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="risk-section">
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
@@ -123,4 +124,4 @@ export function RiskManagementSection({ config, onChange }: RiskManagementSectio
       </Grid>
     </Stack>
   );
-}
+});

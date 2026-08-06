@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Text, Group, Button, Tooltip, Box } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import type { PaperPosition } from "../../types/paperTrading";
@@ -11,7 +12,7 @@ interface SelectedPositionBarProps {
   onClose?: (symbol: string, price: number) => void;
 }
 
-export function SelectedPositionBar({ position, onClose }: SelectedPositionBarProps) {
+export const SelectedPositionBar = memo(function SelectedPositionBar({ position, onClose }: SelectedPositionBarProps) {
   if (!position) {
     return (
       <Group
@@ -92,7 +93,7 @@ export function SelectedPositionBar({ position, onClose }: SelectedPositionBarPr
       )}
     </Group>
   );
-}
+});
 
 function Badge({ color, children }: { color: string; children: React.ReactNode }) {
   return (

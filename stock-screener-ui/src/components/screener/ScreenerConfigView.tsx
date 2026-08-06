@@ -15,7 +15,7 @@ import {
   NumberInput,
   ActionIcon,
 } from "@/ui";
-import type { ScreenerOption, Stock, ProfileFilter, ColumnDef } from "../../types";
+import type { ScreenerOption, Stock, ProfileFilter, ColumnDef} from "../../types";
 import { ScreenerTable } from "./ScreenerTable";
 import { SelectionBar } from "./SelectionBar";
 import { createScreener, updateScreener, deleteScreener } from "../../api/screeners";

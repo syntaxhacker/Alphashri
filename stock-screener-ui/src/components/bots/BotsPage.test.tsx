@@ -1,10 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import type { BotsState, BotsView } from "../../types/bots";
+import type { BotsState } from "../../types/bots";
 
 const mockGetBotsState = vi.fn();
 const mockGetCurrentView = vi.fn();
@@ -114,7 +114,7 @@ describe("BotsPage", () => {
 
   afterEach(() => {
     cleanup();
-    delete (window as any).confirm;
+    delete (window as Window & { confirm?: () => boolean }).confirm;
   });
 
   it("renders 'New Bot' create button", () => {

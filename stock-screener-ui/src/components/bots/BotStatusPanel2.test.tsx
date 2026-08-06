@@ -165,8 +165,8 @@ describe("BotStatusPanel", () => {
   it("start handler calls onStart, loads status/trades, starts auto-refresh", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn().mockResolvedValue(undefined);
-    (loadBotStatus as any).mockResolvedValue(undefined);
-    (loadBotTrades as any).mockResolvedValue(undefined);
+    vi.mocked(loadBotStatus).mockResolvedValue(undefined);
+    vi.mocked(loadBotTrades).mockResolvedValue(undefined);
     renderWithProviders(<BotStatusPanel {...defaultProps} onStart={onStart} />);
     await user.click(screen.getByTestId("start-bot-btn"));
     expect(onStart).toHaveBeenCalledWith("bot-1");
@@ -188,7 +188,7 @@ describe("BotStatusPanel", () => {
       portfolio: null,
       strategies: {},
     };
-    (loadBotStatus as any).mockResolvedValue(undefined);
+    vi.mocked(loadBotStatus).mockResolvedValue(undefined);
     renderWithProviders(<BotStatusPanel {...defaultProps} status={status} onStop={onStop} />);
     await user.click(screen.getByTestId("stop-bot-btn"));
     expect(onStop).toHaveBeenCalledWith("bot-1");

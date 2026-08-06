@@ -14,6 +14,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput
+            size="sm"
             label="Entry Threshold %"
             name="entry_threshold_pct"
             defaultValue={initialValues.entry_threshold_pct}
@@ -32,6 +33,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
         />
         <Group grow>
           <NumberInput
+            size="sm"
             label="Trailing Stop %"
             name="trailing_stop_pct"
             defaultValue={initialValues.trailing_stop_pct}
@@ -44,6 +46,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
         </Group>
         <Group grow>
           <NumberInput
+            size="sm"
             label="Max Holding Days"
             name="max_holding_days"
             defaultValue={initialValues.max_holding_days}
@@ -53,6 +56,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
             data-testid="strategy-max-holding-input"
           />
           <NumberInput
+            size="sm"
             label="Cooldown Days"
             name="cooldown_days"
             defaultValue={initialValues.cooldown_days}
@@ -79,6 +83,7 @@ export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingP
               />
             </Group>
             <NumberInput
+              size="sm"
               label="Trailing Activation %"
               name="trailing_activation_pct"
               defaultValue={initialValues.trailing_activation_pct}

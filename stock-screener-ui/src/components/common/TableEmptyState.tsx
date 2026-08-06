@@ -1,4 +1,4 @@
-import { Flex, Text, Group } from "@/ui";
+import { Box, Flex, Text, Group } from "@/ui";
 import type { ReactNode } from "react";
 
 interface TableEmptyStateProps {
@@ -33,7 +33,7 @@ export function TableEmptyState({ message, icon, action }: TableEmptyStateProps)
       <Text size="sm" fw={500} c="dimmed">
         {message}
       </Text>
-      {action && <div style={{ marginTop: 8 }}>{action}</div>}
+      {action && <Box mt={8}>{action}</Box>}
     </Flex>
   );
 }

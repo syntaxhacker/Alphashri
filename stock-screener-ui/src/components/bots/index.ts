@@ -307,17 +307,17 @@ export function initBotsHandlers() {
   initStatusHandlers();
 
   // View switching
-  (window as any).setBotsView = (view: BotsView) => {
+  window.setBotsView = (view: BotsView) => {
     stopAutoRefresh();
     setCurrentView(view);
   };
 
-  (window as any).clearBotError = () => {
+  window.clearBotError = () => {
     clearError();
   };
 
   // Bot actions
-  (window as any).viewBotStatus = (botId: string) => {
+  window.viewBotStatus = (botId: string) => {
     const state = getBotsState();
     const bot = state.bots.find((b) => b.id === botId);
     if (bot) {
@@ -331,16 +331,16 @@ export function initBotsHandlers() {
     }
   };
 
-  (window as any).startBot = async (botId: string) => {
+  window.startBot = async (botId: string) => {
     await startBotAction(botId, false);
   };
 
-  (window as any).stopBot = async (botId: string) => {
+  window.stopBot = async (botId: string) => {
     await stopBotAction(botId);
     stopAutoRefresh();
   };
 
-  (window as any).editBot = (botId: string) => {
+  window.editBot = (botId: string) => {
     const state = getBotsState();
     const bot = state.bots.find((b) => b.id === botId);
     if (bot) {
@@ -348,13 +348,13 @@ export function initBotsHandlers() {
     }
   };
 
-  (window as any).deleteBot = async (botId: string) => {
+  window.deleteBot = async (botId: string) => {
     if (confirm("Are you sure you want to delete this bot?")) {
       await deleteBotAction(botId);
     }
   };
 
-  (window as any).openCreateBotModal = () => {
+  window.openCreateBotModal = () => {
     openCreateModal();
   };
 

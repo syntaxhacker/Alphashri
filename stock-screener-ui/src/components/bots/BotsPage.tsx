@@ -239,13 +239,13 @@ function BotsTable({
         <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
       </Group>
       <TanStackTable
-        data={state.bots as any}
-        columns={columns as any}
+        data={state.bots}
+        columns={columns}
         dataTestId="bots-table"
-        getRowTestId={(row) => `bot-row-${(row as any).id}`}
+        getRowTestId={(row) => `bot-row-${row.id}`}
         getRowClassName={() => "bot-row"}
         getRowStyle={(row) => ({
-          backgroundColor: state.selectedBot?.id === (row as any).id ? BOT_SELECTED_BG : undefined,
+          backgroundColor: state.selectedBot?.id === row.id ? BOT_SELECTED_BG : undefined,
         })}
       />
     </CompactPanel>

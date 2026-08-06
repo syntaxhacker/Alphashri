@@ -79,7 +79,7 @@ vi.mock("./ScreenerTable", () => ({
       data-stocks-count={props.stocks.length}
     >
       {props.stocks.map((stock: Stock) => (
-        <div key={stock.symbol} data-testid={`row-${stock.symbol}`}>
+        <div key={`stock-${stock.symbol}`} data-testid={`row-${stock.symbol}`}>
           {stock.symbol}
         </div>
       ))}
@@ -94,7 +94,7 @@ vi.mock("./ScreenerHeatmapView", () => ({
       data-stocks-count={props.stocks.length}
     >
       {props.stocks.map((stock: Stock) => (
-        <div key={stock.symbol} data-testid={`heatmap-${stock.symbol}`}>
+        <div key={`heatmap-${stock.symbol}`} data-testid={`heatmap-${stock.symbol}`}>
           {stock.symbol}
         </div>
       ))}

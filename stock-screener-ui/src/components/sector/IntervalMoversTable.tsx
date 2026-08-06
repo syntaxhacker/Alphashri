@@ -22,8 +22,8 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
         </Table.Tr>
       </Table.Thead>
       <Table.Tbody>
-        {movers.map((mover) => (
-          <Table.Tr key={mover.symbol}>
+        {movers.map((mover, idx) => (
+          <Table.Tr key={`${mover.symbol}-${mover.change}-${idx}`}>
             <Table.Td fw={600}>{mover.symbol}</Table.Td>
             <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
             <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>

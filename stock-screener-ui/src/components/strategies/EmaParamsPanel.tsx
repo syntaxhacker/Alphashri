@@ -13,6 +13,7 @@ export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) 
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput
+            size="sm"
             label="Fast EMA Period"
             name="ema_fast_period"
             defaultValue={initialValues.ema_fast_period}
@@ -22,6 +23,7 @@ export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) 
             data-testid="strategy-ema-fast-period-input"
           />
           <NumberInput
+            size="sm"
             label="Slow EMA Period"
             name="ema_slow_period"
             defaultValue={initialValues.ema_slow_period}

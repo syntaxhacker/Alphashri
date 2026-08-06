@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import {
   Stack,
   Group,
@@ -76,26 +76,29 @@ export function BacktestConfig({
     return () => document.removeEventListener("keydown", handler);
   }, [isRunning, selectedSymbols, onRun]);
 
-  const selectData = [
-    {
-      group: "Templates (Base Logic)",
-      items: variations
-        .filter((v) => v.is_template)
-        .map((v) => ({
-          value: v.id,
-          label: `${v.name} (${v.strategy_type})`,
-        })),
-    },
-    {
-      group: "Your Variations",
-      items: variations
-        .filter((v) => !v.is_template)
-        .map((v) => ({
-          value: v.id,
-          label: v.name,
-        })),
-    },
-  ];
+  const selectData = useMemo(
+    () => [
+      {
+        group: "Templates (Base Logic)",
+        items: variations
+          .filter((v) => v.is_template)
+          .map((v) => ({
+            value: v.id,
+            label: `${v.name} (${v.strategy_type})`,
+          })),
+      },
+      {
+        group: "Your Variations",
+        items: variations
+          .filter((v) => !v.is_template)
+          .map((v) => ({
+            value: v.id,
+            label: v.name,
+          })),
+      },
+    ],
+    [variations],
+  );
 
   const handleRunAndSave = () => {
     onSaveToHistoryChange(true);

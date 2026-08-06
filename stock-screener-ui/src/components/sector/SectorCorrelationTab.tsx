@@ -122,7 +122,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
           {sectors.map((s) => (
             <Table.Tr key={s.name}>
               <Table.Td>
-                <Badge color={s.rank_current <= 3 ? "green" : "gray"} variant="light">
+                <Badge size="sm" color={s.rank_current <= 3 ? "green" : "gray"} variant="light">
                   #{s.rank_current}
                 </Badge>
               </Table.Td>
@@ -149,6 +149,7 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
               </Table.Td>
               <Table.Td ta="right">
                 <Badge
+                  size="sm"
                   color={s.rank_change_1m > 0 ? "green" : s.rank_change_1m < 0 ? "red" : "gray"}
                   variant="light"
                 >

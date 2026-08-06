@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Group, Select, Box, Button, Tooltip, Text } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotSummary } from "../../types/paperTrading";
@@ -34,10 +34,14 @@ export function BotSelector({
   const running = selectedBot?.running ?? false;
   const marketClosed = isMarketClosedToday();
 
-  const options = bots.map((bot) => ({
-    value: bot.id,
-    label: getBotLabel(bot),
-  }));
+  const options = useMemo(
+    () =>
+      bots.map((bot) => ({
+        value: bot.id,
+        label: getBotLabel(bot),
+      })),
+    [bots],
+  );
 
   const handleRefresh = async () => {
     setRefreshing(true);

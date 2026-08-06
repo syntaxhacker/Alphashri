@@ -18,7 +18,7 @@ export function ArticleSymbols({
       <Group gap="xs">
         {symbols.map((symbol, idx) => (
           <Tooltip
-            key={idx}
+            key={symbol.code}
             label={
               symbol.instrument_key
                 ? `View ${symbol.trading_symbol} chart`

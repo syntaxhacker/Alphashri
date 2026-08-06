@@ -15,14 +15,14 @@ export function getTone(item: SummaryItem): string {
 export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
   return (
     <CompactStatGrid>
-      {summary.map((item, index) => (
+      {summary.map((item) => (
         <CompactStat
-          key={index}
+          key={item.label}
           label={item.label}
           value={item.value}
           tone={item.color ? `var(--mantine-color-${item.color}-6)` : "var(--mantine-color-text)"}
           className="summary-card"
-          testId={`summary-card-${index}`}
+          testId={`summary-card-${item.label}`}
         />
       ))}
     </CompactStatGrid>

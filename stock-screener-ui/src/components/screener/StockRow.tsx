@@ -92,7 +92,7 @@ export const StockRow = memo(function StockRow({
       ) {
         const cell = formatted as FormattedCell;
         return (
-          <Text c={cell.className as any} fw={500}>
+          <Text c={cell.className} fw={500}>
             {cell.value}
           </Text>
         );

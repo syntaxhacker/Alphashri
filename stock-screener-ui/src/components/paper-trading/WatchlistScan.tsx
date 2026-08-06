@@ -1,4 +1,4 @@
-import { memo, useMemo, useState } from "react";
+import { memo, useMemo, useState, useCallback } from "react";
 import { Accordion, Badge, Flex, Group, Table, Text } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
@@ -223,7 +223,7 @@ const SECTION_PANEL = { padding: 0 };
 
 export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: WatchlistScanProps) {
   const [accordionValue, setAccordionValue] = useState<string[]>(["signals", "watching", "rejected", "skipped"]);
-  const handleSelectSymbol = async (symbol: string) => {
+  const handleSelectSymbol = useCallback(async (symbol: string) => {
     setAccordionValue([]);
     setSelectedSymbol(symbol);
     const currentState = getPaperTradingState();
@@ -233,7 +233,7 @@ export function WatchlistScan({ snapshot, selectedSymbol: _selectedSymbol }: Wat
       currentState.chartTimeframe,
       currentState.selectedStrategyId,
     );
-  };
+  }, []);
 
   const { signals, watching, rejected, skipped } = useMemo(() => {
     if (!snapshot?.scan_items) return { signals: [], watching: [], rejected: [], skipped: [] };

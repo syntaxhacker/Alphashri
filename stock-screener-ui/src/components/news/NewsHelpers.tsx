@@ -47,7 +47,7 @@ function ArticleSymbols({
       <Group gap="xs">
         {symbols.map((symbol, idx) => (
           <Tooltip
-            key={idx}
+            key={symbol.code}
             label={
               symbol.instrument_key
                 ? `View ${symbol.trading_symbol} chart`
@@ -55,6 +55,7 @@ function ArticleSymbols({
             }
           >
             <Badge
+              size="sm"
               variant="light"
               color={symbol.instrument_key ? "blue" : "gray"}
               onClick={() => onSymbolClick(symbol)}
@@ -91,7 +92,7 @@ function ArticleBody({
     return (
       <Stack gap="sm">
         {content.description.split("\n\n").map((para, idx) => (
-          <Text key={idx} size="sm">
+          <Text key={`${idx}-${para.slice(0, 40)}`} size="sm">
             {para}
           </Text>
         ))}
@@ -331,7 +332,7 @@ export function NewsFilterControls({
       />
 
       {unreadCount > 0 && (
-        <Badge variant="light" color="blue" onClick={onMarkAllRead} data-testid="news-unread-badge">
+        <Badge size="sm" variant="light" color="blue" onClick={onMarkAllRead} data-testid="news-unread-badge">
           {unreadCount} unread
         </Badge>
       )}

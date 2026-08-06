@@ -92,8 +92,8 @@ describe("ScreenerSummary", () => {
         />,
       );
       expect(screen.getByTestId("compact-stat-grid")).toBeInTheDocument();
-      expect(screen.getByTestId("summary-card-0")).toBeInTheDocument();
-      expect(screen.getByTestId("summary-card-1")).toBeInTheDocument();
+      expect(screen.getByTestId("summary-card-Total")).toBeInTheDocument();
+      expect(screen.getByTestId("summary-card-Active")).toBeInTheDocument();
       expect(screen.getByText("Total")).toBeInTheDocument();
       expect(screen.getByText("Active")).toBeInTheDocument();
     });
@@ -107,11 +107,11 @@ describe("ScreenerSummary", () => {
           ]}
         />,
       );
-      expect(screen.getByTestId("summary-card-0")).toHaveAttribute(
+      expect(screen.getByTestId("summary-card-Green")).toHaveAttribute(
         "data-tone",
         "var(--mantine-color-green-6)",
       );
-      expect(screen.getByTestId("summary-card-1")).toHaveAttribute(
+      expect(screen.getByTestId("summary-card-No Color")).toHaveAttribute(
         "data-tone",
         "var(--mantine-color-text)",
       );

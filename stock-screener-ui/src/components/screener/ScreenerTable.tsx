@@ -109,7 +109,7 @@ export function ScreenerTable({
               "value" in (formatted as FormattedCell)
             ) {
               const cell = formatted as FormattedCell;
-              return <Text c={cell.className as any} fw={500}>{cell.value}</Text>;
+              return <Text c={cell.className} fw={500}>{cell.value}</Text>;
             }
             if (formatted !== null && formatted !== undefined) {
               return <>{formatted}</>;

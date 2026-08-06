@@ -74,7 +74,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                   statusUnknown={status?.status === "unknown"}
                   data-testid="bot-running-badge"
                 />
-                {(bot as any).live_trading ? (
+                {bot.live_trading ? (
                   <Badge color="red" variant="filled" size="sm" data-testid="live-trading-badge">
                     LIVE
                   </Badge>

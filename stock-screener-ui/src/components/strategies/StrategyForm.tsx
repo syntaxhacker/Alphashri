@@ -241,6 +241,7 @@ export function StrategyForm({
           )}
 
           <TextInput
+            size="sm"
             label="Strategy Name"
             name="name"
             placeholder="My Custom Strategy"
@@ -250,6 +251,7 @@ export function StrategyForm({
           />
 
           <Select
+            size="sm"
             label="Strategy Type"
             name="strategy_type"
             data={STRATEGY_TYPES}
@@ -274,6 +276,7 @@ export function StrategyForm({
           />
 
           <TextInput
+            size="sm"
             label="Description"
             name="description"
             placeholder="Optional description"
@@ -282,6 +285,7 @@ export function StrategyForm({
           />
 
           <MultiSelect
+            size="sm"
             label="Screener Profiles"
             placeholder="Select screener profiles"
             data={SCREENER_PROFILE_OPTIONS}
@@ -293,6 +297,7 @@ export function StrategyForm({
           />
 
           <MultiSelect
+            size="sm"
             label="Custom Stocks"
             placeholder="Search and add specific stocks"
             description="Always watched alongside screener results"

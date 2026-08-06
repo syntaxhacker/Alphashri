@@ -55,7 +55,7 @@ function AlertsList({ alerts }: { alerts: SectorAlert[] }) {
     <Stack gap="xs">
       {alerts.map((alert, i) => (
         <Paper
-          key={i}
+          key={`${alert.timestamp}-${alert.sector}-${i}`}
           p="xs"
           withBorder
           bg={alert.direction === "SURGING" ? "rgba(64, 192, 87, 0.05)" : "rgba(250, 82, 82, 0.05)"}

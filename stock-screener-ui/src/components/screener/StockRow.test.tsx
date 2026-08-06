@@ -27,7 +27,7 @@ vi.mock("@/ui", () => {
     Table,
     Group: ({ children, ...props }: any) => <div {...props}>{children}</div>,
     Text: ({ children, c, ...props }: any) => (
-      <span style={{ color: c } as any} {...props}>
+      <span style={{ color: c } as React.CSSProperties} {...props}>
         {children}
       </span>
     ),

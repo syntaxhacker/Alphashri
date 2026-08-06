@@ -287,8 +287,8 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
         </Badge>
       </Group>
       <TanStackTable
-        data={positions as any}
-        columns={columns as any}
+        data={positions}
+        columns={columns}
         dataTestId="bot-positions-table"
         emptyMessage="No open positions"
       />
@@ -430,10 +430,10 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         </Group>
       </Group>
       <TanStackTable
-        data={trades as any}
-        columns={columns as any}
+        data={trades}
+        columns={columns}
         dataTestId="bot-trades-table"
-        getRowStyle={(row) => (row as any).is_test ? { backgroundColor: TINT_TEST_TRADE } : undefined}
+        getRowStyle={(row) => row.is_test ? { backgroundColor: TINT_TEST_TRADE } : undefined}
       />
     </Card>
   );
@@ -600,7 +600,7 @@ export function BotRow({
             }}
           />
           <Text fw={500}>{bot.name}</Text>
-          {(bot as any).live_trading && (
+          {bot.live_trading && (
             <Badge color="red" size="sm" variant="filled">LIVE</Badge>
           )}
           {!bot.is_active && (

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Progress, Text, Group, Stack } from "@/ui";
 
 interface BacktestProgressProps {
@@ -12,7 +13,7 @@ export function calcProgressPercent(current: number, total: number): number {
   return total > 0 ? (current / total) * 100 : 0;
 }
 
-export function BacktestProgress({ progress }: BacktestProgressProps) {
+export const BacktestProgress = memo(function BacktestProgress({ progress }: BacktestProgressProps) {
   const percent = calcProgressPercent(progress.current, progress.total);
 
   return (
@@ -48,4 +49,4 @@ export function BacktestProgress({ progress }: BacktestProgressProps) {
       </Text>
     </Stack>
   );
-}
+});

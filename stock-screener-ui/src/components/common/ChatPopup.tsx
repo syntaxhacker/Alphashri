@@ -543,7 +543,7 @@ export function ChatPopup() {
                   <ScrollArea style={{ maxHeight: 100 }}>
                     <Stack gap={2}>
                       {toolCalls.map((tc, i) => (
-                        <Group key={i} gap={4}>
+                        <Group key={`${tc.tool}-${tc.agent}-${i}`} gap={4}>
                           <IconSearch size={10} />
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
@@ -665,6 +665,7 @@ export function ChatPopup() {
           <Box p="sm" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
             <Group gap="xs">
               <TextInput
+                size="sm"
                 placeholder={isLoading ? "Analyzing..." : "Type a message..."}
                 value={input}
                 onChange={(value) => setInput(value)}
@@ -674,6 +675,7 @@ export function ChatPopup() {
                 data-testid="chat-input"
               />
               <ActionIcon
+                size="sm"
                 variant="filled"
                 color="blue"
                 onClick={handleSend}

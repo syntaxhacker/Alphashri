@@ -1,3 +1,4 @@
+import { memo } from "react";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
 import { CompactStat, CompactStatGrid } from "../common/compact";
@@ -29,7 +30,7 @@ export function formatWinRate(winRate: number): string {
   return `${winRate.toFixed(0)}%`;
 }
 
-export function BacktestSummary({ totals }: BacktestSummaryProps) {
+export const BacktestSummary = memo(function BacktestSummary({ totals }: BacktestSummaryProps) {
   if (!totals) return null;
 
   const netPnl = totals.net_pnl ?? 0;
@@ -72,4 +73,4 @@ export function BacktestSummary({ totals }: BacktestSummaryProps) {
       />
     </CompactStatGrid>
   );
-}
+});
