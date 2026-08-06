@@ -20,7 +20,11 @@ export async function expectTableHeaders(page: Page, testId: string, headers: st
 }
 
 export async function clickSortHeader(page: Page, columnKey: string) {
-  await page.locator(`[data-testid="sort-header-${columnKey}"]`).first().click();
+  // TanStackTable header: native <th> with click-to-sort; label is column key (case-insensitive)
+  await page
+    .locator('[data-testid="screener-table"] thead th', { hasText: new RegExp(columnKey, "i") })
+    .first()
+    .click();
 }
 
 export async function expectSortIndicator(
@@ -28,14 +32,20 @@ export async function expectSortIndicator(
   columnKey: string,
   direction: "asc" | "desc",
 ) {
-  const indicator = page.locator(`[data-testid="sort-indicator-${columnKey}"]`).first();
-  await expect(indicator).toBeVisible();
-  await expect(indicator).toHaveClass(new RegExp(direction));
+  // Sort indicator is a ▲/▼ char appended to the <th> text by TanStackTable
+  const header = page
+    .locator('[data-testid="screener-table"] thead th', { hasText: new RegExp(columnKey, "i") })
+    .first();
+  await expect(header).toBeVisible();
+  await expect(header).toContainText(direction === "asc" ? "▲" : "▼");
 }
 
 export async function expectNoSortIndicator(page: Page, columnKey: string) {
-  const indicator = page.locator(`[data-testid="sort-indicator-${columnKey}"]`).first();
-  await expect(indicator).not.toBeVisible();
+  const header = page
+    .locator('[data-testid="screener-table"] thead th', { hasText: new RegExp(columnKey, "i") })
+    .first();
+  await expect(header).not.toContainText("▲");
+  await expect(header).not.toContainText("▼");
 }
 
 export async function getTableCellText(
