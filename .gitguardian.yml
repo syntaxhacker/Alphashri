@@ -1,0 +1,10 @@
+# GitGuardian ignore file
+# Purpose: a Finnhub API key was hardcoded in scanners/finnhub_earnings_simple.py
+# (introduced in 7bb0d4b) and is flagged on PR branches that contain that commit. The
+# key was removed from the working tree in 90e6c08 ("fix: remove hardcoded Finnhub API
+# key, use FINNHUB_API_KEY env var") — the current code reads FINNHUB_API_KEY from env.
+# The leaked key should be revoked/rotated in the Finnhub dashboard.
+version: 2
+matches-ignore:
+  - name: Finnhub API key (removed from code in 90e6c08)
+    hash: c9b3c39c657e019b47974f425b8ad789f24198677b6b7db4052cfc18c48589ef
