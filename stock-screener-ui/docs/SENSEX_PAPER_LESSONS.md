@@ -156,3 +156,24 @@ yfinance 5m/15m ~60d. Only 60-min gives months (6mo verified for SENSEX).
 **RULE #9:** Match the backtest horizon to data availability. For the LIVE 1-min strategy,
 the honest validation window is ~20-30 days (Upstox cap). Longer horizons require adapting
 to 60-min bars — a different (hourly) variant, not the same strategy. Both are now tooled.
+
+---
+
+## 10. Walk-forward verdict: the SENSEX strategies have NO real edge (the big one)
+
+**What we did:** walk-forward over 23 days (train 12 / test 1 / step 1) — at each
+step pick the best config on past days, trade it on the next unseen day.
+
+**Result: NET −₹4,906 (383 trades, 11 steps), 9/11 steps negative.**
+In-sample "best of all days" claimed +₹857/day median — a pure overfit illusion.
+
+**Why:** ~₹15/trade costs × 383 trades ≈ −₹6k, plus the "edge" was noise. The
+backtest winners (momentum/range scalp, notrend, hero) do not transfer forward.
+
+**RULE #10:** Never trust in-sample "best of N" backtest numbers. Walk-forward
+(pick on past, trade future) is the ONLY honest test — and it says these
+strategies lose. Today's live race (−₹5,800) agreed.
+
+**Implication:** Either (a) add realistic slippage/costs and re-test (likely worse),
+(b) find a real edge (higher timeframe, different instrument, lower-cost trading),
+or (c) accept SENSEX 1-min option scalping isn't viable and stop.
