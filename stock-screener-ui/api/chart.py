@@ -34,6 +34,22 @@ async def _get_last_trading_day(symbol: str) -> str:
 
     today = datetime.now(config.IST).date()
 
+    # Batch-load all trading holidays for the next 10 days in one query
+    try:
+        db = SessionLocal()
+        start = today - timedelta(days=10)
+        holidays = {
+            h.date
+            for h in db.query(MarketHoliday).filter(
+                MarketHoliday.date >= start,
+                MarketHoliday.date <= today,
+                MarketHoliday.type == HolidayType.TRADING
+            ).all()
+        }
+        db.close()
+    except Exception:
+        holidays = set()
+
     # Look back up to 10 days to find a trading day
     for i in range(10):
         candidate = today - timedelta(days=i)
@@ -42,19 +58,9 @@ async def _get_last_trading_day(symbol: str) -> str:
         if _is_weekend(candidate):
             continue
 
-        # Holiday check via DB
-        try:
-            db = SessionLocal()
-            holiday = db.query(MarketHoliday).filter(
-                MarketHoliday.date == candidate,
-                MarketHoliday.type == HolidayType.TRADING
-            ).first()
-            db.close()
-            if holiday:
-                continue  # Trading holiday, skip
-        except Exception:
-            # DB unavailable, fall back to weekend-only check
-            pass
+        # Holiday check (in-memory, no DB query per day)
+        if candidate in holidays:
+            continue
 
         return candidate.strftime('%Y-%m-%d')
 
@@ -181,20 +187,20 @@ def _format_candles_for_chart(df):
         return []
 
     candles = []
-    for idx, row in df.iterrows():
-        time_str = idx.strftime('%Y-%m-%dT%H:%M') if hasattr(idx, 'strftime') else str(idx)
-        date_str = idx.strftime('%Y-%m-%d') if hasattr(idx, 'strftime') else str(idx)[:10]
-        time_display = idx.strftime('%H:%M') if hasattr(idx, 'strftime') else ''
+    for row in df.itertuples():
+        time_str = row.Index.strftime('%Y-%m-%dT%H:%M') if hasattr(row.Index, 'strftime') else str(row.Index)
+        date_str = row.Index.strftime('%Y-%m-%d') if hasattr(row.Index, 'strftime') else str(row.Index)[:10]
+        time_display = row.Index.strftime('%H:%M') if hasattr(row.Index, 'strftime') else ''
 
         candles.append({
             'time': time_str,
             'date': date_str,
             'time_str': time_display,
-            'open': _to_float(row.get('open', 0)),
-            'high': _to_float(row.get('high', 0)),
-            'low': _to_float(row.get('low', 0)),
-            'close': _to_float(row.get('close', 0)),
-            'volume': _to_float(row.get('volume', 0)),
+            'open': _to_float(getattr(row, 'open', 0)),
+            'high': _to_float(getattr(row, 'high', 0)),
+            'low': _to_float(getattr(row, 'low', 0)),
+            'close': _to_float(getattr(row, 'close', 0)),
+            'volume': _to_float(getattr(row, 'volume', 0)),
         })
 
     return candles

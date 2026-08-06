@@ -5,7 +5,6 @@ vi.mock("../state/paperTrading", () => ({
   setPortfolio: vi.fn(),
   setTrades: vi.fn(),
   setDailySummary: vi.fn(),
-  setPerformanceSummary: vi.fn(),
   setSymbolPerformance: vi.fn(),
   setChartData: vi.fn(),
   setChartLoading: vi.fn(),
@@ -49,7 +48,6 @@ import {
   fetchStrategyConfig,
   updateStrategyConfig,
   resetStrategyConfig,
-  fetchPerformanceSummary,
 } from "./paperTrading";
 
 const mockedFetch = vi.mocked(fetchWithAuth);
@@ -335,30 +333,6 @@ describe("fetchDailyReport", () => {
     mockedFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchDailyReport();
-
-    expect(result).toBeNull();
-  });
-});
-
-describe("fetchPerformanceSummary", () => {
-  it("fetches performance summary", async () => {
-    const perfData = { total_pnl: 5000, win_rate: 60, total_trades: 50 };
-    mockedFetch.mockResolvedValue({
-      json: async () => perfData,
-    } as Response);
-
-    const result = await fetchPerformanceSummary();
-
-    expect(result).toEqual(perfData);
-    expect(mockedFetch).toHaveBeenCalledWith(
-      expect.stringContaining("/api/paper/journal/summary"),
-    );
-  });
-
-  it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
-
-    const result = await fetchPerformanceSummary();
 
     expect(result).toBeNull();
   });
@@ -694,6 +668,13 @@ describe("refreshHistoryData", () => {
 });
 
 describe("fetchStrategyConfig", () => {
+  beforeEach(() => {
+    mockedFetch.mockReset();
+    mockedFetch.mockResolvedValue({
+      json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),
+    } as Response);
+  });
+
   it("fetches config without strategy_id", async () => {
     mockedFetch.mockResolvedValue({
       json: async () => ({ config: { sl_pct: 1.0, tp_pct: 1.5 } }),

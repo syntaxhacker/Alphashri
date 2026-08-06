@@ -1,4 +1,4 @@
-import { memo, useRef, useEffect, useState } from "react";
+import { memo, useCallback, useRef, useEffect, useState } from "react";
 import {
   Anchor,
   Collapse,
@@ -12,7 +12,7 @@ import {
   Stack,
   Textarea,
   Button,
-} from "@mantine/core";
+} from "@/ui";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
   formatNumber,
@@ -51,7 +51,7 @@ interface DayGroupProps {
   onSort: (column: string) => void;
 }
 
-function DaySummary({
+const DaySummary = memo(function DaySummary({
   date,
   trades,
   onToggle,
@@ -92,9 +92,9 @@ function DaySummary({
       </Group>
     </Group>
   );
-}
+});
 
-function TradeStats({ trade }: { trade: PaperTrade }) {
+const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   const grossPnl = trade.pnl;
   const grossColor = getPnLTextColor(grossPnl);
   const netPnl = trade.net_pnl;
@@ -146,9 +146,9 @@ function TradeStats({ trade }: { trade: PaperTrade }) {
       </Grid.Col>
     </Grid>
   );
-}
+});
 
-function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
+const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
   const [reason, setReason] = useState(trade.reason || "");
   const [notes, setNotes] = useState(trade.notes || "");
   const [saving, setSaving] = useState(false);
@@ -181,7 +181,7 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
             minRows={2}
             maxRows={4}
             value={notes}
-            onChange={(e) => setNotes(e.currentTarget.value)}
+            onChange={(val) => setNotes(val)}
             placeholder="Any additional notes..."
             styles={{ input: { background: "var(--mantine-color-body)" } }}
             data-testid={`trade-notes-${trade.trade_id}`}
@@ -201,16 +201,16 @@ function TradeNotesEditor({ trade }: { trade: PaperTrade }) {
       </Group>
     </Stack>
   );
-}
+});
 
-function TradeDetail({ trade }: { trade: PaperTrade }) {
+const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
     <Stack gap="xs">
       <TradeStats trade={trade} />
       <TradeNotesEditor trade={trade} />
     </Stack>
   );
-}
+});
 
 const TradeRow = memo(function TradeRow({
   trade,
@@ -240,6 +240,32 @@ const TradeRow = memo(function TradeRow({
     }
   }, [isSelected]);
 
+  const handleRowClick = useCallback(() => {
+    onSelectSymbol(
+      trade.symbol,
+      trade.exit_time,
+      trade.trade_id,
+      trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined),
+      trade.strategy_id,
+      trade.entry_time,
+    );
+  }, [onSelectSymbol, trade.symbol, trade.exit_time, trade.trade_id, trade.strategy_type, trade.strategy_name, trade.strategy_id, trade.entry_time]);
+
+  const handleToggleDetail = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDetailExpanded((v) => !v);
+  }, []);
+
+  const handleStrategyFilter = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFilterStrategy(trade.strategy_id || null);
+  }, [trade.strategy_id]);
+
+  const handleBotFilter = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    setFilterBot(trade.bot_id || null);
+  }, [trade.bot_id]);
+
   const pnlColor = getPnLTextColor(trade.net_pnl);
   const pnlPctColor = getPnLTextColor(trade.pnl_pct);
 
@@ -248,16 +274,7 @@ const TradeRow = memo(function TradeRow({
       <Table.Tr
         ref={rowRef}
         key={trade.trade_id}
-        onClick={() =>
-          onSelectSymbol(
-            trade.symbol,
-            trade.exit_time,
-            trade.trade_id,
-            trade.strategy_type || (getStrategyTypeFromName(trade.strategy_name) ?? undefined),
-            trade.strategy_id,
-            trade.entry_time,
-          )
-        }
+        onClick={handleRowClick}
         className={isSelected ? "trade-row-highlighted" : undefined}
         style={{ cursor: "pointer" }}
         data-testid={`trade-row-${trade.trade_id}`}
@@ -267,10 +284,7 @@ const TradeRow = memo(function TradeRow({
             variant="subtle"
             color="gray"
             size="sm"
-            onClick={(e) => {
-              e.stopPropagation();
-              setDetailExpanded((v) => !v);
-            }}
+            onClick={handleToggleDetail}
             data-testid={`trade-detail-toggle-${trade.trade_id}`}
           >
             {detailExpanded ? "▼" : "▶"}
@@ -321,10 +335,7 @@ const TradeRow = memo(function TradeRow({
           <Anchor
             component="button"
             size="xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              setFilterStrategy(trade.strategy_id || null);
-            }}
+            onClick={handleStrategyFilter}
             data-testid={`trade-strategy-filter-${trade.trade_id}`}
           >
             {trade.strategy_name || "default"}
@@ -334,10 +345,7 @@ const TradeRow = memo(function TradeRow({
           <Anchor
             component="button"
             size="xs"
-            onClick={(e) => {
-              e.stopPropagation();
-              setFilterBot(trade.bot_id || null);
-            }}
+            onClick={handleBotFilter}
             data-testid={`trade-bot-filter-${trade.trade_id}`}
           >
             {trade.bot_name || "-"}
@@ -357,7 +365,7 @@ const TradeRow = memo(function TradeRow({
   );
 });
 
-export function DayGroup({
+export const DayGroup = memo(function DayGroup({
   date,
   trades,
   selectedSymbol: _selectedSymbol,
@@ -498,4 +506,4 @@ export function DayGroup({
       </Collapse>
     </Flex>
   );
-}
+});

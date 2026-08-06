@@ -8,10 +8,24 @@ from typing import List, Optional
 
 from rich.console import Console
 
+import importlib
+
+SIGNAL_GENERATOR_REGISTRY: dict[str, tuple[str, str]] = {
+    "ORB": ("trading.orb_signals", "ORBSignalGenerator"),
+    "SR_BREAKOUT": ("trading.sr_breakout_signals", "SRBreakoutSignalGenerator"),
+    "52W_CHASER": ("trading.week52_chaser_signals", "Week52ChaserSignalGenerator"),
+    "52W_TARGET": ("trading.week52_target_signals", "Week52TargetSignalGenerator"),
+    "BLIND_52W": ("trading.blind_52w_signals", "Blind52WSignalGenerator"),
+    "EMA_CROSS": ("trading.ema_cross_signals", "EMACrossSignalGenerator"),
+    "SHORT_52W_FAILED": ("trading.short_52w_failed_signals", "Short52WFailedSignalGenerator"),
+    "ADX_TREND": ("trading.adx_trend_signals", "ADXTrendSignalGenerator"),
+    "VOLUME_SURGE": ("trading.volume_surge_signals", "VolumeSurgeSignalGenerator"),
+}
+
 console = Console()
 
 INTRADAY_STRATEGY_TYPES = {"ORB", "SR_BREAKOUT", "EMA_CROSS"}
-SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W"}
+SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W", "ADX_TREND", "SHORT_52W_FAILED", "VOLUME_SURGE"}
 
 
 @dataclass
@@ -35,35 +49,30 @@ class StrategyRunner:
         if self.signal_generator is not None:
             return
 
-        if self.strategy_type == "ORB":
-            from trading.orb_signals import ORBSignalGenerator
-            self.signal_generator = ORBSignalGenerator(
-                or_minutes=self.config.get('or_minutes', 45),
-                sl_pct=self.config.get('sl_pct'),
-                tp_pct=self.config.get('tp_pct'),
-                min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
-                max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
-                breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
-                config_name=self.strategy_name,
-            )
-        elif self.strategy_type == "SR_BREAKOUT":
-            from trading.sr_breakout_signals import SRBreakoutSignalGenerator
-            self.signal_generator = SRBreakoutSignalGenerator(self.config)
-        elif self.strategy_type == "52W_CHASER":
-            from trading.week52_chaser_signals import Week52ChaserSignalGenerator
-            self.signal_generator = Week52ChaserSignalGenerator(self.config)
-        elif self.strategy_type == "52W_TARGET":
-            from trading.week52_target_signals import Week52TargetSignalGenerator
-            self.signal_generator = Week52TargetSignalGenerator(self.config)
-        elif self.strategy_type == "BLIND_52W":
-            from trading.blind_52w_signals import Blind52WSignalGenerator
-            self.signal_generator = Blind52WSignalGenerator(self.config)
-        elif self.strategy_type == "EMA_CROSS":
-            from trading.ema_cross_signals import EMACrossSignalGenerator
-            self.signal_generator = EMACrossSignalGenerator(self.config)
+        if self.strategy_type in SIGNAL_GENERATOR_REGISTRY:
+            module_path, class_name = SIGNAL_GENERATOR_REGISTRY[self.strategy_type]
+            try:
+                module = importlib.import_module(module_path)
+                cls = getattr(module, class_name)
+                if self.strategy_type == "ORB":
+                    self.signal_generator = cls(
+                        or_minutes=self.config.get('or_minutes', 45),
+                        sl_pct=self.config.get('sl_pct'),
+                        tp_pct=self.config.get('tp_pct'),
+                        min_or_range_pct=self.config.get('min_or_range_pct', 0.5),
+                        max_or_range_pct=self.config.get('max_or_range_pct', 3.0),
+                        breakout_buffer_pct=self.config.get('breakout_buffer_pct', 0.3),
+                        config_name=self.strategy_name,
+                    )
+                else:
+                    self.signal_generator = cls(self.config)
+            except (ImportError, AttributeError) as e:
+                console.print(f"[red]Failed to load signal generator for {self.strategy_type}: {e}[/red]")
+                from trading.orb_signals import ORBSignalGenerator
+                self.signal_generator = ORBSignalGenerator()
         else:
-            from trading.orb_signals import ORBSignalGenerator
             console.print(f"[yellow]Unknown strategy type '{self.strategy_type}', using ORB generator as fallback[/yellow]")
+            from trading.orb_signals import ORBSignalGenerator
             self.signal_generator = ORBSignalGenerator()
 
         # Apply config-level overrides that all generators share

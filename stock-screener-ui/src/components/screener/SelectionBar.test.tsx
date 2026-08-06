@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SelectionBar } from "./SelectionBar";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 const mockClearSelectedSymbols = vi.fn();
 let mockSelectedSymbols: string[] = [];
@@ -35,9 +35,9 @@ describe("SelectionBar", () => {
   it("renders when selectedSymbols length > 0", () => {
     mockSelectedSymbols = ["RELIANCE"];
     render(
-      <MantineProvider>
+      <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("selection-bar")).toBeInTheDocument();
   });
@@ -45,9 +45,9 @@ describe("SelectionBar", () => {
   it("returns null when selectedSymbols is empty", () => {
     mockSelectedSymbols = [];
     const { container } = render(
-      <MantineProvider>
+      <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("selection-bar")).not.toBeInTheDocument();
   });
@@ -55,9 +55,9 @@ describe("SelectionBar", () => {
   it("shows selected count badge", () => {
     mockSelectedSymbols = ["RELIANCE", "TCS", "INFY"];
     render(
-      <MantineProvider>
+      <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("3 selected")).toBeInTheDocument();
   });
@@ -65,9 +65,9 @@ describe("SelectionBar", () => {
   it("Clear button calls clearSelectedSymbols", () => {
     mockSelectedSymbols = ["RELIANCE"];
     render(
-      <MantineProvider>
+      <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("clear-selection-btn"));
     expect(mockClearSelectedSymbols).toHaveBeenCalledTimes(1);
@@ -76,9 +76,9 @@ describe("SelectionBar", () => {
   it("Compare button disabled when < 2 symbols", () => {
     mockSelectedSymbols = ["RELIANCE"];
     render(
-      <MantineProvider>
+      <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("compare-btn")).toBeDisabled();
   });
@@ -86,9 +86,9 @@ describe("SelectionBar", () => {
   it("Compare button calls onCompare when clicked", () => {
     mockSelectedSymbols = ["RELIANCE", "TCS"];
     render(
-      <MantineProvider>
+      <UIProvider>
         <SelectionBar onCompare={onCompare} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("compare-btn"));
     expect(onCompare).toHaveBeenCalledTimes(1);

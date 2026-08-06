@@ -2,7 +2,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider, Table } from "@mantine/core";
+import { UIProvider } from "@/ui";
+import { Table } from "@mantine/core";
 import {
   PortfolioSummaryCard,
   StrategyStatusCard,
@@ -23,7 +24,7 @@ import type {
 } from "../../types/bots";
 
 function renderWithProviders(ui: React.ReactElement) {
-  return render(<MantineProvider>{ui}</MantineProvider>);
+  return render(<UIProvider>{ui}</UIProvider>);
 }
 
 const mockPortfolio: PortfolioSummary = {
@@ -223,13 +224,13 @@ describe("BotRow", () => {
 
   it("renders bot row with testid", () => {
     const { container } = renderWithProviders(
-      <MantineProvider>
+      <UIProvider>
         <Table>
           <Table.Tbody>
             <BotRow {...rowProps} />
           </Table.Tbody>
         </Table>
-      </MantineProvider>
+      </UIProvider>
     );
     const el = container.querySelector(`[data-testid="bot-row-${mockBot.id}"]`);
     expect(el).toBeTruthy();
@@ -238,13 +239,13 @@ describe("BotRow", () => {
   it("shows 'Inactive' badge when bot is not active", () => {
     const inactiveBot = { ...mockBot, is_active: false };
     const { container } = renderWithProviders(
-      <MantineProvider>
+      <UIProvider>
         <Table>
           <Table.Tbody>
             <BotRow {...rowProps} bot={inactiveBot} />
           </Table.Tbody>
         </Table>
-      </MantineProvider>
+      </UIProvider>
     );
     expect(container.textContent).toContain("Inactive");
   });

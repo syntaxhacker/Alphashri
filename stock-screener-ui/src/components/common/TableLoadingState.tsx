@@ -1,4 +1,4 @@
-import { Flex, Text, Loader } from "@mantine/core";
+import { Flex, Text, Loader } from "@/ui";
 import type { ReactNode } from "react";
 
 interface TableLoadingStateProps {

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Box, Tabs, Flex, Text } from "@mantine/core";
+import { Stack, Box, Tabs, Flex, Text } from "@/ui";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
 import { CompactPage } from "../common/compact";

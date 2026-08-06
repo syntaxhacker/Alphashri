@@ -3,14 +3,12 @@ Activity feed endpoint — recent trade events for the live terminal.
 """
 
 from datetime import datetime, timedelta
-from pathlib import Path
 from typing import Optional
 
 from fastapi import Depends
 
 from api.auth import get_current_user
 from db.models import User
-from trading.journal import TradeJournal, get_journal
 import config
 
 from .paper_api import router, _get_user_id
@@ -41,41 +39,31 @@ async def get_activity_feed(
     user_id = _get_user_id(user)
     events: list[dict] = []
 
-    journal = get_journal(user_id)
-    known_trade_ids = {t.trade_id for t in journal.trades}
+    from db.database import SessionLocal
+    from db.models import Trade as TradeModel
+    cutoff = datetime.now(config.IST) - timedelta(days=7)
+    try:
+        db = SessionLocal()
+        query = db.query(TradeModel).filter(
+            TradeModel.user_id == user_id,
+            TradeModel.is_test == False,
+            TradeModel.exit_time.isnot(None),
+        )
+        if since:
+            try:
+                since_dt = datetime.fromisoformat(since)
+                query = query.filter(TradeModel.exit_time > since_dt)
+            except (ValueError, TypeError):
+                pass
+        query = query.filter(TradeModel.exit_time >= cutoff)
+        query = query.order_by(TradeModel.exit_time.desc()).limit(limit * 2)
+        trades = query.all()
 
-    today = datetime.now(config.IST)
-    journal_dir = Path(__file__).parent.parent.parent / "journals" / str(user_id)
-    for i in range(7):
-        day = today - timedelta(days=i)
-        date_str = day.strftime('%Y%m%d')
-        journal_file = journal_dir / f"journal_{date_str}.json"
-        if not journal_file.exists():
-            continue
-        try:
-            tj = TradeJournal(user_id=user_id)
-            tj.load_journal(str(journal_file))
-        except Exception:
-            continue
-        for t in tj.trades:
-            if getattr(t, 'trade_id', None) not in known_trade_ids:
-                continue
-            exit_time = getattr(t, 'exit_time', '')
-            if since and exit_time:
-                try:
-                    since_dt = datetime.fromisoformat(since)
-                    if isinstance(exit_time, str):
-                        evt_dt = datetime.fromisoformat(exit_time)
-                    else:
-                        evt_dt = exit_time
-                    if evt_dt <= since_dt:
-                        continue
-                except (ValueError, TypeError):
-                    pass
+        for t in trades:
             direction = "LONG" if t.side.upper() == "BUY" else "SHORT"
             events.append({
                 "type": "trade_exit",
-                "timestamp": str(exit_time) if exit_time else "",
+                "timestamp": str(t.exit_time) if t.exit_time else "",
                 "symbol": t.symbol,
                 "side": t.side,
                 "direction": direction,
@@ -85,11 +73,18 @@ async def get_activity_feed(
                 "pnl": t.pnl,
                 "pnl_pct": t.pnl_pct,
                 "net_pnl": t.net_pnl,
-                "exit_reason": t.exit_reason,
+                "exit_reason": t.exit_reason or "",
                 "strategy_name": t.strategy_name or "",
-                "hold_duration_minutes": getattr(t, "hold_duration_minutes", 0),
-                "trade_id": getattr(t, "trade_id", ""),
+                "hold_duration_minutes": int((t.exit_time - t.entry_time).total_seconds() / 60) if t.exit_time and t.entry_time else 0,
+                "trade_id": f"TRADE-{t.id:06d}",
             })
+    except Exception:
+        pass
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
     mem_events = _in_memory_events.get(user_id, [])
     for e in mem_events:

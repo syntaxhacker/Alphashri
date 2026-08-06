@@ -1,6 +1,6 @@
 import type { ColumnDef } from "./index";
 import { getPnLTextColor, formatPercentage, formatTimeAgo } from "../../../utils/ui-helpers";
-import { Tooltip, Text } from "@mantine/core";
+import { Tooltip, Text } from "@/ui";
 
 export const symbolCol: ColumnDef = {
   key: "symbol",

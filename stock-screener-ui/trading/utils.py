@@ -11,8 +11,12 @@ from typing import Optional, Set
 
 from trading.timezone import IST
 
+# Market time constants (single source of truth)
+PRE_MARKET = (9, 0)
 MARKET_OPEN = (9, 15)
+OR_END = (10, 0)
 MARKET_CLOSE = (15, 30)
+FORCE_EXIT = (15, 30)
 
 _cache: Optional[dict] = None
 _cache_timestamp: float = 0
@@ -91,4 +95,4 @@ def is_trading_hours(dt: Optional[datetime] = None) -> bool:
 def is_force_exit_time(dt: Optional[datetime] = None) -> bool:
     if dt is None:
         dt = datetime.now(IST)
-    return dt.hour > 15 or (dt.hour == 15 and dt.minute >= 30)
+    return dt.hour > FORCE_EXIT[0] or (dt.hour == FORCE_EXIT[0] and dt.minute >= FORCE_EXIT[1])

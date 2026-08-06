@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
 import { BrowserRouter } from "react-router-dom";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";
 
 const { mockData } = vi.hoisted(() => ({
@@ -71,11 +71,11 @@ function TestConsumer() {
 function renderWithProvider() {
   return render(
     <BrowserRouter>
-      <MantineProvider>
+      <UIProvider>
         <PreviewChartProvider>
           <TestConsumer />
         </PreviewChartProvider>
-      </MantineProvider>
+      </UIProvider>
     </BrowserRouter>,
   );
 }

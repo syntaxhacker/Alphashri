@@ -14,6 +14,11 @@ export async function setupSectorTest(page: Page) {
 }
 
 export async function gotoSector(page: Page) {
-  await page.goto("/sector");
-  await page.waitForSelector('[data-testid="sector-analysis-view"]', { timeout: 10000 });
+  const errors: string[] = [];
+  page.on("pageerror", (err) => errors.push(err.message));
+  await page.goto("/sector", { waitUntil: "domcontentloaded" });
+  await page.waitForSelector('[data-testid="sector-analysis-view"]', { timeout: 10000 }).catch((e) => {
+    if (errors.length > 0) throw new Error(`Page errors during gotoSector: ${errors.join("; ")}`);
+    throw e;
+  });
 }

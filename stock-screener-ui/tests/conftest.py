@@ -375,14 +375,6 @@ def validate_uuid():
 @pytest.fixture(autouse=True, scope="function")
 def reset_trading_module_state():
     """Reset trading module state before and after each test."""
-    # Reset journal state
-    try:
-        import trading.journal
-        if hasattr(trading.journal, '_journals'):
-            trading.journal._journals.clear()
-    except ImportError:
-        pass
-    
     # Reset ORB signals state
     try:
         import trading.orb_signals
@@ -410,13 +402,6 @@ def reset_trading_module_state():
     yield
     
     # Post-test cleanup
-    try:
-        import trading.journal
-        if hasattr(trading.journal, '_journals'):
-            trading.journal._journals.clear()
-    except ImportError:
-        pass
-    
     try:
         import trading.orb_signals
         if hasattr(trading.orb_signals, '_signal_state'):

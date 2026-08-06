@@ -202,7 +202,11 @@ export type BotLoadingKey =
   | "delete"
   | "start"
   | "stop"
+  | "stop-all"
   | "trades";
+
+// Bot views
+export type BotsView = "list" | "status" | "performance";
 
 // Bot state
 export interface BotsState {

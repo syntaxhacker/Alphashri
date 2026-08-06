@@ -354,6 +354,9 @@ async def add_manual_mapping(
         
         mapper.manual_mappings[code.upper()] = trading_symbol.upper()
         
+        from cache.redis_client import invalidate_news_cache
+        invalidate_news_cache()
+        
         return {
             "success": True,
             "code": code.upper(),
@@ -386,6 +389,9 @@ async def remove_manual_mapping(code: str, user: User = Depends(get_current_user
         
         del mapper.manual_mappings[code]
         
+        from cache.redis_client import invalidate_news_cache
+        invalidate_news_cache()
+        
         return {
             "success": True,
             "code": code,
@@ -414,6 +420,9 @@ async def add_to_blacklist(code: str, user: User = Depends(get_current_user)):
         await asyncio.to_thread(_sync_write_config, config_path, config)
         
         mapper.blacklist.add(code)
+        
+        from cache.redis_client import invalidate_news_cache
+        invalidate_news_cache()
         
         return {
             "success": True,

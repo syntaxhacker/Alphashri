@@ -13,9 +13,9 @@ import {
   IconShield,
   IconPlayerPlay,
   IconLayoutGrid,
+  IconAdjustments,
 } from "@tabler/icons-react";
-import { Box, Group, ScrollArea, AppShell, Stack, ActionIcon } from "@mantine/core";
-import { useMantineColorScheme } from "@mantine/core";
+import { Box, Group, ScrollArea, AppShellSection, Stack, ActionIcon, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
 import { useAuth } from "../auth/AuthProvider2";
@@ -34,6 +34,7 @@ const navItems = [
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
   { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
+  { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
@@ -49,7 +50,7 @@ export function NavbarNested({
   onToggleCollapse,
   onMobileNavigate,
 }: NavbarNestedProps) {
-  const { colorScheme, toggleColorScheme } = useMantineColorScheme();
+  const { colorScheme, toggleColorScheme } = useColorScheme();
   const { user } = useAuth();
 
   const visibleNavItems = navItems.filter((item) => item.label !== "Admin" || user?.is_admin);
@@ -69,7 +70,7 @@ export function NavbarNested({
 
   return (
     <nav className={classes.navbar} data-testid="sidemenu" id="navbar-nested">
-      <AppShell.Section
+      <AppShellSection
         grow
         component={ScrollArea}
         className={classes.links}
@@ -77,9 +78,9 @@ export function NavbarNested({
         data-testid="navbar-links"
       >
         <Box className={classes.linksInner}>{links}</Box>
-      </AppShell.Section>
+      </AppShellSection>
 
-      <AppShell.Section className={classes.footer} id="navbar-footer" data-testid="navbar-footer">
+      <AppShellSection className={classes.footer} id="navbar-footer" data-testid="navbar-footer">
         <Stack gap="xs">
           <Group justify="space-between" px="xs">
             <UserButton collapsed={collapsed} />
@@ -107,7 +108,7 @@ export function NavbarNested({
             </Group>
           </Group>
         </Stack>
-      </AppShell.Section>
+      </AppShellSection>
     </nav>
   );
 }

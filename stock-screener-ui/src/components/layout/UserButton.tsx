@@ -1,5 +1,5 @@
 import { IconLogout } from "@tabler/icons-react";
-import { Avatar, Box, Group, Text, UnstyledButton, Menu, rem } from "@mantine/core";
+import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem, rem } from "@/ui";
 import classes from "./UserButton.module.css";
 
 declare global {
@@ -23,7 +23,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
 
   return (
     <Menu position="right-start" offset={8} shadow="md">
-      <Menu.Target>
+      <MenuTarget>
         <UnstyledButton
           className={classes.user}
           data-testid="user-menu-trigger"
@@ -46,18 +46,18 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
             )}
           </Group>
         </UnstyledButton>
-      </Menu.Target>
+      </MenuTarget>
 
-      <Menu.Dropdown data-testid="user-menu-dropdown">
-        <Menu.Item
+      <MenuDropdown data-testid="user-menu-dropdown">
+        <MenuItem
           leftSection={<IconLogout style={{ width: rem(14), height: rem(14) }} />}
           onClick={handleLogout}
           color="red"
           data-testid="logout-button"
         >
           Logout
-        </Menu.Item>
-      </Menu.Dropdown>
+        </MenuItem>
+      </MenuDropdown>
     </Menu>
   );
 }

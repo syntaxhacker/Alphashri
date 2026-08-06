@@ -155,7 +155,7 @@ class TestResampleTimeframe:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -173,7 +173,7 @@ class TestResampleTimeframe:
 
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             resp_5min = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
             resp_15min = client.get("/api/paper/chart/ONGC?timeframe=15min", headers=auth_headers)
 
@@ -190,7 +190,7 @@ class TestResampleTimeframe:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=15min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -202,7 +202,7 @@ class TestResampleTimeframe:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=30min", headers=auth_headers)
         assert response.status_code == 200
         assert len(response.json()["candles"]) > 0
@@ -213,7 +213,7 @@ class TestResampleTimeframe:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=1hour", headers=auth_headers)
         assert response.status_code == 200
         assert len(response.json()["candles"]) > 0
@@ -224,7 +224,7 @@ class TestResampleTimeframe:
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=1min", headers=auth_headers)
         assert response.status_code == 200
         # 1min should have more candles than 5min
@@ -243,7 +243,7 @@ class TestCacheHitMiss:
         cached_df = sample_1min_df.copy()
         with patch("api.paper.endpoints.get_cached_candles", return_value=(cached_df, True)), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -259,7 +259,7 @@ class TestCacheHitMiss:
              patch("api.paper.endpoints.save_cached_candles") as mock_save, \
              patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -285,7 +285,7 @@ class TestIntradayOnly:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min&intraday_only=true",
                 headers=auth_headers,
@@ -313,7 +313,7 @@ class TestORBLevels:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -354,7 +354,7 @@ class TestORBLevels:
              patch("db.database.SessionLocal", side_effect=session_factory), \
              patch("api.paper.endpoints.SessionLocal", side_effect=session_factory), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min&strategy_id=1",
                 headers=auth_headers,
@@ -408,7 +408,7 @@ class TestEMASeries:
              patch("db.database.SessionLocal", side_effect=session_factory), \
              patch("api.paper.endpoints.SessionLocal", side_effect=session_factory), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min&strategy_id=1", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -432,7 +432,7 @@ class TestEMASeries:
              patch("db.database.SessionLocal", side_effect=Exception("DB error")), \
              patch("api.paper.endpoints.SessionLocal", side_effect=Exception("DB error")), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min&strategy_id=1", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -455,7 +455,7 @@ class TestPivotLevels:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -490,7 +490,7 @@ class TestTradeMarkers:
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[sample_journal_trade]), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper.endpoints.get_journal", return_value=mock_journal):
+             patch("api.paper.endpoints.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -500,26 +500,7 @@ class TestTradeMarkers:
         assert "entry_price" in trade
         assert "exit_price" in trade
 
-    def test_trades_fallback_to_journal(self, client, auth_headers, sample_1min_df, mock_trading_deps, sample_journal_trade):
-        mock_trader, mock_journal = mock_trading_deps
-        mock_journal.trades = [sample_journal_trade]
-        mock_api = MagicMock()
-        mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
-        today = datetime.now(IST).strftime("%Y-%m-%d")
-        sample_journal_trade.exit_time = f"{today}T11:00:00+05:30"
-        sample_journal_trade.entry_time = f"{today}T10:00:00+05:30"
-        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
-             patch("api.paper.endpoints.save_cached_candles"), \
-             patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[]), \
-             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper.endpoints.get_journal", return_value=mock_journal), \
-             patch("pathlib.Path.exists", return_value=False):
-            response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
-        assert response.status_code == 200
-        data = response.json()
-        assert "trades" in data, f"Response keys: {list(data.keys())}"
-        assert len(data["trades"]) >= 1
+
 
 
 # ---------------------------------------------------------------------------
@@ -539,7 +520,7 @@ class TestCurrentPosition:
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[]), \
              patch("api.paper.endpoints.get_paper_trader", return_value=mock_trader_with_position), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader_with_position), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -556,7 +537,7 @@ class TestCurrentPosition:
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[]), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/RELIANCE?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -643,7 +624,7 @@ class TestWeekendFallback:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min&date=2026-03-28",
                 headers=auth_headers,
@@ -670,7 +651,7 @@ class TestChartErrors:
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper.endpoints._find_last_trading_day", return_value="2026-03-28"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/INVALID?timeframe=5min&date=2026-03-28",
                 headers=auth_headers,
@@ -720,7 +701,7 @@ class TestDirectTimeframeFiltering:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=4hour&date=2026-03-26",
                 headers=auth_headers,
@@ -756,7 +737,7 @@ class TestDirectTimeframeFiltering:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=2hour&date=2026-03-26",
                 headers=auth_headers,
@@ -776,7 +757,7 @@ class TestDirectTimeframeFiltering:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=4hour&date=2026-03-28&from_date=2026-03-24",
                 headers=auth_headers,
@@ -803,7 +784,7 @@ class TestDirectTimeframeFiltering:
              patch("api.paper.endpoints.get_cached_candles", return_value=(None, False)), \
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=4hour&date=2026-03-28",
                 headers=auth_headers,
@@ -830,7 +811,7 @@ class TestResponseShape:
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[]), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         assert response.status_code == 200
         data = response.json()
@@ -850,7 +831,7 @@ class TestResponseShape:
              patch("api.paper.endpoints.save_cached_candles"), \
              patch("api.paper.endpoints._get_symbol_trades_from_db", return_value=[]), \
              patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
-             patch("api.paper_trading.get_journal", return_value=mock_journal):
+             patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get("/api/paper/chart/ONGC?timeframe=5min", headers=auth_headers)
         data = response.json()
         candle = data["candles"][0]

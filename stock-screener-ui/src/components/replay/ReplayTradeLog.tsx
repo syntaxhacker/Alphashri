@@ -1,5 +1,5 @@
 import { useRef, useEffect, useMemo, useCallback, useState } from "react";
-import { Table, Text, Select, ScrollArea, Group, Badge, Box, Anchor } from "@mantine/core";
+import { Table, Text, Select, ScrollArea, Group, Badge, Box, Anchor } from "@/ui";
 import {
   getPnLTextColor,
   formatTimeOnly,

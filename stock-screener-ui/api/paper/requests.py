@@ -44,6 +44,7 @@ class StrategyConfigUpdate(BaseModel):
     max_trade_value: Optional[float] = None
     cooldown_minutes: Optional[int] = None
     max_distance_from_or_pct: Optional[float] = None
+    scan_interval_secs: Optional[int] = None
     brokerage_pct: Optional[float] = None
     min_brokerage: Optional[float] = None
     stt_pct: Optional[float] = None

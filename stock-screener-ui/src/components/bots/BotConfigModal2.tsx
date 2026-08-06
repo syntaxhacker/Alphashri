@@ -15,7 +15,7 @@ import {
   Alert,
   ThemeIcon,
   Switch,
-} from "@mantine/core";
+} from "@/ui";
 import { IconPlus, IconTrash, IconInfoCircle } from "@tabler/icons-react";
 import type { BotConfig, AvailableStrategy, StrategyAllocation } from "../../types/bots";
 import {
@@ -231,7 +231,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 placeholder="e.g., Multi-ORB Test"
                 required
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(val) => setName(val)}
                 data-testid="bot-name-input"
               />
               <Checkbox

@@ -57,6 +57,11 @@ export async function stopBot(botId: string): Promise<{ message: string }> {
   return apiPostAction<{ message: string }>(`${BOT_BASE}/${botId}/stop`);
 }
 
+// Stop all bots
+export async function stopAllBots(): Promise<{ message: string; stopped: { id: string; name: string }[] }> {
+  return apiPostAction<{ message: string; stopped: { id: string; name: string }[] }>(`${BOT_BASE}/stop-all`);
+}
+
 // Get bot status
 export async function getBotStatus(botId: string): Promise<BotStatus> {
   const raw = await apiGet<BotStatus & { status_unknown?: boolean }>(`${BOT_BASE}/${botId}/status`);

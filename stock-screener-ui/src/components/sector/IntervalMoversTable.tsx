@@ -1,4 +1,4 @@
-import { Table, Text } from "@mantine/core";
+import { Table, Text } from "@/ui";
 import type { InternalStockMover } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 

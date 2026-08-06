@@ -10,7 +10,7 @@ import {
   Card,
   Stack,
   Alert,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconTrash,
   IconExternalLink,

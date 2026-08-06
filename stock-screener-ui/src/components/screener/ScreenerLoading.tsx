@@ -1,4 +1,4 @@
-import { Group, Loader, Text } from "@mantine/core";
+import { Group, Loader, Text } from "@/ui";
 import { CompactPanel } from "../common/compact";
 import type { ScreenerLoadingProps } from "./types";
 

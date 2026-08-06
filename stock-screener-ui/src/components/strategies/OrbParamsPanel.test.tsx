@@ -2,7 +2,7 @@
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider, Tabs } from "@mantine/core";
+import { UIProvider, Tabs } from "@/ui";
 import { OrbParamsPanel } from "./OrbParamsPanel";
 import { DEFAULT_VALUES } from "./strategyDefaults";
 
@@ -12,11 +12,11 @@ afterEach(() => {
 
 function renderInTabs(initialValues = DEFAULT_VALUES, isSwing = false) {
   return render(
-    <MantineProvider>
+    <UIProvider>
       <Tabs value="orb">
         <OrbParamsPanel initialValues={initialValues} isSwing={isSwing} />
       </Tabs>
-    </MantineProvider>,
+    </UIProvider>,
   );
 }
 

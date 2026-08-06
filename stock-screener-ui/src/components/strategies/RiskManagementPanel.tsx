@@ -1,4 +1,4 @@
-import { Stack, Group, NumberInput, Text, Divider, Tabs } from "@mantine/core";
+import { Stack, Group, NumberInput, Text, Divider, Tabs } from "@/ui";
 import { IconInfoCircle } from "@tabler/icons-react";
 import type { StrategyFormData } from "./types";
 

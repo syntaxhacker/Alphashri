@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { SymbolChips } from "./SymbolChips";
 import "@testing-library/jest-dom/vitest";
 
@@ -12,7 +12,7 @@ vi.mock("../../api/symbols", () => ({
 }));
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <UIProvider>{children}</UIProvider>;
 }
 
 describe("SymbolChips", () => {

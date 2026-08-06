@@ -590,6 +590,8 @@ async def process_news_queue(body: NewsQueueProcessRequest, current_user=Depends
                 {"qid": qid},
             )
             conn.commit()
+        from cache.redis_client import invalidate_news_cache
+        invalidate_news_cache()
         result_data["processed"] = 1
         result_data["article_id"] = aid
         result_data["headline"] = (headline or "")[:80]

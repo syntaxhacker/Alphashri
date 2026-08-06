@@ -293,6 +293,33 @@ SCREENER_PROFILES = {
             'order_by': ('volume', False),
         },
     },
+    'undervalued': {
+        'label': 'Undervalued',
+        'description': 'Financially undervalued stocks (low P/E, P/B, strong ROE, low debt)',
+        'indicators': ['P/E', 'P/B', 'ROE', 'D/E'],
+        'columns': ['symbol', 'score', 'pe', 'pb', 'roe', 'de', 'close', 'mcap_cr', 'div_yield', 'sector'],
+        'default_sort': {'column': 'score', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'volume', 'market_cap_basic', 'sector',
+                'price_earnings_ttm',
+                'price_book_ratio',
+                'return_on_equity',
+                'debt_to_equity',
+                'dividend_yield_recent',
+            ],
+            'filters': [
+                Column('close') > 20,
+                Column('volume') > 100_000,
+                Column('market_cap_basic') > 1_000_000_000,
+                Column('price_earnings_ttm').between(3, 25),
+                Column('price_book_ratio') < 5,
+                Column('return_on_equity') > 6,
+                Column('debt_to_equity') < 2,
+            ],
+            'order_by': ('price_earnings_ttm', True),
+        },
+    },
 }
 
 
@@ -626,6 +653,24 @@ def _score_intraday_momentum(df):
     return out.sort_values(['swing_score', 'volume'], ascending=[False, False])
 
 
+def _score_undervalued(df):
+    """Score stocks by value metrics — low P/E, P/B, strong ROE, low debt."""
+    def calc_score(row):
+        pe = _safe_float(row, 'price_earnings_ttm', 25)
+        pb = _safe_float(row, 'price_book_ratio', 3)
+        roe = _safe_float(row, 'return_on_equity', 0)
+        de = _safe_float(row, 'debt_to_equity', 1)
+        dy = _safe_float(row, 'dividend_yield_recent', 0)
+        return (
+            max(0, (25 - min(pe, 25))) * 0.30 +
+            max(0, (4 - min(pb, 4))) * 0.20 +
+            min(max(roe, 0), 40) * 0.25 +
+            max(0, (2 - min(de, 2))) * 0.15 +
+            min(max(dy, 0), 10) * 0.10
+        )
+    df['value_score'] = df.apply(calc_score, axis=1)
+    return df.sort_values('value_score', ascending=False)
+
 def _score_by_profile(df, profile):
     if profile == 'intraday_momentum':
         return _score_intraday_momentum(df)
@@ -647,6 +692,8 @@ def _score_by_profile(df, profile):
         return _score_market_open_gap(df)
     if profile == 'nifty_movers':
         return _score_nifty_movers(df)
+    if profile == 'undervalued':
+        return _score_undervalued(df)
     return _score_trending(df)
 
 

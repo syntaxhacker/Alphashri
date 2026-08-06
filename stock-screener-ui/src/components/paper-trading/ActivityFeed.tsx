@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Flex, Text, Badge, ScrollArea, Loader, Center, ActionIcon } from "@mantine/core";
+import { Flex, Text, Badge, ScrollArea, Loader, Center, ActionIcon } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getPaperTradingState, subscribe } from "../../state/paperTrading";

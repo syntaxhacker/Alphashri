@@ -14,7 +14,7 @@ import {
   Title,
   Badge,
   ScrollArea,
-} from "@mantine/core";
+} from "@/ui";
 import {
   IconChartBar,
   IconBuildingFactory,

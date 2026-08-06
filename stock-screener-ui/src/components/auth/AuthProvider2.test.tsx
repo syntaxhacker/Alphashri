@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { AuthProvider, useAuth } from "./AuthProvider2";
 
 const TOKEN_KEY = "alphashri_token";
@@ -47,11 +47,11 @@ function TestConsumer() {
 
 function renderWithProvider() {
   return render(
-    <MantineProvider>
+    <UIProvider>
       <AuthProvider>
         <TestConsumer />
       </AuthProvider>
-    </MantineProvider>,
+    </UIProvider>,
   );
 }
 
@@ -80,9 +80,9 @@ describe("AuthProvider2", () => {
   it("useAuth throws if used outside AuthProvider", () => {
     expect(() =>
       render(
-        <MantineProvider>
+        <UIProvider>
           <TestConsumer />
-        </MantineProvider>,
+        </UIProvider>,
       ),
     ).toThrow("useAuth must be used within an AuthProvider");
   });
@@ -96,11 +96,11 @@ describe("AuthProvider2", () => {
       return null;
     }
     render(
-      <MantineProvider>
+      <UIProvider>
         <AuthProvider>
           <Consumer />
         </AuthProvider>
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(token).toBe("test-token");
   });
@@ -126,11 +126,11 @@ describe("AuthProvider2", () => {
       );
     }
     render(
-      <MantineProvider>
+      <UIProvider>
         <AuthProvider>
           <Consumer />
         </AuthProvider>
-      </MantineProvider>,
+      </UIProvider>,
     );
     await act(async () => {
       screen.getByText("Fetch").click();

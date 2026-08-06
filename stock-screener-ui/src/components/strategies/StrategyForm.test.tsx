@@ -3,15 +3,18 @@ import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-vi.mock("@mantine/core", async (importOriginal) => {
-  const actual = await importOriginal();
+vi.mock("@/ui", async () => {
+  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...actual,
+    ...core,
+    UIProvider: ui.UIProvider,
+    useDebouncedValue: ui.useDebouncedValue,
     Select: ({ onChange, data, "data-testid": testId, ...rest }: any) => (
       <select
         data-testid={testId}
@@ -70,54 +73,54 @@ const baseProps = {
 describe("StrategyForm", () => {
   it("renders modal with data-testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-form-modal")).toBeInTheDocument();
   });
 
   it("shows Create Strategy title", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Create Strategy")).toBeInTheDocument();
   });
 
   it("shows Edit Strategy title in edit mode", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} mode="edit" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Edit Strategy")).toBeInTheDocument();
   });
 
   it("renders form with data-testid", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-form")).toBeInTheDocument();
   });
 
   it("renders Strategy Name input", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-name-input")).toBeInTheDocument();
   });
 
   it("renders Strategy Type select (enabled in create mode)", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const typeInput = screen.getByTestId("strategy-type-input");
     expect(typeInput).toBeInTheDocument();
@@ -126,9 +129,9 @@ describe("StrategyForm", () => {
 
   it("renders Strategy Type select (disabled in edit mode)", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} mode="edit" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const typeInput = screen.getByTestId("strategy-type-input");
     expect(typeInput).toBeDisabled();
@@ -136,36 +139,36 @@ describe("StrategyForm", () => {
 
   it("renders Description input", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-description-input")).toBeInTheDocument();
   });
 
   it("renders Screener Profiles MultiSelect", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-screener-profiles")).toBeInTheDocument();
   });
 
   it("renders Custom Stocks MultiSelect", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-custom-watchlist")).toBeInTheDocument();
   });
 
   it("renders form tabs", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-form-tabs")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-form-tabs-list")).toBeInTheDocument();
@@ -173,36 +176,36 @@ describe("StrategyForm", () => {
 
   it("renders ORB tab visible for ORB type", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
   });
 
   it("Sizing tab always visible", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-risk")).toBeInTheDocument();
   });
 
   it("Execution tab always visible", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-runner")).toBeInTheDocument();
   });
 
   it("renders Cancel and Submit buttons", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-cancel-btn")).toBeInTheDocument();
     expect(screen.getByTestId("submit-strategy-btn")).toBeInTheDocument();
@@ -210,18 +213,18 @@ describe("StrategyForm", () => {
 
   it("submit button shows Create or Save text based on mode", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Create")).toBeInTheDocument();
   });
 
   it("submit button shows Save in edit mode", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} mode="edit" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByText("Save")).toBeInTheDocument();
   });
@@ -230,9 +233,9 @@ describe("StrategyForm", () => {
     const onClose = vi.fn();
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} onClose={onClose} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("strategy-cancel-btn"));
     expect(onClose).toHaveBeenCalledTimes(1);
@@ -240,9 +243,9 @@ describe("StrategyForm", () => {
 
   it("renders restart warning alert in edit mode with bot running", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} mode="edit" isBotRunning={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-form-restart-warning")).toBeInTheDocument();
   });
@@ -268,9 +271,9 @@ describe("StrategyForm", () => {
       gst_pct: 18, created_at: null, updated_at: null,
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-form-template-info")).toBeInTheDocument();
     expect(screen.getByText(/ORB Template/)).toBeInTheDocument();
@@ -285,9 +288,9 @@ describe("StrategyForm", () => {
       ema_slow_period: 9,
     });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("submit-strategy-btn"));
     expect(window.alert).toHaveBeenCalledWith("Fast EMA period must be less than Slow EMA period");
@@ -303,9 +306,9 @@ describe("StrategyForm", () => {
       ema_slow_period: 21,
     });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("submit-strategy-btn"));
     expect(window.alert).not.toHaveBeenCalled();
@@ -315,18 +318,18 @@ describe("StrategyForm", () => {
   it("shows correct tab panel for strategy type from template", () => {
     const emaTemplate = makeTemplate({ strategy_type: "EMA_CROSS" });
     const { unmount } = render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={emaTemplate} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-ema")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-orb")).not.toBeInTheDocument();
     unmount();
     const orbTemplate = makeTemplate({ strategy_type: "ORB" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={orbTemplate} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
   });
@@ -343,9 +346,9 @@ describe("StrategyForm", () => {
       screener_profiles: [],
     });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     await user.click(screen.getByTestId("submit-strategy-btn"));
     expect(onSubmit).toHaveBeenCalledTimes(1);
@@ -357,9 +360,9 @@ describe("StrategyForm", () => {
   it("shows Execution tab and RunnerPanel", () => {
     const template = makeTemplate();
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-runner")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-runner")).toBeInTheDocument();
@@ -368,9 +371,9 @@ describe("StrategyForm", () => {
   it("shows S/R Breakout tab for SR_BREAKOUT type", () => {
     const template = makeTemplate({ strategy_type: "SR_BREAKOUT" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-sr")).toBeInTheDocument();
@@ -379,9 +382,9 @@ describe("StrategyForm", () => {
   it("shows 52W Params tab for 52W_CHASER type", () => {
     const template = makeTemplate({ strategy_type: "52W_CHASER" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
@@ -390,9 +393,9 @@ describe("StrategyForm", () => {
   it("shows 52W Params tab for 52W_TARGET type", () => {
     const template = makeTemplate({ strategy_type: "52W_TARGET" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
@@ -401,9 +404,9 @@ describe("StrategyForm", () => {
   it("shows EMA params panel with Fast/Slow period inputs for EMA_CROSS type", () => {
     const template = makeTemplate({ strategy_type: "EMA_CROSS" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-ema")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-panel-ema")).toBeInTheDocument();
@@ -414,9 +417,9 @@ describe("StrategyForm", () => {
   it("shows Swing params panel with entry threshold, trailing stop, holding days, cooldown days for 52W_CHASER type", () => {
     const template = makeTemplate({ strategy_type: "52W_CHASER" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-entry-threshold-input")).toBeInTheDocument();
@@ -428,9 +431,9 @@ describe("StrategyForm", () => {
   it("shows Swing params panel with all inputs for 52W_TARGET type", () => {
     const template = makeTemplate({ strategy_type: "52W_TARGET" });
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={template} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-panel-52w")).toBeInTheDocument();
     expect(screen.getByTestId("strategy-entry-threshold-input")).toBeInTheDocument();
@@ -442,9 +445,9 @@ describe("StrategyForm", () => {
   it("changes active tab when strategy type is changed via Select", async () => {
     const user = userEvent.setup();
     render(
-      <MantineProvider>
+      <UIProvider>
         <StrategyForm {...baseProps} template={makeTemplate({ strategy_type: "ORB" })} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-sr")).not.toBeInTheDocument();

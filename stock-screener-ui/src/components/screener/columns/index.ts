@@ -8,6 +8,7 @@ import { getHighMomentumColumns } from "./highMomentum";
 import { getNear52wBreakoutColumns } from "./near52wBreakout";
 import { getTouched52wColumns } from "./touched52wHigh";
 import { get52wHighColumns } from "./52wHigh";
+import { getUndervaluedColumns } from "./undervalued";
 
 export interface FormattedCell {
   value: string;
@@ -48,6 +49,8 @@ export function getColumnsForScreener(
       return getNiftyMoversColumns();
     case "high_momentum":
       return getHighMomentumColumns();
+    case "undervalued":
+      return getUndervaluedColumns();
     default:
       return getTrendingColumns();
   }

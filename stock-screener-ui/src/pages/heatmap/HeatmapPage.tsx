@@ -8,7 +8,7 @@ import {
   TextInput,
   LoadingOverlay,
   Badge,
-} from "@mantine/core";
+} from "@/ui";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { fetchHeatmapData, fetchHeatmapSectors, type SectorInfo } from "../../api/heatmap";
 import { METRICS, getMetricValue, getMetricColor, getMetricTextColor } from "./heatmapUtils";
@@ -119,7 +119,7 @@ export function HeatmapPage() {
             size="xs"
             placeholder="Search symbol..."
             value={searchFilter}
-            onChange={(e) => setSearchFilter(e.target.value)}
+            onChange={(val) => setSearchFilter(val)}
             style={{ width: 140 }}
           />
           {!isScatterView && (

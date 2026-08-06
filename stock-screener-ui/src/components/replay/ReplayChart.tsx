@@ -1,5 +1,5 @@
 import { useMemo, useState, forwardRef, useImperativeHandle, useRef } from "react";
-import { Box, Group, Text, Badge, Button, Switch, useMantineColorScheme } from "@mantine/core";
+import { Box, Group, Text, Badge, Button, Switch, useColorScheme } from "@/ui";
 import type {
   ReplayCandle,
   ReplayTrade,
@@ -97,7 +97,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
   ref,
 ) {
   const tradingChartRef = useRef<TradingChartHandle>(null);
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const [activeTF, setActiveTF] = useState(1);
 

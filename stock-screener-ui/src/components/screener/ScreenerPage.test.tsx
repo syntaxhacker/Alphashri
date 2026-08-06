@@ -5,7 +5,7 @@ import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 import { ScreenerPage } from "./ScreenerPage";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 const render = (ui: ReactElement, options?: any) =>
   rtlRender(<MemoryRouter>{ui}</MemoryRouter>, options);
@@ -221,18 +221,18 @@ describe("ScreenerPage", () => {
 
   it("renders without crashing", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-page")).toBeInTheDocument();
   });
 
   it("displays loading state", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
@@ -240,9 +240,9 @@ describe("ScreenerPage", () => {
   it("displays error state with retry button", () => {
     const errorMsg = "Failed to fetch data";
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} error={errorMsg} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-error-container")).toBeInTheDocument();
     expect(screen.getByText("Screener failed to load")).toBeInTheDocument();
@@ -252,9 +252,9 @@ describe("ScreenerPage", () => {
 
   it("calls onRefresh when retry button clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} error="Error occurred" />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("screener-retry-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
@@ -262,18 +262,18 @@ describe("ScreenerPage", () => {
 
   it("displays empty state when no stocks", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} approachingStocks={[]} touchedStocks={[]} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-empty")).toBeInTheDocument();
   });
 
   it("displays approaching stocks section when data exists", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByText(`Approaching (${mockApproachingStocks.length})`)).toBeInTheDocument();
@@ -281,9 +281,9 @@ describe("ScreenerPage", () => {
 
   it("displays touched stocks section when data exists", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();
     expect(screen.getByText(`Touched (${mockTouchedStocks.length})`)).toBeInTheDocument();
@@ -291,9 +291,9 @@ describe("ScreenerPage", () => {
 
   it("renders table view by default", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // Both approaching and touched sections render tables
     expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
@@ -302,9 +302,9 @@ describe("ScreenerPage", () => {
 
   it("switches to heatmap view when view mode changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("view-heatmap"));
     // Both approaching and touched sections render heatmaps
@@ -314,9 +314,9 @@ describe("ScreenerPage", () => {
 
   it("switches back to table view", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // Switch to heatmap first
     fireEvent.click(screen.getByTestId("view-heatmap"));
@@ -331,9 +331,9 @@ describe("ScreenerPage", () => {
 
   it("calls onSymbolClick when symbol is clicked in table", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // The table mock renders rows with data-testid like `row-RELIANCE`
     fireEvent.click(screen.getByTestId("row-RELIANCE"));
@@ -343,18 +343,18 @@ describe("ScreenerPage", () => {
 
   it("calls onSymbolHover when symbol is hovered", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // The actual hover handling is in StockRow - this test would need more detailed mocking
   });
 
   it("renders screener navigation with options", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const nav = screen.getByTestId("screener-nav");
     expect(nav).toBeInTheDocument();
@@ -364,9 +364,9 @@ describe("ScreenerPage", () => {
 
   it("calls onScreenerChange when navigation option clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("nav-new-highs"));
     expect(defaultProps.onScreenerChange).toHaveBeenCalledWith("new-highs");
@@ -374,9 +374,9 @@ describe("ScreenerPage", () => {
 
   it("renders header with correct status", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const header = screen.getByTestId("screener-header");
     expect(header).toHaveAttribute("data-status", "3 stocks");
@@ -384,9 +384,9 @@ describe("ScreenerPage", () => {
 
   it("disables controls when loading", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} isLoading={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // Header controls should be disabled - check via props
     const header = screen.getByTestId("screener-header");
@@ -395,9 +395,9 @@ describe("ScreenerPage", () => {
 
   it("calls onRefresh when refresh button clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     fireEvent.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
@@ -405,9 +405,9 @@ describe("ScreenerPage", () => {
 
   it("calls onAutoRefreshChange when auto-refresh value changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
     fireEvent.change(input, { target: { value: "120" } });
@@ -416,9 +416,9 @@ describe("ScreenerPage", () => {
 
   it("calls onProviderChange when provider changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
     fireEvent.change(select, { target: { value: "indmoney" } });
@@ -427,9 +427,9 @@ describe("ScreenerPage", () => {
 
   it("calls onModeChange when mode changes", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
     fireEvent.change(select, { target: { value: "historical" } });
@@ -438,9 +438,9 @@ describe("ScreenerPage", () => {
 
   it("resets sort when activeScreener changes (via useEffect)", async () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     // The effect should run when activeScreener changes
     // We can verify by checking if setSortColumn/SortDirection were called
@@ -450,9 +450,9 @@ describe("ScreenerPage", () => {
 
   it("computes total stocks count correctly in status", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const header = screen.getByTestId("screener-header");
     expect(header).toHaveAttribute("data-status", "3 stocks");
@@ -460,27 +460,27 @@ describe("ScreenerPage", () => {
 
   it("handles zero approaching stocks", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} approachingStocks={[]} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("screener-approaching-section")).not.toBeInTheDocument();
   });
 
   it("handles zero touched stocks", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} touchedStocks={[]} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.queryByTestId("screener-touched-section")).not.toBeInTheDocument();
   });
 
   it("renders both sections when both have stocks", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ScreenerPage {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();

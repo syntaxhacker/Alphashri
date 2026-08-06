@@ -1,5 +1,5 @@
-import { useEffect, useState } from "react";
-import { Center, Loader } from "@mantine/core";
+import { lazy, Suspense, useEffect, useState } from "react";
+import { Center, Loader } from "@/ui";
 import { Navigate, Route, Routes } from "react-router-dom";
 import { AuthProvider, useAuth } from "./components/auth/AuthProvider2";
 import { LoginForm, RegisterForm } from "./components/auth/LoginForm2";
@@ -7,21 +7,23 @@ import { NotificationContainer } from "./components/notifications/NotificationCo
 import { PreviewChartProvider } from "./components/common/PreviewChartProvider";
 import { ChatPopup } from "./components/common/ChatPopup";
 import { AppLayout } from "./components/layout/AppLayout";
-import { SectorPage } from "./components/sector/SectorPage2";
-import { ScreenerContainer } from "./pages/screener/ScreenerContainer";
-import { StrategiesContainer } from "./pages/strategies/StrategiesContainer";
-import { BacktestPage } from "./components/backtest/mantine";
-import { PaperTradingView } from "./components/paper-trading/mantine";
-import { ReplayPage } from "./components/replay/mantine";
-import { BotsPage } from "./components/bots/mantine";
-import { OptionsContainer } from "./pages/options/OptionsContainer";
-import { SettingsPage } from "./pages/settings/SettingsPage";
 import { NewsWebSocketProvider } from "./state/newsWebSocket";
-import ChartView from "./pages/chart/ChartView";
-import NewsPage from "./pages/NewsPage";
-import AdminPage from "./pages/AdminPage";
-import { HeatmapPage } from "./pages/heatmap/HeatmapPage";
 import { loadHolidays } from "./state/holidays";
+
+const ScreenerContainer = lazy(() => import("./pages/screener/ScreenerContainer").then(m => ({ default: m.ScreenerContainer })));
+const SectorPage = lazy(() => import("./components/sector/SectorPage2").then(m => ({ default: m.SectorPage })));
+const StrategiesContainer = lazy(() => import("./pages/strategies/StrategiesContainer").then(m => ({ default: m.StrategiesContainer })));
+const BacktestPage = lazy(() => import("./components/backtest/mantine").then(m => ({ default: m.BacktestPage })));
+const PaperTradingView = lazy(() => import("./components/paper-trading/mantine").then(m => ({ default: m.PaperTradingView })));
+const ReplayPage = lazy(() => import("./components/replay/mantine").then(m => ({ default: m.ReplayPage })));
+const StrategyRunnerPage = lazy(() => import("./components/strategy-runner/mantine").then(m => ({ default: m.StrategyRunnerPage })));
+const BotsPage = lazy(() => import("./components/bots/mantine").then(m => ({ default: m.BotsPage })));
+const OptionsContainer = lazy(() => import("./pages/options/OptionsContainer").then(m => ({ default: m.OptionsContainer })));
+const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
+const ChartView = lazy(() => import("./pages/chart/ChartView"));
+const NewsPage = lazy(() => import("./pages/NewsPage"));
+const AdminPage = lazy(() => import("./pages/AdminPage"));
+const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);
@@ -67,22 +69,25 @@ function AppContent() {
   return (
     <AppLayout>
       <PreviewChartProvider>
-        <Routes>
-          <Route path="/" element={<ScreenerContainer />} />
-          <Route path="/backtest" element={<BacktestPage />} />
-          <Route path="/paper" element={<PaperTradingView />} />
-          <Route path="/replay" element={<ReplayPage />} />
-          <Route path="/sector" element={<SectorPage />} />
-          <Route path="/strategies" element={<StrategiesContainer />} />
-          <Route path="/bots" element={<BotsPage />} />
-          <Route path="/options" element={<OptionsContainer />} />
-          <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/news" element={<NewsPage />} />
-          <Route path="/admin" element={<AdminPage />} />
-          <Route path="/heatmap" element={<HeatmapPage />} />
-          <Route path="/chart/:symbol?" element={<ChartView />} />
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
+        <Suspense fallback={<Center><Loader /></Center>}>
+          <Routes>
+            <Route path="/" element={<ScreenerContainer />} />
+            <Route path="/backtest" element={<BacktestPage />} />
+            <Route path="/paper" element={<PaperTradingView />} />
+            <Route path="/replay" element={<ReplayPage />} />
+            <Route path="/strategy-runner" element={<StrategyRunnerPage />} />
+            <Route path="/sector" element={<SectorPage />} />
+            <Route path="/strategies" element={<StrategiesContainer />} />
+            <Route path="/bots" element={<BotsPage />} />
+            <Route path="/options" element={<OptionsContainer />} />
+            <Route path="/settings" element={<SettingsPage />} />
+            <Route path="/news" element={<NewsPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/heatmap" element={<HeatmapPage />} />
+            <Route path="/chart/:symbol?" element={<ChartView />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Suspense>
       </PreviewChartProvider>
       <NotificationContainer />
       <ChatPopup />

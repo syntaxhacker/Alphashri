@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 import React from "react";
-import { Tooltip, Text } from "@mantine/core";
+import { Tooltip, Text } from "@/ui";
 import { getMarketOpenGapColumns } from "./marketOpenGap";
 import { getTrendingColumns } from "./trending";
 import { getRsiReversalColumns } from "./rsiReversal";

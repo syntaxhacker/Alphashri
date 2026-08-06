@@ -14,8 +14,8 @@ import {
   Tooltip,
   Button,
   SimpleGrid,
-  useMantineColorScheme,
-} from "@mantine/core";
+  useColorScheme,
+} from "@/ui";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import type { SectorCorrelationResponse } from "../../types/sector";
@@ -203,7 +203,7 @@ function ErrorState({ error }: { error: string }) {
 
 export function SectorCorrelationTab() {
   useStoreSubscription(subscribeToState);
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const data = stateData;
   const sortedSectors = useMemo(() => {
@@ -217,7 +217,7 @@ export function SectorCorrelationTab() {
 
   if (stateLoading && !data) return <LoadingState />;
   if (stateError) return <ErrorState error={stateError} />;
-  if (!data || data.sector_names.length === 0) {
+  if (!data || !data.sector_names || data.sector_names.length === 0) {
     return (
       <CompactPanel title="No data" description="No correlation data available.">
         <Box />

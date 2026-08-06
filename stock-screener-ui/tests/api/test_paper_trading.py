@@ -263,27 +263,12 @@ def mock_journal():
     journal.trades = []
 
     def log_trade(trade_data, notes="", strategy_id=0, strategy_name=""):
-        from trading.journal import TradeRecord
-        record = TradeRecord(
-            trade_id=trade_data.get('trade_id', ''),
-            symbol=trade_data['symbol'],
-            side=trade_data['side'],
-            quantity=trade_data['quantity'],
-            entry_price=trade_data['entry_price'],
-            exit_price=trade_data['exit_price'],
-            entry_time=trade_data['entry_time'],
-            exit_time=trade_data['exit_time'],
-            pnl=trade_data['pnl'],
-            pnl_pct=trade_data['pnl_pct'],
-            exit_reason=trade_data['exit_reason'],
-            costs=trade_data['costs'],
-            net_pnl=trade_data['net_pnl'],
-            peak_price=trade_data.get('peak_price', 0),
-            low_price=trade_data.get('low_price', 0),
-            notes=notes,
-            strategy_id=trade_data.get('strategy_id', strategy_id),
-            strategy_name=trade_data.get('strategy_name', strategy_name),
-        )
+        record = MagicMock()
+        for k, v in trade_data.items():
+            setattr(record, k, v)
+        record.notes = notes
+        record.strategy_id = trade_data.get('strategy_id', strategy_id)
+        record.strategy_name = trade_data.get('strategy_name', strategy_name)
         journal.trades.append(record)
         return record
 
@@ -340,17 +325,16 @@ def app(mock_paper_trader, mock_risk_manager, mock_journal, temp_journals_dir):
     with patch('api.paper.portfolio.get_paper_trader', side_effect=get_paper_trader_mock), \
          patch('api.paper.endpoints.get_paper_trader', side_effect=get_paper_trader_mock), \
          patch('api.paper.endpoints.get_risk_manager', side_effect=get_risk_manager_mock), \
-         patch('api.paper.endpoints.get_journal', side_effect=get_journal_mock), \
+         patch('api.paper.endpoints.get_journal', side_effect=get_journal_mock, create=True), \
          patch('api.paper.orders.get_paper_trader', side_effect=get_paper_trader_mock), \
          patch('api.paper.orders.get_risk_manager', side_effect=get_risk_manager_mock), \
-         patch('api.paper.orders.get_journal', side_effect=get_journal_mock), \
-         patch('api.paper.history.get_journal', side_effect=get_journal_mock), \
+         patch('api.paper.orders.get_journal', side_effect=get_journal_mock, create=True), \
+         patch('api.paper.history.get_journal', side_effect=get_journal_mock, create=True), \
          patch('api.paper.paper_api.get_paper_trader', side_effect=get_paper_trader_mock), \
-         patch('api.paper.paper_api.get_journal', side_effect=get_journal_mock), \
+         patch('api.paper.paper_api.get_journal', side_effect=get_journal_mock, create=True), \
          patch('trading.paper_trader.get_paper_trader', side_effect=get_paper_trader_mock), \
          patch('trading.paper_trader.reset_paper_trader', side_effect=reset_paper_trader_mock), \
-         patch('trading.risk_manager.get_risk_manager', side_effect=get_risk_manager_mock), \
-         patch('trading.journal.get_journal', side_effect=get_journal_mock):
+         patch('trading.risk_manager.get_risk_manager', side_effect=get_risk_manager_mock):
 
         yield app
 
@@ -1014,7 +998,7 @@ class TestTradeHistory:
     def test_get_trades_default_limit(self, client, mock_journal):
         """Test GET /api/paper/trades with default limit."""
         # Add some trades to journal
-        from trading.journal import TradeRecord
+        from unittest.mock import MagicMock as TradeRecord
         for i in range(10):
             trade = TradeRecord(
                 trade_id=f"TRD-{i}",
@@ -1043,7 +1027,7 @@ class TestTradeHistory:
 
     def test_get_trades_with_limit(self, client, mock_journal):
         """Test GET /api/paper/trades with custom limit."""
-        from trading.journal import TradeRecord
+        from unittest.mock import MagicMock as TradeRecord
         for i in range(100):
             trade = TradeRecord(
                 trade_id=f"TRD-{i}",
@@ -1070,7 +1054,7 @@ class TestTradeHistory:
 
     def test_get_trades_filter_by_symbol(self, client, mock_journal):
         """Test GET /api/paper/trades filtered by symbol."""
-        from trading.journal import TradeRecord
+        from unittest.mock import MagicMock as TradeRecord
         mock_journal.trades = [
             TradeRecord(
                 trade_id="1", symbol="RELIANCE", side="BUY", quantity=100,
@@ -1094,7 +1078,7 @@ class TestTradeHistory:
 
     def test_get_trades_filter_by_strategy(self, client, mock_journal):
         """Test GET /api/paper/trades filtered by strategy."""
-        from trading.journal import TradeRecord
+        from unittest.mock import MagicMock as TradeRecord
         mock_journal.trades = [
             TradeRecord(
                 trade_id="1", symbol="RELIANCE", side="BUY", quantity=100,
@@ -1118,83 +1102,6 @@ class TestTradeHistory:
         data = response.json()
         # Should filter by notes containing the strategy name
         assert len(data["trades"]) >= 0
-
-    def test_get_journal_summary(self, client, mock_journal):
-        """Test GET /api/paper/journal/summary."""
-        from trading.journal import TradeRecord
-        mock_journal.trades = [
-            TradeRecord(
-                trade_id="1", symbol="RELIANCE", side="BUY", quantity=100,
-                entry_price=2500.0, exit_price=2600.0,
-                entry_time="2024-01-01T09:15:00", exit_time="2024-01-01T10:30:00",
-                pnl=10000.0, pnl_pct=4.0, exit_reason="TP", costs=200.0, net_pnl=9800.0,
-            ),
-            TradeRecord(
-                trade_id="2", symbol="TCS", side="BUY", quantity=50,
-                entry_price=3400.0, exit_price=3300.0,
-                entry_time="2024-01-01T09:15:00", exit_time="2024-01-01T10:30:00",
-                pnl=-5000.0, pnl_pct=-2.94, exit_reason="SL", costs=150.0, net_pnl=-5150.0,
-            ),
-        ]
-
-        response = client.get("/api/paper/journal/summary")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "total_trades" in data
-        assert "winners" in data
-        assert "losers" in data
-        assert "net_pnl" in data
-        assert "win_rate" in data
-
-    def test_get_symbol_performance(self, client, mock_journal):
-        """Test GET /api/paper/journal/symbols."""
-        def mock_symbol_perf():
-            return {
-                "RELIANCE": {"trades": 5, "win_rate": 0.6, "total_pnl": 5000.0},
-                "TCS": {"trades": 3, "win_rate": 0.33, "total_pnl": -2000.0},
-            }
-
-        mock_journal.get_symbol_performance = mock_symbol_perf
-
-        response = client.get("/api/paper/journal/symbols")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "RELIANCE" in data
-        assert "TCS" in data
-
-    def test_get_daily_report(self, client, mock_journal):
-        """Test GET /api/paper/journal/daily."""
-        def mock_daily_report(date=None):
-            return {
-                "date": date or "2024-03-03",
-                "trades": 10,
-                "winners": 6,
-                "losers": 4,
-                "net_pnl": 15000.0,
-            }
-
-        mock_journal.get_daily_report = mock_daily_report
-
-        response = client.get("/api/paper/journal/daily")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert "date" in data
-        assert "trades" in data
-
-    def test_export_journal(self, client, mock_journal):
-        """Test GET /api/paper/journal/export."""
-        mock_journal.export_to_csv = MagicMock(return_value="/tmp/journal_export.csv")
-
-        response = client.get("/api/paper/journal/export")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert data["status"] == "success"
-        assert "filepath" in data
-
 
 # ============================================================================
 # 6. Risk Management Tests

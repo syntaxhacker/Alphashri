@@ -1,4 +1,4 @@
-import { Card, Text, Badge, Button, Group, Stack } from "@mantine/core";
+import { Card, Text, Badge, Button, Group, Stack } from "@/ui";
 import { IconPlugConnected, IconPlugX, IconRefresh } from "@tabler/icons-react";
 import type { BrokerStatus } from "../../api/brokers";
 

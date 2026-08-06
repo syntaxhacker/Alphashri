@@ -1,6 +1,6 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
-import { Select, Text, Group, Loader, SegmentedControl, Flex, ScrollArea } from "@mantine/core";
+import { Select, Text, Group, Loader, SegmentedControl, Flex, ScrollArea } from "@/ui";
 import { COMMON_TABLE_STYLES as TABLE_STYLES } from "../common/tableStyles";
 import {
   getPaperTradingState,
@@ -221,13 +221,13 @@ export function PaperHistoryTable() {
   const { state, filteredTrades, tradesByDate, strategies, bots, sortedDates } =
     useFilteredTrades();
 
-  const handleSort = (column: string) => {
+  const handleSort = useCallback((column: string) => {
     const nextDir = getNextSortDirection(sortColumn || "", column, sortDirection);
     setSortColumn(column);
     setSortDirection(nextDir);
-  };
+  }, [sortColumn, sortDirection]);
 
-  const handleSelectSymbol = async (
+  const handleSelectSymbol = useCallback(async (
     symbol: string,
     exitTime?: string,
     tradeId?: string,
@@ -244,9 +244,9 @@ export function PaperHistoryTable() {
     const currentState = getPaperTradingState();
     const date = exitTime ? exitTime.split("T")[0] : dayjs().format("YYYY-MM-DD");
     await fetchPaperChart(symbol, date, currentState.chartTimeframe, strategyId, fromDate);
-  };
+  }, []);
 
-  const toggleDay = (date: string) => setExpandedDays((prev) => ({ ...prev, [date]: !prev[date] }));
+  const toggleDay = useCallback((date: string) => setExpandedDays((prev) => ({ ...prev, [date]: !prev[date] })), []);
 
   if (state.isLoading && state.trades.length === 0) {
     return (

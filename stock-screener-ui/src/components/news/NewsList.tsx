@@ -10,7 +10,7 @@ import {
   Stack,
   Text,
   Title,
-} from "@mantine/core";
+} from "@/ui";
 import { IconRefresh, IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import type { NewsItem } from "./news-types";
 import { formatTimeAgo } from "../../utils/ui-helpers";

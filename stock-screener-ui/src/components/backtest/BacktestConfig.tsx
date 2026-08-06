@@ -12,7 +12,7 @@ import {
   Box,
   Tooltip,
   Divider,
-} from "@mantine/core";
+} from "@/ui";
 import { IconPlayerPlay, IconChevronDown, IconRotate, IconPlayerPause } from "@tabler/icons-react";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
 import { ParamInput } from "./ParamInput";
@@ -212,7 +212,7 @@ export function BacktestConfig({
                 data-testid="include-costs-checkbox"
                 label="Include Costs"
                 checked={includeCosts}
-                onChange={(e) => onIncludeCostsChange(e.currentTarget.checked)}
+                onChange={(checked) => onIncludeCostsChange(checked)}
                 size="sm"
               />
             </Tooltip>

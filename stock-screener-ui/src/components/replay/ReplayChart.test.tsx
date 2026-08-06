@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { ReplayChart } from "./ReplayChart";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { aggregateCandles } from "./ReplayChart";
@@ -112,9 +112,9 @@ describe("aggregateCandles", () => {
 describe("ReplayChart", () => {
   it("shows empty state message when no symbols available", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...baseProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-chart-empty")).toBeInTheDocument();
     expect(screen.getByText("Run a replay to see chart")).toBeInTheDocument();
@@ -129,9 +129,9 @@ describe("ReplayChart", () => {
       },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("symbol-badge-TCS")).toBeInTheDocument();
     expect(screen.getByTestId("symbol-badge-INFY")).toBeInTheDocument();
@@ -145,9 +145,9 @@ describe("ReplayChart", () => {
       },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("tf-btn-1m")).toBeInTheDocument();
     expect(screen.getByTestId("tf-btn-5m")).toBeInTheDocument();
@@ -164,9 +164,9 @@ describe("ReplayChart", () => {
       },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("replay-show-all-trades")).toBeInTheDocument();
     expect(screen.getByTestId("replay-show-markers")).toBeInTheDocument();
@@ -184,9 +184,9 @@ describe("ReplayChart", () => {
       },
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const markersSwitch = screen.getByTestId("replay-show-markers");
     expect(markersSwitch).toBeDisabled();
@@ -202,9 +202,9 @@ describe("ReplayChart", () => {
       selectedSymbol: "TCS",
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(screen.getByTestId("symbol-badge-TCS")).toBeInTheDocument();
     expect(screen.getByTestId("symbol-badge-INFY")).toBeInTheDocument();
@@ -225,9 +225,9 @@ describe("ReplayChart", () => {
       selectedSymbol: "TCS",
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     const btn5m = screen.getByTestId("tf-btn-5m");
     await user.click(btn5m);
@@ -244,9 +244,9 @@ describe("ReplayChart", () => {
       selectedSymbol: "TCS",
     };
     render(
-      <MantineProvider>
+      <UIProvider>
         <ReplayChart {...props} ref={ref} />
-      </MantineProvider>,
+      </UIProvider>,
     );
     expect(ref.current).toBeTruthy();
     ref.current!.setTimeframe(60);

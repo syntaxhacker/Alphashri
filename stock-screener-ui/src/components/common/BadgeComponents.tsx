@@ -1,4 +1,4 @@
-import { Badge } from "@mantine/core";
+import { Badge } from "@/ui";
 
 interface SideBadgeProps {
   side: string;

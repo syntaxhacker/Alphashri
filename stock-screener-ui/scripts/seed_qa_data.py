@@ -23,7 +23,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from db.database import SessionLocal
 from db.models import User, StrategyConfig, BotConfig, bot_strategies, BacktestResult
-from trading.journal import TradeJournal
 
 from rich.console import Console
 from rich.panel import Panel
@@ -418,7 +417,6 @@ def generate_trades(user_id: int, bot: BotConfig, strategies: Dict[int, Strategy
     """Generate dummy trades for a multi-strategy bot."""
     trades = []
     trade_id = 0
-    journal = TradeJournal(user_id=user_id)
 
     # Generate trades over past 5 trading days
     for day in range(5):

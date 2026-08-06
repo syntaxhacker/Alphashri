@@ -1,14 +1,14 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { BacktestProgress, calcProgressPercent } from "./BacktestProgress";
 import "@testing-library/jest-dom/vitest";
 
 afterEach(cleanup);
 
 function Wrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <UIProvider>{children}</UIProvider>;
 }
 
 describe("calcProgressPercent", () => {

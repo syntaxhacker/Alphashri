@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Button, Indicator, Overlay, Paper, ScrollArea, Stack } from "@mantine/core";
+import { Box, Button, Indicator, Overlay, Paper, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";

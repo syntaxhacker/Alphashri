@@ -17,7 +17,6 @@ from fastapi import APIRouter, HTTPException, Depends
 from rich.console import Console
 
 from trading.paper_trader import get_paper_trader
-from trading.journal import get_journal
 from api.auth import get_current_user
 from db.models import User
 import config

@@ -81,6 +81,11 @@ const DEFAULT_SCREENER_OPTIONS: ScreenerOption[] = [
     label: "Intraday Momentum",
     description: "Stocks with rapid price runs in last 5/15/30 mins",
   },
+  {
+    id: "undervalued",
+    label: "Undervalued",
+    description: "Financially undervalued stocks (low P/E, strong ROE, low debt)",
+  },
 ];
 
 export function detectAutoRefreshChanges(prev: ScreenerData | null, next: ScreenerData | null) {

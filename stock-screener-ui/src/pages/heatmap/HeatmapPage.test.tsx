@@ -4,7 +4,7 @@ import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { HeatmapPage } from "./HeatmapPage";
 import { fetchHeatmapData, fetchHeatmapSectors } from "../../api/heatmap";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 
 vi.mock("echarts-for-react", () => ({
   default: () => null,
@@ -15,11 +15,11 @@ vi.mock("../../api/heatmap", () => ({
   fetchHeatmapSectors: vi.fn(),
 }));
 
-vi.mock("@mantine/core", async (importOriginal) => {
+vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
-    useMantineColorScheme: vi.fn(() => ({ colorScheme: "light" })),
+    useColorScheme: vi.fn(() => ({ colorScheme: "light" })),
   };
 });
 
@@ -50,72 +50,72 @@ describe("HeatmapPage", () => {
   });
 
   it("renders heatmap page container", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-page")).toBeInTheDocument());
   });
 
   it("renders without crashing with pending data", () => {
     vi.useFakeTimers();
     vi.mocked(fetchHeatmapData).mockImplementation(() => new Promise(() => {}));
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     vi.advanceTimersByTime(100);
     expect(screen.getByTestId("heatmap-page")).toBeInTheDocument();
     vi.useRealTimers();
   });
 
   it("renders title", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-title")).toBeInTheDocument());
   });
 
   it("has sector filter", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-sector-filter")).toBeInTheDocument());
   });
 
   it("has search input", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-search")).toBeInTheDocument());
   });
 
   it("has metric selector", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-metric")).toBeInTheDocument());
   });
 
   it("has view selector", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-view")).toBeInTheDocument());
   });
 
   it("displays stock count", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => {
       expect(screen.getByTestId("heatmap-stock-count")).toHaveTextContent(/3 stocks/);
     });
   });
 
   it("shows Live badge", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-badge")).toHaveTextContent("Live"));
   });
 
   it("shows Cached badge", async () => {
     vi.mocked(fetchHeatmapData).mockResolvedValue({ stocks: mockStocks, cached: true });
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-badge")).toHaveTextContent("Cached"));
   });
 
   it("shows error on API failure", async () => {
     vi.mocked(fetchHeatmapData).mockRejectedValue(new Error("Network error"));
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => {
       expect(screen.getByTestId("heatmap-error")).toHaveTextContent(/Error:/);
     });
   });
 
   it("renders legend", async () => {
-    render(<MantineProvider><HeatmapPage /></MantineProvider>);
+    render(<UIProvider><HeatmapPage /></UIProvider>);
     await waitFor(() => expect(screen.getByTestId("heatmap-legend")).toBeInTheDocument());
   });
 });

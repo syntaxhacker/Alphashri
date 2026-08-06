@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { NumberInput } from "@mantine/core";
+import { NumberInput } from "@/ui";
 
 interface EditableNumberCellProps {
   value: number;

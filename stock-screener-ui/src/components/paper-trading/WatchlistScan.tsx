@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Accordion, Badge, Flex, Group, Table, Text } from "@mantine/core";
+import { memo, useMemo, useState } from "react";
+import { Accordion, Badge, Flex, Group, Table, Text } from "@/ui";
 import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
@@ -12,7 +12,7 @@ interface WatchlistScanProps {
   selectedSymbol: string | null;
 }
 
-function SignalRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
+const SignalRow = memo(function SignalRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
   const near = nearBreakoutPct(item);
   const nearText = Number.isFinite(near) && near < 9999 ? `${near.toFixed(2)}%` : "-";
   return (
@@ -42,9 +42,9 @@ function SignalRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: stri
       </Table.Td>
     </Table.Tr>
   );
-}
+});
 
-function WatchingRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
+const WatchingRow = memo(function WatchingRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
   const near = nearBreakoutPct(item);
   const nearText = Number.isFinite(near) && near < 9999 ? `${near.toFixed(2)}%` : "-";
   return (
@@ -80,9 +80,9 @@ function WatchingRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: st
       </Table.Td>
     </Table.Tr>
   );
-}
+});
 
-function SkippedRow({
+const SkippedRow = memo(function SkippedRow({
   item,
   onSelect,
 }: {
@@ -117,9 +117,9 @@ function SkippedRow({
       </Table.Td>
     </Table.Tr>
   );
-}
+});
 
-function RejectedRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
+const RejectedRow = memo(function RejectedRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: string) => void }) {
   return (
     <Table.Tr
       onClick={() => onSelect(item.symbol)}
@@ -146,7 +146,7 @@ function RejectedRow({ item, onSelect }: { item: PaperScanItem; onSelect: (s: st
       </Table.Td>
     </Table.Tr>
   );
-}
+});
 
 const SECTION_HEADER = { padding: "2px 6px", fontSize: "11px", fontWeight: 600 as const };
 const SECTION_PANEL = { padding: 0 };

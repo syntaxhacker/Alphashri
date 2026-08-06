@@ -5,9 +5,9 @@ import {
   Stack,
   SimpleGrid,
   Badge,
-  useMantineColorScheme,
-  useMantineTheme,
-} from "@mantine/core";
+  useColorScheme,
+  useTheme,
+} from "@/ui";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
@@ -31,8 +31,8 @@ interface OIAnalysisProps {
 }
 
 export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
-  const theme = useMantineTheme();
-  const { colorScheme } = useMantineColorScheme();
+  const theme = useTheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const analysisData = useMemo(() => {

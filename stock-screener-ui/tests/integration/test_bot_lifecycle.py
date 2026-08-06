@@ -35,7 +35,9 @@ sys.path.insert(0, str(ROOT))
 
 from db.models import User, UserSession, StrategyConfig, BotConfig, bot_strategies
 from api.auth import hash_password
-from trading.journal import get_journal
+from unittest.mock import MagicMock
+def get_journal(*args, **kwargs):
+    return MagicMock()
 
 
 class TestBotCreationAndConfiguration:

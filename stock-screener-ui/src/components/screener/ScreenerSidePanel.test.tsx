@@ -2,7 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import type { ReactElement } from "react";
 
 let mockProfileFilters: Record<string, unknown> = {};
@@ -35,7 +35,7 @@ import {
 } from "./ScreenerSidePanel";
 
 const renderWithProvider = (ui: ReactElement) =>
-  render(<MantineProvider>{ui}</MantineProvider>);
+  render(<UIProvider>{ui}</UIProvider>);
 
 const trendingFilters = [
   { key: "min_rsi", label: "Min RSI", type: "number", min: 0, max: 100, default: 30 },

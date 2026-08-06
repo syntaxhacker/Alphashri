@@ -3,7 +3,7 @@ import { useECharts } from "../../hooks/useECharts";
 import { useChartZoom } from "../../hooks/useChartZoom";
 import { buildChartOption } from "../../utils/chart/buildChartOption";
 import type { ChartInput } from "../../utils/chart/types";
-import { Box, Loader, Center } from "@mantine/core";
+import { Box, Loader, Center } from "@/ui";
 
 export interface TradingChartHandle {
   chartInstance: React.MutableRefObject<any>;

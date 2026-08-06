@@ -257,31 +257,33 @@ def mock_snapshot_file():
 @pytest.fixture
 def mock_journal_with_trades():
     """Create a mock trade journal with test trades."""
-    from trading.journal import TradeRecord
+
+    def _make_trade(**kw):
+        return MagicMock(**kw)
 
     trades = [
-        TradeRecord(
+        _make_trade(
             trade_id="TEST-001", symbol="TCS", side="BUY", quantity=10,
             entry_price=3750, exit_price=3850,
             entry_time="2026-03-01T10:00:00", exit_time="2026-03-01T12:00:00",
             pnl=1000, pnl_pct=2.67, exit_reason="TP", costs=100, net_pnl=900,
             strategy_id=1, strategy_name="test_strategy_1", is_test=False,
         ),
-        TradeRecord(
+        _make_trade(
             trade_id="TEST-002", symbol="INFY", side="BUY", quantity=20,
             entry_price=1480, exit_price=1500,
             entry_time="2026-03-01T11:00:00", exit_time="2026-03-01T13:00:00",
             pnl=400, pnl_pct=1.35, exit_reason="TP", costs=80, net_pnl=320,
             strategy_id=2, strategy_name="test_strategy_2", is_test=False,
         ),
-        TradeRecord(
+        _make_trade(
             trade_id="TEST-003", symbol="TCS", side="BUY", quantity=5,
             entry_price=3800, exit_price=3750,
             entry_time="2026-03-02T10:00:00", exit_time="2026-03-02T11:00:00",
             pnl=-250, pnl_pct=-1.32, exit_reason="SL", costs=50, net_pnl=-300,
             strategy_id=1, strategy_name="test_strategy_1", is_test=False,
         ),
-        TradeRecord(
+        _make_trade(
             trade_id="TEST-004", symbol="HDFC", side="BUY", quantity=15,
             entry_price=1600, exit_price=1650,
             entry_time="2026-03-02T14:00:00", exit_time="2026-03-02T15:30:00",
@@ -290,11 +292,9 @@ def mock_journal_with_trades():
         ),
     ]
 
-    with patch('trading.journal.get_journal') as mock_get_journal:
-        mock_journal = MagicMock()
-        mock_journal.trades = trades
-        mock_get_journal.return_value = mock_journal
-        yield mock_journal
+    mock_journal = MagicMock()
+    mock_journal.trades = trades
+    yield mock_journal
 
 
 # ============================================

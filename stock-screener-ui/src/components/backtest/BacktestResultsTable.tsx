@@ -1,4 +1,4 @@
-import { Box, Table, Text, Group } from "@mantine/core";
+import { Box, Table, Text, Group } from "@/ui";
 import type { BacktestResult } from "../../types/backtest";
 import { getPnLTextColor, getWinRateColor, formatPnl } from "../../utils/ui-helpers";
 import { SortableHeader } from "../common/SortableHeader";

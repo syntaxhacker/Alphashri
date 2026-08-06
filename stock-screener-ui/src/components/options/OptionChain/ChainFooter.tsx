@@ -1,10 +1,10 @@
-import { Box, Text, Badge, Group, Flex } from "@mantine/core";
-import type { useMantineTheme, useMantineColorScheme } from "@mantine/core";
+import { Box, Text, Badge, Group, Flex } from "@/ui";
+import type { MantineTheme } from "@/ui";
 import { hexToRgba } from "./cellPalette";
 
 interface ChainFooterProps {
-  theme: ReturnType<typeof useMantineTheme>;
-  colorScheme: ReturnType<typeof useMantineColorScheme>["colorScheme"];
+  theme: MantineTheme;
+  colorScheme: "light" | "dark";
   spotPrice: number | null;
 }
 

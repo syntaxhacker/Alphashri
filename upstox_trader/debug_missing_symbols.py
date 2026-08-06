@@ -76,7 +76,7 @@ def search_instruments(symbols_to_search):
     try:
         # Download NSE instruments
         url = "https://assets.upstox.com/market-quote/instruments/exchange/NSE.json.gz"
-        response = requests.get(url, stream=True)
+        response = requests.get(url, stream=True, timeout=30)
         response.raise_for_status()
         
         with gzip.open(response.raw, 'rt', encoding='utf-8') as gz_file:
@@ -127,7 +127,7 @@ def search_instruments(symbols_to_search):
         console.print(f"\n📥 Checking BSE instruments...")
         
         bse_url = "https://assets.upstox.com/market-quote/instruments/exchange/BSE.json.gz"
-        bse_response = requests.get(bse_url, stream=True)
+        bse_response = requests.get(bse_url, stream=True, timeout=30)
         bse_response.raise_for_status()
         
         with gzip.open(bse_response.raw, 'rt', encoding='utf-8') as gz_file:

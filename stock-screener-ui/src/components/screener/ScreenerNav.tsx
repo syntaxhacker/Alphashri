@@ -1,4 +1,5 @@
-import { Badge, Box, NavLink, ScrollArea, Stack, Text, Tooltip } from "@mantine/core";
+import { useCallback } from "react";
+import { Badge, Box, NavLink, ScrollArea, Stack, Text, Tooltip } from "@/ui";
 import type { ScreenerOption } from "../../types";
 
 const RAIL_WIDTH = 152;
@@ -47,7 +48,7 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
     );
   }
 
-  const renderItem = (option: ScreenerOption) => {
+  const renderItem = useCallback((option: ScreenerOption) => {
     const active = option.id === activeScreener;
     const link = (
       <NavLink
@@ -70,7 +71,7 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       );
     }
     return link;
-  };
+  }, [activeScreener, onChange]);
 
   return (
     <ScrollArea

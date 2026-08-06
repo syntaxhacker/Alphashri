@@ -12,38 +12,18 @@ class PositionNotesUpdate(BaseModel):
 
 from trading.paper_trader import get_paper_trader, OrderSide, ExitReason
 from trading.risk_manager import get_risk_manager
-from trading.journal import get_journal
 from api.auth import get_current_user
 from db.models import User
 
 from .paper_api import router, _get_user_id
 from .requests import OrderRequest, ClosePositionRequest, UpdatePricesRequest
 from .helpers import build_trade_log_entry
+from api.utils import _BUY_SIDES, _get_market_price
 
-_BUY_SIDES = ("BUY", "LONG")
 
-
-def _get_market_price(symbol: str) -> float | None:
-    """Fetch the latest market price for a symbol from Upstox.
-
-    Returns the close of the most recent 1-min candle, or None if unavailable.
-    This is used to validate/override stale exit prices from the frontend.
-    """
-    try:
-        import config as app_config
-        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
-        import pandas as pd
-        api = UpstoxAPI(
-            api_key=app_config.UPSTOX_API_KEY,
-            api_secret=app_config.UPSTOX_API_SECRET,
-            quiet=True,
-        )
-        df = api.fetch_intraday_data_v3(symbol, "1")
-        if df is not None and not df.empty:
-            return float(df.iloc[-1]["close"])
-    except Exception:
-        pass
-    return None
+def _calc_costs(entry_price: float, exit_price: float, quantity: int, side: str) -> float:
+    from backtest.costs import calculate_trading_costs
+    return calculate_trading_costs(entry_price, exit_price, quantity, side)['total_costs']
 
 
 @router.post("/order")
@@ -120,9 +100,6 @@ async def close_position(request: ClosePositionRequest, user: "User" = Depends(g
     )
 
     if trade is not None:
-        journal = get_journal(user_id)
-        journal.log_trade(build_trade_log_entry(trade))
-        journal.save_journal()
         return {
             "trade_id": trade.trade_id,
             "symbol": trade.symbol,
@@ -136,7 +113,6 @@ async def close_position(request: ClosePositionRequest, user: "User" = Depends(g
     try:
         from db.database import SessionLocal
         from db.models import Position as _Pos, Trade as _Trade
-        from backtest.costs import calculate_trading_costs
         from config import IST
 
         db = SessionLocal()
@@ -160,7 +136,7 @@ async def close_position(request: ClosePositionRequest, user: "User" = Depends(g
                 pnl = (pos.entry_price - exit_price) * pos.quantity
                 pnl_pct = ((pos.entry_price - exit_price) / pos.entry_price) * 100
 
-            costs = calculate_trading_costs(pos.entry_price, exit_price, pos.quantity, side)['total_costs']
+            costs = _calc_costs(pos.entry_price, exit_price, pos.quantity, side)
 
             db_trade = _Trade(
                 user_id=user_id,

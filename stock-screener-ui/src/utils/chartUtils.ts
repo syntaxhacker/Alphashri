@@ -1,4 +1,4 @@
-import type { MantineTheme } from "@mantine/core";
+import type { MantineTheme } from "@/ui";
 import { POSITIVE, NEGATIVE, BULLISH, BEARISH } from "../config/colors";
 
 export function getChartThemeColors(isDark: boolean, theme: MantineTheme | Record<string, any>) {

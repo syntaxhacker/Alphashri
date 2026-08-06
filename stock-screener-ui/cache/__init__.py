@@ -3,7 +3,7 @@ from .redis_client import (
     cached, get_redis_client, is_cache_available,
     get_cache_stats, reset_stats,
     invalidate_backtest_cache, invalidate_news_cache, invalidate_screener_cache,
-    invalidate_chart_cache, get_cache_keys, _load_stats_from_redis,
+    get_cache_keys, _load_stats_from_redis,
 )
 
 __all__ = [
@@ -19,7 +19,6 @@ __all__ = [
     "invalidate_backtest_cache",
     "invalidate_news_cache",
     "invalidate_screener_cache",
-    "invalidate_chart_cache",
     "get_cache_keys",
     "_load_stats_from_redis",
 ]

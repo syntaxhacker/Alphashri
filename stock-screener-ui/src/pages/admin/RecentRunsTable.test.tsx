@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { RecentRunsTable, ModelBreakdown } from "./RecentRunsTable";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 vi.mock("../../utils/ui-helpers", () => ({
@@ -60,9 +60,9 @@ describe("RecentRunsTable", () => {
 
   it("renders empty state when no runs", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={[]} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("No recent runs")).toBeInTheDocument();
@@ -70,9 +70,9 @@ describe("RecentRunsTable", () => {
 
   it("renders table with runs", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("runs-table")).toBeInTheDocument();
@@ -80,9 +80,9 @@ describe("RecentRunsTable", () => {
 
   it("displays column headers", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("URL")).toBeInTheDocument();
@@ -96,9 +96,9 @@ describe("RecentRunsTable", () => {
 
   it("displays run data in table", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("gpt-4")).toBeInTheDocument();
@@ -111,9 +111,9 @@ describe("RecentRunsTable", () => {
 
   it("displays status badges", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("success")).toBeInTheDocument();
@@ -122,9 +122,9 @@ describe("RecentRunsTable", () => {
 
   it("displays formatted tokens (input+output)", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     // 1000+500 = 1500
@@ -135,9 +135,9 @@ describe("RecentRunsTable", () => {
 
   it("truncates long URLs", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <RecentRunsTable runs={mockRuns} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     // The URL should be truncated to 50 characters + "..."
@@ -156,9 +156,9 @@ describe("ModelBreakdown", () => {
 
   it("renders nothing when no models", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ModelBreakdown models={[]} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.queryByText(/runs/)).not.toBeInTheDocument();
@@ -166,9 +166,9 @@ describe("ModelBreakdown", () => {
 
   it("renders model badges", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ModelBreakdown models={mockModels} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByText("gpt-4: 50 runs")).toBeInTheDocument();
@@ -177,9 +177,9 @@ describe("ModelBreakdown", () => {
 
   it("renders panel title", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <ModelBreakdown models={mockModels} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getAllByText("Model Breakdown").length).toBeGreaterThanOrEqual(1);

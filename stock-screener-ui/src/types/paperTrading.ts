@@ -95,20 +95,6 @@ export interface DailySummary {
   symbols: string[];
 }
 
-// Performance summary
-export interface PerformanceSummary {
-  total_trades: number;
-  winners: number;
-  losers: number;
-  win_rate: number;
-  total_pnl: number;
-  net_pnl: number;
-  total_costs: number;
-  avg_win: number;
-  avg_loss: number;
-  profit_factor: number;
-}
-
 // Symbol performance
 export interface SymbolPerformance {
   symbol: string;
@@ -215,7 +201,6 @@ export interface PaperTradingState {
   // Trade history
   trades: PaperTrade[];
   dailySummary: DailySummary | null;
-  performanceSummary: PerformanceSummary | null;
   symbolPerformance: SymbolPerformance[];
 
   // Filters

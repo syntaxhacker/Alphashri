@@ -1,4 +1,4 @@
-import { Box, Group, Text, Badge, Collapse, Stack } from "@mantine/core";
+import { Box, Group, Text, Badge, Collapse, Stack } from "@/ui";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import type { NewsItem } from "./news-types";
 import { NewsItemCard } from "./NewsItemCard";

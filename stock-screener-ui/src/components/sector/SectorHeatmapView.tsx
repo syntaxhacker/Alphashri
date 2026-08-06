@@ -1,6 +1,5 @@
 import { useMemo } from "react";
-import { Box, Group, SegmentedControl, Select, Text, Loader } from "@mantine/core";
-import { useMantineColorScheme } from "@mantine/core";
+import { Box, Group, SegmentedControl, Select, Text, Loader, useColorScheme } from "@/ui";
 import ReactECharts from "echarts-for-react";
 import type { SectorItem } from "../../types/sector";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -322,7 +321,7 @@ export function SectorHeatmapView({
   loading,
   onSymbolClick,
 }: SectorHeatmapViewProps) {
-  const { colorScheme } = useMantineColorScheme();
+  const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
 
   const chartOption = useMemo(() => {

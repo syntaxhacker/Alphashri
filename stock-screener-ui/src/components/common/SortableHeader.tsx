@@ -1,4 +1,4 @@
-import { Table, Group, Text } from "@mantine/core";
+import { TableTh, Group, Text } from "@/ui";
 import { IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 
 interface SortableHeaderProps {
@@ -27,7 +27,7 @@ export function SortableHeader({
   const isActive = sortColumn === columnKey && sortable;
 
   return (
-    <Table.Th
+    <TableTh
       onClick={() => sortable && onSort(columnKey)}
       data-testid={testId || `sort-header-${columnKey}`}
       data-sorted={isActive ? "true" : "false"}
@@ -48,6 +48,6 @@ export function SortableHeader({
         )}
         {children}
       </Group>
-    </Table.Th>
+    </TableTh>
   );
 }

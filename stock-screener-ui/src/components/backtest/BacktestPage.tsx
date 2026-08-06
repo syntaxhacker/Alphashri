@@ -1,4 +1,4 @@
-import { Box, Flex, Alert } from "@mantine/core";
+import { Box, Flex, Alert } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";

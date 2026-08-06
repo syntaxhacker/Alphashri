@@ -516,7 +516,11 @@ export const mockSectorCorrelationResponseUS = {
 };
 
 export async function setupSectorMocks(page: import("@playwright/test").Page) {
-  // Mock /api/sector endpoint
+  // IMPORTANT: Playwright gives higher priority to handlers registered LATER.
+  // Specific routes must be registered after broader ones to take priority.
+  // See: https://playwright.dev/docs/api/class-page#page-route
+
+  // Mock /api/sector endpoint (broad - register first so it gets lower priority)
   await page.route(apiRoute("sector"), async (route) => {
     const url = route.request().url();
     const marketMatch = url.match(/market=([^&]+)/);
@@ -532,7 +536,7 @@ export async function setupSectorMocks(page: import("@playwright/test").Page) {
     });
   });
 
-  // Mock /api/sector/correlation endpoint
+  // Mock /api/sector/correlation endpoint (specific - register last for higher priority)
   await page.route(apiRoute("sector/correlation"), async (route) => {
     const url = route.request().url();
     const marketMatch = url.match(/market=([^&]+)/);

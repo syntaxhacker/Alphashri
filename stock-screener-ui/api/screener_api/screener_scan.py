@@ -148,6 +148,14 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
         return abs(_to_float(stock_data.get('impact_score'), 0)) >= num('min_impact', 0) and _to_float(stock_data.get('market_cap_b'), 0) >= num('min_cap_b', 0)
     if screener == 'intraday_momentum':
         return abs(_to_float(stock_data.get('move_pct'), 0)) >= num('min_move_pct', 0)
+    if screener == 'undervalued':
+        pe = _to_float(stock_data.get('pe'), 0)
+        roe = _to_float(stock_data.get('roe'), 0)
+        if num('max_pe', 25) > 0 and pe > num('max_pe', 25):
+            return False
+        if num('min_roe', 6) > 0 and roe < num('min_roe', 6):
+            return False
+        return True
     return True
 
 
@@ -234,6 +242,36 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
     if tv_price >= 7000:
         return None
+
+    # Undervalued profile: skip 52W/technical logic, return fundamental data directly
+    if screener_clean == 'undervalued':
+        pe = _to_float(row_data.get('price_earnings_ttm'), 0)
+        pb = _to_float(row_data.get('price_book_ratio'), 0)
+        roe = _to_float(row_data.get('return_on_equity'), 0)
+        de = _to_float(row_data.get('debt_to_equity'), 0)
+        div_yield = _to_float(row_data.get('dividend_yield_recent'), 0)
+        mcap_b = _to_float(row_data.get('market_cap_basic'), 0) / 1_000_000_000
+        vol_m = _to_float(row_data.get('volume'), 0) / 1_000_000
+        score = _to_float(row_data.get('value_score'), 0)
+
+        stock_data = {
+            'symbol': symbol,
+            'score': min(99, int(round(score * 5))),
+            'tv_price': round(tv_price, 2),
+            'upstox_price': round(tv_price, 2),
+            'sector': str(row_data.get('sector', '-')),
+            'market_cap_b': round(mcap_b, 2),
+            'volume_m': round(vol_m, 2),
+            'pe': round(pe, 2),
+            'pb': round(pb, 2) if pb else None,
+            'roe': round(roe, 2),
+            'de': round(de, 2) if de else None,
+            'div_yield': round(div_yield, 2),
+            'value_score': round(score, 1),
+            'day_change': round(_to_float(row_data.get('change'), 0), 2),
+        }
+        stock_data['rationale'] = f"P/E {pe:.1f} | P/B {pb:.2f} | ROE {roe:.1f}% | Score {score:.0f}"
+        return (stock_data, 'approaching')
 
     # Common row_data lookups used by both paths
     sector = str(row_data.get('sector', '-'))

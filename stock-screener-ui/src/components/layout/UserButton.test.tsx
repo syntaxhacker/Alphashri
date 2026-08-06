@@ -3,12 +3,13 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UserButton } from "./UserButton";
-import { MantineProvider } from "@mantine/core";
+import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // Mock Mantine Menu to avoid portal rendering
-vi.mock("@mantine/core", async () => {
-  const actual = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+vi.mock("@/ui", async () => {
+  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
+  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   const MockMenuTarget = ({ children }: any) => <>{children}</>;
   const MockMenuDropdown = ({ children, ...props }: any) => (
     <div data-testid="user-menu-dropdown" {...props}>
@@ -24,7 +25,7 @@ vi.mock("@mantine/core", async () => {
   MockMenu.Target = MockMenuTarget;
   MockMenu.Dropdown = MockMenuDropdown;
   MockMenu.Item = MockMenuItem;
-  return { ...actual, Menu: MockMenu };
+  return { ...core, UIProvider: ui.UIProvider, Menu: MockMenu, MenuTarget: MockMenuTarget, MenuDropdown: MockMenuDropdown, MenuItem: MockMenuItem };
 });
 
 // Mock global window properties
@@ -51,9 +52,9 @@ describe("UserButton", () => {
 
   it("renders user menu trigger button", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-menu-trigger")).toBeInTheDocument();
@@ -61,9 +62,9 @@ describe("UserButton", () => {
 
   it("displays user display name", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-display-name")).toHaveTextContent("Test User");
@@ -71,9 +72,9 @@ describe("UserButton", () => {
 
   it("displays user email", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-email")).toHaveTextContent("test@example.com");
@@ -81,9 +82,9 @@ describe("UserButton", () => {
 
   it("renders user avatar", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-avatar")).toBeInTheDocument();
@@ -91,9 +92,9 @@ describe("UserButton", () => {
 
   it("shows user info when not collapsed", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton collapsed={false} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-display-name")).toBeInTheDocument();
@@ -102,9 +103,9 @@ describe("UserButton", () => {
 
   it("hides user info when collapsed", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton collapsed={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.queryByTestId("user-display-name")).not.toBeInTheDocument();
@@ -113,9 +114,9 @@ describe("UserButton", () => {
 
   it("renders logout button in dropdown", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-menu-dropdown")).toBeInTheDocument();
@@ -125,9 +126,9 @@ describe("UserButton", () => {
 
   it("calls handleLogout when logout is clicked", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const logoutBtn = screen.getByTestId("logout-button");
@@ -138,9 +139,9 @@ describe("UserButton", () => {
 
   it("applies collapsed styling to trigger button", () => {
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton collapsed={true} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const trigger = screen.getByTestId("user-menu-trigger");
@@ -153,9 +154,9 @@ describe("UserButton", () => {
     delete window.handleLogout;
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     expect(screen.getByTestId("user-menu-trigger")).toBeInTheDocument();
@@ -166,9 +167,9 @@ describe("UserButton", () => {
     delete window.handleLogout;
 
     render(
-      <MantineProvider>
+      <UIProvider>
         <UserButton {...defaultProps} />
-      </MantineProvider>,
+      </UIProvider>,
     );
 
     const logoutBtn = screen.getByTestId("logout-button");

@@ -7,7 +7,7 @@ import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
 
 // Mock Mantine components to avoid context requirements
-vi.mock("@mantine/core", () => {
+vi.mock("@/ui", () => {
   const Tr = ({ children, className, id, ...props }: any) => (
     <tr className={className} id={id} {...props}>
       {children}
