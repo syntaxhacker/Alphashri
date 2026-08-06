@@ -1248,6 +1248,36 @@ def cmd_top5(args):
     csv_path.parent.mkdir(parents=True, exist_ok=True)
     write_hdr = not csv_path.exists()
 
+    # Resume: load any existing trades from today's CSV so a restart preserves
+    # each strategy's tallies (net/trades/W-L) and re-opens any OPEN position.
+    if csv_path.exists() and csv_path.stat().st_size > 0:
+        try:
+            with open(csv_path) as _f:
+                for _r in csv.DictReader(_f):
+                    _cfg = _r.get("config")
+                    _s = next((x for x in strats if x["name"] == _cfg), None)
+                    if not _s:
+                        continue
+                    _reason = _r.get("reason", "")
+                    if _reason == "OPEN":
+                        # re-open the virtual position
+                        _s["pos"] = {
+                            "side": _r.get("side"), "strike": float(_r.get("strike", 0)),
+                            "type": _r.get("side"), "premium": float(_r.get("premium", 0)),
+                            "entry": float(_r.get("entry", 0)), "expiry": DEFAULT_EXPIRY,
+                            "entry_time": _r.get("ts", ""),
+                        }
+                    elif _r.get("pnl"):
+                        _p = float(_r.get("pnl", 0))
+                        _s["net"] += _p
+                        _s["trades"] += 1
+                        _s["wins" if _p > 0 else "losses"] += 1
+            print(f"[top5] resumed {len(strats)} strategies from {csv_path.name} "
+                  f"(nets: {', '.join(f'{x['name']}={x['net']:,.0f}' for x in strats)})",
+                  file=sys.stderr)
+        except Exception as e:
+            print(f"[top5] resume skipped ({e})", file=sys.stderr)
+
     stop_h, stop_m = (int(x) for x in args.until.split(":"))
     poll = 0
     # day-open for the range strategy's levels
