@@ -115,9 +115,9 @@ describe("experiments state", () => {
   it("has correct initial state", () => {
     const state = getExperimentState();
     expect(state.strategies).toEqual([]);
-    expect(state.strategiesLoading).toBe(false);
+    expect(state.loading.strategies).toBe(false);
     expect(state.sessions).toEqual([]);
-    expect(state.sessionsLoading).toBe(false);
+    expect(state.loading.sessions).toBe(false);
     expect(state.activeSession).toBeNull();
     expect(state.config).toEqual({
       strategy: "orb",
@@ -134,7 +134,7 @@ describe("experiments state", () => {
     expect(state.results).toBeNull();
     expect(state.selectedRun).toBeNull();
     expect(state.chartData).toBeNull();
-    expect(state.chartLoading).toBe(false);
+    expect(state.loading.chart).toBe(false);
     expect(state.error).toBeNull();
   });
 
@@ -280,7 +280,7 @@ describe("experiments fetch actions", () => {
 
     const state = getExperimentState();
     expect(state.strategies).toHaveLength(2);
-    expect(state.strategiesLoading).toBe(false);
+    expect(state.loading.strategies).toBe(false);
     expect(state.config.strategy).toBe("orb");
     expect(state.fixedParams.or_minutes).toBe(45);
     expect(state.fixedParams.enable_shorts).toBe(false);
@@ -290,6 +290,25 @@ describe("experiments fetch actions", () => {
       key: "or_minutes",
       values: [5, 10, 15],
     });
+  });
+
+  it("fetchStrategies toggles strategies loading flag during fetch", async () => {
+    let resolveFetch: (value: ExperimentStrategy[]) => void = () => {};
+    const pending = new Promise<ExperimentStrategy[]>((resolve) => {
+      resolveFetch = resolve;
+    });
+    api.fetchStrategies.mockReturnValueOnce(pending);
+
+    const promise = fetchStrategies();
+
+    // Loading flag is set synchronously when the fetch starts
+    expect(getExperimentState().loading.strategies).toBe(true);
+
+    resolveFetch(makeStrategies());
+    await promise;
+
+    // Loading flag is cleared once the fetch settles
+    expect(getExperimentState().loading.strategies).toBe(false);
   });
 
   it("fetchStrategies keeps current strategy defaults when already selected", async () => {
@@ -311,7 +330,7 @@ describe("experiments fetch actions", () => {
     await fetchSessions();
 
     expect(getExperimentState().sessions).toEqual(sessions);
-    expect(getExperimentState().sessionsLoading).toBe(false);
+    expect(getExperimentState().loading.sessions).toBe(false);
   });
 
   it("selectSession sets active session and fetches state + results", async () => {
@@ -476,7 +495,7 @@ describe("experiments fetch actions", () => {
 
     await expect(fetchSessions()).rejects.toThrow("network down");
 
-    expect(getExperimentState().sessionsLoading).toBe(false);
+    expect(getExperimentState().loading.sessions).toBe(false);
   });
 });
 

@@ -5,9 +5,15 @@ import type {
   ExperimentState,
   SweepParam,
   ExperimentChartData,
+  ExperimentLoadingKey,
 } from "../types/experiments";
 import { createSubscriber } from "./createSubscriber";
 import * as api from "../api/experiments";
+import {
+  createLoadingState,
+  setLoading as setLoadingState,
+  type LoadingState,
+} from "../utils/loading";
 
 export interface ExperimentConfig {
   strategy: string;
@@ -21,10 +27,7 @@ export interface ExperimentConfig {
 
 export interface ExperimentsState {
   strategies: ExperimentStrategy[];
-  strategiesLoading: boolean;
-
   sessions: ExperimentSession[];
-  sessionsLoading: boolean;
   activeSession: string | null;
 
   config: ExperimentConfig;
@@ -38,17 +41,16 @@ export interface ExperimentsState {
   selectedRun: ExperimentRun | null;
 
   chartData: ExperimentChartData | null;
-  chartLoading: boolean;
+
+  loading: LoadingState<ExperimentLoadingKey>;
 
   error: string | null;
 }
 
 export const initialExperimentState: ExperimentsState = {
   strategies: [],
-  strategiesLoading: false,
 
   sessions: [],
-  sessionsLoading: false,
   activeSession: null,
 
   config: {
@@ -70,7 +72,12 @@ export const initialExperimentState: ExperimentsState = {
   selectedRun: null,
 
   chartData: null,
-  chartLoading: false,
+
+  loading: createLoadingState<ExperimentLoadingKey>([
+    "strategies",
+    "sessions",
+    "chart",
+  ]),
 
   error: null,
 };
@@ -199,16 +206,14 @@ export function setStrategies(strategies: ExperimentStrategy[]) {
   patchState({ strategies });
 }
 
-export function setStrategiesLoading(loading: boolean) {
-  patchState({ strategiesLoading: loading });
+function setLoading(key: ExperimentLoadingKey, loading: boolean) {
+  patchState({
+    loading: setLoadingState<ExperimentLoadingKey>(state.loading, key, loading),
+  });
 }
 
 export function setSessions(sessions: ExperimentSession[]) {
   patchState({ sessions });
-}
-
-export function setSessionsLoading(loading: boolean) {
-  patchState({ sessionsLoading: loading });
 }
 
 export function setActiveSession(activeSession: string | null) {
@@ -231,10 +236,6 @@ export function setChartData(chartData: ExperimentChartData | null) {
   patchState({ chartData });
 }
 
-export function setChartLoading(loading: boolean) {
-  patchState({ chartLoading: loading });
-}
-
 export function setError(error: string | null) {
   patchState({ error });
 }
@@ -242,7 +243,7 @@ export function setError(error: string | null) {
 // --- Orchestration actions ---
 
 export async function fetchStrategies(): Promise<ExperimentStrategy[]> {
-  setStrategiesLoading(true);
+  setLoading("strategies", true);
   try {
     const strategies = await api.fetchStrategies();
     setStrategies(strategies);
@@ -259,7 +260,7 @@ export async function fetchStrategies(): Promise<ExperimentStrategy[]> {
     }
     return strategies;
   } finally {
-    setStrategiesLoading(false);
+    setLoading("strategies", false);
   }
 }
 
@@ -281,13 +282,13 @@ function seedDefaultSweeps(
 }
 
 export async function fetchSessions(): Promise<ExperimentSession[]> {
-  setSessionsLoading(true);
+  setLoading("sessions", true);
   try {
     const sessions = await api.fetchSessions();
     setSessions(sessions);
     return sessions;
   } finally {
-    setSessionsLoading(false);
+    setLoading("sessions", false);
   }
 }
 
@@ -382,9 +383,14 @@ export async function fetchRunChart(
   symbol: string,
 ): Promise<ExperimentChartData | null> {
   if (!state.activeSession) return null;
-  const data = await api.fetchRunChart(state.activeSession, runId, symbol);
-  if (data) setChartData(data);
-  return data;
+  setLoading("chart", true);
+  try {
+    const data = await api.fetchRunChart(state.activeSession, runId, symbol);
+    if (data) setChartData(data);
+    return data;
+  } finally {
+    setLoading("chart", false);
+  }
 }
 
 export async function selectRun(run: ExperimentRun): Promise<ExperimentChartData | null> {

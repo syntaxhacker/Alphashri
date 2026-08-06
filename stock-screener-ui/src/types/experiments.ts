@@ -97,3 +97,9 @@ export interface ExperimentChartData {
   total_candles: number;
   total_trades: number;
 }
+
+/**
+ * Loading state keys for experiment data-fetching operations.
+ * Mirrors the keyed-loading pattern used by the bots module.
+ */
+export type ExperimentLoadingKey = "strategies" | "sessions" | "chart";

@@ -130,9 +130,7 @@ function makeState(
 ): ExperimentsState {
   return {
     strategies: [],
-    strategiesLoading: false,
     sessions: [],
-    sessionsLoading: false,
     activeSession: "exp_orb_1",
     config: {
       strategy: "orb",
@@ -149,7 +147,7 @@ function makeState(
     results: null,
     selectedRun: null,
     chartData: null,
-    chartLoading: false,
+    loading: { strategies: false, sessions: false, chart: false },
     error: null,
     ...overrides,
   };
@@ -196,7 +194,7 @@ describe("ExperimentsChart", () => {
     currentState = makeState({
       selectedRun: makeRun(),
       chartData: null,
-      chartLoading: true,
+      loading: { strategies: false, sessions: false, chart: true },
     });
     render(<ExperimentsChart />, { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-chart-loading")).toBeInTheDocument();
@@ -206,7 +204,6 @@ describe("ExperimentsChart", () => {
     currentState = makeState({
       selectedRun: makeRun(),
       chartData: null,
-      chartLoading: false,
     });
     render(<ExperimentsChart />, { wrapper: Wrapper });
     expect(screen.getByTestId("experiments-chart-empty")).toBeInTheDocument();

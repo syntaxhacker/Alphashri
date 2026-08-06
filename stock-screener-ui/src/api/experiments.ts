@@ -12,7 +12,6 @@ import {
   setSessionState,
   setResults,
   setChartData,
-  setChartLoading,
   setError,
 } from "../state/experiments";
 import { fetchWithAuth } from "../state/auth";
@@ -223,15 +222,12 @@ export async function fetchRunChart(
   runId: number | string,
   symbol: string,
 ): Promise<ExperimentChartData | null> {
-  setChartLoading(true);
-
   try {
     const response = await fetchWithAuth(
       `${API_BASE}/api/experiments/${session}/chart/${runId}?symbol=${encodeURIComponent(symbol)}`,
     );
 
     if (!response.ok) {
-      setChartLoading(false);
       const msg = await parseError(response);
       setError(msg);
       showExperimentError(msg);
@@ -240,10 +236,8 @@ export async function fetchRunChart(
 
     const data: ExperimentChartData = await response.json();
     setChartData(data);
-    setChartLoading(false);
     return data;
   } catch (error) {
-    setChartLoading(false);
     const msg = error instanceof Error ? error.message : "Failed to fetch run chart";
     setError(msg);
     showExperimentError(msg);

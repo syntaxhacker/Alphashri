@@ -6,6 +6,7 @@ import {
   getExperimentState,
   subscribe,
 } from "../../state/experiments";
+import { isLoading } from "../../utils/loading";
 import type { ExperimentChartData } from "../../types/experiments";
 import { normalizeTime } from "../../utils/ui-helpers";
 import { normalizeBacktest } from "../../utils/chart/normalizeBacktest";
@@ -73,7 +74,7 @@ export function zoomToTrade(
 
 export function ExperimentsChart() {
   useStoreSubscription(subscribe);
-  const { selectedRun, chartData, activeSession, chartLoading } =
+  const { selectedRun, chartData, activeSession, loading } =
     getExperimentState();
 
   const chartRef = useRef<TradingChartHandle | null>(null);
@@ -137,7 +138,7 @@ export function ExperimentsChart() {
   }
 
   const symbols = selectedRun.symbols || [];
-  const isLoading = Boolean(chartLoading && !chartData);
+  const showChartLoading = isLoading(loading, "chart") && !chartData;
 
   return (
     <Box
@@ -181,7 +182,7 @@ export function ExperimentsChart() {
       </Group>
 
       <Box flex={1} style={{ minHeight: 0, position: "relative" }}>
-        {isLoading ? (
+        {showChartLoading ? (
           <Flex
             align="center"
             justify="center"
