@@ -1,6 +1,5 @@
-import { Fragment, useCallback, useMemo, useState } from "react";
-import { Badge, Box, Group, Select, Table, Text, UnstyledButton } from "@/ui";
-import type { UITableProps } from "@/ui";
+import { useMemo, useState } from "react";
+import { Badge, Box, Group, Select, Text, UnstyledButton } from "@/ui";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   getExperimentState,
@@ -10,23 +9,10 @@ import {
 import type { ExperimentRun, RunMetrics } from "../../types/experiments";
 import {
   formatSignedPnl,
-  getNextSortDirection,
   getPnLTextColor,
-  renderSortIndicator,
 } from "../../utils/ui-helpers";
-
-type SortKey = "profit_factor" | "win_rate" | "net_pnl" | "total_trades";
-
-const SORT_COLUMNS: { key: SortKey; label: string }[] = [
-  { key: "profit_factor", label: "PF" },
-  { key: "win_rate", label: "WR%" },
-  { key: "net_pnl", label: "Net P&L" },
-  { key: "total_trades", label: "Trades" },
-];
-
-function sortValue(run: ExperimentRun, key: SortKey): number {
-  return run.metrics[key];
-}
+import { TanStackTable } from "../common/TanStackTable";
+import type { ColumnDef } from "@tanstack/react-table";
 
 function configLabel(run: ExperimentRun): string {
   if (run.description) return run.description;
@@ -60,6 +46,11 @@ function RunStatusBadge({ run }: { run: ExperimentRun }) {
   );
 }
 
+interface SymbolRow {
+  symbol: string;
+  metrics: RunMetrics;
+}
+
 function PerSymbolTable({
   run,
   symbolFilter,
@@ -67,65 +58,79 @@ function PerSymbolTable({
   run: ExperimentRun;
   symbolFilter: string | null;
 }) {
-  const symbols = symbolFilter
-    ? [symbolFilter]
-    : Object.keys(run.per_symbol || {});
-  if (symbols.length === 0) {
+  const rows = useMemo<SymbolRow[]>(() => {
+    const symbols = symbolFilter
+      ? [symbolFilter]
+      : Object.keys(run.per_symbol || {});
+    return symbols
+      .map((symbol) => ({ symbol, metrics: run.per_symbol?.[symbol] }))
+      .filter((r): r is SymbolRow => !!r.metrics);
+  }, [run, symbolFilter]);
+
+  const columns = useMemo<ColumnDef<SymbolRow>[]>(
+    () => [
+      {
+        id: "symbol",
+        header: "Symbol",
+        accessorKey: "symbol",
+        cell: (info) => (
+          <Text size="sm" fw={500}>
+            {info.getValue<string>()}
+          </Text>
+        ),
+      },
+      {
+        id: "profit_factor",
+        header: "PF",
+        accessorFn: (row) => row.metrics.profit_factor,
+        meta: { align: "right" },
+        cell: (info) => <Text size="sm">{info.getValue<number>().toFixed(2)}</Text>,
+      },
+      {
+        id: "win_rate",
+        header: "WR%",
+        accessorFn: (row) => row.metrics.win_rate,
+        meta: { align: "right" },
+        cell: (info) => <Text size="sm">{info.getValue<number>().toFixed(0)}%</Text>,
+      },
+      {
+        id: "net_pnl",
+        header: "Net",
+        accessorFn: (row) => row.metrics.net_pnl,
+        meta: { align: "right" },
+        cell: (info) => (
+          <Text size="sm" c={getPnLTextColor(info.getValue<number>())}>
+            {formatSignedPnl(info.getValue<number>())}
+          </Text>
+        ),
+      },
+      {
+        id: "total_trades",
+        header: "Trades",
+        accessorFn: (row) => row.metrics.total_trades,
+        meta: { align: "right" },
+        cell: (info) => <Text size="sm">{info.getValue<number>()}</Text>,
+      },
+    ],
+    [],
+  );
+
+  if (rows.length === 0) {
     return (
       <Text size="xs" c="dimmed">
         No per-symbol breakdown
       </Text>
     );
   }
+
   return (
-    <Table
-      withTableBorder
-      verticalSpacing="xs"
-      horizontalSpacing="sm"
-      style={{ maxWidth: 560 }}
-    >
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Symbol</Table.Th>
-          <Table.Th style={{ textAlign: "right" }}>PF</Table.Th>
-          <Table.Th style={{ textAlign: "right" }}>WR%</Table.Th>
-          <Table.Th style={{ textAlign: "right" }}>Net</Table.Th>
-          <Table.Th style={{ textAlign: "right" }}>Trades</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {symbols.map((symbol) => {
-          const m: RunMetrics | undefined = run.per_symbol?.[symbol];
-          if (!m) return null;
-          return (
-            <Table.Tr
-              key={symbol}
-              data-testid={`experiments-symbol-row-${run.run}-${symbol}`}
-            >
-              <Table.Td>
-                <Text size="sm" fw={500}>
-                  {symbol}
-                </Text>
-              </Table.Td>
-              <Table.Td style={{ textAlign: "right" }}>
-                <Text size="sm">{m.profit_factor.toFixed(2)}</Text>
-              </Table.Td>
-              <Table.Td style={{ textAlign: "right" }}>
-                <Text size="sm">{m.win_rate.toFixed(0)}%</Text>
-              </Table.Td>
-              <Table.Td style={{ textAlign: "right" }}>
-                <Text size="sm" c={getPnLTextColor(m.net_pnl)}>
-                  {formatSignedPnl(m.net_pnl)}
-                </Text>
-              </Table.Td>
-              <Table.Td style={{ textAlign: "right" }}>
-                <Text size="sm">{m.total_trades}</Text>
-              </Table.Td>
-            </Table.Tr>
-          );
-        })}
-      </Table.Tbody>
-    </Table>
+    <TanStackTable<SymbolRow>
+      data={rows}
+      columns={columns}
+      enableSorting={false}
+      dataTestId={`experiments-symbol-table-${run.run}`}
+      getRowTestId={(row) => `experiments-symbol-row-${run.run}-${row.symbol}`}
+    />
   );
 }
 
@@ -133,27 +138,7 @@ export function ExperimentsResultsTable() {
   useStoreSubscription(subscribe);
   const { results, selectedRun } = getExperimentState();
 
-  const [expandedRuns, setExpandedRuns] = useState<Set<number>>(new Set());
-  const [sortColumn, setSortColumn] = useState<SortKey>("profit_factor");
-  const [sortDirection, setSortDirection] = useState<"asc" | "desc">("desc");
   const [symbolFilter, setSymbolFilter] = useState<string | null>(null);
-
-  const handleSort = useCallback(
-    (column: SortKey) => {
-      setSortDirection((dir) => getNextSortDirection(sortColumn, column, dir));
-      setSortColumn(column);
-    },
-    [sortColumn],
-  );
-
-  const toggleExpand = useCallback((run: number) => {
-    setExpandedRuns((prev) => {
-      const next = new Set(prev);
-      if (next.has(run)) next.delete(run);
-      else next.add(run);
-      return next;
-    });
-  }, []);
 
   const allSymbols = useMemo(() => {
     if (!results) return [];
@@ -164,18 +149,11 @@ export function ExperimentsResultsTable() {
     return [...set].sort();
   }, [results]);
 
-  const sortedResults = useMemo(() => {
-    if (!results) return [];
-    return [...results].sort((a, b) => {
-      const diff = sortValue(a, sortColumn) - sortValue(b, sortColumn);
-      return sortDirection === "asc" ? diff : -diff;
-    });
-  }, [results, sortColumn, sortDirection]);
-
   const visibleRuns = useMemo(() => {
-    if (!symbolFilter) return sortedResults;
-    return sortedResults.filter((run) => run.symbols.includes(symbolFilter));
-  }, [sortedResults, symbolFilter]);
+    if (!results) return [];
+    if (!symbolFilter) return results;
+    return results.filter((run) => run.symbols.includes(symbolFilter));
+  }, [results, symbolFilter]);
 
   const bestRun = useMemo(() => {
     if (!results || results.length === 0) return null;
@@ -183,6 +161,148 @@ export function ExperimentsResultsTable() {
       run.metrics.profit_factor > best.metrics.profit_factor ? run : best,
     );
   }, [results]);
+
+  const columns = useMemo<ColumnDef<ExperimentRun>[]>(
+    () => [
+      {
+        id: "toggle",
+        header: "",
+        enableSorting: false,
+        size: 40,
+        cell: ({ row }) => (
+          <UnstyledButton
+            data-testid={`experiments-expand-${row.original.run}`}
+            onClick={(e) => {
+              e.stopPropagation();
+              row.toggleExpanded();
+            }}
+            aria-expanded={row.getIsExpanded()}
+          >
+            <Text size="sm" c="dimmed">
+              {row.getIsExpanded() ? "▾" : "▸"}
+            </Text>
+          </UnstyledButton>
+        ),
+      },
+      {
+        id: "run",
+        header: "#",
+        enableSorting: false,
+        accessorKey: "run",
+        cell: (info) => (
+          <Text size="sm" fw={500}>
+            {info.getValue<number>()}
+          </Text>
+        ),
+      },
+      {
+        id: "config",
+        header: "Config",
+        enableSorting: false,
+        accessorFn: (run) => configLabel(run),
+        cell: (info) => (
+          <Text size="sm" lineClamp={1}>
+            {info.getValue<string>()}
+          </Text>
+        ),
+      },
+      {
+        id: "profit_factor",
+        header: () => (
+          <span data-testid="experiments-sort-profit_factor">PF</span>
+        ),
+        accessorFn: (run) => run.metrics.profit_factor,
+        sortDescFirst: true,
+        meta: { align: "right" },
+        cell: (info) => (
+          <Text size="sm">{info.getValue<number>().toFixed(2)}</Text>
+        ),
+      },
+      {
+        id: "win_rate",
+        header: () => (
+          <span data-testid="experiments-sort-win_rate">WR%</span>
+        ),
+        accessorFn: (run) => run.metrics.win_rate,
+        sortDescFirst: true,
+        meta: { align: "right" },
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text
+              size="sm"
+              c={
+                val >= 50
+                  ? "green"
+                  : val >= 40
+                    ? "dimmed"
+                    : "red"
+              }
+            >
+              {val.toFixed(0)}%
+            </Text>
+          );
+        },
+      },
+      {
+        id: "net_pnl",
+        header: () => (
+          <span data-testid="experiments-sort-net_pnl">Net P&L</span>
+        ),
+        accessorFn: (run) => run.metrics.net_pnl,
+        sortDescFirst: true,
+        meta: { align: "right" },
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text size="sm" c={getPnLTextColor(val)} fw={500}>
+              {formatSignedPnl(val)}
+            </Text>
+          );
+        },
+      },
+      {
+        id: "total_trades",
+        header: () => (
+          <span data-testid="experiments-sort-total_trades">Trades</span>
+        ),
+        accessorFn: (run) => run.metrics.total_trades,
+        sortDescFirst: true,
+        meta: { align: "right" },
+        cell: ({ row }) => (
+          <Group gap={6} wrap="nowrap">
+            <Text size="sm">{row.original.metrics.total_trades}</Text>
+            {row.original.metrics.total_trades < 10 && (
+              <Badge
+                color="yellow"
+                variant="light"
+                size="xs"
+                data-testid={`experiments-low-sample-${row.original.run}`}
+              >
+                ⚠ Low sample
+              </Badge>
+            )}
+          </Group>
+        ),
+      },
+      {
+        id: "tp_sl_eod",
+        header: "TP/SL/EOD",
+        enableSorting: false,
+        accessorFn: (run) =>
+          `${run.metrics.tp_exits}/${run.metrics.sl_exits}/${run.metrics.eod_exits}`,
+        cell: (info) => <Text size="sm">{info.getValue<string>()}</Text>,
+      },
+      {
+        id: "status",
+        header: "Status",
+        enableSorting: false,
+        accessorFn: (run) => run.status,
+        cell: ({ row }) => <RunStatusBadge run={row.original} />,
+      },
+    ],
+    [],
+  );
 
   if (!results || results.length === 0) {
     return (
@@ -213,152 +333,33 @@ export function ExperimentsResultsTable() {
         />
       </Group>
 
-      <Table
-        striped
-        highlightOnHover
-        withTableBorder
-        verticalSpacing="xs"
-        horizontalSpacing="sm"
-      >
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th style={{ width: 40 }} />
-            <Table.Th>#</Table.Th>
-            <Table.Th>Config</Table.Th>
-            {SORT_COLUMNS.map(({ key, label }) => (
-              <Table.Th
-                key={key}
-                onClick={() => handleSort(key)}
-                style={{ cursor: "pointer", whiteSpace: "nowrap" }}
-                data-testid={`experiments-sort-${key}`}
-              >
-                {label}
-                {renderSortIndicator(key, sortColumn, sortDirection)}
-              </Table.Th>
-            ))}
-            <Table.Th>TP/SL/EOD</Table.Th>
-            <Table.Th>Status</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {visibleRuns.map((run) => {
-            const expanded = expandedRuns.has(run.run);
-            const isSelected = selectedRun?.run === run.run;
-            const isBest = bestRun?.run === run.run;
-            const rowStyle = {
-              cursor: "pointer",
-              backgroundColor: isSelected
-                ? "var(--mantine-color-blue-light)"
-                : isBest
-                  ? "var(--mantine-color-teal-light)"
-                  : undefined,
-            };
-            return (
-              <Fragment key={run.run}>
-                <Table.Tr
-                  data-testid={`experiments-run-row-${run.run}`}
-                  onClick={() => void selectRun(run)}
-                  style={rowStyle}
-                >
-                  <Table.Td>
-                    <UnstyledButton
-                      data-testid={`experiments-expand-${run.run}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        toggleExpand(run.run);
-                      }}
-                      aria-expanded={expanded}
-                    >
-                      <Text size="sm" c="dimmed">
-                        {expanded ? "▾" : "▸"}
-                      </Text>
-                    </UnstyledButton>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" fw={500}>
-                      {run.run}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm" lineClamp={1}>
-                      {configLabel(run)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {run.metrics.profit_factor.toFixed(2)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text
-                      size="sm"
-                      c={
-                        run.metrics.win_rate >= 50
-                          ? "green"
-                          : run.metrics.win_rate >= 40
-                            ? "dimmed"
-                            : "red"
-                      }
-                    >
-                      {run.metrics.win_rate.toFixed(0)}%
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text
-                      size="sm"
-                      c={getPnLTextColor(run.metrics.net_pnl)}
-                      fw={500}
-                    >
-                      {formatSignedPnl(run.metrics.net_pnl)}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Group gap={6} wrap="nowrap">
-                      <Text size="sm">{run.metrics.total_trades}</Text>
-                      {run.metrics.total_trades < 10 && (
-                        <Badge
-                          color="yellow"
-                          variant="light"
-                          size="xs"
-                          data-testid={`experiments-low-sample-${run.run}`}
-                        >
-                          ⚠ Low sample
-                        </Badge>
-                      )}
-                    </Group>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="sm">
-                      {run.metrics.tp_exits}/{run.metrics.sl_exits}/
-                      {run.metrics.eod_exits}
-                    </Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <RunStatusBadge run={run} />
-                  </Table.Td>
-                </Table.Tr>
-                {expanded && (
-                  <Table.Tr data-testid={`experiments-subtable-${run.run}`}>
-                    <Table.Td {...({ colSpan: 9 } as UITableProps)}>
-                      <Box p="xs">
-                        <Text
-                          size="xs"
-                          fw={600}
-                          c="dimmed"
-                          style={{ marginBottom: 4 }}
-                        >
-                          Per-symbol breakdown
-                        </Text>
-                        <PerSymbolTable run={run} symbolFilter={symbolFilter} />
-                      </Box>
-                    </Table.Td>
-                  </Table.Tr>
-                )}
-              </Fragment>
-            );
-          })}
-        </Table.Tbody>
-      </Table>
+      <TanStackTable<ExperimentRun>
+        data={visibleRuns}
+        columns={columns}
+        dataTestId="experiments-results-table-inner"
+        initialState={{ sorting: [{ id: "profit_factor", desc: true }] }}
+        enableSortingRemoval={false}
+        getRowCanExpand={() => true}
+        renderSubComponent={(run) => (
+          <Box p="xs">
+            <Text size="xs" fw={600} c="dimmed" style={{ marginBottom: 4 }}>
+              Per-symbol breakdown
+            </Text>
+            <PerSymbolTable run={run} symbolFilter={symbolFilter} />
+          </Box>
+        )}
+        onRowClick={(run) => void selectRun(run)}
+        getRowTestId={(run) => `experiments-run-row-${run.run}`}
+        getRowStyle={(run) => ({
+          cursor: "pointer",
+          backgroundColor:
+            selectedRun?.run === run.run
+              ? "var(--mantine-color-blue-light)"
+              : bestRun?.run === run.run
+                ? "var(--mantine-color-teal-light)"
+                : undefined,
+        })}
+      />
     </Box>
   );
 }

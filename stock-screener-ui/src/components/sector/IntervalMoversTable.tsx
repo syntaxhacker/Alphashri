@@ -1,8 +1,52 @@
-import { Table, Text } from "@/ui";
+import { useMemo } from "react";
+import { Text } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import type { InternalStockMover } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
+import { TanStackTable } from "../common/TanStackTable";
 
 export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }) {
+  const columns = useMemo<ColumnDef<InternalStockMover>[]>(
+    () => [
+      {
+        id: "symbol",
+        header: "Stock",
+        accessorKey: "symbol",
+        cell: (info) => <Text fw={600}>{info.getValue<string>()}</Text>,
+      },
+      {
+        id: "prev",
+        header: "Prev",
+        accessorKey: "prev_change",
+        meta: { align: "right" },
+        cell: (info) => <>{info.getValue<number>().toFixed(2)}%</>,
+      },
+      {
+        id: "change",
+        header: "Now",
+        accessorKey: "change",
+        meta: { align: "right" },
+        cell: (info) => <>{info.getValue<number>().toFixed(2)}%</>,
+      },
+      {
+        id: "delta",
+        header: "Δ",
+        accessorKey: "delta",
+        meta: { align: "right" },
+        cell: (info) => {
+          const delta = info.getValue<number>();
+          return (
+            <Text c={getPnLTextColor(delta)} fw={700}>
+              {delta > 0 ? "+" : ""}
+              {delta.toFixed(2)}%
+            </Text>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
   if (movers.length === 0) {
     return (
       <Text size="sm" c="dimmed" ta="center" py="xl">
@@ -12,30 +56,11 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
   }
 
   return (
-    <Table striped highlightOnHover>
-      <Table.Thead>
-        <Table.Tr>
-          <Table.Th>Stock</Table.Th>
-          <Table.Th align="right">Prev</Table.Th>
-          <Table.Th align="right">Now</Table.Th>
-          <Table.Th align="right">&Delta;</Table.Th>
-        </Table.Tr>
-      </Table.Thead>
-      <Table.Tbody>
-        {movers.map((mover, idx) => (
-          <Table.Tr key={`${mover.symbol}-${mover.change}-${idx}`}>
-            <Table.Td fw={600}>{mover.symbol}</Table.Td>
-            <Table.Td align="right">{mover.prev_change.toFixed(2)}%</Table.Td>
-            <Table.Td align="right">{mover.change.toFixed(2)}%</Table.Td>
-            <Table.Td align="right">
-              <Text c={getPnLTextColor(mover.delta)} fw={700}>
-                {mover.delta > 0 ? "+" : ""}
-                {mover.delta.toFixed(2)}%
-              </Text>
-            </Table.Td>
-          </Table.Tr>
-        ))}
-      </Table.Tbody>
-    </Table>
+    <TanStackTable<InternalStockMover>
+      data={movers}
+      columns={columns}
+      enableSorting={false}
+      dataTestId="interval-movers-table"
+    />
   );
 }

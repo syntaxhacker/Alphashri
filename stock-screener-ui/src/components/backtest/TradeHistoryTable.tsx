@@ -157,14 +157,14 @@ export function TradeHistoryTable({
       },
       {
         id: "entry_time",
-        header: () => <span onClick={() => handleHeaderClick("entry_time")} style={{ cursor: "pointer" }}>Entry</span>,
+        header: () => <span onClick={() => handleHeaderClick("entry_time")} style={{ cursor: "pointer" }}>Entry Time</span>,
         accessorKey: "entry_time",
         enableSorting: false,
         cell: ({ row }) => <Text size="sm">{formatDateTimeHuman(row.original.entry_time)}</Text>,
       },
       {
         id: "exit_time",
-        header: () => <span onClick={() => handleHeaderClick("exit_time")} style={{ cursor: "pointer" }}>Exit</span>,
+        header: () => <span onClick={() => handleHeaderClick("exit_time")} style={{ cursor: "pointer" }}>Exit Time</span>,
         accessorKey: "exit_time",
         enableSorting: false,
         cell: ({ row }) => <Text size="sm">{formatDateTimeHuman(row.original.exit_time)}</Text>,
@@ -190,7 +190,7 @@ export function TradeHistoryTable({
       },
       {
         id: "entry_price",
-        header: () => <span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry</span>,
+        header: () => <span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry Price</span>,
         enableSorting: false,
         cell: ({ row }) => <Text size="sm">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text>,
       },
@@ -220,7 +220,7 @@ export function TradeHistoryTable({
     cols.push(
       {
         id: "exit_price",
-        header: () => <span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit</span>,
+        header: () => <span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit Price</span>,
         enableSorting: false,
         cell: ({ row }) => <Text size="sm">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text>,
       },

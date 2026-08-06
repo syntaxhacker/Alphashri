@@ -326,13 +326,17 @@ describe("TradeHistoryTable rendering", () => {
     expect(screen.getByText(/Wins: 2\/3/)).toBeInTheDocument();
   });
 
-  test("sortable headers for Entry, Exit, Side, Qty, Entry Price, Level Hi, Exit, P&L, %, Hold, Type", () => {
+  test("headers disambiguate Entry/Exit time and price columns", () => {
     const trades = [makeTrade()];
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    expect(screen.getAllByText("Entry")).toHaveLength(2);
-    expect(screen.getAllByText("Exit")).toHaveLength(2);
+    expect(screen.getAllByText("Entry Time")).toHaveLength(1);
+    expect(screen.getAllByText("Exit Time")).toHaveLength(1);
+    expect(screen.getAllByText("Entry Price")).toHaveLength(1);
+    expect(screen.getAllByText("Exit Price")).toHaveLength(1);
+    expect(screen.queryByText("Entry")).not.toBeInTheDocument();
+    expect(screen.queryByText("Exit")).not.toBeInTheDocument();
     expect(screen.getByText("Side")).toBeInTheDocument();
     expect(screen.getByText("Qty")).toBeInTheDocument();
     expect(screen.getByText("Level Hi")).toBeInTheDocument();

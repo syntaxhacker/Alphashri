@@ -280,7 +280,7 @@ function TradesTable({ title, trades }: { title: string; trades: PaperDashboardT
     { header: "Symbol", accessorKey: "symbol", cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
     { header: "Bot", accessorKey: "bot_name" },
     { header: "Strategy", accessorKey: "strategy_name" },
-    { header: "Exit", accessorKey: "exit_reason", cell: ({ getValue }) => <Badge size="xs" variant="light">{getValue<string>() || "UNKNOWN"}</Badge> },
+    { header: "Exit Reason", accessorKey: "exit_reason", cell: ({ getValue }) => <Badge size="xs" variant="light">{getValue<string>() || "UNKNOWN"}</Badge> },
     { header: "P&L", accessorKey: "net_pnl", cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
   ], []);
   return (

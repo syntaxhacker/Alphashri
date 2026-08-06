@@ -1,6 +1,5 @@
 // @vitest-environment happy-dom
 import { describe, expect, test } from "vitest";
-import type { PaperTrade } from "../../types/paperTrading";
 import { mockTrade } from "./testFixtures";
 
 describe("PaperTrade type", () => {

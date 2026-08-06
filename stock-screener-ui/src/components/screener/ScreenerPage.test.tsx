@@ -332,7 +332,6 @@ describe("ScreenerPage", () => {
     // The table mock renders rows with data-testid like `row-RELIANCE`
     fireEvent.click(screen.getByTestId("row-RELIANCE"));
     // Since we mocked ScreenerTable, we need to verify the prop is passed
-    // In real component, StockRow would handle this
   });
 
   it("calls onSymbolHover when symbol is hovered", () => {
@@ -341,7 +340,7 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    // The actual hover handling is in StockRow - this test would need more detailed mocking
+    // The actual hover handling is inside ScreenerTable - this test would need more detailed mocking
   });
 
   it("renders screener navigation with options", () => {

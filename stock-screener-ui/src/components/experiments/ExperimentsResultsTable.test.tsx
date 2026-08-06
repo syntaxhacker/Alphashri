@@ -104,9 +104,7 @@ function makeState(
 ): ExperimentsState {
   return {
     strategies: [],
-    strategiesLoading: false,
     sessions: [],
-    sessionsLoading: false,
     activeSession: null,
     config: {
       strategy: "orb",
@@ -123,7 +121,7 @@ function makeState(
     results: null,
     selectedRun: null,
     chartData: null,
-    chartLoading: false,
+    loading: { strategies: false, sessions: false, chart: false },
     error: null,
     ...overrides,
   };

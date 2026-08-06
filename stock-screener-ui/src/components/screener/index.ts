@@ -4,7 +4,6 @@ export { ScreenerNav } from "./ScreenerNav";
 export { ScreenerHeader } from "./ScreenerHeader";
 export { ScreenerSummary } from "./ScreenerSummary";
 export { ScreenerTable } from "./ScreenerTable";
-export { StockRow } from "./StockRow";
 export { ScreenerEmpty } from "./ScreenerEmpty";
 export { ScreenerLoading } from "./ScreenerLoading";
 export { TradingList } from "./TradingList";

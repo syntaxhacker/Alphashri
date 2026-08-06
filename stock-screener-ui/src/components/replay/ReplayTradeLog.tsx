@@ -124,13 +124,13 @@ export function ReplayTradeLog({
       },
       {
         id: "entry_time",
-        header: "Entry",
+        header: "Entry Time",
         accessorKey: "entry_time",
         cell: ({ row }) => <Text size="xs">{formatTimeOnly(row.original.entry_time)}</Text>,
       },
       {
         id: "exit_time",
-        header: "Exit",
+        header: "Exit Time",
         accessorKey: "exit_time",
         cell: ({ row }) => <Text size="xs">{row.original.exit_time ? formatTimeOnly(row.original.exit_time) : "-"}</Text>,
       },
@@ -146,14 +146,14 @@ export function ReplayTradeLog({
       },
       {
         id: "entry_price",
-        header: "Entry",
+        header: "Entry Price",
         accessorKey: "entry_price",
         enableSorting: false,
         cell: ({ row }) => <Text size="xs" ta="right">{row.original.entry_price.toFixed(2)}</Text>,
       },
       {
         id: "exit_price",
-        header: "Exit",
+        header: "Exit Price",
         accessorKey: "exit_price",
         enableSorting: false,
         cell: ({ row }) => <Text size="xs" ta="right">{row.original.exit_price.toFixed(2)}</Text>,
