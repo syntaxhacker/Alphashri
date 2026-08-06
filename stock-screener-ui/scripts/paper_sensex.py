@@ -119,6 +119,37 @@ def fetch_spot(token: str | None = None) -> float:
     return 0.0
 
 
+VIX_KEY = "NSE_INDEX|India VIX"
+
+
+def fetch_vix(token: str | None = None) -> dict:
+    """Fetch India VIX (regime filter). Returns {open,high,low,close,last} or zeros."""
+    j = _get("https://api.upstox.com/v2/market-quote/ohlc",
+             {"instrument_key": VIX_KEY, "interval": "1d"}, timeout=15).json()
+    if j.get("status") != "success" or not j.get("data"):
+        return {"open": 0, "high": 0, "low": 0, "close": 0, "last": 0}
+    k = list(j["data"].keys())[0]
+    o = j["data"][k].get("ohlc", {})
+    return {
+        "open": float(o.get("open") or 0), "high": float(o.get("high") or 0),
+        "low": float(o.get("low") or 0), "close": float(o.get("close") or 0),
+        "last": float(j["data"][k].get("last_price") or 0),
+    }
+
+
+def vix_regime(vix: float) -> str:
+    """Classify regime from India VIX: low=range/reversion, high=trend/momentum."""
+    if vix <= 0:
+        return "unknown"
+    if vix < 13:
+        return "LOW (range/reversion): prefer notrend & range-scalp; avoid momentum"
+    if vix < 16:
+        return "MID-LOW: notrend ok; momentum marginal"
+    if vix < 20:
+        return "MID-HIGH: momentum/breakout better; notrend weaker"
+    return "HIGH (trend/momentum): prefer momentum & breakout; avoid range-fade"
+
+
 def fetch_day_ohlc(token: str | None = None) -> dict:
     j = _get("https://api.upstox.com/v2/market-quote/ohlc",
              {"instrument_key": INDEX_KEY, "interval": "1d"}, timeout=15).json()
@@ -933,6 +964,12 @@ def cmd_spot(args):
     print(f"SENSEX spot: {fetch_spot():,.2f}")
 
 
+def cmd_vix(args):
+    v = fetch_vix()
+    print(f"India VIX: {v['last']:.2f}  (O={v['open']:.2f} H={v['high']:.2f} L={v['low']:.2f})")
+    print(f"Regime: {vix_regime(v['last'])}")
+
+
 def cmd_levels(args):
     lv = scan_levels()
     print(f"SENSEX spot: {lv['spot']:,.2f}   max pain: {lv['max_pain']:,.0f}")
@@ -988,8 +1025,15 @@ def cmd_check(args):
     if args.json:
         print(json.dumps(snap, default=str, indent=2))
         return
+    try:
+        _vix = fetch_vix()
+        _regime = vix_regime(_vix["last"])
+    except Exception:
+        _vix, _regime = {"last": 0}, ""
     print(f"[{snap['time']}] SENSEX {spot:,.2f}  day L={lv['day']['low']:,.0f} H={lv['day']['high']:,.0f}")
     print(f"  support={snap['support']:,.0f}  resistance={snap['resistance']:,.0f}  maxpain={snap['max_pain']:,.0f}")
+    if _vix.get("last"):
+        print(f"  VIX={_vix['last']:.1f}  [{_regime}]")
     print(f"  zone: {snap['zone']}")
     print(f"  open positions: {snap['open_positions']}  total P&L: ₹{snap['total_pnl']:+,.2f}")
     for p in positions:
@@ -1391,6 +1435,7 @@ def main():
     p = sub.add_parser("pnl"); p.set_defaults(func=cmd_pnl)
     p = sub.add_parser("positions"); p.set_defaults(func=cmd_positions)
     p = sub.add_parser("spot"); p.set_defaults(func=cmd_spot)
+    p = sub.add_parser("vix"); p.set_defaults(func=cmd_vix)
     p = sub.add_parser("levels"); p.set_defaults(func=cmd_levels)
 
     p = sub.add_parser("check"); p.add_argument("--json", action="store_true"); p.set_defaults(func=cmd_check)
