@@ -28,12 +28,6 @@ export function BotSelector({
   useStoreSubscription(subscribeToHolidays);
   const [refreshing, setRefreshing] = useState(false);
 
-  if (bots.length === 0) return null;
-
-  const selectedBot = bots.find((b) => b.id === selectedBotId) || null;
-  const running = selectedBot?.running ?? false;
-  const marketClosed = isMarketClosedToday();
-
   const options = useMemo(
     () =>
       bots.map((bot) => ({
@@ -42,6 +36,12 @@ export function BotSelector({
       })),
     [bots],
   );
+
+  if (bots.length === 0) return null;
+
+  const selectedBot = bots.find((b) => b.id === selectedBotId) || null;
+  const running = selectedBot?.running ?? false;
+  const marketClosed = isMarketClosedToday();
 
   const handleRefresh = async () => {
     setRefreshing(true);
