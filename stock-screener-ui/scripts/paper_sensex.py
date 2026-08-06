@@ -122,6 +122,8 @@ def fetch_spot(token: str | None = None) -> float:
 def fetch_day_ohlc(token: str | None = None) -> dict:
     j = _get("https://api.upstox.com/v2/market-quote/ohlc",
              {"instrument_key": INDEX_KEY, "interval": "1d"}, timeout=15).json()
+    if j.get("status") != "success" or not j.get("data"):
+        return {"open": 0, "high": 0, "low": 0, "close": 0, "last": 0}
     k = list(j["data"].keys())[0]
     o = j["data"][k].get("ohlc", {})
     return {
@@ -1258,11 +1260,15 @@ def cmd_top5(args):
             print(f"[top5] reached {args.until}; stopping.", file=sys.stderr)
             break
         ts = now.strftime("%H:%M:%S")
-        token = get_token()
-        lv = scan_levels(token)
-        spot = lv["spot"]
+        try:
+            token = get_token()
+            lv = scan_levels(token)
+            spot = lv["spot"]
+        except Exception as e:
+            print(f"[top5 {ts}] data error: {e}", file=sys.stderr, flush=True)
+            _t.sleep(args.interval)
+            continue
 
-        # update each strategy's virtual book
         with open(csv_path, "a", newline="") as f:
             w = csv.DictWriter(f, fieldnames=["ts", "config", "side", "strike", "entry", "premium",
                                               "exit", "reason", "pnl", "net_cum"])
@@ -1272,7 +1278,6 @@ def cmd_top5(args):
                 obj = s["obj"]
                 if isinstance(obj, ScalpStrategy):
                     obj.update(spot)
-                # manage open virtual position
                 if s["pos"]:
                     ltp = get_contract_ltp(fetch_chain(s["pos"]["expiry"], token), s["pos"]["strike"], s["pos"]["type"], token)
                     pnl = (ltp - s["pos"]["premium"]) * LOT_SIZE
@@ -1295,7 +1300,6 @@ def cmd_top5(args):
                         s["pos"] = None
                         obj.mark_closed(poll)
                         continue
-                # entry decision
                 open_count = 1 if s["pos"] else 0
                 if isinstance(obj, ScalpStrategy):
                     dec = obj.decide(spot, poll, open_count)
@@ -1320,7 +1324,7 @@ def cmd_top5(args):
         for s in strats:
             side = f"{s['pos']['side']}@{s['pos']['strike']:,.0f}" if s["pos"] else "-"
             print(f"{s['name']:<18} {side:>6} {s['net']:>10,.0f} {s['trades']:>7} "
-                  f"{s['wins']}/{s['losses']}")
+                  f"{s['wins']}/{s['losses']}", flush=True)
         poll += 1
         _t.sleep(args.interval)
 
