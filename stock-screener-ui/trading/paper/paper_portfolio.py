@@ -132,7 +132,7 @@ class PaperTrader:
     def calculate_costs(self, price: float, quantity: int, side: OrderSide) -> dict:
         trade_value = price * quantity
 
-        brokerage = max(trade_value * self.brokerage_pct, self.min_brokerage)
+        brokerage = min(self.min_brokerage, trade_value * self.brokerage_pct)  # Lower of ₹20 or 0.03%
         stt = trade_value * self.stt_pct if side == OrderSide.SELL else 0
         exchange = trade_value * self.exchange_pct
         sebi = trade_value * self.sebi_pct
@@ -344,7 +344,7 @@ class PaperTrader:
         )
 
         exit_value = actual_exit_price * position.quantity
-        self.cash += exit_value
+        self.cash += exit_value - total_costs
         self.margin_used -= position.entry_price * position.quantity
 
         del self.positions[symbol]
