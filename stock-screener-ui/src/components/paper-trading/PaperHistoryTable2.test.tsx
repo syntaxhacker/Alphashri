@@ -258,6 +258,17 @@ describe("PaperHistoryTable", () => {
       expect(screen.getByTestId("trade-row-t3")).toBeInTheDocument();
     });
 
+    test("uses content-sized (auto) layout so trailing columns are not squeezed", () => {
+      mockStateStore.trades = [mockTrade()];
+      r();
+      const table = document.querySelector("table")!;
+      // No explicit column sizes → auto layout → columns fit content instead
+      // of being squeezed into the panel (which caused trailing-column overlap).
+      expect(table.style.tableLayout).toBe("auto");
+      // The date is shown by the day group header, not repeated in every row.
+      expect(screen.queryByText(/^2026-03-20$/)).not.toBeInTheDocument();
+    });
+
     test("collapses a day group when its header row is clicked", () => {
       mockStateStore.trades = [
         mockTrade({ trade_id: "t1", exit_time: "2026-05-09T10:30:00Z" }),

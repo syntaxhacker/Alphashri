@@ -393,7 +393,6 @@ function TradeHistoryTable({
         id: "toggle",
         header: "",
         enableSorting: false,
-        size: 32,
         cell: ({ row }) => (
           <ActionIcon
             variant="subtle"
@@ -410,15 +409,12 @@ function TradeHistoryTable({
         ),
       },
       {
+        // Grouping-only column: the full-width day header rows display the
+        // date, so per-row cells are empty to avoid a redundant wide column.
         id: "date",
-        header: "Date",
+        header: "",
         accessorFn: tradeDate,
-        size: 80,
-        cell: (info) => (
-          <Text size="xs" c="dimmed">
-            {String(info.getValue())}
-          </Text>
-        ),
+        cell: () => null,
       },
       {
         id: "symbol",
