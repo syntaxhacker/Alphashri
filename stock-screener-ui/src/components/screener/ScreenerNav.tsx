@@ -35,19 +35,6 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
   const current = optionList.filter((o) => o.status !== "legacy");
   const legacy = optionList.filter((o) => o.status === "legacy");
 
-  if (optionList.length === 0) {
-    return (
-      <Box
-        data-testid="screener-nav"
-        id="screener-nav"
-        className="screener-nav screener-profile-rail"
-        data-options-count={0}
-        w={RAIL_WIDTH}
-        style={{ flexShrink: 0, borderRight: "1px solid var(--mantine-color-default-border)" }}
-      />
-    );
-  }
-
   const renderItem = useCallback((option: ScreenerOption) => {
     const active = option.id === activeScreener;
     const link = (
@@ -72,6 +59,19 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
     }
     return link;
   }, [activeScreener, onChange]);
+
+  if (optionList.length === 0) {
+    return (
+      <Box
+        data-testid="screener-nav"
+        id="screener-nav"
+        className="screener-nav screener-profile-rail"
+        data-options-count={0}
+        w={RAIL_WIDTH}
+        style={{ flexShrink: 0, borderRight: "1px solid var(--mantine-color-default-border)" }}
+      />
+    );
+  }
 
   return (
     <ScrollArea

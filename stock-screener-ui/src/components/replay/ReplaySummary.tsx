@@ -19,9 +19,7 @@ interface BreakdownRow {
 }
 
 export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
-  if (!summary) return null;
-
-  const breakdown = summary.strategy_breakdown || {};
+  const breakdown = summary?.strategy_breakdown || {};
   const entries = Object.entries(breakdown);
 
   const rows: BreakdownRow[] = [
@@ -35,10 +33,10 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
     })),
     {
       name: "Total",
-      trades: summary.total_trades,
-      win_rate: summary.win_rate,
-      net_pnl: summary.net_pnl,
-      profit_factor: summary.profit_factor,
+      trades: summary?.total_trades ?? 0,
+      win_rate: summary?.win_rate ?? 0,
+      net_pnl: summary?.net_pnl ?? 0,
+      profit_factor: summary?.profit_factor ?? 0,
       isTotal: true,
     },
   ];
@@ -141,6 +139,8 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
     ],
     [],
   );
+
+  if (!summary) return null;
 
   return (
     <CompactPanel title="Per-Strategy Breakdown" data-testid="replay-summary">

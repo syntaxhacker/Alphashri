@@ -94,10 +94,8 @@ export function TradeHistoryTable({
   onRowClick,
   onClose,
 }: TradeHistoryTableProps) {
-  if (!trades || trades.length === 0) return null;
-
   const sortedTrades = useMemo(() => {
-    return [...trades].sort((a, b) => {
+    return [...(trades ?? [])].sort((a, b) => {
       let aVal: number | string = 0;
       let bVal: number | string = 0;
       switch (sortColumn) {
@@ -133,16 +131,17 @@ export function TradeHistoryTable({
     });
   }, [trades, sortColumn, sortDirection]);
 
+  const safeTrades = trades ?? [];
   const { totalPnl, wins, winRate } = useMemo(() => {
-    const pnl = trades.reduce((sum, t) => sum + t.net_pnl, 0);
-    const w = trades.filter((t) => t.net_pnl > 0).length;
-    const wr = trades.length > 0 ? ((w / trades.length) * 100).toFixed(1) : "0";
+    const pnl = safeTrades.reduce((sum, t) => sum + t.net_pnl, 0);
+    const w = safeTrades.filter((t) => t.net_pnl > 0).length;
+    const wr = safeTrades.length > 0 ? ((w / safeTrades.length) * 100).toFixed(1) : "0";
     return { totalPnl: pnl, wins: w, winRate: wr };
-  }, [trades]);
+  }, [safeTrades]);
   const has52w =
-    (trades[0]?.["52w_high"] !== undefined && trades[0]?.["52w_high"] !== null);
+    (safeTrades[0]?.["52w_high"] !== undefined && safeTrades[0]?.["52w_high"] !== null);
 
-  const getTradeIndex = (trade: Trade) => trades.indexOf(trade);
+  const getTradeIndex = (trade: Trade) => safeTrades.indexOf(trade);
 
   const handleHeaderClick = (column: string) => {
     onSort(column);
@@ -266,6 +265,8 @@ export function TradeHistoryTable({
     return cols;
   }, [has52w, sortColumn, sortDirection, onSort]);
 
+  if (!trades || trades.length === 0) return null;
+
   return (
     <Stack
       id="trade-history-table"
@@ -301,7 +302,7 @@ export function TradeHistoryTable({
             backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
           })}
           getRowTestId={(_row, index) => `trade-history-row-${index}`}
-          onRowClick={(row) => onRowClick(trades.indexOf(row))}
+          onRowClick={(row) => onRowClick(safeTrades.indexOf(row))}
         />
       </ScrollArea>
     </Stack>
