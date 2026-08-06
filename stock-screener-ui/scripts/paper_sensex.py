@@ -831,6 +831,112 @@ class ScalpStrategy:
 
 
 # ---------------------------------------------------------------------------
+# hero strategy (zero/hero trades — few, high-probability, big target)
+# ---------------------------------------------------------------------------
+class HeroStrategy:
+    """Max-probability hero trades: very selective entries, wide SL, big target.
+
+    Styles:
+      prob-bounce  — buy CE at support zone WITH the day's direction (up/flat day)
+      prob-reject  — sell PE at resistance zone WITH day direction (down/flat day)
+      prob-maxpain — fade spot away from max pain (buy below, sell above max pain)
+      prob-break   — buy CE on day-high breakout / sell PE on day-low breakdown
+      prob-momentum— strong momentum in day direction only
+
+    All: max 1 open, cooldown, target ≫ SL (high win-rate bias), EOD 15:00
+    (expiry-aware: don't hold into theta collapse).
+    """
+    def __init__(self, style="prob-bounce", target=800.0, sl=-600.0,
+                 cooldown=5, zone=60.0, break_buf=20.0):
+        self.style = style
+        self.target = target
+        self.sl = sl
+        self.cooldown = cooldown
+        self.zone = zone
+        self.break_buf = break_buf
+        self._spots = []
+        self._cooldown_until = 0
+        self.target_net = target
+        self.sl_net = sl
+
+    def update(self, spot: float):
+        self._spots.append(spot)
+        if len(self._spots) > 90:
+            self._spots = self._spots[-90:]
+
+    def _mom(self):
+        if len(self._spots) < 4:
+            return 0.0
+        return self._spots[-1] - self._spots[-4]
+
+    def decide(self, spot: float, lv: dict, poll_index: int, open_positions: int) -> dict:
+        self.update(spot)
+        if open_positions >= 1:
+            return {"action": "none"}
+        if poll_index < self._cooldown_until:
+            return {"action": "none"}
+        day = lv.get("day", {})
+        day_open = day.get("open", 0)
+        sup = lv.get("next_support") or 0
+        res = lv.get("next_resistance") or 0
+        mp = lv.get("max_pain") or 0
+        down_day = day_open > 0 and spot < day_open
+        up_day = day_open > 0 and spot > day_open
+        mom = self._mom()
+
+        side = None
+        reason = ""
+        if self.style == "prob-bounce" and not down_day:
+            if spot <= sup + self.zone and mom >= 0:
+                side, reason = "CE", f"prob-bounce near sup {sup:,.0f}"
+        elif self.style == "prob-reject" and not up_day:
+            if spot >= res - self.zone and mom <= 0:
+                side, reason = "PE", f"prob-reject near res {res:,.0f}"
+        elif self.style == "prob-maxpain" and mp > 0:
+            if spot <= mp - self.zone:
+                side, reason = "CE", f"prob-maxpain below {mp:,.0f}"
+            elif spot >= mp + self.zone:
+                side, reason = "PE", f"prob-maxpain above {mp:,.0f}"
+        elif self.style == "prob-break":
+            day_high = day.get("high", 0)
+            day_low = day.get("low", 0)
+            if day_high > 0 and spot >= day_high - self.break_buf and mom >= 0:
+                side, reason = "CE", f"prob-break day high {day_high:,.0f}"
+            elif day_low > 0 and spot <= day_low + self.break_buf and mom <= 0:
+                side, reason = "PE", f"prob-break day low {day_low:,.0f}"
+        elif self.style == "prob-momentum":
+            if (up_day and mom >= 25) or (not down_day and mom >= 40):
+                side, reason = "CE", f"prob-momentum up {mom:.0f}"
+            elif (down_day and mom <= -25) or (not up_day and mom <= -40):
+                side, reason = "PE", f"prob-momentum down {mom:.0f}"
+        if not side:
+            return {"action": "none"}
+        return {"action": "open", "side": side, "reason": reason}
+
+    def mark_closed(self, poll_index: int):
+        self._cooldown_until = poll_index + self.cooldown
+
+    def pick_strike(self, spot: float, side: str, chain: dict) -> float | None:
+        best, best_diff = None, float("inf")
+        for c in chain.get("data", []):
+            st = c.get("strike_price")
+            if st is None:
+                continue
+            ltp = ((c.get("call_options") or {}).get("market_data") or {}).get("ltp", 0) \
+                if side == "CE" else ((c.get("put_options") or {}).get("market_data") or {}).get("ltp", 0)
+            if ltp and ltp > 0 and abs(st - spot) < best_diff:
+                best_diff, best = abs(st - spot), st
+        return best
+
+    def premium_for(self, chain: dict, strike: float, side: str) -> float:
+        for c in chain.get("data", []):
+            if abs((c.get("strike_price") or 0) - strike) < 1:
+                side_d = c.get("call_options" if side == "CE" else "put_options") or {}
+                return float((side_d.get("market_data") or {}).get("ltp", 0) or 0)
+        return 0.0
+
+
+# ---------------------------------------------------------------------------
 # position commands
 # ---------------------------------------------------------------------------
 def cmd_chain(args):
@@ -1406,6 +1512,140 @@ def cmd_top5(args):
 
 
 # ---------------------------------------------------------------------------
+# hero horse-race (zero/hero trades — few, high-probability, big target)
+# ---------------------------------------------------------------------------
+HERO5 = [
+    {"name": "hero-bounce", "style": "prob-bounce", "target": 900.0, "sl": -600.0, "zone": 60},
+    {"name": "hero-reject", "style": "prob-reject", "target": 900.0, "sl": -600.0, "zone": 60},
+    {"name": "hero-maxpain", "style": "prob-maxpain", "target": 700.0, "sl": -500.0, "zone": 60},
+    {"name": "hero-break", "style": "prob-break", "target": 1000.0, "sl": -600.0, "zone": 60},
+    {"name": "hero-momentum", "style": "prob-momentum", "target": 800.0, "sl": -500.0, "zone": 60},
+]
+
+
+def cmd_hero(args):
+    """Hero race: 5 max-probability strategies, parallel virtual books, few big trades.
+
+    Expiry-aware EOD at 15:00 (don't hold into theta collapse on expiry day).
+    Writes to experiments/data/hero_live_<date>.csv (separate from top5).
+    Resumes tallies from the CSV on restart (same as top5).
+    """
+    import time as _t
+    strats = []
+    for s in HERO5:
+        strats.append({
+            "name": s["name"],
+            "obj": HeroStrategy(style=s["style"], target=s["target"], sl=s["sl"], zone=s.get("zone", 60)),
+            "target": s["target"], "sl": s["sl"], "pos": None, "wins": 0, "losses": 0,
+            "net": 0.0, "trades": 0, "last_entry": None,
+        })
+
+    csv_path = DATA / f"hero_live_{datetime.now(IST).strftime('%Y-%m-%d')}.csv"
+    csv_path.parent.mkdir(parents=True, exist_ok=True)
+    write_hdr = not csv_path.exists()
+
+    # resume from today's CSV
+    if csv_path.exists() and csv_path.stat().st_size > 0:
+        try:
+            with open(csv_path) as _f:
+                for _r in csv.DictReader(_f):
+                    _s = next((x for x in strats if x["name"] == _r.get("config")), None)
+                    if not _s:
+                        continue
+                    if _r.get("reason", "") == "OPEN":
+                        _s["pos"] = {
+                            "side": _r.get("side"), "strike": float(_r.get("strike", 0)),
+                            "type": _r.get("side"), "premium": float(_r.get("premium", 0)),
+                            "entry": float(_r.get("entry", 0)), "expiry": DEFAULT_EXPIRY,
+                            "entry_time": _r.get("ts", ""),
+                        }
+                    elif _r.get("pnl"):
+                        _p = float(_r.get("pnl", 0))
+                        _s["net"] += _p; _s["trades"] += 1
+                        _s["wins" if _p > 0 else "losses"] += 1
+            print(f"[hero] resumed from {csv_path.name}", file=sys.stderr)
+        except Exception as e:
+            print(f"[hero] resume skipped ({e})", file=sys.stderr)
+
+    stop_h, stop_m = (int(x) for x in args.until.split(":"))
+    poll = 0
+    while True:
+        now = datetime.now(IST)
+        if now.hour > stop_h or (now.hour == stop_h and now.minute >= stop_m):
+            print(f"[hero] reached {args.until}; stopping.", file=sys.stderr)
+            break
+        ts = now.strftime("%H:%M:%S")
+        try:
+            token = get_token()
+            lv = scan_levels(token)
+            spot = lv["spot"]
+        except Exception as e:
+            print(f"[hero {ts}] data error: {e}", file=sys.stderr, flush=True)
+            _t.sleep(args.interval)
+            continue
+
+        with open(csv_path, "a", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=["ts", "config", "side", "strike", "entry", "premium",
+                                              "exit", "reason", "pnl", "net_cum"])
+            if write_hdr:
+                w.writeheader(); write_hdr = False
+            for s in strats:
+                obj = s["obj"]
+                if isinstance(obj, HeroStrategy):
+                    obj.update(spot)
+                if s["pos"]:
+                    ltp = get_contract_ltp(fetch_chain(s["pos"]["expiry"], token), s["pos"]["strike"], s["pos"]["type"], token)
+                    pnl = (ltp - s["pos"]["premium"]) * LOT_SIZE
+                    reason = None
+                    if pnl <= s["sl"]:
+                        reason = "SL"
+                    elif pnl >= s["target"]:
+                        reason = "TARGET"
+                    elif now.hour >= 15:  # expiry-aware EOD 15:00
+                        reason = "EOD"
+                    if reason:
+                        costs = option_costs(s["pos"]["premium"], ltp, LOT_SIZE)
+                        net = pnl - costs
+                        s["net"] += net; s["trades"] += 1
+                        s["wins" if net > 0 else "losses"] += 1
+                        w.writerow({"ts": ts, "config": s["name"], "side": s["pos"]["type"],
+                                    "strike": s["pos"]["strike"], "entry": s["pos"]["entry"],
+                                    "premium": s["pos"]["premium"], "exit": round(ltp, 2),
+                                    "reason": reason, "pnl": round(net, 2), "net_cum": round(s["net"], 2)})
+                        s["pos"] = None
+                        obj.mark_closed(poll)
+                        continue
+                open_count = 1 if s["pos"] else 0
+                if isinstance(obj, HeroStrategy):
+                    dec = obj.decide(spot, lv, poll, open_count)
+                else:
+                    dec = obj.decide_with_levels(spot, lv, poll, open_count)
+                if dec.get("action") == "open":
+                    expiry = nearest_expiry(token)
+                    chain = fetch_chain(expiry, token)
+                    strike = obj.pick_strike(spot, dec["side"], chain)
+                    premium = obj.premium_for(chain, strike, dec["side"]) if strike else 0.0
+                    if strike and premium > 0:
+                        s["pos"] = {"side": dec["side"], "strike": strike, "type": dec["side"],
+                                    "premium": premium, "entry": spot, "expiry": expiry, "entry_time": ts}
+                        s["last_entry"] = ts
+                        w.writerow({"ts": ts, "config": s["name"], "side": dec["side"],
+                                    "strike": strike, "entry": round(spot, 2), "premium": round(premium, 2),
+                                    "exit": "", "reason": "OPEN", "pnl": 0, "net_cum": round(s["net"], 2)})
+
+        print(f"\n[{ts}] SENSEX {spot:,.0f}  [HERO]")
+        print(f"{'strategy':<16} {'pos':>7} {'net':>10} {'trades':>7} {'W/L':>8}")
+        for s in strats:
+            side = f"{s['pos']['side']}@{s['pos']['strike']:,.0f}" if s["pos"] else "-"
+            print(f"{s['name']:<16} {side:>7} {s['net']:>10,.0f} {s['trades']:>7} "
+                  f"{s['wins']}/{s['losses']}", flush=True)
+        poll += 1
+        _t.sleep(args.interval)
+
+    print(f"[hero] results -> {csv_path}")
+
+
+# ---------------------------------------------------------------------------
 # CLI
 # ---------------------------------------------------------------------------
 def main():
@@ -1476,6 +1716,11 @@ def main():
     p.add_argument("--interval", type=int, default=60)
     p.add_argument("--until", default="15:30")
     p.set_defaults(func=cmd_top5)
+
+    p = sub.add_parser("hero", help="hero race: 5 max-probability zero/hero strategies, few big trades")
+    p.add_argument("--interval", type=int, default=30)
+    p.add_argument("--until", default="15:30")
+    p.set_defaults(func=cmd_hero)
 
     args = parser.parse_args()
     args.func(args)
