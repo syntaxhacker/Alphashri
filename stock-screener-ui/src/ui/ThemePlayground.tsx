@@ -120,7 +120,17 @@ export function ThemePlayground() {
   const setVar = (key: string, value: string) => {
     liveRef.current[key] = value;
     apply(liveRef.current);
-    setOverrides({ ...liveRef.current });
+    // When the "Background" slot changes, also shift the dark-scale surface
+    // shades so every var(--mantine-color-dark-*) element recolors together
+    // (they are the surface ladder: dark-6..9 = elevated..deepest).
+    if (key === "--mantine-color-body") {
+      for (let i = 6; i <= 9; i++) {
+        const k = `--mantine-color-dark-${i}`;
+        liveRef.current[k] = value;
+        document.documentElement.style.setProperty(k, value);
+      }
+      setOverrides({ ...liveRef.current });
+    }
     persist();
   };
 
@@ -129,6 +139,13 @@ export function ThemePlayground() {
   const setVarFast = (key: string, value: string) => {
     liveRef.current[key] = value;
     document.documentElement.style.setProperty(key, value);
+    if (key === "--mantine-color-body") {
+      for (let i = 6; i <= 9; i++) {
+        const k = `--mantine-color-dark-${i}`;
+        liveRef.current[k] = value;
+        document.documentElement.style.setProperty(k, value);
+      }
+    }
   };
 
   // Slow path: called once when the user releases the picker (onChange).
@@ -141,6 +158,12 @@ export function ThemePlayground() {
     setPreset(name);
     const p = PRESETS.find((x) => x.name === name)!;
     const next = { ...p.values };
+    // cascade body -> dark-7/8/9 so all surface shades follow the preset bg
+    if (next["--mantine-color-body"]) {
+      for (let i = 6; i <= 9; i++) {
+        next[`--mantine-color-dark-${i}`] = next["--mantine-color-body"];
+      }
+    }
     liveRef.current = { ...next };
     setOverrides(next);
     apply(next);
@@ -151,6 +174,10 @@ export function ThemePlayground() {
     liveRef.current = {};
     setOverrides({});
     apply({});
+    // also clear any dark-scale overrides the cascade may have set
+    for (let i = 0; i < 10; i++) {
+      document.documentElement.style.removeProperty(`--mantine-color-dark-${i}`);
+    }
     localStorage.removeItem(STORAGE_KEY);
     setPreset("GitHub Dark (default)");
   };
