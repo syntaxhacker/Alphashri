@@ -195,4 +195,216 @@ describe("LivePriceUpdater", () => {
     expect(reliance.pnl).toBe(500);
     expect(reliance.pnl_pct).toBeCloseTo(3.125, 1);
   });
+
+  test("does not crash when no positions in state", async () => {
+    setState({ positions: [] });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalledWith([]);
+    });
+  });
+
+  test("ignores live price for symbol not in positions list", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 10,
+          entry_price: 1600,
+          current_price: 1600,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 1550,
+          take_profit: 1700,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ TCS: { symbol: "TCS", ltp: 3400 } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalled();
+    });
+    const updated = (vi.mocked(setPositions) as any).mock.calls[0][0];
+    expect(updated).toHaveLength(1);
+    expect(updated[0].symbol).toBe("RELIANCE");
+    expect(updated[0].current_price).toBe(1600);
+  });
+
+  test("skips live price update with null ltp", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 10,
+          entry_price: 1600,
+          current_price: 1600,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 1550,
+          take_profit: 1700,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: null } });
+    expect(setPositions).not.toHaveBeenCalled();
+  });
+
+  test("handles undefined ltp without crashing", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 10,
+          entry_price: 1600,
+          current_price: 1600,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 1550,
+          take_profit: 1700,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: undefined } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalled();
+    });
+  });
+
+  test("calculates P&L correctly when position has stop_loss = 0", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 10,
+          entry_price: 1600,
+          current_price: 1600,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 0,
+          take_profit: 0,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalled();
+    });
+    const updated = (vi.mocked(setPositions) as any).mock.calls[0][0];
+    const pos = updated.find((p: any) => p.symbol === "RELIANCE");
+    expect(pos.current_price).toBe(1650);
+    expect(pos.pnl).toBe(500);
+    expect(pos.pnl_pct).toBeCloseTo(3.125, 1);
+  });
+
+  test("handles zero quantity correctly (pnl is 0, pnl_pct still calculated)", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 0,
+          entry_price: 1600,
+          current_price: 1600,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 0,
+          take_profit: 0,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 1650 } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalled();
+    });
+    const updated = (vi.mocked(setPositions) as any).mock.calls[0][0];
+    const pos = updated.find((p: any) => p.symbol === "RELIANCE");
+    expect(pos.pnl).toBe(0);
+    expect(pos.pnl_pct).toBeCloseTo(3.125, 1);
+  });
+
+  test("handles zero entry price (pnl_pct becomes Infinity, no crash)", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 10,
+          entry_price: 0,
+          current_price: 0,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 0,
+          take_profit: 0,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 50 } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalled();
+    });
+    const updated = (vi.mocked(setPositions) as any).mock.calls[0][0];
+    const pos = updated.find((p: any) => p.symbol === "RELIANCE");
+    expect(pos.pnl).toBe(500);
+    expect(pos.pnl_pct).toBe(Infinity);
+  });
+
+  test("does not crash with very large P&L values (1 billion+)", async () => {
+    setState({
+      positions: [
+        {
+          symbol: "RELIANCE",
+          side: "BUY",
+          quantity: 100000,
+          entry_price: 1,
+          current_price: 1,
+          pnl: 0,
+          pnl_pct: 0,
+          entry_time: new Date().toISOString(),
+          stop_loss: 0,
+          take_profit: 0,
+        },
+      ],
+    });
+    const { LivePriceUpdater } = await import("./LivePriceUpdater");
+    const { setPositions } = await import("../../state/paperTrading");
+    r(<LivePriceUpdater />);
+    notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: 10001 } });
+    await vi.waitFor(() => {
+      expect(setPositions).toHaveBeenCalled();
+    });
+    const updated = (vi.mocked(setPositions) as any).mock.calls[0][0];
+    const pos = updated.find((p: any) => p.symbol === "RELIANCE");
+    expect(pos.pnl).toBe(100000 * (10001 - 1));
+    expect(pos.current_price).toBe(10001);
+  });
 });

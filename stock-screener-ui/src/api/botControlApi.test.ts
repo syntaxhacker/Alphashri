@@ -12,7 +12,7 @@ vi.mock("../state/paperTrading", () => ({
 }));
 
 vi.mock("../state/auth", () => ({
-  fetchWithAuth: vi.fn(),
+  apiFetch: vi.fn(),
 }));
 
 vi.mock("./paperTrading", () => ({
@@ -20,7 +20,7 @@ vi.mock("./paperTrading", () => ({
   refreshLiveData: vi.fn(),
 }));
 
-import { fetchWithAuth } from "../state/auth";
+import { apiFetch } from "../state/auth";
 import {
   setupAutoRefresh,
   stopAutoRefresh,
@@ -51,7 +51,7 @@ import {
   refreshBotLiveData,
 } from "./botControlApi";
 
-const mockedFetch = vi.mocked(fetchWithAuth);
+const mockedApiFetch = vi.mocked(apiFetch);
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -178,18 +178,16 @@ describe("normalizeBotPortfolio", () => {
 describe("fetchPaperBotStatus", () => {
   it("fetches and returns bot status on success", async () => {
     const mockStatus = { running: true, pid: 12345, log_file: "/var/log/bot.log" };
-    mockedFetch.mockResolvedValue({
-      json: async () => mockStatus,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(mockStatus);
 
     const result = await fetchPaperBotStatus();
 
     expect(result).toEqual(mockStatus);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/paper/bot/status");
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/paper/bot/status");
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchPaperBotStatus();
 
@@ -200,20 +198,18 @@ describe("fetchPaperBotStatus", () => {
 describe("startPaperBot", () => {
   it("starts bot and returns true on success", async () => {
     const mockResponse = { running: true, pid: 12345, log_file: "/var/log/bot.log" };
-    mockedFetch.mockResolvedValue({
-      json: async () => mockResponse,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(mockResponse);
 
     const result = await startPaperBot();
 
     expect(result).toBe(true);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/paper/bot/start", {
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/paper/bot/start", {
       method: "POST",
     });
   });
 
   it("returns false on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Failed to start"));
+    mockedApiFetch.mockRejectedValue(new Error("Failed to start"));
 
     const result = await startPaperBot();
 
@@ -224,20 +220,18 @@ describe("startPaperBot", () => {
 describe("stopPaperBot", () => {
   it("stops bot and returns true on success", async () => {
     const mockResponse = { running: false, pid: null, log_file: null };
-    mockedFetch.mockResolvedValue({
-      json: async () => mockResponse,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(mockResponse);
 
     const result = await stopPaperBot();
 
     expect(result).toBe(true);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/paper/bot/stop", {
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/paper/bot/stop", {
       method: "POST",
     });
   });
 
   it("returns false on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Failed to stop"));
+    mockedApiFetch.mockRejectedValue(new Error("Failed to stop"));
 
     const result = await stopPaperBot();
 
@@ -275,18 +269,16 @@ describe("fetchBotSummaries", () => {
       { bot_id: "1", name: "Bot1" },
       { bot_id: "2", name: "Bot2" },
     ];
-    mockedFetch.mockResolvedValue({
-      json: async () => summaries,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(summaries);
 
     const result = await fetchBotSummaries();
 
     expect(result).toEqual(summaries);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/summary");
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/summary");
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchBotSummaries();
 
@@ -297,18 +289,16 @@ describe("fetchBotSummaries", () => {
 describe("listBots", () => {
   it("returns bots array on success", async () => {
     const bots = [{ bot_id: "1" }, { bot_id: "2" }];
-    mockedFetch.mockResolvedValue({
-      json: async () => bots,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(bots);
 
     const result = await listBots();
 
     expect(result).toEqual(bots);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots");
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots");
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await listBots();
 
@@ -319,18 +309,16 @@ describe("listBots", () => {
 describe("getBot", () => {
   it("returns bot details on success", async () => {
     const bot = { bot_id: "1", name: "Test Bot" };
-    mockedFetch.mockResolvedValue({
-      json: async () => bot,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(bot);
 
     const result = await getBot("1");
 
     expect(result).toEqual(bot);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/1", expect.objectContaining({}));
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/1", expect.objectContaining({}));
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Not found"));
+    mockedApiFetch.mockRejectedValue(new Error("Not found"));
 
     const result = await getBot("999");
 
@@ -346,20 +334,18 @@ describe("startBot", () => {
       log_file: "/var/log/bot.log",
       message: "Started",
     };
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ pid: 12345, log_file: "/var/log/bot.log", message: "Started" }),
-    } as Response);
+    mockedApiFetch.mockResolvedValue(({ pid: 12345, log_file: "/var/log/bot.log", message: "Started" }));
 
     const result = await startBot("bot-123");
 
     expect(result).toEqual(response);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-123/start", {
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-123/start", {
       method: "POST",
     });
   });
 
   it("returns failure on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Failed to start"));
+    mockedApiFetch.mockRejectedValue(new Error("Failed to start"));
 
     const result = await startBot("bot-123");
 
@@ -371,20 +357,18 @@ describe("startBot", () => {
 describe("stopBot", () => {
   it("stops bot and returns success", async () => {
     const response = { success: true, message: "Stopped" };
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ message: "Stopped" }),
-    } as Response);
+    mockedApiFetch.mockResolvedValue(({ message: "Stopped" }));
 
     const result = await stopBot("bot-123");
 
     expect(result).toEqual(response);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-123/stop", {
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-123/stop", {
       method: "POST",
     });
   });
 
   it("returns failure on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Failed to stop"));
+    mockedApiFetch.mockRejectedValue(new Error("Failed to stop"));
 
     const result = await stopBot("bot-123");
 
@@ -400,18 +384,16 @@ describe("fetchBotPortfolio", () => {
       positions: [],
       strategies: {},
     };
-    mockedFetch.mockResolvedValue({
-      json: async () => portfolio,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(portfolio);
 
     const result = await fetchBotPortfolio("1");
 
     expect(result).toEqual(portfolio);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/1/portfolio", expect.objectContaining({}));
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/1/portfolio", expect.objectContaining({}));
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchBotPortfolio("1");
 
@@ -422,29 +404,25 @@ describe("fetchBotPortfolio", () => {
 describe("fetchBotPositions", () => {
   it("fetches all positions without filter", async () => {
     const response = { positions: [{ symbol: "TATASTEEL" }], count: 1 };
-    mockedFetch.mockResolvedValue({
-      json: async () => response,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(response);
 
     const result = await fetchBotPositions("bot-1");
 
     expect(result).toEqual(response.positions);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-1/positions", expect.objectContaining({}));
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-1/positions", expect.objectContaining({}));
   });
 
   it("adds strategy_id query param when provided", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ positions: [], count: 0 }),
-    } as Response);
+    mockedApiFetch.mockResolvedValue(({ positions: [], count: 0 }));
 
     await fetchBotPositions("bot-1", "strategy-1");
 
-    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    const calledUrl = mockedApiFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain("strategy_id=strategy-1");
   });
 
   it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchBotPositions("bot-1");
 
@@ -453,77 +431,75 @@ describe("fetchBotPositions", () => {
 });
 
 describe("fetchBotScanItems", () => {
-  it("fetches scan items without filter", async () => {
-    const response = { scan_items: [{ symbol: "INFY" }] };
-    mockedFetch.mockResolvedValue({
-      json: async () => response,
-    } as Response);
+  it("fetches scan items and timestamp", async () => {
+    const response = { scan_items: [{ symbol: "INFY" }], timestamp: "2026-08-04T11:00:00+05:30" };
+    mockedApiFetch.mockResolvedValue(response);
 
     const result = await fetchBotScanItems("bot-1");
 
-    expect(result).toEqual(response.scan_items);
-    expect(mockedFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-1/scan", expect.objectContaining({}));
+    expect(result).toEqual({ items: response.scan_items, timestamp: response.timestamp });
+    expect(mockedApiFetch).toHaveBeenCalledWith("http://localhost:8765/api/bots/bot-1/scan", expect.objectContaining({}));
+  });
+
+  it("returns empty items and null timestamp when scan_items missing", async () => {
+    mockedApiFetch.mockResolvedValue({});
+
+    const result = await fetchBotScanItems("bot-1");
+
+    expect(result).toEqual({ items: [], timestamp: null });
   });
 
   it("adds strategy_id query param when provided", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({ scan_items: [] }),
-    } as Response);
+    mockedApiFetch.mockResolvedValue(({ scan_items: [] }));
 
     await fetchBotScanItems("bot-1", "strategy-1");
 
-    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    const calledUrl = mockedApiFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain("strategy_id=strategy-1");
   });
 
-  it("returns empty array on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+  it("returns empty items and null timestamp on error", async () => {
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchBotScanItems("bot-1");
 
-    expect(result).toEqual([]);
+    expect(result).toEqual({ items: [], timestamp: null });
   });
 });
 
 describe("fetchBotStrategyPerformance", () => {
   it("fetches performance with default includeTest=true", async () => {
     const perf = { bot_id: "1", strategies: [{ id: "orb", pnl: 1000 }] };
-    mockedFetch.mockResolvedValue({
-      json: async () => perf,
-    } as Response);
+    mockedApiFetch.mockResolvedValue(perf);
 
     const result = await fetchBotStrategyPerformance("bot-1");
 
     expect(result).toEqual(perf);
-    expect(mockedFetch).toHaveBeenCalledWith(
+    expect(mockedApiFetch).toHaveBeenCalledWith(
       "http://localhost:8765/api/bots/bot-1/strategy-performance",
     );
   });
 
   it("omits include_test param when true", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({}),
-    } as Response);
+    mockedApiFetch.mockResolvedValue(({}));
 
     await fetchBotStrategyPerformance("bot-1", true);
 
-    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    const calledUrl = mockedApiFetch.mock.calls[0][0] as string;
     expect(calledUrl).not.toContain("include_test");
   });
 
   it("adds include_test=false when false", async () => {
-    mockedFetch.mockResolvedValue({
-      json: async () => ({}),
-    } as Response);
+    mockedApiFetch.mockResolvedValue(({}));
 
     await fetchBotStrategyPerformance("bot-1", false);
 
-    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    const calledUrl = mockedApiFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain("include_test=false");
   });
 
   it("returns null on error", async () => {
-    mockedFetch.mockRejectedValue(new Error("Network error"));
+    mockedApiFetch.mockRejectedValue(new Error("Network error"));
 
     const result = await fetchBotStrategyPerformance("bot-1");
 
@@ -533,20 +509,15 @@ describe("fetchBotStrategyPerformance", () => {
 
 describe("refreshBotLiveData", () => {
   it("refreshes all bot data and updates state", async () => {
-    mockedFetch
-      .mockResolvedValueOnce({
-        json: async () => ({ running: true, pid: 12345, log_file: "test.log" }),
-      })
-      .mockResolvedValueOnce({
-        json: async () => ({
+    const scanTimestamp = "2026-08-04T11:00:00+05:30";
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true, pid: 12345, log_file: "test.log" }))
+      .mockResolvedValueOnce(({
           portfolio: { total_value: 100000, initial_capital: 100000 },
           watchlist: ["RELIANCE", "INFY"],
-        }),
-      })
-      .mockResolvedValueOnce({
-        json: async () => ({ positions: [{ symbol: "TATASTEEL", side: "BUY" }] }),
-      })
-      .mockResolvedValueOnce({ json: async () => ({ scan_items: [{ symbol: "INFY" }] }) });
+        }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "TATASTEEL", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "INFY" }], timestamp: scanTimestamp }));
 
     mockFetchTrades.mockResolvedValue([
       { exit_time: new Date().toISOString(), net_pnl: 500, pnl: 500 },
@@ -561,7 +532,7 @@ describe("refreshBotLiveData", () => {
     ]);
     expect(setBotSnapshot).toHaveBeenCalledWith(
       expect.objectContaining({
-        timestamp: expect.any(String),
+        timestamp: scanTimestamp,
         watchlist: ["RELIANCE", "INFY"],
         open_positions: ["TATASTEEL"],
         scan_items: [{ symbol: "INFY" }],
@@ -569,14 +540,27 @@ describe("refreshBotLiveData", () => {
     );
   });
 
+  it("falls back to browser timestamp when backend timestamp missing", async () => {
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 1, initial_capital: 1 }, watchlist: [] }))
+      .mockResolvedValueOnce(({ positions: [] }))
+      .mockResolvedValueOnce(({ scan_items: [], timestamp: null }));
+
+    mockFetchTrades.mockResolvedValue([]);
+
+    await refreshBotLiveData("bot-1");
+
+    const snapshot = vi.mocked(setBotSnapshot).mock.calls[0][0];
+    expect(snapshot.timestamp).toEqual(expect.any(String));
+  });
+
   it("does not throw when individual APIs return null/empty", async () => {
-    mockedFetch
-      .mockResolvedValueOnce({ json: async () => ({ running: false }) })
-      .mockResolvedValueOnce({
-        json: async () => null,
-      })
-      .mockResolvedValueOnce({ json: async () => ({ positions: [] }) })
-      .mockResolvedValueOnce({ json: async () => ({ scan_items: [] }) });
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: false }))
+      .mockResolvedValueOnce(null)
+      .mockResolvedValueOnce(({ positions: [] }))
+      .mockResolvedValueOnce(({ scan_items: [] }));
 
     mockFetchTrades.mockResolvedValue([]);
 
@@ -588,32 +572,54 @@ describe("refreshBotLiveData", () => {
     expect(setLoading).toHaveBeenCalledWith(false);
   });
 
+  it("updates scan snapshot even when portfolio fetch fails", async () => {
+    const scanTimestamp = "2026-08-04T11:00:00+05:30";
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true }))
+      .mockResolvedValueOnce(null) // portfolio fails
+      .mockResolvedValueOnce(({ positions: [{ symbol: "TATASTEEL", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "INFY" }], timestamp: scanTimestamp }));
+
+    mockFetchTrades.mockResolvedValue([]);
+
+    await refreshBotLiveData("bot-1");
+
+    expect(setPortfolio).not.toHaveBeenCalled();
+    expect(setBotSnapshot).toHaveBeenCalledWith(
+      expect.objectContaining({
+        timestamp: scanTimestamp,
+        scan_items: [{ symbol: "INFY" }],
+        open_positions: ["TATASTEEL"],
+      }),
+    );
+  });
+
   it("ignores stale responses when newer request started before first completed", async () => {
     // Setup mocks for Bot 1 (will be stale) and Bot 2 (winner)
-    mockedFetch
-      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 111 }) })
-      .mockResolvedValueOnce({ json: async () => ({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }) })
-      .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ scan_items: [{ symbol: "BOT1_SCAN" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 222 }) })
-      .mockResolvedValueOnce({ json: async () => ({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }) })
-      .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ scan_items: [{ symbol: "BOT2_SCAN" }] }) });
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true, pid: 111 }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT1_SCAN" }] }))
+      .mockResolvedValueOnce(({ running: true, pid: 222 }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT2_SCAN" }] }));
 
     mockFetchTrades.mockResolvedValue([{ exit_time: new Date().toISOString(), net_pnl: 200 }]);
 
     vi.clearAllMocks();
 
     // Restore mock implementations: Bot 1 (4 calls) + Bot 2 (4 calls) + 1 fetchTrades
-    mockedFetch
-      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 111 }) })
-      .mockResolvedValueOnce({ json: async () => ({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }) })
-      .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ scan_items: [{ symbol: "BOT1_SCAN" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ running: true, pid: 222 }) })
-      .mockResolvedValueOnce({ json: async () => ({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }) })
-      .mockResolvedValueOnce({ json: async () => ({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }) })
-      .mockResolvedValueOnce({ json: async () => ({ scan_items: [{ symbol: "BOT2_SCAN" }] }) });
+    mockedApiFetch
+      .mockResolvedValueOnce(({ running: true, pid: 111 }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 100, initial_capital: 100 }, watchlist: ["BOT1"] }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT1_POS", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT1_SCAN" }] }))
+      .mockResolvedValueOnce(({ running: true, pid: 222 }))
+      .mockResolvedValueOnce(({ portfolio: { total_value: 200, initial_capital: 200 }, watchlist: ["BOT2"] }))
+      .mockResolvedValueOnce(({ positions: [{ symbol: "BOT2_POS", side: "BUY" }] }))
+      .mockResolvedValueOnce(({ scan_items: [{ symbol: "BOT2_SCAN" }] }));
 
     mockFetchTrades.mockResolvedValue([{ exit_time: new Date().toISOString(), net_pnl: 200 }]);
 

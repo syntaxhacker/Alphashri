@@ -225,8 +225,7 @@ async def get_paper_chart(
     """
     try:
         import pandas as pd
-        sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-        from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+        from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
         upstox_api = UpstoxAPI(
             api_key=config.UPSTOX_API_KEY or "",
             api_secret=config.UPSTOX_API_SECRET or "",
@@ -858,7 +857,7 @@ async def get_52w_levels(symbol: str, user: "User" = Depends(get_current_user)):
     if cached is not None:
         return cached
 
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 
     try:
         upstox_api = UpstoxAPI(

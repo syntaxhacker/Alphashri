@@ -17,6 +17,7 @@ export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutPara
           isSwing={isSwing}
         />
         <Select
+          size="sm"
           label="Pivot Type"
           name="pivot_type"
           data={[
@@ -29,6 +30,7 @@ export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutPara
           data-testid="strategy-pivot-type-input"
         />
         <NumberInput
+          size="sm"
           label="Breakout Buffer %"
           name="breakout_buffer_pct"
           defaultValue={initialValues.breakout_buffer_pct}

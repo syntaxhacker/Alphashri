@@ -36,7 +36,7 @@ def sample_1min_df():
 
 @pytest.fixture
 def sample_400day_df():
-    dates = pd.date_range("2025-02-24", periods=400, freq="D")
+    dates = pd.date_range("2025-02-24", periods=400, freq="D", tz="Asia/Kolkata")
     return pd.DataFrame({
         "open": [100 + i * 0.5 for i in range(400)],
         "high": [105 + i * 0.5 for i in range(400)],
@@ -62,8 +62,8 @@ class TestChartEndpoint:
         mock_trader, mock_journal = mock_trading_deps
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
-        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+        with patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=1min",
@@ -79,8 +79,8 @@ class TestChartEndpoint:
         mock_trader, mock_journal = mock_trading_deps
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
-        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+        with patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min",
@@ -95,8 +95,8 @@ class TestChartEndpoint:
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         mock_api.fetch_historical_data_v3.return_value = sample_400day_df
-        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+        with patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min",
@@ -116,8 +116,8 @@ class TestChartEndpoint:
         mock_api = MagicMock()
         mock_api.fetch_intraday_data_v3.return_value = sample_1min_df
         mock_api.fetch_historical_data_v3.side_effect = Exception("API error")
-        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", return_value=mock_api), \
-             patch("api.paper_trading.get_paper_trader", return_value=mock_trader), \
+        with patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", return_value=mock_api), \
+             patch("api.paper.endpoints.get_paper_trader", return_value=mock_trader), \
              patch("api.paper_trading.get_journal", return_value=mock_journal, create=True):
             response = client.get(
                 "/api/paper/chart/ONGC?timeframe=5min",
@@ -129,7 +129,7 @@ class TestChartEndpoint:
         assert len(data["candles"]) > 0
 
     def test_chart_error_when_api_unavailable(self, client, auth_headers):
-        with patch("upstox_trader.config_and_utils.free_indian_apis.UpstoxAPI", side_effect=Exception("Import error")):
+        with patch("upstox_trader.config_and_utils.upstox_api.UpstoxAPI", side_effect=Exception("Import error")):
             response = client.get(
                 "/api/paper/chart/INVALID?timeframe=5min",
                 headers=auth_headers,

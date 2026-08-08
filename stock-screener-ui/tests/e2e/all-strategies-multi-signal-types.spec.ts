@@ -236,6 +236,6 @@ test.describe("Multi-Strategy - Empty States", () => {
     await navigateToBot(page);
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 15000 });
-    await expect(scanCard).toContainText("No scan data");
+    await expect(scanCard).toContainText("No recent scan results");
   });
 });

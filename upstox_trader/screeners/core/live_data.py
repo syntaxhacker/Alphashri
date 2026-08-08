@@ -4,7 +4,7 @@ Live Data Monitoring Functions
 Extracted from TVScreenerUsage class
 """
 
-import time
+import time as time_module
 import threading
 from datetime import datetime
 from rich.console import Console
@@ -24,7 +24,7 @@ class LiveDataMonitor:
                 return None
                 
             # Check cache freshness (avoid excessive API calls)
-            current_time = time.time()
+            current_time = time_module.time()
             cache_duration = 10  # Cache for 10 seconds
             
             if not force_refresh and symbol in self.parent.price_cache_timestamps:
@@ -99,7 +99,7 @@ class LiveDataMonitor:
             if not hasattr(self.parent, '_last_error_time'):
                 self.parent._last_error_time = {}
             
-            current_time = time.time()
+            current_time = time_module.time()
             if symbol not in self.parent._last_error_time or current_time - self.parent._last_error_time[symbol] > 60:
                 console.print(f"[yellow]⚠️ Failed to get live price for {symbol}: {e}[/yellow]")
                 self.parent._last_error_time[symbol] = current_time

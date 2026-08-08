@@ -8,9 +8,6 @@ interface ScreenerStockViewProps {
   touchedSymbols: Set<string>;
   badgeLabel?: string;
   scoreFormula?: string;
-  sortColumn: string;
-  sortDirection: "asc" | "desc";
-  onSortChange: (column: string) => void;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   viewMode: "table" | "heatmap";
@@ -24,9 +21,6 @@ export function ScreenerStockView({
   touchedSymbols,
   badgeLabel,
   scoreFormula,
-  sortColumn,
-  sortDirection,
-  onSortChange,
   onSymbolClick,
   onSymbolHover,
   viewMode,
@@ -51,12 +45,8 @@ export function ScreenerStockView({
       touchedSymbols={touchedSymbols}
       badgeLabel={badgeLabel}
       scoreFormula={scoreFormula}
-      sortColumn={sortColumn}
-      sortDirection={sortDirection}
-      onSortChange={onSortChange}
       onSymbolClick={onSymbolClick}
       onSymbolHover={onSymbolHover}
-      screenerType={activeScreener}
       data-testid={`screener-table-${section}`}
     />
   );

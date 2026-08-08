@@ -16,7 +16,7 @@ export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
     <Stack gap="xs">
       {alerts.map((alert, i) => (
         <Paper
-          key={i}
+          key={`${alert.timestamp}-${alert.sector}-${i}`}
           p="xs"
           withBorder
           bg={alert.direction === "SURGING" ? TINT_POSITIVE : TINT_NEGATIVE}

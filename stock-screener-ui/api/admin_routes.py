@@ -137,10 +137,12 @@ async def delete_52w_range_cache(
     }
 
 
-def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int) -> None:
+def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip_updated_today: bool = False) -> None:
     script = _PROJECT_ROOT / "scripts" / "compute_52w_ranges_upstox.py"
     cmd = [sys.executable, str(script)]
-    if skip_existing:
+    if skip_updated_today:
+        cmd.append("--skip-updated-today")
+    elif skip_existing:
         cmd.append("--skip-existing")
     if redis:
         cmd.append("--redis")

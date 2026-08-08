@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Text, Grid, Stack, NumberInput } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
 
@@ -11,7 +12,7 @@ interface TradingCostsSectionProps {
   onChange: ConfigValueHandler;
 }
 
-export function TradingCostsSection({ config, onChange }: TradingCostsSectionProps) {
+export const TradingCostsSection = memo(function TradingCostsSection({ config, onChange }: TradingCostsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="costs-section">
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
@@ -123,4 +124,4 @@ export function TradingCostsSection({ config, onChange }: TradingCostsSectionPro
       </Grid>
     </Stack>
   );
-}
+});

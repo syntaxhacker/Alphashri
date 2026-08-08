@@ -19,7 +19,7 @@ Usage:
 
 import sys
 import os
-import time
+import time as time_module
 import json
 import threading
 import signal
@@ -531,7 +531,7 @@ class WebhookHandler:
                 active_positions = {k: v for k, v in self.state['positions'].items() if v}
 
                 if not active_positions:
-                    time.sleep(5)
+                    time_module.sleep(5)
                     continue
 
                 # Batch fetch prices
@@ -548,11 +548,11 @@ class WebhookHandler:
                         if should_exit:
                             self._exit_position(symbol, position, current_price, reason)
 
-                time.sleep(5)
+                time_module.sleep(5)
 
             except Exception as e:
                 console.print(f"[red]❌ Monitor error: {e}[/red]")
-                time.sleep(5)
+                time_module.sleep(5)
 
     def _exit_position(self, symbol: str, position: Dict[str, Any],
                       exit_price: float, reason: str):
@@ -646,11 +646,11 @@ def main():
     try:
         while not WebhookHandler.shutdown_flag:
             if args.dashboard:
-                time.sleep(args.refresh)
+                time_module.sleep(args.refresh)
                 os.system('clear' if os.name == 'posix' else 'cls')
                 display_status(handler.state)
             else:
-                time.sleep(1)
+                time_module.sleep(1)
     except KeyboardInterrupt:
         console.print("\n[yellow]👋 Goodbye![/yellow]")
 

@@ -1,6 +1,5 @@
 import { useMemo } from "react";
 import { Stack } from "@/ui";
-import { useTableSort } from "../../hooks/useTableSort";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { ScreenerErrorPanel } from "./ScreenerErrorPanel";
@@ -19,9 +18,6 @@ interface SectionConfig {
 interface Props {
   approachingStocks: Stock[];
   touchedStocks: Stock[];
-  sortColumn: string;
-  sortDirection: "asc" | "desc";
-  handleSortChange: (column: string) => void;
   isLoading: boolean;
   error: string | null;
   onRefresh: () => void;
@@ -34,9 +30,6 @@ interface Props {
 export function ScreenerContent({
   approachingStocks,
   touchedStocks,
-  sortColumn,
-  sortDirection,
-  handleSortChange,
   isLoading,
   error,
   onRefresh,
@@ -45,8 +38,6 @@ export function ScreenerContent({
   activeScreener,
   viewMode,
 }: Props) {
-  const { getSortedData } = useTableSort<Stock>({ sortColumn, sortDirection });
-
   const meta = state.profileMetaById[activeScreener];
 
   const scoreFormula = meta?.score_formula || "";
@@ -56,27 +47,24 @@ export function ScreenerContent({
     const sd = meta?.section_descriptions;
     const result: SectionConfig[] = [];
 
-    const sortedApproaching = getSortedData(approachingStocks, (s) => s[sortColumn as keyof Stock] as string | number);
-    const sortedTouched = getSortedData(touchedStocks, (s) => s[sortColumn as keyof Stock] as string | number);
-
-    if (sortedApproaching.length > 0) {
+    if (approachingStocks.length > 0) {
       result.push({
         key: "approaching",
-        stocks: sortedApproaching,
-        label: `${(sl?.primary || "Primary")} (${sortedApproaching.length})`,
+        stocks: approachingStocks,
+        label: `${(sl?.primary || "Primary")} (${approachingStocks.length})`,
         description: sd?.primary || "",
       });
     }
-    if (sortedTouched.length > 0) {
+    if (touchedStocks.length > 0) {
       result.push({
         key: "touched",
-        stocks: sortedTouched,
-        label: `${(sl?.secondary || "Secondary")} (${sortedTouched.length})`,
+        stocks: touchedStocks,
+        label: `${(sl?.secondary || "Secondary")} (${touchedStocks.length})`,
         description: sd?.secondary || "",
       });
     }
     return result;
-  }, [approachingStocks, touchedStocks, meta, sortColumn, getSortedData]);
+  }, [approachingStocks, touchedStocks, meta]);
 
   if (isLoading) return <ScreenerLoading />;
   if (error) return <ScreenerErrorPanel error={error} onRefresh={onRefresh} />;
@@ -104,9 +92,6 @@ export function ScreenerContent({
                 ? new Set(section.stocks.map((s) => s.symbol))
                 : new Set<string>()
             }
-            sortColumn={sortColumn}
-            sortDirection={sortDirection}
-            onSortChange={handleSortChange}
             onSymbolClick={onSymbolClick}
             onSymbolHover={onSymbolHover}
             viewMode={viewMode}

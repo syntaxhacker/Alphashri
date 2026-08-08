@@ -33,7 +33,7 @@ def set_job_status(**fields: Any) -> None:
     cache_set(JOB_STATUS_KEY, current, ttl=JOB_STATUS_TTL)
 
 
-def start_job(total: int, *, skip_existing: bool = False) -> None:
+def start_job(total: int, *, skip_existing: bool = False, skip_updated_today: bool = False) -> None:
     set_job_status(
         status="running",
         total=total,
@@ -42,6 +42,7 @@ def start_job(total: int, *, skip_existing: bool = False) -> None:
         failed=0,
         skipped=0,
         skip_existing=skip_existing,
+        skip_updated_today=skip_updated_today,
         started_at=_now_iso(),
         finished_at=None,
         message="Upstox 52W range batch started",

@@ -72,7 +72,7 @@ export function ArticleDetail({
           </Group>
 
           <Group gap="sm">
-            <Badge color={SOURCE_COLORS[selectedArticle.source] || "gray"} variant="light">
+            <Badge size="sm" color={SOURCE_COLORS[selectedArticle.source] || "gray"} variant="light">
               {selectedArticle.source}
             </Badge>
             <Text size="sm" c="dimmed">
@@ -132,7 +132,7 @@ export function ArticleDetail({
                   </Group>
                   <List size="sm" withPadding ml="md">
                     {articleContent.key_points.map((point, idx) => (
-                      <List.Item key={idx}>
+                      <List.Item key={`${idx}-${point.slice(0, 40)}`}>
                         <Text size="sm">{point}</Text>
                       </List.Item>
                     ))}
@@ -148,7 +148,7 @@ export function ArticleDetail({
                   <Group gap="xs" wrap="wrap">
                     {articleContent.symbols.map((symbol, idx) => (
                       <Tooltip
-                        key={idx}
+                        key={symbol.code}
                         label={
                           symbol.instrument_key
                             ? `View ${symbol.trading_symbol} chart`
@@ -189,7 +189,7 @@ export function ArticleDetail({
                   </Group>
                   <Stack gap="xs">
                     {articleContent.trade_ideas.map((idea, idx) => (
-                      <TradeIdeaCard key={idx} idea={idea} />
+                      <TradeIdeaCard key={`${idea.symbol}-${idea.direction}-${idx}`} idea={idea} />
                     ))}
                   </Stack>
                 </Stack>
@@ -224,7 +224,7 @@ export function ArticleDetail({
                       <Collapse in={showFullContent}>
                         <Stack gap="sm" mt="xs">
                           {articleContent.description.split("\n\n").map((para, idx) => (
-                            <Text key={idx} size="sm">
+                            <Text key={`full-${idx}-${para.slice(0, 40)}`} size="sm">
                               {para}
                             </Text>
                           ))}
@@ -234,7 +234,7 @@ export function ArticleDetail({
                   ) : (
                     <Stack gap="sm">
                       {articleContent.description.split("\n\n").map((para, idx) => (
-                        <Text key={idx} size="sm">
+                        <Text key={`partial-${idx}-${para.slice(0, 40)}`} size="sm">
                           {para}
                         </Text>
                       ))}

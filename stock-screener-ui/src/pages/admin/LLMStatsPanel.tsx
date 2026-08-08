@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
-import { Text, Group, Stack, Loader, Paper, Badge, Button, ScrollArea, Table, Alert, Box } from "@/ui";
+import { useCallback, useMemo, useEffect, useRef, useState } from "react";
+import { Text, Group, Stack, Loader, Paper, Badge, Button, ScrollArea, Alert } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import { IconRefresh, IconTrash } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import type { LLMStats, LLMRun, ModelUsage } from "../../types/admin";
 import { CompactPanel } from "../../components/common/compact";
-import { DataTable } from "../../components/common/DataTable";
+import { TanStackTable } from "../../components/common/TanStackTable";
 import { getStatusColor } from "../../utils/ui-helpers";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
@@ -48,38 +49,76 @@ function ModelBadges({ models }: { models: ModelUsage[] }) {
 }
 
 function RunsTable({ runs }: { runs: LLMRun[] }) {
-  if (runs.length === 0) {
-    return <Text c="dimmed" ta="center" py="sm">No recent runs</Text>;
-  }
+  const columns = useMemo<ColumnDef<LLMRun>[]>(
+    () => [
+      {
+        id: "url",
+        header: "URL",
+        accessorKey: "url",
+        cell: (info) => (
+          <Text size="sm" title={info.getValue<string>()}>
+            {truncateUrl(info.getValue<string>())}
+          </Text>
+        ),
+      },
+      {
+        id: "model",
+        header: "Model",
+        accessorKey: "model",
+        cell: (info) => (
+          <Text size="sm">{info.getValue<string>().split("/").pop()}</Text>
+        ),
+      },
+      {
+        id: "tokens",
+        header: "Tokens",
+        accessorFn: (row) => (row.input_tokens + row.output_tokens).toLocaleString(),
+        cell: (info) => <Text size="sm">{info.getValue<string>()}</Text>,
+      },
+      {
+        id: "cost",
+        header: "Cost",
+        accessorKey: "cost_usd",
+        cell: (info) => <Text size="sm">{formatCost(info.getValue<number>())}</Text>,
+      },
+      {
+        id: "time",
+        header: "Time",
+        accessorKey: "response_time_ms",
+        cell: (info) => (
+          <Text size="sm">{formatResponseTime(info.getValue<number>())}</Text>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorKey: "status",
+        cell: (info) => (
+          <Badge color={getStatusColor(info.getValue<string>())} variant="light" size="sm">
+            {info.getValue<string>()}
+          </Badge>
+        ),
+      },
+      {
+        id: "created",
+        header: "Created",
+        accessorKey: "created_at",
+        cell: (info) => (
+          <Text size="sm">{formatDateTime(info.getValue<string>())}</Text>
+        ),
+      },
+    ],
+    [],
+  );
+
   return (
-    <Box style={{ overflowX: "auto" }}>
-      <DataTable dataTestId="runs-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>URL</Table.Th>
-            <Table.Th>Model</Table.Th>
-            <Table.Th>Tokens</Table.Th>
-            <Table.Th>Cost</Table.Th>
-            <Table.Th>Time</Table.Th>
-            <Table.Th>Status</Table.Th>
-            <Table.Th>Created</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {runs.map((run) => (
-            <Table.Tr key={run.id}>
-              <Table.Td><Text size="sm" title={run.url}>{truncateUrl(run.url)}</Text></Table.Td>
-              <Table.Td><Text size="sm">{run.model.split("/").pop()}</Text></Table.Td>
-              <Table.Td><Text size="sm">{(run.input_tokens + run.output_tokens).toLocaleString()}</Text></Table.Td>
-              <Table.Td><Text size="sm">{formatCost(run.cost_usd)}</Text></Table.Td>
-              <Table.Td><Text size="sm">{formatResponseTime(run.response_time_ms)}</Text></Table.Td>
-              <Table.Td><Badge color={getStatusColor(run.status)} variant="light" size="sm">{run.status}</Badge></Table.Td>
-              <Table.Td><Text size="sm">{formatDateTime(run.created_at)}</Text></Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </DataTable>
-    </Box>
+    <TanStackTable<LLMRun>
+      data={runs}
+      columns={columns}
+      dataTestId="runs-table"
+      enableSorting={false}
+      emptyMessage="No recent runs"
+    />
   );
 }
 
@@ -129,7 +168,6 @@ export function LLMStatsPanel() {
 
   return (
     <Stack gap="sm" data-testid="admin-llm-panel">
-      {/* stats row */}
       <Paper withBorder p="sm" radius="sm">
         {loading && !data ? (
           <Group gap="sm" justify="center" py="sm">
@@ -158,17 +196,14 @@ export function LLMStatsPanel() {
         )}
       </Paper>
 
-      {/* model breakdown */}
       {agg?.models_used && agg.models_used.length > 0 && (
         <CompactPanel padded>
           <ModelBadges models={agg.models_used} />
         </CompactPanel>
       )}
 
-      {/* error */}
       {error && <Alert color="red" variant="light">{error}</Alert>}
 
-      {/* actions + recent runs */}
       <Group justify="space-between">
         <Text size="sm" fw={500}>Recent Runs</Text>
         <Group gap="xs">
@@ -177,7 +212,6 @@ export function LLMStatsPanel() {
         </Group>
       </Group>
 
-      {/* table */}
       {loading && !data ? (
         <Group gap="xs"><Loader size="sm" /><Text size="sm">Loading...</Text></Group>
       ) : (

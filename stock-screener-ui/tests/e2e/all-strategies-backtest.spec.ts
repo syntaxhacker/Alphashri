@@ -759,25 +759,36 @@ test.describe("Backtest - Trade Highlight on Click", () => {
   test("should highlight trade row when clicked", async ({ page }) => {
     await runBacktestForStrategy(page, "ORB");
     await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({ timeout: 15000 });
-    await expect(page.locator('[data-testid="trade-history-tbody"] tr')).toHaveCount(1, {
+    await expect(page.locator('[data-testid="trade-history-row-0"]')).toHaveCount(1, {
       timeout: 15000,
     });
 
-    const firstRow = page.locator('[data-testid="trade-history-tbody"] tr').first();
+    const firstRow = page.locator('[data-testid="trade-history-row-0"]');
     await firstRow.scrollIntoViewIfNeeded({ timeout: 15000 });
     await expect(firstRow).toBeVisible({ timeout: 15000 });
 
     // Use native dispatchEvent - Playwright click doesn't reliably trigger React onClick for table rows
     await page.evaluate(() => {
-      const row = document.querySelector('[data-testid="trade-history-tbody"] tr');
+      const row = document.querySelector('[data-testid="trade-history-row-0"]');
       row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
-    // Check immediately - highlight removed after 3s via setTimeout in component
-    const firstRowFresh = page.locator('[data-testid="trade-history-tbody"] tr').first();
-    expect(
-      await firstRowFresh.evaluate((el) => el.classList.contains("trade-row-highlighted")),
-    ).toBe(true);
+    // New behavior: clicking a row zooms the chart to that trade and highlights its markers.
+    // The highlighted entry/exit markers render as scatter series with gold (#FFD700) styling
+    // (older zoomToTrade impl used dedicated 'highlight-entry'/'highlight-exit' scatter series).
+    // Check the chart option quickly after the click — the highlight auto-clears after 5s.
+    const option = await getChartOption(page);
+    const series = option?.series || [];
+    const hasHighlightedMarker = series.some(
+      (s: any) =>
+        s.type === "scatter" &&
+        Array.isArray(s.data) &&
+        s.data.length > 0 &&
+        (s.id === "highlight-entry" ||
+          s.id === "highlight-exit" ||
+          s.data.some((d: any) => d?.itemStyle?.color === "#FFD700")),
+    );
+    expect(hasHighlightedMarker).toBeTruthy();
   });
 });
 

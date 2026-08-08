@@ -274,3 +274,13 @@ export function initAuth(): void {
 
 // Export fetchWithAuth for use in other API modules
 export { fetchWithAuth };
+
+/** Fetch JSON from an API endpoint with auth, throwing on non-2xx. */
+export async function apiFetch(url: string, options?: RequestInit): Promise<any> {
+  const response = await fetchWithAuth(url, options);
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new Error(`API ${response.status}: ${text.slice(0, 200)}`);
+  }
+  return response.json();
+}

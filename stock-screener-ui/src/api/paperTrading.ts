@@ -13,6 +13,7 @@ import type {
   AnalyticsData,
   ActivityEvent,
   AggregatedDashboardData,
+  PaperDashboardAnalyticsData,
 } from "../types/paperTrading";
 import {
   setPositions,
@@ -34,8 +35,10 @@ import {
   setActivityLoading,
   setAggregatedData,
   setAggregatedLoading,
+  setDashboardAnalyticsData,
+  setDashboardAnalyticsLoading,
 } from "../state/paperTrading";
-import { fetchWithAuth } from "../state/auth";
+import { apiFetch } from "../state/auth";
 import { isMarketClosedToday } from "../state/holidays";
 import {
   startPaperBot,
@@ -77,11 +80,11 @@ export {
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
 
+
 // Fetch portfolio status
 export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/portfolio`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/portfolio`);
     setPortfolio(data);
     return data;
   } catch (error) {
@@ -93,8 +96,7 @@ export async function fetchPortfolio(): Promise<PortfolioStatus | null> {
 // Fetch open positions
 export async function fetchPositions(): Promise<PaperPosition[]> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/positions`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/positions`);
     const positions = data.positions || [];
     console.log("[fetchPositions] raw response:", data, "positions[0]:", positions[0]);
     setPositions(positions);
@@ -107,8 +109,7 @@ export async function fetchPositions(): Promise<PaperPosition[]> {
 
 export async function fetch52WLevels(symbol: string): Promise<{ high_52w: number; low_52w: number } | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/52w/${symbol}`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/52w/${symbol}`);
     if (data.high_52w) {
       return { high_52w: data.high_52w, low_52w: data.low_52w || 0 };
     }
@@ -137,8 +138,7 @@ export async function fetchTrades(
     if (toDate) params.append("to_date", toDate);
     params.append("days_back", daysBack.toString());
 
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades?${params.toString()}`, { signal });
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/trades?${params.toString()}`, { signal });
     const trades = data.trades || [];
     if (!skipSetTrades) setTrades(trades);
     return trades;
@@ -152,13 +152,9 @@ export async function fetchTrades(
 // Delete a single trade
 export async function deleteTrade(tradeId: string): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades/${tradeId}`, {
+    const data = await apiFetch(`${API_BASE}/api/paper/trades/${tradeId}`, {
       method: "DELETE",
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "Failed to delete trade");
-    }
     return { success: true, message: data.message || "Trade deleted" };
   } catch (error) {
     console.error("Failed to delete trade:", error);
@@ -172,13 +168,11 @@ export async function updateTradeNotes(
   reason: string,
 ): Promise<PaperTrade> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/trades/${tradeId}`, {
+    const data = await apiFetch(`${API_BASE}/api/paper/trades/${tradeId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ notes, reason }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Failed to update trade");
     return data;
   } catch (error) {
     console.error("Failed to update trade notes:", error);
@@ -192,13 +186,11 @@ export async function updatePositionNotes(
   reason: string | null,
 ): Promise<any> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/positions/${positionId}`, {
+    const data = await apiFetch(`${API_BASE}/api/paper/positions/${positionId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ notes, reason }),
     });
-    const data = await response.json();
-    if (!response.ok) throw new Error(data.detail || "Failed to update position");
     return data;
   } catch (error) {
     console.error("Failed to update position notes:", error);
@@ -212,8 +204,7 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
     const url = date
       ? `${API_BASE}/api/paper/journal/daily?date=${date}`
       : `${API_BASE}/api/paper/journal/daily`;
-    const response = await fetchWithAuth(url);
-    const data = await response.json();
+    const data = await apiFetch(url);
     setDailySummary(data);
     return data;
   } catch (error) {
@@ -225,8 +216,7 @@ export async function fetchDailyReport(date?: string): Promise<DailySummary | nu
 // Fetch symbol performance
 export async function fetchSymbolPerformance(): Promise<SymbolPerformance[]> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/journal/symbols`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/journal/symbols`);
     const performance = Object.values(data) as SymbolPerformance[];
     setSymbolPerformance(performance);
     return performance;
@@ -257,12 +247,12 @@ export async function fetchPaperChart(
     const url = queryString
       ? `${API_BASE}/api/paper/chart/${symbol}?${queryString}`
       : `${API_BASE}/api/paper/chart/${symbol}`;
-    const response = await fetchWithAuth(url);
-    const data = await response.json();
+    const data = await apiFetch(url);
 
-    if (data.error) {
-      console.error("Chart data error:", data.error);
-      setError(data.error);
+    const chartErr = data.error || data.detail;
+    if (chartErr) {
+      console.error("Chart data error:", chartErr);
+      setError(chartErr);
       if (!silent) setChartData(null);
       else setChartLoading(false);
       return null;
@@ -333,8 +323,7 @@ export async function refreshHistoryData(
 // Health check
 export async function healthCheck(): Promise<boolean> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/health`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/health`);
     return data.status === "healthy";
   } catch {
     return false;
@@ -348,7 +337,7 @@ export async function closePaperPosition(
   reason: string = "MANUAL",
 ): Promise<{ success: boolean; pnl?: number }> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/close`, {
+    const data = await apiFetch(`${API_BASE}/api/paper/close`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -357,10 +346,6 @@ export async function closePaperPosition(
         reason: reason,
       }),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "Failed to close position");
-    }
     return { success: true, pnl: data.pnl };
   } catch (error) {
     console.error("Failed to close position:", error);
@@ -373,15 +358,11 @@ export async function closeAllPositions(
   prices: Record<string, number>,
 ): Promise<{ success: boolean; message: string }> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/close-all`, {
+    const data = await apiFetch(`${API_BASE}/api/bots/${botId}/close-all`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ prices }),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "Failed to close all positions");
-    }
     return { success: true, message: data.message };
   } catch (error) {
     console.error("Failed to close all positions:", error);
@@ -396,8 +377,7 @@ export async function fetchStrategyConfig(strategyId?: number): Promise<Strategy
     const url = strategyId
       ? `${API_BASE}/api/paper/config?strategy_id=${strategyId}`
       : `${API_BASE}/api/paper/config`;
-    const response = await fetchWithAuth(url);
-    const data = await response.json();
+    const data = await apiFetch(url);
     if (data.config) {
       setStrategyConfig(data.config);
       return data.config;
@@ -415,15 +395,11 @@ export async function fetchStrategyConfig(strategyId?: number): Promise<Strategy
 export async function updateStrategyConfig(config: Partial<StrategyConfig>): Promise<boolean> {
   setConfigLoading(true);
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/config`, {
+    const data = await apiFetch(`${API_BASE}/api/paper/config`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(config),
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "Failed to update config");
-    }
     if (data.config) {
       setStrategyConfig(data.config);
     }
@@ -439,8 +415,7 @@ export async function updateStrategyConfig(config: Partial<StrategyConfig>): Pro
 export async function fetchAnalytics(daysBack: number = 90): Promise<AnalyticsData | null> {
   setAnalyticsLoading(true);
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/analytics?days_back=${daysBack}`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/analytics?days_back=${daysBack}`);
     setAnalyticsData(data);
     return data;
   } catch (error) {
@@ -457,8 +432,7 @@ export async function fetchActivityFeed(since?: string): Promise<ActivityEvent[]
     const params = new URLSearchParams();
     if (since) params.append("since", since);
     const qs = params.toString() ? `?${params.toString()}` : "";
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/activity/feed${qs}`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/activity/feed${qs}`);
     setActivityEvents(data.events || []);
     return data.events || [];
   } catch (error) {
@@ -472,8 +446,7 @@ export async function fetchActivityFeed(since?: string): Promise<ActivityEvent[]
 export async function fetchAggregatedDashboard(): Promise<AggregatedDashboardData | null> {
   setAggregatedLoading(true);
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/aggregated`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/aggregated`);
     setAggregatedData(data);
     return data;
   } catch (error) {
@@ -483,17 +456,44 @@ export async function fetchAggregatedDashboard(): Promise<AggregatedDashboardDat
   }
 }
 
+export interface FetchDashboardAnalyticsParams {
+  preset?: string;
+  fromDate?: string | null;
+  toDate?: string | null;
+  botId?: string | null;
+}
+
+export async function fetchDashboardAnalytics({
+  preset = "30D",
+  fromDate,
+  toDate,
+  botId,
+}: FetchDashboardAnalyticsParams = {}): Promise<PaperDashboardAnalyticsData | null> {
+  setDashboardAnalyticsLoading(true);
+  try {
+    const params = new URLSearchParams();
+    params.append("preset", preset);
+    if (fromDate) params.append("from_date", fromDate);
+    if (toDate) params.append("to_date", toDate);
+    if (botId && botId !== "all") params.append("bot_id", botId);
+    const data = await apiFetch(`${API_BASE}/api/paper/dashboard/analytics?${params.toString()}`);
+    setDashboardAnalyticsData(data);
+    return data;
+  } catch (error) {
+    console.error("Failed to fetch dashboard analytics:", error);
+    setDashboardAnalyticsLoading(false);
+    setError(error instanceof Error ? error.message : "Failed to fetch dashboard analytics");
+    return null;
+  }
+}
+
 // Reset strategy configuration to defaults
 export async function resetStrategyConfig(): Promise<boolean> {
   setConfigLoading(true);
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/config/reset`, {
+    const data = await apiFetch(`${API_BASE}/api/paper/config/reset`, {
       method: "POST",
     });
-    const data = await response.json();
-    if (!response.ok) {
-      throw new Error(data.detail || "Failed to reset config");
-    }
     if (data.config) {
       setStrategyConfig(data.config);
     }

@@ -316,6 +316,48 @@ async def start_bot(
             db.close()
 
 
+@router.post("/start-all")
+async def start_all_bots(
+    user=Depends(get_current_user),
+    db: Session = Depends(get_db) if get_db else None
+):
+    """Start all inactive/stopped bots for the current user."""
+    if not _db_available:
+        raise HTTPException(status_code=500, detail="Database not available")
+
+    user_id = get_user_id(user)
+
+    close_db = False
+    if db is None:
+        db = SessionLocal()
+        close_db = True
+
+    try:
+        from db.models import BotConfig
+        bots = db.query(BotConfig).filter(
+            BotConfig.user_id == user_id,
+            BotConfig.is_active == True,
+        ).all()
+
+        started = []
+        for bot in bots:
+            running, _ = is_bot_running(user_id, bot.id)
+            if not running:
+                try:
+                    start_bot_process(user_id, bot.id)
+                    started.append({"id": bot.uuid, "name": bot.name})
+                except Exception as e:
+                    console.print(f"[red]Failed to start bot {bot.name}: {e}[/red]")
+
+        return {
+            "message": f"Started {len(started)} bot(s)",
+            "started": started,
+        }
+    finally:
+        if close_db:
+            db.close()
+
+
 @router.post("/stop-all")
 async def stop_all_bots(
     user=Depends(get_current_user),
@@ -418,7 +460,7 @@ async def get_bot_scan(
 
         state = get_bot_state(bot.id, user_id, db)
         scan_items = state['scan_items'] if state else []
-        running = state is not None
+        running, _ = is_bot_running(user_id, bot.id)
 
         # Filter out scan items that already have open positions
         positions = state['positions'] if state and state.get('positions') else []
@@ -473,8 +515,10 @@ async def close_all_bot_positions(
         positions = db.query(_Pos).filter(_Pos.bot_id == bot.id).all()
 
         if running:
-            import json
-            cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
+            import json, uuid
+            cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+            cmd_dir.mkdir(parents=True, exist_ok=True)
+            cmd_path = cmd_dir / f"{uuid.uuid4().hex}.json"
             cmd_path.write_text(json.dumps({
                 "action": "close_all",
                 "prices": request.prices,
@@ -487,8 +531,10 @@ async def close_all_bot_positions(
             }
 
         closed_count = 0
-        cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
-        cmd_path.unlink(missing_ok=True)
+        cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+        if cmd_dir.is_dir():
+            import shutil
+            shutil.rmtree(cmd_dir, ignore_errors=True)
         if positions:
             for pos in positions:
                 exit_price = request.prices.get(pos.symbol, pos.current_price or pos.entry_price)
@@ -832,24 +878,33 @@ async def bot_auto_recovery_task():
     await asyncio.sleep(30)
     while True:
         try:
-            user_bots: dict[int, list[int]] = {}
+            user_bots: dict[int, list[tuple[int, bool]]] = {}
             with SessionLocal() as db:
                 bots = db.query(BotConfig).filter(
                     BotConfig.is_active == True,
                     BotConfig.user_id.isnot(None),
                 ).all()
                 for b in bots:
-                    if b.user_id not in user_bots:
-                        user_bots[b.user_id] = []
-                    user_bots[b.user_id].append(b.id)
+                    user_bots.setdefault(b.user_id, []).append(
+                        (b.id, bool(getattr(b, 'live_trading', False)))
+                    )
 
-            for user_id, bot_ids in user_bots.items():
-                for bot_id in bot_ids:
+            for user_id, bot_entries in user_bots.items():
+                for bot_id, live_trading in bot_entries:
+                    # Don't restart a bot the user explicitly stopped.
+                    from .bots_router import _is_bot_intentionally_stopped
+                    if _is_bot_intentionally_stopped(user_id, bot_id):
+                        continue
                     running, pid = is_bot_running(user_id, bot_id)
+                    if running is None:
+                        # Redis/process-table status unknown — don't restart.
+                        continue
                     if running is False:
                         print(f"[Auto-Recovery] Bot {bot_id} (user {user_id}) crashed — restarting...")
                         try:
-                            start_bot_process(user_id, bot_id)
+                            # Preserve the bot's trading mode — a LIVE bot must
+                            # not silently come back as PAPER (and vice versa).
+                            start_bot_process(user_id, bot_id, live_trading=live_trading)
                             print(f"[Auto-Recovery] Bot {bot_id} restarted")
                         except Exception as e:
                             print(f"[Auto-Recovery] Restart failed for bot {bot_id}: {e}")

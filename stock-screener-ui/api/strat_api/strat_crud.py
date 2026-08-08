@@ -233,6 +233,29 @@ async def update_strategy(
         raise HTTPException(status_code=404, detail="Strategy not found")
     if error == "template":
         raise HTTPException(status_code=400, detail="Cannot update template strategies")
+
+    # Signal any running bot that uses this strategy to reload its config
+    try:
+        from db.models import BotConfig, bot_strategies
+        bots = db.query(BotConfig).join(
+            bot_strategies, BotConfig.id == bot_strategies.c.bot_id
+        ).filter(
+            bot_strategies.c.strategy_id == strategy_id,
+            BotConfig.is_active == True,
+        ).all()
+        for bot in bots:
+            from pathlib import Path
+            import json, uuid
+            cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+            cmd_dir.mkdir(parents=True, exist_ok=True)
+            cmd_path = cmd_dir / f"{uuid.uuid4().hex}.json"
+            cmd_path.write_text(json.dumps({
+                "action": "reload_strategy",
+                "strategy_id": strategy_id,
+            }))
+    except Exception:
+        pass
+
     return {
         "status": "success",
         "message": f"Strategy '{strategy.name}' updated",

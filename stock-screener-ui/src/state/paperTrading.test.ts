@@ -35,7 +35,10 @@ import {
   setPaperTradingView,
   deleteTradeAction,
   updateTradeNotesAction,
+  setupAutoRefresh,
+  stopAutoRefresh,
 } from "./paperTrading";
+import { isMarketClosedToday } from "./holidays";
 import type {
   PaperPosition,
   PaperTrade,
@@ -51,9 +54,14 @@ vi.mock("../api/paperTrading", () => ({
   updateTradeNotes: vi.fn(),
 }));
 
+vi.mock("./holidays", () => ({
+  isMarketClosedToday: vi.fn(() => false),
+}));
+
 beforeEach(() => {
-  resetPaperTradingState();
   vi.useFakeTimers();
+  vi.clearAllTimers();
+  resetPaperTradingState();
 });
 
 afterEach(() => {
@@ -369,6 +377,86 @@ describe("auto-refresh", () => {
     setAutoRefresh(false);
     setAutoRefresh(true);
     expect(getPaperTradingState().autoRefreshEnabled).toBe(true);
+  });
+
+  it("setupAutoRefresh calls fetchFn at interval when enabled and market open", () => {
+    const fetchFn = vi.fn();
+    setAutoRefresh(true);
+    setPaperTradingView("live");
+    setupAutoRefresh(fetchFn, 100);
+    vi.advanceTimersByTime(250);
+    expect(fetchFn).toHaveBeenCalledTimes(2);
+    stopAutoRefresh();
+  });
+
+  it("setupAutoRefresh skips fetchFn when market closed", () => {
+    const fetchFn = vi.fn();
+    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    setAutoRefresh(true);
+    setPaperTradingView("live");
+    setupAutoRefresh(fetchFn, 100);
+    vi.advanceTimersByTime(250);
+    expect(fetchFn).not.toHaveBeenCalled();
+    stopAutoRefresh();
+  });
+
+  it("setupAutoRefresh skips fetchFn when autoRefresh disabled", () => {
+    const fetchFn = vi.fn();
+    setAutoRefresh(false);
+    setPaperTradingView("live");
+    setupAutoRefresh(fetchFn, 100);
+    vi.advanceTimersByTime(250);
+    expect(fetchFn).not.toHaveBeenCalled();
+    stopAutoRefresh();
+  });
+
+  it("setupAutoRefresh skips fetchFn when view is not live", () => {
+    const fetchFn = vi.fn();
+    setAutoRefresh(true);
+    setPaperTradingView("history");
+    setupAutoRefresh(fetchFn, 100);
+    vi.advanceTimersByTime(250);
+    expect(fetchFn).not.toHaveBeenCalled();
+    stopAutoRefresh();
+  });
+
+  it("setupAutoRefresh clears previous timer before creating new one", () => {
+    const clearIntervalSpy = vi.spyOn(globalThis, "clearInterval");
+    const fetchFn = vi.fn();
+    setAutoRefresh(true);
+    setPaperTradingView("live");
+    setupAutoRefresh(fetchFn, 50);
+    expect(clearIntervalSpy).not.toHaveBeenCalled();
+    setupAutoRefresh(fetchFn, 100);
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(1);
+    stopAutoRefresh();
+    expect(clearIntervalSpy).toHaveBeenCalledTimes(2);
+    clearIntervalSpy.mockRestore();
+  });
+
+  it("stopAutoRefresh clears the timer", () => {
+    const fetchFn = vi.fn();
+    setAutoRefresh(true);
+    setPaperTradingView("live");
+    setupAutoRefresh(fetchFn, 100);
+    stopAutoRefresh();
+    vi.advanceTimersByTime(250);
+    expect(fetchFn).not.toHaveBeenCalled();
+  });
+
+  it("stopAutoRefresh is safe to call multiple times", () => {
+    expect(() => {
+      stopAutoRefresh();
+      stopAutoRefresh();
+      stopAutoRefresh();
+    }).not.toThrow();
+  });
+
+  it("stopAutoRefresh is safe when no timer active", () => {
+    stopAutoRefresh();
+    expect(() => {
+      stopAutoRefresh();
+    }).not.toThrow();
   });
 });
 

@@ -9,6 +9,7 @@ import { getNear52wBreakoutColumns } from "./near52wBreakout";
 import { getTouched52wColumns } from "./touched52wHigh";
 import { get52wHighColumns } from "./52wHigh";
 import { getUndervaluedColumns } from "./undervalued";
+import { getIntraday5mColumns, getIntraday10mColumns, getIntraday15mColumns } from "./intraday";
 
 export interface FormattedCell {
   value: string;
@@ -51,6 +52,12 @@ export function getColumnsForScreener(
       return getHighMomentumColumns();
     case "undervalued":
       return getUndervaluedColumns();
+    case "intraday_5m":
+      return getIntraday5mColumns();
+    case "intraday_10m":
+      return getIntraday10mColumns();
+    case "intraday_15m":
+      return getIntraday15mColumns();
     default:
       return getTrendingColumns();
   }

@@ -483,18 +483,6 @@ export interface UIAppShellNavbarProps extends UIBaseProps {
 
 export interface UIAppShellMainProps extends UIBaseProps {}
 
-export interface UITableProps extends UIBaseProps {
-  striped?: boolean;
-  highlightOnHover?: boolean;
-  withTableBorder?: boolean;
-  withColumnBorders?: boolean;
-  stickyHeader?: boolean;
-  stickyHeaderOffset?: number;
-  verticalSpacing?: UISize | number | string;
-  horizontalSpacing?: UISize | number | string;
-  variant?: "default" | "vertical" | "horizontal";
-}
-
 export interface UITabsProps extends UIBaseProps {
   value?: string | null;
   defaultValue?: string | null;

@@ -9,12 +9,13 @@ import {
   setPortfolio,
   setPositions,
 } from "../state/paperTrading";
-import { fetchWithAuth } from "../state/auth";
+import { apiFetch } from "../state/auth";
 import { fetchTrades, refreshLiveData } from "./paperTrading";
 
 let _abortController: AbortController | null = null;
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
+
 
 type PaperBotStatus = {
   running: boolean;
@@ -26,8 +27,7 @@ export type { PaperBotStatus };
 
 export async function fetchPaperBotStatus(): Promise<PaperBotStatus | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/status`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/bot/status`);
     setBotStatus(!!data.running, data.pid ?? null, data.log_file ?? null);
     return data;
   } catch (error) {
@@ -39,8 +39,7 @@ export async function fetchPaperBotStatus(): Promise<PaperBotStatus | null> {
 
 export async function startPaperBot(): Promise<boolean> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/start`, { method: "POST" });
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/bot/start`, { method: "POST" });
     setBotStatus(!!data.running, data.pid ?? null, data.log_file ?? null);
     return !!data.running;
   } catch (error) {
@@ -51,8 +50,7 @@ export async function startPaperBot(): Promise<boolean> {
 
 export async function stopPaperBot(): Promise<boolean> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/paper/bot/stop`, { method: "POST" });
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/paper/bot/stop`, { method: "POST" });
     setBotStatus(!!data.running, data.pid ?? null, data.log_file ?? null);
     return !data.running;
   } catch (error) {
@@ -78,8 +76,7 @@ export function stopLiveAutoRefresh() {
 
 export async function fetchBotSummaries(): Promise<any[]> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/summary`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/bots/summary`);
     return data || [];
   } catch (error) {
     console.error("Failed to fetch bot summaries:", error);
@@ -90,8 +87,7 @@ export async function fetchBotSummaries(): Promise<any[]> {
 // List all available bots
 export async function listBots(): Promise<any[]> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots`);
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/bots`);
     return data || [];
   } catch (error) {
     console.error("Failed to list bots:", error);
@@ -102,8 +98,7 @@ export async function listBots(): Promise<any[]> {
 // Get bot details
 export async function getBot(botId: string, signal?: AbortSignal): Promise<any | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}`, { signal });
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/bots/${botId}`, { signal });
     return data;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
@@ -117,10 +112,9 @@ export async function startBot(
   botId: string,
 ): Promise<{ success: boolean; pid?: number; log_file?: string | null; message?: string }> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/start`, {
+    const data = await apiFetch(`${API_BASE}/api/bots/${botId}/start`, {
       method: "POST",
     });
-    const data = await response.json();
     const started = !!data.pid;
 
     // The start endpoint does not return `running`, but the UI state depends on it.
@@ -146,10 +140,9 @@ export async function startBot(
 // Stop a multi-strategy bot
 export async function stopBot(botId: string): Promise<{ success: boolean; message?: string }> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/stop`, {
+    const data = await apiFetch(`${API_BASE}/api/bots/${botId}/stop`, {
       method: "POST",
     });
-    const data = await response.json();
 
     setBotStatus(false, null, null);
 
@@ -166,8 +159,7 @@ export async function stopBot(botId: string): Promise<{ success: boolean; messag
 // Get bot portfolio with per-strategy breakdown
 export async function fetchBotPortfolio(botId: string, signal?: AbortSignal): Promise<any | null> {
   try {
-    const response = await fetchWithAuth(`${API_BASE}/api/bots/${botId}/portfolio`, { signal });
-    const data = await response.json();
+    const data = await apiFetch(`${API_BASE}/api/bots/${botId}/portfolio`, { signal });
     return data;
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
@@ -186,8 +178,7 @@ export async function fetchBotPositions(
     const params = new URLSearchParams();
     if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/positions${params.toString() ? "?" + params : ""}`;
-    const response = await fetchWithAuth(url, { signal });
-    const data = await response.json();
+    const data = await apiFetch(url, { signal });
     return data.positions || [];
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
@@ -196,23 +187,27 @@ export async function fetchBotPositions(
   }
 }
 
+export interface ScanItemsResponse {
+  items: any[];
+  timestamp: string | null;
+}
+
 // Get bot scan items (optionally filtered by strategy)
 export async function fetchBotScanItems(
   botId: string,
   strategyId?: string,
   signal?: AbortSignal,
-): Promise<any[]> {
+): Promise<ScanItemsResponse> {
   try {
     const params = new URLSearchParams();
     if (strategyId) params.set("strategy_id", strategyId);
     const url = `${API_BASE}/api/bots/${botId}/scan${params.toString() ? "?" + params : ""}`;
-    const response = await fetchWithAuth(url, { signal });
-    const data = await response.json();
-    return data.scan_items || [];
+    const data = await apiFetch(url, { signal });
+    return { items: data.scan_items || [], timestamp: data.timestamp || null };
   } catch (error) {
     if (error instanceof DOMException && error.name === "AbortError") throw error;
     console.error("Failed to fetch bot scan items:", error);
-    return [];
+    return { items: [], timestamp: null };
   }
 }
 
@@ -225,8 +220,7 @@ export async function fetchBotStrategyPerformance(
     const params = new URLSearchParams();
     if (!includeTest) params.set("include_test", "false");
     const url = `${API_BASE}/api/bots/${botId}/strategy-performance${params.toString() ? "?" + params : ""}`;
-    const response = await fetchWithAuth(url);
-    const data = await response.json();
+    const data = await apiFetch(url);
     return data;
   } catch (error) {
     console.error("Failed to fetch bot strategy performance:", error);
@@ -277,13 +271,15 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
   const reqId = ++_botDataReqId;
   setLoading(true);
   try {
-    const [botInfo, portfolioData, positions, scanItems] = await Promise.all([
+    const [botInfo, portfolioData, positions, scanRes] = await Promise.all([
       getBot(botId, signal),
       fetchBotPortfolio(botId, signal),
       fetchBotPositions(botId, undefined, signal),
       fetchBotScanItems(botId, undefined, signal),
     ]);
     if (reqId !== _botDataReqId) return;
+    const scanItems = scanRes?.items ?? [];
+    const scanTimestamp = scanRes?.timestamp ?? null;
     const trades = await fetchTrades(200, botId, undefined, undefined, undefined, signal, true);
     const todayString = new Date().toDateString();
     const realizedToday = trades
@@ -301,23 +297,32 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
 
     if (reqId !== _botDataReqId) return;
 
-    if (portfolioData) {
-      const watchlist = Array.isArray(portfolioData.watchlist)
+    const watchlist =
+      portfolioData && Array.isArray(portfolioData.watchlist)
         ? portfolioData.watchlist
         : Array.from(new Set(scanItems.map((item: any) => item?.symbol).filter(Boolean)));
 
-      // Convert bot positions to paper positions format
-      const paperPositions = positions.map((p: any) => ({
+    // Convert bot positions to paper positions format
+    const paperPositions = positions.map((p: any) => {
+      const cp = p.current_price || p.entry_price;
+      const side = p.side === "SELL" ? -1 : 1;
+      let pnl = p.unrealized_pnl ?? 0;
+      let pnlPct = p.unrealized_pnl_pct ?? 0;
+      if (!pnl && cp && p.entry_price && p.quantity) {
+        pnl = side * (cp - p.entry_price) * p.quantity;
+        pnlPct = side * ((cp - p.entry_price) / p.entry_price) * 100;
+      }
+      return {
         symbol: p.symbol,
         side: p.side,
         quantity: p.quantity,
         entry_price: p.entry_price,
-        current_price: p.current_price || p.entry_price,
+        current_price: cp,
         entry_time: p.entry_time,
         stop_loss: p.stop_loss || 0,
         take_profit: p.take_profit || 0,
-        pnl: p.unrealized_pnl || 0,
-        pnl_pct: p.unrealized_pnl_pct || 0,
+        pnl,
+        pnl_pct: pnlPct,
         margin_used: p.margin_used || 0,
         strategy_id: p.strategy_id,
         strategy_name: p.strategy_name,
@@ -328,19 +333,23 @@ export async function refreshBotLiveData(botId: string): Promise<void> {
         notes: p.notes || "",
         id: p.id || "",
         order_id: p.order_id || "",
-      }));
+      };
+    });
 
+    // Scan/watchlist state updates independently of the portfolio fetch so a
+    // transient portfolio failure never freezes the watchlist scan card.
+    setPositions(paperPositions);
+    setBotSnapshot({
+      timestamp: scanTimestamp ?? new Date().toISOString(),
+      watchlist,
+      strategy_watchlists: portfolioData?.strategy_watchlists ?? {},
+      open_positions: positions.map((p: any) => p.symbol),
+      scan_items: scanItems,
+      signals: [],
+    });
+
+    if (portfolioData) {
       setPortfolio(normalizeBotPortfolio(portfolioData.portfolio, positions, realizedToday));
-      setPositions(paperPositions);
-
-      // Convert scan items to bot snapshot format
-      setBotSnapshot({
-        timestamp: new Date().toISOString(),
-        watchlist,
-        open_positions: positions.map((p: any) => p.symbol),
-        scan_items: scanItems,
-        signals: [],
-      });
     }
   } catch (error) {
     if (reqId === _botDataReqId) {

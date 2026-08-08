@@ -48,6 +48,34 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
     "52W_TARGET": ["near_52w_breakout"],
     "BLIND_52W": ["near_52w_breakout"],
 }
+
+# ── Shared constants ──────────────────────────────────────────────────────────
+WATCHLIST_SHARED_CAP = 20
+WATCHLIST_STRATEGY_CAP = 15
+WATCHLIST_REFRESH_CYCLES = 10
+WATCHLIST_STRATEGY_REFRESH_CYCLES = 30
+SCAN_INTERVAL_DEFAULT = 5
+PERSIST_STATE_CYCLES = 6
+REDIS_SCAN_TTL = 300
+TRENDING_LIMIT = 50
+
+_SCANNER_PATHS_RESOLVED = False
+
+def _ensure_scanner_paths() -> bool:
+    global _SCANNER_PATHS_RESOLVED
+    if _SCANNER_PATHS_RESOLVED:
+        return True
+    import sys as _sys
+    from pathlib import Path as _Path
+    this_mod = _sys.modules.get('trading.runner_core', None)
+    _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
+    if not _file_:
+        return False
+    project_root = _Path(_file_).parent.parent
+    _sys.path.insert(0, str(project_root.parent / 'scanners'))
+    _sys.path.insert(0, str(project_root.parent))
+    _SCANNER_PATHS_RESOLVED = True
+    return True
 from trading.bot_heartbeat import BotHeartbeat
 from trading.global_risk_manager import GlobalRiskManager
 from trading.strategy_runner import StrategyRunner, INTRADAY_STRATEGY_TYPES, SWING_STRATEGY_TYPES
@@ -283,28 +311,58 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         console.print(f"\n[yellow]Received {sig_name}. Stopping all strategies...[/yellow]")
         self.running = False
 
+    def _process_command(self, cmd: dict) -> bool:
+        """Process a single command dict. Returns True if handled."""
+        action = cmd.get("action")
+        if action == "close_all":
+            prices = cmd.get("prices", {})
+            self._execute_close_all(prices)
+            console.print(f"[red]Executed close_all command for {len(prices)} symbols[/red]")
+            return True
+        elif action == "close_position":
+            symbol = cmd.get("symbol", "")
+            exit_price = cmd.get("exit_price", 0)
+            strategy_id = cmd.get("strategy_id")
+            self._execute_close_position(symbol, exit_price, strategy_id)
+            console.print(f"[red]Executed close_position command for {symbol}[/red]")
+            return True
+        elif action == "reload_strategy":
+            sid = cmd.get("strategy_id")
+            if sid and self._reload_strategy_config(sid):
+                self.refresh_watchlist(sid)
+                self._start_websocket_stream()
+                console.print(f"[green]Reloaded config + watchlist for strategy {sid}[/green]")
+            elif sid:
+                console.print(f"[yellow]reload_strategy: strategy {sid} config unchanged[/yellow]")
+            return True
+        elif action == "reload_all_strategies":
+            for sid in list(self.strategies.keys()):
+                if self._reload_strategy_config(sid):
+                    self.refresh_watchlist(sid)
+            self._start_websocket_stream()
+            console.print(f"[green]Reloaded config + watchlist for all strategies[/green]")
+            return True
+        return False
+
     def _check_command_file(self):
+        """Read and process all command files from the command directory.
+
+        Uses a directory of files instead of a single file to avoid
+        race conditions when multiple commands arrive in one cycle.
+        """
         bot_id = self.bot_config.id if self.bot_config else 0
-        cmd_path = Path(f"/tmp/bot-cmd-{bot_id}.json")
-        if not cmd_path.exists():
+        cmd_dir = Path(f"/tmp/bot-cmd-{bot_id}")
+        if not cmd_dir.is_dir():
             return
-        try:
-            cmd = _json.loads(cmd_path.read_text())
-            if cmd.get("action") == "close_all":
-                prices = cmd.get("prices", {})
-                self._execute_close_all(prices)
-                console.print(f"[red]Executed close_all command for {len(prices)} symbols[/red]")
-            elif cmd.get("action") == "close_position":
-                symbol = cmd.get("symbol", "")
-                exit_price = cmd.get("exit_price", 0)
-                strategy_id = cmd.get("strategy_id")
-                self._execute_close_position(symbol, exit_price, strategy_id)
-                console.print(f"[red]Executed close_position command for {symbol}[/red]")
-        except Exception as e:
-            console.print(f"[yellow]Error reading command file: {e}[/yellow]")
-        finally:
+        cmd_files = sorted(cmd_dir.iterdir())
+        for f in cmd_files:
             try:
-                cmd_path.unlink(missing_ok=True)
+                cmd = _json.loads(f.read_text())
+                self._process_command(cmd)
+            except Exception as e:
+                console.print(f"[yellow]Error processing command file {f.name}: {e}[/yellow]")
+            try:
+                f.unlink(missing_ok=True)
             except Exception:
                 pass
 
@@ -394,13 +452,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
     def _get_screener(self):
         """Lazy load screener."""
         if self._screener is None:
+            if not _ensure_scanner_paths():
+                console.print("[red]Cannot resolve scanner module path for screener[/red]")
+                return None
             try:
-                import sys as _sys
-                from pathlib import Path as _Path
-                project_root = _Path(__file__).parent.parent
-                scanners_path = project_root / 'scanners'
-                _sys.path.insert(0, str(scanners_path))
-                _sys.path.insert(0, str(project_root.parent))
                 from orb_stock_screener import ORBStockScreener
                 self._screener = ORBStockScreener(use_relaxed=True)
             except ImportError:
@@ -415,6 +470,38 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 self._data_fetcher = TVScreenerUsage(enable_paper_trading=False)
             except ImportError:
                 console.print("[red]Could not import TVScreenerUsage[/red]")
+
+            # TVScreenerUsage.__init__ can silently fail to initialize upstox_api
+            # (relative import bug in config_and_utils when upstox_trader/ is added to sys.path).
+            # Fall back to creating UpstoxAPI directly via the full package path.
+            if self._data_fetcher and not getattr(self._data_fetcher, 'upstox_api', None):
+                try:
+                    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
+                    import config as _cfg
+                    api = UpstoxAPI(
+                        api_key=_cfg.UPSTOX_CONFIG.get('api_key'),
+                        api_secret=_cfg.UPSTOX_CONFIG.get('api_secret'),
+                        quiet=True,
+                    )
+                    # TVScreenerUsage's "robust import setup" adds Alphashri/ to
+                    # sys.path, making import config resolve to the parent project
+                    # (Alphashri/config.py). That config loads its own .env which
+                    # lacks UPSTOX_ACCESS_TOKEN. Re-load the UI's .env so the
+                    # token env var is available.
+                    if not api.auth_handler.access_token:
+                        from pathlib import Path as _P
+                        _dotenv = _P(__file__).resolve().parent.parent / '.env'
+                        if _dotenv.exists():
+                            from dotenv import load_dotenv
+                            load_dotenv(str(_dotenv), override=True)
+                        import os as _os
+                        _tok = _os.environ.get('UPSTOX_ACCESS_TOKEN')
+                        if _tok:
+                            api.auth_handler.access_token = _tok
+                    self._data_fetcher.upstox_api = api
+                    console.print("[green]✅ Direct UpstoxAPI fallback created for data fetcher[/green]")
+                except Exception as e:
+                    console.print(f"[red]Direct UpstoxAPI fallback also failed: {e}[/red]")
         return self._data_fetcher
 
     def _get_order_manager(self):
@@ -740,21 +827,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
 
         console.print("\n[cyan]Refreshing shared watchlist from screener...[/cyan]")
 
-        try:
-            import sys as _sys
-            from pathlib import Path as _Path
-            this_mod = _sys.modules.get('trading.runner_core', None)
-            _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
-            if not _file_:
-                console.print(f"[red]Cannot determine module path[/red]")
-                self.watchlist = DEFAULT_WATCHLIST.copy()
-                return self.watchlist
-            project_root = Path(_file_).parent.parent
-            _sys.path.insert(0, str(project_root.parent / 'scanners'))
-            _sys.path.insert(0, str(project_root.parent))
+        if not _ensure_scanner_paths():
+            console.print(f"[red]Cannot resolve scanner module path[/red]")
+            self.watchlist = DEFAULT_WATCHLIST.copy()
+            return self.watchlist
 
+        try:
             import trending_upside as _tu
-            df = _tu.fetch_trending_stocks(limit=50, profile='trending')
+            df = _tu.fetch_trending_stocks(limit=TRENDING_LIMIT, profile='trending')
 
             if df is None or df.empty:
                 console.print("[yellow]No stocks from screener - using default watchlist[/yellow]")
@@ -762,7 +842,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     self.watchlist = DEFAULT_WATCHLIST.copy()
                 return self.watchlist
 
-            self.watchlist = df['name'].tolist()[:20]
+            self.watchlist = df['name'].tolist()[:WATCHLIST_SHARED_CAP]
             console.print(f"[green]Watchlist updated: {len(self.watchlist)} stocks[/green]")
 
             table = Table(title="Shared Watchlist")
@@ -770,7 +850,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             table.add_column("Symbol")
             table.add_column("Price", justify="right")
 
-            for i, (_, row) in enumerate(df.head(20).iterrows(), 1):
+            for i, (_, row) in enumerate(df.head(WATCHLIST_SHARED_CAP).iterrows(), 1):
                 table.add_row(
                     str(i),
                     row['name'],
@@ -804,37 +884,46 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         # Custom watchlist takes priority — prepend to screener results
         custom_symbols = config.get('custom_watchlist', [])
         if custom_symbols:
+            valid = []
+            for s in custom_symbols:
+                s = s.strip().upper()
+                if s and len(s) <= 20 and s.isascii():
+                    valid.append(s)
+                else:
+                    console.print(f"[yellow]Skipping invalid custom_watchlist symbol: '{s}'[/yellow]")
+            custom_symbols = valid
             console.print(f"[cyan]Custom watchlist for strategy {strategy_id}: {custom_symbols}[/cyan]")
 
         console.print(f"[cyan]Refreshing watchlist for strategy {strategy_id} ({strategy_type}) with profiles: {profiles}[/cyan]")
 
         all_symbols = list(custom_symbols)
 
-        import sys as _sys
-        from pathlib import Path as _Path
-        this_mod = _sys.modules.get('trading.runner_core', None)
-        _file_ = this_mod.__file__ if this_mod and hasattr(this_mod, '__file__') else None
-        if not _file_:
-            console.print(f"[red]Cannot determine module path[/red]")
+        if not _ensure_scanner_paths():
+            console.print(f"[red]Cannot resolve scanner module path[/red]")
             return self.watchlist
-        project_root = Path(_file_).parent.parent
-        _sys.path.insert(0, str(project_root.parent / 'scanners'))
-        _sys.path.insert(0, str(project_root.parent))
 
         for profile in profiles:
-            try:
-                import trending_upside as _tu
-                df = _tu.fetch_trending_stocks(limit=50, profile=profile)
-                if df is not None and not df.empty:
-                    all_symbols.extend(df['name'].tolist())
-            except Exception as e:
-                console.print(f"[yellow]Error screening with profile {profile}: {e}[/yellow]")
+            for attempt in range(3):
+                try:
+                    import trending_upside as _tu
+                    df = _tu.fetch_trending_stocks(limit=TRENDING_LIMIT, profile=profile)
+                    if df is not None and not df.empty:
+                        all_symbols.extend(df['name'].tolist())
+                    break
+                except Exception as e:
+                    if attempt < 2:
+                        console.print(f"[yellow]Retry {attempt+1}/3 for profile {profile}: {e}[/yellow]")
+                        import time as _time
+                        _time.sleep(2)
+                    else:
+                        console.print(f"[yellow]Error screening with profile {profile} after 3 attempts: {e}[/yellow]")
 
         if not all_symbols:
-            # Fallback to shared watchlist or default
-            if self.watchlist:
-                return self.watchlist
-            return DEFAULT_WATCHLIST.copy()
+            # Fallback to shared watchlist or default — store it so scan doesn't silently fall through
+            result = (self.watchlist or DEFAULT_WATCHLIST).copy()
+            self.strategy_watchlists[strategy_id] = result
+            console.print(f"[yellow]Strategy {strategy_id} watchlist: screener returned empty, using fallback ({len(result)} stocks)[/yellow]")
+            return result
 
         # Deduplicate while preserving order
         seen = set()
@@ -845,8 +934,8 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 unique_symbols.append(s)
 
         # Store per-strategy watchlist (capped to avoid API rate limits)
-        self.strategy_watchlists[strategy_id] = unique_symbols[:15]
-        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:15])} stocks[/green]")
+        self.strategy_watchlists[strategy_id] = unique_symbols[:WATCHLIST_STRATEGY_CAP]
+        console.print(f"[green]Strategy {strategy_id} watchlist updated: {len(unique_symbols[:WATCHLIST_STRATEGY_CAP])} stocks[/green]")
         return self.strategy_watchlists[strategy_id]
 
     def persist_state(self):
@@ -869,7 +958,14 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 bot_state.daily_trades = portfolio.get('daily_trades', 0)
                 bot_state.realized_pnl = portfolio.get('realized_pnl', 0.0)
                 bot_state.day_start = self.portfolio.day_start.isoformat() if hasattr(self.portfolio, 'day_start') and self.portfolio.day_start else ""
-                bot_state.watchlist = _json.dumps(self.watchlist or [])
+                watchlist_data = {
+                    "shared": self.watchlist or [],
+                    "per_strategy": {
+                        str(sid): symbols
+                        for sid, symbols in self.strategy_watchlists.items()
+                    },
+                }
+                bot_state.watchlist = _json.dumps(watchlist_data)
                 db.flush()
 
                 for strategy_id, runner in self.strategies.items():
@@ -895,33 +991,43 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     s_state.realized_pnl = s_status.get('realized_pnl', 0.0) if s_status else 0.0
                     db.flush()
         except Exception as e:
-            console.print(f"[yellow]persist_state bot/strategy state failed: {e}[/yellow]")
+            import traceback as _tb
+            console.print(f"[red]persist_state bot/strategy state failed: {e}[/red]")
+            console.print(_tb.format_exc())
 
         self._persist_scan_items_to_redis()
         self._persist_scan_items_to_db()
 
     def _build_scan_items(self) -> list:
+        now_ts = self._ist_now().isoformat()
         items = []
         for strategy_id, runner in self.strategies.items():
             for item in getattr(runner, 'last_scan_items', []):
                 item_copy = dict(item)
                 item_copy['strategy_name'] = runner.strategy_name
                 item_copy['strategy_id'] = strategy_id
+                item_copy['timestamp'] = now_ts
                 items.append(item_copy)
         return items
 
     def _has_meaningful_scan_items(self, items: list) -> bool:
         """Check if scan_items have any data worth persisting.
 
-        Returns True if:
-        - At least one item has 'watching' or 'signal' status (real data), OR
-        - Items have actual scan results (not just rate-limit failures)
+        Returns True if at least one item is a real 'watching'/'signal' result.
+        A snapshot where EVERY item was skipped purely due to rate-limiting /
+        data-unavailable is not meaningful: persisting it would overwrite the
+        last good snapshot (Redis TTL 300s) with a wall of error rows.
         """
         if not items:
             return False
-        # If any item has a price, the scan actually ran — persist even if all skipped
         for item in items:
-            if item.get('price') is not None or item.get('status') in ('watching', 'signal'):
+            status = item.get('status')
+            if status in ('watching', 'signal'):
+                return True
+            reason = (item.get('reason') or '')
+            if status != 'skipped' or not any(
+                tok in reason.lower() for tok in ('rate limit', 'rate-limited', 'unavailable', 'error')
+            ):
                 return True
         return False
 
@@ -935,7 +1041,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
             if client is not None:
                 client.setex(
                     f"bot:{self.bot_config.id}:scan_items",
-                    300,
+                    REDIS_SCAN_TTL,
                     _json.dumps(scan_items),
                 )
         except Exception as e:
@@ -1020,6 +1126,31 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         if strategy_id in self.strategies:
             self.strategies[strategy_id].status = "paused"
             console.print(f"[yellow]Paused strategy: {self.strategies[strategy_id].strategy_name}[/yellow]")
+
+    def _reload_strategy_config(self, strategy_id: int) -> bool:
+        """Re-read strategy config from DB and update in-memory runner.config.
+
+        Returns True if config changed, False otherwise.
+        """
+        runner = self.strategies.get(strategy_id)
+        if not runner:
+            return False
+        try:
+            from db.models import StrategyConfig as _SC
+            SessionLocal = _get_session_local()
+            with SessionLocal() as db:
+                fresh = db.query(_SC).filter(_SC.id == strategy_id).first()
+                if not fresh:
+                    return False
+                new_config = fresh.to_dict()
+                old_config = runner.config
+                if new_config.get('updated_at') != old_config.get('updated_at'):
+                    runner.config = new_config
+                    console.print(f"[green]Reloaded config for strategy {runner.strategy_name}[/green]")
+                    return True
+        except Exception as e:
+            console.print(f"[yellow]Could not reload strategy {strategy_id} config: {e}[/yellow]")
+        return False
 
     def start_all_strategies(self):
         """Start all strategies."""
@@ -1108,17 +1239,34 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     # Monitor positions FIRST — exits before entries
                     self.monitor_positions()
 
+                    # Periodic config reload from DB (every 30 cycles)
+                    if cycle % 30 == 0 and cycle != 1:
+                        for sid in list(self.strategies.keys()):
+                            self._reload_strategy_config(sid)
+
                     for strategy_id, runner in self.strategies.items():
-                        if runner.status == "running":
-                            # Refresh per-strategy watchlist periodically (every 30 cycles)
-                            if cycle % 30 == 0:
-                                self.refresh_watchlist(strategy_id)
-                                self._start_websocket_stream()
-                            if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 10 != 0:
-                                continue
-                            signals = self.scan_for_signals(strategy_id)
-                            for signal in signals:
-                                self.execute_signal(strategy_id, signal)
+                        try:
+                            if runner.status == "running":
+                                # Refresh per-strategy watchlist periodically (every 30 cycles)
+                                if cycle % 30 == 0:
+                                    self.refresh_watchlist(strategy_id)
+                                    self._start_websocket_stream()
+                                if runner.strategy_type in SWING_STRATEGY_TYPES and cycle != 1 and cycle % 10 != 0:
+                                    continue
+                                signals = self.scan_for_signals(strategy_id)
+                                for signal in signals:
+                                    try:
+                                        self.execute_signal(strategy_id, signal)
+                                    except Exception as e:
+                                        console.print(f"[red]execute_signal error ({strategy_id}): {e}[/red]")
+                        except Exception as e:
+                            # Isolate per-strategy failures so one flaky strategy
+                            # (e.g. a symbol that makes check_entry raise) doesn't
+                            # stall every other strategy this cycle or skip the
+                            # persist/command-file handling below.
+                            console.print(f"[red]scan_for_signals error ({strategy_id}): {e}[/red]")
+                            import traceback as tb
+                            console.print(tb.format_exc())
 
                     self._persist_scan_items_to_redis()
                     self._check_command_file()

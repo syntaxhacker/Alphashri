@@ -79,10 +79,10 @@ export function DashboardContent({
           label="Market Breadth"
           value={
             <Group gap="xs">
-              <Badge color="green" variant="light">
+              <Badge size="sm" color="green" variant="light">
                 {totalAdvances} UP
               </Badge>
-              <Badge color="red" variant="light">
+              <Badge size="sm" color="red" variant="light">
                 {totalDeclines} DOWN
               </Badge>
             </Group>

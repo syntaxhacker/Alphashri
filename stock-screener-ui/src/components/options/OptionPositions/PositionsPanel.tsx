@@ -1,6 +1,8 @@
-import { Table, TableThead, TableTbody, TableTr, TableTh, TableTd, Text, Stack, Badge, Paper, Alert } from "@/ui";
+import { useMemo } from "react";
+import { Text, Stack, Badge, Paper, Alert } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { DataTable } from "../../common/DataTable";
+import { TanStackTable } from "../../common/TanStackTable";
 import { getPnLTextColor, formatSignedPnl } from "../../../utils/ui-helpers";
 
 interface Position {
@@ -63,6 +65,84 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
     );
   }
 
+  const columns = useMemo<ColumnDef<Position>[]>(
+    () => [
+      {
+        id: "symbol",
+        header: "Symbol",
+        accessorKey: "trading_symbol",
+        cell: (info) => (
+          <Text fw={500} size="sm">
+            {info.getValue<string>()}
+          </Text>
+        ),
+      },
+      {
+        id: "type",
+        header: "Type",
+        accessorKey: "option_type",
+        cell: (info) => (
+          <Badge
+            size="sm"
+            color={info.getValue<string>() === "CE" ? "green" : "red"}
+            variant="light"
+          >
+            {info.getValue<string>()}
+          </Badge>
+        ),
+      },
+      {
+        id: "strike",
+        header: "Strike",
+        accessorKey: "strike_price",
+        cell: (info) => (
+          <Text size="sm">{info.getValue<number>()}</Text>
+        ),
+      },
+      {
+        id: "qty",
+        header: "Qty",
+        accessorKey: "quantity",
+        cell: (info) => (
+          <Text size="sm">{info.getValue<number>()}</Text>
+        ),
+      },
+      {
+        id: "avg_price",
+        header: "Avg Price",
+        accessorKey: "average_price",
+        cell: (info) => (
+          <Text size="sm">₹{info.getValue<number>().toFixed(2)}</Text>
+        ),
+      },
+      {
+        id: "ltp",
+        header: "LTP",
+        accessorKey: "current_price",
+        cell: (info) => {
+          const val = info.getValue<number | undefined>();
+          return <Text size="sm">₹{val?.toFixed(2) ?? "-"}</Text>;
+        },
+      },
+      {
+        id: "pnl",
+        header: "P&L",
+        accessorKey: "pnl",
+        cell: (info) => {
+          const val = info.getValue<number | undefined>();
+          return val !== undefined ? (
+            <Text fw={600} c={getPnLTextColor(val)}>
+              {formatSignedPnl(val)}
+            </Text>
+          ) : (
+            <Text size="sm">-</Text>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
   return (
     <Stack
       id="positions-panel"
@@ -80,83 +160,14 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
         className="positions-table-container"
         data-testid="options-positions-table-container"
       >
-        <DataTable striped={false} className="positions-table" dataTestId="options-positions-table">
-          <TableThead className="positions-table-head">
-            <TableTr className="positions-header-row">
-              <TableTh className="positions-header-cell">Symbol</TableTh>
-              <TableTh className="positions-header-cell">Type</TableTh>
-              <TableTh className="positions-header-cell">Strike</TableTh>
-              <TableTh className="positions-header-cell">Qty</TableTh>
-              <TableTh className="positions-header-cell">Avg Price</TableTh>
-              <TableTh className="positions-header-cell">LTP</TableTh>
-              <TableTh className="positions-header-cell">P&L</TableTh>
-            </TableTr>
-          </TableThead>
-          <TableTbody className="positions-table-body">
-            {positions.length === 0 ? (
-              <TableTr className="positions-empty-row" data-testid="options-positions-empty">
-                <TableTd colSpan={7} align="center">
-                  <Text c="dimmed" py="md">
-                    No open positions
-                  </Text>
-                </TableTd>
-              </TableTr>
-            ) : (
-              positions.map((pos, index) => (
-                <TableTr
-                  key={pos.instrument_key}
-                  className="position-row"
-                  data-testid={`options-position-row-${index}`}
-                >
-                  <TableTd
-                    fw={500}
-                    className="position-symbol"
-                    data-testid={`options-position-symbol-${index}`}
-                  >
-                    {pos.trading_symbol}
-                  </TableTd>
-                  <TableTd className="position-type">
-                    <Badge
-                      size="sm"
-                      color={pos.option_type === "CE" ? "green" : "red"}
-                      variant="light"
-                      data-testid={`options-position-type-${index}`}
-                    >
-                      {pos.option_type}
-                    </Badge>
-                  </TableTd>
-                  <TableTd
-                    className="position-strike"
-                    data-testid={`options-position-strike-${index}`}
-                  >
-                    {pos.strike_price}
-                  </TableTd>
-                  <TableTd className="position-qty" data-testid={`options-position-qty-${index}`}>
-                    {pos.quantity}
-                  </TableTd>
-                  <TableTd
-                    className="position-avg-price"
-                    data-testid={`options-position-avg-price-${index}`}
-                  >
-                    ₹{pos.average_price.toFixed(2)}
-                  </TableTd>
-                  <TableTd className="position-ltp" data-testid={`options-position-ltp-${index}`}>
-                    ₹{pos.current_price?.toFixed(2) ?? "-"}
-                  </TableTd>
-                  <TableTd className="position-pnl" data-testid={`options-position-pnl-${index}`}>
-                    {pos.pnl !== undefined ? (
-                      <Text fw={600} c={getPnLTextColor(pos.pnl)}>
-                        {formatSignedPnl(pos.pnl)}
-                      </Text>
-                    ) : (
-                      "-"
-                    )}
-                  </TableTd>
-                </TableTr>
-              ))
-            )}
-          </TableTbody>
-        </DataTable>
+        <TanStackTable<Position>
+          data={positions}
+          columns={columns}
+          dataTestId="options-positions-table"
+          enableSorting={false}
+          emptyMessage="No open positions"
+          getRowTestId={(_row, index) => `options-position-row-${index}`}
+        />
       </Paper>
     </Stack>
   );

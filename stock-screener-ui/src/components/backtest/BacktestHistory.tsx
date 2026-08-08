@@ -1,6 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useMemo } from "react";
 import {
-  Table,
   Group,
   Text,
   Button,
@@ -11,6 +10,7 @@ import {
   Stack,
   Alert,
 } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
 import {
   IconTrash,
   IconExternalLink,
@@ -31,7 +31,7 @@ import {
   setSelectedVariationId,
   getBacktestState,
 } from "../../state/backtest";
-import { DataTable } from "../common/DataTable";
+import { TanStackTable } from "../common/TanStackTable";
 import { InlineLoader, EmptyState } from "../common/states";
 import { getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -68,7 +68,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
     if (window.confirm("Are you sure you want to delete this backtest result?")) {
       const success = await deleteBacktest(id);
       if (success) {
-        setHistory(history.filter((item) => item.id !== id));
+        setHistory((prev) => prev.filter((item) => item.id !== id));
       }
     }
   };
@@ -94,14 +94,10 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         console.log("Symbols:", details.symbols);
         console.log("Days:", details.parameters.days);
 
-        // 1. Set strategy first (this clears variation)
         setSelectedStrategy(details.strategy_id);
-
-        // 2. Set the saved parameters
         setParams(details.parameters);
         setDays(details.parameters.days || 90);
 
-        // 3. Restore the variation ID for display (don't reload params)
         if (details.variation_id) {
           const currentState = getBacktestState();
           const variationExists = currentState.variations.some(
@@ -122,15 +118,11 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           }
         }
 
-        // 4. Set symbols and results
         setSelectedSymbols(details.symbols);
         setResults(details.results, details.totals);
 
-        // Restore charts if available
         if (details.chart_data) {
           setChartDataBatch(details.chart_data);
-
-          // Select first symbol to show chart immediately
           const symbols = Object.keys(details.chart_data);
           if (symbols.length > 0) {
             setSelectedChartSymbol(symbols[0]);
@@ -146,6 +138,105 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
       alert("Failed to load backtest details");
     }
   };
+
+  const columns = useMemo<ColumnDef<BacktestHistoryItem>[]>(() => [
+      {
+        id: "date",
+        header: "Date",
+        accessorKey: "created_at",
+        cell: (info) => (
+          <Text size="sm">{new Date(info.getValue<string>()).toLocaleString()}</Text>
+        ),
+      },
+      {
+        id: "strategy",
+        header: "Strategy",
+        accessorKey: "strategy_name",
+        cell: (info) => (
+          <Badge variant="light" color="blue">
+            {info.getValue<string>()}
+          </Badge>
+        ),
+      },
+      {
+        id: "symbols",
+        header: "Symbols",
+        accessorKey: "symbols",
+        cell: (info) => {
+          const symbols = info.getValue<string[]>();
+          return (
+            <Tooltip label={symbols.join(", ")}>
+              <Text size="sm" truncate maw={150}>
+                {symbols.length} stocks: {symbols.slice(0, 3).join(", ")}
+                {symbols.length > 3 ? "..." : ""}
+              </Text>
+            </Tooltip>
+          );
+        },
+      },
+      {
+        id: "trades",
+        header: "Trades",
+        accessorFn: (row) => row.metrics.total_trades,
+        cell: (info) => <Text size="sm">{info.getValue<number>()}</Text>,
+      },
+      {
+        id: "win_rate",
+        header: "Win Rate",
+        accessorFn: (row) => row.metrics.win_rate,
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text size="sm" fw={500} c={val >= 50 ? "green" : "orange"}>
+              {val.toFixed(1)}%
+            </Text>
+          );
+        },
+      },
+      {
+        id: "pnl",
+        header: "Net P&L",
+        accessorFn: (row) => row.metrics.total_pnl,
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <Text size="sm" fw={700} c={getPnLTextColor(row.metrics.total_pnl)}>
+              ₹{row.metrics.total_pnl.toLocaleString()} (
+              {row.metrics.total_pnl_pct.toFixed(2)}%)
+            </Text>
+          );
+        },
+      },
+      {
+        id: "actions",
+        header: "Actions",
+        enableSorting: false,
+        cell: (info) => {
+          const row = info.row.original;
+          return (
+            <Group gap={8}>
+              <Button
+                size="compact-xs"
+                variant="light"
+                leftSection={<IconExternalLink size={14} />}
+                onClick={() => handleLoad(row.id)}
+                data-testid={`history-load-btn-${row.id}`}
+              >
+                Load
+              </Button>
+              <ActionIcon
+                variant="subtle"
+                color="red"
+                onClick={() => handleDelete(row.id)}
+                data-testid={`history-delete-btn-${row.id}`}
+              >
+                <IconTrash size={16} />
+              </ActionIcon>
+            </Group>
+          );
+        },
+      },
+  ]);
 
   if (loading) {
     return (
@@ -224,76 +315,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           </Button>
         </Group>
       </Group>
-      <DataTable verticalSpacing="sm" className="history-table" dataTestId="history-table">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Date</Table.Th>
-            <Table.Th>Strategy</Table.Th>
-            <Table.Th>Symbols</Table.Th>
-            <Table.Th>Trades</Table.Th>
-            <Table.Th>Win Rate</Table.Th>
-            <Table.Th>Net P&L</Table.Th>
-            <Table.Th>Actions</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody data-testid="history-tbody">
-          {history.map((item) => (
-            <Table.Tr key={item.id} className="history-row" data-testid={`history-row-${item.id}`}>
-              <Table.Td>
-                <Text size="sm">{new Date(item.created_at).toLocaleString()}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Badge variant="light" color="blue">
-                  {item.strategy_name}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                <Tooltip label={item.symbols.join(", ")}>
-                  <Text size="sm" truncate maw={150}>
-                    {item.symbols.length} stocks: {item.symbols.slice(0, 3).join(", ")}
-                    {item.symbols.length > 3 ? "..." : ""}
-                  </Text>
-                </Tooltip>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm">{item.metrics.total_trades}</Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" fw={500} c={item.metrics.win_rate >= 50 ? "green" : "orange"}>
-                  {item.metrics.win_rate.toFixed(1)}%
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <Text size="sm" fw={700} c={getPnLTextColor(item.metrics.total_pnl)}>
-                  ₹{item.metrics.total_pnl.toLocaleString()} (
-                  {item.metrics.total_pnl_pct.toFixed(2)}%)
-                </Text>
-              </Table.Td>
-              <Table.Td>
-                <Group gap={8}>
-                  <Button
-                    size="compact-xs"
-                    variant="light"
-                    leftSection={<IconExternalLink size={14} />}
-                    onClick={() => handleLoad(item.id)}
-                    data-testid={`history-load-btn-${item.id}`}
-                  >
-                    Load
-                  </Button>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    onClick={() => handleDelete(item.id)}
-                    data-testid={`history-delete-btn-${item.id}`}
-                  >
-                    <IconTrash size={16} />
-                  </ActionIcon>
-                </Group>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </DataTable>
+      <TanStackTable<BacktestHistoryItem>
+        data={history}
+        columns={columns}
+        dataTestId="history-table"
+        enableSorting={false}
+      />
     </Stack>
   );
 }

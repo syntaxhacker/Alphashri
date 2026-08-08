@@ -55,7 +55,7 @@ console = Console()
 
 
 def get_upstox_api():
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 
     api_key = os.getenv("UPSTOX_API_KEY") or os.getenv("UPSTOX_CLIENT_ID")
     api_secret = os.getenv("UPSTOX_API_SECRET") or os.getenv("UPSTOX_CLIENT_SECRET")

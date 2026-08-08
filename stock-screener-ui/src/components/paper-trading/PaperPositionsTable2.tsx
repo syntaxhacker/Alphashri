@@ -113,34 +113,6 @@ export function PaperPositionsTable() {
   const sortedPositions = usePositionsData();
   const strategyGroups = useMemo(() => groupPositionsByStrategy(sortedPositions), [sortedPositions]);
 
-  const [expandedCards, setExpandedCards] = useState<Set<number>>(new Set(strategyGroups.keys()));
-  const [allExpanded, setAllExpanded] = useState(true);
-
-  useEffect(() => {
-    if (strategyGroups.size > 0 && expandedCards.size === 0) {
-      setExpandedCards(new Set(strategyGroups.keys()));
-      setAllExpanded(true);
-    }
-  }, [strategyGroups]);
-
-  const toggleCard = useCallback((id: number) => {
-    setExpandedCards((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }, []);
-
-  const toggleAll = useCallback(() => {
-    if (allExpanded) {
-      setExpandedCards(new Set());
-    } else {
-      setExpandedCards(new Set(strategyGroups.keys()));
-    }
-    setAllExpanded(!allExpanded);
-  }, [allExpanded, strategyGroups]);
-
   const handleSelectSymbol = useCallback(async (
     symbol: string,
     _tradeId?: string,
@@ -149,20 +121,24 @@ export function PaperPositionsTable() {
     strategyId?: number,
     entryTime?: string,
   ) => {
-    setSelectedSymbol(symbol);
-    setSelectedTradeId("-1");
-    const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
-    const fromDate = entryDate
-      ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
-      : undefined;
-    const currentState = getPaperTradingState();
-    await fetchPaperChart(
-      symbol,
-      entryDate,
-      currentState.chartTimeframe,
-      strategyId ?? currentState.selectedStrategyId,
-      fromDate,
-    );
+    try {
+      setSelectedSymbol(symbol);
+      setSelectedTradeId("-1");
+      const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
+      const fromDate = entryDate
+        ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
+        : undefined;
+      const currentState = getPaperTradingState();
+      await fetchPaperChart(
+        symbol,
+        entryDate,
+        currentState.chartTimeframe,
+        strategyId ?? currentState.selectedStrategyId,
+        fromDate,
+      );
+    } catch (err) {
+      console.error("handleSelectSymbol failed:", err);
+    }
   }, []);
 
   const handleClosePosition = useCallback(async (symbol: string, currentPrice: number) => {
@@ -200,14 +176,6 @@ export function PaperPositionsTable() {
           </Badge>
         </Group>
         <Group gap={4}>
-          <Button
-            size="compact-xs"
-            variant="subtle"
-            onClick={toggleAll}
-            data-testid="collapse-expand-all"
-          >
-            {allExpanded ? "Collapse All" : "Expand All"}
-          </Button>
           <CloseAllButton positions={sortedPositions} />
         </Group>
       </Group>
@@ -222,8 +190,6 @@ export function PaperPositionsTable() {
                 strategyName={displayName}
                 positions={group}
                 maxCapacity={5}
-                isExpanded={expandedCards.has(strategyId)}
-                onToggle={() => toggleCard(strategyId)}
                 onSelectSymbol={handleSelectSymbol}
                 onClosePosition={handleClosePosition}
                 onCloseAll={handleCloseGroup}

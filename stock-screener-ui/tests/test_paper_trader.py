@@ -214,16 +214,17 @@ class TestCalculateCosts:
         assert 'total' in costs
 
     def test_brokerage_minimum(self, trader):
-        """Test brokerage uses minimum when calculated is lower."""
+        """Test brokerage uses percentage for small trades (lower of ₹20 or 0.03%)."""
         costs = trader.calculate_costs(100.0, 10, OrderSide.BUY)
-        assert costs['brokerage'] == trader.min_brokerage
+        # ₹1000 trade: 0.03% = ₹0.30 < ₹20 cap -> brokerage = ₹0.30
+        assert costs['brokerage'] == round(100.0 * 10 * trader.brokerage_pct, 2)
 
     def test_brokerage_percentage(self, trader):
-        """Test brokerage uses percentage for large trades."""
+        """Test brokerage caps at ₹20 for large trades (lower of ₹20 or 0.03%)."""
         large_value = 1_000_000
         costs = trader.calculate_costs(large_value, 1, OrderSide.BUY)
-        expected_brokerage = large_value * trader.brokerage_pct
-        assert costs['brokerage'] == round(expected_brokerage, 2)
+        # ₹1M trade: 0.03% = ₹300 > ₹20 cap -> brokerage = ₹20
+        assert costs['brokerage'] == trader.min_brokerage
 
     def test_stt_sell_side_only(self, trader):
         """Test STT is charged only on sell side."""
@@ -273,8 +274,9 @@ class TestCalculateCosts:
 
     def test_small_trade_costs(self, trader):
         """Test costs for small trade values."""
-        costs = trader.calculate_costs(10.0, 1, OrderSide.BUY)
-        assert costs['brokerage'] == trader.min_brokerage
+        costs = trader.calculate_costs(500.0, 1, OrderSide.BUY)
+        # ₹500 trade: 0.03% = ₹0.15 < ₹20 cap -> brokerage = ₹0.15
+        assert costs['brokerage'] == round(500.0 * 1 * trader.brokerage_pct, 2)
         assert costs['total'] > 0
 
 
@@ -642,7 +644,8 @@ class TestClosePosition:
         initial_cash = trader.cash
         trade = trader.close_position("RELIANCE", 2600.0)
         exit_value = 2600.0 * 100
-        assert trader.cash == initial_cash + exit_value
+        # cash increases by exit value minus entry+exit costs
+        assert trader.cash == pytest.approx(initial_cash + exit_value - trade.costs, abs=0.01)
 
     def test_close_position_updates_margin(self, trader):
         """Test closing position reduces margin used."""
@@ -992,8 +995,7 @@ class TestSingletonFunctions:
         assert trader.initial_capital == 500_000
         assert trader.cash == 500_000
 
-    @patch.object(PaperTrader, '_load_todays_trades_from_journal')
-    def test_reset_paper_trader_user(self, mock_load):
+    def test_reset_paper_trader_user(self):
         """Test reset_paper_trader for specific user."""
         trader1 = get_paper_trader(user_id=1)
         trader1.cash = 500_000

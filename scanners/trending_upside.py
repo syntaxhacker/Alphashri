@@ -14,11 +14,31 @@ from utils.tv_utils import clean_and_deduplicate, format_change, format_rsi
 console = Console()
 
 SCREENER_PROFILES = {
+    'price_surge': {
+        'label': 'Price Surge',
+        'description': 'Stocks with abnormal daily price surges (+5% to +40%+)',
+        'indicators': ['Day Change', 'Volume'],
+        'columns': ['symbol', 'score', 'day_change', 'volume_m', 'rsi', 'volume_surge', 'sector'],
+        'default_sort': {'column': 'day_change', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'relative_volume_10d_calc', 'ATR', 'price_52_week_high',
+            ],
+            'filters': [
+                Column('close') >= 10,
+                Column('volume') > 100_000,
+                Column('market_cap_basic') >= 5_000_000_000,
+            ],
+            'order_by': ('change', False),
+        },
+    },
     'trending': {
         'label': 'Trending',
         'description': 'Balanced trend + momentum candidates',
         'indicators': ['52W High'],
-        'columns': ['symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'broker_diff', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
+        'columns': ['symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'day_change', 'to_52w_high', 'recent_return_5d', 'perf_w', 'sector'],
         'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
         'query': {
             'select': [
@@ -156,7 +176,7 @@ SCREENER_PROFILES = {
         'description': 'Upstox 52-week range (recommended)',
         'indicators': ['52W High', '52W Gap %'],
         'columns': [
-            'symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'broker_diff',
+            'symbol', 'score', 'touched_52w', 'tv_price', 'upstox_price', 'day_change',
             'to_52w_high', 'high_52w', 'low_52w', 'days_ago', 'sector',
         ],
         'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
@@ -272,12 +292,54 @@ SCREENER_PROFILES = {
             'order_by': ('market_cap_basic', False),
         },
     },
-    'intraday_momentum': {
-        'label': 'Intraday Momentum',
-        'description': 'Stocks with rapid price runs in last 5/15/30 mins',
+    'intraday_5m': {
+        'label': '5-Min Movers',
+        'description': 'Stocks with biggest price move in last 5 minutes',
         'indicators': ['5-min Move', 'Volume'],
-        'columns': ['symbol', 'score', 'move_pct', 'volume_m', 'rsi', 'day_change', 'sector'],
-        'default_sort': {'column': 'move_pct', 'direction': 'desc'},
+        'columns': ['symbol', 'score', 'move_5m', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector'],
+        'default_sort': {'column': 'move_5m', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'relative_volume_10d_calc', 'ATR',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 10_000_000_000,
+                Column('volume') > 500_000,
+                Column('close') > 20,
+                Column('relative_volume_10d_calc') > 0.5,
+            ],
+            'order_by': ('volume', False),
+        },
+    },
+    'intraday_10m': {
+        'label': '10-Min Movers',
+        'description': 'Stocks with biggest price move in last 10 minutes',
+        'indicators': ['10-min Move', 'Volume'],
+        'columns': ['symbol', 'score', 'move_10m', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector'],
+        'default_sort': {'column': 'move_10m', 'direction': 'desc'},
+        'query': {
+            'select': [
+                'name', 'close', 'change', 'volume',
+                'RSI', 'ADX', 'market_cap_basic', 'sector',
+                'relative_volume_10d_calc', 'ATR',
+            ],
+            'filters': [
+                Column('market_cap_basic') >= 10_000_000_000,
+                Column('volume') > 500_000,
+                Column('close') > 20,
+                Column('relative_volume_10d_calc') > 0.5,
+            ],
+            'order_by': ('volume', False),
+        },
+    },
+    'intraday_15m': {
+        'label': '15-Min Movers',
+        'description': 'Stocks with biggest price move in last 15 minutes',
+        'indicators': ['15-min Move', 'Volume'],
+        'columns': ['symbol', 'score', 'move_15m', 'volume_surge', 'rsi', 'day_change', 'volume_m', 'sector'],
+        'default_sort': {'column': 'move_15m', 'direction': 'desc'},
         'query': {
             'select': [
                 'name', 'close', 'change', 'volume',
@@ -297,7 +359,7 @@ SCREENER_PROFILES = {
         'label': 'Undervalued',
         'description': 'Financially undervalued stocks (low P/E, P/B, strong ROE, low debt)',
         'indicators': ['P/E', 'P/B', 'ROE', 'D/E'],
-        'columns': ['symbol', 'score', 'pe', 'pb', 'roe', 'de', 'close', 'mcap_cr', 'div_yield', 'sector'],
+        'columns': ['symbol', 'score', 'pe', 'pb', 'roe', 'de', 'close', 'day_change', 'mcap_cr', 'div_yield', 'sector'],
         'default_sort': {'column': 'score', 'direction': 'desc'},
         'query': {
             'select': [
@@ -671,8 +733,23 @@ def _score_undervalued(df):
     df['value_score'] = df.apply(calc_score, axis=1)
     return df.sort_values('value_score', ascending=False)
 
+def _score_price_surge(df):
+    out = df.copy()
+    out['volume_m'] = out['volume'].fillna(0) / 1_000_000
+    out['volume_surge'] = out['relative_volume_10d_calc'].fillna(1).clip(lower=0)
+    change_abs = out['change'].fillna(0).abs()
+    out['swing_score'] = (
+        change_abs.clip(upper=40) * 10
+        + out['volume_surge'].clip(upper=5) * 8
+        + out['volume_m'].clip(upper=100) * 0.3
+    ).clip(lower=0, upper=99).astype(int)
+    return out.sort_values(['change', 'volume'], ascending=[False, False])
+
+
 def _score_by_profile(df, profile):
-    if profile == 'intraday_momentum':
+    if profile == 'price_surge':
+        return _score_price_surge(df)
+    if profile in ('intraday_momentum', 'intraday_5m', 'intraday_10m', 'intraday_15m'):
         return _score_intraday_momentum(df)
     if profile == 'high_momentum':
         return _score_high_momentum(df)

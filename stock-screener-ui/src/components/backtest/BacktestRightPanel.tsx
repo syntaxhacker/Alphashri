@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Flex } from "@/ui";
 import type { SymbolChartData, Trade } from "../../types/backtest";
 import { BacktestChartTabs, TradeHistoryTable } from "./mantine";
@@ -21,7 +22,7 @@ interface BacktestRightPanelProps {
   onCloseTradeHistory: () => void;
 }
 
-export function BacktestRightPanel({
+export const BacktestRightPanel = memo(function BacktestRightPanel({
   showCharts,
   hasResults,
   symbols,
@@ -87,4 +88,4 @@ export function BacktestRightPanel({
       )}
     </Flex>
   );
-}
+});

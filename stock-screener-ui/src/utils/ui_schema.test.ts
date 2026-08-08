@@ -27,7 +27,7 @@ describe("ui schema dynamic header mapping", () => {
       "score",
       "tv_price",
       "upstox_price",
-      "broker_diff",
+      "day_change",
       "high_52w",
       "to_52w_high",
       "recent_return_5d",

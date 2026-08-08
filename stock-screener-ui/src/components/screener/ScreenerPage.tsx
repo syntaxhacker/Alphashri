@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Stack, Box, Tabs, Flex, Text } from "@/ui";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
@@ -41,30 +41,6 @@ interface ScreenerPageProps {
   onSymbolHover: (symbol: string | null) => void;
   error?: string | null;
   warning?: string | null;
-}
-
-function useScreenerSort(activeScreener: string) {
-  const sortColumn = state.sortColumn;
-  const sortDirection = state.sortDirection;
-
-  const handleSortChange = (column: string) => {
-    if (state.sortColumn === column) {
-      state.setSortDirection(state.sortDirection === "asc" ? "desc" : "asc");
-    } else {
-      state.setSortColumn(column);
-      state.setSortDirection("desc");
-    }
-  };
-
-  useEffect(() => {
-    const meta = state.profileMetaById[activeScreener];
-    if (meta?.default_sort?.column) {
-      state.setSortColumn(meta.default_sort.column);
-      state.setSortDirection(meta.default_sort.direction || "desc");
-    }
-  }, [activeScreener]);
-
-  return { sortColumn, sortDirection, handleSortChange };
 }
 
 function CompactAlerts({
@@ -138,8 +114,6 @@ export function ScreenerPage({
       { replace: true },
     );
   };
-
-  const { sortColumn, sortDirection, handleSortChange } = useScreenerSort(activeScreener);
 
   const handleCompare = useCallback(() => {
     const syms = state.selectedSymbols;
@@ -237,8 +211,6 @@ export function ScreenerPage({
                     <ScreenerSidePanel
                       activeScreener={activeScreener}
                       screenerOptions={screenerOptions}
-                      sortColumn={sortColumn}
-                      sortDirection={sortDirection}
                     />
                   )}
                   <Box
@@ -254,9 +226,6 @@ export function ScreenerPage({
                       <ScreenerContent
                         approachingStocks={approachingStocks}
                         touchedStocks={touchedStocks}
-                        sortColumn={sortColumn}
-                        sortDirection={sortDirection}
-                        handleSortChange={handleSortChange}
                         isLoading={isLoading}
                         error={error}
                         onRefresh={onRefresh}

@@ -21,12 +21,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 import json
 import pytest
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
 
 from sqlalchemy.orm import Session
 
 from api.bot_state import get_bot_state
+from config import IST
 from db.models import (
     BotConfig, StrategyConfig, BotRuntimeState, StrategyRuntimeState,
     Position, bot_strategies,
@@ -36,6 +37,10 @@ from db.models import (
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
+
+def _scan_ts(minutes_ago: int = 0) -> str:
+    """ISO timestamp (IST offset) `minutes_ago` minutes in the past."""
+    return (datetime.now(IST) - timedelta(minutes=minutes_ago)).isoformat()
 
 def _make_bot(db: Session, user_id: int = 1, name: str = "Test Bot",
               max_total_capital_pct: float = 0.8) -> BotConfig:
@@ -394,7 +399,7 @@ class TestScanItems:
         strat = _make_strategy(db)
         _link_bot_strategy(db, bot.id, strat.id)
         scan_data = json.dumps([
-            {"symbol": "TCS", "strategy_id": strat.id, "price": 3500},
+            {"symbol": "TCS", "strategy_id": strat.id, "price": 3500, "timestamp": _scan_ts()},
         ])
         _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
 
@@ -413,7 +418,7 @@ class TestScanItems:
         _make_bot_runtime(db, bot_id=bot.id, scan_items="")
 
         redis_data = json.dumps([
-            {"symbol": "INFY", "strategy_id": strat.id, "price": 1500},
+            {"symbol": "INFY", "strategy_id": strat.id, "price": 1500, "timestamp": _scan_ts()},
         ])
         mock_client = MagicMock()
         mock_client.get.return_value = redis_data
@@ -430,10 +435,10 @@ class TestScanItems:
         bot = _make_bot(db)
         strat = _make_strategy(db)
         _link_bot_strategy(db, bot.id, strat.id)
-        db_scan = json.dumps([{"symbol": "TCS", "strategy_id": strat.id}])
+        db_scan = json.dumps([{"symbol": "TCS", "strategy_id": strat.id, "timestamp": _scan_ts()}])
         _make_bot_runtime(db, bot_id=bot.id, scan_items=db_scan)
 
-        redis_scan = json.dumps([{"symbol": "INFY", "strategy_id": strat.id}])
+        redis_scan = json.dumps([{"symbol": "INFY", "strategy_id": strat.id, "timestamp": _scan_ts()}])
         mock_client = MagicMock()
         mock_client.get.return_value = redis_scan
         mock_redis.return_value = mock_client
@@ -471,9 +476,9 @@ class TestScanItems:
         _link_bot_strategy(db, bot.id, s1.id)
         _link_bot_strategy(db, bot.id, s2.id)
         scan_data = json.dumps([
-            {"symbol": "TCS", "strategy_id": s1.id},
-            {"symbol": "INFY", "strategy_id": s2.id},
-            {"symbol": "RELIANCE", "strategy_id": s1.id},
+            {"symbol": "TCS", "strategy_id": s1.id, "timestamp": _scan_ts()},
+            {"symbol": "INFY", "strategy_id": s2.id, "timestamp": _scan_ts()},
+            {"symbol": "RELIANCE", "strategy_id": s1.id, "timestamp": _scan_ts()},
         ])
         _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
 
@@ -481,6 +486,130 @@ class TestScanItems:
 
         assert len(result['strategies'][str(s1.id)]['scan_items']) == 2
         assert len(result['strategies'][str(s2.id)]['scan_items']) == 1
+
+
+# ============================================================================
+# Tests — Scan item staleness filtering + honest timestamp
+# ============================================================================
+
+@pytest.mark.unit
+class TestScanItemStaleness:
+
+    def test_fresh_scan_items_kept(self, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        scan_data = json.dumps([
+            {"symbol": "TCS", "strategy_id": strat.id, "timestamp": _scan_ts(1)},
+            {"symbol": "INFY", "strategy_id": strat.id, "timestamp": _scan_ts(10)},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert {i['symbol'] for i in result['scan_items']} == {"TCS", "INFY"}
+
+    def test_stale_scan_items_dropped(self, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        # 16+ minutes old → stale (bot stopped / empty scans yesterday)
+        scan_data = json.dumps([
+            {"symbol": "EMCURE", "strategy_id": strat.id, "timestamp": _scan_ts(19 * 60)},
+            {"symbol": "TCS", "strategy_id": strat.id, "timestamp": _scan_ts(1)},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert [i['symbol'] for i in result['scan_items']] == ["TCS"]
+
+    @patch("api.bot_state.get_redis_client")
+    def test_all_stale_scan_items_returns_empty(self, mock_redis, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        scan_data = json.dumps([
+            {"symbol": "EMCURE", "strategy_id": strat.id, "timestamp": _scan_ts(19 * 60)},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
+        mock_redis.return_value = None
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert result['scan_items'] == []
+        assert result['strategies'][str(strat.id)]['scan_items'] == []
+
+    @patch("api.bot_state.get_redis_client")
+    def test_scan_item_without_timestamp_dropped(self, mock_redis, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        scan_data = json.dumps([
+            {"symbol": "LEGACY", "strategy_id": strat.id, "price": 100},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
+        mock_redis.return_value = None
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert result['scan_items'] == []
+
+    def test_timestamp_reflects_latest_fresh_scan_item(self, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        now = datetime.now(IST)
+        newer = (now - timedelta(minutes=2)).isoformat()
+        older = (now - timedelta(minutes=8)).isoformat()
+        scan_data = json.dumps([
+            {"symbol": "TCS", "strategy_id": strat.id, "timestamp": older},
+            {"symbol": "INFY", "strategy_id": strat.id, "timestamp": newer},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=scan_data)
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert result['timestamp'] == newer
+
+    @patch("api.bot_state.get_redis_client")
+    def test_stale_db_falls_back_to_fresh_redis(self, mock_redis, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        # DB column holds yesterday's stale items (non-empty)
+        db_scan = json.dumps([
+            {"symbol": "EMCURE", "strategy_id": strat.id, "timestamp": _scan_ts(19 * 60)},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=db_scan)
+
+        redis_scan = json.dumps([
+            {"symbol": "INFY", "strategy_id": strat.id, "timestamp": _scan_ts()},
+        ])
+        mock_client = MagicMock()
+        mock_client.get.return_value = redis_scan
+        mock_redis.return_value = mock_client
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert [i['symbol'] for i in result['scan_items']] == ["INFY"]
+
+    @patch("api.bot_state.get_redis_client")
+    def test_fresh_db_items_do_not_trigger_redis(self, mock_redis, db: Session):
+        bot = _make_bot(db)
+        strat = _make_strategy(db)
+        _link_bot_strategy(db, bot.id, strat.id)
+        db_scan = json.dumps([
+            {"symbol": "TCS", "strategy_id": strat.id, "timestamp": _scan_ts()},
+        ])
+        _make_bot_runtime(db, bot_id=bot.id, scan_items=db_scan)
+        mock_client = MagicMock()
+        mock_redis.return_value = mock_client
+
+        result = get_bot_state(bot_id=bot.id, user_id=1, db=db)
+
+        assert result['scan_items'][0]['symbol'] == 'TCS'
+        mock_client.get.assert_not_called()
 
 
 # ============================================================================
@@ -704,7 +833,7 @@ class TestResponseShape:
 
         expected_keys = {
             'timestamp', 'bot_id', 'bot_name', 'running',
-            'watchlist', 'portfolio', 'strategies', 'positions', 'scan_items',
+            'watchlist', 'strategy_watchlists', 'portfolio', 'strategies', 'positions', 'scan_items',
         }
         assert set(result.keys()) == expected_keys
 

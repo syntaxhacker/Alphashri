@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, fireEvent } from "@testing-library/react";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 const mockStateStore: any = {
@@ -59,6 +59,7 @@ vi.mock("../../state/paperTrading", () => ({
   setSelectedTradeId: vi.fn(),
   setShowAllTrades: vi.fn(),
   deleteTradeAction: vi.fn(),
+  updateTradeNotesAction: vi.fn(),
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -216,8 +217,8 @@ describe("PaperHistoryTable", () => {
     });
   });
 
-  describe("DayGroup rendering", () => {
-    test("renders DayGroup for each date with trades", () => {
+  describe("trade history table rendering", () => {
+    test("renders a day group row for each date with trades", () => {
       mockStateStore.filterFromDate = null;
       mockStateStore.filterToDate = null;
       mockStateStore.trades = [
@@ -229,7 +230,7 @@ describe("PaperHistoryTable", () => {
       expect(screen.getByTestId("day-group-2026-05-08")).toBeInTheDocument();
     });
 
-    test("renders multiple trades on same date in one DayGroup", () => {
+    test("renders multiple trades on same date in one day group", () => {
       mockStateStore.trades = [
         mockTrade({ trade_id: "t1", exit_time: "2026-05-09T10:30:00Z" }),
         mockTrade({ trade_id: "t2", exit_time: "2026-05-09T11:30:00Z", symbol: "TCS" }),
@@ -238,10 +239,56 @@ describe("PaperHistoryTable", () => {
       expect(screen.getByTestId("day-group-2026-05-09")).toBeInTheDocument();
     });
 
-    test("does not call fetchPaperChart for DayGroup rendering", () => {
+    test("does not call fetchPaperChart for table rendering", () => {
       mockStateStore.trades = [mockTrade()];
       r();
       expect(mocks.mockFetchPaperChart).not.toHaveBeenCalled();
+    });
+
+    test("renders all trades in a single table (no per-day tables)", () => {
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "t1", exit_time: "2026-05-09T10:30:00Z" }),
+        mockTrade({ trade_id: "t2", exit_time: "2026-05-09T11:30:00Z", symbol: "TCS" }),
+        mockTrade({ trade_id: "t3", exit_time: "2026-05-08T10:30:00Z", symbol: "INFY" }),
+      ];
+      r();
+      expect(document.querySelectorAll("table").length).toBe(1);
+      expect(screen.getByTestId("trade-row-t1")).toBeInTheDocument();
+      expect(screen.getByTestId("trade-row-t2")).toBeInTheDocument();
+      expect(screen.getByTestId("trade-row-t3")).toBeInTheDocument();
+    });
+
+    test("uses content-sized (auto) layout so trailing columns are not squeezed", () => {
+      mockStateStore.trades = [mockTrade()];
+      r();
+      const table = document.querySelector("table")!;
+      // No explicit column sizes → auto layout → columns fit content instead
+      // of being squeezed into the panel (which caused trailing-column overlap).
+      expect(table.style.tableLayout).toBe("auto");
+      // The date is shown by the day group header, not repeated in every row.
+      expect(screen.queryByText(/^2026-03-20$/)).not.toBeInTheDocument();
+    });
+
+    test("collapses a day group when its header row is clicked", () => {
+      mockStateStore.trades = [
+        mockTrade({ trade_id: "t1", exit_time: "2026-05-09T10:30:00Z" }),
+        mockTrade({ trade_id: "t2", exit_time: "2026-05-09T11:30:00Z", symbol: "TCS" }),
+      ];
+      r();
+      expect(screen.getByTestId("trade-row-t1")).toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("day-header-2026-05-09"));
+      expect(screen.queryByTestId("trade-row-t1")).not.toBeInTheDocument();
+      expect(screen.queryByTestId("trade-row-t2")).not.toBeInTheDocument();
+      // Day summary row stays visible
+      expect(screen.getByTestId("day-group-2026-05-09")).toBeInTheDocument();
+    });
+
+    test("expands a trade row to show detail", () => {
+      mockStateStore.trades = [mockTrade({ trade_id: "trade-1" })];
+      r();
+      expect(screen.queryByTestId("trade-reason-trade-1")).not.toBeInTheDocument();
+      fireEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+      expect(screen.getByTestId("trade-reason-trade-1")).toBeInTheDocument();
     });
   });
 });
@@ -324,14 +371,13 @@ describe("PaperHistoryTable interactions", () => {
     expect(setShowAllTrades).not.toHaveBeenCalledWith(true);
   });
 
-  test("SortableHeader click triggers sort update", async () => {
+  test("table sorting does not trigger chart fetch", async () => {
     mockStateStore.trades = [
       mockTrade({ trade_id: "t1", symbol: "AAPL" }),
       mockTrade({ trade_id: "t2", symbol: "ZOO" }),
     ];
     r();
-    const symbolHeader = screen.getByTestId("sort-header-symbol");
-    symbolHeader.click();
+    expect(screen.getByText("Symbol")).toBeInTheDocument();
     await vi.waitFor(() => {
       expect(mocks.mockFetchPaperChart).not.toHaveBeenCalled();
     });

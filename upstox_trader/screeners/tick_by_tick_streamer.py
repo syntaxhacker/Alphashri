@@ -15,7 +15,7 @@ Features:
 - Automatic reconnection and error handling
 """
 
-import time
+import time as time_module
 import threading
 from datetime import datetime
 from typing import Dict, List, Optional
@@ -377,7 +377,7 @@ class TickByTickStreamer:
         print()
 
         self.running = True
-        start_time = time.time()
+        start_time = time_module.time()
 
         try:
             # Connect and start streaming
@@ -386,7 +386,7 @@ class TickByTickStreamer:
             # Monitor and display stats periodically
             last_stats_time = 0
             while self.running:
-                current_time = time.time()
+                current_time = time_module.time()
 
                 # Display summary stats every 30 seconds
                 if current_time - last_stats_time > 30:
@@ -398,7 +398,7 @@ class TickByTickStreamer:
                     print(f"\n⏰ Duration limit reached ({duration_seconds}s)")
                     break
 
-                time.sleep(1)
+                time_module.sleep(1)
 
         except KeyboardInterrupt:
             print("\n🛑 Stopped by user")
@@ -418,7 +418,7 @@ class TickByTickStreamer:
 
             # Show some interesting stats
             total_updates = sum(self.update_count.values())
-            elapsed_time = time.time() - start_time
+            elapsed_time = time_module.time() - start_time
 
             if total_updates > 0:
                 updates_per_second = total_updates / elapsed_time

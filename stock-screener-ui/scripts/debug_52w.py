@@ -164,7 +164,7 @@ def main():
     symbol = args.symbol.upper()
     date_str = args.date
 
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
     import config as app_config
 
     api_key = app_config.UPSTOX_API_KEY

@@ -14,6 +14,7 @@ import {
   IconPlayerPlay,
   IconLayoutGrid,
   IconAdjustments,
+  IconFlask,
 } from "@tabler/icons-react";
 import { Box, Group, ScrollArea, AppShellSection, Stack, ActionIcon, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
@@ -32,6 +33,7 @@ const navItems = [
   { label: "Screener", icon: IconChartLine, link: "/" },
   { label: "News", icon: IconNews, link: "/news" },
   { label: "Backtest", icon: IconChartLine, link: "/backtest" },
+  { label: "Experiments", icon: IconFlask, link: "/experiments" },
   { label: "Paper Trading", icon: IconChartDots, link: "/paper" },
   { label: "Replay", icon: IconPlayerPlay, link: "/replay" },
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },

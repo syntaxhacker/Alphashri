@@ -1,6 +1,7 @@
 import { useCallback, useMemo } from "react";
 import dayjs from "dayjs";
 import { Flex, Tabs, Text, Group, Select } from "@/ui";
+import { IconActivity, IconChartDots, IconClipboardList, IconSettings, IconTimeline } from "@tabler/icons-react";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import {
   getPaperTradingState,
@@ -84,8 +85,6 @@ export function usePaperViewActions(activeBotId: string | null) {
       } else if (view === "settings") {
         stopLiveAutoRefresh();
         fetchStrategyConfig();
-      } else if (view === "analytics") {
-        stopLiveAutoRefresh();
       } else if (view === "activity") {
         stopLiveAutoRefresh();
       } else if (view === "aggregated") {
@@ -270,7 +269,7 @@ export function PaperTradingTabs({
       data-testid="paper-trading-tabs"
     >
       <Tabs.List>
-        <Tabs.Tab value="live" leftSection={<span>📊</span>} data-testid="tab-live">
+        <Tabs.Tab value="live" leftSection={<IconChartDots size={14} />} data-testid="tab-live">
           Positions
           {state.positions.length > 0 && (
             <Text span ml={4} size="sm" c="blue">
@@ -278,7 +277,7 @@ export function PaperTradingTabs({
             </Text>
           )}
         </Tabs.Tab>
-        <Tabs.Tab value="history" leftSection={<span>📋</span>} data-testid="trade-history-tab">
+        <Tabs.Tab value="history" leftSection={<IconClipboardList size={14} />} data-testid="trade-history-tab">
           Trade History
           {state.trades.length > 0 && (
             <Text span ml={4} size="sm" c="blue">
@@ -286,16 +285,13 @@ export function PaperTradingTabs({
             </Text>
           )}
         </Tabs.Tab>
-        <Tabs.Tab value="settings" leftSection={<span>⚙️</span>} data-testid="tab-settings">
+        <Tabs.Tab value="settings" leftSection={<IconSettings size={14} />} data-testid="tab-settings">
           Settings
         </Tabs.Tab>
-        <Tabs.Tab value="analytics" leftSection={<span>📈</span>} data-testid="tab-analytics">
-          Analytics
-        </Tabs.Tab>
-        <Tabs.Tab value="activity" leftSection={<span>📡</span>} data-testid="tab-activity">
+        <Tabs.Tab value="activity" leftSection={<IconActivity size={14} />} data-testid="tab-activity">
           Activity
         </Tabs.Tab>
-        <Tabs.Tab value="aggregated" leftSection={<span>📊</span>} data-testid="tab-aggregated">
+        <Tabs.Tab value="aggregated" leftSection={<IconTimeline size={14} />} data-testid="tab-aggregated">
           Dashboard
         </Tabs.Tab>
       </Tabs.List>

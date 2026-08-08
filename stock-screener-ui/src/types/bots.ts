@@ -203,6 +203,7 @@ export type BotLoadingKey =
   | "start"
   | "stop"
   | "stop-all"
+  | "start-all"
   | "trades";
 
 // Bot views

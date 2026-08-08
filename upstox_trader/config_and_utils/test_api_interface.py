@@ -17,6 +17,7 @@ sys.path.insert(0, str(project_root))
 from upstox_trader.config_and_utils.free_indian_apis import (
     BaseAPIClient,
     UpstoxAPI,
+    UpstoxClientAdapter,
     INDMONEYApi,
     TradingAPIFactory
 )
@@ -43,20 +44,27 @@ def test_base_client_has_abstract_methods():
 
 
 def test_upstox_implements_interface():
-    """Verify UpstoxAPI implements all required methods."""
+    """Verify UpstoxAPI (via adapter) implements all required methods."""
     print("\n" + "="*70)
     print("TEST 2: UpstoxAPI Implements Unified Interface")
     print("="*70)
 
-    # Check that UpstoxAPI is concrete
-    assert len(UpstoxAPI.__abstractmethods__) == 0, "UpstoxAPI should not have abstract methods"
-    print("✓ UpstoxAPI is a concrete class")
+    # UpstoxAPI is now a factory function that returns UpstoxClientAdapter.
+    # Verify the adapter has no abstract methods (is concrete).
+    assert len(UpstoxClientAdapter.__abstractmethods__) == 0, \
+        "UpstoxClientAdapter should not have abstract methods"
+    print("✓ UpstoxClientAdapter is a concrete class")
 
-    # Check unified methods exist
+    # Check unified methods exist on the adapter
     unified_methods = ['get_price', 'get_quote', 'get_historical_data']
     for method in unified_methods:
-        assert hasattr(UpstoxAPI, method), f"UpstoxAPI missing method: {method}"
-        print(f"  ✓ {method}() - {inspect.signature(getattr(UpstoxAPI, method))}")
+        assert hasattr(UpstoxClientAdapter, method), \
+            f"UpstoxClientAdapter missing method: {method}"
+        print(f"  ✓ {method}() - {inspect.signature(getattr(UpstoxClientAdapter, method))}")
+
+    # Verify the factory function is callable
+    assert callable(UpstoxAPI), "UpstoxAPI should be callable (factory function)"
+    print("✓ UpstoxAPI is a callable factory function")
 
     return True
 
@@ -154,15 +162,16 @@ def test_interface_consistency():
     unified_methods = ['get_price', 'get_quote']
 
     for method in unified_methods:
-        upstox_sig = str(inspect.signature(getattr(UpstoxAPI, method)))
+        # UpstoxClientAdapter is the new Upstox implementation class.
+        upstox_sig = str(inspect.signature(getattr(UpstoxClientAdapter, method)))
         indmoney_sig = str(inspect.signature(getattr(INDMONEYApi, method)))
 
         print(f"  {method}:")
-        print(f"    Upstox:    {upstox_sig}")
-        print(f"    INDMoney:  {indmoney_sig}")
+        print(f"    Upstox (adapter): {upstox_sig}")
+        print(f"    INDMoney:         {indmoney_sig}")
 
         # Both should accept symbol as first parameter (after 'self')
-        upstox_params = list(inspect.signature(getattr(UpstoxAPI, method)).parameters.keys())
+        upstox_params = list(inspect.signature(getattr(UpstoxClientAdapter, method)).parameters.keys())
         indmoney_params = list(inspect.signature(getattr(INDMONEYApi, method)).parameters.keys())
 
         # Skip 'self' and check the first actual parameter
@@ -179,8 +188,10 @@ def test_inheritance():
     print("TEST 8: Inheritance Chain")
     print("="*70)
 
-    assert issubclass(UpstoxAPI, BaseAPIClient), "UpstoxAPI should inherit from BaseAPIClient"
-    print("✓ UpstoxAPI inherits from BaseAPIClient")
+    # UpstoxClientAdapter is the new concrete implementation.
+    assert issubclass(UpstoxClientAdapter, BaseAPIClient), \
+        "UpstoxClientAdapter should inherit from BaseAPIClient"
+    print("✓ UpstoxClientAdapter inherits from BaseAPIClient")
 
     assert issubclass(INDMONEYApi, BaseAPIClient), "INDMONEYApi should inherit from BaseAPIClient"
     print("✓ INDMONEYApi inherits from BaseAPIClient")
@@ -188,19 +199,26 @@ def test_inheritance():
     # Check shared methods from base class (quiet is set in __init__, check for methods instead)
     shared_methods = ['_log', '_log_error']
     for method in shared_methods:
-        assert hasattr(UpstoxAPI, method), f"UpstoxAPI should have {method} from base"
+        assert hasattr(UpstoxClientAdapter, method), \
+            f"UpstoxClientAdapter should have {method} from base"
         assert hasattr(INDMONEYApi, method), f"INDMONEYApi should have {method} from base"
     print(f"✓ Both have shared base methods: {shared_methods}")
 
-    # Verify both initialize with quiet parameter
-    try:
-        upstox_sig = inspect.signature(UpstoxAPI.__init__)
-        indmoney_sig = inspect.signature(INDMONEYApi.__init__)
-        assert 'quiet' in upstox_sig.parameters, "UpstoxAPI.__init__ should have quiet parameter"
-        assert 'quiet' in indmoney_sig.parameters, "INDMONEYApi.__init__ should have quiet parameter"
-        print("✓ Both accept 'quiet' parameter in __init__")
-    except Exception as e:
-        print(f"⚠️  Could not verify quiet parameter: {e}")
+    # Verify UpstoxClientAdapter has quiet parameter in __init__
+    adapter_sig = inspect.signature(UpstoxClientAdapter.__init__)
+    assert 'quiet' in adapter_sig.parameters, \
+        "UpstoxClientAdapter.__init__ should have quiet parameter"
+
+    # Verify the factory function also accepts quiet
+    factory_sig = inspect.signature(UpstoxAPI)
+    assert 'quiet' in factory_sig.parameters, \
+        "UpstoxAPI factory function should have quiet parameter"
+
+    # Verify INDMONEYApi has quiet parameter
+    indmoney_sig = inspect.signature(INDMONEYApi.__init__)
+    assert 'quiet' in indmoney_sig.parameters, \
+        "INDMONEYApi.__init__ should have quiet parameter"
+    print("✓ All accept 'quiet' parameter")
 
     return True
 

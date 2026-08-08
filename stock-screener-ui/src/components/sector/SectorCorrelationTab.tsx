@@ -8,7 +8,6 @@ import {
   Group,
   SegmentedControl,
   Paper,
-  Table,
   ScrollArea,
   Loader,
   Tooltip,
@@ -17,6 +16,7 @@ import {
   useColorScheme,
 } from "@/ui";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
+import type { ColumnDef } from "@tanstack/react-table";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
@@ -31,6 +31,7 @@ import {
   subscribe as subscribeToState,
 } from "../../state/sectorCorrelation";
 import { CompactPanel } from "../common/compact";
+import { TanStackTable } from "../common/TanStackTable";
 import { formatPercentage } from "../../utils/ui-helpers";
 import { CorrelationHeatmap, SectorBetaChart, RotationTimeline } from "./SectorCorrelationCharts";
 
@@ -104,64 +105,103 @@ function CorrelationHeader({
 }
 
 function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse["sectors"] }) {
+  const columns = useMemo<ColumnDef<SectorCorrelationResponse["sectors"][number]>[]>(
+    () => [
+      {
+        id: "rank",
+        header: "Rank",
+        accessorKey: "rank_current",
+        cell: (info) => {
+          const rank = info.getValue<number>();
+          return (
+            <Badge size="sm" color={rank <= 3 ? "green" : "gray"} variant="light">
+              #{rank}
+            </Badge>
+          );
+        },
+      },
+      {
+        id: "sector",
+        header: "Sector",
+        accessorKey: "name",
+        cell: (info) => <Text fw={500}>{info.getValue<string>()}</Text>,
+      },
+      {
+        id: "rs_5d",
+        header: "5D RS",
+        accessorKey: "relative_strength_5d",
+        meta: { align: "right" },
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text c={val >= 0 ? "green" : "red"}>{formatPercentage(val / 100, 2, false)}</Text>
+          );
+        },
+      },
+      {
+        id: "rs_1m",
+        header: "1M RS",
+        accessorKey: "relative_strength_1m",
+        meta: { align: "right" },
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text c={val >= 0 ? "green" : "red"}>{formatPercentage(val / 100, 2, false)}</Text>
+          );
+        },
+      },
+      {
+        id: "rs_3m",
+        header: "3M RS",
+        accessorKey: "relative_strength_3m",
+        meta: { align: "right" },
+        cell: (info) => {
+          const val = info.getValue<number>();
+          return (
+            <Text c={val >= 0 ? "green" : "red"}>{formatPercentage(val / 100, 2, false)}</Text>
+          );
+        },
+      },
+      {
+        id: "beta",
+        header: "Beta",
+        accessorKey: "beta_vs_index",
+        meta: { align: "right" },
+        cell: (info) => <Text>{info.getValue<number>().toFixed(2)}</Text>,
+      },
+      {
+        id: "rank_change",
+        header: "1M Change",
+        accessorKey: "rank_change_1m",
+        meta: { align: "right" },
+        cell: (info) => {
+          const change = info.getValue<number>();
+          return (
+            <Badge
+              size="sm"
+              color={change > 0 ? "green" : change < 0 ? "red" : "gray"}
+              variant="light"
+            >
+              {change > 0 ? `+${change}` : change}
+            </Badge>
+          );
+        },
+      },
+    ],
+    [],
+  );
+
   return (
     <ScrollArea.Autosize mah={400} mx="auto">
-      <Table striped highlightOnHover withTableBorder withColumnBorders size="sm">
-        <Table.Thead>
-          <Table.Tr>
-            <Table.Th>Rank</Table.Th>
-            <Table.Th>Sector</Table.Th>
-            <Table.Th ta="right">5D RS</Table.Th>
-            <Table.Th ta="right">1M RS</Table.Th>
-            <Table.Th ta="right">3M RS</Table.Th>
-            <Table.Th ta="right">Beta</Table.Th>
-            <Table.Th ta="right">1M Change</Table.Th>
-          </Table.Tr>
-        </Table.Thead>
-        <Table.Tbody>
-          {sectors.map((s) => (
-            <Table.Tr key={s.name}>
-              <Table.Td>
-                <Badge color={s.rank_current <= 3 ? "green" : "gray"} variant="light">
-                  #{s.rank_current}
-                </Badge>
-              </Table.Td>
-              <Table.Td>
-                <Text fw={500}>{s.name}</Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text c={s.relative_strength_5d >= 0 ? "green" : "red"}>
-                  {formatPercentage(s.relative_strength_5d / 100, 2, false)}
-                </Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text c={s.relative_strength_1m >= 0 ? "green" : "red"}>
-                  {formatPercentage(s.relative_strength_1m / 100, 2, false)}
-                </Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text c={s.relative_strength_3m >= 0 ? "green" : "red"}>
-                  {formatPercentage(s.relative_strength_3m / 100, 2, false)}
-                </Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Text>{s.beta_vs_index.toFixed(2)}</Text>
-              </Table.Td>
-              <Table.Td ta="right">
-                <Badge
-                  color={s.rank_change_1m > 0 ? "green" : s.rank_change_1m < 0 ? "red" : "gray"}
-                  variant="light"
-                >
-                  {s.rank_change_1m > 0 ? `+${s.rank_change_1m}` : s.rank_change_1m}
-                </Badge>
-              </Table.Td>
-            </Table.Tr>
-          ))}
-        </Table.Tbody>
-      </Table>
+      <TanStackTable
+        data={sectors}
+        columns={columns}
+        enableSorting={false}
+      />
     </ScrollArea.Autosize>
   );
 }
+
 
 function LoadingState() {
   return (

@@ -34,7 +34,7 @@ const state: PreviewState = {
 let hoverTimer: number | null = null;
 let hoverContainer: HTMLElement | null = null;
 let expandedContainer: HTMLElement | null = null;
-let chartInstance: any = null;
+let chartInstance: EChartsInstance | null = null;
 
 const HOVER_DELAY = 300; // ms before showing preview
 const HOVER_CONTAINER_ID = "chart-hover-popup";
@@ -297,7 +297,7 @@ async function fetchAndRenderChart(symbol: string, size: ChartSize): Promise<voi
     chartBody.appendChild(chartDiv);
 
     // Initialize ECharts
-    if (!(window as any).echarts) {
+    if (!window.echarts) {
       showError(size, "ECharts not loaded");
       return;
     }
@@ -307,7 +307,7 @@ async function fetchAndRenderChart(symbol: string, size: ChartSize): Promise<voi
       chartInstance.dispose();
     }
 
-    chartInstance = (window as any).echarts.init(chartDiv);
+    chartInstance = window.echarts.init(chartDiv);
     chartInstance.setOption(chartOption);
 
     // Update title if expanded
@@ -363,11 +363,11 @@ function removeExpandedChart(): void {
 // ============================================
 
 export function initPreviewChartHandlers(): void {
-  (window as any).showPreviewChart = showPreviewChart;
-  (window as any).hidePreviewChart = hidePreviewChart;
-  (window as any).toggleExpandedChart = toggleExpandedChart;
-  (window as any).collapseChart = collapseChart;
-  (window as any).navigateToFullChart = navigateToFullChart;
-  (window as any).setPreviewTimeframe = setPreviewTimeframe;
-  (window as any).setPreviewOrMinutes = setPreviewOrMinutes;
+  window.showPreviewChart = showPreviewChart;
+  window.hidePreviewChart = hidePreviewChart;
+  window.toggleExpandedChart = toggleExpandedChart;
+  window.collapseChart = collapseChart;
+  window.navigateToFullChart = navigateToFullChart;
+  window.setPreviewTimeframe = setPreviewTimeframe;
+  window.setPreviewOrMinutes = setPreviewOrMinutes;
 }

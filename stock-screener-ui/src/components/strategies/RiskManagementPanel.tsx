@@ -20,6 +20,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
 
         <Group grow>
           <NumberInput
+            size="sm"
             label="Risk Per Trade %"
             name="risk_per_trade_pct"
             defaultValue={initialValues.risk_per_trade_pct}
@@ -31,6 +32,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
             data-testid="strategy-risk-per-trade-input"
           />
           <NumberInput
+            size="sm"
             label="Max Position Size %"
             name="max_capital_per_trade_pct"
             defaultValue={initialValues.max_capital_per_trade_pct}
@@ -44,6 +46,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
 
         <Group grow>
           <NumberInput
+            size="sm"
             label="Min Trade Value (₹)"
             name="min_trade_value"
             defaultValue={initialValues.min_trade_value}
@@ -55,6 +58,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
             data-testid="strategy-min-trade-value-input"
           />
           <NumberInput
+            size="sm"
             label="Max Trade Value (₹)"
             name="max_trade_value"
             defaultValue={initialValues.max_trade_value}
@@ -72,6 +76,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
         <Group grow>
           {isIntraday ? (
             <NumberInput
+              size="sm"
               label="Cooldown Minutes"
               name="cooldown_minutes"
               defaultValue={initialValues.cooldown_minutes}
@@ -83,6 +88,7 @@ export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagemen
             />
           ) : (
             <NumberInput
+              size="sm"
               label="Cooldown Days"
               name="cooldown_days"
               defaultValue={initialValues.cooldown_days}

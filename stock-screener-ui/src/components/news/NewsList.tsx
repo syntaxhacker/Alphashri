@@ -52,6 +52,7 @@ export function NewsList({
         <Title order={3}>News Feed</Title>
         <ActionIcon
           variant="light"
+          size="sm"
           onClick={onRefresh}
           loading={loading}
           data-testid="news-feed-refresh-btn"
@@ -61,6 +62,7 @@ export function NewsList({
       </Group>
 
       <Select
+        size="sm"
         value={selectedSource}
         onChange={(v) => v && onSourceChange(v)}
         data={sourceData}

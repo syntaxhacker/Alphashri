@@ -7,15 +7,13 @@ import {
   Box,
   Button,
 } from "@/ui";
-import type { ScreenerOption, ProfileFilter, SortDirection } from "../../types";
+import type { ScreenerOption, ProfileFilter } from "../../types";
 import * as state from "../../state";
 import { fetchData } from "../../api";
 
 interface Props {
   activeScreener: string;
   screenerOptions: ScreenerOption[];
-  sortColumn: string | null;
-  sortDirection: SortDirection;
 }
 
 /** Mantine Select expects { value, label }[]; API may send string[] or number[]. */

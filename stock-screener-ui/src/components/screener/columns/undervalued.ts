@@ -1,6 +1,6 @@
 import type { ColumnDef } from "./index";
 import type { Stock } from "../../../types";
-import { symbolCol, scoreCol, sectorCol } from "./base";
+import { symbolCol, scoreCol, sectorCol, dayChangeCol } from "./base";
 
 export function getUndervaluedColumns(): ColumnDef[] {
   return [
@@ -13,6 +13,7 @@ export function getUndervaluedColumns(): ColumnDef[] {
       sortable: true,
       format: (value: number) => `₹${(value ?? 0).toFixed(2)}`,
     },
+    dayChangeCol,
     {
       key: "pe",
       label: "P/E",

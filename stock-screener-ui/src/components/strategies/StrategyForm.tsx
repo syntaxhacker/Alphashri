@@ -43,7 +43,9 @@ const SCREENER_PROFILE_OPTIONS = [
   { value: "rsi_reversal", label: "RSI Reversal" },
   { value: "market_open_gap", label: "Gap Open" },
   { value: "nifty_movers", label: "Nifty Movers" },
-  { value: "intraday_momentum", label: "Intraday Momentum" },
+  { value: "intraday_5m", label: "5-Min Movers" },
+  { value: "intraday_10m", label: "10-Min Movers" },
+  { value: "intraday_15m", label: "15-Min Movers" },
 ];
 
 const INTRADAY_TYPES = ["ORB", "SR_BREAKOUT", "EMA_CROSS"];
@@ -239,6 +241,7 @@ export function StrategyForm({
           )}
 
           <TextInput
+            size="sm"
             label="Strategy Name"
             name="name"
             placeholder="My Custom Strategy"
@@ -248,6 +251,7 @@ export function StrategyForm({
           />
 
           <Select
+            size="sm"
             label="Strategy Type"
             name="strategy_type"
             data={STRATEGY_TYPES}
@@ -272,6 +276,7 @@ export function StrategyForm({
           />
 
           <TextInput
+            size="sm"
             label="Description"
             name="description"
             placeholder="Optional description"
@@ -280,6 +285,7 @@ export function StrategyForm({
           />
 
           <MultiSelect
+            size="sm"
             label="Screener Profiles"
             placeholder="Select screener profiles"
             data={SCREENER_PROFILE_OPTIONS}
@@ -291,6 +297,7 @@ export function StrategyForm({
           />
 
           <MultiSelect
+            size="sm"
             label="Custom Stocks"
             placeholder="Search and add specific stocks"
             description="Always watched alongside screener results"

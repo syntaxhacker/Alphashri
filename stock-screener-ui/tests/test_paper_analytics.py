@@ -61,6 +61,33 @@ def aggregated_module():
     return aggregated
 
 
+@pytest.fixture
+def dashboard_module():
+    from api.paper import dashboard_analytics
+    return dashboard_analytics
+
+
+class MockBot:
+    def __init__(self, id=1, uuid="bot-1", name="ORB Bot"):
+        self.id = id
+        self.uuid = uuid
+        self.name = name
+
+
+class MockQuery:
+    def __init__(self, rows):
+        self.rows = rows
+
+    def filter(self, *args, **kwargs):
+        return self
+
+    def order_by(self, *args, **kwargs):
+        return self
+
+    def all(self):
+        return self.rows
+
+
 class TestAnalyticsEndpoint:
 
     @pytest.mark.asyncio
@@ -114,5 +141,58 @@ class TestAggregatedEndpoint:
             assert result["summary"]["total_bots"] == 0
             assert result["bots"] == []
 
+
+class TestDashboardAnalyticsEndpoint:
+
+    @pytest.mark.asyncio
+    async def test_dashboard_analytics_all_bots_ranking_and_extremes(self, dashboard_module):
+        bot = MockBot()
+        winner = make_trade(
+            id=1,
+            bot_id=1,
+            bot=bot,
+            strategy_id=10,
+            strategy_name="ORB Best",
+            symbol="RELIANCE",
+            net_pnl=1200.0,
+            pnl=1300.0,
+            costs=100.0,
+            exit_reason="TP",
+        )
+        loser = make_trade(
+            id=2,
+            bot_id=1,
+            bot=bot,
+            strategy_id=10,
+            strategy_name="ORB Best",
+            symbol="TCS",
+            net_pnl=-400.0,
+            pnl=-350.0,
+            costs=50.0,
+            exit_reason="SL",
+        )
+
+        mock_db = MagicMock()
+        mock_db.__enter__.return_value = mock_db
+        mock_db.__exit__.return_value = None
+        mock_db.query.side_effect = [MockQuery([winner, loser]), MockQuery([bot])]
+
+        with patch.object(dashboard_module, "SessionLocal", return_value=mock_db):
+            result = await dashboard_module.get_dashboard_analytics(
+                preset="30D",
+                from_date=None,
+                to_date=None,
+                bot_id=None,
+                user=MockUser(),
+            )
+
+        assert result["period"]["bot_id"] == "all"
+        assert result["summary"]["total_trades"] == 2
+        assert result["summary"]["total_net_pnl"] == 800.0
+        assert result["bot_rankings"][0]["bot_name"] == "ORB Bot"
+        assert result["strategy_rankings"][0]["strategy_name"] == "ORB Best"
+        assert result["biggest_winners"][0]["symbol"] == "RELIANCE"
+        assert result["biggest_losers"][0]["symbol"] == "TCS"
+        assert result["exit_reasons"][0]["reason"] == "TP"
 
 

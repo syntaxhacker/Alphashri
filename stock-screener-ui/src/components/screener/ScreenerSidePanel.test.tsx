@@ -93,8 +93,6 @@ describe("ScreenerSidePanel", () => {
       <ScreenerSidePanel
         activeScreener="52w_high"
         screenerOptions={[]}
-        sortColumn={null}
-        sortDirection="desc"
       />,
     );
     expect(screen.queryByTestId("screener-side-panel")).not.toBeInTheDocument();
@@ -106,8 +104,6 @@ describe("ScreenerSidePanel", () => {
       <ScreenerSidePanel
         activeScreener="trending"
         screenerOptions={[]}
-        sortColumn={null}
-        sortDirection="desc"
       />,
     );
     expect(screen.getByTestId("screener-side-panel")).toBeInTheDocument();
@@ -116,23 +112,21 @@ describe("ScreenerSidePanel", () => {
     expect(screen.getByText("Trend")).toBeInTheDocument();
   });
 
-  it("renders select filter with numeric options without crashing", () => {
+  it("renders number filter with numeric options without crashing", () => {
     mockProfileMetaById = {
-      intraday_momentum: {
+      intraday_15m: {
         filters: [
-          { key: "lookback_minutes", label: "Lookback", type: "select", options: [5, 10, 15, 30], default: 15 },
+          { key: "min_move_pct", label: "Move % ≥", type: "number", min: 0, max: 20, step: 0.1, default: 0.3 },
         ],
       },
     };
     renderWithProvider(
       <ScreenerSidePanel
-        activeScreener="intraday_momentum"
+        activeScreener="intraday_15m"
         screenerOptions={[]}
-        sortColumn={null}
-        sortDirection="desc"
       />,
     );
-    expect(screen.getByText("Lookback")).toBeInTheDocument();
+    expect(screen.getByText("Move % ≥")).toBeInTheDocument();
   });
 
   it("Apply filters button triggers fetchData", async () => {
@@ -141,8 +135,6 @@ describe("ScreenerSidePanel", () => {
       <ScreenerSidePanel
         activeScreener="trending"
         screenerOptions={[]}
-        sortColumn={null}
-        sortDirection="desc"
       />,
     );
     fireEvent.click(screen.getByRole("button", { name: /apply filters/i }));

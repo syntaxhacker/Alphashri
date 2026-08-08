@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Group, Text } from "@/ui";
 import { formatNumber, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -14,7 +15,7 @@ interface PaperPortfolioCardProps {
   portfolio: Portfolio | null;
 }
 
-export function PaperPortfolioCard({ portfolio }: PaperPortfolioCardProps) {
+export const PaperPortfolioCard = memo(function PaperPortfolioCard({ portfolio }: PaperPortfolioCardProps) {
   if (!portfolio) {
     return (
       <Text c="dimmed" size="xs" data-testid="portfolio-card">
@@ -33,4 +34,4 @@ export function PaperPortfolioCard({ portfolio }: PaperPortfolioCardProps) {
       <Text size="xs" c={pnlColor} fw={500}>{formatSignedPnl(portfolio.day_pnl)}</Text>
     </Group>
   );
-}
+});

@@ -1,0 +1,52 @@
+
+## Final Summary (46 runs, segment 0)
+- **Best (kept):** OR=15 (equiv. 5/10/60), SL=0.01, TP=1.79, buffer=0.5, cooldown=2 bars, shorts=OFF, EOD=885 (irrelevant) → **PF=3.5148**, win_rate=20%, net=+577.94, 5 trades (1 TP / 4 SL / 0 EOD).
+- **CAUTION:** best config is a degenerate single-trade curve-fit. The entire PF comes from ONE trade (2026-06-19). TP=1.80 (1bp past ceiling) → PF=0.0; buffer=0.6 → PF=0.0. Realistic SL/TP regimes all lose money (PF 0.28-0.38). Do NOT deploy.
+- OR duration does not matter on hourly bars (only the 9:15 bar forms the OR). EOD sweep is a no-op (all bars at :15 marks).
+
+## Full Run Log
+- Run 1: baseline OR=15 SL=1.0 TP=1.5 buf=0.3 cd=1 no-shorts EOD=885 → PF=0.2796, trades=6.0, keep
+- Run 2: OR sweep: OR=5 → PF=0.2796, trades=6.0, discard
+- Run 3: OR sweep: OR=10 → PF=0.2796, trades=6.0, discard
+- Run 4: OR sweep: OR=60 → PF=0.2796, trades=6.0, discard
+- Run 5: SL sweep: SL=0.5 → PF=0.3793, trades=7.0, keep
+- Run 6: SL sweep: SL=0.75 → PF=0.2945, trades=7.0, discard
+- Run 7: SL sweep: SL=1.5 → PF=0.2567, trades=5.0, discard
+- Run 8: SL sweep: SL=2.0 → PF=0.214, trades=5.0, discard
+- Run 9: SL refine: SL=0.3 → PF=0.5661, trades=7.0, keep
+- Run 10: SL refine: SL=0.4 → PF=0.4543, trades=7.0, discard
+- Run 11: SL refine: SL=0.6 → PF=0.3256, trades=7.0, discard
+- Run 12: SL refine: SL=0.2 → PF=0.7511, trades=7.0, keep
+- Run 13: SL refine: SL=0.25 → PF=0.6456, trades=7.0, discard
+- Run 14: SL refine: SL=0.15 → PF=0.8977, trades=7.0, keep
+- Run 15: SL refine: SL=0.1 → PF=1.1155, trades=7.0, keep
+- Run 16: SL refine: SL=0.075 → PF=1.2695, trades=7.0, keep
+- Run 17: SL refine: SL=0.05 → PF=1.4728, trades=7.0, keep
+- Run 18: TP sweep @SL=0.05: TP=1.0 → PF=0.9445, trades=7.0, discard
+- Run 19: TP sweep @SL=0.05: TP=2.0 → PF=0.0, trades=7.0, discard
+- Run 20: TP sweep @SL=0.05: TP=3.0 → PF=0.0, trades=7.0, discard
+- Run 21: TP sweep @SL=0.05: TP=4.0 → PF=0.0, trades=7.0, discard
+- Run 22: TP sweep @SL=0.05: TP=0 (no TP) → PF=0.0, trades=7.0, discard
+- Run 23: buffer sweep @SL=0.05/TP=1.5: buf=0.0 → PF=0.7906, trades=12.0, discard
+- Run 24: buffer sweep @SL=0.05/TP=1.5: buf=0.5 → PF=1.7697, trades=6.0, keep
+- Run 25: cooldown sweep @best: cd=0 → PF=1.4728, trades=7.0, discard
+- Run 26: cooldown sweep @best: cd=2 → PF=1.7712, trades=6.0, keep
+- Run 27: shorts ON @SL=0.05/TP=1.5/buf=0.3 → PF=0.6277, trades=30.0, discard
+- Run 28: EOD sweep @best: EOD=870 → PF=1.7712, trades=6.0, discard
+- Run 29: EOD sweep @best: EOD=900 → PF=1.7712, trades=6.0, discard
+- Run 30: buf=0.5 + cd=2 combo @SL=0.05/TP=1.5 → PF=2.164, trades=5.0, keep
+- Run 31: perturb buf=0.4 @best → PF=1.7712, trades=6.0, discard
+- Run 32: perturb buf=0.6 @best → PF=0.0, trades=4.0, discard
+- Run 33: perturb buf=0.7 @best → PF=0.0, trades=3.0, discard
+- Run 34: perturb SL=0.03 @best → PF=2.482, trades=5.0, keep
+- Run 35: perturb SL=0.02 @best → PF=2.6787, trades=5.0, keep
+- Run 36: perturb SL=0.01 @best → PF=2.9095, trades=5.0, keep
+- Run 37: min_entry=60min @SL=0.02/buf=0.5/cd=2 → PF=2.6787, trades=5.0, discard
+- Run 38: min_entry=120min @SL=0.02/buf=0.5/cd=2 → PF=2.6887, trades=5.0, discard
+- Run 39: realistic regime SL=0.5/TP=2.0/buf=0.3/cd=1 → PF=0.3396, trades=7.0, discard
+- Run 40: wide regime SL=1.0/TP=3.0/buf=0.5/cd=0 → PF=0.3233, trades=5.0, discard
+- Run 41: TP perturb 1.4 @best → PF=2.7007, trades=5.0, discard
+- Run 42: TP perturb 1.6 @best → PF=3.1182, trades=5.0, keep
+- Run 43: TP=1.75 @best (near ceiling) → PF=3.4313, trades=5.0, keep
+- Run 44: TP=1.79 @best (exact ceiling) → PF=3.5148, trades=5.0, keep
+- Run 45: TP=1.80 @best (just past ceiling) → PF=0.0, trades=5.0, discard

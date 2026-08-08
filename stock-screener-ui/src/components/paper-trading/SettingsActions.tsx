@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Button, Group } from "@/ui";
 import { IconRefresh, IconDeviceFloppy } from "@tabler/icons-react";
 
@@ -8,7 +9,7 @@ interface SettingsActionsProps {
   onReset: () => void;
 }
 
-export function SettingsActions({ loading, dirty, onSave, onReset }: SettingsActionsProps) {
+export const SettingsActions = memo(function SettingsActions({ loading, dirty, onSave, onReset }: SettingsActionsProps) {
   return (
     <Group justify="flex-end" gap="xs" className="paper-settings-actions" id="settings-actions">
       <Button
@@ -36,4 +37,4 @@ export function SettingsActions({ loading, dirty, onSave, onReset }: SettingsAct
       </Button>
     </Group>
   );
-}
+});

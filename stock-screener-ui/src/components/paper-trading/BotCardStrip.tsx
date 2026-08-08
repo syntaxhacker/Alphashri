@@ -64,4 +64,4 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
       })}
     </Group>
   );
-}
+};

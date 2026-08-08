@@ -21,7 +21,7 @@ from rich.columns import Columns
 from datetime import datetime
 import pandas as pd
 import argparse
-import time
+import time as time_module
 import threading
 import os
 from datetime import datetime, timedelta
@@ -1333,12 +1333,12 @@ class TVScreenerUsage:
                 console.print(f"[blue]🕘 {mins}m {secs}s until active monitoring starts (9:20 AM)[/blue]")
                 console.print("[dim]Press Ctrl+C to stop[/dim]")
             
-            time.sleep(1)
+            time_module.sleep(1)
         
         # Clear screen and show start message
         os.system('clear' if os.name == 'posix' else 'cls')
         console.print("[green]🚀 9:20 AM reached - starting active monitoring mode![/green]")
-        time.sleep(2)
+        time_module.sleep(2)
     
     def intraday_watch_mode(self, refresh_interval=30, volume_threshold=2.0, price_threshold=3.0):
         """Watch mode for intraday trading - continuously monitors volume and price changes"""
@@ -1369,7 +1369,7 @@ class TVScreenerUsage:
         
         try:
             while True:
-                start_time = time.time()
+                start_time = time_module.time()
                 
                 # Clear screen for fresh update
                 os.system('clear' if os.name == 'posix' else 'cls')
@@ -1402,12 +1402,12 @@ class TVScreenerUsage:
                     console.print("[red]❌ No data received - checking connection...[/red]")
                 
                 # Wait for next refresh
-                elapsed = time.time() - start_time
+                elapsed = time_module.time() - start_time
                 sleep_time = max(0, refresh_interval - elapsed)
                 
                 if sleep_time > 0:
                     console.print(f"[dim]Next refresh in {sleep_time:.1f}s... (Ctrl+C to stop)[/dim]")
-                    time.sleep(sleep_time)
+                    time_module.sleep(sleep_time)
                     
         except KeyboardInterrupt:
             console.print("\n[yellow]👋 Watch mode stopped by user[/yellow]")
@@ -2022,7 +2022,7 @@ class TVScreenerUsage:
                 return None
                 
             # Check cache freshness (avoid excessive API calls)
-            current_time = time.time()
+            current_time = time_module.time()
             cache_duration = 10  # Cache for 10 seconds
             
             if not force_refresh and symbol in self.price_cache_timestamps:
@@ -2086,7 +2086,7 @@ class TVScreenerUsage:
             if not hasattr(self, '_last_error_time'):
                 self._last_error_time = {}
             
-            current_time = time.time()
+            current_time = time_module.time()
             if symbol not in self._last_error_time or current_time - self._last_error_time[symbol] > 60:
                 console.print(f"[yellow]⚠️ Failed to get live price for {symbol}: {e}[/yellow]")
                 self._last_error_time[symbol] = current_time
@@ -2768,7 +2768,7 @@ class TVScreenerUsage:
         
         for example in examples:
             self.run_example(example)
-            time.sleep(1)  # Small delay between examples
+            time_module.sleep(1)  # Small delay between examples
             console.print("\n" + "="*80 + "\n")
 
     # ==================== Signal/Exit Handling & Cleanup ====================

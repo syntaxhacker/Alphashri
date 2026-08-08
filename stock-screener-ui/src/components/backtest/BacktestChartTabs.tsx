@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Tabs, Select, Group, Text, Box, Center } from "@/ui";
 import { BacktestChart } from "./BacktestChart";
 import type { SymbolChartData } from "../../types/backtest";
@@ -37,7 +38,7 @@ const TF_OPTIONS = [
   { value: "43200", label: "1M" },
 ];
 
-export function BacktestChartTabs({
+export const BacktestChartTabs = memo(function BacktestChartTabs({
   symbols,
   selectedSymbol,
   onSymbolSelect,
@@ -141,4 +142,4 @@ export function BacktestChartTabs({
       </Box>
     </Box>
   );
-}
+});

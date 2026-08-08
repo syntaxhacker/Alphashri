@@ -1,4 +1,7 @@
-import { Flex, Table, Text, Group, Badge } from "@/ui";
+import { useMemo } from "react";
+import { Flex, Text, Group, Badge } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
+import { TanStackTable } from "../../components/common/TanStackTable";
 
 interface TopBottomViewProps {
   stocks: any[];
@@ -25,54 +28,85 @@ export function TopBottomView({ stocks, metric, getMetricValue, getMetricColor, 
     return pe.toFixed(1);
   }
 
+  const columns = useMemo<ColumnDef<any>[]>(
+    () => [
+      { id: "rank", header: "#", accessorKey: "rank" },
+      {
+        id: "symbol",
+        header: "Symbol",
+        accessorKey: "symbol",
+        cell: (info) => <span style={{ fontWeight: 500, fontSize: 11 }}>{info.getValue<string>()}</span>,
+      },
+      {
+        id: "name",
+        header: "Name",
+        accessorKey: "name",
+        cell: (info) => {
+          const val = info.getValue<string>();
+          return (
+            <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160, display: "inline-block" }}>
+              {val}
+            </span>
+          );
+        },
+      },
+      {
+        id: "metric",
+        header: metricConfig?.label ?? metric,
+        accessorFn: (row: any) => getMetricValue(row, metric),
+        cell: (info) => {
+          const val = info.getValue<number>();
+          const bg = getMetricColor(val, minAll, maxAll);
+          const tc = getMetricTextColor(val, minAll, maxAll);
+          return (
+            <span style={{ backgroundColor: bg, color: tc, fontWeight: 700, padding: "1px 4px", borderRadius: 2, textAlign: "right", display: "block", fontSize: 11 }}>
+              {fmt(val)}
+            </span>
+          );
+        },
+      },
+      {
+        id: "pe",
+        header: "P/E",
+        accessorKey: "pe_ratio",
+        cell: (info) => (
+          <span style={{ fontSize: 11, textAlign: "right", display: "block" }}>
+            {formatPe(info.getValue<number | null>())}
+          </span>
+        ),
+      },
+      {
+        id: "sector",
+        header: "Sector",
+        accessorKey: "sector",
+        cell: (info) => {
+          const val = info.getValue<string>();
+          return (
+            <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120, display: "inline-block" }}>
+              {val}
+            </span>
+          );
+        },
+      },
+    ],
+    [metric, metricConfig, fmt, minAll, maxAll],
+  );
+
   function renderTable(title: string, badgeColor: string, data: any[], startRank: number) {
+    const tableData = data.map((s, i) => ({ ...s, rank: startRank + i }));
+
     return (
       <Flex direction="column" style={{ flex: 1 }}>
         <Group gap="xs" mb="xs">
           <Text size="sm" fw={600}>{title}</Text>
           <Badge color={badgeColor} size="sm" variant="light">{data.length}</Badge>
         </Group>
-        <Table striped highlightOnHover size="xs">
-          <Table.Thead>
-            <Table.Tr>
-              <Table.Th>#</Table.Th>
-              <Table.Th>Symbol</Table.Th>
-              <Table.Th>Name</Table.Th>
-              <Table.Th ta="right">{metricConfig?.label ?? metric}</Table.Th>
-              <Table.Th ta="right">P/E</Table.Th>
-              <Table.Th>Sector</Table.Th>
-            </Table.Tr>
-          </Table.Thead>
-          <Table.Tbody>
-            {data.map((stock: any, i: number) => {
-              const mv = getMetricValue(stock, metric);
-              const bg = getMetricColor(mv, minAll, maxAll);
-              const tc = getMetricTextColor(mv, minAll, maxAll);
-              return (
-                <Table.Tr key={stock.symbol}>
-                  <Table.Td>
-                    <Text size="xs" c="dimmed">{startRank + i}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" fw={500}>{stock.symbol}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" truncate maw={160}>{stock.name}</Text>
-                  </Table.Td>
-                  <Table.Td ta="right" style={{ backgroundColor: bg, color: tc, fontWeight: "bold" }}>
-                    {fmt(mv)}
-                  </Table.Td>
-                  <Table.Td ta="right">
-                    <Text size="xs">{formatPe(stock.pe_ratio)}</Text>
-                  </Table.Td>
-                  <Table.Td>
-                    <Text size="xs" truncate maw={120}>{stock.sector}</Text>
-                  </Table.Td>
-                </Table.Tr>
-              );
-            })}
-          </Table.Tbody>
-        </Table>
+        <TanStackTable
+          data={tableData}
+          columns={columns}
+          enableSorting={false}
+          stickyHeader={false}
+        />
       </Flex>
     );
   }

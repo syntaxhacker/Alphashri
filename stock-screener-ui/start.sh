@@ -5,11 +5,16 @@ cd "$(dirname "$0")"
 
 # ── Config ───────────────────────────────────────────────────────────
 API_PORT="${API_PORT:-8765}"
+API_HOST="${API_HOST:-0.0.0.0}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
 API_LOG="${API_LOG:-logs/alphashri.log}"
 API_PID="/tmp/alphashri-api.pid"
 UI_PID="/tmp/alphashri-ui.pid"
+START_BOTS="${START_BOTS:-false}"
+QA_EMAIL="${QA_EMAIL:-qa@test.com}"
+QA_PASS="${QA_PASS:-qa123}"
+RELOAD_FLAG="${RELOAD_FLAG:---reload}"
 
 # ── Cleanup trap (Ctrl+C for `dev` mode) ────────────────────────────────
 cleanup() {
@@ -73,15 +78,20 @@ activate_venv() {
 
 # ── Service management ───────────────────────────────────────────────────
 start_backend() {
+  local reload_args=""
   if is_running "$API_PID"; then
     echo "Backend already running (PID $(cat "$API_PID"))"
     return
   fi
   kill_port "$API_PORT"
-  echo "Starting API on http://localhost:${API_PORT} ..."
-  uvicorn api_server_fastapi:app --host :: --port "$API_PORT" --reload --reload-delay 60 >> "$API_LOG" 2>&1 &
+  if [ -n "$RELOAD_FLAG" ]; then
+    reload_args="$RELOAD_FLAG --reload-delay 60"
+  fi
+  echo "Starting API on http://${API_HOST}:${API_PORT} ..."
+  # shellcheck disable=SC2086
+  uvicorn api_server_fastapi:app --host "$API_HOST" --port "$API_PORT" $reload_args >> "$API_LOG" 2>&1 &
   echo $! > "$API_PID"
-  wait_for "API" "http://localhost:${API_PORT}/api/replay/configs" 15
+  wait_for "API" "http://${API_HOST}:${API_PORT}/api/health" 20
 }
 
 start_frontend() {
@@ -96,7 +106,48 @@ start_frontend() {
   wait_for "UI" "http://${UI_HOST}:${UI_PORT}" 30
 }
 
+stop_bots() {
+  echo "  Stopping running bots..."
+  if ! curl -s -X POST "http://localhost:${API_PORT}/api/bots/internal/stop-all" > /dev/null 2>&1; then
+    local bot_pids
+    bot_pids="$(pgrep -f "runner_cli.py" 2>/dev/null || true)"
+    if [ -n "$bot_pids" ]; then
+      echo "  Killing ${bot_pids// /, }..."
+      kill $bot_pids 2>/dev/null || true
+      sleep 2
+      bot_pids="$(pgrep -f "runner_cli.py" 2>/dev/null || true)"
+      [ -n "$bot_pids" ] && kill -9 $bot_pids 2>/dev/null || true
+    fi
+  fi
+}
+
+start_bots() {
+  echo "  Starting all bots for QA user..."
+  local token
+  token="$(curl -s -X POST "http://localhost:${API_PORT}/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d "{\"email\":\"${QA_EMAIL}\",\"password\":\"${QA_PASS}\"}" \
+    | python3 -c "import json,sys; print(json.load(sys.stdin).get('access_token',''))" 2>/dev/null)"
+  if [ -z "$token" ]; then
+    echo "  Failed to get auth token — skipping bot start"
+    return 1
+  fi
+  curl -s -L -H "Authorization: Bearer $token" "http://localhost:${API_PORT}/api/bots/" \
+    | python3 -c "
+import json,sys
+data = json.load(sys.stdin)
+for b in data:
+    print(b['id'])
+" 2>/dev/null | while read -r bot_id; do
+    curl -s -X POST -H "Authorization: Bearer $token" \
+      "http://localhost:${API_PORT}/api/bots/${bot_id}/start" > /dev/null 2>&1
+  done
+  echo "  Done."
+}
+
 stop_backend() {
+  stop_bots
+  sleep 1
   echo "  Stopping backend..."
   kill_port "$API_PORT"
   cleanup_pid "$API_PID"
@@ -121,6 +172,15 @@ show_status() {
   else
     echo "  UI:        STOPPED"; ok=false
   fi
+  local bot_status
+  bot_status="$(curl -s http://localhost:${API_PORT}/api/bots/internal/status 2>/dev/null || echo '{"running":0}')"
+  local bot_count
+  bot_count="$(echo "$bot_status" | python3 -c "import json,sys; print(json.load(sys.stdin).get('running',0))" 2>/dev/null || echo "0")"
+  if [ "$bot_count" -gt 0 ]; then
+    echo "  Bots:      $bot_count RUNNING"
+  else
+    echo "  Bots:      0 running"
+  fi
   $ok && echo "  Status:    ✓ All running" || echo "  Status:    ✗ Some down"
 }
 
@@ -132,8 +192,10 @@ case "${1:-status}" in
   start)
     start_backend
     start_frontend
+    $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
+    echo "Manage bots: $0 bots start|stop"
     ;;
   stop)
     echo "Stopping services..."
@@ -153,10 +215,34 @@ case "${1:-status}" in
   dev)
     start_backend
     start_frontend
+    $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
     echo "Press Ctrl+C to stop."
     wait
+    ;;
+  prod)
+    RELOAD_FLAG=""
+    echo "Starting in production mode (no reload)..."
+    start_backend
+    start_frontend
+    $START_BOTS && start_bots
+    show_status
+    echo "Tail logs: tail -f $API_LOG"
+    echo "Press Ctrl+C to stop."
+    wait
+    ;;
+  bots)
+    case "${2:-status}" in
+      start) start_bots ;;
+      stop)  stop_bots ;;
+      status)
+        curl -s "http://localhost:${API_PORT}/api/bots/internal/status" 2>/dev/null \
+          | python3 -c "import json,sys; d=json.load(sys.stdin); print(f'{d[\"running\"]} bot(s) running')" 2>/dev/null \
+          || echo "API unreachable"
+        ;;
+      *) echo "Usage: $0 bots {start|stop|status}" ;;
+    esac
     ;;
   status)
     show_status
@@ -168,7 +254,25 @@ case "${1:-status}" in
     start_frontend
     ;;
   *)
-    echo "Usage: $0 {start|stop|restart|dev|status|backend|frontend}"
+    echo "Usage: $0 {start|stop|restart|dev|prod|bots|status|backend|frontend}"
+    echo ""
+    echo "  start       Start API + UI (background)"
+    echo "  stop        Stop all services + bots"
+    echo "  restart     Restart API + UI"
+    echo "  dev         Start API (reload) + UI (foreground, Ctrl+C to stop)"
+    echo "  prod        Start API (no reload) + UI (foreground, Ctrl+C to stop)"
+    echo "  bots        Manage bots: $0 bots start|stop|status"
+    echo "  status      Show service status"
+    echo ""
+    echo "Environment:"
+    echo "  START_BOTS=true   Auto-start bots after API is ready"
+    echo "  API_PORT=8765     API server port"
+    echo "  API_LOG=path      Log file path"
+    echo ""
+    echo "Examples:"
+    echo "  START_BOTS=true ./start.sh prod   # prod mode + auto-start bots"
+    echo "  ./start.sh bots start             # start all bots"
+    echo "  ./start.sh stop                   # stop everything"
     exit 1
     ;;
 esac

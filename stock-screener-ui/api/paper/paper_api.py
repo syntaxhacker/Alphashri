@@ -75,9 +75,18 @@ def _clear_runner_pid_file(user_id: Optional[int] = None) -> None:
 
 
 def _is_pid_alive(pid: int) -> bool:
+    """Check if a PID is a live, running process (not just existing).
+
+    ``kill -0`` alone returns success for zombie/defunct processes, which
+    would make bot recovery believe a crashed process is still running.
+    Read /proc/<pid>/stat instead so zombies are treated as dead.
+    """
     try:
-        return subprocess.run(["kill", "-0", str(pid)], check=False).returncode == 0
-    except Exception:
+        with open(f"/proc/{pid}/stat") as f:
+            parts = f.read().split()
+        state = parts[2] if len(parts) > 2 else "?"
+        return state != "Z"
+    except (OSError, ProcessLookupError, FileNotFoundError, IndexError):
         return False
 
 

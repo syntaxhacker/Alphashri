@@ -232,7 +232,7 @@ function renderStrategyAllocationRow(
 // ============ Close Modal Handler ============
 
 function setupCloseModalHandler() {
-  (window as any).closeBotConfigModal = () => {
+  window.closeBotConfigModal = () => {
     const state = getBotsState();
     if (state.showCreateModal) {
       closeCreateModal();
@@ -249,23 +249,23 @@ function setupAddStrategyHandler(
   selectableStrategies: AvailableStrategy[],
   getNextIndex: () => number,
 ) {
-  (window as any).addStrategyAllocation = () => {
+  window.addStrategyAllocation = () => {
     const currentIndex = getNextIndex();
     const newRow = document.createElement("div");
     newRow.innerHTML = renderStrategyAllocationRow(null, currentIndex, selectableStrategies);
     container.appendChild(newRow.firstElementChild!);
-    (window as any).updateAllocationSummary();
+    window.updateAllocationSummary?.();
   };
 }
 
 // ============ Remove Strategy Handler ============
 
 function setupRemoveStrategyHandler() {
-  (window as any).removeStrategyAllocation = (index: number) => {
+  window.removeStrategyAllocation = (index: number) => {
     const row = document.querySelector(`.strategy-allocation-row[data-index="${index}"]`);
     if (row) {
       row.remove();
-      (window as any).updateAllocationSummary();
+      window.updateAllocationSummary?.();
     }
   };
 }
@@ -273,7 +273,7 @@ function setupRemoveStrategyHandler() {
 // ============ Allocation Summary Handler ============
 
 function setupAllocationSummaryHandler() {
-  (window as any).updateAllocationSummary = () => {
+  window.updateAllocationSummary = () => {
     const rows = document.querySelectorAll(".strategy-allocation-row");
     let total = 0;
 
@@ -337,7 +337,7 @@ function buildBotConfigData(formData: FormData, _botId?: string | null) {
 }
 
 function setupSaveBotConfigHandler() {
-  (window as any).saveBotConfig = async (event: Event) => {
+  window.saveBotConfig = async (event: Event) => {
     event.preventDefault();
 
     const form = event.target as HTMLFormElement;
@@ -373,6 +373,6 @@ export function initConfigHandlers() {
 
   // Initialize allocation summary on load
   setTimeout(() => {
-    (window as any).updateAllocationSummary();
+    window.updateAllocationSummary?.();
   }, 100);
 }

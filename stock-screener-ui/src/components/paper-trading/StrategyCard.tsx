@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { Badge, Text, Group, Progress, Tooltip, Button, Collapse } from "@/ui";
+import { Badge, Text, Group, Progress, Tooltip, Button } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 import { PositionsTableBody } from "./PositionsHelpers";
@@ -10,8 +10,6 @@ interface StrategyCardProps {
   strategyName: string;
   positions: PaperPosition[];
   maxCapacity: number;
-  isExpanded: boolean;
-  onToggle: () => void;
   onSelectSymbol: (
     symbol: string,
     tradeId?: string,
@@ -34,8 +32,6 @@ export const StrategyCard = memo(function StrategyCard({
   strategyName,
   positions,
   maxCapacity,
-  isExpanded,
-  onToggle,
   onSelectSymbol,
   onClosePosition,
   onCloseAll,
@@ -45,14 +41,8 @@ export const StrategyCard = memo(function StrategyCard({
 
   return (
     <CompactPanel testId={`strategy-card-${strategyName}`} scrollable={false}>
-      <Group
-        justify="space-between"
-        mb={2}
-        onClick={onToggle}
-        style={{ cursor: "pointer" }}
-      >
+      <Group justify="space-between" mb={2}>
         <Group gap="xs" style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">{isExpanded ? "▼" : "▶"}</Text>
           <Text size="sm" fw={600}>{strategyName}</Text>
           <Badge size="xs">{summary.count}</Badge>
           <Text size="xs" c={getPnLTextColor(summary.totalPnl)} fw={600}>
@@ -83,9 +73,7 @@ export const StrategyCard = memo(function StrategyCard({
           </Button>
         </Tooltip>
       </Group>
-      <Collapse in={isExpanded}>
-        <PositionsTableBody positions={positions} onSelect={onSelectSymbol} onClose={onClosePosition} />
-      </Collapse>
+      <PositionsTableBody positions={positions} onSelect={onSelectSymbol} onClose={onClosePosition} />
     </CompactPanel>
   );
 });

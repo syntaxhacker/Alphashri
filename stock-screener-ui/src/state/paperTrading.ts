@@ -16,6 +16,7 @@ import type {
   AnalyticsData,
   ActivityEvent,
   AggregatedDashboardData,
+  PaperDashboardAnalyticsData,
 } from "../types/paperTrading";
 
 import { deleteTrade, updateTradeNotes, updatePositionNotes } from "../api/paperTrading";
@@ -89,6 +90,8 @@ export const initialPaperTradingState: PaperTradingState = {
   // Aggregated dashboard
   aggregatedData: null,
   aggregatedLoading: false,
+  dashboardAnalyticsData: null,
+  dashboardAnalyticsLoading: false,
 };
 
 // Additional type for the view state
@@ -363,6 +366,16 @@ export function setAggregatedData(data: AggregatedDashboardData | null) {
 
 export function setAggregatedLoading(loading: boolean) {
   state = { ...state, aggregatedLoading: loading };
+  notify();
+}
+
+export function setDashboardAnalyticsData(data: PaperDashboardAnalyticsData | null) {
+  state = { ...state, dashboardAnalyticsData: data, dashboardAnalyticsLoading: false };
+  notify();
+}
+
+export function setDashboardAnalyticsLoading(loading: boolean) {
+  state = { ...state, dashboardAnalyticsLoading: loading };
   notify();
 }
 

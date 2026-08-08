@@ -61,7 +61,7 @@ article_analyzer = None
 _news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
-PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high"]
+PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge"]
 PREWARM_INTERVAL = 60
 
 
@@ -201,8 +201,10 @@ def _persist_52w_ranges_to_db(data: dict):
 
 
 async def compute_52w_ranges_task():
-    """Hourly Upstox 52W batch (incremental) + screener cache invalidation when complete.
-    The batch + invalidation only actually run during market hours (see _is_market_hours).
+    """Hourly Upstox 52W batch (daily staleness refresh) + screener cache invalidation when complete.
+    Symbols already refreshed today are skipped, so the first run each day updates the full
+    universe (~5 min) and later hourly runs no-op in ~1s. The batch + invalidation only
+    actually run during market hours (see _is_market_hours).
     On startup we do a prompt initial run (short delay) if in market hours so that
     "just ran start.sh and data is stale" results in an observable batch quickly
     instead of waiting the full interval.
@@ -237,8 +239,8 @@ async def compute_52w_ranges_task():
 
             from api.admin_routes import _run_52w_batch_subprocess
 
-            print(f"[52W Range] Starting scheduled incremental batch (every {interval}s)")
-            await asyncio.to_thread(_run_52w_batch_subprocess, True, True, 0)
+            print(f"[52W Range] Starting scheduled daily-staleness batch (every {interval}s)")
+            await asyncio.to_thread(_run_52w_batch_subprocess, False, True, 0, True)
 
             waited = 0
             while waited < max_wait:
@@ -301,6 +303,13 @@ async def lifespan(app: FastAPI):
             print("⚠️ Redis unavailable — caching disabled")
         import traceback
         try:
+            # Auto-create price_surge_events table (may not exist yet on fresh databases)
+            from db.database import engine as _engine, Base as _Base
+            from db.models.price_surge import PriceSurgeEvent
+            _Base.metadata.create_all(bind=_engine, tables=[PriceSurgeEvent.__table__])
+        except Exception:
+            pass
+        try:
             news_poller = asyncio.create_task(news_poller_task())
             print("📰 News poller started")
         except Exception as e:
@@ -344,6 +353,19 @@ async def lifespan(app: FastAPI):
         _prefetch_task.cancel()
     if _recovery_task:
         _recovery_task.cancel()
+
+    try:
+        from api.bots_api.bots_router import stop_bot_process, _bot_processes
+        for user_id in list(_bot_processes.keys()):
+            for bot_id in list(_bot_processes.get(user_id, {}).keys()):
+                try:
+                    stop_bot_process(user_id, bot_id)
+                except Exception:
+                    pass
+        print("🤖 Running bots stopped")
+    except Exception:
+        pass
+
     print("📰 News poller stopped")
     from cache.redis_client import close_redis
     from db.database import engine
@@ -776,6 +798,13 @@ except Exception as e:
     print(f"⚠️ Could not load backtest API: {e}")
 
 try:
+    from api.experiment_routes import router as experiments_router
+    app.include_router(experiments_router)
+    print("✅ Experiments API loaded at /api/experiments")
+except Exception as e:
+    print(f"⚠️ Could not load experiments API: {e}")
+
+try:
     from api.chart import router as chart_router
     app.include_router(chart_router)
     print("✅ Chart API loaded at /api/chart")
@@ -806,6 +835,9 @@ except Exception as e:
 try:
     from api.admin_routes import router as admin_router
     app.include_router(admin_router)
+
+    from api.notifications_api import router as notifications_router
+    app.include_router(notifications_router)
     print("✅ Admin API loaded at /api/admin")
 except Exception as e:
     print(f"⚠️ Could not load admin API: {e}")

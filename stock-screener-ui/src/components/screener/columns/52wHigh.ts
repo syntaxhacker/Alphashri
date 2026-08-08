@@ -1,5 +1,5 @@
 import type { ColumnDef } from "./index";
-import { symbolCol, scoreCol } from "./base";
+import { symbolCol, scoreCol, dayChangeCol } from "./base";
 
 export type Week52Section = "approaching" | "touched";
 
@@ -88,5 +88,6 @@ export function get52wHighColumns(_section: Week52Section = "approaching"): Colu
       sortable: true,
       format: (value: number) => (value != null ? value.toFixed(1) : "-"),
     },
+    dayChangeCol,
   ];
 }

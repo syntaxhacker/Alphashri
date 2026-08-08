@@ -13,6 +13,7 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
       <Stack gap="sm" mt="sm">
         <Group grow>
           <NumberInput
+            size="sm"
             label="OR Duration (min)"
             name="or_minutes"
             defaultValue={initialValues.or_minutes}
@@ -24,6 +25,7 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
             data-testid="strategy-or-minutes-input"
           />
           <NumberInput
+            size="sm"
             label="Min Range"
             name="min_or_range_pct"
             defaultValue={initialValues.min_or_range_pct}
@@ -41,6 +43,7 @@ export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) 
           isSwing={isSwing}
         />
         <NumberInput
+          size="sm"
           label="Max Range"
           name="max_or_range_pct"
           defaultValue={initialValues.max_or_range_pct}

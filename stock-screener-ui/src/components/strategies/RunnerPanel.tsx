@@ -21,6 +21,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
         <Divider label="Entry Filters" labelPosition="left" />
         {isOrb && (
           <NumberInput
+            size="sm"
             label="Max Distance from OR"
             name="max_distance_from_or_pct"
             defaultValue={initialValues.max_distance_from_or_pct}
@@ -44,6 +45,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
         </Group>
         <Group grow>
           <NumberInput
+            size="sm"
             label="EOD Exit Hour"
             name="eod_exit_hour"
             defaultValue={initialValues.eod_exit_hour ?? 15}
@@ -54,6 +56,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
             data-testid="strategy-eod-hour-input"
           />
           <NumberInput
+            size="sm"
             label="EOD Exit Minute"
             name="eod_exit_minute"
             defaultValue={initialValues.eod_exit_minute ?? 30}

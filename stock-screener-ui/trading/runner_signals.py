@@ -64,18 +64,18 @@ class RunnerSignalsMixin:
             item.update(extra)
         return item
 
-    def _remaining_scan_budget(self) -> int:
+    def _remaining_scan_budget(self, swing: bool = False) -> int:
         try:
-            from cache.redis_client import get_redis_client
-            client = get_redis_client()
-            if client is None:
-                return 15
-            now = __import__('time').time()
-            minute_count = client.zcount('upstox:rl:hits', now - 60, now)
-            remaining = max(1, 15 - minute_count // 10)
-            return min(15, remaining)
+            from upstox_trader.rate_limiter import UpstoxRateLimiter
+            rl = UpstoxRateLimiter()
+            remaining = rl.remaining_minute_budget()
+            # Swing strategies scan every 10 cycles (5 min vs 30s for intraday),
+            # so they get a higher budget per scan to compensate.
+            divisor = 10 if swing else 33
+            return min(15, max(1, remaining // divisor))
         except Exception:
-            return 15
+            # Conservative floor on any limiter error — never assume full budget.
+            return 1
 
     def _mark_skipped(self, item: dict, reason: str) -> dict:
         item['status'] = 'skipped'
@@ -126,16 +126,18 @@ class RunnerSignalsMixin:
         return (pnl or 0) - (costs or 0)
 
     def _check_cooldown(self, symbol: str, runner) -> bool:
-        if symbol not in self.cooldown_stocks:
+        sid = getattr(runner, 'strategy_id', None)
+        key = (sid, symbol) if sid is not None else symbol
+        if key not in self.cooldown_stocks:
             return False
-        exit_time = self.cooldown_stocks[symbol]
+        exit_time = self.cooldown_stocks[key]
         if runner.strategy_type in INTRADAY_STRATEGY_TYPES:
             cooldown_end = exit_time + timedelta(minutes=runner.config.get('cooldown_minutes', 30))
         else:
             cooldown_end = exit_time + timedelta(days=runner.config.get('cooldown_days', 30))
         if self._ist_now() < cooldown_end:
             return True
-        del self.cooldown_stocks[symbol]
+        del self.cooldown_stocks[key]
         return False
 
     def _emit_once_per_symbol(self, attr: str, strategy_id: int, symbol: str, event: dict) -> bool:
@@ -300,6 +302,10 @@ class RunnerSignalsMixin:
                     runner=runner,
                 )
                 if not ema_data:
+                    item = self._make_scan_item(symbol, runner, {
+                        'reason': 'Skipped — rate limited by Upstox, waiting for capacity',
+                    })
+                    scan_items.append(item)
                     continue
                 scanned += 1
 
@@ -392,6 +398,7 @@ class RunnerSignalsMixin:
         """Scan for signals using daily data (52W_CHASER, 52W_TARGET)."""
         runner = self.strategies.get(strategy_id)
         if not runner or runner.status != "running":
+            console.print(f"[dim]_scan_swing_strategy({strategy_id}): runner not running[/dim]")
             return []
 
         if not self.is_market_open():
@@ -413,12 +420,11 @@ class RunnerSignalsMixin:
         if strategy_id not in self._swing_entered_today:
             self._swing_entered_today[strategy_id] = set()
 
-        budget = self._remaining_scan_budget()
+        budget = self._remaining_scan_budget(swing=True)
         scanned = 0
         for symbol in watchlist:
             if scanned >= budget:
                 break
-
             key = f"{strategy_id}_{symbol}"
             if key in self.portfolio.positions:
                 continue
@@ -430,6 +436,23 @@ class RunnerSignalsMixin:
 
             daily_data = self.fetch_daily_data(symbol)
             if not daily_data:
+                # Surface the failure reason so the watchlist shows why the
+                # symbol was skipped instead of an empty "No data" panel.
+                skip_item = self._make_scan_item(symbol, runner, {'price': 0.0, 'high_52w': 0.0})
+                fetcher = self._get_data_fetcher()
+                api = getattr(fetcher, 'upstox_api', None)
+                reason = 'data unavailable'
+                if api is not None:
+                    status = getattr(api, '_last_v3_error_status', None)
+                    if status == 429:
+                        reason = 'Upstox rate limited (429) — retrying next scan'
+                    elif status is not None:
+                        reason = f'Upstox API error (HTTP {status})'
+                self._mark_skipped(skip_item, reason)
+                scan_items.append(skip_item)
+                # Consume budget on fetch failure too, so a rate-limited scan
+                # does not hammer the entire watchlist in one pass.
+                scanned += 1
                 continue
             scanned += 1
 
@@ -861,7 +884,11 @@ class RunnerSignalsMixin:
                     )
 
                 trade_logged = True
-                self.cooldown_stocks[symbol] = self._ist_now()
+                # Key cooldown by (strategy_id, symbol) so an intraday exit
+                # (e.g. ORB scalp, cooldown_minutes) doesn't poison the same
+                # symbol for a swing runner (cooldown_days, default 30).
+                cooldown_key = (trade.strategy_id, symbol)
+                self.cooldown_stocks[cooldown_key] = self._ist_now()
 
                 # Consecutive loss tracking
                 if runner:

@@ -307,14 +307,20 @@ class TestCloseAllBotPositions:
 
     def test_cleans_up_command_file(self, db, bot_with_strategy,
                                     auth_headers, client):
-        """Removes /tmp/bot-cmd-{bot.id}.json after closing."""
+        """Removes /tmp/bot-cmd-{bot.id}/ command directory after closing.
+
+        Command files are stored as a directory of UUID-named files
+        (not a single JSON file) to avoid race conditions, so close-all
+        must clean up that directory when the bot is not running.
+        """
         strategy = bot_with_strategy
         user = _get_auth_user(client, auth_headers, db)
         bot = _create_bot(db, user, strategy)
 
-        cmd_path = Path(f"/tmp/bot-cmd-{bot.id}.json")
-        cmd_path.write_text('{"command": "close_all"}')
-        assert cmd_path.exists()
+        cmd_dir = Path(f"/tmp/bot-cmd-{bot.id}")
+        cmd_dir.mkdir(parents=True, exist_ok=True)
+        (cmd_dir / "stale-command.json").write_text('{"action": "close_all"}')
+        assert cmd_dir.exists()
 
         with patch("api.bots_api.bot_operations.is_bot_running", return_value=(False, None)), \
              patch(MARKET_PRICE_PATCH, return_value=None):
@@ -325,7 +331,7 @@ class TestCloseAllBotPositions:
             )
 
         assert resp.status_code == 200
-        assert not cmd_path.exists()
+        assert not cmd_dir.exists()
 
     def test_returns_success_with_zero_positions(self, db, bot_with_strategy,
                                                   auth_headers, client):

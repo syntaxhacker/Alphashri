@@ -128,6 +128,7 @@ AVAILABLE_UNDERLYINGS = [
     {"symbol": "BANKNIFTY", "name": "Nifty Bank", "instrument_key": "NSE_INDEX|Nifty Bank", "lot_size": 15, "tick_size": 1.05},
     {"symbol": "FINNIFTY", "name": "Nifty Fin Service", "instrument_key": "NSE_INDEX|Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
     {"symbol": "MIDCPNIFTY", "name": "NIFTY MID SELECT", "instrument_key": "NSE_INDEX|NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
+    {"symbol": "SENSEX", "name": "BSE Sensex", "instrument_key": "BSE_INDEX|SENSEX", "lot_size": 20, "tick_size": 5.0},
 ]
 
 

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Text, Grid, Stack, NumberInput } from "@/ui";
 import type { StrategyConfig } from "../../types/paperTrading";
 
@@ -11,7 +12,7 @@ interface RunnerSettingsSectionProps {
   onChange: ConfigValueHandler;
 }
 
-export function RunnerSettingsSection({ config, onChange }: RunnerSettingsSectionProps) {
+export const RunnerSettingsSection = memo(function RunnerSettingsSection({ config, onChange }: RunnerSettingsSectionProps) {
   return (
     <Stack gap="xs" className="paper-settings-section" id="runner-section">
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
@@ -49,4 +50,4 @@ export function RunnerSettingsSection({ config, onChange }: RunnerSettingsSectio
       </Grid>
     </Stack>
   );
-}
+});

@@ -96,8 +96,8 @@ function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
       <ThemeIcon size="xs" variant="transparent" color="gray" style={{ flex: "0 0 auto" }}>
         <IconInfoCircle size={12} />
       </ThemeIcon>
-      {items.map((item, i) => (
-        <Text key={i} size="xs" c="dimmed" fs="italic">
+      {items.map((item) => (
+        <Text key={item} size="xs" c="dimmed" fs="italic">
           {item}
         </Text>
       ))}
@@ -125,7 +125,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       setMaxPositions(bot.max_total_positions);
       setMaxCapital(bot.max_total_capital_pct * 100);
       setMaxDailyLoss(bot.max_daily_loss_pct ?? 3);
-      setLiveTrading((bot as any).live_trading ?? false);
+      setLiveTrading(bot.live_trading ?? false);
       setStrategies(
         bot.strategies.map((s, i) => ({
           id: `existing-${i}`,

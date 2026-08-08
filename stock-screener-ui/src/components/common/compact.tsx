@@ -55,7 +55,7 @@ export function CompactPage({
           {actions}
         </Group>
       )}
-      <Box flex={1} style={{ minHeight: 0 }}>
+      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
         {children}
       </Box>
     </Stack>
@@ -161,7 +161,7 @@ export function CompactStat({
             {hint}
           </Text>
         ) : (
-          <div style={{ marginTop: 4 }}>{hint}</div>
+          <Box mt={4}>{hint}</Box>
         )
       ) : null}
     </Card>

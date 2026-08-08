@@ -1,0 +1,25 @@
+Name: Rohit Jogi
+Email: jrohit072@gmail.com
+Phone: +91 8179948668
+Location: Visakhapatnam, Andhra Pradesh, India
+CTC_Current: 18
+CTC_Expected: 25
+Notice_Period: 0
+Experience_Years: 5
+Stack_Primary: React, Node.js, Python, TypeScript
+Stack_Secondary: SQL, Redis, Docker, AWS, GCP, ELK, D3.js, Dash, Plotly, Airflow
+Current_Employer: Imaginnovate
+Resume_Path: /home/mysyntax/Documents/me_2025/public/rohit_jogi_resume.pdf
+Resume_URL: https://www.rjis.online/rohit_jogi_resume.pdf
+LinkedIn: https://www.linkedin.com/in/rohitjogi/
+Github: https://github.com/syntaxhacker
+Portfolio: https://www.rjis.online
+StackOverflow: https://stackoverflow.com/users/10004499/syntax-hacker
+HackerRank: https://www.hackerrank.com/profile/SyntaxHacker
+Remote_Only: false
+Onsite_Cities: Bengaluru, Hyderabad, Chennai, Pune
+Contract_OK: true
+Never_Connect: Imaginnovate
+Connection_Rule: Only connect with employees from top product companies / big tech. Skip consulting firms, staffing firms, unknown companies.
+DOB: 31 July 1998
+Notice_Type: Immediate

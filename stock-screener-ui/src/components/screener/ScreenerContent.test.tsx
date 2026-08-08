@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ScreenerContent } from "./ScreenerContent";
 import type { ReactElement } from "react";
+import type { Stock } from "../../types";
 
 const renderWithProvider = (ui: ReactElement) =>
   render(<UIProvider>{ui}</UIProvider>);
@@ -45,12 +46,23 @@ vi.mock("../../state", () => ({
   },
 }));
 
+const mockStock = (symbol: string): Stock => ({
+  symbol,
+  score: 0,
+  tv_price: 0,
+  upstox_price: 0,
+  broker_diff: 0,
+  high_52w: 0,
+  to_52w_high: 0,
+  recent_return_5d: 0,
+  perf_w: 0,
+  sector: "",
+  touched_52w: false,
+});
+
 const defaultProps = {
-  approachingStocks: [] as any[],
-  touchedStocks: [] as any[],
-  sortColumn: null as string | null,
-  sortDirection: "asc" as const,
-  handleSortChange: vi.fn(),
+  approachingStocks: [] as Stock[],
+  touchedStocks: [] as Stock[],
   isLoading: false,
   error: null as string | null,
   totalStocks: 0,
@@ -88,9 +100,9 @@ describe("ScreenerContent", () => {
         {...defaultProps}
         totalStocks={3}
         approachingStocks={[
-          { symbol: "A" } as any,
-          { symbol: "B" } as any,
-          { symbol: "C" } as any,
+          mockStock("A"),
+          mockStock("B"),
+          mockStock("C"),
         ]}
       />,
     );
@@ -105,11 +117,11 @@ describe("ScreenerContent", () => {
         activeScreener="buyer_interest"
         totalStocks={5}
         approachingStocks={[
-          { symbol: "A" } as any,
-          { symbol: "B" } as any,
-          { symbol: "C" } as any,
-          { symbol: "D" } as any,
-          { symbol: "E" } as any,
+          mockStock("A"),
+          mockStock("B"),
+          mockStock("C"),
+          mockStock("D"),
+          mockStock("E"),
         ]}
       />,
     );
@@ -123,7 +135,7 @@ describe("ScreenerContent", () => {
         {...defaultProps}
         activeScreener="buyer_interest"
         totalStocks={2}
-        approachingStocks={[{ symbol: "A" } as any, { symbol: "B" } as any]}
+        approachingStocks={[mockStock("A"), mockStock("B")]}
       />,
     );
     const section = screen.getByTestId("screener-section");
@@ -136,11 +148,11 @@ describe("ScreenerContent", () => {
         {...defaultProps}
         totalStocks={3}
         approachingStocks={[
-          { symbol: "A" } as any,
-          { symbol: "B" } as any,
+          mockStock("A"),
+          mockStock("B"),
         ]}
         touchedStocks={[
-          { symbol: "C" } as any,
+          mockStock("C"),
         ]}
       />,
     );
@@ -155,7 +167,7 @@ describe("ScreenerContent", () => {
       <ScreenerContent
         {...defaultProps}
         totalStocks={2}
-        approachingStocks={[{ symbol: "A" } as any, { symbol: "B" } as any]}
+        approachingStocks={[mockStock("A"), mockStock("B")]}
         touchedStocks={[]}
       />,
     );

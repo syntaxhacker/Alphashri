@@ -14,6 +14,7 @@ const ScreenerContainer = lazy(() => import("./pages/screener/ScreenerContainer"
 const SectorPage = lazy(() => import("./components/sector/SectorPage2").then(m => ({ default: m.SectorPage })));
 const StrategiesContainer = lazy(() => import("./pages/strategies/StrategiesContainer").then(m => ({ default: m.StrategiesContainer })));
 const BacktestPage = lazy(() => import("./components/backtest/mantine").then(m => ({ default: m.BacktestPage })));
+const ExperimentsPage = lazy(() => import("./components/experiments/ExperimentsPage").then(m => ({ default: m.ExperimentsPage })));
 const PaperTradingView = lazy(() => import("./components/paper-trading/mantine").then(m => ({ default: m.PaperTradingView })));
 const ReplayPage = lazy(() => import("./components/replay/mantine").then(m => ({ default: m.ReplayPage })));
 const StrategyRunnerPage = lazy(() => import("./components/strategy-runner/mantine").then(m => ({ default: m.StrategyRunnerPage })));
@@ -73,6 +74,7 @@ function AppContent() {
           <Routes>
             <Route path="/" element={<ScreenerContainer />} />
             <Route path="/backtest" element={<BacktestPage />} />
+            <Route path="/experiments" element={<ExperimentsPage />} />
             <Route path="/paper" element={<PaperTradingView />} />
             <Route path="/replay" element={<ReplayPage />} />
             <Route path="/strategy-runner" element={<StrategyRunnerPage />} />

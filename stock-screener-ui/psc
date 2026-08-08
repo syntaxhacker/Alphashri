@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# psc — quick paper SENSEX check (thin wrapper)
+# Usage: ./psc              one-shot check
+#        ./psc loop N       check every N sec until 15:30
+cd "$(dirname "$0")" || exit 1
+source .venv/bin/activate 2>/dev/null || true
+MODE="${1:-check}"
+N="${2:-120}"
+case "$MODE" in
+  loop)
+    while true; do
+      H=$(date +%H); M=$(date +%M)
+      [ "$H" -gt 15 ] || { [ "$H" -eq 15 ] && [ "$M" -ge 30 ]; } && { echo "15:30 reached"; break; }
+      python3 scripts/paper_sensex.py check 2>&1 | head -6
+      sleep "$N"
+    done
+    ;;
+  pnl)  python3 scripts/paper_sensex.py pnl ;;
+  force) python3 scripts/paper_sensex.py force ;;
+  *)    python3 scripts/paper_sensex.py check ;;
+esac

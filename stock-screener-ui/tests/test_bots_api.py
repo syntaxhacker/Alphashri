@@ -444,7 +444,7 @@ class TestBotCRUD:
         response = client.get(f"/api/bots/{bot.id}")
         assert response.status_code == 200
         data = response.json()
-        assert data['id'] == bot.id
+        assert data['id'] == str(bot.uuid)
         assert data['name'] == "Test Bot"
 
     def test_get_bot_not_found(self, client):
@@ -620,7 +620,7 @@ class TestBotControl:
         assert response.status_code == 404
 
     def test_start_inactive_bot_fails(self, client, db_session):
-        """Test starting an inactive bot fails."""
+        """Test starting an inactive bot auto-activates it."""
         from db.models import BotConfig
 
         bot = BotConfig(
@@ -634,9 +634,13 @@ class TestBotControl:
         db_session.commit()
         db_session.refresh(bot)
 
-        response = client.post(f"/api/bots/{bot.id}/start")
-        assert response.status_code == 400
-        assert "not active" in response.json()['detail']
+        with patch('api.bots_api.bot_operations.is_bot_running', return_value=(False, None)), \
+             patch('api.bots_api.bots_router.start_bot_process') as mock_start:
+            mock_start.return_value = MagicMock(pid=99999)
+
+            response = client.post(f"/api/bots/{bot.id}/start")
+            assert response.status_code == 200
+            assert "started" in response.json()["message"].lower()
 
     @patch('api.bots_api.bot_operations.is_bot_running')
     def test_start_already_running_bot(self, mock_is_running, client, db_session):
@@ -782,6 +786,9 @@ class TestBotControl:
     def test_get_bot_logs_no_logs(self, client, db_session):
         """Test getting logs when no logs available."""
         from db.models import BotConfig
+        from api.bots_api.bot_operations import _bot_logs
+
+        _bot_logs.clear()
 
         bot = BotConfig(
             name="Test Bot",
@@ -1463,6 +1470,32 @@ class TestBotErrorCases:
 
 class TestProcessManagement:
     """Test bot process management functions."""
+
+    def test_is_bot_running_treats_alive_pid_as_running_without_status(self):
+        """A live PID should still count as running even if the heartbeat status expired."""
+        from api.bots_api.bots_router import is_bot_running
+
+        fake_redis = MagicMock()
+
+        def fake_get(key):
+            mapping = {
+                "bot:1:1:pid": "12345",
+                "bot:1:1:status": None,
+            }
+            return mapping.get(key)
+
+        fake_redis.get.side_effect = fake_get
+
+        with patch("cache.redis_client.get_redis_client", return_value=fake_redis), \
+             patch("api.bots_api.bots_router._bot_processes", {}), \
+             patch("api.bots_api.bots_router._is_pid_alive", return_value=True), \
+             patch("api.bots_api.bots_router._set_bot_status_redis") as mock_refresh:
+
+            running, pid = is_bot_running(user_id=1, bot_id=1)
+
+        assert running is True
+        assert pid == 12345
+        mock_refresh.assert_called_once_with(1, 1, 12345)
 
     @patch('subprocess.Popen')
     def test_start_bot_process_mock(self, mock_popen):

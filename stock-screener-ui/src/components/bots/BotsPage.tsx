@@ -1,7 +1,7 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { Box, Tabs, Button, Stack, Table, Group } from "@/ui";
-import { IconRobot, IconChartLine, IconPlus, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
+import { Box, Tabs, Button, Stack, Group, Text, Badge } from "@/ui";
+import { IconRobot, IconChartLine, IconPlus, IconPlayerPlay, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
   getBotsState,
   getCurrentView,
@@ -12,6 +12,7 @@ import {
   startBotAction,
   stopBotAction,
   stopAllBotsAction,
+  startAllBotsAction,
   deleteBotAction,
   clearError,
   startAutoRefresh,
@@ -28,7 +29,11 @@ import { BotConfigModal } from "./BotConfigModal2";
 import { BotStatusPanel } from "./BotStatusPanel2";
 import { CompactPage, CompactPanel } from "../common/compact";
 import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
-import { BotRow } from "./BotHelpers";
+import { TanStackTable } from "../common/TanStackTable";
+import type { ColumnDef } from "@tanstack/react-table";
+import { BotSummaryCell, BotActionButtons, getBotIndicatorColor } from "./BotHelpers";
+import { StatusBadge } from "../common/BadgeComponents";
+import { BOT_SELECTED_BG } from "../../config/colors";
 import { StrategyPerformance } from "./StrategyPerformance";
 
 function useViewChangeHandler() {
@@ -124,21 +129,6 @@ function BotsPageTabs({
   );
 }
 
-function BotsTableHeader() {
-  return (
-    <Table.Thead>
-      <Table.Tr>
-        <Table.Th>Name</Table.Th>
-        <Table.Th>Status</Table.Th>
-        <Table.Th>Strategies</Table.Th>
-        <Table.Th>Max Positions</Table.Th>
-        <Table.Th>Max Capital</Table.Th>
-        <Table.Th>Actions</Table.Th>
-      </Table.Tr>
-    </Table.Thead>
-  );
-}
-
 function BotsTable({
   onViewStatus,
   onStart,
@@ -166,25 +156,98 @@ function BotsTable({
     );
   }
 
+  const columns = useMemo<ColumnDef<BotConfig>[]>(() => [
+    {
+      id: "name",
+      header: "Name",
+      accessorKey: "name",
+      cell: ({ row }) => (
+        <Group gap="xs">
+          <Box
+            w={8}
+            h={8}
+            style={{
+              borderRadius: "50%",
+              backgroundColor: getBotIndicatorColor(row.original.running),
+            }}
+          />
+          <Text fw={500}>{row.original.name}</Text>
+          {row.original.live_trading && (
+            <Badge color="red" size="sm" variant="filled">LIVE</Badge>
+          )}
+          {!row.original.is_active && (
+            <Badge color="gray" size="sm" variant="light">
+              Inactive
+            </Badge>
+          )}
+        </Group>
+      ),
+    },
+    {
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => (
+        <StatusBadge
+          running={row.original.running}
+          pid={row.original.pid ?? undefined}
+          statusUnknown={row.original.status === "UNKNOWN"}
+          data-testid={`bot-status-${row.original.id}`}
+        />
+      ),
+      enableSorting: false,
+    },
+    {
+      id: "strategies",
+      header: "Strategies",
+      cell: ({ row }) => <BotSummaryCell bot={row.original} />,
+      enableSorting: false,
+    },
+    {
+      id: "max_total_positions",
+      header: "Max Positions",
+      accessorKey: "max_total_positions",
+    },
+    {
+      id: "max_total_capital_pct",
+      header: "Max Capital",
+      accessorKey: "max_total_capital_pct",
+      cell: ({ getValue }) => `${((getValue() as number) * 100).toFixed(0)}%`,
+    },
+    {
+      id: "actions",
+      header: "Actions",
+      cell: ({ row }) => (
+        <BotActionButtons
+          bot={row.original}
+          onView={onViewStatus}
+          onStart={onStart}
+          onStop={onStop}
+          onEdit={onEdit}
+          onDelete={onDelete}
+        />
+      ),
+      enableSorting: false,
+    },
+  ], [onViewStatus, onStart, onStop, onEdit, onDelete]);
+
   return (
     <CompactPanel id="bots-list-card" data-testid="bots-list-card">
-      <Table striped highlightOnHover id="bots-table" data-testid="bots-table">
-        <BotsTableHeader />
-        <Table.Tbody>
-          {state.bots.map((bot) => (
-            <BotRow
-              key={bot.id}
-              bot={bot}
-              isSelected={state.selectedBot?.id === bot.id}
-              onView={onViewStatus}
-              onStart={onStart}
-              onStop={onStop}
-              onEdit={onEdit}
-              onDelete={onDelete}
-            />
-          ))}
-        </Table.Tbody>
-      </Table>
+      <Group gap="xs" mb="xs">
+        <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-teal-6)" }} />
+        <Text size="sm" fw={600}>Configured Bots</Text>
+        <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
+        <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
+      </Group>
+      <TanStackTable
+        data={state.bots}
+        columns={columns}
+        dataTestId="bots-table"
+        getRowTestId={(row) => `bot-row-${row.id}`}
+        getRowClassName={() => "bot-row"}
+        getRowStyle={(row) => ({
+          backgroundColor: state.selectedBot?.id === row.id ? BOT_SELECTED_BG : undefined,
+        })}
+      />
     </CompactPanel>
   );
 }
@@ -216,9 +279,9 @@ function renderPageContent({
   }
 
   return (
-    <Stack id="bots-page" className="bots-page" h="100%" style={{ overflow: "hidden" }}>
+    <Stack id="bots-page" className="bots-page" h="100%">
       <BotsPageTabs currentView={currentView} onViewChange={handleViewChange} />
-      <Box flex={1} style={{ minHeight: 0, overflowY: "auto" }}>
+      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
         {isLoading ? (
           <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
             <InlineLoader size="lg" />
@@ -290,6 +353,23 @@ export function BotsPage() {
         description="Manage bot configurations, live status, and execution controls."
         actions={
           <Group gap="sm">
+            <Button
+              variant="light"
+              color="green"
+              size="sm"
+              leftSection={<IconPlayerPlay size={16} />}
+              onClick={async () => {
+                const bots = getBotsState().bots;
+                const stoppedCount = bots.filter(b => !b.running).length;
+                if (stoppedCount === 0) return;
+                if (window.confirm(`Start all ${stoppedCount} stopped bots?`)) {
+                  await startAllBotsAction();
+                }
+              }}
+              disabled={!getBotsState().bots.some(b => !b.running)}
+            >
+              Start All ({getBotsState().bots.filter(b => !b.running).length})
+            </Button>
             <Button
               variant="light"
               color="orange"

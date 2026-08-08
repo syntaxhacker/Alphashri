@@ -47,7 +47,6 @@ export { LoadingOverlay } from "./feedback/LoadingOverlay";
 export { Indicator } from "./feedback/Indicator";
 
 // Data display
-export { Table, TableThead, TableTbody, TableTr, TableTh, TableTd } from "./data-display/Table";
 export { Tabs, TabsList, Tab, TabsPanel } from "./data-display/Tabs";
 export { Accordion, AccordionItem, AccordionControl, AccordionPanel } from "./data-display/Accordion";
 export { Timeline, TimelineItem } from "./data-display/Timeline";
@@ -101,7 +100,7 @@ export type {
   UISwitchProps, UICheckboxProps, UIChipProps, UISegmentedControlProps,
   UIModalProps, UITooltipProps, UIPopoverProps, UIPopoverTargetProps, UIPopoverDropdownProps,
   UINavLinkProps, UIAppShellProps, UIAppShellHeaderProps, UIAppShellNavbarProps, UIAppShellMainProps,
-  UITableProps, UITabsProps, UITabProps, UITabsPanelProps,
+  UITabsProps, UITabProps, UITabsPanelProps,
   UIAccordionProps, UIAccordionItemProps, UIAccordionControlProps, UIAccordionPanelProps,
   UITimelineProps, UITimelineItemProps,
   UITreeProps, UITreeNode,

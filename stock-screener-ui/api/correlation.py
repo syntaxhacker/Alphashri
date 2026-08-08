@@ -12,7 +12,7 @@ import pandas as pd
 from fastapi import APIRouter, HTTPException
 
 from config import IST, UPSTOX_API_KEY, UPSTOX_API_SECRET
-from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 from api.utils import (
     make_cache_helpers,
     _compute_pearson_correlation_matrix,

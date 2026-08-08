@@ -1,0 +1,102 @@
+# Applied Jobs Log - Rohit Jogi
+# Date format: YYYY-MM-DD
+# Stack match: R=React, N=Node, P=Python, J=Java, G=Go, etc.
+
+Date       | Company        | Role                                   | Location           | Stack Match | Status
+2026-07-08 | Databricks     | Senior SWE (Money) Bengaluru           | Bengaluru          | J/C++ only  | Abandoned - Java/C++ mismatch
+2026-07-08 | FourKites      | Senior AI Engineer                     | Chennai/Remote     | J/R/G       | Abandoned - Java primary req
+2026-07-08 | Shuru          | Senior Full Stack Engineer             | Remote India       | R/N/P       | Applied - Zoho Recruit
+2026-07-08 | Autodesk       | Senior SWE (Node.JS & React.JS)        | Bengaluru          | R/N         | Applied - Workday (pw: Rohit@2024Auto)
+
+=== 2026-07-08 ===
+Crossing Hurdles - Full Stack Engineer (Remote India, $120-230/hr Contract) - LinkedIn Easy Apply - Submitted
+Legal Experts AI - Full Stack Developer (Remote India) - LinkedIn Easy Apply - Submitted
+Nians - Web Developer (Remote India) - LinkedIn Easy Apply - Submitted
+Mumba Technologies, Inc. - Technical Lead - Full Stack (Remote India) - LinkedIn Easy Apply - Submitted
+Porter - SDE II (Bangalore Hybrid) - LinkedIn Easy Apply - Submitted
+Tricog Health - Senior Fullstack Engineer (MERN) (Bengaluru Hybrid) - LinkedIn Easy Apply - Submitted
+Wenger & Watson - Lead Full Stack Engineer (Bengaluru Hybrid) - LinkedIn Easy Apply - Submitted
+Procure - Expert Senior Full Stack Dev, MERN (Remote India) - LinkedIn Easy Apply - Submitted
+Geektrust - MERN Stack Developer (Remote India) - LinkedIn Easy Apply - Submitted
+Conquer AI - Software Engineer (Remote) - LinkedIn Easy Apply - Submitted
+S.C. Nordic - Software Engineer - OCPP Platform (Remote) - LinkedIn Easy Apply - Submitted
+Synergy Technologies - Full Stack Developer (React/Node/Python) (Hyderabad WFO) - LinkedIn Easy Apply - Submitted
+JOOLA - Senior Node.js Full Stack Developer (Bengaluru On-site) - LinkedIn Easy Apply - Submitted
+GreenDot Digital - Senior Software Engineer – Fullstack (Remote Chennai/Bengaluru) - LinkedIn Easy Apply - Submitted
+Intelo.ai - Senior Software Engineer (India Remote) - LinkedIn Easy Apply - Submitted
+Smart Working - Senior Software Engineer (Remote Indore) - LinkedIn Easy Apply - Submitted
+
+=== July 8, 2026 ===
+24. UST - Lead I/II Fullstack Dev (React, Node, TS) - Trivandrum - RippleHire external - submitted
+25. UST - Lead II Fullstack dev (React, Node, TS) - Trivandrum - RippleHire external - submitted (profile existed)
+--- Connection requests sent (no notes) ---
+26. Sabitha Reddy Satti - Exec TA @ Experis India (Hyderabad)
+27. Divya kacha - TA Specialist @ Kanaka Software (Pune)
+28. Shruty Gupta - Principal Talent Advisor @ Nutanix (Bengaluru)
+29. Vinod Kumar V - TA Specialist (Bengaluru)
+30. Rajkumar Dasari - Sr TA Executive @ Uniquehire (Hyderabad)
+31. Garima Jain - TA @ Magicbricks (Noida)
+32. Anamika V - TA (Bengaluru)
+33. Monica Sankule - Ex Sr TA @ HighLevel (Bengaluru)
+26. UST - Lead I Frontend (React, TS) - Trivandrum - RippleHire - submitted (profile existed)
+27. UST - Lead II Frontend Dev (React, TS, JS) - Trivandrum - RippleHire - submitted (profile existed)
+28. UST - Lead I Frontend (React, JS, TS) - Trivandrum - RippleHire - attempted
+--- UST Employee connections sent ---
+34. Harish Racherla - Lead-II SE @ UST (Hyderabad) - personal note asking about culture
+35. Sreejith T S - Sr SW Dev @ UST (Trivandrum) - without note
+36. Adarsh Haridas - Lead SW Dev @ UST - without note
+--- My Network suggestions (auto-connect) ---
+37. Madhukar Mudunuru - Principal Architect (Logistics/AI) - 53 mutual connections
+38. Iván Abad - Founder @ Convo
+39. Priya Darshini Das - Asst Mgr Recruitment @ Sinara Global
+40. Ambesh Mishra - SE3 @ Maersk (React fullstack)
+41. Sannareddy Srilakshmi - Lead Recruiter
+42. Gagana Pisale - HR Executive @ MagicBricks
+43. Sri Anustavathi Pandi - Sr Recruitment Relationship Mgr @ Hapag Lloyd
+44. Venkatesh Murugesan - Sr HR @ Albert Invent (attempted)
+45. Prashanth Kotla - Sr TA Lead (attempted)
+
+=== 2026-07-08 (continued) ===
+46. Cognizant - Lead Front End Developer (React/TypeScript/JEST/Storybook) - Kochi/Remote - LinkedIn external apply @ talent.cognizant.com (captcha blocked) - marked applied, profile shared
+47. Angel One - SDE 2 Frontend (React/TypeScript/Node) - Bengaluru Hybrid - LinkedIn Easy Apply - Submitted ✓
+48. Marriott Tech Accelerator - Sr SWE II React (React/Next.js/TypeScript) - Hyderabad On-site - LinkedIn Easy Apply - Submitted ✓
+
+=== 2026-07-09 ===
+49. Sarvam AI - Frontend Engineer, API Platform (React/Next.js/TypeScript) - Bengaluru On-site - Ashby portal - Submitted ✓
+50. Sarvam AI - Forward Deployed Engineer (Python/Backend/AI) - Bengaluru On-site - Ashby portal - Submitted ✓
+
+=== 2026-07-09 (continued) ===
+51. Harvey - Senior Software Engineer, Frontend (React/Frontend) - Bengaluru Hybrid - Ashby portal - Submitted ✓
+
+=== 2026-07-09 (continued) ===
+52. Moshi Moshi - Senior Developer/Tech Lead (MERN Stack) - Bengaluru On-site - LinkedIn Easy Apply - Submitted ✓
+53. Tredence Inc. - Senior Fullstack Engineer (React/Node/Next.js) - Bengaluru Hybrid - LinkedIn Easy Apply - Submitted ✓
+54. Orah - Software Engineer (Full Stack, React/Node/TS) - India Remote - LinkedIn Easy Apply - Submitted ✓
+55. JoVE - Full Stack Engineer (Python/React/Next.js) - Bengaluru Remote - LinkedIn Easy Apply - Submitted ✓
+56. GoNanny - Full Stack Engineer (Node.js/Flutter/React) - Bengaluru Hybrid - LinkedIn Easy Apply - Submitted ✓
+57. Emirates NBD - Senior SWE Full Stack (React/Node/TypeScript) - Bangalore On-site - LinkedIn Easy Apply - Submitted ✓
+
+78. 58. Sprinto - Senior Full-stack Engineer (Node/Next.js/React/GraphQL/Postgres) - India Remote - LinkedIn Easy Apply (Lever) - Submitted ✓
+
+79. 59. Geektrust - Web Frontend Lead (React/TypeScript) AI-Native - Pune Remote - LinkedIn Easy Apply - Submitted ✓
+
+60. Arcana - Staff Software Engineer (Frontend, React) - Bangalore Urban Hybrid - LinkedIn Easy Apply - Submitted ✓
+
+61. Crossing Hurdles - Senior Full Stack Developer ($90/hr Contract, Node/TS/Python) - India Remote - LinkedIn Easy Apply - Submitted ✓
+
+62. Atlassian - Frontend Software Engineer (React) - Bengaluru Hybrid - iCIMS portal - Submitted ✓
+
+63. Woliba - Senior Frontend Engineer (React) - Remote - JazzHR portal - Submitted ✓
+64. FollowEngine - Founding Frontend Engineer (React/Next.js) - Hong Kong Remote - Wellfound - Submitted ✓
+65. LiveKit - Forward Deployed Engineer (₹91L-162L) - Remote India - Ashby portal - Submitted ✓
+66. Sticker Mule - Software Engineer ($150-250k + $20k bonus) - Worldwide Remote - Ashby portal - Submitted ✓
+
+=== 2026-07-10 Cold Emails Sent ===
+67. Albert - Principal/Distinguished Engineer (React/Python, "Remote Almost Anywhere") - careers@albert.com - Cold Email Sent ✓
+68. Logen.io - Founding Full-stack / AI Engineer (India Remote) - shvilesh@logen.io - Cold Email Sent ✓
+69. Sequent Tech - Senior Fullstack Engineer (Global Remote, React/TS/WebAssembly) - team@sequentech.io - Cold Email Sent ✓
+70. airCFO - Founding Engineer (TypeScript/Node/Python/React, UTC-8 to UTC+2) - yair.aviner@aircfo.com - Cold Email Sent ✓
+71. ProxyBase - Full-Stack Developer (Global Remote, React/TS/Rust) - jobs@proxybase.xyz - Cold Email Sent ✓
+
+72. Tiger Analytics - Senior Engineer/Lead FullStack (Python+ReactJS) - Chennai/Bangalore/Hyderabad - SenseHQ portal - Submitted ✓
+73. Micro1 - Frontend Software Engineer ($40-50/hr) - Remote - Micro1 portal - Submitted ✓ (AI interview pending)

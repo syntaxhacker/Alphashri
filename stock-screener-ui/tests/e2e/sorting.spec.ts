@@ -31,18 +31,18 @@ test.describe("Table Sorting", () => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    const symbolHeader = page.getByTestId("sort-header-symbol").first();
-    await symbolHeader.getByText("Symbol").first().click({ force: true });
-
-    const indicator = symbolHeader.locator(".sort-indicator");
-    await expect(indicator).toBeVisible({ timeout: 5000 });
+    const symbolHeader = page
+      .locator('[data-testid="screener-table"] thead th', { hasText: /^Symbol/ })
+      .first();
+    await symbolHeader.click({ force: true });
+    await expect(symbolHeader).toContainText("▲", { timeout: 5000 });
   });
 
   test("should show clickable sort indicators on sortable columns", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector("table tbody tr", { timeout: 10000 });
 
-    const sortableHeaders = page.locator("th.sortable");
+    const sortableHeaders = page.locator('[data-testid="screener-table"] thead th');
     const count = await sortableHeaders.count();
 
     expect(count).toBeGreaterThan(0);

@@ -1,6 +1,5 @@
 import type { ColumnDef } from "./index";
-import type { Stock } from "../../../types";
-import { symbolCol, scoreCol, sectorCol, recentReturn5dCol, perfWCol, touched52wCol } from "./base";
+import { symbolCol, scoreCol, sectorCol, recentReturn5dCol, perfWCol, touched52wCol, dayChangeCol } from "./base";
 
 const formatSignedPercent = (v: number) => {
   const n = v ?? 0;
@@ -26,16 +25,7 @@ export function getTrendingColumns(): ColumnDef[] {
       sortable: true,
       format: (value: number) => `₹${value.toFixed(2)}`,
     },
-    {
-      key: "broker_diff",
-      label: "Broker Diff",
-      type: "number",
-      sortable: true,
-      format: (value: number, _stock: Stock) => {
-        const cls = Math.abs(value) < 1.0 ? "green" : "yellow";
-        return { value: formatSignedPercent(value), className: cls };
-      },
-    },
+    dayChangeCol,
     {
       key: "to_52w_high",
       label: "To 52W High",

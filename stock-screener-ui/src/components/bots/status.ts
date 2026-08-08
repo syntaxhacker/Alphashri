@@ -333,11 +333,11 @@ function renderTradeRow(trade: BotTrade): string {
 
 // Initialize status panel handlers
 export function initStatusHandlers() {
-  (window as any).refreshBotStatus = async (botId: string) => {
+  window.refreshBotStatus = async (botId: string) => {
     await Promise.all([loadBotStatus(botId), loadBotTrades(botId)]);
   };
 
-  (window as any).startBotFromStatus = async (botId: string) => {
+  window.startBotFromStatus = async (botId: string) => {
     const success = await startBotAction(botId, false);
     if (success) {
       await loadBotStatus(botId);
@@ -346,7 +346,7 @@ export function initStatusHandlers() {
     }
   };
 
-  (window as any).stopBotFromStatus = async (botId: string) => {
+  window.stopBotFromStatus = async (botId: string) => {
     const success = await stopBotAction(botId);
     if (success) {
       stopAutoRefresh();
@@ -354,7 +354,7 @@ export function initStatusHandlers() {
     }
   };
 
-  (window as any).refreshBotTrades = async (botId: string) => {
+  window.refreshBotTrades = async (botId: string) => {
     await loadBotTrades(botId);
   };
 }

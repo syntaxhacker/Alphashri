@@ -78,8 +78,8 @@ export function PreviewChartProvider({ children }: { children: ReactNode }) {
   }>({ visible: false, symbol: null, data: null, loading: false, timeframe: 15, orMinutes: 45 });
 
   const hoverTimerRef = useRef<number | null>(null);
-  const hoverChartRef = useRef<any>(null);
-  const expandedChartRef = useRef<any>(null);
+  const hoverChartRef = useRef<EChartsInstance | null>(null);
+  const expandedChartRef = useRef<EChartsInstance | null>(null);
 
   const showPreviewChart = useCallback((event: React.MouseEvent, symbol: string) => {
     // Immediately clear any pending show to prevent stale previews
@@ -265,7 +265,7 @@ interface HoverPreviewProps {
   y: number;
   data: ChartPreviewData | null;
   loading: boolean;
-  chartRef: React.MutableRefObject<any>;
+  chartRef: React.MutableRefObject<EChartsInstance | null>;
 }
 
 function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewProps) {
@@ -276,7 +276,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
 
   useEffect(() => {
     if (!data || !containerRef.current) return;
-    if (!(window as any).echarts) return;
+    if (!window.echarts) return;
 
     if (chartRef.current) {
       chartRef.current.dispose();
@@ -298,7 +298,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
     const chartDiv = containerRef.current.querySelector(".echarts-container") as HTMLElement;
     if (!chartDiv) return;
 
-    chartRef.current = (window as any).echarts.init(chartDiv);
+    chartRef.current = window.echarts.init(chartDiv);
     chartRef.current.setOption(chartOption);
     chartRef.current.resize();
 
@@ -371,7 +371,7 @@ interface ExpandedPanelProps {
   loading: boolean;
   timeframe: number;
   orMinutes: number;
-  chartRef: React.MutableRefObject<any>;
+  chartRef: React.MutableRefObject<EChartsInstance | null>;
   onTimeframeChange: (val: string | null) => void;
   onOrMinutesChange: (val: string | null) => void;
   onClose: () => void;
@@ -394,7 +394,7 @@ function ExpandedPanel({
 
   useEffect(() => {
     if (!data || !chartContainerRef.current) return;
-    if (!(window as any).echarts) return;
+    if (!window.echarts) return;
 
     if (chartRef.current) {
       chartRef.current.dispose();
@@ -416,7 +416,7 @@ function ExpandedPanel({
     const chartDiv = chartContainerRef.current.querySelector(".echarts-container") as HTMLElement;
     if (!chartDiv) return;
 
-    chartRef.current = (window as any).echarts.init(chartDiv);
+    chartRef.current = window.echarts.init(chartDiv);
     chartRef.current.setOption(chartOption);
     chartRef.current.resize();
 

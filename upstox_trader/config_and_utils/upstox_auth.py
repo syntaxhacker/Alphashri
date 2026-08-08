@@ -67,13 +67,23 @@ class UpstoxAuthHandler:
                 if not self.quiet:
                     print("✅ Access token loaded from DB (broker_connections)")
                 return True
-        except Exception:
-            pass
+        except Exception as e:
+            if not self.quiet:
+                print(f"⚠️ DB token load failed: {e}")
         return False
 
     def load_token(self) -> bool:
-        """Load access token: DB -> file (in that order)."""
+        """Load access token: DB -> env var -> file (in that order)."""
         if self._load_token_from_db():
+            return True
+
+        # Fallback: UPSTOX_ACCESS_TOKEN env var (set via load_dotenv or CI)
+        import os as _os
+        _env_tok = _os.environ.get('UPSTOX_ACCESS_TOKEN')
+        if _env_tok:
+            self.access_token = _env_tok
+            if not self.quiet:
+                print("✅ Access token loaded from UPSTOX_ACCESS_TOKEN env var")
             return True
 
         if TOKEN_FILE.exists():

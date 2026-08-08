@@ -77,11 +77,9 @@ vi.mock("./ScreenerTable", () => ({
     <div
       data-testid={props["data-testid"] || "screener-table"}
       data-stocks-count={props.stocks.length}
-      data-sort-column={props.sortColumn}
-      data-sort-direction={props.sortDirection}
     >
       {props.stocks.map((stock: Stock) => (
-        <div key={stock.symbol} data-testid={`row-${stock.symbol}`}>
+        <div key={`stock-${stock.symbol}`} data-testid={`row-${stock.symbol}`}>
           {stock.symbol}
         </div>
       ))}
@@ -96,7 +94,7 @@ vi.mock("./ScreenerHeatmapView", () => ({
       data-stocks-count={props.stocks.length}
     >
       {props.stocks.map((stock: Stock) => (
-        <div key={stock.symbol} data-testid={`heatmap-${stock.symbol}`}>
+        <div key={`heatmap-${stock.symbol}`} data-testid={`heatmap-${stock.symbol}`}>
           {stock.symbol}
         </div>
       ))}
@@ -135,10 +133,6 @@ vi.mock("../../hooks/useTableSort", () => ({
 
 // Mock the state module
 vi.mock("../../state", () => ({
-  setSortColumn: vi.fn(),
-  setSortDirection: vi.fn(),
-  sortColumn: null,
-  sortDirection: "desc",
   profileMetaById: {
     trending: { section_labels: { primary: "Approaching", secondary: "Touched" } },
   },
@@ -338,7 +332,6 @@ describe("ScreenerPage", () => {
     // The table mock renders rows with data-testid like `row-RELIANCE`
     fireEvent.click(screen.getByTestId("row-RELIANCE"));
     // Since we mocked ScreenerTable, we need to verify the prop is passed
-    // In real component, StockRow would handle this
   });
 
   it("calls onSymbolHover when symbol is hovered", () => {
@@ -347,7 +340,7 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    // The actual hover handling is in StockRow - this test would need more detailed mocking
+    // The actual hover handling is inside ScreenerTable - this test would need more detailed mocking
   });
 
   it("renders screener navigation with options", () => {
@@ -434,18 +427,6 @@ describe("ScreenerPage", () => {
     const select = screen.getByTestId("mode-select");
     fireEvent.change(select, { target: { value: "historical" } });
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
-  });
-
-  it("resets sort when activeScreener changes (via useEffect)", async () => {
-    render(
-      <UIProvider>
-        <ScreenerPage {...defaultProps} />
-      </UIProvider>,
-    );
-    // The effect should run when activeScreener changes
-    // We can verify by checking if setSortColumn/SortDirection were called
-    // Since we're using mocked state with empty profileMetaById, no reset occurs
-    // This test would need profileMetaById mock to be meaningful
   });
 
   it("computes total stocks count correctly in status", () => {

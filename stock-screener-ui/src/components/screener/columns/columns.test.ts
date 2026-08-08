@@ -226,20 +226,6 @@ describe("trending columns", () => {
     expect(fmt(columns, "upstox_price", 2451.0)).toBe("₹2451.00");
   });
 
-  test("broker_diff small diff gets green class", () => {
-    expectFormattedCell(fmt(columns, "broker_diff", 0.5), "+0.50%", "green");
-    expectFormattedCell(fmt(columns, "broker_diff", -0.3), "-0.30%", "green");
-  });
-
-  test("broker_diff large diff gets yellow class", () => {
-    expectFormattedCell(fmt(columns, "broker_diff", 1.5), "+1.50%", "yellow");
-    expectFormattedCell(fmt(columns, "broker_diff", -2.0), "-2.00%", "yellow");
-  });
-
-  test("broker_diff handles zero", () => {
-    expectFormattedCell(fmt(columns, "broker_diff", 0), "0.00%", "green");
-  });
-
   test("to_52w_high negative gets green class", () => {
     expectFormattedCell(fmt(columns, "to_52w_high", -5.76), "-5.76%", "green");
   });
@@ -284,7 +270,7 @@ describe("52wHigh columns", () => {
   const columns = get52wHighColumns();
 
   test("returns correct number of columns", () => {
-    expect(columns.length).toBe(11);
+    expect(columns.length).toBe(12);
   });
 
   test("includes tv enriched columns from 52w_high screener", () => {

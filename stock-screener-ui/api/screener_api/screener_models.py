@@ -27,6 +27,16 @@ def is_within_52w_touch_gap(gap_pct: float, threshold_pct: Optional[float] = Non
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high', '52w_high'}
 
 PROFILE_META = {
+    'price_surge': {
+        'section_labels': {'primary': '🚀 PRICE SURGE', 'secondary': '✅ BIGGEST MOVERS'},
+        'section_descriptions': {'primary': 'Stocks with abnormal daily price surges (+5% to +40%+). Catches sudden spikes, breakouts, and news-driven moves.', 'secondary': 'Stocks with the highest surge scores combining price change and volume confirmation'},
+        'filters': [
+            {'key': 'min_surge_pct', 'label': 'Min Surge %', 'type': 'number', 'min': 1, 'max': 50, 'step': 1, 'default': 5},
+            {'key': 'min_volume_m', 'label': 'Vol M ≥', 'type': 'number', 'min': 0, 'max': 200, 'step': 0.5, 'default': 0.1}
+        ],
+        'default_sort': {'column': 'day_change', 'direction': 'desc'},
+        'score_formula': 'Change% × 10 + Volume Surge × 8 + Volume (M) × 0.3'
+    },
     'trending': {
         'section_labels': {'primary': '🎯 APPROACHING 52W HIGH', 'secondary': '✅ ALREADY TOUCHED 52W HIGH'},
         'section_descriptions': {'primary': 'Stocks nearing their 52-week high with strong momentum and volume confirmation', 'secondary': 'Stocks that have touched or broken out of their 52-week high'},
@@ -155,6 +165,33 @@ PROFILE_META = {
         ],
         'default_sort': {'column': 'move_pct', 'direction': 'desc'},
         'score_formula': 'Move% × 2 + RSI acceleration + Volume surge + ADX trend'
+    },
+    'intraday_5m': {
+        'section_labels': {'primary': '⚡ 5-MIN MOVERS', 'secondary': '✅ TOP 5-MIN RUNS'},
+        'section_descriptions': {'primary': 'Stocks with biggest price move in the last 5 minutes', 'secondary': 'Top 5-minute momentum runs with the highest move percentage'},
+        'filters': [
+            {'key': 'min_move_pct', 'label': 'Move % ≥', 'type': 'number', 'min': 0, 'max': 20, 'step': 0.1, 'default': 0.3}
+        ],
+        'default_sort': {'column': 'move_5m', 'direction': 'desc'},
+        'score_formula': '5-min Move% × 15 + Volume Surge × 5 + RSI(50+)'
+    },
+    'intraday_10m': {
+        'section_labels': {'primary': '⚡ 10-MIN MOVERS', 'secondary': '✅ TOP 10-MIN RUNS'},
+        'section_descriptions': {'primary': 'Stocks with biggest price move in the last 10 minutes', 'secondary': 'Top 10-minute momentum runs with the highest move percentage'},
+        'filters': [
+            {'key': 'min_move_pct', 'label': 'Move % ≥', 'type': 'number', 'min': 0, 'max': 20, 'step': 0.1, 'default': 0.3}
+        ],
+        'default_sort': {'column': 'move_10m', 'direction': 'desc'},
+        'score_formula': '10-min Move% × 15 + Volume Surge × 5 + RSI(50+)'
+    },
+    'intraday_15m': {
+        'section_labels': {'primary': '⚡ 15-MIN MOVERS', 'secondary': '✅ TOP 15-MIN RUNS'},
+        'section_descriptions': {'primary': 'Stocks with biggest price move in the last 15 minutes', 'secondary': 'Top 15-minute momentum runs with the highest move percentage'},
+        'filters': [
+            {'key': 'min_move_pct', 'label': 'Move % ≥', 'type': 'number', 'min': 0, 'max': 20, 'step': 0.1, 'default': 0.3}
+        ],
+        'default_sort': {'column': 'move_15m', 'direction': 'desc'},
+        'score_formula': '15-min Move% × 15 + Volume Surge × 5 + RSI(50+)'
     },
     'undervalued': {
         'section_labels': {'primary': '💎 UNDERVALUED', 'secondary': '✅ TOP VALUE PICKS'},

@@ -23,7 +23,6 @@ import {
   PaperChart,
   PaperHistoryTable,
   PaperSettings,
-  PerformanceAnalytics,
   ActivityFeed,
   AggregatedDashboard,
 } from "./mantine";
@@ -332,11 +331,6 @@ export function PaperTradingView() {
         {state.currentView === "live" && <LiveView state={state} scanRefreshing={scanRefreshing} handleScanRefresh={handleScanRefresh} />}
         {state.currentView === "history" && <HistoryView state={state} />}
         {state.currentView === "settings" && <SettingsView state={state} />}
-        {state.currentView === "analytics" && (
-          <ScrollArea flex={1} style={{ minHeight: 0 }} type="auto" offsetScrollbars>
-            <PerformanceAnalytics />
-          </ScrollArea>
-        )}
         {state.currentView === "activity" && (
           <ScrollArea flex={1} style={{ minHeight: 0 }} type="auto" offsetScrollbars>
             <ActivityFeed />

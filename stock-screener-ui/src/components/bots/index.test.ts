@@ -1,5 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
+import type { LoadingState } from "../../utils/loading";
+import type { BotLoadingKey } from "../../types/bots";
 
 vi.mock("../../state/bots", () => ({
   getBotsState: vi.fn(),
@@ -37,19 +39,18 @@ vi.mock("../../utils/loading", () => ({
 import { renderBotsView, initBotsHandlers, cleanupBots } from "./index";
 import * as botsState from "../../state/bots";
 
-const createLoadingState = () =>
-  ({
-    list: false,
-    load: false,
-    status: false,
-    strategies: false,
-    create: false,
-    update: false,
-    delete: false,
-    start: false,
-    stop: false,
-    trades: false,
-  }) as any;
+const createLoadingState = (): LoadingState<BotLoadingKey> => ({
+  list: false,
+  load: false,
+  status: false,
+  strategies: false,
+  create: false,
+  update: false,
+  delete: false,
+  start: false,
+  stop: false,
+  trades: false,
+});
 
 type MockStateOverrides = Partial<{
   bots: any[];
@@ -271,7 +272,7 @@ describe("initBotsHandlers", () => {
   it("attaches handlers to window", () => {
     initBotsHandlers();
     for (const handler of windowHandlers) {
-      expect(typeof (window as any)[handler]).toBe("function");
+      expect(typeof (window as unknown as Record<string, unknown>)[handler]).toBe("function");
     }
   });
 

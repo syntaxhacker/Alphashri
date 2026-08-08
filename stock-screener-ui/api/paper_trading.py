@@ -51,6 +51,7 @@ from api.paper.endpoints import (
 from api.paper.analytics import get_analytics
 from api.paper.activity import get_activity_feed, push_event
 from api.paper.aggregated import get_aggregated_dashboard
+from api.paper.dashboard_analytics import get_dashboard_analytics
 from api.paper.requests import (
     OrderRequest,
     ClosePositionRequest,
@@ -84,6 +85,7 @@ __all__ = [
     "validate_trade",
     "health_check",
     "get_paper_chart",
+    "get_dashboard_analytics",
     "get_strategy_config_endpoint",
     "update_strategy_config_endpoint",
     "reset_strategy_config_endpoint",

@@ -301,25 +301,23 @@ async function loadAndSelectStrategy(strategyId: number) {
 
 // Initialize handlers for performance view
 export function initPerformanceHandlers() {
-  (window as any).selectStrategyForDetail = (strategyId: number) =>
+  window.selectStrategyForDetail = (strategyId: number) =>
     void loadAndSelectStrategy(strategyId);
 
-  (window as any).clearSelectedStrategy = () => {
+  window.clearSelectedStrategy = () => {
     selectedStrategyId = null;
     triggerRerender();
   };
 
-  (window as any).viewAllStrategyTrades = (strategyName: string) => {
+  window.viewAllStrategyTrades = (strategyName: string) => {
     localStorage.setItem("filterStrategy", strategyName);
-    if ((window as any).navigateToRoute) {
-      (window as any).navigateToRoute("paper");
-    }
+    window.navigateToRoute?.("paper");
   };
 
   const strategyNameToSelect = localStorage.getItem("selectStrategyByName");
   if (strategyNameToSelect) {
     localStorage.removeItem("selectStrategyByName");
-    (window as any).__pendingStrategySelection = strategyNameToSelect;
+    window.__pendingStrategySelection = strategyNameToSelect;
   }
 }
 
