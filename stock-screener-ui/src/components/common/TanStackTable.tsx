@@ -178,7 +178,10 @@ export function TanStackTable<T>({
                     style={{
                       ...baseHeaderStyle,
                       width: width !== undefined ? width : undefined,
-                      textAlign: align,
+                      // Default to left so headers line up with cell values
+                      // (browsers default th to center, which misaligns headers
+                      // over left-aligned cells); meta.align overrides.
+                      textAlign: align ?? "left",
                       cursor: h.column.getCanSort() ? "pointer" : "default",
                       position: stickyHeader ? "sticky" : undefined,
                       top: stickyHeader ? 0 : undefined,
@@ -250,7 +253,7 @@ export function TanStackTable<T>({
                             style={{
                               ...cellStyle,
                               width: width !== undefined ? width : undefined,
-                              textAlign: align,
+                              textAlign: align ?? "left",
                               ...(width !== undefined
                                 ? { overflow: "hidden", textOverflow: "ellipsis" }
                                 : null),
