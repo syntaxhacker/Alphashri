@@ -30,6 +30,8 @@ const APP_FONT_FAMILY = '"IBM Plex Sans", "Roboto", "Poppins", system-ui, sans-s
 export const uiTheme = createTheme({
   primaryColor: "teal", // cream-derived accent
   primaryShade: { light: 5, dark: 6 },
+  white: CREAM,
+  black: BLACK,
   colors,
   defaultRadius: "xs",
   fontFamily: APP_FONT_FAMILY,
