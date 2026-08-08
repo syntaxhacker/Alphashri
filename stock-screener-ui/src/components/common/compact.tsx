@@ -100,7 +100,7 @@ export function CompactPanel({
       radius="xs"
       p={padded ? "xs" : 0}
       shadow="none"
-      bg="light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))"
+      bg="var(--mantine-color-body)"
       style={panelStyle}
       data-testid={testId}
       {...paperProps}

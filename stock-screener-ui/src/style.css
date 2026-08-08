@@ -1650,3 +1650,10 @@ textarea {
 .news-badge-pulse {
   animation: news-pulse 0.6s ease-in-out 3;
 }
+
+/* Cards use the theme body color so they recolor live with the theme /
+   ThemePlayground (Mantine's default dark-6 is frozen to the dark scale). */
+.mantine-Card-root,
+[class*='mantine-Card-root'] {
+  background-color: var(--mantine-color-body) !important;
+}
