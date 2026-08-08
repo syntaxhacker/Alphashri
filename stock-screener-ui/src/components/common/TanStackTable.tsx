@@ -149,6 +149,22 @@ export function TanStackTable<T>({
     getRowCanExpand: getRowCanExpand ? (row) => getRowCanExpand(row.original) : undefined,
   });
 
+  // Columns whose sample values are all numbers get right-aligned headers
+  // and cells by default (text columns stay left). Explicit `meta.align`
+  // always wins over this heuristic.
+  const numericColumnIds = new Set<string>();
+  const sampleRows = table.getRowModel().rows.slice(0, 5);
+  if (sampleRows.length > 0) {
+    for (const col of table.getAllLeafColumns()) {
+      const values = sampleRows
+        .map((r) => r.getValue(col.id))
+        .filter((v) => v !== null && v !== undefined && v !== "");
+      if (values.length > 0 && values.every((v) => typeof v === "number")) {
+        numericColumnIds.add(col.id);
+      }
+    }
+  }
+
   const showLoading = loading && data.length === 0;
   const showEmpty = !loading && data.length === 0;
   const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
@@ -178,7 +194,10 @@ export function TanStackTable<T>({
                     style={{
                       ...baseHeaderStyle,
                       width: width !== undefined ? width : undefined,
-                      textAlign: align,
+                      // Default: left for text, right for numeric columns, so
+                      // headers line up with cell values (browsers default th
+                      // to center, which misaligns headers); meta.align overrides.
+                      textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
                       cursor: h.column.getCanSort() ? "pointer" : "default",
                       position: stickyHeader ? "sticky" : undefined,
                       top: stickyHeader ? 0 : undefined,
@@ -250,7 +269,7 @@ export function TanStackTable<T>({
                             style={{
                               ...cellStyle,
                               width: width !== undefined ? width : undefined,
-                              textAlign: align,
+                              textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
                               ...(width !== undefined
                                 ? { overflow: "hidden", textOverflow: "ellipsis" }
                                 : null),
