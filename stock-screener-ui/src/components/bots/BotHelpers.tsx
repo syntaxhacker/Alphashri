@@ -8,7 +8,6 @@ import {
   Grid,
   Progress,
   ActionIcon,
-  Box,
   Tooltip,
 } from "@/ui";
 import {
@@ -27,7 +26,7 @@ import type {
   BotConfig,
 } from "../../types/bots";
 import { formatNumber as formatNumberShared, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
-import { SideBadge, ExitReasonBadge, StatusBadge } from "../common/BadgeComponents";
+import { SideBadge, ExitReasonBadge } from "../common/BadgeComponents";
 import { TanStackTable } from "../common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -37,7 +36,6 @@ import {
   TINT_TEST_TRADE,
   BOT_RUNNING,
   BOT_STOPPED,
-  BOT_SELECTED_BG,
   TINT_POSITIVE,
   TINT_NEGATIVE,
 } from "../../config/colors";
@@ -553,86 +551,6 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
   );
 }
 
-export function getBotRowStyle(isSelected: boolean, _bot: BotConfig): React.CSSProperties {
-  return {
-    backgroundColor: isSelected ? BOT_SELECTED_BG : undefined,
-  };
-}
-
 export function getBotIndicatorColor(running: boolean): string {
   return running ? BOT_RUNNING : BOT_STOPPED;
-}
-
-interface BotRowProps {
-  bot: BotConfig;
-  isSelected: boolean;
-  onView: (bot: BotConfig) => void;
-  onStart: (botId: string) => Promise<void>;
-  onStop: (botId: string) => Promise<void>;
-  onEdit: (bot: BotConfig) => void;
-  onDelete: (botId: string) => Promise<void>;
-}
-
-export function BotRow({
-  bot,
-  isSelected,
-  onView,
-  onStart,
-  onStop,
-  onEdit,
-  onDelete,
-}: BotRowProps) {
-  return (
-    <tr
-      key={bot.id}
-      style={getBotRowStyle(isSelected, bot)}
-      data-testid={`bot-row-${bot.id}`}
-      className="bot-row"
-    >
-      <td>
-        <Group gap="xs">
-          <Box
-            w={8}
-            h={8}
-            style={{
-              borderRadius: "50%",
-              backgroundColor: getBotIndicatorColor(bot.running),
-            }}
-          />
-          <Text fw={500}>{bot.name}</Text>
-          {bot.live_trading && (
-            <Badge color="red" size="sm" variant="filled">LIVE</Badge>
-          )}
-          {!bot.is_active && (
-            <Badge color="gray" size="sm" variant="light">
-              Inactive
-            </Badge>
-          )}
-        </Group>
-      </td>
-      <td>
-        <StatusBadge
-          running={bot.running}
-          pid={bot.pid ?? undefined}
-          statusUnknown={bot.status === "UNKNOWN"}
-          data-testid={`bot-status-${bot.id}`}
-        />
-      </td>
-      <td>
-        <BotSummaryCell bot={bot} />
-      </td>
-      <td>{bot.max_total_positions}</td>
-      <td>{(bot.max_total_capital_pct * 100).toFixed(0)}%</td>
-      <td>
-        <BotActionButtons
-          bot={bot}
-          onView={onView}
-          onStart={onStart}
-          onStop={onStop}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
-      </td>
-    </tr>
-  );
 }
