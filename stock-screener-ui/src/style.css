@@ -9,7 +9,7 @@
 /* Live price flash animations */
 @keyframes flash-up {
   0% {
-    background-color: rgba(63, 185, 80, 0.35); /* positive wash */
+    background-color: rgba(63, 185, 80, 0.45); /* positive wash (VOLUME_BULLISH alpha) */
   }
   100% {
     background-color: transparent;
@@ -18,7 +18,7 @@
 
 @keyframes flash-down {
   0% {
-    background-color: rgba(248, 81, 73, 0.35); /* negative wash */
+    background-color: rgba(248, 81, 73, 0.45); /* negative wash (VOLUME_BEARISH alpha) */
   }
   100% {
     background-color: transparent;
@@ -1142,7 +1142,7 @@ textarea {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(0, 0, 0, 0.9); /* palette BG */
+  background: rgba(13, 17, 23, 0.9) /* palette BG #0D1117 */; /* palette BG */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1528,7 +1528,7 @@ textarea {
   line-height: 1.4;
   pointer-events: auto;
   animation: toast-slide-in 0.3s ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* palette BLACK 40% */
+  box-shadow: 0 4px 12px rgba(1, 4, 9, 0.4) /* palette BLACK #010409 */; /* palette BLACK 40% */
 }
 
 .toast-item.toast-success {
