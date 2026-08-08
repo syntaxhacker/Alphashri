@@ -17,6 +17,7 @@ import { ReplaySummaryPanel } from "../replay/ReplaySummary";
 import { ReplayTradeLog } from "../replay/ReplayTradeLog";
 import { HeatmapListView } from "../../pages/heatmap/HeatmapListView";
 import { PositionsPanel } from "../options/OptionPositions/PositionsPanel";
+import { SectorAlertsList } from "../sector/SectorAlertsList";
 import { PerformanceView } from "../strategies/PerformanceView";
 import type { MetricConfig } from "../../pages/heatmap/heatmapUtils";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -175,6 +176,23 @@ describe("table alignment across screens", () => {
     expect(headerByText.get("P/E")).toBe("right");
     const price = cellAligns.find((c) => c.text.includes("2950"));
     if (price) expect(price.align).toBe("right");
+  });
+
+  it("SectorAlertsList: time/sector left, move badge rendered", () => {
+    wrap(
+      <SectorAlertsList
+        alerts={[
+          { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
+          { timestamp: "10:31:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
+        ]}
+      />,
+    );
+    const { headerByText, cellAligns } = grab("sector-alerts");
+    expect(headerByText.get("Time")).toBe("left");
+    expect(headerByText.get("Sector")).toBe("left");
+    expect(headerByText.get("Move")).toBe("left");
+    expect(cellAligns.find((c) => c.text === "IT")!.align).toBe("left");
+    expect(cellAligns.some((c) => c.text.includes("SURGING"))).toBe(true);
   });
 
   it("SectorTable: sector left, numeric right", () => {
