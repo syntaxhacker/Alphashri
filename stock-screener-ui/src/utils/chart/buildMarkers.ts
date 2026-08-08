@@ -1,11 +1,23 @@
 import type { UnifiedTrade, MarkerConfig } from "./types";
+import {
+  MARKER_ENTRY,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
+  MARKER_STOP_LOSS,
+  MARKER_MAX_HOLDING,
+  PIVOT_S2,
+  MARKER_BORDER,
+  CHART_AVG_ENTRY,
+  EXIT_DEFAULT,
+} from "../../config/colors";
 
 export function getMarkerConfigs(): MarkerConfig[] {
   return [
     {
       name: "Entry",
       filter: (_t: UnifiedTrade) => true,
-      color: "#00FFFF",
+      color: MARKER_ENTRY,
       symbol: "triangle",
       size: 18,
       rotate: 180,
@@ -13,42 +25,42 @@ export function getMarkerConfigs(): MarkerConfig[] {
     {
       name: "TP",
       filter: (t: UnifiedTrade) => t.exit_reason === "TP",
-      color: "#FFFF00",
+      color: MARKER_TP,
       symbol: "circle",
       size: 16,
     },
     {
       name: "SL",
       filter: (t: UnifiedTrade) => t.exit_reason === "SL",
-      color: "#FF00FF",
+      color: MARKER_SL,
       symbol: "circle",
       size: 16,
     },
     {
       name: "EOD",
       filter: (t: UnifiedTrade) => t.exit_reason === "EOD",
-      color: "#FFA500",
+      color: MARKER_EOD,
       symbol: "diamond",
       size: 16,
     },
     {
       name: "Trailing",
       filter: (t: UnifiedTrade) => t.exit_reason === "TRAILING_STOP",
-      color: "#9C27B0",
+      color: MARKER_STOP_LOSS,
       symbol: "circle",
       size: 16,
     },
     {
       name: "MaxHold",
       filter: (t: UnifiedTrade) => t.exit_reason === "MAX_HOLDING",
-      color: "#FF9800",
+      color: MARKER_MAX_HOLDING,
       symbol: "diamond",
       size: 16,
     },
     {
       name: "52W",
       filter: (t: UnifiedTrade) => t.exit_reason === "NEW_52W_HIGH",
-      color: "#00BCD4",
+      color: PIVOT_S2,
       symbol: "circle",
       size: 16,
     },
@@ -150,8 +162,8 @@ export function buildTradeMarkers(
       entryMarkers.push({
         value: [entryIdx, trade.entry_price],
         itemStyle: {
-          color: isHighlighted ? "#FFD700" : entryConfig.color,
-          borderColor: "#FFFFFF",
+          color: isHighlighted ? CHART_AVG_ENTRY : entryConfig.color,
+          borderColor: MARKER_BORDER,
           borderWidth: isHighlighted ? 3 : 2,
         },
         symbol,
@@ -165,7 +177,7 @@ export function buildTradeMarkers(
                 show: true,
                 formatter: `#${trade.id}`,
                 position: "top",
-                color: "#FFD700",
+                color: CHART_AVG_ENTRY,
                 fontWeight: "bold",
                 fontSize: 12,
               },
@@ -187,11 +199,11 @@ export function buildTradeMarkers(
 
         const exitColor = matchedConfig
           ? isHighlighted
-            ? "#FFD700"
+            ? CHART_AVG_ENTRY
             : matchedConfig.color
           : isHighlighted
-            ? "#FFD700"
-            : "#FF1744";
+            ? CHART_AVG_ENTRY
+            : EXIT_DEFAULT;
 
         const exitSymbol = matchedConfig?.symbol || "circle";
         const exitSize = isHighlighted ? 24 : matchedConfig?.size || 16;
@@ -206,7 +218,7 @@ export function buildTradeMarkers(
           symbolOffset: isSameCandle ? [0, 20] : [0, 0],
           itemStyle: {
             color: exitColor,
-            borderColor: "#FFFFFF",
+            borderColor: MARKER_BORDER,
             borderWidth: isHighlighted ? 3 : 2,
           },
           trade,
@@ -217,7 +229,7 @@ export function buildTradeMarkers(
                   show: true,
                   formatter: trade.exit_reason || "Exit",
                   position: "bottom",
-                  color: "#FFD700",
+                  color: CHART_AVG_ENTRY,
                   fontWeight: "bold",
                   fontSize: 11,
                 },

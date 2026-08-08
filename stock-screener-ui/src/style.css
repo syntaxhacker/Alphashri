@@ -9,7 +9,7 @@
 /* Live price flash animations */
 @keyframes flash-up {
   0% {
-    background-color: rgba(64, 192, 87, 0.35);
+    background-color: rgba(40, 90, 72, 0.35); /* palette TRADING_GREEN wash */
   }
   100% {
     background-color: transparent;
@@ -18,7 +18,7 @@
 
 @keyframes flash-down {
   0% {
-    background-color: rgba(255, 77, 77, 0.35);
+    background-color: rgba(155, 15, 6, 0.35); /* palette TRADING_RED wash */
   }
   100% {
     background-color: transparent;
@@ -51,7 +51,7 @@ body {
 
 body {
   font: var(--font-size-sm) var(--font-family);
-  background: light-dark(#eef3f8, #0b0f14);
+  background: light-dark(#E1DCC9, #000000); /* palette CREAM / BG */
   color: var(--mantine-color-text);
 }
 
@@ -883,7 +883,7 @@ textarea {
   flex-direction: column;
   height: 100vh;
   overflow: hidden;
-  background: light-dark(#eef3f8, #0b0f14);
+  background: light-dark(#E1DCC9, #000000); /* palette CREAM / BG */
 }
 
 .chart-view-header {
@@ -891,15 +891,15 @@ textarea {
   align-items: center;
   gap: 16px;
   padding: 12px 20px;
-  background: light-dark(rgba(255, 255, 255, 0.86), rgba(11, 15, 20, 0.88));
-  border-bottom: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  background: light-dark(rgba(225, 220, 201, 0.86), rgba(31, 21, 12, 0.88)); /* CREAM / SURFACE */
+  border-bottom: 1px solid light-dark(rgba(65, 45, 21, 0.08), rgba(225, 220, 201, 0.14)); /* BROWN / CREAM */
   flex-shrink: 0;
   backdrop-filter: blur(18px);
 }
 
 .chart-view-header .back-btn {
-  background: light-dark(rgba(255, 255, 255, 0.9), rgba(15, 23, 42, 0.62));
-  border: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  background: light-dark(rgba(225, 220, 201, 0.9), rgba(31, 21, 12, 0.62)); /* CREAM / SURFACE */
+  border: 1px solid light-dark(rgba(65, 45, 21, 0.08), rgba(225, 220, 201, 0.14)); /* BROWN / CREAM */
   color: var(--mantine-color-dimmed);
   padding: 6px 12px;
   font-size: var(--font-size-sm);
@@ -938,8 +938,8 @@ textarea {
 }
 
 .chart-view-header .control-group select {
-  background: light-dark(rgba(255, 255, 255, 0.92), rgba(15, 23, 42, 0.62));
-  border: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  background: light-dark(rgba(225, 220, 201, 0.92), rgba(31, 21, 12, 0.62)); /* CREAM / SURFACE */
+  border: 1px solid light-dark(rgba(65, 45, 21, 0.08), rgba(225, 220, 201, 0.14)); /* BROWN / CREAM */
   color: var(--mantine-color-text);
   padding: 4px 8px;
   font-size: var(--font-size-sm);
@@ -970,8 +970,8 @@ textarea {
 }
 
 .chart-view-body .chart-error button {
-  background: light-dark(rgba(255, 255, 255, 0.92), rgba(15, 23, 42, 0.62));
-  border: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  background: light-dark(rgba(225, 220, 201, 0.92), rgba(31, 21, 12, 0.62)); /* CREAM / SURFACE */
+  border: 1px solid light-dark(rgba(65, 45, 21, 0.08), rgba(225, 220, 201, 0.14)); /* BROWN / CREAM */
   color: var(--mantine-color-text);
   padding: 6px 16px;
   cursor: pointer;
@@ -979,7 +979,7 @@ textarea {
 }
 
 .chart-container-full {
-  background: light-dark(rgba(255, 255, 255, 0.82), rgba(11, 15, 20, 0.9));
+  background: light-dark(rgba(225, 220, 201, 0.82), rgba(31, 21, 12, 0.9)); /* CREAM / SURFACE */
   border-radius: 8px;
 }
 
@@ -987,8 +987,8 @@ textarea {
   display: flex;
   gap: 8px;
   padding: 8px 20px;
-  background: light-dark(rgba(255, 255, 255, 0.86), rgba(11, 15, 20, 0.88));
-  border-top: 1px solid light-dark(rgba(15, 23, 42, 0.08), rgba(148, 163, 184, 0.14));
+  background: light-dark(rgba(225, 220, 201, 0.86), rgba(31, 21, 12, 0.88)); /* CREAM / SURFACE */
+  border-top: 1px solid light-dark(rgba(65, 45, 21, 0.08), rgba(225, 220, 201, 0.14)); /* BROWN / CREAM */
   font-size: var(--font-size-sm);
   color: var(--mantine-color-dimmed);
   flex-shrink: 0;
@@ -1142,7 +1142,7 @@ textarea {
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(10, 10, 15, 0.9);
+  background: rgba(0, 0, 0, 0.9); /* palette BG */
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1528,7 +1528,7 @@ textarea {
   line-height: 1.4;
   pointer-events: auto;
   animation: toast-slide-in 0.3s ease-out;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4); /* palette BLACK 40% */
 }
 
 .toast-item.toast-success {

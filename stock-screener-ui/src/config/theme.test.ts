@@ -177,7 +177,7 @@ describe("Color Palette", () => {
     });
 
     it("darkest shade is very dark", () => {
-      expect(colors.dark[9]).toBe("#0a0a0a");
+      expect(colors.dark[9]).toBe("#000000");
     });
   });
 

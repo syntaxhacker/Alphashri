@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import React from "react";
+import { CREAM } from "../config/colors";
 import AdminPage from "./AdminPage";
 import { renderWithMantine } from "../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
@@ -25,7 +26,7 @@ vi.mock("./admin/NewsQueuePanel", () => ({
 }));
 
 vi.mock("../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({ isDark: false, background: "#fff" }),
+  useThemeColors: () => ({ isDark: false, background: CREAM }),
 }));
 
 describe("AdminPage", () => {

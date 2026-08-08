@@ -1,5 +1,13 @@
 import type { MantineTheme } from "@/ui";
 import { clamp } from "../../../utils/ui-helpers";
+import {
+  SCALE_GREEN,
+  SCALE_RED,
+  SCALE_ORANGE,
+  SCALE_TEAL,
+  SCALE_YELLOW,
+  TEXT_MUTED,
+} from "../../../config/colors";
 
 function parseHex(hex: string) {
   const normalized = hex.replace("#", "");
@@ -47,43 +55,12 @@ export type ThemeType = MantineTheme;
 
 function getSidePalette(theme: ThemeType, type: "CE" | "PE") {
   const colors = theme.colors || {};
-  const green = colors.green ||
-    colors.gray || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
-  const teal = colors.teal ||
-    colors.cyan ||
-    colors.green || [
-      "#000",
-      "#111",
-      "#222",
-      "#333",
-      "#444",
-      "#555",
-      "#666",
-      "#777",
-      "#888",
-      "#999",
-    ];
-  const lime = colors.lime ||
-    colors.yellow ||
-    colors.green || [
-      "#000",
-      "#111",
-      "#222",
-      "#333",
-      "#444",
-      "#555",
-      "#666",
-      "#777",
-      "#888",
-      "#999",
-    ];
-  const red = colors.red ||
-    colors.pink || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
-  const orange = colors.orange ||
-    colors.yellow ||
-    colors.red || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
-  const pink = colors.pink ||
-    colors.red || ["#000", "#111", "#222", "#333", "#444", "#555", "#666", "#777", "#888", "#999"];
+  const green = colors.green || colors.gray || SCALE_GREEN;
+  const teal = colors.teal || colors.cyan || colors.green || SCALE_TEAL;
+  const lime = colors.lime || colors.yellow || colors.green || SCALE_YELLOW;
+  const red = colors.red || colors.pink || SCALE_RED;
+  const orange = colors.orange || colors.yellow || colors.red || SCALE_ORANGE;
+  const pink = colors.pink || colors.red || SCALE_RED;
 
   return type === "CE"
     ? {
@@ -125,7 +102,7 @@ export function getCellPalette(
   const colors = theme.colors || {};
   const getColor = (name: string, index: number): string => {
     const arr = colors[name] || colors.gray || [];
-    return arr[index] || arr[0] || "#888";
+    return arr[index] || arr[0] || TEXT_MUTED;
   };
 
   if (kind === "change") {

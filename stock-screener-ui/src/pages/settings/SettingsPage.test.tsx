@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { SettingsPage } from "./SettingsPage";
 import { BrowserRouter, MemoryRouter, Routes, Route } from "react-router-dom";
 import { renderWithMantine, renderWithRouter } from "../../test-utils/renderWithMantine";
+import { CREAM } from "../../config/colors";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // Mock modules using vi.hoisted
@@ -31,7 +32,7 @@ vi.mock("../../state/store/hooks", () => ({
 vi.mock("../../hooks/useThemeColors", () => ({
   useThemeColors: () => ({
     isDark: false,
-    background: "#fff",
+    background: CREAM,
   }),
 }));
 

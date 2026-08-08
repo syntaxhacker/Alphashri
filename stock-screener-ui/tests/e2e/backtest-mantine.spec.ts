@@ -205,7 +205,7 @@ async function expectChartHighlighted(page: Page) {
       s.data.length > 0 &&
       (s.id === "highlight-entry" ||
         s.id === "highlight-exit" ||
-        s.data.some((d: any) => d?.itemStyle?.color === "#FFD700")),
+        s.data.some((d: any) => d?.itemStyle?.color === "#E1DCC9")),
   );
   expect(hasHighlightedMarker).toBeTruthy();
 }
@@ -324,7 +324,7 @@ test.describe("Backtest - Mantine Features", () => {
         row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       });
 
-      // The trade's entry/exit markers are re-rendered with gold (#FFD700) styling
+      // The trade's entry/exit markers are re-rendered with cream (#E1DCC9) styling
       await expectChartHighlighted(page);
     });
 

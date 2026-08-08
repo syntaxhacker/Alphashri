@@ -27,11 +27,19 @@ import {
   MARKER_TP,
   MARKER_SL,
   MARKER_EOD,
+  MARKER_BORDER,
   BULLISH,
   BEARISH,
   VOLUME_BULLISH,
   VOLUME_BEARISH,
-} from "../../config/colors";
+  TOOLTIP_DARK_BG,
+  TOOLTIP_DARK_BORDER,
+  TOOLTIP_DARK_TEXT,
+  AXIS_DARK_LINE,
+  AXIS_DARK_SPLIT,
+  CHART_TEXT,
+  TEXT_MUTED,
+} from "../../ui/palette";
 
 interface Candle {
   time: string;
@@ -159,12 +167,12 @@ export class ChartOptionBuilder {
         : undefined,
       tooltip: {
         trigger: this.tooltipTrigger,
-        backgroundColor: "#25262b",
-        borderColor: "#373a40",
-        textStyle: { color: "#c1c2c5", fontSize: 12 },
+        backgroundColor: TOOLTIP_DARK_BG,
+        borderColor: TOOLTIP_DARK_BORDER,
+        textStyle: { color: TOOLTIP_DARK_TEXT, fontSize: 12 },
       },
       legend: this.legendEnabled
-        ? { data: this.collectLegendNames(), bottom: 0, textStyle: { color: "#c1c2c5" } }
+        ? { data: this.collectLegendNames(), bottom: 0, textStyle: { color: CHART_TEXT } }
         : undefined,
       grid: [
         { left: "6%", right: "6%", top: "8%", height: "62%" },
@@ -175,7 +183,7 @@ export class ChartOptionBuilder {
           type: "category",
           data: timeData,
           gridIndex: 0,
-          axisLine: { lineStyle: { color: "#373a40" } },
+          axisLine: { lineStyle: { color: AXIS_DARK_LINE } },
           splitLine: { show: false },
           axisLabel: { show: false },
         },
@@ -183,9 +191,9 @@ export class ChartOptionBuilder {
           type: "category",
           data: timeData,
           gridIndex: 1,
-          axisLine: { lineStyle: { color: "#373a40" } },
+          axisLine: { lineStyle: { color: AXIS_DARK_LINE } },
           splitLine: { show: false },
-          axisLabel: { color: "#888", fontSize: 10, rotate: 45 },
+          axisLabel: { color: TEXT_MUTED, fontSize: 10, rotate: 45 },
         },
       ],
       yAxis: [
@@ -193,14 +201,14 @@ export class ChartOptionBuilder {
           type: "value",
           gridIndex: 0,
           scale: true,
-          splitLine: { lineStyle: { color: "#1a1b1e", type: "dashed" } },
-          axisLabel: { color: "#888", fontSize: 10 },
+          splitLine: { lineStyle: { color: AXIS_DARK_SPLIT, type: "dashed" } },
+          axisLabel: { color: TEXT_MUTED, fontSize: 10 },
         },
         {
           type: "value",
           gridIndex: 1,
           splitLine: { show: false },
-          axisLabel: { color: "#888", fontSize: 10 },
+          axisLabel: { color: TEXT_MUTED, fontSize: 10 },
         },
       ],
       series,
@@ -418,7 +426,7 @@ export class ChartOptionBuilder {
         symbol: "triangle",
         symbolSize: 18,
         symbolRotate: 180,
-        itemStyle: { color: MARKER_ENTRY, borderColor: "#fff", borderWidth: 1 },
+        itemStyle: { color: MARKER_ENTRY, borderColor: MARKER_BORDER, borderWidth: 1 },
         label: {
           show: true,
           position: "top",
@@ -441,7 +449,7 @@ export class ChartOptionBuilder {
         coord: [idx, ex.price],
         symbol,
         symbolSize: 16,
-        itemStyle: { color: exitColor, borderColor: "#fff", borderWidth: 1 },
+        itemStyle: { color: exitColor, borderColor: MARKER_BORDER, borderWidth: 1 },
         label: {
           show: true,
           position: "bottom",

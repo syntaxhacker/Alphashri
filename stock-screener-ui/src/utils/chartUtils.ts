@@ -1,5 +1,23 @@
 import type { MantineTheme } from "@/ui";
-import { POSITIVE, NEGATIVE, BULLISH, BEARISH } from "../config/colors";
+import {
+  POSITIVE,
+  NEGATIVE,
+  BULLISH,
+  BEARISH,
+  MARKER_ENTRY,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
+  MARKER_STOP_LOSS,
+  MARKER_MAX_HOLDING,
+  PIVOT_S2,
+  MARKER_BORDER,
+  CHART_AVG_ENTRY,
+  CHART_TRADE_EXIT,
+  CHART_DARK_DROPDOWN,
+  INDICATOR_BLUE_A,
+  INDICATOR_BLUE_B,
+} from "../config/colors";
 
 export function getChartThemeColors(isDark: boolean, theme: MantineTheme | Record<string, any>) {
   return {
@@ -140,44 +158,44 @@ export function getMarkerConfigs(): MarkerConfig[] {
   return [
     {
       filter: (t) => t.type === "entry",
-      color: "#00FFFF",
+      color: MARKER_ENTRY,
       symbol: "triangle",
       symbolSize: 18,
       symbolRotate: 180,
     },
     {
       filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "TP",
-      color: "#FFFF00",
+      color: MARKER_TP,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "SL",
-      color: "#FF00FF",
+      color: MARKER_SL,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "EOD",
-      color: "#FFA500",
+      color: MARKER_EOD,
       symbol: "diamond",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "TRAILING_STOP",
-      color: "#9C27B0",
+      color: MARKER_STOP_LOSS,
       symbol: "circle",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "MAX_HOLDING",
-      color: "#FF9800",
+      color: MARKER_MAX_HOLDING,
       symbol: "diamond",
       symbolSize: 16,
     },
     {
       filter: (t) => t.type === "exit" && (t.trade as any).exit_reason === "NEW_52W_HIGH",
-      color: "#00BCD4",
+      color: PIVOT_S2,
       symbol: "circle",
       symbolSize: 16,
     },
@@ -199,28 +217,28 @@ export function buildHighlightMarkers(
     symbol: "triangle",
     symbolSize: 32,
     itemStyle: {
-      color: "#FFD700",
-      borderColor: "#FF6B00",
+      color: CHART_AVG_ENTRY,
+      borderColor: CHART_TRADE_EXIT,
       borderWidth: 4,
       shadowBlur: 10,
-      shadowColor: "#FFD700",
+      shadowColor: CHART_AVG_ENTRY,
     },
     label: {
       show: true,
       position: "top",
       distance: 8,
       formatter: `▼ Entry #${tradeIndex + 1}`,
-      color: "#FFD700",
+      color: CHART_AVG_ENTRY,
       fontSize: fontSizes.md,
       fontWeight: "bold",
-      backgroundColor: "rgba(0,0,0,0.7)",
+      backgroundColor: CHART_DARK_DROPDOWN,
       padding: [4, 8],
       borderRadius: 4,
     },
   };
 
   const exitReason = exitMarker ? (exitMarker.trade as any).exit_reason : null;
-  const exitColor = exitReason === "TP" ? "#00E676" : exitReason === "SL" ? "#FF1744" : "#FFEA00";
+  const exitColor = exitReason === "TP" ? MARKER_TP : exitReason === "SL" ? MARKER_SL : MARKER_EOD;
 
   const highlightExitMarker =
     exitMarker && exitIdx !== undefined
@@ -230,7 +248,7 @@ export function buildHighlightMarkers(
           symbolSize: 28,
           itemStyle: {
             color: exitColor,
-            borderColor: "#FFFFFF",
+            borderColor: MARKER_BORDER,
             borderWidth: 4,
             shadowBlur: 10,
             shadowColor: exitColor,
@@ -240,10 +258,10 @@ export function buildHighlightMarkers(
             position: "bottom",
             distance: 8,
             formatter: `● ${exitReason || "Exit"}`,
-            color: "#FFFFFF",
+            color: MARKER_BORDER,
             fontSize: fontSizes.md,
             fontWeight: "bold",
-            backgroundColor: "rgba(0,0,0,0.7)",
+            backgroundColor: CHART_DARK_DROPDOWN,
             padding: [4, 8],
             borderRadius: 4,
           },
@@ -294,14 +312,14 @@ export function buildHighlightLevelSeries(
           show: true,
           position: "end",
           formatter: `52W High: ₹${level52wHigh}`,
-          color: "#FFD700",
+          color: CHART_AVG_ENTRY,
           fontSize: fontSizes.sm,
           fontWeight: "bold",
-          backgroundColor: "rgba(0,0,0,0.7)",
+          backgroundColor: CHART_DARK_DROPDOWN,
           padding: [2, 6],
           borderRadius: 3,
         },
-        lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+        lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
         data: [{ yAxis: level52wHigh }],
         animation: false,
       },
@@ -319,7 +337,7 @@ export function buildHighlightLevelSeries(
         connectNulls: false,
         silent: true,
         z: 6,
-        lineStyle: { color: "#42A5F5", width: 2, type: "dashed" },
+        lineStyle: { color: INDICATOR_BLUE_A, width: 2, type: "dashed" },
         tooltip: { show: false },
       },
       {
@@ -331,7 +349,7 @@ export function buildHighlightLevelSeries(
         connectNulls: false,
         silent: true,
         z: 6,
-        lineStyle: { color: "#1E88E5", width: 2, type: "dashed" },
+        lineStyle: { color: INDICATOR_BLUE_B, width: 2, type: "dashed" },
         tooltip: { show: false },
       },
     );

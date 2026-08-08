@@ -1,13 +1,33 @@
 import type { HeatmapStock } from "../../api/heatmap";
+import {
+  SECTOR_STRONG_GREEN,
+  SECTOR_GREEN,
+  SECTOR_NEUTRAL,
+  SECTOR_RED,
+  SECTOR_STRONG_RED,
+  CREAM,
+  SURFACE,
+} from "../../config/colors";
 
 type Rgb = [number, number, number];
 
+function hexToRgb(hex: string): Rgb {
+  const h = hex.replace("#", "");
+  return [
+    parseInt(h.slice(0, 2), 16),
+    parseInt(h.slice(2, 4), 16),
+    parseInt(h.slice(4, 6), 16),
+  ];
+}
+
+// Gradient stops keep the heatmap semantics: strong green -> light green ->
+// neutral -> light red -> strong red (all derived from the brand palette).
 const COLOR_STOPS: [number, Rgb][] = [
-  [0, [0, 90, 30]],
-  [25, [80, 185, 70]],
-  [50, [245, 230, 60]],
-  [75, [235, 130, 40]],
-  [100, [175, 35, 35]],
+  [0, hexToRgb(SECTOR_STRONG_GREEN)],
+  [25, hexToRgb(SECTOR_GREEN)],
+  [50, hexToRgb(SECTOR_NEUTRAL)],
+  [75, hexToRgb(SECTOR_RED)],
+  [100, hexToRgb(SECTOR_STRONG_RED)],
 ];
 
 export function lerpRgb(t: number): string {
@@ -22,7 +42,7 @@ export function lerpRgb(t: number): string {
       return `rgb(${r},${g},${b})`;
     }
   }
-  return "rgb(175,35,35)";
+  return `rgb(${hexToRgb(SECTOR_STRONG_RED).join(",")})`;
 }
 
 export function norm(value: number, min: number, max: number): number {
@@ -84,9 +104,9 @@ export function getHeatmapMetricColor(
 export function getMetricTextColor(value: number, min: number, max: number): string {
   const bg = getMetricColor(value, min, max);
   const m = bg.match(/\d+/g);
-  if (!m) return "#fff";
+  if (!m) return CREAM;
   const l = (0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2]) / 255;
-  return l > 0.55 ? "#1a1a1a" : "#fff";
+  return l > 0.55 ? SURFACE : CREAM;
 }
 
 export function getHeatmapMetricTextColor(
@@ -97,9 +117,9 @@ export function getHeatmapMetricTextColor(
 ): string {
   const bg = getHeatmapMetricColor(metric, value, min, max);
   const m = bg.match(/\d+/g);
-  if (!m) return "#fff";
+  if (!m) return CREAM;
   const l = (0.299 * +m[0] + 0.587 * +m[1] + 0.114 * +m[2]) / 255;
-  return l > 0.55 ? "#1a1a1a" : "#fff";
+  return l > 0.55 ? SURFACE : CREAM;
 }
 
 export function getMetricValue(stock: HeatmapStock, metric: string): number {

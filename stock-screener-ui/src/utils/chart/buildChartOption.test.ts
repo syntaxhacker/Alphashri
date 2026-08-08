@@ -1,4 +1,16 @@
 import { describe, expect, it, vi } from "vitest";
+import {
+  CHART_BG,
+  CHART_TEXT,
+  CHART_MUTED,
+  CHART_BORDER,
+  CHART_SPLIT,
+  POSITIVE,
+  NEGATIVE,
+  CHART_CROSSHAIR,
+  CHART_DARK_OVERLAY,
+  CHART_LIGHT_OVERLAY,
+} from "../../config/colors";
 import { buildChartOption } from "./buildChartOption";
 import type { ChartInput } from "./types";
 
@@ -53,13 +65,13 @@ vi.mock("./buildLivePosition", () => ({
 
 vi.mock("../chartUtils", () => ({
   getChartThemeColors: () => ({
-    bgColor: "#000",
-    textColor: "#fff",
-    mutedColor: "#888",
-    borderColor: "#333",
-    gridLineColor: "#222",
-    positiveColor: "#00E676",
-    negativeColor: "#FF1744",
+    bgColor: CHART_BG,
+    textColor: CHART_TEXT,
+    mutedColor: CHART_MUTED,
+    borderColor: CHART_BORDER,
+    gridLineColor: CHART_SPLIT,
+    positiveColor: POSITIVE,
+    negativeColor: NEGATIVE,
   }),
   buildHolidayMap: () => ({
     trading: new Set(),
@@ -120,7 +132,7 @@ describe("buildChartOption", () => {
 
     it("sets background color from theme", () => {
       const result = buildChartOption(createMockInput());
-      expect(result.backgroundColor).toBe("#000");
+      expect(result.backgroundColor).toBe(CHART_BG);
     });
   });
 
@@ -130,7 +142,7 @@ describe("buildChartOption", () => {
       expect(result.title).toEqual({
         text: "My Chart",
         left: "center",
-        textStyle: { color: "#fff", fontSize: 14 },
+        textStyle: { color: CHART_TEXT, fontSize: 14 },
       });
     });
 
@@ -145,18 +157,18 @@ describe("buildChartOption", () => {
       const result = buildChartOption(createMockInput());
       expect(result.tooltip).toEqual({
         trigger: "axis",
-        axisPointer: { type: "cross", lineStyle: { color: "#666" } },
-        backgroundColor: "rgba(255, 255, 255, 0.95)",
-        borderColor: "#333",
+        axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
+        backgroundColor: CHART_LIGHT_OVERLAY,
+        borderColor: CHART_BORDER,
         borderWidth: 1,
-        textStyle: { color: "#fff", fontSize: "12px" },
+        textStyle: { color: CHART_TEXT, fontSize: "12px" },
         formatter: "tooltip HTML",
       });
     });
 
     it("uses dark tooltip background when isDark is true", () => {
       const result = buildChartOption(createMockInput({ isDark: true }));
-      expect(result.tooltip.backgroundColor).toBe("rgba(20, 20, 20, 0.95)");
+      expect(result.tooltip.backgroundColor).toBe(CHART_DARK_OVERLAY);
     });
   });
 

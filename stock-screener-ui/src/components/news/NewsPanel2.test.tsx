@@ -6,6 +6,7 @@ import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { BrowserRouter } from "react-router-dom";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { CREAM } from "../../config/colors";
 
 // Mock fetch globally
 const mockFetch = vi.fn();
@@ -14,7 +15,7 @@ global.fetch = mockFetch;
 // Mock useThemeColors
 vi.mock("../../hooks/useThemeColors", () => ({
   useThemeColors: () => ({
-    background: "#ffffff",
+    background: CREAM,
   }),
 }));
 

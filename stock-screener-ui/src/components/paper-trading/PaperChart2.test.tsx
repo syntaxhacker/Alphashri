@@ -1,14 +1,23 @@
 import { describe, expect, test } from "vitest";
 import type { PaperChartData, PaperPosition } from "../../types/paperTrading";
+import {
+  MARKER_ENTRY,
+  MARKER_TP,
+  MARKER_SL,
+  PIVOT_OR_HIGH,
+  PIVOT_52W_HIGH,
+  INDICATOR_BLUE_A,
+  INDICATOR_BLUE_B,
+} from "../../config/colors";
 
 function buildChartLegendItems(orbLabel: string | undefined, hasWeek52: boolean) {
   const items = [
-    { color: "#00FFFF", label: "Entry", shape: "square" as const },
-    { color: "#FFFF00", label: "TP", shape: "circle" as const },
-    { color: "#FF00FF", label: "SL", shape: "circle" as const },
+    { color: MARKER_ENTRY, label: "Entry", shape: "square" as const },
+    { color: MARKER_TP, label: "TP", shape: "circle" as const },
+    { color: MARKER_SL, label: "SL", shape: "circle" as const },
   ];
-  if (orbLabel) items.push({ color: "#2196F3", label: orbLabel, shape: "square" as const });
-  if (hasWeek52) items.push({ color: "#E91E63", label: "52W High", shape: "square" as const });
+  if (orbLabel) items.push({ color: PIVOT_OR_HIGH, label: orbLabel, shape: "square" as const });
+  if (hasWeek52) items.push({ color: PIVOT_52W_HIGH, label: "52W High", shape: "square" as const });
   return items;
 }
 
@@ -120,8 +129,8 @@ describe("PaperChart types", () => {
     test("accepts ema_series", () => {
       const chart = mockChartData({
         ema_series: {
-          ema_fast: { label: "EMA 9", color: "#10ac84", data: [2490, 2500, 2510] },
-          ema_slow: { label: "EMA 21", color: "#f59e0b", data: [2480, 2490, 2500] },
+          ema_fast: { label: "EMA 9", color: INDICATOR_BLUE_A, data: [2490, 2500, 2510] },
+          ema_slow: { label: "EMA 21", color: INDICATOR_BLUE_B, data: [2480, 2490, 2500] },
         },
       });
       expect(chart.ema_series).not.toBeNull();

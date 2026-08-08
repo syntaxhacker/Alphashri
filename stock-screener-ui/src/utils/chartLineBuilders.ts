@@ -1,4 +1,4 @@
-import { PIVOT_R1, PIVOT_PP, PIVOT_S1 } from "../config/colors";
+import { PIVOT_R1, PIVOT_PP, PIVOT_S1, CHART_AVG_ENTRY } from "../config/colors";
 
 export function buildPivotSeries(
   candles: Array<{ date: string }>,
@@ -102,7 +102,7 @@ export function buildWeek52Series(
       showSymbol: false,
       silent: true,
       z: 5,
-      lineStyle: { color: "#FFD700", width: 2, type: "dashed" },
+      lineStyle: { color: CHART_AVG_ENTRY, width: 2, type: "dashed" },
     },
   ];
 }

@@ -3,6 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import { CREAM } from "../config/colors";
 import NewsPage from "./NewsPage";
 import { renderWithMantine } from "../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
@@ -74,7 +75,7 @@ vi.mock("../components/news/ArticleDetail", () => ({
 vi.mock("../hooks/useThemeColors", () => ({
   useThemeColors: () => ({
     isDark: false,
-    background: "#fff",
+    background: CREAM,
   }),
 }));
 

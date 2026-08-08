@@ -5,9 +5,18 @@ import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchAnalytics } from "../../api/paperTrading";
 import { CompactStat, CompactStatGrid } from "../common/compact";
 import type { AnalyticsData, DailyPnLPoint, EquityCurvePoint } from "../../types/paperTrading";
+import { PERF_POSITIVE, PERF_NEGATIVE, POSITIVE, NEGATIVE, TEXT_MUTED } from "../../config/colors";
 import ReactECharts from "echarts-for-react";
 
-const splitLine = { lineStyle: { color: "rgba(128,128,128,0.12)" } };
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.12) } };
 
 function chartOption({
   xData,
@@ -34,7 +43,7 @@ const pctFmt = (v: number) => `${v.toFixed(2)}%`;
 
 function EquityCurveChart({ data }: { data: EquityCurvePoint[] }) {
   const isPositive = data.length > 0 && data[data.length - 1].cumulative_pnl >= 0;
-  const lineColor = isPositive ? "#228be6" : "#fa5252";
+  const lineColor = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
   return (
     <ReactECharts
       style={{ height: 140 }}
@@ -53,8 +62,8 @@ function EquityCurveChart({ data }: { data: EquityCurvePoint[] }) {
                 type: "linear",
                 x: 0, y: 0, x2: 0, y2: 1,
                 colorStops: [
-                  { offset: 0, color: isPositive ? "rgba(34,139,230,0.3)" : "rgba(250,82,82,0.3)" },
-                  { offset: 1, color: isPositive ? "rgba(34,139,230,0.02)" : "rgba(250,82,82,0.02)" },
+                  { offset: 0, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.3) },
+                  { offset: 1, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.02) },
                 ],
               },
             },
@@ -80,7 +89,7 @@ function DailyPnLChart({ data }: { data: DailyPnLPoint[] }) {
             data: data.map((d) => ({
               value: d.net_pnl,
               itemStyle: {
-                color: d.net_pnl >= 0 ? "#20c997" : "#fa5252",
+                color: d.net_pnl >= 0 ? POSITIVE : NEGATIVE,
                 borderRadius: [2, 2, 0, 0],
               },
             })),
@@ -92,7 +101,7 @@ function DailyPnLChart({ data }: { data: DailyPnLPoint[] }) {
             markLine: {
               silent: true,
               symbol: "none",
-              lineStyle: { color: "rgba(128,128,128,0.3)", type: "dashed", width: 1 },
+              lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
               data: [{ yAxis: 0 }],
               label: { show: false },
             },
@@ -116,14 +125,14 @@ function DrawdownChart({ data }: { data: any[] }) {
             type: "line",
             data: data.map((d) => d.drawdown_pct),
             smooth: true,
-            lineStyle: { color: "#fa5252", width: 2 },
+            lineStyle: { color: NEGATIVE, width: 2 },
             areaStyle: {
               color: {
                 type: "linear",
                 x: 0, y: 0, x2: 0, y2: 1,
                 colorStops: [
-                  { offset: 0, color: "rgba(250,82,82,0.25)" },
-                  { offset: 1, color: "rgba(250,82,82,0.02)" },
+                  { offset: 0, color: withAlpha(NEGATIVE, 0.25) },
+                  { offset: 1, color: withAlpha(NEGATIVE, 0.02) },
                 ],
               },
             },
@@ -149,7 +158,7 @@ function MonthlyChart({ data }: { data: any[] }) {
             data: data.map((d) => ({
               value: d.pnl,
               itemStyle: {
-                color: d.pnl >= 0 ? "#20c997" : "#fa5252",
+                color: d.pnl >= 0 ? POSITIVE : NEGATIVE,
                 borderRadius: [2, 2, 0, 0],
               },
             })),
@@ -161,7 +170,7 @@ function MonthlyChart({ data }: { data: any[] }) {
             markLine: {
               silent: true,
               symbol: "none",
-              lineStyle: { color: "rgba(128,128,128,0.3)", type: "dashed", width: 1 },
+              lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
               data: [{ yAxis: 0 }],
               label: { show: false },
             },

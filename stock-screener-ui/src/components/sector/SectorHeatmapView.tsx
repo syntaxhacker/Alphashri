@@ -11,6 +11,13 @@ import {
   TOOLTIP_LIGHT_BORDER,
   TOOLTIP_DARK_TEXT,
   TOOLTIP_LIGHT_TEXT,
+  TRADING_GREEN,
+  TRADING_RED,
+  CREAM,
+  BROWN_DARK,
+  BLACK,
+  SECTOR_GREEN,
+  SECTOR_RED,
 } from "../../config/colors";
 import { formatPercentage } from "../../utils/ui-helpers";
 
@@ -31,6 +38,12 @@ interface SectorHeatmapViewProps {
   onSymbolClick?: (symbol: string) => void;
 }
 
+function hexToRgb(hex: string): [number, number, number] {
+  const h = hex.replace("#", "");
+  const int = parseInt(h, 16);
+  return [(int >> 16) & 255, (int >> 8) & 255, int & 255];
+}
+
 const STOCK_METRICS = [
   { value: "change_pct", label: "Day Change %" },
   { value: "market_cap", label: "Market Cap" },
@@ -42,11 +55,11 @@ const STOCK_METRICS = [
 ];
 
 const COLOR_STOPS: [number, [number, number, number]][] = [
-  [0, [0, 90, 30]],
-  [25, [80, 185, 70]],
-  [50, [245, 230, 60]],
-  [75, [235, 130, 40]],
-  [100, [175, 35, 35]],
+  [0, hexToRgb(TRADING_GREEN)],
+  [25, hexToRgb(SECTOR_GREEN)],
+  [50, hexToRgb(CREAM)],
+  [75, hexToRgb(SECTOR_RED)],
+  [100, hexToRgb(TRADING_RED)],
 ];
 
 function lerpRgb(t: number): string {
@@ -61,7 +74,7 @@ function lerpRgb(t: number): string {
       return `rgb(${r},${g},${b})`;
     }
   }
-  return "rgb(175,35,35)";
+  return `rgb(${hexToRgb(TRADING_RED).join(",")})`;
 }
 
 function getSectorHeatmapColor(value: number, min: number, max: number): string {
@@ -76,8 +89,8 @@ function getSectorHeatmapColor(value: number, min: number, max: number): string 
   return lerpRgb(50);
 }
 
-const TEXT_COLOR_DARK = "#1a1a1a";
-const TEXT_COLOR_LIGHT = "#fff";
+const TEXT_COLOR_DARK = BROWN_DARK;
+const TEXT_COLOR_LIGHT = CREAM;
 
 function getTextColorForBg(bg: string): string {
   const m = bg.match(/\d+/g);
@@ -127,7 +140,7 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
           `<div style="margin-top:6px">`,
           `  <div style="color:${tooltipText}">Avg Change: <b>${formatPercentage(Number(d.avg_change))}</b></div>`,
           `  <div style="color:${tooltipText}">Stocks: <b>${d.stock_count}</b></div>`,
-          `  <div style="color:${tooltipText}">Advances: <b style="color:#00E676">${d.advances}</b> / Declines: <b style="color:#FF1744">${d.declines}</b></div>`,
+          `  <div style="color:${tooltipText}">Advances: <b style="color:${TRADING_GREEN}">${d.advances}</b> / Declines: <b style="color:${TRADING_RED}">${d.declines}</b></div>`,
         ];
         if (d.avg_rsi != null && Number(d.avg_rsi) > 0) {
           lines.push(`  <div style="color:${tooltipText}">Avg RSI: <b>${Number(d.avg_rsi).toFixed(1)}</b></div>`);
@@ -159,19 +172,19 @@ function buildSectorTreemapOption(sectors: SectorItem[], isDark: boolean) {
           fontSize: 10,
           fontWeight: "bold",
           lineHeight: 14,
-          textBorderColor: "#000",
+          textBorderColor: BLACK,
           textBorderWidth: 0.5,
         },
         breadcrumb: { show: false },
         itemStyle: {
-          borderColor: isDark ? "#1a1a1a" : "#fff",
+          borderColor: isDark ? BROWN_DARK : CREAM,
           borderWidth: 1,
           gapWidth: 0,
         },
         levels: [
           {
             itemStyle: {
-              borderColor: isDark ? "#1a1a1a" : "#fff",
+              borderColor: isDark ? BROWN_DARK : CREAM,
               borderWidth: 0,
               gapWidth: 0,
             },
@@ -253,7 +266,7 @@ function buildStockTreemapOption(stocks: HeatmapStock[], metric: string, isDark:
         }
         if (d.change != null && d.change !== "") {
           const ch = Number(d.change);
-          lines.push(`  <div style="color:${ch >= 0 ? "green" : "red"}">Change: <b>${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b></div>`);
+          lines.push(`  <div style="color:${ch >= 0 ? TRADING_GREEN : TRADING_RED}">Change: <b>${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b></div>`);
         }
         if (d.sector) {
           lines.push(`  <div style="color:${tooltipText}">Sector: ${d.sector}</div>`);
@@ -279,19 +292,19 @@ function buildStockTreemapOption(stocks: HeatmapStock[], metric: string, isDark:
           fontSize: 10,
           fontWeight: "bold",
           lineHeight: 14,
-          textBorderColor: "#000",
+          textBorderColor: BLACK,
           textBorderWidth: 0.5,
         },
         breadcrumb: { show: false },
         itemStyle: {
-          borderColor: isDark ? "#1a1a1a" : "#fff",
+          borderColor: isDark ? BROWN_DARK : CREAM,
           borderWidth: 1,
           gapWidth: 0,
         },
         levels: [
           {
             itemStyle: {
-              borderColor: isDark ? "#1a1a1a" : "#fff",
+              borderColor: isDark ? BROWN_DARK : CREAM,
               borderWidth: 0,
               gapWidth: 0,
             },

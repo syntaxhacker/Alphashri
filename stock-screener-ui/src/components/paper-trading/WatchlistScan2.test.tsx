@@ -5,6 +5,16 @@ import { screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WatchlistScan2 } from "./WatchlistScan2";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { CREAM } from "../../config/colors";
+
+// Resolved value of var(--mantine-color-teal-light) under the palette theme.
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 import type { PaperBotSnapshot } from "../../types/paperTrading";
 
 afterEach(cleanup);
@@ -466,7 +476,7 @@ describe("WatchlistScan2", () => {
         <WatchlistScan2 snapshot={snap} selectedSymbol="RELIANCE" />,
       );
       expect(row("RELIANCE")).toHaveStyle({
-        backgroundColor: "rgba(56, 178, 172, 0.15)",
+        backgroundColor: withAlpha(CREAM, 0.15),
       });
     });
   });

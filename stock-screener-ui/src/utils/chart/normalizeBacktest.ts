@@ -6,6 +6,7 @@ import type {
   UnifiedOverlay,
   MarkLineData,
 } from "../chart/types";
+import { PIVOT_OR_HIGH, PIVOT_OR_LOW, PIVOT_R1, PIVOT_S1, PIVOT_PP } from "../../config/colors";
 
 export function normalizeBacktest(
   data: SymbolChartData,
@@ -90,12 +91,12 @@ export function normalizeBacktest(
         markLines.push(
           {
             yAxis: t.or_high,
-            lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+            lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 },
             label: { position: "insideEndTop", formatter: `OR-H ${t.or_high}` },
           },
           {
             yAxis: t.or_low,
-            lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+            lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 },
             label: { position: "insideEndTop", formatter: `OR-L ${t.or_low}` },
           },
         );
@@ -103,35 +104,35 @@ export function normalizeBacktest(
       if (t.r1 != null) {
         markLines.push({
           yAxis: t.r1,
-          lineStyle: { color: "#EF5350", type: "dashed", width: 1 },
+          lineStyle: { color: PIVOT_R1, type: "dashed", width: 1 },
           label: { position: "insideEndTop", formatter: `R1 ${t.r1}` },
         });
       }
       if (t.s1 != null) {
         markLines.push({
           yAxis: t.s1,
-          lineStyle: { color: "#26A69A", type: "dashed", width: 1 },
+          lineStyle: { color: PIVOT_S1, type: "dashed", width: 1 },
           label: { position: "insideEndTop", formatter: `S1 ${t.s1}` },
         });
       }
       if (t.pp != null) {
         markLines.push({
           yAxis: t.pp,
-          lineStyle: { color: "#AB47BC", type: "dotted", width: 1 },
+          lineStyle: { color: PIVOT_PP, type: "dotted", width: 1 },
           label: { position: "insideEndTop", formatter: `PP ${t.pp}` },
         });
       }
       if (t.r2 != null) {
         markLines.push({
           yAxis: t.r2,
-          lineStyle: { color: "#EF5350", type: "dotted", width: 1 },
+          lineStyle: { color: PIVOT_R1, type: "dotted", width: 1 },
           label: { position: "insideEndTop", formatter: `R2 ${t.r2}` },
         });
       }
       if (t.s2 != null) {
         markLines.push({
           yAxis: t.s2,
-          lineStyle: { color: "#26A69A", type: "dotted", width: 1 },
+          lineStyle: { color: PIVOT_S1, type: "dotted", width: 1 },
           label: { position: "insideEndTop", formatter: `S2 ${t.s2}` },
         });
       }

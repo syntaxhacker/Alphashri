@@ -4,6 +4,7 @@ import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
 import { TestWrapper } from "../../test-utils/testUtils";
+import { CREAM, BLACK } from "../../config/colors";
 
 // Mock matchMedia
 beforeEach(() => {
@@ -47,8 +48,8 @@ vi.mock("../../hooks/useThemeColors", () => ({
   useThemeColors: () => ({
     isDark: false,
     colorScheme: "light",
-    background: "#ffffff",
-    text: "#000000",
+    background: CREAM,
+    text: BLACK,
   }),
 }));
 
@@ -184,9 +185,9 @@ describe("AppLayout", () => {
     const header = screen.getByTestId("app-header");
     const main = screen.getByTestId("app-main");
 
-    expect(header).toHaveStyle({ backgroundColor: "#ffffff" });
-    expect(header).toHaveStyle({ color: "#000000" });
-    expect(main).toHaveStyle({ backgroundColor: "#ffffff" });
-    expect(main).toHaveStyle({ color: "#000000" });
+    expect(header).toHaveStyle({ backgroundColor: CREAM });
+    expect(header).toHaveStyle({ color: BLACK });
+    expect(main).toHaveStyle({ backgroundColor: CREAM });
+    expect(main).toHaveStyle({ color: BLACK });
   });
 });

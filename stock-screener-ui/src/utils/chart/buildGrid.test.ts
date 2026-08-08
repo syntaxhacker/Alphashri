@@ -1,14 +1,21 @@
 import { describe, expect, it } from "vitest";
 import { buildGrid } from "./buildGrid";
 import type { ChartColors } from "./types";
+import {
+  CHART_BG,
+  CHART_TEXT,
+  CHART_MUTED,
+  CHART_BORDER,
+  CHART_SPLIT,
+} from "../../config/colors";
 
 describe("buildGrid", () => {
   const mockColors: ChartColors = {
-    bgColor: "#000",
-    textColor: "#fff",
-    mutedColor: "#888",
-    borderColor: "#333",
-    gridLineColor: "#222",
+    bgColor: CHART_BG,
+    textColor: CHART_TEXT,
+    mutedColor: CHART_MUTED,
+    borderColor: CHART_BORDER,
+    gridLineColor: CHART_SPLIT,
   };
 
   describe("when showVolume is true", () => {

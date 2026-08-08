@@ -5,6 +5,7 @@ import { UIProvider } from "@/ui";
 import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
 import { sortTrades, TradeHistoryTable } from "./TradeHistoryTable";
 import type { Trade } from "../../types/backtest";
+import { TINT_LOSS_ROW } from "../../config/colors";
 import "@testing-library/jest-dom/vitest";
 
 afterEach(cleanup);
@@ -449,7 +450,7 @@ describe("TradeHistoryTable rendering", () => {
     });
     const row0 = screen.getByTestId("trade-history-row-0");
     const row1 = screen.getByTestId("trade-history-row-1");
-    expect(row0.getAttribute("style")).not.toContain("rgba(255, 0, 0, 0.05)");
-    expect(row1.getAttribute("style")).toContain("rgba(255, 0, 0, 0.05)");
+    expect(row0.getAttribute("style")).not.toContain(TINT_LOSS_ROW);
+    expect(row1.getAttribute("style")).toContain(TINT_LOSS_ROW);
   });
 });

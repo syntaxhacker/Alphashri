@@ -2,6 +2,20 @@ import { useEffect } from "react";
 import { Box, Loader, Flex, Stack, Text } from "@/ui";
 import { useECharts } from "../../hooks/useECharts";
 import type { CorrelationDataPoint } from "../../api/correlation";
+import {
+  CREAM,
+  BLACK,
+  BROWN,
+  BROWN_DARK,
+  TRADING_GREEN,
+  TRADING_RED,
+  TEXT_MUTED,
+  SECTOR_GREEN,
+  SECTOR_RED,
+  SECTOR_LIGHT_GREEN,
+  CHART_MUTED,
+  CHART_SPLIT,
+} from "../../config/colors";
 
 interface CorrelationChartProps {
   normalized: Record<string, CorrelationDataPoint[]>;
@@ -10,16 +24,16 @@ interface CorrelationChartProps {
 }
 
 const COLORS = [
-  "#5470c6",
-  "#91cc75",
-  "#fac858",
-  "#ee6666",
-  "#73c0de",
-  "#3ba272",
-  "#fc8452",
-  "#9a60b4",
-  "#ea7ccc",
-  "#5470c6",
+  CREAM,
+  TRADING_GREEN,
+  TRADING_RED,
+  TEXT_MUTED,
+  BROWN,
+  BROWN_DARK,
+  SECTOR_GREEN,
+  SECTOR_RED,
+  SECTOR_LIGHT_GREEN,
+  BLACK,
 ];
 
 export function CorrelationChart({ normalized, symbols, isLoading }: CorrelationChartProps) {
@@ -70,7 +84,7 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
         data: symbols,
         top: 0,
         type: "scroll" as const,
-        textStyle: { fontSize: 11, color: "#fff" },
+        textStyle: { fontSize: 11, color: CHART_MUTED },
       },
       grid: { left: 60, right: 20, top: 40, bottom: 30 },
       xAxis: {
@@ -84,15 +98,15 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
             return `${d.getDate()}/${d.getMonth() + 1}`;
           },
         },
-        axisLine: { lineStyle: { color: "#888" } },
+        axisLine: { lineStyle: { color: CHART_MUTED } },
       },
       yAxis: {
         type: "value" as const,
         name: "% Change",
-        nameTextStyle: { fontSize: 11, color: "#fff" },
-        axisLabel: { fontSize: 10, formatter: "{value}%", color: "#fff" },
-        splitLine: { lineStyle: { type: "dashed", color: "#444" } },
-        axisLine: { lineStyle: { color: "#888" } },
+        nameTextStyle: { fontSize: 11, color: CHART_MUTED },
+        axisLabel: { fontSize: 10, formatter: "{value}%", color: CHART_MUTED },
+        splitLine: { lineStyle: { type: "dashed", color: CHART_SPLIT } },
+        axisLine: { lineStyle: { color: CHART_MUTED } },
       },
       series,
     });

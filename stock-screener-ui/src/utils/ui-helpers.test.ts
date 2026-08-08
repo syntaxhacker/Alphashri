@@ -28,6 +28,7 @@ import {
   getNextSortDirection,
   normalizeTime,
 } from "./ui-helpers";
+import { POSITIVE, NEGATIVE, MARKER_TP, MARKER_SL, MARKER_EOD, EXIT_DEFAULT } from "../config/colors";
 
 describe("formatCurrency", () => {
   test("formats positive numbers with rupee symbol", () => {
@@ -234,21 +235,21 @@ describe("getPnLClass", () => {
 
 describe("getPnLColor", () => {
   test("returns green for positive/zero values", () => {
-    expect(getPnLColor(100)).toBe("#00E676");
-    expect(getPnLColor(0)).toBe("#00E676");
+    expect(getPnLColor(100)).toBe(POSITIVE);
+    expect(getPnLColor(0)).toBe(POSITIVE);
   });
 
   test("returns red for negative values", () => {
-    expect(getPnLColor(-100)).toBe("#FF1744");
+    expect(getPnLColor(-100)).toBe(NEGATIVE);
   });
 });
 
 describe("getExitReasonColor", () => {
   test("returns correct colors for exit reasons", () => {
-    expect(getExitReasonColor("TP")).toBe("#00E676"); // Green
-    expect(getExitReasonColor("SL")).toBe("#FF1744"); // Red
-    expect(getExitReasonColor("EOD")).toBe("#FFEA00"); // Yellow
-    expect(getExitReasonColor("UNKNOWN")).toBe("#FFEA00");
+    expect(getExitReasonColor("TP")).toBe(MARKER_TP); // palette green
+    expect(getExitReasonColor("SL")).toBe(MARKER_SL); // palette red
+    expect(getExitReasonColor("EOD")).toBe(MARKER_EOD); // palette cream
+    expect(getExitReasonColor("UNKNOWN")).toBe(EXIT_DEFAULT);
   });
 });
 

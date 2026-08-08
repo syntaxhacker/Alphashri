@@ -1,35 +1,25 @@
 import { MantineProvider, ColorSchemeScript, createTheme, virtualColor, rgba } from "@mantine/core";
 import type { UIThemeProviderProps } from "./types";
+import {
+  SCALE_TEAL, SCALE_GREEN, SCALE_RED, SCALE_ORANGE, SCALE_DARK,
+  SCALE_GRAY, SCALE_BLUE, SCALE_YELLOW, SCALE_CYAN, SCALE_VIOLET, SCALE_INDIGO,
+  CREAM, BROWN, BROWN_DARK, BLACK, TRADING_GREEN, TRADING_RED,
+} from "./palette";
 
 export type { MantineProviderProps } from "@mantine/core";
 
-const teal = [
-  "#e6fffa", "#b2f5ea", "#81e6d9", "#4fd1c5", "#38b2ac",
-  "#319795", "#2c7a7b", "#285e61", "#234e52", "#1d4044",
-];
-
-const green = [
-  "#f0fff4", "#c6f6d5", "#9ae6b4", "#68d391", "#48bb78",
-  "#38a169", "#2f855a", "#276749", "#22543d", "#1c4532",
-];
-
-const red = [
-  "#fff5f5", "#fed7d7", "#feb2b2", "#fc8181", "#f56565",
-  "#e53e3e", "#c53030", "#9b2c26", "#822727", "#63171b",
-];
-
-const orange = [
-  "#fffaf0", "#feebc8", "#fbd38d", "#f6ad55", "#ed8936",
-  "#dd6b20", "#c05621", "#9c4221", "#7b341e", "#652b19",
-];
-
-const dark = [
-  "#C1C2C5", "#A6A7AB", "#909296", "#5c5f66", "#373A40",
-  "#2C2E33", "#1a1a1a", "#141517", "#0f0f0f", "#0a0a0a",
-];
-
 const colors = {
-  teal, green, red, orange, dark,
+  teal: SCALE_TEAL,
+  green: SCALE_GREEN,
+  red: SCALE_RED,
+  orange: SCALE_ORANGE,
+  dark: SCALE_DARK,
+  gray: SCALE_GRAY,
+  blue: SCALE_BLUE,
+  yellow: SCALE_YELLOW,
+  cyan: SCALE_CYAN,
+  violet: SCALE_VIOLET,
+  indigo: SCALE_INDIGO,
   success: virtualColor({ name: "success", dark: "green", light: "green" }),
   danger: virtualColor({ name: "danger", dark: "red", light: "red" }),
   warning: virtualColor({ name: "warning", dark: "orange", light: "orange" }),
@@ -38,7 +28,7 @@ const colors = {
 const APP_FONT_FAMILY = '"IBM Plex Sans", "Roboto", "Poppins", system-ui, sans-serif';
 
 export const uiTheme = createTheme({
-  primaryColor: "teal",
+  primaryColor: "teal", // cream-derived accent
   primaryShade: { light: 5, dark: 6 },
   colors,
   defaultRadius: "xs",
@@ -62,7 +52,7 @@ export const uiTheme = createTheme({
       styles: {
         main: {
           background:
-            "light-dark(linear-gradient(180deg, #f5f7fb 0%, #eef3f8 100%), linear-gradient(180deg, #0b0f14 0%, #101722 100%))",
+            "light-dark(linear-gradient(180deg, #1F150C 0%, #412D15 100%), linear-gradient(180deg, #000000 0%, #1F150C 100%))",
         },
       },
     },
@@ -71,7 +61,7 @@ export const uiTheme = createTheme({
       defaultProps: { radius: "xs", padding: "sm", withBorder: false },
       styles: {
         root: {
-          backgroundColor: "light-dark(rgba(255, 255, 255, 0.9), rgba(19, 22, 30, 0.9))",
+          backgroundColor: "light-dark(rgba(225, 220, 201, 0.92), rgba(31, 21, 12, 0.92))",
           backdropFilter: "blur(12px)",
         },
       },
@@ -97,7 +87,7 @@ export const uiTheme = createTheme({
       styles: {
         table: { fontSize: "var(--mantine-font-size-sm)" },
         th: {
-          backgroundColor: "light-dark(rgba(248, 250, 252, 0.92), rgba(15, 23, 42, 0.82))",
+          backgroundColor: "light-dark(rgba(225, 220, 201, 0.9), rgba(31, 21, 12, 0.85))",
         },
       },
     },
@@ -106,8 +96,8 @@ export const uiTheme = createTheme({
     fontWeights: { normal: 400, medium: 500, semibold: 600, bold: 700 },
     shell: {
       border: {
-        light: rgba("#0f172a", 0.08),
-        dark: rgba("#94a3b8", 0.14),
+        light: rgba(BROWN, 0.25),
+        dark: rgba(CREAM, 0.16),
       },
     },
   },

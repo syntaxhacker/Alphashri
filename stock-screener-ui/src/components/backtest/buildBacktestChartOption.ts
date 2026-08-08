@@ -19,6 +19,7 @@ import {
   MARKER_ENTRY,
   CHART_AVG_ENTRY,
   CHART_DARK_MUTED,
+  EXIT_DEFAULT,
 } from "../../config/colors";
 
 interface MarkerConfig {
@@ -104,7 +105,7 @@ export function buildChartOption(data: SymbolChartData, isDark: boolean): any {
     },
     {
       filter: (t) => t.type === "exit" && exitReason(t) === "TRAILING_STOP",
-      color: "#9C27B0",
+      color: EXIT_DEFAULT,
       symbol: "circle",
       symbolSize: 16,
     },

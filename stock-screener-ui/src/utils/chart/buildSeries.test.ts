@@ -1,6 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { buildSeries } from "./buildSeries";
 import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
+import {
+  MARKER_SL,
+  BLACK,
+  CHART_TEXT,
+  ORB_AREA,
+  VOLUME_BULLISH,
+  VOLUME_BEARISH,
+} from "../../config/colors";
 
 describe("buildSeries", () => {
   const mockCandles = [
@@ -47,7 +55,7 @@ describe("buildSeries", () => {
       const markLines = [
         {
           yAxis: 105,
-          lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
+          lineStyle: { color: MARKER_SL, type: "dashed", width: 2 },
           label: { position: "insideEndTop", formatter: "SL 105" },
         },
       ];
@@ -60,7 +68,7 @@ describe("buildSeries", () => {
       const markLines = [
         {
           yAxis: 100,
-          lineStyle: { color: "#000" },
+          lineStyle: { color: BLACK },
           label: { position: "insideEndTop", formatter: "Test" },
         },
       ];
@@ -72,7 +80,7 @@ describe("buildSeries", () => {
       const markLines = [
         {
           yAxis: 100,
-          lineStyle: { color: "#000" },
+          lineStyle: { color: BLACK },
           label: { position: "insideEndTop", formatter: "Test" },
         },
       ];
@@ -99,7 +107,7 @@ describe("buildSeries", () => {
     const times = ["09:30", "09:31", "09:32"];
 
     it("adds markArea when provided with times", () => {
-      const markAreas = [{ from: "09:30", to: "09:31", color: "rgba(255,0,0,0.1)" }];
+      const markAreas = [{ from: "09:30", to: "09:31", color: ORB_AREA }];
       const result = buildSeries(mockCandles, {} as any, false, undefined, markAreas, times);
       expect(result.series[0].markArea).toBeDefined();
     });
@@ -160,13 +168,13 @@ describe("buildSeries", () => {
     it("colors volume bars green for bullish candles", () => {
       const result = buildSeries(mockCandles, {} as any, true);
       const colorFn = result.series[1].itemStyle.color as (params: any) => string;
-      expect(colorFn({ data: [0, 1000, 1] })).toBe("rgba(0,230,118,0.5)");
+      expect(colorFn({ data: [0, 1000, 1] })).toBe(VOLUME_BULLISH);
     });
 
     it("colors volume bars red for bearish candles", () => {
       const result = buildSeries(mockCandles, {} as any, true);
       const colorFn = result.series[1].itemStyle.color as (params: any) => string;
-      expect(colorFn({ data: [0, 1000, -1] })).toBe("rgba(255,23,68,0.5)");
+      expect(colorFn({ data: [0, 1000, -1] })).toBe(VOLUME_BEARISH);
     });
 
     it("sets volume z-index to 1", () => {
@@ -201,7 +209,7 @@ describe("buildSeries", () => {
 
   describe("colors parameter", () => {
     it("is not currently used but accepted", () => {
-      const colors = { bgColor: "#000", textColor: "#fff" };
+      const colors = { bgColor: BLACK, textColor: CHART_TEXT };
       const result = buildSeries(mockCandles, colors as any, false);
       expect(result.series).toBeDefined();
     });
