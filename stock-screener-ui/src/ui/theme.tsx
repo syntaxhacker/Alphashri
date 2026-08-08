@@ -1,26 +1,32 @@
 import { MantineProvider, ColorSchemeScript, createTheme, virtualColor } from "@mantine/core";
 import type { UIThemeProviderProps } from "./types";
 import {
-  SCALE_TEAL, SCALE_GREEN, SCALE_RED, SCALE_ORANGE, SCALE_DARK,
-  SCALE_GRAY, SCALE_BLUE, SCALE_YELLOW, SCALE_CYAN, SCALE_VIOLET, SCALE_INDIGO,
+  SCALE_DARK,
+  SCALE_RED, SCALE_PINK, SCALE_GRAPE, SCALE_VIOLET, SCALE_INDIGO, SCALE_BLUE,
+  SCALE_CYAN, SCALE_TEAL, SCALE_GREEN, SCALE_LIME, SCALE_YELLOW, SCALE_ORANGE, SCALE_GRAY,
   BLACK,
 } from "./palette";
 import { ThemePlayground } from "./ThemePlayground";
 
 export type { MantineProviderProps } from "@mantine/core";
 
+// Full Mantine default color system (rich — supports option-chain, charts,
+// badges, pivots) with a high-contrast dark scale. All 13 hues × 10 shades.
 const colors = {
-  teal: SCALE_TEAL,
-  green: SCALE_GREEN,
-  red: SCALE_RED,
-  orange: SCALE_ORANGE,
   dark: SCALE_DARK,
   gray: SCALE_GRAY,
-  blue: SCALE_BLUE,
-  yellow: SCALE_YELLOW,
-  cyan: SCALE_CYAN,
+  red: SCALE_RED,
+  pink: SCALE_PINK,
+  grape: SCALE_GRAPE,
   violet: SCALE_VIOLET,
   indigo: SCALE_INDIGO,
+  blue: SCALE_BLUE,
+  cyan: SCALE_CYAN,
+  teal: SCALE_TEAL,
+  green: SCALE_GREEN,
+  lime: SCALE_LIME,
+  yellow: SCALE_YELLOW,
+  orange: SCALE_ORANGE,
   success: virtualColor({ name: "success", dark: "green", light: "green" }),
   danger: virtualColor({ name: "danger", dark: "red", light: "red" }),
   warning: virtualColor({ name: "warning", dark: "orange", light: "orange" }),
@@ -89,7 +95,8 @@ export function UIProvider({ children, defaultColorScheme = "dark", forceColorSc
       <ColorSchemeScript defaultColorScheme={defaultColorScheme} />
       <MantineProvider theme={uiTheme} defaultColorScheme={defaultColorScheme} forceColorScheme={_force}>
         {children}
-        <ThemePlayground />
+        {/* Theme playground is a dev-only tool — keep it out of tests & prod builds */}
+        {import.meta.env.MODE !== "test" && import.meta.env.DEV && <ThemePlayground />}
       </MantineProvider>
     </>
   );

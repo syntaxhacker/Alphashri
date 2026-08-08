@@ -30,7 +30,10 @@ export const SCALE_RED = ["#FFF0F0","#FFD7D5","#FFA8A3","#FF7B72","#FF6259","#F8
 export const SCALE_ORANGE = ["#FFF1E5","#FFDDB3","#FFC680","#FFA657","#F0883E","#DB6D28","#BD561D","#9E4213","#7D2F12","#5D2207"];
 export const SCALE_YELLOW = ["#FFF8C5","#F8E3A1","#F2CC60","#E3B341","#D29922","#BB8009","#A68B1F","#8F6D1F","#785A1F","#62490E"];
 export const SCALE_VIOLET = ["#F6F0FF","#E0D3FF","#C8B1FF","#AF8FFF","#9772FF","#8250DF","#6E40C9","#6332B2","#4E2A8F","#3D2370"];
-export const SCALE_INDIGO = ["#EEF2FF","#DAE2FF","#BCC8FF","#9DADFF","#7E93FF","#6078F0","#4C63D8","#3D50BC","#2F3F9E","#22307E"];
+export const SCALE_INDIGO = ["#edf2ff","#dbe4ff","#bac8ff","#91a7ff","#748ffc","#5c7cfa","#4c6ef5","#4263eb","#3b5bdb","#364fc7"];
+export const SCALE_PINK = ["#fff0f6","#ffdeeb","#fcc2d7","#faa2c1","#f783ac","#f06595","#e64980","#d6336c","#c2255c","#a61e4d"];
+export const SCALE_GRAPE = ["#f8f0fc","#f3d9fa","#eebefa","#e599f7","#da77f2","#cc5de8","#be4bdb","#ae3ec9","#9c36b5","#862e9c"];
+export const SCALE_LIME = ["#f4fce3","#e9fac8","#d8f5a2","#c0eb75","#a9e34b","#94d82d","#82c91e","#74b816","#66a80f","#5c940d"];
 
 // ----- Semantic tokens (single place everything imports) -----
 export const POSITIVE = POSITIVE_COLOR; // green up
