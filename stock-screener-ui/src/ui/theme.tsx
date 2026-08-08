@@ -1,9 +1,9 @@
-import { MantineProvider, ColorSchemeScript, createTheme, virtualColor, rgba } from "@mantine/core";
+import { MantineProvider, ColorSchemeScript, createTheme, virtualColor } from "@mantine/core";
 import type { UIThemeProviderProps } from "./types";
 import {
   SCALE_TEAL, SCALE_GREEN, SCALE_RED, SCALE_ORANGE, SCALE_DARK,
   SCALE_GRAY, SCALE_BLUE, SCALE_YELLOW, SCALE_CYAN, SCALE_VIOLET, SCALE_INDIGO,
-  CREAM, BROWN, BROWN_DARK, BLACK, TRADING_GREEN, TRADING_RED,
+  BLACK,
 } from "./palette";
 
 export type { MantineProviderProps } from "@mantine/core";
@@ -28,12 +28,15 @@ const colors = {
 const APP_FONT_FAMILY = '"IBM Plex Sans", "Roboto", "Poppins", system-ui, sans-serif';
 
 export const uiTheme = createTheme({
-  primaryColor: "teal", // cream-derived accent
-  primaryShade: { light: 5, dark: 6 },
-  white: CREAM,
+  // Mantine default dark scheme (professional dark grays, NOT pitch black)
+  primaryColor: "blue",
+  primaryShade: { light: 6, dark: 8 },
+  autoContrast: true, // filled = blue-8 (#1449B8, dark) -> white text automatically
+  white: "#FFFFFF",
   black: BLACK,
   colors,
   defaultRadius: "xs",
+  focusRing: "auto",
   fontFamily: APP_FONT_FAMILY,
   fontFamilyMonospace: "ui-monospace, monospace",
   fontSizes: { sm: "12px", md: "14px", lg: "16px", xl: "20px" },
@@ -50,25 +53,12 @@ export const uiTheme = createTheme({
     },
   },
   components: {
-    AppShell: {
-      styles: {
-        main: {
-          background:
-            "light-dark(linear-gradient(180deg, #1F150C 0%, #412D15 100%), linear-gradient(180deg, #000000 0%, #1F150C 100%))",
-        },
-      },
-    },
     Paper: { defaultProps: { radius: "xs" } },
-    Card: {
-      defaultProps: { radius: "xs", padding: "sm", withBorder: false },
-      styles: {
-        root: {
-          backgroundColor: "light-dark(rgba(225, 220, 201, 0.92), rgba(31, 21, 12, 0.92))",
-          backdropFilter: "blur(12px)",
-        },
-      },
+    Card: { defaultProps: { radius: "xs", padding: "sm", withBorder: false } },
+    Button: {
+      defaultProps: { size: "sm", radius: "xs" },
+      styles: { label: { fontWeight: 600 } },
     },
-    Button: { defaultProps: { size: "sm", radius: "xs" } },
     ActionIcon: { defaultProps: { radius: "xs" } },
     Badge: { defaultProps: { radius: "xs" } },
     NavLink: { defaultProps: { variant: "light" } },
@@ -81,27 +71,14 @@ export const uiTheme = createTheme({
       defaultProps: { variant: "default" },
       styles: {
         tab: { fontWeight: 600 },
+        tabLabel: { fontWeight: 600 },
         list: { gap: "0.35rem" },
         panel: { paddingTop: "0.75rem" },
-      },
-    },
-    Table: {
-      styles: {
-        table: { fontSize: "var(--mantine-font-size-sm)" },
-        th: {
-          backgroundColor: "light-dark(rgba(225, 220, 201, 0.9), rgba(31, 21, 12, 0.85))",
-        },
       },
     },
   },
   other: {
     fontWeights: { normal: 400, medium: 500, semibold: 600, bold: 700 },
-    shell: {
-      border: {
-        light: rgba(BROWN, 0.25),
-        dark: rgba(CREAM, 0.16),
-      },
-    },
   },
 });
 

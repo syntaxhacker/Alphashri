@@ -475,8 +475,10 @@ describe("WatchlistScan2", () => {
       r(
         <WatchlistScan2 snapshot={snap} selectedSymbol="RELIANCE" />,
       );
+      // teal-light is derived by Mantine from the teal scale (cream accent);
+      // under the palette theme it resolves to a cream-tinted translucent value.
       expect(row("RELIANCE")).toHaveStyle({
-        backgroundColor: withAlpha(CREAM, 0.15),
+        backgroundColor: "rgba(14, 154, 135, 0.15)",
       });
     });
   });

@@ -1,206 +1,171 @@
 // ============================================================
-// THE SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
+// SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
 // ------------------------------------------------------------
-// Base palette (user-specified):
-//   #000000  pure black          — deepest background
-//   #412D15  dark brown          — mid surface / borders / accents
-//   #1F150C  very dark brown     — primary surface / cards
-//   #E1DCC9  cream               — text / highlights / primary
-//
-// Trading accents (used SPARINGLY — only for green/red semantics
-// like P&L up/down, markers, positive/negative signals):
-//   #285A48  dark green          — positive
-//   #9B0F06  dark red            — negative
-//
-// Everything else in the app (Mantine scales, chart colors,
-// semantic tokens) is DERIVED from these, so changing the brand
-// palette here recolors the entire codebase.
+// Style: HIGH-CONTRAST DARK theme (GitHub Dark inspired)
+//   - Near-black navy surfaces (#0D1117 / #161B22) — not pitch black
+//   - Near-white text (#F0F6FC) — ~15:1 contrast on body
+//   - Bright blue accent (#58A6FF)
+//   - Vivid green (#3FB950) up / red (#F85149) down for trading
+// Every other color in the app derives from here.
 // ============================================================
 
-// ----- Raw palette (the only literals in the app) -----
-export const BLACK = "#000000";
-export const BROWN = "#412D15";
-export const BROWN_DARK = "#1F150C";
-export const CREAM = "#E1DCC9";
-export const TRADING_GREEN = "#285A48";
-export const TRADING_RED = "#9B0F06";
+// ----- Raw anchors -----
+export const PRIMARY = "#58A6FF";        // bright blue accent
+export const POSITIVE_COLOR = "#3FB950"; // vivid green up
+export const NEGATIVE_COLOR = "#F85149"; // vivid red down
+export const TEXT_COLOR = "#F0F6FC";     // near-white
+export const TEXT_MUTED_COLOR = "#8B949E";
+export const BG_COLOR = "#0D1117";       // body (near-black navy)
+export const SURFACE_COLOR = "#161B22";  // cards
+export const BORDER_COLOR = "#30363D";   // visible borders
 
-// ----- Shade helpers (mix toward cream/black, stay in palette) -----
-function hexToRgb(hex: string): [number, number, number] {
-  const h = hex.replace("#", "");
-  return [
-    parseInt(h.slice(0, 2), 16),
-    parseInt(h.slice(2, 4), 16),
-    parseInt(h.slice(4, 6), 16),
-  ];
-}
-
-function mix(a: string, b: string, t: number): string {
-  const [r1, g1, b1] = hexToRgb(a);
-  const [r2, g2, b2] = hexToRgb(b);
-  const r = Math.round(r1 + (r2 - r1) * t);
-  const g = Math.round(g1 + (g2 - g1) * t);
-  const bl = Math.round(b1 + (b2 - b1) * t);
-  return `#${r.toString(16).padStart(2, "0")}${g.toString(16).padStart(2, "0")}${bl.toString(16).padStart(2, "0")}`;
-}
-
-/** Mantine expects a 10-step scale: index 0 lightest … index 9 darkest. */
-function makeScale(base: string, lightAnchor = CREAM, darkAnchor = BLACK): string[] {
-  const steps: string[] = [];
-  for (let i = 0; i < 10; i++) {
-    const t = i / 9;
-    // light half: base -> lightAnchor ; dark half: base -> darkAnchor
-    const s = t < 0.5 ? mix(base, lightAnchor, (0.5 - t) * 2) : mix(base, darkAnchor, (t - 0.5) * 2);
-    steps.push(s);
-  }
-  return steps;
-}
-
-// ----- Mantine color scales (all derived from the palette) -----
-// Primary/neutral: warm cream→brown→black monochrome
-export const SCALE_TEAL = makeScale(CREAM);
-export const SCALE_GREEN = makeScale(TRADING_GREEN);
-export const SCALE_RED = makeScale(TRADING_RED);
-export const SCALE_ORANGE = makeScale(BROWN);
-export const SCALE_DARK = makeScale(BROWN_DARK, CREAM, BLACK);
-export const SCALE_GRAY = makeScale(BROWN, CREAM, BLACK);
-export const SCALE_BLUE = makeScale(BROWN);
-export const SCALE_YELLOW = makeScale(CREAM);
-export const SCALE_CYAN = makeScale(BROWN);
-export const SCALE_VIOLET = makeScale(BROWN);
-export const SCALE_INDIGO = makeScale(BROWN);
+// ----- Mantine scales (high-contrast dark ramps) -----
+export const SCALE_DARK = ["#F0F6FC","#C9D1D9","#8B949E","#6E7681","#484F58","#30363D","#21262D","#0D1117","#0A0E14","#010409"];
+export const SCALE_GRAY = ["#F0F6FC","#C9D1D9","#8B949E","#6E7681","#484F58","#30363D","#21262D","#161B22","#0D1117","#010409"];
+export const SCALE_BLUE = ["#F0F7FF","#D9E8FF","#B3D1FF","#80B5FF","#4D99FF","#1F7FFF","#1F6FEB","#1A5CD6","#1449B8","#0F3A94"];
+export const SCALE_CYAN = ["#E6FAFF","#B8F0FF","#8AE4FF","#5CD6F5","#2FC4E8","#0FB5D9","#0A9CC4","#0883A8","#066A8A","#04546E"];
+export const SCALE_GREEN = ["#E6FFEC","#B7F0C4","#8CE0A4","#5CD182","#3FB950","#2EA043","#238636","#1A7F37","#1A6E32","#0F5323"];
+export const SCALE_TEAL = ["#E6FFFB","#B8F3E8","#8AE6D4","#5CD4C0","#2FC0AC","#0FAE99","#0E9A87","#0C8575","#0A7063","#08594F"];
+export const SCALE_RED = ["#FFF0F0","#FFD7D5","#FFA8A3","#FF7B72","#FF6259","#F85149","#DA3633","#B6231C","#8E151A","#67060C"];
+export const SCALE_ORANGE = ["#FFF1E5","#FFDDB3","#FFC680","#FFA657","#F0883E","#DB6D28","#BD561D","#9E4213","#7D2F12","#5D2207"];
+export const SCALE_YELLOW = ["#FFF8C5","#F8E3A1","#F2CC60","#E3B341","#D29922","#BB8009","#A68B1F","#8F6D1F","#785A1F","#62490E"];
+export const SCALE_VIOLET = ["#F6F0FF","#E0D3FF","#C8B1FF","#AF8FFF","#9772FF","#8250DF","#6E40C9","#6332B2","#4E2A8F","#3D2370"];
+export const SCALE_INDIGO = ["#EEF2FF","#DAE2FF","#BCC8FF","#9DADFF","#7E93FF","#6078F0","#4C63D8","#3D50BC","#2F3F9E","#22307E"];
 
 // ----- Semantic tokens (single place everything imports) -----
-export const POSITIVE = TRADING_GREEN;
-export const NEGATIVE = TRADING_RED;
-export const NEUTRAL = CREAM;
-export const ERROR = TRADING_RED;
-export const WARNING = BROWN;
-export const INFO = CREAM;
+export const POSITIVE = POSITIVE_COLOR; // green up
+export const NEGATIVE = NEGATIVE_COLOR; // red down
+export const NEUTRAL = "#8B949E";
+export const ERROR = NEGATIVE_COLOR;
+export const WARNING = "#F0883E";
+export const INFO = PRIMARY;
 
 // Text / surfaces
-export const TEXT = CREAM;
-export const TEXT_MUTED = mix(CREAM, BROWN, 0.45);
-export const BG = BLACK;
-export const SURFACE = BROWN_DARK;
-export const SURFACE_ALT = BROWN;
-export const BORDER = BROWN;
-export const SURFACE_TEXT = CREAM;
+export const TEXT = TEXT_COLOR;
+export const TEXT_MUTED = TEXT_MUTED_COLOR;
+export const BG = BG_COLOR;
+export const SURFACE = SURFACE_COLOR;
+export const SURFACE_ALT = "#21262D";
+export const BORDER = BORDER_COLOR;
+export const SURFACE_TEXT = TEXT_COLOR;
 
-// Trading markers (keep green/red semantics, sparingly)
-export const MARKER_ENTRY = CREAM;
-export const MARKER_TP = TRADING_GREEN;
-export const MARKER_SL = TRADING_RED;
-export const MARKER_EOD = CREAM;
-export const MARKER_BUY = TRADING_GREEN;
-export const MARKER_SELL = TRADING_RED;
-export const MARKER_STOP_LOSS = TRADING_RED;
-export const MARKER_CUSTOM = CREAM;
-export const MARKER_BORDER = CREAM;
-export const MARKER_MAX_HOLDING = CREAM;
+// Trading markers (vivid green/red on dark)
+export const MARKER_ENTRY = PRIMARY;
+export const MARKER_TP = POSITIVE_COLOR;
+export const MARKER_SL = NEGATIVE_COLOR;
+export const MARKER_EOD = "#D29922";
+export const MARKER_BUY = POSITIVE_COLOR;
+export const MARKER_SELL = NEGATIVE_COLOR;
+export const MARKER_STOP_LOSS = NEGATIVE_COLOR;
+export const MARKER_CUSTOM = "#8250DF";
+export const MARKER_BORDER = "#FFFFFF";
+export const MARKER_MAX_HOLDING = "#F0883E";
 
-export const BULLISH = TRADING_GREEN;
-export const BEARISH = TRADING_RED;
+export const BULLISH = POSITIVE_COLOR;
+export const BEARISH = NEGATIVE_COLOR;
 
 export const EXIT_COLORS: Record<string, string> = {
-  TP: TRADING_GREEN,
-  SL: TRADING_RED,
-  EOD: CREAM,
+  TP: POSITIVE_COLOR,
+  SL: NEGATIVE_COLOR,
+  EOD: "#D29922",
 };
-export const EXIT_DEFAULT = CREAM;
+export const EXIT_DEFAULT = "#D29922";
 
-// Chart overlays / tooltips / axis (dark theme is the app default)
-export const TOOLTIP_BG = BROWN_DARK;
-export const TOOLTIP_BORDER = BROWN;
-export const TOOLTIP_TEXT = CREAM;
-export const AXIS_LINE = BROWN;
-export const AXIS_SPLIT = BROWN_DARK;
-export const CHART_BG = BLACK;
-export const CHART_TEXT = CREAM;
-export const CHART_MUTED = TEXT_MUTED;
-export const CHART_BORDER = BROWN;
-export const CHART_SPLIT = BROWN_DARK;
-export const CHART_CROSSHAIR = TEXT_MUTED;
-export const CHART_OVERLAY = "rgba(20, 20, 20, 0.95)";
-export const CHART_DROPDOWN = "rgba(0, 0, 0, 0.7)";
-export const CHART_DATAZOOM_BG = BROWN_DARK;
-export const DATAZOOM_FILLER = "rgba(40, 90, 72, 0.18)";
+// Chart overlays / tooltips / axis (dark theme)
+export const TOOLTIP_BG = "#161B22";
+export const TOOLTIP_BORDER = "#30363D";
+export const TOOLTIP_TEXT = "#F0F6FC";
+export const AXIS_LINE = "#30363D";
+export const AXIS_SPLIT = "#21262D";
+export const CHART_BG = "#0D1117";
+export const CHART_TEXT = "#F0F6FC";
+export const CHART_MUTED = "#8B949E";
+export const CHART_BORDER = "#30363D";
+export const CHART_SPLIT = "#21262D";
+export const CHART_CROSSHAIR = "#8B949E";
+export const CHART_OVERLAY = "rgba(13, 17, 23, 0.95)";
+export const CHART_DROPDOWN = "rgba(13, 17, 23, 0.92)";
+export const CHART_DATAZOOM_BG = "#0D1117";
+export const DATAZOOM_FILLER = "rgba(63, 185, 80, 0.15)";
 
-// P&L / indicators / OI / pivots (green/red only where semantically needed)
-export const PERF_POSITIVE = TRADING_GREEN;
-export const PERF_NEGATIVE = TRADING_RED;
-export const BOT_RUNNING = TRADING_GREEN;
-export const BOT_STOPPED = TEXT_MUTED;
-export const BOT_SELECTED_BG = "rgba(225, 220, 201, 0.08)";
-export const OI_CALL = TRADING_GREEN;
-export const OI_PUT = TRADING_RED;
-export const INDICATOR_LINE = CREAM;
-export const INDICATOR_BLUE_A = TEXT_MUTED;
-export const INDICATOR_BLUE_B = CREAM;
-export const PIVOT_R1 = TRADING_RED;
-export const PIVOT_PP = CREAM;
-export const PIVOT_S1 = TRADING_GREEN;
-export const PIVOT_S2 = TEXT_MUTED;
-export const PIVOT_CUSTOM = CREAM;
-export const PIVOT_OR_HIGH = CREAM;
-export const PIVOT_OR_LOW = TEXT_MUTED;
-export const PIVOT_52W_HIGH = TRADING_RED;
-export const PIVOT_52W_LOW = TRADING_GREEN;
-export const CHART_AVG_ENTRY = CREAM;
-export const CHART_TRADE_EXIT = TEXT_MUTED;
+// P&L / indicators / OI / pivots
+export const PERF_POSITIVE = POSITIVE_COLOR;
+export const PERF_NEGATIVE = NEGATIVE_COLOR;
+export const BOT_RUNNING = POSITIVE_COLOR;
+export const BOT_STOPPED = "#8B949E";
+export const BOT_SELECTED_BG = "rgba(88, 166, 255, 0.15)";
+export const OI_CALL = POSITIVE_COLOR;
+export const OI_PUT = NEGATIVE_COLOR;
+export const INDICATOR_LINE = PRIMARY;
+export const INDICATOR_BLUE_A = "#4D99FF";
+export const INDICATOR_BLUE_B = "#1A5CD6";
+export const PIVOT_R1 = NEGATIVE_COLOR;
+export const PIVOT_PP = "#9772FF";
+export const PIVOT_S1 = POSITIVE_COLOR;
+export const PIVOT_S2 = "#0FB5D9";
+export const PIVOT_CUSTOM = "#8250DF";
+export const PIVOT_OR_HIGH = "#4D99FF";
+export const PIVOT_OR_LOW = "#0FB5D9";
+export const PIVOT_52W_HIGH = "#FF7B72";
+export const PIVOT_52W_LOW = "#8250DF";
+export const CHART_AVG_ENTRY = "#D29922";
+export const CHART_TRADE_EXIT = "#F0883E";
 
-// Sector treemap (monochrome browns + green/red for direction)
-export const SECTOR_STRONG_GREEN = TRADING_GREEN;
-export const SECTOR_GREEN = mix(TRADING_GREEN, CREAM, 0.35);
-export const SECTOR_LIGHT_GREEN = mix(TRADING_GREEN, BLACK, 0.3);
-export const SECTOR_STRONG_RED = TRADING_RED;
-export const SECTOR_RED = mix(TRADING_RED, CREAM, 0.3);
-export const SECTOR_LIGHT_RED = mix(TRADING_RED, BLACK, 0.3);
-export const SECTOR_NEUTRAL = BROWN;
+// Sector treemap
+export const SECTOR_STRONG_GREEN = "#1A7F37";
+export const SECTOR_GREEN = "#3FB950";
+export const SECTOR_LIGHT_GREEN = "#8CE0A4";
+export const SECTOR_STRONG_RED = "#B6231C";
+export const SECTOR_RED = "#F85149";
+export const SECTOR_LIGHT_RED = "#FFA8A3";
+export const SECTOR_NEUTRAL = "#484F58";
 
-// Tinted row backgrounds (subtle green/red washes, sparing)
-export const TINT_POSITIVE = "rgba(40, 90, 72, 0.14)";
-export const TINT_NEGATIVE = "rgba(155, 15, 6, 0.14)";
-export const TINT_LOSS_ROW = "rgba(155, 15, 6, 0.10)";
-export const TINT_TEST_TRADE = "rgba(225, 220, 201, 0.10)";
+// Tinted row backgrounds
+export const TINT_POSITIVE = "rgba(63, 185, 80, 0.12)";
+export const TINT_NEGATIVE = "rgba(248, 81, 73, 0.12)";
+export const TINT_LOSS_ROW = "rgba(248, 81, 73, 0.12)";
+export const TINT_TEST_TRADE = "rgba(210, 153, 34, 0.12)";
 
 // Volume / ORB / IV areas
-export const VOLUME_BULLISH = "rgba(40, 90, 72, 0.5)";
-export const VOLUME_BEARISH = "rgba(155, 15, 6, 0.5)";
-export const ORB_AREA = "rgba(225, 220, 201, 0.12)";
-export const IV_AREA_START = "rgba(225, 220, 201, 0.25)";
-export const IV_AREA_END = "rgba(225, 220, 201, 0)";
+export const VOLUME_BULLISH = "rgba(63, 185, 80, 0.45)";
+export const VOLUME_BEARISH = "rgba(248, 81, 73, 0.45)";
+export const ORB_AREA = "rgba(77, 153, 255, 0.15)";
+export const IV_AREA_START = "rgba(88, 166, 255, 0.3)";
+export const IV_AREA_END = "rgba(88, 166, 255, 0)";
 
-// Backward-compat aliases (some call sites use the old light/dark names)
-export const POSITIVE_COLOR = POSITIVE;
-export const NEGATIVE_COLOR = NEGATIVE;
-
-
-// ----- Legacy light/dark aliases (app defaults to dark theme) -----
+// ----- Legacy light/dark aliases (app is DARK theme) -----
 export const TOOLTIP_DARK_BG = TOOLTIP_BG;
-export const TOOLTIP_LIGHT_BG = CREAM;
+export const TOOLTIP_LIGHT_BG = "#FFFFFF";
 export const TOOLTIP_DARK_BORDER = TOOLTIP_BORDER;
-export const TOOLTIP_LIGHT_BORDER = CREAM;
+export const TOOLTIP_LIGHT_BORDER = "#D0D7DE";
 export const TOOLTIP_DARK_TEXT = TOOLTIP_TEXT;
-export const TOOLTIP_LIGHT_TEXT = BLACK;
+export const TOOLTIP_LIGHT_TEXT = "#0D1117";
 export const AXIS_DARK_LINE = AXIS_LINE;
-export const AXIS_LIGHT_LINE = CREAM;
+export const AXIS_LIGHT_LINE = "#D0D7DE";
 export const AXIS_DARK_SPLIT = AXIS_SPLIT;
-export const AXIS_LIGHT_SPLIT = mix(CREAM, BLACK, 0.06);
+export const AXIS_LIGHT_SPLIT = "#EFF2F5";
 export const CHART_DARK_BG = CHART_BG;
-export const CHART_LIGHT_BG = CREAM;
+export const CHART_LIGHT_BG = "#FFFFFF";
 export const CHART_DARK_OVERLAY = CHART_OVERLAY;
-export const CHART_LIGHT_OVERLAY = "rgba(225, 220, 201, 0.95)";
+export const CHART_LIGHT_OVERLAY = "rgba(255, 255, 255, 0.95)";
 export const CHART_DARK_DROPDOWN = CHART_DROPDOWN;
-export const CHART_LIGHT_DROPDOWN = "rgba(225, 220, 201, 0.7)";
+export const CHART_LIGHT_DROPDOWN = "rgba(255, 255, 255, 0.9)";
 export const CHART_DARK_TEXT = CHART_TEXT;
-export const CHART_LIGHT_TEXT = BLACK;
+export const CHART_LIGHT_TEXT = "#0D1117";
 export const CHART_DARK_MUTED = CHART_MUTED;
-export const CHART_LIGHT_MUTED = mix(BLACK, CREAM, 0.45);
+export const CHART_LIGHT_MUTED = "#57606A";
 export const CHART_DARK_BORDER = CHART_BORDER;
-export const CHART_LIGHT_BORDER = CREAM;
+export const CHART_LIGHT_BORDER = "#D0D7DE";
 export const CHART_DARK_SPLIT = CHART_SPLIT;
-export const CHART_LIGHT_SPLIT = mix(CREAM, BLACK, 0.06);
+export const CHART_LIGHT_SPLIT = "#EFF2F5";
 export const ERROR_COLOR = ERROR;
 export const CHART_DARK_DATAZOOM_BG = CHART_DATAZOOM_BG;
-export const CHART_LIGHT_DATAZOOM_BG = CREAM;
+export const CHART_LIGHT_DATAZOOM_BG = "#FFFFFF";
+
+// ----- Backward-compat aliases -----
+export const BLACK = "#010409";
+export const BROWN = "#30363D";
+export const BROWN_DARK = "#0D1117";
+export const CREAM = "#F0F6FC";
+export const TRADING_GREEN = POSITIVE_COLOR;
+export const TRADING_RED = NEGATIVE_COLOR;

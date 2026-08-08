@@ -10,8 +10,8 @@ describe("Theme Configuration", () => {
   });
 
   it("has correct primary color", () => {
-    expect(theme.primaryColor).toBe("teal");
-    expect(theme.primaryShade).toEqual({ light: 5, dark: 6 });
+    expect(theme.primaryColor).toBe("blue");
+    expect(theme.primaryShade).toEqual({ light: 6, dark: 8 });
   });
 
   it("has colors object", () => {
@@ -64,10 +64,8 @@ describe("Theme Configuration", () => {
   });
 
   describe("component styles", () => {
-    it("has AppShell styles", () => {
-      expect(theme.components.AppShell).toBeDefined();
-      expect(theme.components.AppShell.styles.main).toBeDefined();
-      expect(theme.components.AppShell.styles.main.background).toBeDefined();
+    it("has Card defaultProps", () => {
+      expect(theme.components.Card).toBeDefined();
     });
 
     it("has Paper defaultProps with xs radius", () => {
@@ -80,9 +78,9 @@ describe("Theme Configuration", () => {
       expect(theme.components.Card.defaultProps.withBorder).toBe(false);
     });
 
-    it("has Card styles with backdrop filter", () => {
-      expect(theme.components.Card.styles.root.backdropFilter).toBeDefined();
-      expect(theme.components.Card.styles.root.backdropFilter).toContain("blur");
+    it("has Tabs styles", () => {
+      expect(theme.components.Tabs).toBeDefined();
+      expect(theme.components.Tabs.styles.tab).toBeDefined();
     });
 
     it("has Button defaultProps", () => {
@@ -118,9 +116,8 @@ describe("Theme Configuration", () => {
       expect(theme.components.Tabs.styles.tab.fontWeight).toBe(600);
     });
 
-    it("has Table styles", () => {
-      expect(theme.components.Table.styles.table.fontSize).toBe("var(--mantine-font-size-sm)");
-      expect(theme.components.Table.styles.th).toBeDefined();
+    it("has Badge defaultProps", () => {
+      expect(theme.components.Badge.defaultProps.radius).toBe("xs");
     });
   });
 
@@ -132,9 +129,11 @@ describe("Theme Configuration", () => {
       expect(theme.other.fontWeights.bold).toBe(700);
     });
 
-    it("has shell border colors", () => {
-      expect(theme.other.shell.border.light).toMatch(/^rgba\(/);
-      expect(theme.other.shell.border.dark).toMatch(/^rgba\(/);
+    it("has fontWeights", () => {
+      expect(theme.other.fontWeights.normal).toBe(400);
+      expect(theme.other.fontWeights.medium).toBe(500);
+      expect(theme.other.fontWeights.semibold).toBe(600);
+      expect(theme.other.fontWeights.bold).toBe(700);
     });
   });
 });
@@ -177,7 +176,7 @@ describe("Color Palette", () => {
     });
 
     it("darkest shade is very dark", () => {
-      expect(colors.dark[9]).toBe("#000000");
+      expect(colors.dark[9]).toBe("#010409");
     });
   });
 

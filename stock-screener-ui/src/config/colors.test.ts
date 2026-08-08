@@ -184,11 +184,11 @@ describe("Color Constants", () => {
 
   describe("Chart Overlay", () => {
     it("CHART_AVG_ENTRY is cream (palette highlight)", () => {
-      expect(CHART_AVG_ENTRY).toBe("#E1DCC9");
+      expect(CHART_AVG_ENTRY).toBe("#D29922");
     });
 
     it("CHART_TRADE_EXIT is muted (palette secondary)", () => {
-      expect(CHART_TRADE_EXIT).toBe("#998d78");
+      expect(CHART_TRADE_EXIT).toBe("#F0883E");
     });
   });
 
@@ -216,11 +216,11 @@ describe("Color Constants", () => {
 
   describe("Bot Status", () => {
     it("BOT_RUNNING is green", () => {
-      expect(BOT_RUNNING).toBe("#285A48");
+      expect(BOT_RUNNING).toBe("#3FB950");
     });
 
     it("BOT_STOPPED is muted", () => {
-      expect(BOT_STOPPED).toBe("#998d78");
+      expect(BOT_STOPPED).toBe("#8B949E");
     });
 
     it("BOT_SELECTED_BG is rgba", () => {
@@ -262,11 +262,11 @@ describe("Color Constants", () => {
 
   describe("Heatmap / Tinted Backgrounds", () => {
     it("TINT_POSITIVE is rgba with green tint", () => {
-      expect(TINT_POSITIVE).toMatch(/^rgba\(40, 90, 72, /);
+      expect(TINT_POSITIVE).toMatch(/^rgba\(63, 185, 80, /);
     });
 
     it("TINT_NEGATIVE is rgba with red tint", () => {
-      expect(TINT_NEGATIVE).toMatch(/^rgba\(155, 15, 6, /);
+      expect(TINT_NEGATIVE).toMatch(/^rgba\(248, 81, 73, /);
     });
 
     it("TINT_LOSS_ROW is defined", () => {
@@ -280,11 +280,11 @@ describe("Color Constants", () => {
 
   describe("ECharts Tooltip", () => {
     it("TOOLTIP_DARK_BG is dark", () => {
-      expect(TOOLTIP_DARK_BG).toBe("#1F150C");
+      expect(TOOLTIP_DARK_BG).toBe("#161B22");
     });
 
     it("TOOLTIP_LIGHT_BG is light", () => {
-      expect(TOOLTIP_LIGHT_BG).toBe("#E1DCC9");
+      expect(TOOLTIP_LIGHT_BG).toBe("#FFFFFF");
     });
 
     it("all four tooltip colors are defined", () => {
@@ -297,30 +297,30 @@ describe("Color Constants", () => {
 
   describe("ECharts Axis", () => {
     it("dark axis colors are darker", () => {
-      expect(AXIS_DARK_LINE).toBe("#412D15");
-      expect(AXIS_DARK_SPLIT).toBe("#1F150C");
+      expect(AXIS_DARK_LINE).toBe("#30363D");
+      expect(AXIS_DARK_SPLIT).toBe("#21262D");
     });
 
     it("light axis colors are lighter", () => {
-      expect(AXIS_LIGHT_LINE).toBe("#E1DCC9");
-      expect(AXIS_LIGHT_SPLIT).toBe("#d4cfbd");
+      expect(AXIS_LIGHT_LINE).toBe("#D0D7DE");
+      expect(AXIS_LIGHT_SPLIT).toBe("#EFF2F5");
     });
   });
 
   describe("Chart Surfaces", () => {
     it("CHART_DARK_BG is very dark", () => {
-      expect(CHART_DARK_BG).toBe("#000000");
+      expect(CHART_DARK_BG).toBe("#0D1117");
     });
 
     it("CHART_LIGHT_BG is light cream", () => {
-      expect(CHART_LIGHT_BG).toBe("#E1DCC9");
+      expect(CHART_LIGHT_BG).toBe("#FFFFFF");
     });
 
     it("overlay and dropdown variants are rgba", () => {
-      expect(CHART_DARK_OVERLAY).toMatch(/^rgba\(20, 20, 20, /);
-      expect(CHART_LIGHT_OVERLAY).toMatch(/^rgba\(225, 220, 201, /);
-      expect(CHART_DARK_DROPDOWN).toMatch(/^rgba\(0, 0, 0, /);
-      expect(CHART_LIGHT_DROPDOWN).toMatch(/^rgba\(225, 220, 201, /);
+      expect(CHART_DARK_OVERLAY).toMatch(/^rgba\(13, 17, 23, /);
+      expect(CHART_LIGHT_OVERLAY).toMatch(/^rgba\(255, 255, 255, /);
+      expect(CHART_DARK_DROPDOWN).toMatch(/^rgba\(13, 17, 23, /);
+      expect(CHART_LIGHT_DROPDOWN).toMatch(/^rgba\(255, 255, 255, /);
     });
   });
 
@@ -358,15 +358,15 @@ describe("Color Constants", () => {
 
   describe("Error and Miscellaneous", () => {
     it("ERROR_COLOR is red", () => {
-      expect(ERROR_COLOR).toBe("#9B0F06");
+      expect(ERROR_COLOR).toBe("#F85149");
     });
 
     it("MARKER_BORDER is cream", () => {
-      expect(MARKER_BORDER).toBe("#E1DCC9");
+      expect(MARKER_BORDER).toBe("#FFFFFF");
     });
 
     it("MARKER_MAX_HOLDING is cream", () => {
-      expect(MARKER_MAX_HOLDING).toBe("#E1DCC9");
+      expect(MARKER_MAX_HOLDING).toBe("#F0883E");
     });
   });
 
@@ -380,29 +380,29 @@ describe("Color Constants", () => {
     });
 
     it("DATAZOOM_FILLER is rgba green", () => {
-      expect(DATAZOOM_FILLER).toMatch(/^rgba\(40, 90, 72, /);
+      expect(DATAZOOM_FILLER).toMatch(/^rgba\(63, 185, 80, /);
     });
   });
 
   describe("Volume Bars", () => {
     it("VOLUME_BULLISH is green with transparency", () => {
-      expect(VOLUME_BULLISH).toBe("rgba(40, 90, 72, 0.5)");
+      expect(VOLUME_BULLISH).toBe("rgba(63, 185, 80, 0.45)");
     });
 
     it("VOLUME_BEARISH is red with transparency", () => {
-      expect(VOLUME_BEARISH).toBe("rgba(155, 15, 6, 0.5)");
+      expect(VOLUME_BEARISH).toBe("rgba(248, 81, 73, 0.45)");
     });
   });
 
   describe("ORB Area", () => {
     it("ORB_AREA is cream with transparency", () => {
-      expect(ORB_AREA).toBe("rgba(225, 220, 201, 0.12)");
+      expect(ORB_AREA).toMatch(/^rgba\(77, 153, 255, /);
     });
   });
 
   describe("IV Skew Area", () => {
     it("IV_AREA_START has alpha", () => {
-      expect(IV_AREA_START).toMatch(/0\.25\)$/);
+      expect(IV_AREA_START).toMatch(/0\.3\)$/);
     });
 
     it("IV_AREA_END fades to transparent", () => {

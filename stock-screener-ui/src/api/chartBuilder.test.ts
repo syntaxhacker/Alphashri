@@ -210,7 +210,7 @@ describe("buildChartData", () => {
     expect(result.trades[0].type).toBe("entry");
     expect(result.trades[0].price).toBe(103);
     expect(result.trades[0].marker.symbol).toBe("triangle");
-    expect(result.trades[0].marker.color).toBe("#E1DCC9");
+    expect(result.trades[0].marker.color).toBe("#58A6FF");
 
     expect(result.trades[1].type).toBe("exit");
     expect(result.trades[1].price).toBe(107);
@@ -224,9 +224,9 @@ describe("buildChartData", () => {
       makeRawTrade({ exit_reason: "EOD" }),
     ]);
 
-    expect(tpResult.trades[1].marker.color).toBe("#285A48");
-    expect(slResult.trades[1].marker.color).toBe("#9B0F06");
-    expect(eodResult.trades[1].marker.color).toBe("#E1DCC9");
+    expect(tpResult.trades[1].marker.color).toBe("#3FB950");
+    expect(slResult.trades[1].marker.color).toBe("#F85149");
+    expect(eodResult.trades[1].marker.color).toBe("#D29922");
   });
 
   test("defaults to cream for unknown exit reasons", () => {
@@ -234,7 +234,7 @@ describe("buildChartData", () => {
       makeRawTrade({ exit_reason: "UNKNOWN" as any }),
     ]);
 
-    expect(result.trades[1].marker.color).toBe("#E1DCC9");
+    expect(result.trades[1].marker.color).toBe("#D29922");
   });
 
   test("handles empty candles and trades", () => {
@@ -299,7 +299,7 @@ describe("chartTradesToTrades", () => {
     candle_idx: 2,
     date: "2025-10-24",
     price: 103,
-    marker: { symbol: "triangle", color: "#E1DCC9", size: 16 },
+    marker: { symbol: "triangle", color: "#58A6FF", size: 16 },
     trade: {
       entry_price: 103,
       exit_price: 107,
