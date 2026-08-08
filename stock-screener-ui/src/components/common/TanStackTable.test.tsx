@@ -324,4 +324,62 @@ describe("TanStackTable", () => {
     fireEvent.click(nameTh);
     expect(nameTh.textContent).toContain("▲");
   });
+
+  it("renders all rows when rowWindowSize is not set", () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: String(i),
+      name: `Item ${i}`,
+      value: i,
+    }));
+    render(
+      <TanStackTable<TestItem>
+        data={many}
+        columns={columns}
+        getRowTestId={(row) => `win-row-${row.id}`}
+      />,
+    );
+    expect(screen.getAllByTestId(/^win-row-/)).toHaveLength(20);
+  });
+
+  it("mounts only a row window slice for oversized tables while keeping the model intact", () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: String(i + 1),
+      name: `row ${i}`,
+      value: i,
+    }));
+    render(
+      <TanStackTable<TestItem>
+        data={many}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(r) => `win-row-${r.id}`}
+      />,
+    );
+    expect(screen.getAllByTestId(/^win-row-/)).toHaveLength(5);
+    expect(screen.getByText("row 0")).toBeTruthy();
+    expect(screen.queryByText("row 15")).toBeNull();
+  });
+
+  it("sorting still operates on the full row set when windowing is active", () => {
+    const many = Array.from({ length: 20 }, (_, i) => ({
+      id: String(i + 1),
+      name: i === 12 ? "zzz" : `row ${i}`,
+      value: i,
+    }));
+    render(
+      <TanStackTable<TestItem>
+        data={many}
+        columns={columns}
+        rowWindowSize={5}
+        getRowTestId={(r) => `win-row-${r.id}`}
+      />,
+    );
+    const th = screen.getByText("Value").closest("th")!;
+    fireEvent.click(th);
+    // sorting reorders the window (descending: highest value first) because
+    // the full row model drives sorting before the window slice is applied.
+    expect(screen.getAllByTestId(/^win-row-/)).toHaveLength(5);
+    const firstNameCell = screen.getAllByTestId(/^win-row-/)[0].textContent!;
+    expect(firstNameCell).toContain("row 19");
+  });
 });

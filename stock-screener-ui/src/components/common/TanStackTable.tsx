@@ -61,6 +61,12 @@ interface Props<T> {
   style?: CSSProperties;
   getRowCanExpand?: (row: T) => boolean;
   renderSubComponent?: (row: T) => ReactNode;
+  /**
+   * When > 0, only a scroll-position window of this many rows is mounted once
+   * the row count exceeds it. Keeps large tables (e.g. the 530+ row 52W-high
+   * screener) responsive; the full row model still drives sorting/selection.
+   */
+  rowWindowSize?: number;
 }
 
 const cellStyle: CSSProperties = {
@@ -117,9 +123,11 @@ export function TanStackTable<T>({
   getGroupRowTestId,
   getRowCanExpand,
   renderSubComponent,
+  rowWindowSize = 0,
 }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
   const [expanded, setExpanded] = useState<ExpandedState>(initialState?.expanded ?? {});
+  const [scrollTop, setScrollTop] = useState(0);
 
   const hasSizedColumns = useMemo(
     () => columns.some((col) => typeof (col as { size?: number }).size === "number"),
@@ -169,8 +177,28 @@ export function TanStackTable<T>({
   const showEmpty = !loading && data.length === 0;
   const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
 
+  // Row windowing: for very large tables only a slice around the scroll
+  // position is mounted. The full row model remains active so sorting and
+  // row selection keep working over every row.
+  const allRows = table.getRowModel().rows;
+  const useRowWindow = rowWindowSize > 0 && !enableGrouping && allRows.length > rowWindowSize;
+  const ROW_ESTIMATED_HEIGHT = 32;
+  const rowWindowStart = useRowWindow
+    ? Math.min(
+        Math.max(0, Math.floor(scrollTop / ROW_ESTIMATED_HEIGHT) - 8),
+        Math.max(0, allRows.length - rowWindowSize),
+      )
+    : 0;
+  const rowWindowEnd = useRowWindow
+    ? Math.min(allRows.length, rowWindowStart + rowWindowSize)
+    : allRows.length;
+  const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
+
   return (
-    <ScrollArea style={{ height: "100%" }}>
+    <ScrollArea
+      style={{ height: "100%" }}
+      onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
+    >
       <Box
         component="table"
         data-testid={dataTestId}
@@ -233,7 +261,13 @@ export function TanStackTable<T>({
               </td>
             </tr>
           ) : (
-            table.getRowModel().rows.map((row, index) => (
+            <>
+              {useRowWindow && rowWindowStart > 0 && (
+                <tr aria-hidden style={{ height: rowWindowStart * ROW_ESTIMATED_HEIGHT }}>
+                  <td colSpan={colCount} style={{ padding: 0, border: "none" }} />
+                </tr>
+              )}
+              {renderedRows.map((row, index) => (
               <Fragment key={`row-group-${row.id}`}>
                 {row.getIsGrouped() ? (
                   <tr
@@ -290,7 +324,13 @@ export function TanStackTable<T>({
                   </>
                 )}
               </Fragment>
-            ))
+              ))}
+              {useRowWindow && rowWindowEnd < allRows.length && (
+                <tr aria-hidden style={{ height: (allRows.length - rowWindowEnd) * ROW_ESTIMATED_HEIGHT }}>
+                  <td colSpan={colCount} style={{ padding: 0, border: "none" }} />
+                </tr>
+              )}
+            </>
           )}
         </tbody>
       </Box>
