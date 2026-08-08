@@ -4,7 +4,7 @@
  * Overrides Mantine CSS variables on <html> in real time; persists to
  * localStorage under "alphashri_theme_overrides". Presets included.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 interface Slot {
   key: string;      // CSS variable on <html>
@@ -100,32 +100,55 @@ export function ThemePlayground() {
   const [open, setOpen] = useState(false);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
   const [preset, setPreset] = useState("GitHub Dark (default)");
+  // Live values live in a ref so color-drag ticks mutate the DOM directly
+  // without triggering a React re-render or localStorage write per frame.
+  const liveRef = useRef<Record<string, string>>({});
 
   useEffect(() => {
     const saved = loadOverrides();
+    liveRef.current = { ...saved };
     if (Object.keys(saved).length) {
       setOverrides(saved);
       apply(saved);
     }
   }, []);
 
+  const persist = () => {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(liveRef.current));
+  };
+
   const setVar = (key: string, value: string) => {
-    const next = { ...overrides, [key]: value };
-    setOverrides(next);
-    apply(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    liveRef.current[key] = value;
+    apply(liveRef.current);
+    setOverrides({ ...liveRef.current });
+    persist();
+  };
+
+  // Fast path: apply a single var to the DOM immediately (no state, no storage).
+  // Fired via onInput on the color picker — runs every drag tick, stays cheap.
+  const setVarFast = (key: string, value: string) => {
+    liveRef.current[key] = value;
+    document.documentElement.style.setProperty(key, value);
+  };
+
+  // Slow path: called once when the user releases the picker (onChange).
+  const commitVar = (key: string) => {
+    setOverrides({ ...liveRef.current });
+    persist();
   };
 
   const choosePreset = (name: string) => {
     setPreset(name);
     const p = PRESETS.find((x) => x.name === name)!;
     const next = { ...p.values };
+    liveRef.current = { ...next };
     setOverrides(next);
     apply(next);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    persist();
   };
 
   const reset = () => {
+    liveRef.current = {};
     setOverrides({});
     apply({});
     localStorage.removeItem(STORAGE_KEY);
@@ -133,7 +156,7 @@ export function ThemePlayground() {
   };
 
   const current = (slot: Slot) =>
-    overrides[slot.key] ?? slot.def;
+    liveRef.current[slot.key] ?? slot.def;
 
   return (
     <>
@@ -196,7 +219,8 @@ export function ThemePlayground() {
               <input
                 type="color"
                 value={current(slot)}
-                onChange={(e) => setVar(slot.key, e.target.value)}
+                onInput={(e) => setVarFast(slot.key, (e.target as HTMLInputElement).value)}
+                onChange={(e) => commitVar(slot.key)}
                 style={{ width: 44, height: 24, padding: 0, border: "1px solid var(--mantine-color-default-border)", background: "transparent", cursor: "pointer" }}
               />
               <input
