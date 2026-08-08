@@ -5,6 +5,7 @@ import {
   SCALE_GRAY, SCALE_BLUE, SCALE_YELLOW, SCALE_CYAN, SCALE_VIOLET, SCALE_INDIGO,
   BLACK,
 } from "./palette";
+import { ThemePlayground } from "./ThemePlayground";
 
 export type { MantineProviderProps } from "@mantine/core";
 
@@ -88,6 +89,7 @@ export function UIProvider({ children, defaultColorScheme = "dark", forceColorSc
       <ColorSchemeScript defaultColorScheme={defaultColorScheme} />
       <MantineProvider theme={uiTheme} defaultColorScheme={defaultColorScheme} forceColorScheme={_force}>
         {children}
+        <ThemePlayground />
       </MantineProvider>
     </>
   );
