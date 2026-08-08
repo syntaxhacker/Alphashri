@@ -5,36 +5,10 @@ import "@testing-library/jest-dom/vitest";
 import { MarketTicker } from "./MarketTicker";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { CREAM, BLACK, SURFACE, BORDER, TEXT_MUTED, BG } from "../../config/colors";
 
 // Mock fetch
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
-
-// Mock useThemeColors
-vi.mock("../../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    isDark: false,
-    colorScheme: "light",
-    background: CREAM,
-    text: BLACK,
-    theme: {
-      colors: {
-        dark: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        gray: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-      },
-      spacing: { xs: "4px", sm: "8px" },
-      radius: { sm: "4px" },
-    },
-    surface: SURFACE,
-    border: BORDER,
-    textSecondary: TEXT_MUTED,
-    bg: () => BG,
-    color: (light: string) => light,
-    spacing: (size: string) => size,
-    radius: (size: string) => size,
-  }),
-}));
 
 // Mock useMarketTickerEnabled with controllable value
 let mockMarketTickerEnabled = true;
