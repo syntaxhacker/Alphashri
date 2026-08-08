@@ -3,7 +3,6 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { Table } from "@mantine/core";
 import {
   PortfolioSummaryCard,
   StrategyStatusCard,
@@ -11,8 +10,6 @@ import {
   TradesTable,
   BotActionButtons,
   BotSummaryCell,
-  BotRow,
-  getBotRowStyle,
   getBotIndicatorColor,
 } from "./BotHelpers";
 import type {
@@ -208,58 +205,6 @@ describe("BotSummaryCell", () => {
   it("shows strategy count and type badges", () => {
     const { container } = renderWithProviders(<BotSummaryCell bot={mockBot} />);
     expect(container.textContent).toContain("1 strategies");
-  });
-});
-
-describe("BotRow", () => {
-  const rowProps = {
-    bot: mockBot,
-    isSelected: false,
-    onView: vi.fn(),
-    onStart: vi.fn(),
-    onStop: vi.fn(),
-    onEdit: vi.fn(),
-    onDelete: vi.fn(),
-  };
-
-  it("renders bot row with testid", () => {
-    const { container } = renderWithProviders(
-      <UIProvider>
-        <Table>
-          <Table.Tbody>
-            <BotRow {...rowProps} />
-          </Table.Tbody>
-        </Table>
-      </UIProvider>
-    );
-    const el = container.querySelector(`[data-testid="bot-row-${mockBot.id}"]`);
-    expect(el).toBeTruthy();
-  });
-
-  it("shows 'Inactive' badge when bot is not active", () => {
-    const inactiveBot = { ...mockBot, is_active: false };
-    const { container } = renderWithProviders(
-      <UIProvider>
-        <Table>
-          <Table.Tbody>
-            <BotRow {...rowProps} bot={inactiveBot} />
-          </Table.Tbody>
-        </Table>
-      </UIProvider>
-    );
-    expect(container.textContent).toContain("Inactive");
-  });
-});
-
-describe("getBotRowStyle", () => {
-  it("applies selection background", () => {
-    const style = getBotRowStyle(true, mockBot);
-    expect(style.backgroundColor).toBeTruthy();
-  });
-
-  it("returns undefined for non-selected", () => {
-    const style = getBotRowStyle(false, mockBot);
-    expect(style.backgroundColor).toBeUndefined();
   });
 });
 
