@@ -176,6 +176,33 @@ describe("TanStackTable", () => {
     expect(valueTds.every((td) => td.style.textAlign === "right")).toBe(true);
   });
 
+  it("right-aligns numeric columns by default and keeps text columns left", () => {
+    render(<TanStackTable<TestItem> data={data} columns={columns} />);
+    const valueTh = screen.getByText("Value").closest("th")!;
+    expect(valueTh.style.textAlign).toBe("right");
+    const nameTh = screen.getByText("Name").closest("th")!;
+    expect(nameTh.style.textAlign).toBe("left");
+    const valueTds = screen
+      .getAllByRole("cell")
+      .filter((td) => td.textContent === "100" || td.textContent === "200");
+    expect(valueTds.length).toBe(2);
+    expect(valueTds.every((td) => td.style.textAlign === "right")).toBe(true);
+    const nameTds = screen
+      .getAllByRole("cell")
+      .filter((td) => td.textContent === "Alpha" || td.textContent === "Beta");
+    expect(nameTds.every((td) => td.style.textAlign === "left")).toBe(true);
+  });
+
+  it("explicit meta.align overrides numeric auto-alignment", () => {
+    const leftValueColumns = [
+      { id: "name", header: "Name", accessorKey: "name" },
+      { id: "value", header: "Value", accessorKey: "value", meta: { align: "left" } },
+    ];
+    render(<TanStackTable<TestItem> data={data} columns={leftValueColumns} />);
+    const valueTh = screen.getByText("Value").closest("th")!;
+    expect(valueTh.style.textAlign).toBe("left");
+  });
+
   it("applies explicit column width and ellipsis overflow when size is set", () => {
     const sizedColumns = [
       { id: "name", header: "Name", accessorKey: "name", size: 200 },
