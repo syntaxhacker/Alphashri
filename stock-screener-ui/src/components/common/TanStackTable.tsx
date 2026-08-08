@@ -141,6 +141,11 @@ export function TanStackTable<T>({
     defaultColumn: { size: undefined },
     enableSorting,
     enableSortingRemoval,
+    // Keep day-group / row expansion state controlled by the caller instead of
+    // letting TanStack reset it whenever data or columns change (its default
+    // autoResetExpanded resets to the table's captured initialState, which is
+    // {}-initialized and collapses every day group on refetch).
+    autoResetExpanded: false,
     getRowCanExpand: getRowCanExpand ? (row) => getRowCanExpand(row.original) : undefined,
   });
 
