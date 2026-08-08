@@ -4,7 +4,6 @@ import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
 import { TestWrapper } from "../../test-utils/testUtils";
-import { CREAM, BLACK } from "../../config/colors";
 
 // Mock matchMedia
 beforeEach(() => {
@@ -44,15 +43,6 @@ vi.mock("../news/NewsPanel2", () => ({
   default: () => <div data-testid="news-panel">NewsPanel2</div>,
 }));
 
-vi.mock("../../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    isDark: false,
-    colorScheme: "light",
-    background: CREAM,
-    text: BLACK,
-  }),
-}));
-
 describe("AppLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -69,6 +59,21 @@ describe("AppLayout", () => {
 
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
     expect(screen.getByText("Child Content")).toBeInTheDocument();
+  });
+
+  it("uses theme CSS variables for shell backgrounds (live theme aware)", () => {
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+    const main = document.querySelector("[data-testid='app-main']")!;
+    const header = document.querySelector("[data-testid='app-header']")!;
+    // Mantine AppShell converts bg/c props into inline CSS with the var value.
+    expect(main.getAttribute("style") || "").toContain("var(--mantine-color-body)");
+    expect(header.getAttribute("style") || "").toContain("var(--mantine-color-body)");
   });
 
   it("renders app shell structure", () => {
@@ -171,23 +176,5 @@ describe("AppLayout", () => {
 
     const navbar = screen.getByTestId("navbar-nested");
     expect(navbar).toHaveAttribute("data-collapsed", "false");
-  });
-
-  it("uses theme colors for background and text", () => {
-    render(
-      <TestWrapper>
-        <AppLayout>
-          <div>Content</div>
-        </AppLayout>
-      </TestWrapper>,
-    );
-
-    const header = screen.getByTestId("app-header");
-    const main = screen.getByTestId("app-main");
-
-    expect(header).toHaveStyle({ backgroundColor: CREAM });
-    expect(header).toHaveStyle({ color: BLACK });
-    expect(main).toHaveStyle({ backgroundColor: CREAM });
-    expect(main).toHaveStyle({ color: BLACK });
   });
 });
