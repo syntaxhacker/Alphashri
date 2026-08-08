@@ -46,11 +46,28 @@ describe("color hygiene guard", () => {
   it("src/components/common has no hardcoded colors", () => {
     const offenders: string[] = [];
     for (const f of walk(COMMON)) {
+      if (f.endsWith("colorHygiene.spec.ts")) continue; // this guard file contains the allowlist
       const txt = readFileSync(f, "utf8");
       const m = txt.match(COLOR_RE);
       if (m) offenders.push(`${rel(f)}: ${[...new Set(m)].slice(0, 4).join(", ")}`);
     }
     expect(offenders, "common components must import palette / use CSS vars").toEqual([]);
+  });
+
+  it("global src/style.css uses only palette-derived color literals", () => {
+    const css = readFileSync(join(SRC, "style.css"), "utf8");
+    // palette greens/reds/blacks used in rgba washes
+    const ALLOWED_RGBA = [
+      "rgba(63, 185, 80, 0.45)", // VOLUME_BULLISH (green up)
+      "rgba(248, 81, 73, 0.45)", // VOLUME_BEARISH (red down)
+      "rgba(13, 17, 23, 0.9)",   // BG #0D1117
+      "rgba(1, 4, 9, 0.4)",      // BLACK #010409
+    ];
+    const rgbaRe = /rgba?\(\s*\d[\d\s,.]*\)/g;
+    const raw = (css.match(rgbaRe) || []).filter(
+      (v) => !ALLOWED_RGBA.includes(v),
+    );
+    expect(raw, "style.css rgba literals must be palette-derived").toEqual([]);
   });
 
   it("src/ui wrappers have no hardcoded colors (except theme + palette)", () => {
