@@ -19,6 +19,15 @@ import {
   formatCurrencyIN,
   getPnLTextColor,
 } from "../../utils/ui-helpers";
+import { POSITIVE, NEGATIVE } from "../../config/colors";
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -170,7 +179,7 @@ function usePrevPrice(price: number) {
 }
 
 function getSideColor(side: string): string {
-  return side === "BUY" ? "#22c55e" : "#ef4444";
+  return side === "BUY" ? POSITIVE : NEGATIVE;
 }
 
 function calcRowBg(current: number, entry: number, sl: number, tp: number): string {
@@ -189,7 +198,7 @@ function calcRowBg(current: number, entry: number, sl: number, tp: number): stri
   }
   const redStop = redPct * 50;
   const greenStart = 100 - greenPct * 50;
-  return `linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.12) ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, rgba(34,197,94,0.12) ${greenStart}%, rgba(34,197,94,0.08) 100%)`;
+  return `linear-gradient(90deg, ${withAlpha(NEGATIVE, 0.08)} 0%, ${withAlpha(NEGATIVE, 0.12)} ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, ${withAlpha(POSITIVE, 0.12)} ${greenStart}%, ${withAlpha(POSITIVE, 0.08)} 100%)`;
 }
 
 const _52wCache: Record<string, { high_52w: number; low_52w: number }> = {};

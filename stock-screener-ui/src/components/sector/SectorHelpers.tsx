@@ -9,7 +9,17 @@ import {
   SECTOR_LIGHT_RED,
   SECTOR_RED,
   SECTOR_STRONG_RED,
+  CREAM,
+  BLACK,
 } from "../../config/colors";
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export interface SectorAlert {
   timestamp: string;
@@ -129,8 +139,8 @@ function TreemapTile({
         flexDirection: "column",
         justifyContent: "space-between",
         boxShadow: isDark
-          ? "inset 0 1px 0 rgba(255,255,255,0.04)"
-          : "inset 0 1px 0 rgba(255,255,255,0.16)",
+          ? `inset 0 1px 0 ${withAlpha(CREAM, 0.04)}`
+          : `inset 0 1px 0 ${withAlpha(CREAM, 0.16)}`,
       }}
     >
       <Stack gap={4}>
@@ -157,7 +167,7 @@ function TreemapTile({
             color="dark"
             styles={{
               root: {
-                backgroundColor: "rgba(15, 23, 42, 0.28)",
+                backgroundColor: withAlpha(BLACK, 0.28),
                 color: "var(--mantine-color-gray-0)",
               },
             }}

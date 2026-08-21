@@ -71,13 +71,6 @@ vi.mock("../components/news/ArticleDetail", () => ({
   ),
 }));
 
-vi.mock("../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    isDark: false,
-    background: "#fff",
-  }),
-}));
-
 describe("NewsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();

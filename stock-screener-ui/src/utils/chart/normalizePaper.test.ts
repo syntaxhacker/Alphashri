@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { normalizePaper } from "./normalizePaper";
+import {
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  ORB_AREA,
+  PIVOT_R1,
+  PIVOT_PP,
+  PIVOT_S1,
+  PIVOT_52W_HIGH,
+  INDICATOR_BLUE_A,
+  INDICATOR_BLUE_B,
+} from "../../config/colors";
 
 describe("normalizePaper", () => {
   const mockPaperData = {
@@ -148,12 +159,12 @@ describe("normalizePaper", () => {
       expect(result.markLines).toHaveLength(2);
       expect(result.markLines[0]).toMatchObject({
         yAxis: 112,
-        lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 },
         label: { formatter: "OR-H (15m) 112" },
       });
       expect(result.markLines[1]).toMatchObject({
         yAxis: 98,
-        lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 },
         label: { formatter: "OR-L (15m) 98" },
       });
     });
@@ -170,7 +181,7 @@ describe("normalizePaper", () => {
         to: "09:31",
         fromY: 98,
         toY: 112,
-        color: "rgba(33,150,243,0.15)",
+        color: ORB_AREA,
       });
     });
 
@@ -226,11 +237,11 @@ describe("normalizePaper", () => {
       const s1 = result.markLines.find((ml) => ml.label.formatter.includes("S1"));
       const s2 = result.markLines.find((ml) => ml.label.formatter.includes("S2"));
 
-      expect(r2?.lineStyle.color).toBe("#EF5350"); // R2
-      expect(r1?.lineStyle.color).toBe("#EF5350"); // R1
-      expect(pp?.lineStyle.color).toBe("#AB47BC"); // PP
-      expect(s1?.lineStyle.color).toBe("#26A69A"); // S1
-      expect(s2?.lineStyle.color).toBe("#26A69A"); // S2
+      expect(r2?.lineStyle.color).toBe(PIVOT_R1); // R2
+      expect(r1?.lineStyle.color).toBe(PIVOT_R1); // R1
+      expect(pp?.lineStyle.color).toBe(PIVOT_PP); // PP
+      expect(s1?.lineStyle.color).toBe(PIVOT_S1); // S1
+      expect(s2?.lineStyle.color).toBe(PIVOT_S1); // S2
     });
 
     it("uses correct line styles", () => {
@@ -272,7 +283,7 @@ describe("normalizePaper", () => {
       expect(result.markLines.some((ml) => ml.label.formatter.includes("52W-H"))).toBe(true);
       const highLine = result.markLines.find((ml) => ml.label.formatter.includes("52W-H"));
       expect(highLine?.yAxis).toBe(150);
-      expect(highLine?.lineStyle.color).toBe("#E91E63");
+      expect(highLine?.lineStyle.color).toBe(PIVOT_52W_HIGH);
       expect(highLine?.lineStyle.type).toBe("dashed");
       expect(highLine?.lineStyle.width).toBe(2);
     });
@@ -307,15 +318,15 @@ describe("normalizePaper", () => {
       const data = {
         ...mockPaperData,
         ema_series: {
-          ema_fast: { label: "EMA 9", color: "#10ac84", data: [100, 101, 102] },
-          ema_slow: { label: "EMA 21", color: "#ee5253", data: [99, 100, 101] },
+          ema_fast: { label: "EMA 9", color: INDICATOR_BLUE_A, data: [100, 101, 102] },
+          ema_slow: { label: "EMA 21", color: INDICATOR_BLUE_B, data: [99, 100, 101] },
         },
       };
       const result = normalizePaper(data, false, undefined, false, false, false, false, true);
       expect(result.emaData).toHaveLength(2);
       expect(result.emaData[0]).toMatchObject({
         label: "EMA 9",
-        color: "#10ac84",
+        color: INDICATOR_BLUE_A,
         data: [100, 101, 102],
       });
       expect(result.emaData[1].label).toBe("EMA 21");

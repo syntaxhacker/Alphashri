@@ -9,6 +9,19 @@ import {
   TOOLTIP_LIGHT_BORDER,
   TOOLTIP_DARK_TEXT,
   TOOLTIP_LIGHT_TEXT,
+  AXIS_DARK_LINE,
+  AXIS_LIGHT_LINE,
+  AXIS_DARK_SPLIT,
+  AXIS_LIGHT_SPLIT,
+  CREAM,
+  TRADING_GREEN,
+  TEXT_MUTED,
+  TRADING_RED,
+  SECTOR_GREEN,
+  SECTOR_RED,
+  BROWN,
+  BROWN_DARK,
+  SURFACE_ALT,
 } from "../../config/colors";
 
 interface ScatterViewProps {
@@ -22,12 +35,14 @@ interface ScatterViewProps {
   METRICS: { value: string; label: string; fmt: (v: number) => string }[];
 }
 
-const PALETTE = ['#5470c6','#91cc75','#fac858','#ee6666','#73c0de','#3ba272','#fc8452','#9a60b4','#ea7ccc'];
+const PALETTE = [CREAM, TRADING_GREEN, TEXT_MUTED, TRADING_RED, SECTOR_GREEN, SECTOR_RED, BROWN, BROWN_DARK, SURFACE_ALT];
 
 export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetricYChange, getMetricValue, METRICS }: ScatterViewProps) {
   const isDark = document.documentElement.getAttribute('data-dark') === 'true';
   const tooltipBg = isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG;
   const tooltipText = isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT;
+  const axisLineColor = isDark ? AXIS_DARK_LINE : AXIS_LIGHT_LINE;
+  const splitLineColor = isDark ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT;
 
   const { sectors, sectorColors } = useMemo(() => {
     const unique = [...new Set(stocks.map(s => s.sector).filter(Boolean))];
@@ -107,8 +122,8 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         nameGap: 30,
         nameTextStyle: { fontSize: 12, fontWeight: 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
         axisLabel: { show: false },
-        axisLine: { lineStyle: { color: isDark ? '#373a40' : '#dee2e6' } },
-        splitLine: { lineStyle: { color: isDark ? '#1a1b1e' : '#f1f3f5' } },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       yAxis: {
         type: 'value',
@@ -117,8 +132,8 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
         nameGap: 40,
         nameTextStyle: { fontSize: 12, fontWeight: 'bold', color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT },
         axisLabel: { show: false },
-        axisLine: { lineStyle: { color: isDark ? '#373a40' : '#dee2e6' } },
-        splitLine: { lineStyle: { color: isDark ? '#1a1b1e' : '#f1f3f5' } },
+        axisLine: { lineStyle: { color: axisLineColor } },
+        splitLine: { lineStyle: { color: splitLineColor } },
       },
       series,
     };

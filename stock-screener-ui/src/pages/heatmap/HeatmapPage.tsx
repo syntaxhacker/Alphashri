@@ -16,6 +16,7 @@ import { HeatmapTreemap } from "./HeatmapTreemap";
 import { ScatterView } from "./ScatterView";
 import { DistributionView } from "./DistributionView";
 import { SectorBarView } from "./SectorBarView";
+import { SECTOR_STRONG_GREEN, SECTOR_GREEN, SECTOR_NEUTRAL, SECTOR_RED, SECTOR_STRONG_RED } from "../../config/colors";
 import { TopBottomView } from "./TopBottomView";
 import { HeatmapListView } from "./HeatmapListView";
 
@@ -220,7 +221,7 @@ export function HeatmapPage() {
             <Box style={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMin, metricMin, metricMax), borderRadius: 2 }} />
             <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
           </Group>
-          <Box style={{ flex: 1, maxWidth: 120, height: 8, borderRadius: 4, background: "linear-gradient(to right, rgb(0,90,30), rgb(80,185,70), rgb(245,230,60), rgb(235,130,40), rgb(175,35,35))" }} />
+          <Box style={{ flex: 1, maxWidth: 120, height: 8, borderRadius: 4, background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
           <Group gap={4}>
             <Box style={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMax, metricMin, metricMax), borderRadius: 2 }} />
             <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>

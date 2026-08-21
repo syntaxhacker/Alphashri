@@ -2,6 +2,7 @@ import { describe, it, expect } from "vitest";
 import type { PreviewCandle, PivotLevel } from "../../api/chartPreview";
 import type { ORBZone } from "../../types/backtest";
 import { buildChartOption, buildORBLine, formatTooltip } from "./chartRenderer";
+import { CHART_BG, CHART_LIGHT_BG } from "../../config/colors";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
 
@@ -43,7 +44,7 @@ describe("buildChartOption", () => {
   it("builds a valid chart option for preview size", () => {
     const opt = buildChartOption({ symbol: "TEST", candles, size: "preview" });
     expect(opt).not.toBeNull();
-    expect(opt.backgroundColor).toBe("#0a0a0a");
+    expect(opt.backgroundColor).toBe(CHART_BG);
     expect(opt.animation).toBe(false);
     expect(typeof opt.tooltip).toBe("object");
     expect(opt.tooltip.trigger).toBe("axis");
@@ -59,12 +60,12 @@ describe("buildChartOption", () => {
 
   it("builds dark theme colors by default", () => {
     const opt = buildChartOption({ symbol: "TEST", candles, size: "expanded", isDark: true });
-    expect(opt.backgroundColor).toBe("#0a0a0a");
+    expect(opt.backgroundColor).toBe(CHART_BG);
   });
 
   it("builds light theme colors when isDark is false", () => {
     const opt = buildChartOption({ symbol: "TEST", candles, size: "expanded", isDark: false });
-    expect(opt.backgroundColor).toBe("#ffffff");
+    expect(opt.backgroundColor).toBe(CHART_LIGHT_BG);
   });
 
   it("includes title for non-preview sizes", () => {

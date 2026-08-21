@@ -12,11 +12,6 @@ const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
 // Mock useThemeColors
-vi.mock("../../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    background: "#ffffff",
-  }),
-}));
 
 // Mock useNewsWebSocket
 vi.mock("../../state/newsWebSocket", () => ({

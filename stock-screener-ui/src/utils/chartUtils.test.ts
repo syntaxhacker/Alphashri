@@ -9,34 +9,47 @@ import {
   buildHighlightMarkers,
   buildHighlightLevelSeries,
 } from "./chartUtils";
-import { POSITIVE, NEGATIVE, BULLISH, BEARISH } from "../config/colors";
+import {
+  POSITIVE,
+  NEGATIVE,
+  BULLISH,
+  BEARISH,
+  CHART_DARK_BG,
+  CHART_DARK_TEXT,
+  CHART_DARK_SPLIT,
+  CHART_DARK_BORDER,
+  CHART_DARK_MUTED,
+  CHART_AVG_ENTRY,
+  CHART_TRADE_EXIT,
+  MARKER_TP,
+} from "../config/colors";
 
 describe("getChartThemeColors", () => {
   const darkTheme = {
     colors: {
       dark: {
-        7: "#1a1a1a",
-        5: "#2a2a2a",
-        4: "#3a3a3a",
-        1: "#888888",
+        7: CHART_DARK_BG,
+        5: CHART_DARK_SPLIT,
+        4: CHART_DARK_BORDER,
+        1: CHART_DARK_MUTED,
       },
       gray: {
-        8: "#111111",
-        6: "#999999",
-        3: "#444444",
-        2: "#555555",
+        8: CHART_DARK_TEXT,
+        6: CHART_DARK_MUTED,
+        3: CHART_DARK_BORDER,
+        2: CHART_DARK_SPLIT,
       },
     },
-    white: "#ffffff",
+    white: CHART_DARK_TEXT,
   };
 
   it("returns dark theme colors when isDark is true", () => {
     const result = getChartThemeColors(true, darkTheme);
-    expect(result.bgColor).toBe("#1a1a1a");
-    expect(result.textColor).toBe("#ffffff"); // theme.white
-    expect(result.gridLineColor).toBe("#2a2a2a");
-    expect(result.borderColor).toBe("#3a3a3a");
-    expect(result.mutedColor).toBe("#888888");
+    expect(result.bgColor).toBe(CHART_DARK_BG);
+    expect(result.textColor).toBe(CHART_DARK_TEXT); // theme.white
+    expect(result.gridLineColor).toBe(CHART_DARK_SPLIT);
+    expect(result.borderColor).toBe(CHART_DARK_BORDER);
+    expect(result.mutedColor).toBe(CHART_DARK_MUTED);
   });
 
   it("includes POSITIVE and NEGATIVE colors", () => {
@@ -216,14 +229,14 @@ describe("buildHighlightMarkers", () => {
       value: [5, 100],
       symbol: "triangle",
       symbolSize: 32,
-      itemStyle: { color: "#FFD700", borderColor: "#FF6B00", borderWidth: 4 },
+      itemStyle: { color: CHART_AVG_ENTRY, borderColor: CHART_TRADE_EXIT, borderWidth: 4 },
       label: { show: true, position: "top", formatter: "▼ Entry #1" },
     });
   });
 
   it("colors exit marker based on reason", () => {
     const result = buildHighlightMarkers(entryMarker, exitMarker, 0, 0, 0, { md: 12 });
-    expect(result.highlightExitMarker?.itemStyle.color).toBe("#00E676"); // TP = green
+    expect(result.highlightExitMarker?.itemStyle.color).toBe(MARKER_TP); // TP = green
   });
 
   it("returns null exit marker when exitMarker is undefined", () => {
@@ -252,7 +265,7 @@ describe("buildHighlightLevelSeries", () => {
     });
     expect(result).toHaveLength(1);
     expect(result[0].id).toBe("selected-52w-high");
-    expect(result[0].markLine.lineStyle.color).toBe("#FFD700");
+    expect(result[0].markLine.lineStyle.color).toBe(CHART_AVG_ENTRY);
   });
 
   it("does not include 52W line if r1/52w_high is missing", () => {

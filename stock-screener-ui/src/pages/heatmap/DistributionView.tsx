@@ -1,7 +1,8 @@
 import { Flex, Text } from "@/ui";
+import { rgba } from "@mantine/core";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
-import { TOOLTIP_DARK_BG, TOOLTIP_LIGHT_BG, TOOLTIP_DARK_BORDER, TOOLTIP_LIGHT_BORDER, TOOLTIP_DARK_TEXT, TOOLTIP_LIGHT_TEXT, AXIS_DARK_LINE, AXIS_LIGHT_LINE, AXIS_DARK_SPLIT, AXIS_LIGHT_SPLIT } from "../../config/colors";
+import { TOOLTIP_DARK_BG, TOOLTIP_LIGHT_BG, TOOLTIP_DARK_BORDER, TOOLTIP_LIGHT_BORDER, TOOLTIP_DARK_TEXT, TOOLTIP_LIGHT_TEXT, AXIS_DARK_LINE, AXIS_LIGHT_LINE, AXIS_DARK_SPLIT, AXIS_LIGHT_SPLIT, BLACK } from "../../config/colors";
 
 interface DistributionViewProps {
   stocks: { pe_ratio: number; market_cap: number; [key: string]: any }[];
@@ -117,7 +118,7 @@ export function DistributionView({ stocks, metric, getMetricValue, getMetricColo
           itemStyle: { color: barColors[i] },
         })),
         barMaxWidth: 40,
-        emphasis: { itemStyle: { shadowBlur: 4, shadowColor: 'rgba(0,0,0,0.3)' } },
+        emphasis: { itemStyle: { shadowBlur: 4, shadowColor: rgba(BLACK, 0.3) } },
       }],
     };
   }, [stocks, metric, getMetricValue, getMetricColor, fmt, label, isDark, tooltipBg, tooltipText, axisLineColor, splitLineColor]);

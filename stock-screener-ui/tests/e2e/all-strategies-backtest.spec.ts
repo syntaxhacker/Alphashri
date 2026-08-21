@@ -774,7 +774,7 @@ test.describe("Backtest - Trade Highlight on Click", () => {
     });
 
     // New behavior: clicking a row zooms the chart to that trade and highlights its markers.
-    // The highlighted entry/exit markers render as scatter series with gold (#FFD700) styling
+    // The highlighted entry/exit markers render as scatter series with cream (#E1DCC9) styling
     // (older zoomToTrade impl used dedicated 'highlight-entry'/'highlight-exit' scatter series).
     // Check the chart option quickly after the click — the highlight auto-clears after 5s.
     const option = await getChartOption(page);
@@ -786,7 +786,7 @@ test.describe("Backtest - Trade Highlight on Click", () => {
         s.data.length > 0 &&
         (s.id === "highlight-entry" ||
           s.id === "highlight-exit" ||
-          s.data.some((d: any) => d?.itemStyle?.color === "#FFD700")),
+          s.data.some((d: any) => d?.itemStyle?.color === "#E1DCC9")),
     );
     expect(hasHighlightedMarker).toBeTruthy();
   });

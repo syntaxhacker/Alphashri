@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildOverlays } from "./buildOverlays";
 import type { UnifiedOverlay } from "./types";
+import { BULLISH, BEARISH, BLACK } from "../../config/colors";
 
 describe("buildOverlays", () => {
   const mockCandles = [
@@ -13,7 +14,7 @@ describe("buildOverlays", () => {
     id: "overlay1",
     label: "Test Line",
     type: "line",
-    color: "#FF0000",
+    color: BEARISH,
     levels: [{ value: 100 }],
     showLabel: true,
     ...overrides,
@@ -111,7 +112,7 @@ describe("buildOverlays", () => {
         id: "overlay1",
         label: "Test",
         type: "line",
-        color: "#FF0000",
+        color: BEARISH,
         levels: [
           { date: "2025-01-15", value: 200 },
           { date: "2025-01-16", value: 250 },
@@ -131,7 +132,7 @@ describe("buildOverlays", () => {
         id: "overlay1",
         label: "Test",
         type: "line",
-        color: "#FF0000",
+        color: BEARISH,
         levels: [{ date: "2025-01-15", value: 100 }],
       };
       const candles = [
@@ -149,7 +150,7 @@ describe("buildOverlays", () => {
         id: "box1",
         label: "Box",
         type: "box",
-        color: "#00FF00",
+        color: BULLISH,
         levels: [{ value: 100 }],
       };
       const result = buildOverlays([overlay], mockCandles, [], identityExtend);
@@ -161,7 +162,7 @@ describe("buildOverlays", () => {
         id: "box1",
         label: "Box",
         type: "box",
-        color: "#00FF00",
+        color: BULLISH,
         levels: [{ value: 100 }],
       };
       const result = buildOverlays([overlay], mockCandles, [], identityExtend);
@@ -175,7 +176,7 @@ describe("buildOverlays", () => {
         id: "box1",
         label: "Box",
         type: "box",
-        color: "#00FF00",
+        color: BULLISH,
         levels: [{ value: 100 }],
       };
       const result = buildOverlays([overlay], mockCandles, [], identityExtend);
@@ -190,7 +191,7 @@ describe("buildOverlays", () => {
         id: "box1",
         label: "Box",
         type: "box",
-        color: "#00FF00",
+        color: BULLISH,
         levels: [{ value: null }],
       };
       const result = buildOverlays([overlay], mockCandles, [], identityExtend);
@@ -202,8 +203,8 @@ describe("buildOverlays", () => {
   describe("EMA data integration", () => {
     it("adds EMA series when emaData is provided", () => {
       const emaData = [
-        { label: "EMA 9", color: "#00FF00", data: [10, 11, 12] },
-        { label: "EMA 21", color: "#FF0000", data: [9, 10, 11] },
+        { label: "EMA 9", color: BULLISH, data: [10, 11, 12] },
+        { label: "EMA 21", color: BEARISH, data: [9, 10, 11] },
       ];
       const result = buildOverlays([], mockCandles, [], identityExtend, emaData);
       expect(result).toHaveLength(2);
@@ -212,26 +213,26 @@ describe("buildOverlays", () => {
     });
 
     it("extends EMA data when function provided", () => {
-      const emaData = [{ label: "EMA", color: "#000", data: [10, null, 12] }];
+      const emaData = [{ label: "EMA", color: BLACK, data: [10, null, 12] }];
       const extendFn = (data: (number | null)[]) => data; // identity for simplicity
       const result = buildOverlays([], mockCandles, [], extendFn, emaData);
       expect(result[0].data).toEqual([10, null, 12]);
     });
 
     it("connects nulls for EMA lines", () => {
-      const emaData = [{ label: "EMA", color: "#000", data: [10, null, 12] }];
+      const emaData = [{ label: "EMA", color: BLACK, data: [10, null, 12] }];
       const result = buildOverlays([], mockCandles, [], identityExtend, emaData);
       expect(result[0].connectNulls).toBe(true);
     });
 
     it("sets smooth for EMA lines", () => {
-      const emaData = [{ label: "EMA", color: "#000", data: [10, 11, 12] }];
+      const emaData = [{ label: "EMA", color: BLACK, data: [10, 11, 12] }];
       const result = buildOverlays([], mockCandles, [], identityExtend, emaData);
       expect(result[0].smooth).toBe(true);
     });
 
     it("sets EMA z-index to 5", () => {
-      const emaData = [{ label: "EMA", color: "#000", data: [10, 11, 12] }];
+      const emaData = [{ label: "EMA", color: BLACK, data: [10, 11, 12] }];
       const result = buildOverlays([], mockCandles, [], identityExtend, emaData);
       expect(result[0].z).toBe(5);
     });
@@ -302,7 +303,7 @@ describe("buildOverlays", () => {
         id: "empty",
         label: "Empty",
         type: "line",
-        color: "#F00",
+        color: BEARISH,
         levels: [],
       };
       const result = buildOverlays([overlay], mockCandles, [], identityExtend);

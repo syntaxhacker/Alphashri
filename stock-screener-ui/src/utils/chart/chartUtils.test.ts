@@ -8,56 +8,71 @@ import {
   insertHolidayGaps,
   CANDLESTICK_ITEM_STYLE,
 } from "../chartUtils";
-import { POSITIVE, NEGATIVE, BULLISH, BEARISH } from "../../config/colors";
+import {
+  POSITIVE,
+  NEGATIVE,
+  BULLISH,
+  BEARISH,
+  CHART_DARK_BG,
+  CHART_DARK_TEXT,
+  CHART_DARK_SPLIT,
+  CHART_DARK_BORDER,
+  CHART_DARK_MUTED,
+  CHART_LIGHT_BG,
+  CHART_LIGHT_TEXT,
+  CHART_LIGHT_SPLIT,
+  CHART_LIGHT_BORDER,
+  CHART_LIGHT_MUTED,
+} from "../../config/colors";
 
 describe("getChartThemeColors", () => {
   const darkTheme = {
-    white: "#fff",
+    white: CHART_DARK_TEXT,
     colors: {
       dark: {
-        7: "#1a1a1a",
-        5: "#2a2a2a",
-        4: "#3a3a3a",
-        1: "#888888",
+        7: CHART_DARK_BG,
+        5: CHART_DARK_SPLIT,
+        4: CHART_DARK_BORDER,
+        1: CHART_DARK_MUTED,
       },
       gray: {
-        8: "#111",
-        6: "#999",
-        3: "#444",
-        2: "#555",
+        8: CHART_DARK_TEXT,
+        6: CHART_DARK_MUTED,
+        3: CHART_DARK_BORDER,
+        2: CHART_DARK_SPLIT,
       },
     },
   };
 
   const lightTheme = {
-    white: "#fff",
+    white: CHART_LIGHT_BG,
     colors: {
-      dark: { 7: "#fff" },
+      dark: { 7: CHART_LIGHT_BG },
       gray: {
-        8: "#333",
-        6: "#666",
-        3: "#ccc",
-        2: "#ddd",
+        8: CHART_LIGHT_TEXT,
+        6: CHART_LIGHT_MUTED,
+        3: CHART_LIGHT_BORDER,
+        2: CHART_LIGHT_SPLIT,
       },
     },
   };
 
   it("returns correct colors for dark theme", () => {
     const result = getChartThemeColors(true, darkTheme);
-    expect(result.bgColor).toBe("#1a1a1a");
-    expect(result.textColor).toBe("#fff"); // isDark=true uses theme.white
-    expect(result.gridLineColor).toBe("#2a2a2a");
-    expect(result.borderColor).toBe("#3a3a3a");
-    expect(result.mutedColor).toBe("#888888");
+    expect(result.bgColor).toBe(CHART_DARK_BG);
+    expect(result.textColor).toBe(CHART_DARK_TEXT); // isDark=true uses theme.white
+    expect(result.gridLineColor).toBe(CHART_DARK_SPLIT);
+    expect(result.borderColor).toBe(CHART_DARK_BORDER);
+    expect(result.mutedColor).toBe(CHART_DARK_MUTED);
   });
 
   it("returns correct colors for light theme", () => {
     const result = getChartThemeColors(false, lightTheme);
-    expect(result.bgColor).toBe("#fff"); // isDark=false uses theme.white
-    expect(result.textColor).toBe("#333"); // isDark=false uses theme.colors.gray[8]
-    expect(result.gridLineColor).toBe("#ddd");
-    expect(result.borderColor).toBe("#ccc");
-    expect(result.mutedColor).toBe("#666");
+    expect(result.bgColor).toBe(CHART_LIGHT_BG); // isDark=false uses theme.white
+    expect(result.textColor).toBe(CHART_LIGHT_TEXT); // isDark=false uses theme.colors.gray[8]
+    expect(result.gridLineColor).toBe(CHART_LIGHT_SPLIT);
+    expect(result.borderColor).toBe(CHART_LIGHT_BORDER);
+    expect(result.mutedColor).toBe(CHART_LIGHT_MUTED);
   });
 
   it("includes POSITIVE and NEGATIVE colors", () => {
@@ -68,10 +83,10 @@ describe("getChartThemeColors", () => {
 
   it("handles minimal theme object", () => {
     const minimalTheme = {
-      white: "#fff",
+      white: CHART_LIGHT_BG,
       colors: {
-        dark: { 7: "#000" },
-        gray: { 8: "#333", 2: "#ccc", 3: "#ddd", 6: "#666" },
+        dark: { 7: CHART_LIGHT_BG },
+        gray: { 8: CHART_LIGHT_TEXT, 2: CHART_LIGHT_SPLIT, 3: CHART_LIGHT_BORDER, 6: CHART_LIGHT_MUTED },
       },
     } as any;
     const result = getChartThemeColors(false, minimalTheme);

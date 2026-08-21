@@ -1,6 +1,7 @@
 import { Box, Text, Badge, Group, Flex } from "@/ui";
 import type { MantineTheme } from "@/ui";
 import { hexToRgba } from "./cellPalette";
+import { CREAM, BROWN, BROWN_DARK, BLACK, TRADING_GREEN } from "../../../config/colors";
 
 interface ChainFooterProps {
   theme: MantineTheme;
@@ -17,8 +18,7 @@ export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps)
       align="center"
       style={{
         borderTop: `1px solid ${hexToRgba(theme.colors.gray[colorScheme === "dark" ? 4 : 3], 0.75)}`,
-        background:
-          "linear-gradient(90deg, light-dark(rgba(240,253,250,0.9), rgba(12,18,16,0.9)) 0%, light-dark(rgba(248,250,252,0.9), rgba(15,23,42,0.88)) 50%, light-dark(rgba(255,240,245,0.9), rgba(24,12,16,0.9)) 100%)",
+        background: `linear-gradient(90deg, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN_DARK, 0.9)}) 0%, light-dark(${hexToRgba(CREAM, 0.88)}, ${hexToRgba(BLACK, 0.88)}) 50%, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN_DARK, 0.9)}) 100%)`,
       }}
       data-testid="options-chain-table-footer"
     >
@@ -29,8 +29,7 @@ export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps)
             h={10}
             style={{
               borderRadius: 999,
-              background:
-                "linear-gradient(135deg, rgba(250,204,21,0.45) 0%, rgba(34,197,94,0.28) 100%)",
+              background: `linear-gradient(135deg, ${hexToRgba(CREAM, 0.45)} 0%, ${hexToRgba(TRADING_GREEN, 0.28)} 100%)`,
               border: `1px solid ${hexToRgba(theme.colors.yellow[5], 0.4)}`,
             }}
           />
@@ -44,8 +43,7 @@ export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps)
             h={10}
             style={{
               borderRadius: 999,
-              background:
-                "linear-gradient(135deg, rgba(253,224,71,0.95) 0%, rgba(251,191,36,0.65) 100%)",
+              background: `linear-gradient(135deg, ${hexToRgba(CREAM, 0.95)} 0%, ${hexToRgba(BROWN, 0.65)} 100%)`,
             }}
           />
           <Text size="sm" c="dimmed">

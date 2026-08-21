@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SettingsPage } from "./SettingsPage";
-import { BrowserRouter, MemoryRouter, Routes, Route } from "react-router-dom";
+import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { renderWithMantine, renderWithRouter } from "../../test-utils/renderWithMantine";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
@@ -26,13 +26,6 @@ vi.mock("../../api/brokers", () => ({
 
 vi.mock("../../state/store/hooks", () => ({
   useAppDispatch: () => mockDispatch,
-}));
-
-vi.mock("../../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    isDark: false,
-    background: "#fff",
-  }),
 }));
 
 vi.mock("../../state/holidays", () => ({

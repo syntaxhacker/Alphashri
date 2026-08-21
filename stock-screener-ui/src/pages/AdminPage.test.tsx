@@ -24,10 +24,6 @@ vi.mock("./admin/NewsQueuePanel", () => ({
   NewsQueuePanel: () => React.createElement("div", { "data-testid": "news-queue-panel-mock" }),
 }));
 
-vi.mock("../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({ isDark: false, background: "#fff" }),
-}));
-
 describe("AdminPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();

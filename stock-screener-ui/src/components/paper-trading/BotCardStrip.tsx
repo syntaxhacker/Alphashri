@@ -1,5 +1,6 @@
 import { Group, Stack, Box, Text } from "@/ui";
 import type { BotSummary } from "../../types/paperTrading";
+import { BOT_SELECTED_BG } from "../../config/colors";
 
 interface BotCardStripProps {
   bots: BotSummary[];
@@ -18,7 +19,7 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
         const borderColor = isSelected
           ? "1px solid var(--mantine-color-blue-6)"
           : "1px solid var(--mantine-color-default-border)";
-        const bgColor = isSelected ? "rgba(34, 139, 230, 0.08)" : "transparent";
+        const bgColor = isSelected ? BOT_SELECTED_BG : "transparent";
         const leftBarColor = isRunning
           ? "var(--mantine-color-green-6)"
           : "var(--mantine-color-gray-6)";

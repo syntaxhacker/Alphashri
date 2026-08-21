@@ -1,6 +1,15 @@
 import type { ReactNode, CSSProperties } from "react";
 import { Card, Group, Box, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
 import type { UIStackProps, UIPaperProps } from "@/ui";
+import { CREAM, BROWN_DARK } from "../../config/colors";
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
@@ -91,7 +100,7 @@ export function CompactPanel({
       radius="xs"
       p={padded ? "xs" : 0}
       shadow="none"
-      bg="light-dark(var(--mantine-color-white), var(--mantine-color-dark-7))"
+      bg="var(--mantine-color-body)"
       style={panelStyle}
       data-testid={testId}
       {...paperProps}
@@ -146,7 +155,7 @@ export function CompactStat({
       p="xs"
       withBorder
       shadow="none"
-      bg="light-dark(rgba(248, 250, 252, 0.85), rgba(15, 23, 42, 0.55))"
+      bg={`light-dark(${withAlpha(CREAM, 0.85)}, ${withAlpha(BROWN_DARK, 0.55)})`}
       {...paperProps}
     >
       <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1}>

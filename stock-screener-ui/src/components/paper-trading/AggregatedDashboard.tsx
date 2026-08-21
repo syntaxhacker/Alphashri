@@ -21,6 +21,19 @@ import { fetchDashboardAnalytics } from "../../api/paperTrading";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
 import { formatCurrencyCompact, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
+import {
+  PERF_POSITIVE,
+  PERF_NEGATIVE,
+  POSITIVE,
+  NEGATIVE,
+  CREAM,
+  BLACK,
+  TEXT_MUTED,
+  BROWN,
+  BROWN_DARK,
+  SECTOR_GREEN,
+  SECTOR_RED,
+} from "../../config/colors";
 import { TanStackTable } from "../common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type {
@@ -31,13 +44,21 @@ import type {
   PaperDashboardTradeItem,
 } from "../../types/paperTrading";
 
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
 const PRESETS = ["7D", "30D", "90D", "YTD", "All"];
 const PRESET_COLORS = ["blue", "cyan", "teal", "grape", "gray"];
-const splitLine = { lineStyle: { color: "rgba(128,128,128,0.14)" } };
+const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.14) } };
 
 const EXIT_PIE_COLORS = [
-  "#40c057", "#fa5252", "#fd7e14", "#7950f2",
-  "#15aabf", "#fab005", "#be4bdb", "#1c7ed6",
+  POSITIVE, NEGATIVE, SECTOR_GREEN, SECTOR_RED,
+  CREAM, TEXT_MUTED, BROWN, BROWN_DARK,
 ];
 
 function SectionHeading({ title, badge, color = "blue" }: { title: string; badge?: string; color?: string }) {
@@ -78,7 +99,7 @@ function chartBase(xData: string[], series: any[], yFormatter = "₹{value}") {
 function EquityChart({ data }: { data: PaperDashboardAnalyticsData }) {
   const points = data.equity_curve;
   const isPositive = points.length > 0 && points[points.length - 1].cumulative_pnl >= 0;
-  const lineColor = isPositive ? "#228be6" : "#fa5252";
+  const lineColor = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
   return (
     <ReactECharts
       style={{ height: 230, minHeight: 230 }}
@@ -95,8 +116,8 @@ function EquityChart({ data }: { data: PaperDashboardAnalyticsData }) {
               type: "linear",
               x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: isPositive ? "rgba(34,139,230,0.28)" : "rgba(250,82,82,0.28)" },
-                { offset: 1, color: isPositive ? "rgba(34,139,230,0.02)" : "rgba(250,82,82,0.02)" },
+                { offset: 0, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.28) },
+                { offset: 1, color: withAlpha(isPositive ? PERF_POSITIVE : PERF_NEGATIVE, 0.02) },
               ],
             },
           },
@@ -117,7 +138,7 @@ function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
           data: data.daily_pnl.map((p) => ({
             value: p.net_pnl,
             itemStyle: {
-              color: p.net_pnl >= 0 ? "#20c997" : "#fa5252",
+              color: p.net_pnl >= 0 ? POSITIVE : NEGATIVE,
               borderRadius: [3, 3, 0, 0],
             },
           })),
@@ -129,7 +150,7 @@ function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
           markLine: {
             silent: true,
             symbol: "none",
-            lineStyle: { color: "rgba(128,128,128,0.3)", type: "dashed", width: 1 },
+            lineStyle: { color: withAlpha(TEXT_MUTED, 0.3), type: "dashed", width: 1 },
             data: [{ yAxis: 0 }],
             label: { show: false },
           },
@@ -150,14 +171,14 @@ function DrawdownChart({ data }: { data: PaperDashboardAnalyticsData }) {
           data: data.drawdown.map((p) => p.drawdown_pct),
           smooth: true,
           showSymbol: false,
-          lineStyle: { width: 2, color: "#fa5252" },
+          lineStyle: { width: 2, color: NEGATIVE },
           areaStyle: {
             color: {
               type: "linear",
               x: 0, y: 0, x2: 0, y2: 1,
               colorStops: [
-                { offset: 0, color: "rgba(250,82,82,0.25)" },
-                { offset: 1, color: "rgba(250,82,82,0.02)" },
+                { offset: 0, color: withAlpha(NEGATIVE, 0.25) },
+                { offset: 1, color: withAlpha(NEGATIVE, 0.02) },
               ],
             },
           },
@@ -183,7 +204,7 @@ function BotComparisonChart({ data }: { data: PaperDashboardAnalyticsData }) {
           data: bots.map((b) => ({
             value: b.total_net_pnl,
             itemStyle: {
-              color: b.total_net_pnl >= 0 ? "#20c997" : "#fa5252",
+              color: b.total_net_pnl >= 0 ? POSITIVE : NEGATIVE,
               borderRadius: [0, 3, 3, 0],
             },
           })),
@@ -206,7 +227,7 @@ function ExitReasonChart({ data }: { data: PaperDashboardAnalyticsData }) {
           data: data.exit_reasons.map((r, i) => ({
             name: r.reason,
             value: r.count,
-            itemStyle: { color: EXIT_PIE_COLORS[i % EXIT_PIE_COLORS.length], borderColor: "rgba(0,0,0,0.1)", borderWidth: 1 },
+            itemStyle: { color: EXIT_PIE_COLORS[i % EXIT_PIE_COLORS.length], borderColor: withAlpha(BLACK, 0.1), borderWidth: 1 },
           })),
           label: { fontSize: 10, formatter: "{b} {d}%" },
           emphasis: {
@@ -214,7 +235,7 @@ function ExitReasonChart({ data }: { data: PaperDashboardAnalyticsData }) {
             itemStyle: {
               shadowBlur: 12,
               shadowOffsetX: 0,
-              shadowColor: "rgba(0, 0, 0, 0.4)",
+              shadowColor: withAlpha(BLACK, 0.4),
             },
           },
         }],

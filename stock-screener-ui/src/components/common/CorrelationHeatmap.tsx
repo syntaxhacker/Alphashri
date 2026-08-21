@@ -1,14 +1,40 @@
 import { useEffect } from "react";
 import { Box, Loader, Flex, Stack, Text, useColorScheme } from "@/ui";
 import { useECharts } from "../../hooks/useECharts";
+import {
+  CREAM,
+  BLACK,
+  BROWN_DARK,
+  TRADING_GREEN,
+  TRADING_RED,
+  SECTOR_GREEN,
+  SECTOR_RED,
+  SECTOR_LIGHT_GREEN,
+  SECTOR_LIGHT_RED,
+  CHART_MUTED,
+  CHART_LIGHT_TEXT,
+  CHART_BORDER,
+  CHART_LIGHT_BORDER,
+  CHART_SPLIT,
+  CHART_LIGHT_BG,
+} from "../../config/colors";
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 const COLOR_STOPS = [
-  { color: "#2166ac", pos: 0.0 },
-  { color: "#67a9cf", pos: 0.2 },
-  { color: "#f7f7f7", pos: 0.4 },
-  { color: "#fddbc7", pos: 0.6 },
-  { color: "#ef8a62", pos: 0.8 },
-  { color: "#b2182b", pos: 1.0 },
+  { color: SECTOR_LIGHT_RED, pos: 0.0 },
+  { color: TRADING_RED, pos: 0.2 },
+  { color: SECTOR_RED, pos: 0.35 },
+  { color: CREAM, pos: 0.5 },
+  { color: SECTOR_GREEN, pos: 0.65 },
+  { color: TRADING_GREEN, pos: 0.8 },
+  { color: SECTOR_LIGHT_GREEN, pos: 1.0 },
 ];
 
 function getTextColor(value: number): string {
@@ -42,14 +68,14 @@ function getTextColor(value: number): string {
   const lum = 0.2126 * srgb[0] + 0.7152 * srgb[1] + 0.0722 * srgb[2];
   const contrastWhite = 1.05 / (lum + 0.05);
   const contrastBlack = (lum + 0.05) / 0.05;
-  return contrastWhite >= contrastBlack ? "#ffffff" : "#111111";
+  return contrastWhite >= contrastBlack ? CREAM : BROWN_DARK;
 }
 
 function chartColors(isDark: boolean) {
   return {
-    axisLabel: isDark ? "#ccc" : "#333",
-    axisLine: isDark ? "#555" : "#ccc",
-    border: isDark ? "#2a2a2a" : "#fff",
+    axisLabel: isDark ? CHART_MUTED : CHART_LIGHT_TEXT,
+    axisLine: isDark ? CHART_BORDER : CHART_LIGHT_BORDER,
+    border: isDark ? CHART_SPLIT : CHART_LIGHT_BG,
   };
 }
 
@@ -136,7 +162,7 @@ export function CorrelationHeatmap({
           },
           itemStyle: { borderColor: colors.border, borderWidth: 1 },
           emphasis: {
-            itemStyle: { shadowBlur: 10, shadowColor: "rgba(0,0,0,0.5)" },
+            itemStyle: { shadowBlur: 10, shadowColor: withAlpha(BLACK, 0.5) },
             label: { show: true },
           },
         },

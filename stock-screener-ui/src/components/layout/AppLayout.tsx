@@ -6,7 +6,6 @@ import { NotificationsPanel } from "../notifications/NotificationsPanel";
 import { IconBell } from "@tabler/icons-react";
 import { ActionIcon } from "@/ui";
 import { MarketTicker } from "./MarketTicker";
-import { useThemeColors } from "../../hooks/useThemeColors";
 import NewsPanel2 from "../news/NewsPanel2";
 
 interface AppLayoutProps {
@@ -15,7 +14,6 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
-  const colors = useThemeColors();
   const [collapsed, setCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
 
@@ -34,8 +32,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       data-testid="app-shell"
     >
       <AppShellHeader
-        bg={colors.background}
-        c={colors.text}
+        bg="var(--mantine-color-body)"
+        c="var(--mantine-color-text)"
         id="app-header"
         data-testid="app-header"
       >
@@ -64,8 +62,8 @@ export function AppLayout({ children }: AppLayoutProps) {
       </AppShellNavbar>
 
       <AppShellMain
-        bg={colors.background}
-        c={colors.text}
+        bg="var(--mantine-color-body)"
+        c="var(--mantine-color-text)"
         h="100%"
         style={{ overflow: "auto" }}
         id="app-main"

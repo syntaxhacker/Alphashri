@@ -9,6 +9,16 @@ import {
   TOOLTIP_LIGHT_BORDER,
   TOOLTIP_DARK_TEXT,
   TOOLTIP_LIGHT_TEXT,
+  BULLISH,
+  BEARISH,
+  BG,
+  SURFACE,
+  CREAM,
+  SECTOR_STRONG_GREEN,
+  SECTOR_GREEN,
+  SECTOR_NEUTRAL,
+  SECTOR_RED,
+  SECTOR_STRONG_RED,
 } from "../../config/colors";
 import {
   METRICS,
@@ -116,7 +126,7 @@ export function HeatmapTreemap({
           if (d.change != null && d.change !== "") {
             const ch = Number(d.change);
             lines.push(
-              `  <div style="color:${ch >= 0 ? "green" : "red"}">Change: <b>${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b></div>`,
+              `  <div style="color:${ch >= 0 ? BULLISH : BEARISH}">Change: <b>${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b></div>`,
             );
           }
           if (d.sector) {
@@ -143,19 +153,19 @@ export function HeatmapTreemap({
             fontSize: 10,
             fontWeight: "bold",
             lineHeight: 14,
-            textBorderColor: "#000",
+            textBorderColor: BG,
             textBorderWidth: 0.5,
           },
           breadcrumb: { show: false },
           itemStyle: {
-            borderColor: isDark ? "#1a1a1a" : "#fff",
+            borderColor: isDark ? SURFACE : CREAM,
             borderWidth: 1,
             gapWidth: 0,
           },
           levels: [
             {
               itemStyle: {
-                borderColor: isDark ? "#1a1a1a" : "#fff",
+                borderColor: isDark ? SURFACE : CREAM,
                 borderWidth: 0,
                 gapWidth: 0,
               },
@@ -238,8 +248,8 @@ export function HeatmapTreemap({
                 height: 8,
                 borderRadius: 4,
                 background: isSignedHeatmapMetric(metricKey)
-                  ? "linear-gradient(to right, rgb(175,35,35), rgb(245,230,60), rgb(80,185,70))"
-                  : "linear-gradient(to right, rgb(0,90,30), rgb(80,185,70), rgb(245,230,60), rgb(235,130,40), rgb(175,35,35))",
+                  ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})`
+                  : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})`,
               }}
             />
             <Group gap={4}>

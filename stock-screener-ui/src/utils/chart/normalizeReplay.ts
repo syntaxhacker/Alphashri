@@ -9,6 +9,18 @@ import type {
 import type { ChartInput, UnifiedOverlay, MarkAreaItem } from "../chart/types";
 import { parseTimeToHHMM } from "../ui-helpers";
 import { mapCandles, mapTrades } from "./normalizeCommon";
+import {
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  PIVOT_R1,
+  PIVOT_PP,
+  PIVOT_S1,
+  PIVOT_52W_HIGH,
+  PIVOT_52W_LOW,
+  INDICATOR_BLUE_A,
+  INDICATOR_BLUE_B,
+  ORB_AREA,
+} from "../../config/colors";
 
 export function normalizeReplay(
   candles: ReplayCandle[],
@@ -63,7 +75,7 @@ export function normalizeReplay(
         id: `or-high-${or.strategy}`,
         label: `OR High (${or.strategy})`,
         type: "line",
-        color: "#2196F3",
+        color: PIVOT_OR_HIGH,
         dash: [6, 3],
         levels: [
           { date: fromDate, value: or.or_high },
@@ -74,7 +86,7 @@ export function normalizeReplay(
         id: `or-low-${or.strategy}`,
         label: `OR Low (${or.strategy})`,
         type: "line",
-        color: "#2196F3",
+        color: PIVOT_OR_LOW,
         dash: [6, 3],
         levels: [
           { date: fromDate, value: or.or_low },
@@ -96,7 +108,7 @@ export function normalizeReplay(
           id: `r2-${piv.strategy}`,
           label: `R2 (${piv.strategy})`,
           type: "line",
-          color: "#EF5350",
+          color: PIVOT_R1,
           dash: [2, 2],
           levels: [
             { date: fromDate, value: piv.r2 },
@@ -107,7 +119,7 @@ export function normalizeReplay(
           id: `r1-${piv.strategy}`,
           label: `R1 (${piv.strategy})`,
           type: "line",
-          color: "#EF5350",
+          color: PIVOT_R1,
           dash: [6, 3],
           levels: [
             { date: fromDate, value: piv.r1 },
@@ -118,7 +130,7 @@ export function normalizeReplay(
           id: `pp-${piv.strategy}`,
           label: `PP (${piv.strategy})`,
           type: "line",
-          color: "#AB47BC",
+          color: PIVOT_PP,
           dash: [2, 2],
           levels: [
             { date: fromDate, value: piv.pp },
@@ -129,7 +141,7 @@ export function normalizeReplay(
           id: `s1-${piv.strategy}`,
           label: `S1 (${piv.strategy})`,
           type: "line",
-          color: "#26A69A",
+          color: PIVOT_S1,
           dash: [6, 3],
           levels: [
             { date: fromDate, value: piv.s1 },
@@ -140,7 +152,7 @@ export function normalizeReplay(
           id: `s2-${piv.strategy}`,
           label: `S2 (${piv.strategy})`,
           type: "line",
-          color: "#26A69A",
+          color: PIVOT_S1,
           dash: [2, 2],
           levels: [
             { date: fromDate, value: piv.s2 },
@@ -162,7 +174,7 @@ export function normalizeReplay(
         id: `52w-high-${h52.strategy}`,
         label: `52W High (${h52.strategy})`,
         type: "line",
-        color: "#E91E63",
+        color: PIVOT_52W_HIGH,
         dash: [6, 3],
         levels: [
           { date: fromDate, value: h52.high_52w },
@@ -174,7 +186,7 @@ export function normalizeReplay(
           id: `52w-low-${h52.strategy}`,
           label: `52W Low (${h52.strategy})`,
           type: "line",
-          color: "#9C27B0",
+          color: PIVOT_52W_LOW,
           dash: [2, 2],
           levels: [
             { date: fromDate, value: h52.low_52w },
@@ -194,12 +206,12 @@ export function normalizeReplay(
       emaData = [
         {
           label: `EMA ${ema.ema_fast_period}`,
-          color: "#10ac84",
+          color: INDICATOR_BLUE_A,
           data: tfData.ema_fast as (number | null)[],
         },
         {
           label: `EMA ${ema.ema_slow_period}`,
-          color: "#ee5253",
+          color: INDICATOR_BLUE_B,
           data: tfData.ema_slow as (number | null)[],
         },
       ];
@@ -220,7 +232,7 @@ export function normalizeReplay(
         to: toHHMM,
         fromY: or.or_low,
         toY: or.or_high,
-        color: "rgba(33,150,243,0.15)",
+        color: ORB_AREA,
       });
     }
   }

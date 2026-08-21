@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildLegend } from "./buildLegend";
+import { CHART_MUTED } from "../../config/colors";
 
 describe("buildLegend", () => {
   describe("when showLegend is false", () => {
@@ -33,8 +34,8 @@ describe("buildLegend", () => {
     });
 
     it("applies mutedColor text style when provided", () => {
-      const result = buildLegend(["Series1"], true, "#888888");
-      expect(result.textStyle).toEqual({ color: "#888888" });
+      const result = buildLegend(["Series1"], true, CHART_MUTED);
+      expect(result.textStyle).toEqual({ color: CHART_MUTED });
     });
 
     it("does not add textStyle when mutedColor is not provided", () => {

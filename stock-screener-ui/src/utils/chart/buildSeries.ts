@@ -1,4 +1,5 @@
 import { CANDLESTICK_ITEM_STYLE } from "../chartUtils";
+import { VOLUME_BULLISH, VOLUME_BEARISH } from "../../config/colors";
 import type { ChartColors, MarkLineData, MarkAreaItem } from "./types";
 
 interface SeriesResult {
@@ -70,7 +71,7 @@ export function buildSeries(
       yAxisIndex: 1,
       itemStyle: {
         color: (params: any) =>
-          params.data[2] === 1 ? "rgba(0,230,118,0.5)" : "rgba(255,23,68,0.5)",
+          params.data[2] === 1 ? VOLUME_BULLISH : VOLUME_BEARISH,
       },
       z: 1,
     });

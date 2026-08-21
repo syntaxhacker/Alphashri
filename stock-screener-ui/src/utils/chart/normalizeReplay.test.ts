@@ -1,5 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { normalizeReplay } from "./normalizeReplay";
+import {
+  PIVOT_R1,
+  PIVOT_PP,
+  PIVOT_S1,
+  PIVOT_52W_HIGH,
+  PIVOT_52W_LOW,
+  INDICATOR_BLUE_A,
+  ORB_AREA,
+} from "../../config/colors";
 
 describe("normalizeReplay", () => {
   const mockCandles = [
@@ -245,7 +254,7 @@ describe("normalizeReplay", () => {
       expect(result.markAreas[0]).toMatchObject({
         fromY: 98,
         toY: 112,
-        color: "rgba(33,150,243,0.15)",
+        color: ORB_AREA,
       });
     });
   });
@@ -288,11 +297,11 @@ describe("normalizeReplay", () => {
         true,
       );
       const r1 = result.overlays.find((o) => o.id === "r1-pivot");
-      expect(r1?.color).toBe("#EF5350");
+      expect(r1?.color).toBe(PIVOT_R1);
       const pp = result.overlays.find((o) => o.id === "pp-pivot");
-      expect(pp?.color).toBe("#AB47BC");
+      expect(pp?.color).toBe(PIVOT_PP);
       const s1 = result.overlays.find((o) => o.id === "s1-pivot");
-      expect(s1?.color).toBe("#26A69A");
+      expect(s1?.color).toBe(PIVOT_S1);
     });
 
     it("uses correct dash patterns", () => {
@@ -335,7 +344,7 @@ describe("normalizeReplay", () => {
       );
       const high52w = result.overlays.find((o) => o.id === "52w-high-52w");
       expect(high52w).toBeDefined();
-      expect(high52w?.color).toBe("#E91E63");
+      expect(high52w?.color).toBe(PIVOT_52W_HIGH);
       expect(high52w?.dash).toEqual([6, 3]);
     });
 
@@ -356,7 +365,7 @@ describe("normalizeReplay", () => {
       );
       const low52w = result.overlays.find((o) => o.id === "52w-low-52w");
       expect(low52w).toBeDefined();
-      expect(low52w?.color).toBe("#9C27B0");
+      expect(low52w?.color).toBe(PIVOT_52W_LOW);
       expect(low52w?.dash).toEqual([2, 2]);
     });
   });
@@ -380,7 +389,7 @@ describe("normalizeReplay", () => {
       expect(result.emaData).toHaveLength(2);
       expect(result.emaData[0]).toMatchObject({
         label: "EMA 9",
-        color: "#10ac84",
+        color: INDICATOR_BLUE_A,
         data: [100, 101, 102],
       });
     });
