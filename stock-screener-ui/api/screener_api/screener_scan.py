@@ -483,7 +483,7 @@ def _enrich_with_touch_history(data, screener):
     if not symbols:
         return
 
-    cutoff_date = datetime.now() - timedelta(days=7)
+    cutoff_date = datetime.now(config.IST) - timedelta(days=7)
     touch_map = {}
     try:
         db = SessionLocal()

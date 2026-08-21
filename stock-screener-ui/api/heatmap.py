@@ -7,6 +7,8 @@ from typing import List, Optional
 from functools import lru_cache
 from datetime import datetime
 
+import config
+
 from fastapi import APIRouter, Query, HTTPException
 from tradingview_screener import Query as TVQuery, col
 
@@ -112,7 +114,7 @@ def _get_fallback_data() -> List[dict]:
 
 
 def _get_cached_data() -> List[dict]:
-    now = datetime.now()
+    now = datetime.now(config.IST)
     if (
         _heatmap_cache["data"] is not None
         and _heatmap_cache["timestamp"] is not None

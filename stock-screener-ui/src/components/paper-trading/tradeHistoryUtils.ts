@@ -28,12 +28,17 @@ export function filterByRange(
   fromDate: string | null,
   toDate: string | null,
 ): PaperTrade[] {
-  const from = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
-  const to = toDate ? new Date(`${toDate}T23:59:59`) : null;
+  // IST midnight boundaries: interpret fromDate/toDate as Asia/Kolkata (UTC+05:30).
+  const from = fromDate ? new Date(`${fromDate}T00:00:00+05:30`) : null;
+  const to = toDate ? new Date(`${toDate}T23:59:59+05:30`) : null;
+  const fromValid = from && !isNaN(from.getTime()) ? from : null;
+  const toValid = to && !isNaN(to.getTime()) ? to : null;
   return trades.filter((t) => {
+    if (!t.exit_time) return false;
     const tradeDate = new Date(t.exit_time);
-    if (from && tradeDate < from) return false;
-    if (to && tradeDate > to) return false;
+    if (isNaN(tradeDate.getTime())) return false;
+    if (fromValid && tradeDate < fromValid) return false;
+    if (toValid && tradeDate > toValid) return false;
     return true;
   });
 }
@@ -57,7 +62,12 @@ export function groupTradesByDate(
       })
     : [...trades];
   for (const trade of sorted) {
-    const date = trade.exit_time.split("T")[0];
+    if (!trade.exit_time || typeof trade.exit_time !== "string") continue;
+    const split = trade.exit_time.split("T");
+    if (!split[0] || !/^\d{4}-\d{2}-\d{2}$/.test(split[0])) continue;
+    const d = new Date(trade.exit_time);
+    if (isNaN(d.getTime())) continue;
+    const date = split[0];
     if (!groups[date]) groups[date] = [];
     groups[date].push(trade);
   }

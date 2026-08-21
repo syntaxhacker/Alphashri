@@ -58,7 +58,7 @@ function EmptyOrLoadingState() {
 async function handleCloseGroup(group: PaperPosition[]) {
   const prices: Record<string, number> = {};
   for (const p of group) {
-    if (p.current_price > 0) prices[p.symbol] = p.current_price;
+    if (Number.isFinite(p.current_price) && p.current_price > 0) prices[p.symbol] = p.current_price;
   }
   const state = getPaperTradingState();
   const botId = state.availableBots.length > 0 ? state.availableBots[0].id : null;
@@ -71,12 +71,13 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
   const [closing, setClosing] = useState(false);
 
   const handleCloseAll = async () => {
+    if (closing) return;
     if (!window.confirm(`Close all ${positions.length} positions at current prices?`)) return;
     setClosing(true);
     try {
       const prices: Record<string, number> = {};
       for (const p of positions) {
-        if (p.current_price > 0) prices[p.symbol] = p.current_price;
+        if (Number.isFinite(p.current_price) && p.current_price > 0) prices[p.symbol] = p.current_price;
       }
       const state = getPaperTradingState();
       const botId = state.availableBots.length > 0 ? state.availableBots[0].id : null;

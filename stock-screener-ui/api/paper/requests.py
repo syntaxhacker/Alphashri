@@ -7,12 +7,12 @@ from typing import Optional
 
 
 class OrderRequest(BaseModel):
-    symbol: str
+    symbol: str = Field(min_length=1, max_length=20)
     side: str
-    quantity: int
-    price: float
-    stop_loss: float
-    take_profit: float
+    quantity: int = Field(gt=0)
+    price: float = Field(gt=0)
+    stop_loss: float = Field(gt=0)
+    take_profit: float = Field(gt=0)
 
 
 class ClosePositionRequest(BaseModel):

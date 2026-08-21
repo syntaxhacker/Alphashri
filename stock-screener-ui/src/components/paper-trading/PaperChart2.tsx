@@ -258,7 +258,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       )}
 
       <Select
-        data-testid="paper-chart-timeframe"
+        data-testid="chart-timeframe-select"
         size="xs"
         value={state.chartTimeframe}
         onChange={handleTimeframeChange}

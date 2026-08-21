@@ -365,8 +365,8 @@ async def get_option_chain(
         chain = sorted(strike_map.values(), key=lambda x: x["strike"])
         
         # Calculate DS Summary
-        expiry_date = datetime.strptime(expiry, "%Y-%m-%d")
-        dte = (expiry_date - datetime.now()).days + 1
+        expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
+        dte = (expiry_date - datetime.now(config.IST)).days + 1
         
         expected_move = calculate_expected_move(spot_price, atm_iv, dte)
         max_pain = calculate_max_pain(chain)
@@ -377,7 +377,7 @@ async def get_option_chain(
             "underlying": underlying,
             "expiry": expiry,
             "spot": spot_price,
-            "timestamp": datetime.now().isoformat(),
+            "timestamp": datetime.now(config.IST).isoformat(),
             "chain": chain,
             "summary": {
                 "pcr": round(pcr, 2),

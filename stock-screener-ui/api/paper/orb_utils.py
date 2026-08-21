@@ -1,7 +1,15 @@
-"""ORB (Opening Range Breakout) signal computation utilities."""
+"""ORB signal computation utilities.
+
+Single source for OR levels is trading/orb_utils.py (calculate_or_levels, is_or_complete).
+This module provides paper-API-specific helpers (score, pivots) and re-exports
+the canonical OR-level functions for callers that previously imported from here.
+"""
 
 from datetime import datetime, timedelta
 import config
+
+# Re-export canonical OR-level logic (single source of truth in trading/orb_utils)
+from trading.orb_utils import calculate_or_levels, is_or_complete, get_or_end_time  # noqa: F401
 
 
 def compute_orb_score(current_price: float, or_high: float, or_low: float) -> float:

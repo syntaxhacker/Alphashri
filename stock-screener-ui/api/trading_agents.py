@@ -485,8 +485,11 @@ async def stream_analysis(
                                         tc_name = tc.get("name", "") or tc.get("function", {}).get("name", "")
                                         tc_args = tc.get("args", {}) or tc.get("function", {}).get("arguments", "")
                                     if isinstance(tc_args, str):
-                                        try: tc_args = json.loads(tc_args)
-                                        except: pass
+                                        try:
+                                            tc_args = json.loads(tc_args)
+                                        except Exception as _je:
+                                            logger.debug(f"tool_args json parse failed, keeping raw string: {_je} args={tc_args[:200]}")
+                                            # keep tc_args as raw string
                                     if tc_name:
                                         yield {
                                             "event": "tool_call",

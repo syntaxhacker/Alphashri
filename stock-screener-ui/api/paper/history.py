@@ -5,6 +5,8 @@ History endpoints for Paper Trading API.
 from datetime import datetime, timedelta
 from typing import Optional
 
+import pandas as pd
+
 from fastapi import HTTPException, Depends
 from pydantic import BaseModel, Field
 
@@ -12,6 +14,9 @@ from api.auth import get_current_user
 from db.models import User
 from db.database import SessionLocal
 import config
+import logging
+
+logger = logging.getLogger(__name__)
 
 from .paper_api import router, _get_user_id
 
@@ -81,9 +86,11 @@ def _get_trades_from_db(
     from db.database import SessionLocal
     from db.models import Trade as TradeModel
 
+    db = None
     try:
         db = SessionLocal()
-        query = db.query(TradeModel).filter(TradeModel.user_id == user_id, TradeModel.is_test == False)
+        # is_test exclusion uses Boolean column is_test; use is_(False) for explicit SQLA
+        query = db.query(TradeModel).filter(TradeModel.user_id == user_id, TradeModel.is_test.is_(False))
 
         if bot_id and bot_id != "default":
             from api.bots_api.bots_router import resolve_bot_id
@@ -92,16 +99,20 @@ def _get_trades_from_db(
                 query = query.filter(TradeModel.bot_id == numeric_bot_id)
 
         if symbol:
+            # parameterized via SQLA, safe for quotes e.g. "A'B"
             query = query.filter(TradeModel.symbol == symbol.upper())
 
         if strategy_id:
             query = query.filter(TradeModel.strategy_id == strategy_id)
 
         if from_date:
-            query = query.filter(TradeModel.exit_time >= datetime.strptime(from_date, '%Y-%m-%d').replace(tzinfo=config.IST))
+            # parse string date -> aware datetime for comparison with DateTime(timezone=True)
+            _from = pd.Timestamp(from_date, tz=config.IST).to_pydatetime()
+            query = query.filter(TradeModel.exit_time >= _from)
 
         if to_date:
-            query = query.filter(TradeModel.exit_time <= datetime.strptime(to_date, '%Y-%m-%d').replace(hour=23, minute=59, second=59, tzinfo=config.IST))
+            _to = pd.Timestamp(to_date, tz=config.IST).to_pydatetime().replace(hour=23, minute=59, second=59)
+            query = query.filter(TradeModel.exit_time <= _to)
 
         if not from_date and not to_date:
             cutoff = datetime.now(config.IST) - timedelta(days=days_back)
@@ -109,13 +120,15 @@ def _get_trades_from_db(
 
         query = query.order_by(TradeModel.exit_time.desc()).limit(limit)
         return [t.to_dict() for t in query.all()]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"_get_trades_from_db error: {e}", exc_info=True)
         return []
     finally:
-        try:
-            db.close()
-        except Exception:
-            pass
+        if db is not None:
+            try:
+                db.close()
+            except Exception as e:
+                logger.warning(f"_get_trades_from_db close error: {e}")
 
 
 def _get_trades_from_journals(
@@ -138,7 +151,8 @@ def _get_trades_from_journals(
         if to_date:
             trades = [t for t in trades if t.get('exit_time', '') <= to_date + ' 23:59:59']
         return trades[:limit]
-    except Exception:
+    except Exception as e:
+        logger.warning(f"_get_trades_from_journals error: {e}", exc_info=True)
         return []
 
 

@@ -4,6 +4,8 @@ from collections import defaultdict
 from datetime import datetime, timedelta
 from typing import Optional
 
+import pandas as pd
+
 from fastapi import Depends, HTTPException
 
 import config
@@ -21,7 +23,7 @@ def _parse_date(value: Optional[str], end_of_day: bool = False) -> Optional[date
     if not value:
         return None
     try:
-        parsed = datetime.strptime(value, "%Y-%m-%d").replace(tzinfo=config.IST)
+        parsed = pd.Timestamp(value, tz=config.IST).to_pydatetime()
         if end_of_day:
             return parsed.replace(hour=23, minute=59, second=59, microsecond=999999)
         return parsed
