@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { ReactElement } from "react";
 
@@ -130,6 +131,7 @@ describe("ScreenerSidePanel", () => {
   });
 
   it("Apply filters button triggers fetchData", async () => {
+      const user = userEvent.setup();
     mockProfileMetaById = { trending: { filters: trendingFilters } };
     renderWithProvider(
       <ScreenerSidePanel
@@ -137,7 +139,7 @@ describe("ScreenerSidePanel", () => {
         screenerOptions={[]}
       />,
     );
-    fireEvent.click(screen.getByRole("button", { name: /apply filters/i }));
+    await user.click(screen.getByRole("button", { name: /apply filters/i }));
     const api = await import("../../api");
     expect(api.fetchData).toHaveBeenCalledWith("upstox", "intraday", "trending", "manual");
   });

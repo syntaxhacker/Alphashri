@@ -17,7 +17,10 @@ function withAlpha(hex: string, alpha: number): string {
 }
 import type { PaperBotSnapshot } from "../../types/paperTrading";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function r(jsx: React.ReactElement) {
   return renderWithMantine(jsx);
@@ -174,7 +177,9 @@ describe("WatchlistScan2", () => {
     test("shows count badge with total items", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      expect(screen.getByText("5")).toBeInTheDocument();
+      expect(screen.getByTestId("watchlist-count")).toBeInTheDocument();
+      expect(screen.getByTestId("watchlist-count")).toHaveTextContent("5");
+      expect(within(card()).getByTestId("watchlist-count")).toBeInTheDocument();
     });
 
     test("shows scan timestamp", () => {
@@ -195,7 +200,7 @@ describe("WatchlistScan2", () => {
           onRefresh={onRefresh}
         />,
       );
-      const refreshBtn = within(card()).getAllByRole("button")[0];
+      const refreshBtn = screen.getByTestId("watchlist-refresh");
       await user.click(refreshBtn);
       expect(onRefresh).toHaveBeenCalledTimes(1);
     });
@@ -210,7 +215,7 @@ describe("WatchlistScan2", () => {
           refreshing
         />,
       );
-      const refreshBtn = within(card()).getAllByRole("button")[0];
+      const refreshBtn = screen.getByTestId("watchlist-refresh");
       expect(refreshBtn).toBeInTheDocument();
     });
   });
@@ -272,7 +277,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(queryRow("HDFC")).not.toBeInTheDocument();
-      await user.click(screen.getByText(/Skipped/));
+      await user.click(screen.getByLabelText(/Skipped/));
       expect(row("HDFC")).toBeInTheDocument();
     });
 
@@ -280,9 +285,9 @@ describe("WatchlistScan2", () => {
       const user = userEvent.setup();
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByText(/Skipped/));
+      await user.click(screen.getByLabelText(/Skipped/));
       expect(row("HDFC")).toBeInTheDocument();
-      await user.click(screen.getByText(/Skipped/));
+      await user.click(screen.getByLabelText(/Skipped/));
       expect(queryRow("HDFC")).not.toBeInTheDocument();
     });
   });
@@ -403,7 +408,7 @@ describe("WatchlistScan2", () => {
       const user = userEvent.setup();
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByText(/Skipped/));
+      await user.click(screen.getByLabelText(/Skipped/));
       styleContains("HDFC", "var(--mantine-color-gray-5)");
     });
   });
@@ -505,7 +510,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(screen.getByText(/\+1 skipped/)).toBeInTheDocument();
-      await user.click(screen.getByText(/Skipped/));
+      await user.click(screen.getByLabelText(/Skipped/));
       expect(screen.getByText(/Showing 5 of 5/)).toBeInTheDocument();
       expect(screen.queryByText(/\+1 skipped/)).not.toBeInTheDocument();
     });
@@ -612,7 +617,7 @@ describe("WatchlistScan2", () => {
       const user = userEvent.setup();
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      await user.click(screen.getByText(/Skipped/));
+      await user.click(screen.getByLabelText(/Skipped/));
       const cells = within(row("HDFC")).getAllByRole("cell");
       expect(cells[1]).toHaveTextContent("-");
     });
@@ -742,7 +747,7 @@ describe("WatchlistScan2", () => {
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       expect(row("AAPL")).toBeInTheDocument();
       expect(row("GOOGL")).toBeInTheDocument();
-      expect(screen.getByText("2")).toBeInTheDocument();
+      expect(screen.getByTestId("watchlist-count")).toHaveTextContent("2");
     });
 
     test("item with undefined price shows dash", () => {

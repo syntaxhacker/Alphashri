@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 import { useNotification } from "./useNotification";
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 // Mock Mantine notifications
 const mockNotifications = vi.hoisted(() => ({

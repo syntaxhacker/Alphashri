@@ -36,7 +36,7 @@ describe("previewChart module", () => {
 
     vi.advanceTimersByTime(300);
 
-    expect(document.getElementById("chart-hover-popup")).toBeTruthy();
+    expect(document.getElementById("chart-hover-popup")).toBeInTheDocument();
     expect(document.getElementById("chart-hover-popup")?.style.display).toBe("block");
   });
 
@@ -57,7 +57,7 @@ describe("previewChart module", () => {
     mod.toggleExpandedChart("TEST");
     vi.advanceTimersByTime(100);
 
-    expect(document.getElementById("chart-expanded-panel")).toBeTruthy();
+    expect(document.getElementById("chart-expanded-panel")).toBeInTheDocument();
     expect(document.getElementById("chart-expanded-panel")?.style.display).toBe("block");
   });
 

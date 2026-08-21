@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { NavbarNested } from "./NavbarNested";
 import { UIProvider, AppShell } from "@/ui";
 import { useAuth } from "../auth/AuthProvider2";
@@ -157,21 +158,23 @@ describe("NavbarNested", () => {
     expect(sectorNav).toHaveAttribute("data-active", "false");
   });
 
-  it("calls toggleColorScheme when theme toggle is clicked", () => {
+  it("calls toggleColorScheme when theme toggle is clicked", async () => {
+      const user = userEvent.setup();
     // Clear previous mock calls
     mockToggleColorScheme.mockClear();
 
     renderNav();
     const themeBtn = screen.getByTestId("theme-toggle-btn");
-    themeBtn.click();
+    await user.click(themeBtn);
     expect(mockToggleColorScheme).toHaveBeenCalled();
   });
 
-  it("calls onToggleCollapse when collapse toggle is clicked", () => {
+  it("calls onToggleCollapse when collapse toggle is clicked", async () => {
+      const user = userEvent.setup();
     const onToggleCollapse = vi.fn();
     renderNav({ ...defaultProps, onToggleCollapse });
     const toggleBtn = screen.getByTestId("sidebar-collapse-toggle");
-    toggleBtn.click();
+    await user.click(toggleBtn);
     expect(onToggleCollapse).toHaveBeenCalled();
   });
 

@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { TestWrapper } from "../../test/test-utils";
 import { SettingsActions } from "./SettingsActions";
 
@@ -57,19 +58,21 @@ describe("SettingsActions", () => {
     expect(screen.getByTestId("save-settings-button")).toBeDisabled();
   });
 
-  it("calls onSave when save button is clicked", () => {
+  it("calls onSave when save button is clicked", async () => {
+      const user = userEvent.setup();
     const onSave = vi.fn();
     render(<SettingsActions {...defaultProps} onSave={onSave} dirty={true} />, {
       wrapper: TestWrapper,
     });
-    screen.getByTestId("save-settings-button").click();
+    await user.click(screen.getByTestId("save-settings-button"));
     expect(onSave).toHaveBeenCalled();
   });
 
-  it("calls onReset when reset button is clicked", () => {
+  it("calls onReset when reset button is clicked", async () => {
+      const user = userEvent.setup();
     const onReset = vi.fn();
     render(<SettingsActions {...defaultProps} onReset={onReset} />, { wrapper: TestWrapper });
-    screen.getByTestId("reset-settings-button").click();
+    await user.click(screen.getByTestId("reset-settings-button"));
     expect(onReset).toHaveBeenCalled();
   });
 });

@@ -8,6 +8,8 @@ import { StrategiesNav } from "./StrategiesNav";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 describe("StrategiesNav", () => {

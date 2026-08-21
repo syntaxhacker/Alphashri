@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { PositionsPanel } from "./PositionsPanel";
@@ -7,7 +7,10 @@ import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 import { renderWithMantine } from "../../../test-utils/renderWithMantine";
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("PositionsPanel", () => {
   it("shows loading state", () => {

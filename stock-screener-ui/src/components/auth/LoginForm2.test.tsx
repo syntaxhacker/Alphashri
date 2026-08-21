@@ -161,7 +161,7 @@ describe("RegisterForm", () => {
     expect(screen.getByTestId("register-form")).toBeInTheDocument();
   });
 
-  it("shows error from useAuth.error when API call fails", async () => {
+  it("shows error from useAuth.error when API call fails", () => {
     mockUseAuth.mockReturnValue({
       login: mockLogin,
       register: mockRegister,

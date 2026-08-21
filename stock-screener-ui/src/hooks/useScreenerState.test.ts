@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 import { useScreenerState } from "./useScreenerState";
 import * as state from "../state";
 import { fetchData, loadScreeners, setupAutoRefresh } from "../api";
@@ -46,6 +46,7 @@ describe("useScreenerState", () => {
   });
 
   afterEach(() => {
+  cleanup();
     vi.clearAllMocks();
   });
 

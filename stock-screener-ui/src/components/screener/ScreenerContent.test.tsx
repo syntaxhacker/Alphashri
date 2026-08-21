@@ -7,6 +7,11 @@ import { ScreenerContent } from "./ScreenerContent";
 import type { ReactElement } from "react";
 import type { Stock } from "../../types";
 
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
 const renderWithProvider = (ui: ReactElement) =>
   render(<UIProvider>{ui}</UIProvider>);
 

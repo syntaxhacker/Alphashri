@@ -5,8 +5,12 @@ import { UIProvider } from "@/ui";
 import { BacktestConfig } from "./BacktestConfig";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -144,21 +148,23 @@ describe("BacktestConfig", () => {
     expect(screen.getByTestId("run-backtest-btn")).not.toBeDisabled();
   });
 
-  it("clicking run button calls onRun", () => {
+  it("clicking run button calls onRun", async () => {
+      const user = userEvent.setup();
     const onRun = vi.fn();
     render(<BacktestConfig {...defaultProps({ onRun, selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
-    screen.getByTestId("run-backtest-btn").click();
+    await user.click(screen.getByTestId("run-backtest-btn"));
     expect(onRun).toHaveBeenCalled();
   });
 
   it("run menu button opens menu with correct items", async () => {
+      const user = userEvent.setup();
     render(<BacktestConfig {...defaultProps({ selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
     const menuBtn = screen.getByTestId("run-menu-btn");
-    menuBtn.click();
+    await user.click(menuBtn);
     await waitFor(() => {
       expect(screen.getByTestId("menu-run-backtest")).toBeInTheDocument();
     });
@@ -167,6 +173,7 @@ describe("BacktestConfig", () => {
   });
 
   it("selecting 'Run & Save to History' calls onSaveToHistoryChange and onRun", async () => {
+      const user = userEvent.setup();
     const onRun = vi.fn();
     const onSaveToHistoryChange = vi.fn();
     render(
@@ -175,7 +182,7 @@ describe("BacktestConfig", () => {
       />,
       { wrapper: Wrapper },
     );
-    screen.getByTestId("run-menu-btn").click();
+    await user.click(screen.getByTestId("run-menu-btn"));
     const menuItem = await screen.findByTestId("menu-run-save");
     menuItem.click();
     expect(onSaveToHistoryChange).toHaveBeenCalledWith(true);
@@ -183,13 +190,14 @@ describe("BacktestConfig", () => {
   });
 
   it("selecting 'Reset Config' calls onReset", async () => {
+      const user = userEvent.setup();
     const onReset = vi.fn();
     render(<BacktestConfig {...defaultProps({ onReset, selectedSymbols: ["TCS"] })} />, {
       wrapper: Wrapper,
     });
-    screen.getByTestId("run-menu-btn").click();
+    await user.click(screen.getByTestId("run-menu-btn"));
     const resetBtn = await screen.findByTestId("reset-btn");
-    resetBtn.click();
+    await user.click(resetBtn);
     expect(onReset).toHaveBeenCalled();
   });
 

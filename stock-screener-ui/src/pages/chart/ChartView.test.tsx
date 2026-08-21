@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import ChartView from "./ChartView";
@@ -242,7 +242,7 @@ describe("ChartView", () => {
       expect(screen.getByTestId("chart-back-btn")).toBeInTheDocument();
     });
     const backBtn = screen.getByTestId("chart-back-btn");
-    backBtn.click();
+    await user.click(backBtn);
     expect(mockNavigate).toHaveBeenCalledWith(-1);
   });
 
@@ -307,6 +307,7 @@ describe("ChartView", () => {
   });
 
   it("navigates back when symbol param is missing", async () => {
+      const user = userEvent.setup();
     const mockNavigate = vi.fn();
     vi.mocked(useNavigate).mockReturnValue(mockNavigate);
     vi.mocked(useParams).mockReturnValue({ symbol: "" });
@@ -318,7 +319,7 @@ describe("ChartView", () => {
     await waitFor(() => {
       expect(screen.getByTestId("chart-view-error")).toBeInTheDocument();
     });
-    fireEvent.click(screen.getByText("Back to Screener"));
+    await user.click(screen.getByText("Back to Screener"));
     expect(mockNavigate).toHaveBeenCalledWith("/");
   });
 });

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { UIProvider } from "@/ui";
 
@@ -83,13 +84,14 @@ describe("ScreenerHeader", () => {
     expect(screen.getByText("5 stocks")).toBeInTheDocument();
   });
 
-  it("calls onRefresh when refresh button clicked", () => {
+  it("calls onRefresh when refresh button clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("refresh-btn"));
+    await user.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
@@ -133,14 +135,15 @@ describe("ScreenerHeader", () => {
     expect(modeSelect).toBeDisabled();
   });
 
-  it("calls onAutoRefreshChange when auto-refresh value changes", () => {
+  it("calls onAutoRefreshChange when auto-refresh value changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
-    fireEvent.change(input, { target: { value: "120" } });
+    await user.clear(input); await user.type(input, "120");
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalledWith(120);
   });
 
@@ -156,14 +159,15 @@ describe("ScreenerHeader", () => {
     expect(screen.getByText("IND")).toBeInTheDocument();
   });
 
-  it("calls onProviderChange when provider changes", () => {
+  it("calls onProviderChange when provider changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
-    fireEvent.change(select, { target: { value: "indmoney" } });
+    await user.clear(select); await user.type(select, "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
@@ -179,14 +183,15 @@ describe("ScreenerHeader", () => {
     expect(screen.getByText("5D")).toBeInTheDocument();
   });
 
-  it("calls onModeChange when mode changes", () => {
+  it("calls onModeChange when mode changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
-    fireEvent.change(select, { target: { value: "historical" } });
+    await user.clear(select); await user.type(select, "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
@@ -200,23 +205,25 @@ describe("ScreenerHeader", () => {
     expect(screen.getByTestId("view-heatmap")).toBeInTheDocument();
   });
 
-  it("calls onViewModeChange when table button clicked", () => {
+  it("calls onViewModeChange when table button clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} viewMode="heatmap" />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("view-table"));
+    await user.click(screen.getByTestId("view-table"));
     expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("table");
   });
 
-  it("calls onViewModeChange when heatmap button clicked", () => {
+  it("calls onViewModeChange when heatmap button clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("view-heatmap"));
+    await user.click(screen.getByTestId("view-heatmap"));
     expect(defaultProps.onViewModeChange).toHaveBeenCalledWith("heatmap");
   });
 
@@ -260,36 +267,39 @@ describe("ScreenerHeader", () => {
     expect(input).toHaveValue("3600");
   });
 
-  it("passes correct auto-refresh value to onAutoRefreshChange", () => {
+  it("passes correct auto-refresh value to onAutoRefreshChange", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
-    fireEvent.change(input, { target: { value: "300" } });
+    await user.clear(input); await user.type(input, "300");
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalledWith(300);
   });
 
-  it("handles provider change to indmoney", () => {
+  it("handles provider change to indmoney", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
     const providerSelect = screen.getByTestId("provider-select");
-    fireEvent.change(providerSelect, { target: { value: "indmoney" } });
+    await user.clear(providerSelect); await user.type(providerSelect, "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
-  it("handles mode change to historical", () => {
+  it("handles mode change to historical", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerHeader {...defaultProps} />
       </UIProvider>,
     );
     const modeSelect = screen.getByTestId("mode-select");
-    fireEvent.change(modeSelect, { target: { value: "historical" } });
+    await user.clear(modeSelect); await user.type(modeSelect, "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 

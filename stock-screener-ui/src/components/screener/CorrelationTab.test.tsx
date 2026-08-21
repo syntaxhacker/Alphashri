@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor, act } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { MemoryRouter } from "react-router-dom";
 import type { ReactElement } from "react";
@@ -114,13 +115,14 @@ describe("CorrelationTab", () => {
   });
 
   it("calls searchSymbols on search input", async () => {
+      const user = userEvent.setup();
     mockSearchSymbols.mockResolvedValueOnce([
       { symbol: "RELIANCE", name: "Reliance Industries" },
     ]);
     renderWithProvider(<CorrelationTab />);
     const input = screen.getByPlaceholderText("Search and select symbols");
     await act(async () => {
-      fireEvent.change(input, { target: { value: "REL" } });
+      await user.clear(input); await user.type(input, "REL");
     });
     await waitFor(() => {
       expect(mockSearchSymbols).toHaveBeenCalledWith("REL", 10);
@@ -143,11 +145,12 @@ describe("CorrelationTab", () => {
     expect(screen.getByText("90d")).toBeInTheDocument();
   });
 
-  it("Calculate button triggers fetchCorrelationData", () => {
+  it("Calculate button triggers fetchCorrelationData", async () => {
+      const user = userEvent.setup();
     mockSymbols = ["RELIANCE", "TCS"];
     renderWithProvider(<CorrelationTab />);
     const calcBtn = screen.getByRole("button", { name: /Calculate/ });
-    fireEvent.click(calcBtn);
+    await user.click(calcBtn);
     expect(mockFetchCorrelationData).toHaveBeenCalled();
   });
 
@@ -225,6 +228,7 @@ describe("CorrelationTab", () => {
     });
 
     it("updates URL search params on calculate", async () => {
+      const user = userEvent.setup();
       mockSymbols = ["RELIANCE", "TCS", "INFY"];
       const { MemoryRouter, useSearchParams } = await import("react-router-dom");
       render(
@@ -234,7 +238,7 @@ describe("CorrelationTab", () => {
           </UIProvider>
         </MemoryRouter>,
       );
-      fireEvent.click(screen.getByRole("button", { name: /Calculate/ }));
+      await user.click(screen.getByRole("button", { name: /Calculate/ }));
       await waitFor(() => {
         expect(mockFetchCorrelationData).toHaveBeenCalled();
       });

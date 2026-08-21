@@ -74,7 +74,7 @@ describe("MarketTicker", () => {
     expect(screen.getByTestId("market-ticker")).toBeInTheDocument();
   });
 
-  it("fetches ticker data on mount", async () => {
+  it("fetches ticker data on mount", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,

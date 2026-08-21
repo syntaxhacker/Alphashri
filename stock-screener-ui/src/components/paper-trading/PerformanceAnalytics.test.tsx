@@ -14,7 +14,10 @@ vi.mock("echarts-for-react", () => ({
   default: () => <div data-testid="mock-echarts">ECharts</div>,
 }));
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("PerformanceAnalytics", () => {
   beforeEach(() => {
@@ -96,7 +99,7 @@ describe("PerformanceAnalytics", () => {
   test("shows loading spinner when analyticsLoading is true", () => {
     paperTradingState.setAnalyticsLoading(true);
     renderWithMantine(<PerformanceAnalytics />);
-    expect(document.querySelector(".mantine-Loader-root")).toBeTruthy();
+    expect(document.querySelector(".mantine-Loader-root")).toBeInTheDocument();
   });
 
   test("renders daysBack SegmentedControl (7d/30d/90d) when data available", () => {

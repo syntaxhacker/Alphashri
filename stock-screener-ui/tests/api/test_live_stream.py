@@ -85,25 +85,28 @@ class TestLiveStreamTokenResolution:
     ):
         call_order = []
 
-        def fake_db_token():
+        def fake_db_token(*args, **kwargs):
             call_order.append("db")
             return None
 
-        def fake_file_token():
+        # Patch the DB token lookup and file existence check
+        mock_db = MagicMock(side_effect=fake_db_token)
+
+        def fake_exists(self):
             call_order.append("file")
-            return None
+            return False
 
-        def fake_env_token():
-            call_order.append("env")
-            return "env_token_123"
+        monkeypatch.setattr("db.models.get_shared_broker_token", mock_db)
+        monkeypatch.setattr("pathlib.Path.exists", fake_exists)
 
-        monkeypatch.setattr(
-            "api.paper.live_stream._get_upstox_token",
-            fake_db_token,
-        )
+        from api.paper.live_stream import _get_upstox_token
 
-        response = auth_client.get("/api/paper/live/stream")
-        assert response.status_code in (200, 404, 401)
+        result = _get_upstox_token()
+        assert result is None
+        assert call_order == ["db", "file"]
+        assert mock_db.call_count == 1
+        # Path.exists should have been called once for the token file
+        # Verify fallback order is DB -> file
 
 
 class TestLiveStreamWithPositions:

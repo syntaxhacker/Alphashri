@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { GreeksPanel } from "./GreeksPanel";
 import { renderWithMantine } from "../../../test-utils/renderWithMantine";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("GreeksPanel", () => {
   it("renders panel container", () => {

@@ -111,7 +111,7 @@ async function navigateAndClickPosition(page: Page, symbol: string = "TCS") {
   // networkidle times out due to SSE live-price stream; wait for target element instead
   await page.waitForSelector('[data-testid^="position-row-"]', { timeout: 15000 });
 
-  const positionRow = page.locator(`[data-testid="position-row-${symbol}"]`);
+  const positionRow = page.locator(`[data-testid$="-${symbol}"]`);
   await expect(positionRow).toBeVisible({ timeout: 10000 });
   // Click the symbol link inside the row, not the row itself (row click only toggles expansion)
   await positionRow.locator(".symbol-link").click();

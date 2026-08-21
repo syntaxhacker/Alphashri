@@ -5,7 +5,10 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainGuide } from "./OptionChainGuide";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("OptionChainGuide", () => {
   it("renders guide modal when opened", () => {

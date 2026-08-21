@@ -5,7 +5,10 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainHeader } from "./OptionChainHeader";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("OptionChainHeader", () => {
   const defaultProps = {

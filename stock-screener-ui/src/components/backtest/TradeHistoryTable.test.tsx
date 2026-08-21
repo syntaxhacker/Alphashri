@@ -7,8 +7,12 @@ import { sortTrades, TradeHistoryTable } from "./TradeHistoryTable";
 import type { Trade } from "../../types/backtest";
 import { TINT_LOSS_ROW } from "../../config/colors";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -399,7 +403,7 @@ describe("TradeHistoryTable rendering", () => {
     const cells = screen.getAllByText(/^₹/);
     const greenCell = cells.find((c) => c.getAttribute("style")?.includes("green"));
     const redCell = cells.find((c) => c.getAttribute("style")?.includes("red"));
-    expect(greenCell || redCell).toBeTruthy();
+    expect(greenCell || redCell).toBeInTheDocument();
   });
 
   test("% column shows sign (+/-)", () => {
@@ -430,13 +434,14 @@ describe("TradeHistoryTable rendering", () => {
     expect(screen.getByText("EOD")).toBeInTheDocument();
   });
 
-  test("row click calls onRowClick", () => {
+  test("row click calls onRowClick", async () => {
+      const user = userEvent.setup();
     const trades = [makeTrade()];
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
     const row = screen.getByTestId("trade-history-row-0");
-    row.click();
+    await user.click(row);
     expect(onRowClick).toHaveBeenCalledWith(0);
   });
 

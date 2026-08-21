@@ -8,6 +8,8 @@ import type { ReplayTrade, ReplaySummary } from "../../types/replay";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 describe("ReplayStats", () => {
@@ -113,7 +115,7 @@ describe("ReplayStats", () => {
         <ReplayStats trades={[]} summary={null} progress={progress} totalCandles={200} isRunning={true} />
       </UIProvider>,
     );
-    expect(document.querySelector(".mantine-Progress-root")).toBeTruthy();
+    expect(document.querySelector(".mantine-Progress-root")).toBeInTheDocument();
   });
 
   it("calculates win rate from trades when summary is null", () => {

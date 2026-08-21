@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { TanStackTable } from "./TanStackTable";
 
 vi.mock("@/ui", () => ({
@@ -42,24 +43,25 @@ const data: TestItem[] = [
 describe("TanStackTable", () => {
   it("renders data rows and headers", () => {
     render(<TanStackTable<TestItem> data={data} columns={columns} />);
-    expect(screen.getByText("Alpha")).toBeTruthy();
-    expect(screen.getByText("Beta")).toBeTruthy();
-    expect(screen.getByText("Name")).toBeTruthy();
-    expect(screen.getByText("Value")).toBeTruthy();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Value")).toBeInTheDocument();
   });
 
-  it("renders sort indicator when header is clicked", () => {
+  it("renders sort indicator when header is clicked", async () => {
+      const user = userEvent.setup();
     render(<TanStackTable<TestItem> data={data} columns={columns} />);
     const nameTh = screen.getByText("Name").closest("th")!;
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▲");
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▼");
   });
 
   it("shows loading state when loading and data is empty", () => {
     render(<TanStackTable<TestItem> data={[]} columns={columns} loading />);
-    expect(screen.getByTestId("table-loading-state")).toBeTruthy();
+    expect(screen.getByTestId("table-loading-state")).toBeInTheDocument();
   });
 
   it("shows empty state when data is empty and not loading", () => {
@@ -70,16 +72,17 @@ describe("TanStackTable", () => {
         emptyMessage="No items found"
       />,
     );
-    expect(screen.getByText("No items found")).toBeTruthy();
+    expect(screen.getByText("No items found")).toBeInTheDocument();
   });
 
   it("shows data when loading but data is not empty", () => {
     render(<TanStackTable<TestItem> data={data} columns={columns} loading />);
-    expect(screen.getByText("Alpha")).toBeTruthy();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.queryByTestId("table-loading-state")).toBeNull();
   });
 
-  it("fires onRowClick with correct row data", () => {
+  it("fires onRowClick with correct row data", async () => {
+      const user = userEvent.setup();
     const handleRowClick = vi.fn();
     render(
       <TanStackTable<TestItem>
@@ -89,7 +92,7 @@ describe("TanStackTable", () => {
       />,
     );
     const rows = screen.getAllByRole("row");
-    fireEvent.click(rows[1]);
+    await user.click(rows[1]);
     expect(handleRowClick).toHaveBeenCalledWith(data[0]);
   });
 
@@ -101,12 +104,12 @@ describe("TanStackTable", () => {
         dataTestId="my-table"
       />,
     );
-    expect(screen.getByTestId("my-table")).toBeTruthy();
+    expect(screen.getByTestId("my-table")).toBeInTheDocument();
   });
 
   it("shows default empty message when not provided", () => {
     render(<TanStackTable<TestItem> data={[]} columns={columns} />);
-    expect(screen.getByText("No data")).toBeTruthy();
+    expect(screen.getByText("No data")).toBeInTheDocument();
   });
 
   it("renders empty state with icon and action", () => {
@@ -119,9 +122,9 @@ describe("TanStackTable", () => {
         emptyAction={<button>Add Item</button>}
       />,
     );
-    expect(screen.getByText("Custom empty")).toBeTruthy();
-    expect(screen.getByText("Add Item")).toBeTruthy();
-    expect(screen.getByTestId("custom-icon")).toBeTruthy();
+    expect(screen.getByText("Custom empty")).toBeInTheDocument();
+    expect(screen.getByText("Add Item")).toBeInTheDocument();
+    expect(screen.getByTestId("custom-icon")).toBeInTheDocument();
   });
 
   it("applies sticky header by default", () => {
@@ -150,8 +153,8 @@ describe("TanStackTable", () => {
         getRowTestId={(row) => `row-${row.id}`}
       />,
     );
-    expect(screen.getByTestId("row-1")).toBeTruthy();
-    expect(screen.getByTestId("row-2")).toBeTruthy();
+    expect(screen.getByTestId("row-1")).toBeInTheDocument();
+    expect(screen.getByTestId("row-2")).toBeInTheDocument();
   });
 
   it("applies right alignment from column meta to header and cells", () => {
@@ -264,12 +267,12 @@ describe("TanStackTable", () => {
         getGroupRowTestId={(value) => `group-row-${String(value)}`}
       />,
     );
-    expect(screen.getByTestId("group-row-A")).toBeTruthy();
-    expect(screen.getByTestId("group-row-B")).toBeTruthy();
+    expect(screen.getByTestId("group-row-A")).toBeInTheDocument();
+    expect(screen.getByTestId("group-row-B")).toBeInTheDocument();
     expect(screen.getByTestId("group-label-A").textContent).toContain("Group A (2)");
-    expect(screen.getByText("Alpha")).toBeTruthy();
-    expect(screen.getByText("Beta")).toBeTruthy();
-    expect(screen.getByText("Gamma")).toBeTruthy();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+    expect(screen.getByText("Gamma")).toBeInTheDocument();
   });
 
   it("hides leaf rows of a collapsed group but keeps the group header", () => {
@@ -293,35 +296,37 @@ describe("TanStackTable", () => {
       />,
     );
     // Group A expanded → its leaf row visible; group B collapsed → leaf hidden
-    expect(screen.getByText("Alpha")).toBeTruthy();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
     expect(screen.queryByText("Gamma")).toBeNull();
-    expect(screen.getByTestId("group-row-B")).toBeTruthy();
+    expect(screen.getByTestId("group-row-B")).toBeInTheDocument();
   });
 
-  it("clears sorting on third click by default (enableSortingRemoval)", () => {
+  it("clears sorting on third click by default (enableSortingRemoval)", async () => {
+      const user = userEvent.setup();
     render(<TanStackTable<TestItem> data={data} columns={columns} />);
     const nameTh = screen.getByText("Name").closest("th")!;
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▲");
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▼");
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).not.toContain("▲");
     expect(nameTh.textContent).not.toContain("▼");
   });
 
-  it("keeps toggling asc/desc without removal when enableSortingRemoval is false", () => {
+  it("keeps toggling asc/desc without removal when enableSortingRemoval is false", async () => {
+      const user = userEvent.setup();
     render(
       <TanStackTable<TestItem> data={data} columns={columns} enableSortingRemoval={false} />,
     );
     // String columns sort ascending first, then descending, then back to
     // ascending (never removed) when sorting removal is disabled.
     const nameTh = screen.getByText("Name").closest("th")!;
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▲");
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▼");
-    fireEvent.click(nameTh);
+    await user.click(nameTh);
     expect(nameTh.textContent).toContain("▲");
   });
 

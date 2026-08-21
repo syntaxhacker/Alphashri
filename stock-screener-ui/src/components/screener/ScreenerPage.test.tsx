@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render as rtlRender, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render as rtlRender, screen, cleanup } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { ScreenerPage } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 
@@ -244,13 +245,14 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-retry-btn")).toBeInTheDocument();
   });
 
-  it("calls onRefresh when retry button clicked", () => {
+  it("calls onRefresh when retry button clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} error="Error occurred" />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("screener-retry-btn"));
+    await user.click(screen.getByTestId("screener-retry-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
@@ -294,43 +296,46 @@ describe("ScreenerPage", () => {
     expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
-  it("switches to heatmap view when view mode changes", () => {
+  it("switches to heatmap view when view mode changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("view-heatmap"));
+    await user.click(screen.getByTestId("view-heatmap"));
     // Both approaching and touched sections render heatmaps
     expect(screen.getByTestId("screener-heatmap-approaching")).toBeInTheDocument();
     expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
   });
 
-  it("switches back to table view", () => {
+  it("switches back to table view", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
     // Switch to heatmap first
-    fireEvent.click(screen.getByTestId("view-heatmap"));
+    await user.click(screen.getByTestId("view-heatmap"));
     expect(screen.getByTestId("screener-heatmap-approaching")).toBeInTheDocument();
     expect(screen.getByTestId("screener-heatmap-touched")).toBeInTheDocument();
 
     // Switch back to table
-    fireEvent.click(screen.getByTestId("view-table"));
+    await user.click(screen.getByTestId("view-table"));
     expect(screen.getByTestId("screener-table-approaching")).toBeInTheDocument();
     expect(screen.getByTestId("screener-table-touched")).toBeInTheDocument();
   });
 
-  it("calls onSymbolClick when symbol is clicked in table", () => {
+  it("calls onSymbolClick when symbol is clicked in table", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
     // The table mock renders rows with data-testid like `row-RELIANCE`
-    fireEvent.click(screen.getByTestId("row-RELIANCE"));
+    await user.click(screen.getByTestId("row-RELIANCE"));
     // Since we mocked ScreenerTable, we need to verify the prop is passed
   });
 
@@ -355,13 +360,14 @@ describe("ScreenerPage", () => {
     expect(nav).toHaveAttribute("data-options-count", "2");
   });
 
-  it("calls onScreenerChange when navigation option clicked", () => {
+  it("calls onScreenerChange when navigation option clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("nav-new-highs"));
+    await user.click(screen.getByTestId("nav-new-highs"));
     expect(defaultProps.onScreenerChange).toHaveBeenCalledWith("new-highs");
   });
 
@@ -386,46 +392,50 @@ describe("ScreenerPage", () => {
     expect(header).toHaveAttribute("data-loading", "true");
   });
 
-  it("calls onRefresh when refresh button clicked", () => {
+  it("calls onRefresh when refresh button clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("refresh-btn"));
+    await user.click(screen.getByTestId("refresh-btn"));
     expect(defaultProps.onRefresh).toHaveBeenCalledTimes(1);
   });
 
-  it("calls onAutoRefreshChange when auto-refresh value changes", () => {
+  it("calls onAutoRefreshChange when auto-refresh value changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
     const input = screen.getByTestId("auto-refresh-input");
-    fireEvent.change(input, { target: { value: "120" } });
+    await user.clear(input); await user.type(input, "120");
     expect(defaultProps.onAutoRefreshChange).toHaveBeenCalledWith(120);
   });
 
-  it("calls onProviderChange when provider changes", () => {
+  it("calls onProviderChange when provider changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
-    fireEvent.change(select, { target: { value: "indmoney" } });
+    await user.clear(select); await user.type(select, "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
-  it("calls onModeChange when mode changes", () => {
+  it("calls onModeChange when mode changes", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
-    fireEvent.change(select, { target: { value: "historical" } });
+    await user.clear(select); await user.type(select, "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 

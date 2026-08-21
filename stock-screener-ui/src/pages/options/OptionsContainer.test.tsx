@@ -12,6 +12,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 // Mock the hook and child component

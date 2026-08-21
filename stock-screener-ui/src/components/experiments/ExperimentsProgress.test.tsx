@@ -42,7 +42,10 @@ function makeState(overrides: Partial<ExperimentState> = {}): ExperimentState {
   };
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("ExperimentsProgress", () => {
   beforeEach(() => {

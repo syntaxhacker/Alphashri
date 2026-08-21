@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { NewsList } from "./NewsList";
 import type { NewsItem } from "./news-types";
 import { TestWrapper } from "../../test/test-utils";
@@ -143,31 +144,34 @@ describe("NewsList", () => {
       expect(onArticleClick).not.toHaveBeenCalled();
     });
 
-    it("calls onRefresh when refresh button is clicked", () => {
+    it("calls onRefresh when refresh button is clicked", async () => {
+      const user = userEvent.setup();
       const onRefresh = vi.fn();
       render(<NewsList {...defaultProps} onRefresh={onRefresh} />, { wrapper: TestWrapper });
-      screen.getByTestId("news-feed-refresh-btn").click();
+      await user.click(screen.getByTestId("news-feed-refresh-btn"));
       expect(onRefresh).toHaveBeenCalled();
     });
 
-    it("calls onArticleClick when article is clicked", () => {
+    it("calls onArticleClick when article is clicked", async () => {
+      const user = userEvent.setup();
       const onArticleClick = vi.fn();
       render(<NewsList {...defaultProps} onArticleClick={onArticleClick} />, {
         wrapper: TestWrapper,
       });
 
       const article = screen.getByText("Test News 1");
-      article.click();
+      await user.click(article);
 
       expect(onArticleClick).toHaveBeenCalledWith(mockNewsItems[0]);
     });
 
-    it("calls toggleSourceExpanded when source group header is clicked", () => {
+    it("calls toggleSourceExpanded when source group header is clicked", async () => {
+      const user = userEvent.setup();
       const toggleSourceExpanded = vi.fn();
       render(<NewsList {...defaultProps} toggleSourceExpanded={toggleSourceExpanded} />, {
         wrapper: TestWrapper,
       });
-      screen.getByTestId("news-source-group-Reuters").click();
+      await user.click(screen.getByTestId("news-source-group-Reuters"));
       expect(toggleSourceExpanded).toHaveBeenCalledWith("Reuters");
     });
 
@@ -278,15 +282,16 @@ describe("NewsList", () => {
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
-    it("handles rapid article clicks", () => {
+    it("handles rapid article clicks", async () => {
+      const user = userEvent.setup();
       const onArticleClick = vi.fn();
       render(<NewsList {...defaultProps} onArticleClick={onArticleClick} />, {
         wrapper: TestWrapper,
       });
 
       const article = screen.getByText("Test News 1");
-      article.click();
-      article.click();
+      await user.click(article);
+      await user.click(article);
 
       expect(onArticleClick).toHaveBeenCalledTimes(2);
     });

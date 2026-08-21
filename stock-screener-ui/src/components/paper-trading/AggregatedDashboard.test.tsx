@@ -141,7 +141,10 @@ describe("AggregatedDashboard", () => {
     fetchDashboardAnalytics.mockClear();
   });
 
-  afterEach(cleanup);
+  afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
   it("loads all bots 30D analytics by default", async () => {
     renderWithMantine(<AggregatedDashboard />);
