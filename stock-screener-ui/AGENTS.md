@@ -312,6 +312,20 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
 - Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
 
+## Stock EDA Reports (research skill)
+
+- Reusable procedure for producing a volume / big-player / fundamentals EDA report for any NSE ticker:
+  **`.prime/agent/skills/stock-eda-report/`** (Prime Agent skill `stock-eda-report`).
+- One-shot generator (run from repo root, project venv):
+  ```bash
+  .venv/bin/python .prime/agent/skills/stock-eda-report/scripts/generate_stock_eda_report.py --symbol NETWEB
+  ```
+  Or reuse cached CSVs with `--daily-csv` / `--minute-csv`. Output → `reports/<SYMBOL>_EDA/`
+  (self-contained HTML + Markdown + figures + CSVs).
+- Reference thresholds & formulas: `.prime/agent/skills/stock-eda-report/references/analyses-and-thresholds.md`.
+- Data sources: Upstox V3 candles (`market_data.market_data.fetch_candles`) + `yfinance` (`TICKER.NS`
+  for earnings, results, ownership, analyst). A worked example exists at `reports/NETWEB_EDA/`.
+
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation
 - **ExitReasonBadge**: doesn't color-code rich exit reasons (MANUAL_CLOSE, PnL-formatted strings like "Stop loss hit ₹1340.00") — falls to gray default
