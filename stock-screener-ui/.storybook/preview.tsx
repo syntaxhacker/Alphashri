@@ -15,7 +15,7 @@ const preview: Preview = {
     a11y: {
       test: "todo",
     },
-    layout: "centered",
+    layout: "padded",
     backgrounds: {
       default: "light",
       values: [
@@ -50,16 +50,7 @@ const preview: Preview = {
       const colorScheme = context.globals.colorScheme || "light";
       return (
         <MantineProvider theme={theme} defaultColorScheme={colorScheme} forceColorScheme={colorScheme}>
-          <div
-            style={{
-              backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff",
-              minHeight: "100vh",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              padding: "2rem",
-            }}
-          >
+          <div style={{ backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff", padding: "1rem", borderRadius: "8px" }}>
             <Story />
           </div>
         </MantineProvider>
