@@ -310,7 +310,7 @@ test.describe("Paper Chart - Timeframe Switching", () => {
       livePosition: createLivePosition(),
     });
     await navigateAndClickPosition(page, "TCS");
-    await expect(page.locator('[data-testid="paper-chart-timeframe"]')).toBeVisible({
+    await expect(page.locator('[data-testid="chart-timeframe-select"]')).toBeVisible({
       timeout: 10000,
     });
   });

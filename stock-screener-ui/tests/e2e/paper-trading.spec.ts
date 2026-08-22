@@ -809,7 +809,7 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should switch timeframe", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const timeframeSelect = page.getByTestId("paper-chart-timeframe");
+    const timeframeSelect = page.getByTestId("chart-timeframe-select");
     await expect(timeframeSelect).toBeVisible();
 
     await timeframeSelect.click();
