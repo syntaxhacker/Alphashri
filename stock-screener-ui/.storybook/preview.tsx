@@ -17,10 +17,10 @@ const preview: Preview = {
     },
     layout: "centered",
     backgrounds: {
-      default: "dark",
+      default: "light",
       values: [
-        { name: "dark", value: "#1a1a1a" },
         { name: "light", value: "#ffffff" },
+        { name: "dark", value: "#1a1a1a" },
       ],
     },
     chromatic: {
@@ -34,7 +34,7 @@ const preview: Preview = {
     colorScheme: {
       name: "Color Scheme",
       description: "Global color scheme for components",
-      defaultValue: "dark",
+      defaultValue: "light",
       toolbar: {
         icon: "circlehollow",
         items: [
@@ -47,14 +47,17 @@ const preview: Preview = {
   },
   decorators: [
     (Story, context) => {
-      const colorScheme = context.globals.colorScheme || "dark";
+      const colorScheme = context.globals.colorScheme || "light";
       return (
-        <MantineProvider theme={theme} defaultColorScheme={colorScheme}>
+        <MantineProvider theme={theme} defaultColorScheme={colorScheme} forceColorScheme={colorScheme}>
           <div
             style={{
               backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff",
-              padding: "1rem",
-              borderRadius: "8px",
+              minHeight: "100vh",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              padding: "2rem",
             }}
           >
             <Story />
