@@ -22,6 +22,7 @@ from rich.text import Text
 
 from trading.timezone import IST
 from trading.utils import PRE_MARKET, MARKET_OPEN, OR_END, FORCE_EXIT, MARKET_CLOSE
+from trading.strategy_runner import SWING_STRATEGY_TYPES
 
 
 class _TimestampedConsole(Console):
@@ -47,6 +48,9 @@ STRATEGY_TYPE_DEFAULT_PROFILES = {
     "52W_CHASER": ["near_52w_breakout"],
     "52W_TARGET": ["near_52w_breakout"],
     "BLIND_52W": ["near_52w_breakout"],
+    "SHORT_52W_FAILED": ["near_52w_breakout"],
+    "ADX_TREND": ["trending", "high_momentum"],
+    "VOLUME_SURGE": ["trending"],
 }
 
 # ── Shared constants ──────────────────────────────────────────────────────────
@@ -605,8 +609,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         source='live' if not self.test_mode else 'test',
                     )
                     db.add(trade)
-        except Exception:
-            pass
+        except Exception as e:
+            console.print(f"[red]_persist_trade_to_db failed for {trade_data.get('symbol','?')}: {e}[/red]")
+            import traceback as _tb
+            console.print(_tb.format_exc())
 
     def _persist_position_to_db(self, pos_data: dict, action: str = "upsert"):
         try:
@@ -640,6 +646,19 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                         if hasattr(existing, 'metadata_json'):
                             existing.metadata_json = _json.dumps(pos_data.get('metadata', {})) if pos_data.get('metadata') else ''
                     else:
+                        # Handle entry_time being datetime, ISO string, or None
+                        et_raw = pos_data.get('entry_time')
+                        if isinstance(et_raw, datetime):
+                            et_val = et_raw
+                        elif isinstance(et_raw, str) and et_raw:
+                            try:
+                                et_val = datetime.fromisoformat(et_raw)
+                            except Exception:
+                                et_val = datetime.now(IST)
+                        elif et_raw is None:
+                            et_val = datetime.now(IST)
+                        else:
+                            et_val = datetime.now(IST)
                         position = Position(
                             user_id=self.user_id,
                             bot_id=self.bot_config.id if self.bot_config else None,
@@ -651,7 +670,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             entry_price=pos_data['entry_price'],
                             stop_loss=pos_data.get('stop_loss', 0.0),
                             take_profit=pos_data.get('take_profit', 0.0),
-                            entry_time=pos_data['entry_time'] if isinstance(pos_data['entry_time'], datetime) else datetime.fromisoformat(pos_data['entry_time']),
+                            entry_time=et_val,
                             current_price=pos_data.get('current_price', 0.0),
                             is_test=self.test_mode,
                             strategy_type=pos_data.get('strategy_type', ''),
@@ -660,8 +679,10 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                             metadata_json=_json.dumps(pos_data.get('metadata', {})) if pos_data.get('metadata') else '',
                         )
                         db.add(position)
-        except Exception:
-            pass
+        except Exception as e:
+            console.print(f"[red]_persist_position_to_db failed for {pos_data.get('symbol','?')}: {e}[/red]")
+            import traceback as _tb
+            console.print(_tb.format_exc())
 
     def _get_all_watchlist_symbols(self) -> list:
         """Get deduplicated union of all watchlist symbols."""
@@ -702,13 +723,33 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
         try:
             with self._db_session() as db:
                 from db.models import Position
-                positions = db.query(Position).filter(
+                query = db.query(Position).filter(
                     Position.bot_id == (self.bot_config.id if self.bot_config else 0),
-                ).all()
+                )
+                # For live bots, exclude test positions — prevents test pollution.
+                # For test_mode, do not filter strictly to preserve existing test expectations
+                # (legacy rows with is_test=False should still restore in tests).
+                if not self.test_mode:
+                    try:
+                        query = query.filter(Position.is_test == False)
+                    except Exception:
+                        pass
+                positions = query.all()
                 if positions:
                     restored = 0
                     for p in positions:
                         try:
+                            # Robust metadata parsing — corrupted json must not drop the position
+                            metadata = {}
+                            raw_meta = getattr(p, 'metadata_json', None)
+                            if raw_meta:
+                                try:
+                                    metadata = _json.loads(raw_meta)
+                                    if not isinstance(metadata, dict):
+                                        metadata = {}
+                                except Exception as je:
+                                    console.print(f"[yellow]Corrupted metadata for {p.symbol}: {je} — using empty[/yellow]")
+                                    metadata = {}
                             pos_data = {
                                 'strategy_id': p.strategy_id or 0,
                                 'strategy_name': p.strategy_name or '',
@@ -723,7 +764,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                 'peak_price': self._safe_peak_price(p, p.entry_price),
                                 'low_price': self._safe_low_price(p, p.entry_price),
                                 'strategy_type': getattr(p, 'strategy_type', '') or '',
-                                'metadata': _json.loads(p.metadata_json) if getattr(p, 'metadata_json', None) else {},
+                                'metadata': metadata,
                             }
                             self.portfolio.restore_position(pos_data)
                             restored += 1
@@ -732,10 +773,23 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                     if restored > 0:
                         console.print(f"[green]Restored {restored} positions from database[/green]")
 
+                        now = self._ist_now()
+                        # Normalize now to IST-aware before date extraction
+                        if now.tzinfo is None:
+                            now = now.replace(tzinfo=IST)
+                        today = now.astimezone(IST).date()
                         today_symbols = set()
                         for pos in self.portfolio.positions.values():
-                            entry_date = pos.entry_time.date() if pos.entry_time else None
-                            if entry_date and entry_date >= now.date():
+                            et = pos.entry_time
+                            if et is None:
+                                continue
+                            # Normalize entry_time to IST date — handles UTC-stored rows
+                            if et.tzinfo is None:
+                                et = et.replace(tzinfo=IST)
+                            else:
+                                et = et.astimezone(IST)
+                            entry_date = et.date()
+                            if entry_date >= today:
                                 today_symbols.add(pos.symbol)
 
                         if today_symbols:
@@ -756,17 +810,57 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                     for key, pos in self.portfolio.positions.items():
                                         self._persist_position_to_db(pos, action="upsert")
 
-                        now = self._ist_now()
-                        today = now.date()
+                        def _is_swing_position(pos) -> bool:
+                            """Return True if position belongs to a swing strategy (multi-day hold)."""
+                            # Primary: Position.strategy_type column
+                            st = (getattr(pos, 'strategy_type', '') or '').upper()
+                            if st in SWING_STRATEGY_TYPES:
+                                return True
+                            if st and st not in SWING_STRATEGY_TYPES:
+                                # Explicit intraday type — not swing
+                                # Fall through to check runner as confirmation, but already intraday
+                                pass
+                            # Fallback: runner config for that strategy_id (covers legacy rows with empty type)
+                            runner = self.strategies.get(getattr(pos, 'strategy_id', None))
+                            if runner:
+                                rt = (getattr(runner, 'strategy_type', '') or '').upper()
+                                if rt in SWING_STRATEGY_TYPES:
+                                    return True
+                                cfg_type = (runner.config.get('strategy_type', '') or '').upper() if hasattr(runner, 'config') and isinstance(runner.config, dict) else ''
+                                if cfg_type in SWING_STRATEGY_TYPES:
+                                    return True
+                                # If runner is known intraday, not swing
+                                if rt or cfg_type:
+                                    return False
+                            # Unknown strategy — conservative: keep to avoid accidental loss, log
+                            if not st:
+                                console.print(f"[yellow]Unknown strategy type for {pos.symbol} (id={getattr(pos,'strategy_id',0)}) — keeping to avoid data loss[/yellow]")
+                                return True
+                            return False
+
                         to_close = []
                         for key, pos in list(self.portfolio.positions.items()):
-                            entry_date = pos.entry_time.date() if pos.entry_time else None
-                            if entry_date and entry_date < today:
+                            et = pos.entry_time
+                            if et is None:
+                                # No entry time — cannot determine staleness, keep and warn
+                                console.print(f"[yellow]Skipping stale check for {pos.symbol}: missing entry_time[/yellow]")
+                                continue
+                            if et.tzinfo is None:
+                                et = et.replace(tzinfo=IST)
+                            else:
+                                et = et.astimezone(IST)
+                            entry_date = et.date()
+                            if entry_date < today:
+                                if _is_swing_position(pos):
+                                    console.print(f"[cyan]Keeping swing position {pos.symbol} ({getattr(pos,'strategy_type','') or 'SWING'}) from {entry_date} — multi-day hold[/cyan]")
+                                    continue
                                 to_close.append((key, pos))
                         if to_close:
+                            closed = 0
                             for key, pos in to_close:
                                 exit_price = pos.current_price or pos.entry_price
                                 if exit_price <= 0:
+                                    console.print(f"[yellow]Skipping stale close for {pos.symbol}: invalid exit_price {exit_price}[/yellow]")
                                     continue
                                 side = self._side_str(pos.side, "LONG_SHORT")
                                 costs = self._calc_costs(pos.entry_price, exit_price, pos.quantity, side)
@@ -804,9 +898,23 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                                         'strategy_id': pos.strategy_id,
                                         'symbol': pos.symbol,
                                     }, action="delete")
-                            console.print(f"[yellow]Closed {len(to_close)} stale positions from previous days[/yellow]")
-        except Exception:
-            pass
+                                    closed += 1
+                                    # Structured log wherever needed — console + logger hook
+                                    try:
+                                        import logging
+                                        logging.getLogger("trading.runner").info(
+                                            "force_close stale intraday",
+                                            extra={"symbol": pos.symbol, "strategy_id": pos.strategy_id, "entry_date": str(entry_date), "exit_price": exit_price}
+                                        )
+                                    except Exception:
+                                        pass
+                            console.print(f"[yellow]Closed {closed}/{len(to_close)} stale intraday positions from previous days (swings kept)[/yellow]")
+                        else:
+                            console.print(f"[dim]No stale intraday positions to close — all {len(self.portfolio.positions)} positions current[/dim]")
+        except Exception as e:
+            console.print(f"[red] _load_positions_from_db failed: {e}[/red]")
+            import traceback as _tb
+            console.print(_tb.format_exc())
 
     def is_market_open(self) -> bool:
         from trading.utils import is_market_open as _is_market_open
@@ -1006,6 +1114,7 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
                 item_copy = dict(item)
                 item_copy['strategy_name'] = runner.strategy_name
                 item_copy['strategy_id'] = strategy_id
+                item_copy['strategy_type'] = getattr(runner, 'strategy_type', '')
                 item_copy['timestamp'] = now_ts
                 items.append(item_copy)
         return items
@@ -1013,22 +1122,34 @@ class MultiStrategyRunner(RunnerSignalsMixin, RunnerRiskMixin):
     def _has_meaningful_scan_items(self, items: list) -> bool:
         """Check if scan_items have any data worth persisting.
 
-        Returns True if at least one item is a real 'watching'/'signal' result.
-        A snapshot where EVERY item was skipped purely due to rate-limiting /
+        Returns True if at least one item is a real 'watching'/'signal' result
+        OR at least one skipped item carries a non-rate-limit reason.  A
+        snapshot where *every* item was skipped purely due to rate-limiting /
         data-unavailable is not meaningful: persisting it would overwrite the
         last good snapshot (Redis TTL 300s) with a wall of error rows.
+
+        ADX skipped rows with e.g. 'ADX 18 < 25' must be considered
+        meaningful so the watchlist stays populated and the stale-window
+        logic in api/bot_state can keep it fresh.
         """
         if not items:
             return False
+        has_non_rate_limited = False
         for item in items:
             status = item.get('status')
             if status in ('watching', 'signal'):
                 return True
             reason = (item.get('reason') or '')
-            if status != 'skipped' or not any(
+            is_rate_limited = any(
                 tok in reason.lower() for tok in ('rate limit', 'rate-limited', 'unavailable', 'error')
-            ):
-                return True
+            )
+            if status == 'skipped' and not is_rate_limited:
+                has_non_rate_limited = True
+            elif status != 'skipped':
+                has_non_rate_limited = True
+        # Non-empty and not exclusively rate-limited skips → meaningful (persist).
+        if has_non_rate_limited:
+            return True
         return False
 
     def _persist_scan_items_to_redis(self):

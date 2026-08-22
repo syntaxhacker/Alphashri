@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 import { useNewsWebSocket, NewsWebSocketProvider } from "./newsWebSocket";
 
 const mockNewsItem: NewsItem = {
@@ -68,10 +68,13 @@ describe("useNewsWebSocket", () => {
   });
 
   afterEach(() => {
+  cleanup();
     vi.unstubAllEnvs();
     global.WebSocket = origWebSocket;
     vi.restoreAllMocks();
-  });
+  
+  vi.clearAllMocks();
+});
 
   function renderWithWrapper() {
     return renderHook(() => useNewsWebSocket(), {

@@ -120,7 +120,7 @@ async def get_analytics(
             "total_costs": round(total_costs, 2),
             "avg_win": round(sum(t.get("net_pnl", 0) for t in wins) / len(wins), 2) if wins else 0,
             "avg_loss": round(sum(t.get("net_pnl", 0) for t in losses) / len(losses), 2) if losses else 0,
-            "profit_factor": round(abs(sum(t.get("net_pnl", 0) for t in wins) / sum(t.get("net_pnl", 0) for t in losses)), 2) if losses and sum(t.get("net_pnl", 0) for t in losses) != 0 else float("inf"),
+            "profit_factor": round(abs(sum(t.get("net_pnl", 0) for t in wins) / sum(t.get("net_pnl", 0) for t in losses)), 2) if losses and sum(t.get("net_pnl", 0) for t in losses) != 0 else 0,
             "max_drawdown": round(max_drawdown, 2),
             "max_drawdown_pct": round(max_drawdown_pct, 2),
             "final_pnl": round(cumulative, 2),

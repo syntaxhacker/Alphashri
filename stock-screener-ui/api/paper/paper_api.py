@@ -11,6 +11,8 @@ from pathlib import Path
 from datetime import datetime
 from typing import Optional, List
 
+import pandas as pd
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from fastapi import APIRouter, HTTPException, Depends
@@ -161,7 +163,7 @@ def _get_symbol_trades_from_db(user_id: int, symbol: str, date: str) -> list:
 
     try:
         db = SessionLocal()
-        date_start = datetime.strptime(date, '%Y-%m-%d').replace(tzinfo=config.IST)
+        date_start = pd.Timestamp(date, tz=config.IST).to_pydatetime()
         date_end = date_start.replace(hour=23, minute=59, second=59)
         query = db.query(TradeModel).filter(
             TradeModel.user_id == user_id,

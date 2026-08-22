@@ -7,7 +7,10 @@ import { OptionAlerts } from "./OptionAlerts";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function makeContract(overrides: any = {}) {
   return {

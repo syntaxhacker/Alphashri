@@ -54,6 +54,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 describe("ReplayConfig", () => {
@@ -128,7 +130,7 @@ describe("ReplayConfig", () => {
     expect(screen.queryByText(/Trading holiday/)).not.toBeInTheDocument();
   });
 
-  it("clears holiday warning when date cleared", async () => {
+  it("clears holiday warning when date cleared", () => {
     mockIsTradingHoliday.mockReturnValue(true);
     render(
       <UIProvider>

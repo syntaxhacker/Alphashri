@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { render, screen, fireEvent, act, cleanup } from "@testing-library/react";
+import { render, screen, act, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { BrowserRouter } from "react-router-dom";
 import { UIProvider } from "@/ui";
 import { PreviewChartProvider, usePreviewChart } from "./PreviewChartProvider";
@@ -100,69 +101,74 @@ function getButtons() {
 describe("PreviewChartProvider", () => {
   it("provides context functions without crashing", () => {
     renderWithProvider();
-    expect(screen.getByTestId("consumer")).toBeTruthy();
+    expect(screen.getByTestId("consumer")).toBeInTheDocument();
   });
 
   it("shows hover preview after debounce", async () => {
+      const user = userEvent.setup();
     renderWithProvider();
     const { hover } = getButtons();
-    fireEvent.click(hover);
+    await user.click(hover);
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, 400));
     });
 
-    expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeInTheDocument();
   });
 
   it("hides hover preview on hide", async () => {
+      const user = userEvent.setup();
     renderWithProvider();
     const { hover, hide } = getButtons();
-    fireEvent.click(hover);
+    await user.click(hover);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 400));
     });
 
-    fireEvent.click(hide);
+    await user.click(hide);
 
     expect(document.querySelector('[data-testid="preview-chart-hover"]')).toBeNull();
   });
 
   it("shows expanded panel on toggle", async () => {
+      const user = userEvent.setup();
     renderWithProvider();
     const { expand } = getButtons();
-    fireEvent.click(expand);
+    await user.click(expand);
 
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });
 
-    expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeInTheDocument();
   });
 
   it("collapses expanded panel on collapse", async () => {
+      const user = userEvent.setup();
     renderWithProvider();
     const { expand, collapse } = getButtons();
-    fireEvent.click(expand);
+    await user.click(expand);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });
 
-    fireEvent.click(collapse);
+    await user.click(collapse);
 
     expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeNull();
   });
 
   it("collapses when same symbol toggled again", async () => {
+      const user = userEvent.setup();
     renderWithProvider();
     const { expand } = getButtons();
-    fireEvent.click(expand);
+    await user.click(expand);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });
-    expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeTruthy();
+    expect(document.querySelector('[data-testid="preview-chart-expanded"]')).toBeInTheDocument();
 
-    fireEvent.click(expand);
+    await user.click(expand);
     await act(async () => {
       await new Promise((r) => setTimeout(r, 100));
     });

@@ -183,7 +183,9 @@ class RunnerSignalsMixin:
             return []
 
         # Get per-strategy watchlist or fall back to shared
-        watchlist = self.strategy_watchlists.get(strategy_id, self.watchlist)
+        watchlist = self.strategy_watchlists.get(strategy_id) or self.watchlist
+        if not watchlist:
+            watchlist = self.watchlist or []
 
         # Round-robin cursor: start at a different position each cycle
         if strategy_id:
@@ -364,23 +366,25 @@ class RunnerSignalsMixin:
             if signal:
                 if signal.signal_type == SignalType.LONG_ENTRY:
                     if runner.strategy_type == "ORB":
-                        day_open = or_levels.get('or_open', current_price)
-                        day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
-                        if day_change_pct > 2.0:
-                            self._mark_skipped(scan_item, f'Day already up {day_change_pct:.1f}%')
-                            scan_items.append(scan_item)
-                            continue
+                        day_open = or_levels.get('or_open')
+                        if day_open is not None and day_open > 0:
+                            day_change_pct = ((current_price - day_open) / day_open) * 100
+                            if day_change_pct > 2.0:
+                                self._mark_skipped(scan_item, f'Day already up {day_change_pct:.1f}%')
+                                scan_items.append(scan_item)
+                                continue
 
                     self._mark_signal(scan_item, 'LONG', signal.notes or '')
 
                 elif signal.signal_type == SignalType.SHORT_ENTRY:
                     if runner.strategy_type == "ORB":
-                        day_open = or_levels.get('or_open', current_price)
-                        day_change_pct = ((current_price - day_open) / day_open) * 100 if day_open > 0 else 0
-                        if day_change_pct > 1.0:
-                            self._mark_skipped(scan_item, f'Uptrend, skip SHORT')
-                            scan_items.append(scan_item)
-                            continue
+                        day_open = or_levels.get('or_open')
+                        if day_open is not None and day_open > 0:
+                            day_change_pct = ((current_price - day_open) / day_open) * 100
+                            if day_change_pct > 1.0:
+                                self._mark_skipped(scan_item, f'Uptrend, skip SHORT')
+                                scan_items.append(scan_item)
+                                continue
 
                     self._mark_signal(scan_item, 'SHORT', signal.notes or '')
 
@@ -405,8 +409,8 @@ class RunnerSignalsMixin:
             return []
 
         # Use provided watchlist or fall back to shared
-        if watchlist is None:
-            watchlist = self.watchlist
+        if not watchlist:
+            watchlist = self.strategy_watchlists.get(strategy_id) or self.watchlist or []
 
         new_signals = []
         scan_items = []
@@ -484,8 +488,38 @@ class RunnerSignalsMixin:
                 runner.signals_generated += 1
                 console.print(f"[green]✓ {runner.strategy_name}: Signal {signal.signal_type.value} {symbol} @ ₹{signal.price:.2f}[/green]")
             else:
-                distance_pct = ((daily_data['high_52w'] - daily_data['current_price']) / daily_data['current_price']) * 100 if daily_data['current_price'] > 0 else 0
-                self._mark_skipped(scan_item, f'52W high distance: {distance_pct:.1f}%')
+                # Strategy-specific skip reason — ADX should show ADX<threshold,
+                # not the 52W distance which is misleading and caused the
+                # "No data" misdiagnosis for ADX Trend v1.
+                if runner.strategy_type == "ADX_TREND":
+                    try:
+                        adx_thresh = getattr(runner.signal_generator, 'adx_threshold', 25)
+                        # Reuse generator-computed ADX if available (avoids duplicate compute_adx)
+                        adx_val = market_data.get('adx')
+                        if adx_val is None:
+                            from trading.adx_trend_signals import compute_adx
+                            adx_period = getattr(runner.signal_generator, 'adx_period', 14)
+                            highs = daily_data.get('daily_highs') or []
+                            lows = daily_data.get('daily_lows') or []
+                            closes = daily_data.get('daily_closes') or []
+                            # No h*0.97 approximation — require daily_lows; if missing, adx is 0 (will skip)
+                            if highs and closes and lows:
+                                adx_data = compute_adx(highs, lows, closes, adx_period)
+                                adx_val = adx_data.get('adx', 0.0)
+                            else:
+                                adx_val = 0.0
+                        self._mark_skipped(scan_item, f'ADX {adx_val:.0f} < {adx_thresh:.0f}')
+                    except Exception:
+                        self._mark_skipped(scan_item, 'ADX below threshold')
+                elif runner.strategy_type == "VOLUME_SURGE":
+                    vol = daily_data.get('volume', 0)
+                    avg_vol = daily_data.get('avg_volume_20d', 0)
+                    vol_ratio = (vol / avg_vol) if avg_vol else 0
+                    min_ratio = getattr(runner.signal_generator, 'min_volume_ratio', 2.0)
+                    self._mark_skipped(scan_item, f'Volume {vol_ratio:.1f}x < {min_ratio:.1f}x avg')
+                else:
+                    distance_pct = ((daily_data['high_52w'] - daily_data['current_price']) / daily_data['current_price']) * 100 if daily_data['current_price'] > 0 else 0
+                    self._mark_skipped(scan_item, f'52W high distance: {distance_pct:.1f}%')
 
             scan_items.append(scan_item)
 

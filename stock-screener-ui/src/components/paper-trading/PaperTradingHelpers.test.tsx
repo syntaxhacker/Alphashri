@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { screen, cleanup, fireEvent } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
@@ -168,9 +168,9 @@ vi.mock("../common/BadgeComponents", () => ({
 vi.mock("../common/TradingDatePicker", () => ({
   TradingDatePicker: ({ value, onChange, "data-testid": testId, placeholder, ...rest }: any) => (
     <input
-      type="date"
+      type="text"
       data-testid={testId}
-      value={value || ""}
+      defaultValue={value || ""}
       placeholder={placeholder}
       onChange={(e) => onChange(e.target.value)}
       {...rest}
@@ -737,14 +737,15 @@ describe("HistoryFilters", () => {
   });
 
   it("changing from date calls handleFilterFromDate", async () => {
+      const user = userEvent.setup();
     mockStateStore.filterFromDate = "2026-04-01";
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     const fromPicker = screen.getByTestId("filter-from-date");
-    fireEvent.change(fromPicker, { target: { value: "2026-04-02" } });
+    await user.clear(fromPicker); await user.type(fromPicker, "2026-04-02");
 
-    expect(mockFilters.handleFilterFromDate).toHaveBeenCalledWith("2026-04-02");
+    expect(mockFilters.handleFilterFromDate).toHaveBeenLastCalledWith("2026-04-02");
   });
 
   it("changing to date calls handleFilterToDate", async () => {
@@ -754,9 +755,9 @@ describe("HistoryFilters", () => {
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     const toPicker = screen.getByTestId("filter-to-date");
-    await user.click(toPicker);
+    await user.clear(toPicker); await user.type(toPicker, "2026-04-28");
 
-    expect(screen.getByTestId("filter-to-date")).toBeInTheDocument();
+    expect(mockFilters.handleFilterToDate).toHaveBeenLastCalledWith("2026-04-28");
   });
 
   it("changing symbol select calls handleFilterSymbol", async () => {
@@ -935,7 +936,8 @@ describe("PaperTradingHelpers integration", () => {
     vi.clearAllMocks();
   });
 
-  it("full filter flow: changing date picker triggers handleFilterFromDate", () => {
+  it("full filter flow: changing date picker triggers handleFilterFromDate", async () => {
+      const user = userEvent.setup();
     mockStateStore.filterFromDate = null;
     mockStateStore.filterToDate = null;
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
@@ -943,9 +945,9 @@ describe("PaperTradingHelpers integration", () => {
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     const fromPicker = screen.getByTestId("filter-from-date");
-    fireEvent.change(fromPicker, { target: { value: "2026-04-01" } });
+    await user.clear(fromPicker); await user.type(fromPicker, "2026-04-01");
 
-    expect(mockFilters.handleFilterFromDate).toHaveBeenCalledWith("2026-04-01");
+    expect(mockFilters.handleFilterFromDate).toHaveBeenLastCalledWith("2026-04-01");
   });
 
   it("changing symbol select triggers handleFilterSymbol", async () => {

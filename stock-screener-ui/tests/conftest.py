@@ -375,50 +375,38 @@ def validate_uuid():
 @pytest.fixture(autouse=True, scope="function")
 def reset_trading_module_state():
     """Reset trading module state before and after each test."""
-    # Reset ORB signals state
-    try:
-        import trading.orb_signals
-        if hasattr(trading.orb_signals, '_signal_state'):
-            trading.orb_signals._signal_state.clear()
-    except ImportError:
-        pass
-    
-    # Reset multi-strategy runner state
-    try:
-        from trading import multi_strategy_runner
-        if hasattr(multi_strategy_runner, '_runner_state'):
-            multi_strategy_runner._runner_state.clear()
-    except ImportError:
-        pass
-    
-    # Reset paper trading state
-    try:
-        import api.paper_trading as paper_trading
-        paper_trading._user_snapshot_files.clear()
-        paper_trading._user_pid_files.clear()
-    except (ImportError, AttributeError):
-        pass
-    
+    def _reset():
+        try:
+            import trading.orb_signals as orb_mod
+            for attr in ("or_levels", "active_signals"):
+                val = getattr(orb_mod.ORBSignalGenerator, attr, None) if hasattr(orb_mod, "ORBSignalGenerator") else None
+            # instance caches are per-generator; clear any module-level dicts
+            for name in ("_signal_state", "or_levels", "active_signals"):
+                if hasattr(orb_mod, name):
+                    v = getattr(orb_mod, name)
+                    if isinstance(v, dict):
+                        v.clear()
+        except ImportError:
+            pass
+        try:
+            from trading import multi_strategy_runner
+            for name in ("_runner_state", "_active_runners"):
+                if hasattr(multi_strategy_runner, name):
+                    v = getattr(multi_strategy_runner, name)
+                    if isinstance(v, dict):
+                        v.clear()
+        except ImportError:
+            pass
+        try:
+            import api.paper_trading as paper_trading
+            for name in ("_user_snapshot_files", "_user_pid_files"):
+                if hasattr(paper_trading, name):
+                    v = getattr(paper_trading, name)
+                    if isinstance(v, dict):
+                        v.clear()
+        except (ImportError, AttributeError):
+            pass
+
+    _reset()
     yield
-    
-    # Post-test cleanup
-    try:
-        import trading.orb_signals
-        if hasattr(trading.orb_signals, '_signal_state'):
-            trading.orb_signals._signal_state.clear()
-    except ImportError:
-        pass
-    
-    try:
-        from trading import multi_strategy_runner
-        if hasattr(multi_strategy_runner, '_runner_state'):
-            multi_strategy_runner._runner_state.clear()
-    except ImportError:
-        pass
-    
-    try:
-        import api.paper_trading as paper_trading
-        paper_trading._user_snapshot_files.clear()
-        paper_trading._user_pid_files.clear()
-    except (ImportError, AttributeError):
-        pass
+    _reset()

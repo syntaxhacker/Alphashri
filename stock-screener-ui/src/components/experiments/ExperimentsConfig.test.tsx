@@ -67,7 +67,10 @@ function clearDefaultSweep() {
   removeSweepParam("or_minutes");
 }
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("ExperimentsConfig", () => {
   beforeEach(() => {

@@ -787,8 +787,23 @@ class TestBotControl:
         """Test getting logs when no logs available."""
         from db.models import BotConfig
         from api.bots_api.bot_operations import _bot_logs
+        from api.bots_api.bots_router import get_bot_log_path
 
         _bot_logs.clear()
+        # Ensure durable log file from previous runs doesn't leak into test
+        try:
+            # clean any existing file for this user/bot combo — id unknown until commit, so clean all logs/bots
+            import shutil
+            from pathlib import Path
+            bot_log_dir = Path("logs/bots")
+            if bot_log_dir.exists():
+                for f in bot_log_dir.glob("bot-1-*.log"):
+                    try:
+                        f.unlink()
+                    except Exception:
+                        pass
+        except Exception:
+            pass
 
         bot = BotConfig(
             name="Test Bot",
@@ -800,6 +815,17 @@ class TestBotControl:
         db_session.add(bot)
         db_session.commit()
         db_session.refresh(bot)
+        # Remove file for this specific bot if it was recreated
+        try:
+            p = get_bot_log_path(bot.user_id, bot.id)
+            if p.exists():
+                p.unlink()
+            # also legacy tmp
+            legacy = Path(f"/tmp/bot-{bot.user_id}-{bot.id}.log")
+            if legacy.exists():
+                legacy.unlink()
+        except Exception:
+            pass
 
         with patch('api.bots_api.bot_operations._db_available', True):
             response = client.get(f"/api/bots/{bot.id}/logs")

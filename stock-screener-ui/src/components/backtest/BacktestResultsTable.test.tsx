@@ -5,8 +5,12 @@ import { UIProvider } from "@/ui";
 import { BacktestResultsTable } from "./BacktestResultsTable";
 import type { BacktestResult } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -97,10 +101,11 @@ describe("BacktestResultsTable", () => {
   });
 
   it("calls onRowClick when row is clicked", async () => {
+      const user = userEvent.setup();
     const results = [mockResult({ symbol: "TCS" })];
     render(<BacktestResultsTable results={results} {...defaultProps} />, { wrapper: Wrapper });
     const row = screen.getByTestId("result-row-TCS");
-    row.click();
+    await user.click(row);
     expect(mockOnRowClick).toHaveBeenCalledWith("TCS");
   });
 

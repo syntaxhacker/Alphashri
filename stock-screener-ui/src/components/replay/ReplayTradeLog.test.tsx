@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
@@ -9,6 +9,8 @@ import type { ReplayTrade } from "../../types/replay";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 const makeTrade = (id: number, overrides: Partial<ReplayTrade> = {}): ReplayTrade => ({
@@ -25,8 +27,7 @@ const makeTrade = (id: number, overrides: Partial<ReplayTrade> = {}): ReplayTrad
   costs: 0.5,
   exit_reason: "TP",
   quantity: 100,
-  ...overrides,
-});
+  ...overrides });
 
 describe("ReplayTradeLog", () => {
   it("renders with data-testid", () => {
@@ -278,7 +279,7 @@ describe("ReplayTradeLog", () => {
     expect(screen.getByText("MANUAL_CLOSE")).toBeInTheDocument();
   });
 
-  it("auto-scrolls to bottom when isRunning and trades exist", async () => {
+  it("auto-scrolls to bottom when isRunning and trades exist", () => {
     const scrollIntoView = vi.fn();
     Element.prototype.scrollIntoView = scrollIntoView;
     const trades = [makeTrade(1)];

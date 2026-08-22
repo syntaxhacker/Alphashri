@@ -60,7 +60,10 @@ beforeEach(() => {
   mockIsMarketClosedToday.mockReturnValue(false);
 });
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("BotSelector", () => {
   test("returns null when bots array is empty", () => {

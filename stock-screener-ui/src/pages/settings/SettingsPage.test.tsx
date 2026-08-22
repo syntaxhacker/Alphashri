@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { renderWithMantine, renderWithRouter } from "../../test-utils/renderWithMantine";
@@ -139,6 +140,7 @@ describe("SettingsPage", () => {
   });
 
   it("calls connectUpstox when connect button is clicked", async () => {
+      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue({
       connected: false,
       broker: "upstox",
@@ -157,12 +159,13 @@ describe("SettingsPage", () => {
     });
 
     const connectBtn = screen.getByTestId("connect-upstox-btn");
-    connectBtn.click();
+    await user.click(connectBtn);
 
     expect(mockConnectUpstox).toHaveBeenCalledTimes(1);
   });
 
   it("calls disconnectUpstox when disconnect button is clicked", async () => {
+      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     mockDisconnectUpstox.mockResolvedValue({});
 
@@ -176,12 +179,13 @@ describe("SettingsPage", () => {
     });
 
     const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
-    disconnectBtn.click();
+    await user.click(disconnectBtn);
 
     expect(mockDisconnectUpstox).toHaveBeenCalledTimes(1);
   });
 
   it("shows success notification on successful disconnect", async () => {
+      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     mockDisconnectUpstox.mockResolvedValue({});
 
@@ -195,7 +199,7 @@ describe("SettingsPage", () => {
     });
 
     const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
-    disconnectBtn.click();
+    await user.click(disconnectBtn);
 
     await waitFor(() => {
       expect(mockDispatch).toHaveBeenCalledWith({
@@ -210,6 +214,7 @@ describe("SettingsPage", () => {
   });
 
   it("shows error notification on failed disconnect", async () => {
+      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
     mockDisconnectUpstox.mockRejectedValue(new Error("Failed"));
 
@@ -220,7 +225,7 @@ describe("SettingsPage", () => {
     });
 
     const disconnectBtn = screen.getByTestId("disconnect-upstox-btn");
-    disconnectBtn.click();
+    await user.click(disconnectBtn);
 
     await waitFor(() => {
       expect(mockDispatch).toHaveBeenCalledWith({
@@ -279,6 +284,7 @@ describe("SettingsPage", () => {
   });
 
   it("updates market ticker preference when toggle is changed", async () => {
+      const user = userEvent.setup();
     mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
 
     renderWithRouter(<SettingsPage />);
@@ -288,7 +294,7 @@ describe("SettingsPage", () => {
     });
 
     const toggle = screen.getByRole("switch");
-    toggle.click();
+    await user.click(toggle);
 
     expect(mockSetShowMarketTicker).toHaveBeenCalledWith(true);
   });

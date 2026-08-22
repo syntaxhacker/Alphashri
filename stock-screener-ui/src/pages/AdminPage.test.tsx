@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import React from "react";
 import AdminPage from "./AdminPage";
 import { renderWithMantine } from "../test-utils/renderWithMantine";
@@ -47,15 +48,17 @@ describe("AdminPage", () => {
     expect(screen.getByTestId("llm-stats-panel")).toBeInTheDocument();
   });
 
-  it("switches to 52W tab", () => {
+  it("switches to 52W tab", async () => {
+      const user = userEvent.setup();
     renderWithMantine(<AdminPage />);
-    screen.getByTestId("admin-tab-52w").click();
+    await user.click(screen.getByTestId("admin-tab-52w"));
     expect(screen.getByTestId("admin-52w-range-panel-mock")).toBeInTheDocument();
   });
 
-  it("switches to News Queue tab", () => {
+  it("switches to News Queue tab", async () => {
+      const user = userEvent.setup();
     renderWithMantine(<AdminPage />);
-    screen.getByTestId("admin-tab-news-queue").click();
+    await user.click(screen.getByTestId("admin-tab-news-queue"));
     expect(screen.getByTestId("news-queue-panel-mock")).toBeInTheDocument();
   });
 

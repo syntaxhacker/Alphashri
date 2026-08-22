@@ -6,6 +6,11 @@ import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
 
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
 const mockFetchWithAuth = vi.fn();
 
 vi.mock("../../state/auth", () => ({

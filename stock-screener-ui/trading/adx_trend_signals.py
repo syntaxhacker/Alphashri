@@ -10,12 +10,19 @@ from trading.base_signals import BaseSignalGenerator
 
 
 def compute_adx(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> dict:
-    """Compute ADX, DI+, DI- from OHLC lists. Returns latest values."""
+    """Compute ADX, DI+, DI- from OHLC lists. Returns latest values.
+
+    Uses Wilder's smoothing: DX is computed per rolling window and ADX
+    is the Wilder moving average (mean of last `period` DX values). This
+    is intentionally the smoothed ADX, not a single-period DX snapshot,
+    so threshold 25 remains intentional for strong-trend confirmation.
+    """
     if len(closes) < period + 2:
         return {"adx": 0.0, "di_plus": 0.0, "di_minus": 0.0}
 
     tr_list, up_list, down_list = [], [], []
-    for i in range(1, len(closes)):
+    n = min(len(highs), len(lows), len(closes))
+    for i in range(1, n):
         tr = max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1]))
         up_move = highs[i] - highs[i-1]
         down_move = lows[i-1] - lows[i]
@@ -26,19 +33,30 @@ def compute_adx(highs: List[float], lows: List[float], closes: List[float], peri
     if len(tr_list) < period:
         return {"adx": 0.0, "di_plus": 0.0, "di_minus": 0.0}
 
-    # Smoothed ATR, DI+, DI-
-    atr = sum(tr_list[-period:]) / period
-    di_plus = sum(up_list[-period:]) / period / atr * 100 if atr > 0 else 0
-    di_minus = sum(down_list[-period:]) / period / atr * 100 if atr > 0 else 0
+    # Build DX series via rolling Wilder smoothing (SMA over period as cheap Wilder approx)
+    dx_list: List[float] = []
+    di_plus_last = 0.0
+    di_minus_last = 0.0
+    for start in range(len(tr_list) - period + 1):
+        atr = sum(tr_list[start:start + period]) / period
+        di_p = sum(up_list[start:start + period]) / period / atr * 100 if atr > 0 else 0
+        di_m = sum(down_list[start:start + period]) / period / atr * 100 if atr > 0 else 0
+        denom = di_p + di_m
+        dx = abs(di_p - di_m) / denom * 100 if denom > 0 else 0
+        dx_list.append(dx)
+        di_plus_last = di_p
+        di_minus_last = di_m
 
-    # DX = |DI+ - DI-| / (DI+ + DI-) * 100
-    dx = abs(di_plus - di_minus) / (di_plus + di_minus) * 100 if (di_plus + di_minus) > 0 else 0
+    if not dx_list:
+        return {"adx": 0.0, "di_plus": 0.0, "di_minus": 0.0}
 
-    # Simple ADX (smoothed DX over period)
-    # For speed, use single-period ADX (not smoothed over multiple periods)
-    adx = dx
+    # Wilder ADX: smoothed DX over period (mean of last `period` DX values)
+    if len(dx_list) >= period:
+        adx = sum(dx_list[-period:]) / period
+    else:
+        adx = dx_list[-1]
 
-    return {"adx": round(adx, 1), "di_plus": round(di_plus, 1), "di_minus": round(di_minus, 1)}
+    return {"adx": round(adx, 1), "di_plus": round(di_plus_last, 1), "di_minus": round(di_minus_last, 1)}
 
 
 class ADXTrendSignalGenerator(BaseSignalGenerator):
@@ -62,16 +80,20 @@ class ADXTrendSignalGenerator(BaseSignalGenerator):
         daily_closes: List[float] = market_data.get("daily_closes", [])
         if current_price is None or not daily_highs or not daily_closes:
             return None
-        # daily_lows not in market_data — approximate from highs and closes
         daily_lows = market_data.get("daily_lows", None)
-        if daily_lows is None:
-            # Approximate from close and high
-            daily_lows = [min(c, h * 0.97) for c, h in zip(daily_closes, daily_highs)]
+        # Require daily_lows from daily_data — no approximation (h*0.97 bias removed).
+        # If missing/empty, skip signal instead of injecting biased lows.
+        if not daily_lows:
+            return None
 
         adx_data = compute_adx(daily_highs, daily_lows, daily_closes, self.adx_period)
         adx = adx_data["adx"]
         di_plus = adx_data["di_plus"]
         di_minus = adx_data["di_minus"]
+        # Expose for runner_signals reuse (avoids duplicate compute_adx)
+        market_data["adx"] = adx
+        market_data["di_plus"] = di_plus
+        market_data["di_minus"] = di_minus
 
         if adx < self.adx_threshold:
             return None

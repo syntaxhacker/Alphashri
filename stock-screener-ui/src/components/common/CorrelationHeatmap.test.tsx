@@ -38,7 +38,7 @@ describe("CorrelationHeatmap", () => {
     renderWithProvider(
       <CorrelationHeatmap matrix={matrix} symbols={["AAPL", "MSFT"]} testId="correlation-heatmap" />,
     );
-    expect(screen.getByTestId("correlation-heatmap")).toBeTruthy();
+    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
   });
 
   it("does not show loading when isLoading is false", () => {
@@ -67,7 +67,7 @@ describe("CorrelationHeatmap", () => {
     renderWithProvider(
       <CorrelationHeatmap matrix={matrix} symbols={["TEST"]} testId="my-heatmap" />,
     );
-    expect(screen.getByTestId("my-heatmap")).toBeTruthy();
+    expect(screen.getByTestId("my-heatmap")).toBeInTheDocument();
   });
 
   it("uses custom valueFormatter when provided", () => {
@@ -81,7 +81,7 @@ describe("CorrelationHeatmap", () => {
         testId="correlation-heatmap"
       />,
     );
-    expect(screen.getByTestId("correlation-heatmap")).toBeTruthy();
+    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
   });
 
   it("supports dark mode theme", () => {
@@ -89,6 +89,6 @@ describe("CorrelationHeatmap", () => {
     renderWithProvider(
       <CorrelationHeatmap matrix={matrix} symbols={["TEST"]} isDark testId="correlation-heatmap" />,
     );
-    expect(screen.getByTestId("correlation-heatmap")).toBeTruthy();
+    expect(screen.getByTestId("correlation-heatmap")).toBeInTheDocument();
   });
 });

@@ -249,7 +249,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           </Group>
           <Group gap={2}>
             {onRefresh && (
-              <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing}>
+              <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing} data-testid="watchlist-refresh">
                 <IconRefresh size={12} />
               </ActionIcon>
             )}
@@ -272,13 +272,13 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
           </Text>
-          <Badge size="xs" variant="filled" color="teal">
+          <Badge size="xs" variant="filled" color="teal" data-testid="watchlist-count">
             {allItems.length}
           </Badge>
         </Group>
         <Group gap={2}>
           {onRefresh && (
-            <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing}>
+            <ActionIcon size="sm" variant="subtle" onClick={onRefresh} loading={refreshing} data-testid="watchlist-refresh">
               <IconRefresh size={12} />
             </ActionIcon>
           )}

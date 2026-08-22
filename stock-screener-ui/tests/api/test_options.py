@@ -126,16 +126,38 @@ class TestOptionsEndpoints:
     def test_get_option_chain_structure(self, client: TestClient):
         """
         Test that the option chain response has the correct summary fields.
+        Uses mocked Upstox response — no live API or pytest.skip.
         """
-        # Use a likely valid expiry or mock it
-        response = client.get("/api/options/chain/NIFTY?expiry=2026-03-17")
-        if response.status_code == 200:
+        from unittest.mock import patch, AsyncMock
+        mock_data = {
+            "status": "success",
+            "underlying_spot_price": 25000,
+            "data": [
+                {
+                    "strike_price": 25000,
+                    "call_options": {
+                        "instrument_key": "NSE_FO|123",
+                        "trading_symbol": "NIFTY26MAR25000CE",
+                        "expiry": "2026-03-17",
+                        "market_data": {"ltp": 100, "oi": 1000, "prev_oi": 500, "volume": 1000, "bid_price": 99, "ask_price": 101},
+                        "option_greeks": {"delta": 0.5, "gamma": 0.01, "vega": 10, "theta": -2, "iv": 15}
+                    },
+                    "put_options": {
+                        "instrument_key": "NSE_FO|124",
+                        "trading_symbol": "NIFTY26MAR25000PE",
+                        "expiry": "2026-03-17",
+                        "market_data": {"ltp": 100, "oi": 1000, "prev_oi": 500, "volume": 1000, "bid_price": 99, "ask_price": 101},
+                        "option_greeks": {"delta": -0.5, "gamma": 0.01, "vega": 10, "theta": -2, "iv": 15}
+                    }
+                }
+            ]
+        }
+        with patch("api.options.fetch_upstox", new_callable=AsyncMock, return_value=mock_data):
+            response = client.get("/api/options/chain/NIFTY?expiry=2026-03-17")
+            assert response.status_code == 200
             data = response.json()
             assert "summary" in data
             summary = data["summary"]
             assert "pcr" in summary
             assert "max_pain" in summary
             assert "expected_move" in summary
-        else:
-            # Fallback for environments where API is restricted
-            pytest.skip("Upstox API not accessible for live integration test")

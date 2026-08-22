@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, waitFor, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { SymbolChips } from "./SymbolChips";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
 afterEach(cleanup);
 
@@ -61,7 +62,7 @@ describe("SymbolChips", () => {
     render(<SymbolChips selectedSymbols={symbols} onSymbolsChange={mockOnSymbolsChange} />, {
       wrapper: Wrapper,
     });
-    screen.getByTestId("symbol-expand-more-btn").click();
+    await user.click(screen.getByTestId("symbol-expand-more-btn"));
     await waitFor(() => {
       const allChips = screen.getAllByTestId(/^(chip-|symbol-expand)/);
       expect(allChips.length).toBe(7);
@@ -71,15 +72,16 @@ describe("SymbolChips", () => {
   });
 
   it("collapses back when clicking collapse button", async () => {
+      const user = userEvent.setup();
     const symbols = ["TCS", "INFY", "RELIANCE", "WIPRO", "HDFC", "ICICI"];
     render(<SymbolChips selectedSymbols={symbols} onSymbolsChange={mockOnSymbolsChange} />, {
       wrapper: Wrapper,
     });
-    screen.getByTestId("symbol-expand-more-btn").click();
+    await user.click(screen.getByTestId("symbol-expand-more-btn"));
     await waitFor(() => {
       expect(screen.getByTestId("symbol-expand-less-btn")).toBeInTheDocument();
     });
-    screen.getByTestId("symbol-expand-less-btn").click();
+    await user.click(screen.getByTestId("symbol-expand-less-btn"));
     await waitFor(() => {
       const allChips = screen.getAllByTestId(/^(chip-|symbol-expand)/);
       expect(allChips.length).toBe(6);
@@ -88,6 +90,7 @@ describe("SymbolChips", () => {
   });
 
   it("calls onSymbolsChange when clicking chip X button", async () => {
+      const user = userEvent.setup();
     const symbols = ["TCS", "INFY", "RELIANCE"];
     render(<SymbolChips selectedSymbols={symbols} onSymbolsChange={mockOnSymbolsChange} />, {
       wrapper: Wrapper,
@@ -96,7 +99,7 @@ describe("SymbolChips", () => {
     const svg = chipBadge.querySelector("svg");
     expect(svg).toBeInTheDocument();
     if (svg) {
-      fireEvent.click(svg);
+      await user.click(svg);
     }
     await waitFor(() => {
       expect(mockOnSymbolsChange).toHaveBeenCalledWith(["INFY", "RELIANCE"]);
@@ -117,12 +120,12 @@ describe("SymbolChips", () => {
     expect(screen.queryByTestId("clear-symbols-btn")).not.toBeInTheDocument();
   });
 
-  it("clears all symbols when clear button is clicked", () => {
+  it("clears all symbols when clear button is clicked", async () => {
     render(
       <SymbolChips selectedSymbols={["TCS", "INFY"]} onSymbolsChange={mockOnSymbolsChange} />,
       { wrapper: Wrapper },
     );
-    screen.getByTestId("clear-symbols-btn").click();
+    await user.click(screen.getByTestId("clear-symbols-btn"));
     expect(mockOnSymbolsChange).toHaveBeenCalledWith([]);
   });
 

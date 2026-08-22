@@ -12,6 +12,8 @@ import asyncio
 import time
 import math
 
+import config
+
 router = APIRouter(prefix="/api/market-ticker", tags=["market-ticker"])
 
 
@@ -94,11 +96,11 @@ def fetch_ticker_data(symbol: str, name: str, yf_symbol: str) -> tuple[str, Dict
             "high": info.get('dayHigh'),
             "low": info.get('dayLow'),
             "prev_close": round(prev_close, 2) if prev_close else None,
-            "timestamp": datetime.now(),
+            "timestamp": datetime.now(config.IST),
             "is_positive": change >= 0,
             "source": "yahoo",
             "update_time_ms": 0,
-            "last_updated": datetime.now()
+            "last_updated": datetime.now(config.IST)
         }
     except Exception as e:
         return symbol, {
@@ -160,12 +162,12 @@ async def get_all_tickers() -> Dict[str, TickerItem]:
                 high=None,
                 low=None,
                 prev_close=None,
-                timestamp=datetime.now(),
+                timestamp=datetime.now(config.IST),
                 is_positive=False,
                 error=data["error"],
                 source="yahoo",
                 update_time_ms=0,
-                last_updated=datetime.now()
+                last_updated=datetime.now(config.IST)
             )
         else:
             tickers[symbol] = TickerItem(
@@ -200,7 +202,7 @@ async def get_all_tickers_endpoint():
     tickers = await get_all_tickers()
     return TickerResponse(
         tickers=tickers,
-        timestamp=datetime.now(),
+        timestamp=datetime.now(config.IST),
         cache_age_seconds=time.time() - _cache_timestamp
     )
 

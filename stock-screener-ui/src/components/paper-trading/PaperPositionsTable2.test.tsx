@@ -8,7 +8,10 @@ import { mockPosition } from "./testFixtures";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import type { PaperBotSnapshot, PaperTradingState } from "../../types/paperTrading";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function createMockState(overrides: Partial<PaperTradingState> = {}): PaperTradingState {
   return {
@@ -217,14 +220,14 @@ describe("PaperPositionsTable", () => {
     test("shows empty state when positions is empty and no botSnapshot", () => {
       setState({ positions: [], botSnapshot: null, isLoading: false });
       r(<PaperPositionsTable />);
-      expect(screen.getByTestId("positions-empty")).toBeTruthy();
-      expect(screen.getByText("No open positions")).toBeTruthy();
+      expect(screen.getByTestId("positions-empty")).toBeInTheDocument();
+      expect(screen.getByText("No open positions")).toBeInTheDocument();
     });
 
     test("shows loading state when isLoading and no positions", () => {
       setState({ isLoading: true, positions: [], botSnapshot: null });
       r(<PaperPositionsTable />);
-      expect(screen.getByText("Loading positions...")).toBeTruthy();
+      expect(screen.getByText("Loading positions...")).toBeInTheDocument();
     });
 
     test("no positions but botSnapshot present shows empty positions", () => {
@@ -238,49 +241,59 @@ describe("PaperPositionsTable", () => {
   describe("Single position display", () => {
     test("renders single position with symbol, merged entry/curr, P&L %", () => {
       rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
-      expect(screen.getByText("RELIANCE")).toBeTruthy();
-      expect(screen.getByText((c) => c.includes("10") && c.includes("₹2500"))).toBeTruthy();
-      const row = screen.getByTestId("position-row-RELIANCE");
+      expect(screen.getByText("RELIANCE")).toBeInTheDocument();
+      expect(screen.getByText((c) => c.includes("10") && c.includes("₹2500"))).toBeInTheDocument();
+      const row = screen.getByTestId("position-row-1-RELIANCE");
       expect(row.textContent).toContain("+₹5.0K");
       expect(row.textContent).toContain("+2.00%");
     });
 
     test("renders close button for each position row", () => {
       rWithPosition();
-      const closeBtn = screen.getByTestId("close-position-RELIANCE");
-      expect(closeBtn).toBeTruthy();
+      const closeBtn = screen.getByTestId("close-position-1-RELIANCE");
+      expect(closeBtn).toBeInTheDocument();
     });
 
     test("position row click triggers symbol selection", async () => {
       const user = userEvent.setup();
       rWithPosition();
       await user.click(screen.getByText("RELIANCE"));
+      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
+      const { fetchPaperChart } = await import("../../api/paperTrading");
+      expect(fetchPaperChart).toHaveBeenCalledWith(
+        "RELIANCE",
+        expect.any(String),
+        expect.any(String),
+        expect.anything(),
+        expect.anything(),
+      );
     });
   });
 
   describe("Side indicator", () => {
     test("BUY side shows symbol name", () => {
       rWithPosition();
-      expect(screen.getByText("RELIANCE")).toBeTruthy();
+      expect(screen.getByText("RELIANCE")).toBeInTheDocument();
     });
 
     test("SELL side shows symbol name", () => {
       rWithPosition({ side: "SELL", pnl: -500, pnl_pct: -1.0 });
-      expect(screen.getByText("RELIANCE")).toBeTruthy();
+      expect(screen.getByText("RELIANCE")).toBeInTheDocument();
     });
   });
 
   describe("P&L text color", () => {
     test("positive P&L with ₹ amount and percentage", () => {
       rWithPosition({ pnl: 5000, pnl_pct: 2.0 });
-      const row = screen.getByTestId("position-row-RELIANCE");
+      const row = screen.getByTestId("position-row-1-RELIANCE");
       expect(row.textContent).toContain("+₹5.0K");
       expect(row.textContent).toContain("+2.00%");
     });
 
     test("negative P&L with ₹ amount and percentage", () => {
       rWithPosition({ pnl: -500, pnl_pct: -0.2 });
-      const row = screen.getByTestId("position-row-RELIANCE");
+      const row = screen.getByTestId("position-row-1-RELIANCE");
       expect(row.textContent).toContain("₹-500");
       expect(row.textContent).toContain("-0.20%");
     });
@@ -298,9 +311,9 @@ describe("PaperPositionsTable", () => {
           order_id: "ord-2",
         },
       );
-      expect(screen.getByText((c) => c.includes("RELIANCE"))).toBeTruthy();
-      expect(screen.getByText((c) => c.includes("TCS"))).toBeTruthy();
-      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("RELIANCE"))).toBeInTheDocument();
+      expect(screen.getByText((c) => c.includes("TCS"))).toBeInTheDocument();
+      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeInTheDocument();
     });
 
     test("renders separate cards for different strategies", () => {
@@ -308,8 +321,8 @@ describe("PaperPositionsTable", () => {
         { strategy_id: 1, strategy_name: "ORB Strategy" },
         { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout" },
       );
-      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeTruthy();
-      expect(screen.getByTestId("strategy-card-SR Breakout")).toBeTruthy();
+      expect(screen.getByTestId("strategy-card-ORB Strategy")).toBeInTheDocument();
+      expect(screen.getByTestId("strategy-card-SR Breakout")).toBeInTheDocument();
     });
 
     test("strategy panel shows count and P&L", () => {
@@ -317,15 +330,15 @@ describe("PaperPositionsTable", () => {
         { strategy_id: 1, strategy_name: "ORB Strategy", pnl: 5000 },
         { symbol: "INFY", side: "BUY", strategy_id: 2, strategy_name: "SR Breakout", pnl: 3000 },
       );
-      expect(screen.getByText("ORB Strategy")).toBeTruthy();
-      expect(screen.getByText("SR Breakout")).toBeTruthy();
+      expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
+      expect(screen.getByText("SR Breakout")).toBeInTheDocument();
     });
   });
 
   describe("CloseAll button", () => {
     test("CloseAll button renders when positions exist", () => {
       rWithCloseAllEnabled({ current_price: 2550 });
-      expect(screen.getByTestId("close-all-positions")).toBeTruthy();
+      expect(screen.getByTestId("close-all-positions")).toBeInTheDocument();
       expect(screen.getAllByText("Close All").length).toBeGreaterThanOrEqual(1);
     });
 
@@ -333,19 +346,19 @@ describe("PaperPositionsTable", () => {
       setState({ positions: [], botSnapshot: null });
       r(<PaperPositionsTable />);
 
-      expect(screen.queryByTestId("close-all-positions")).toBeFalsy();
+      expect(screen.queryByTestId("close-all-positions")).not.toBeInTheDocument();
     });
   });
 
   describe("Positions table container and header", () => {
     test("positions header shows count", () => {
       rWithTwoPositions({}, {});
-      expect(screen.getByText("Positions (2)")).toBeTruthy();
+      expect(screen.getByText("Positions (2)")).toBeInTheDocument();
     });
 
     test("badge shows PAPER when no live bot selected", () => {
       rWithPosition();
-      expect(screen.getByText("PAPER")).toBeTruthy();
+      expect(screen.getByText("PAPER")).toBeInTheDocument();
     });
 
     test("badge shows LIVE when live bot is selected", () => {
@@ -359,12 +372,12 @@ describe("PaperPositionsTable", () => {
           live_trading: true,
         }],
       });
-      expect(screen.getByText("LIVE")).toBeTruthy();
+      expect(screen.getByText("LIVE")).toBeInTheDocument();
     });
 
     test("positions panel data-testid present", () => {
       rWithPosition();
-      expect(screen.getByTestId("positions-table-container")).toBeTruthy();
+      expect(screen.getByTestId("positions-table-container")).toBeInTheDocument();
     });
 
     test("positions table has data-testid from DataTable", () => {
@@ -403,6 +416,99 @@ describe("PaperPositionsTable", () => {
       await waitFor(() => {
         expect(alertMock).toHaveBeenCalledWith("Network error");
       });
+    });
+  });
+
+  describe("Edge cases - guards", () => {
+    test("NaN current_price does not crash and renders fallback", () => {
+      rWithPosition({ current_price: NaN });
+      // composite key 1-RELIANCE, fallback to plain if needed
+      const row = screen.queryByTestId("position-row-1-RELIANCE") || screen.getByTestId("position-row-RELIANCE");
+      expect(row).toBeInTheDocument();
+      expect(screen.getByTestId("positions-table").textContent).not.toContain("NaN");
+    });
+
+    test("Infinity current_price guard fallback", () => {
+      rWithPosition({ current_price: Infinity });
+      const row = screen.queryByTestId("position-row-1-RELIANCE") || screen.getByTestId("position-row-RELIANCE");
+      expect(row).toBeInTheDocument();
+      expect(screen.getByTestId("positions-table").textContent).not.toContain("Infinity");
+    });
+
+    test("Infinity current_price excluded from closeAll payload", async () => {
+      const user = userEvent.setup();
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      const confirmMock = vi.fn(() => true);
+      window.confirm = confirmMock as any;
+      rWithTwoPositions({ current_price: Infinity, symbol: "RELIANCE" }, { current_price: 2550, symbol: "TCS" }, {
+        availableBots: [{ id: "bot-1", name: "Bot 1", strategies: [], is_active: true }],
+      });
+      await user.click(screen.getByTestId("close-all-positions"));
+      await waitFor(() => expect(closeAllPositions).toHaveBeenCalled());
+      const prices = (closeAllPositions as any).mock.calls[0][1];
+      expect(prices["RELIANCE"]).toBeUndefined();
+      expect(prices["TCS"]).toBe(2550);
+    });
+
+    test("quantity 0 renders 0× without crash", () => {
+      rWithPosition({ quantity: 0 });
+      const row = screen.queryByTestId("position-row-1-RELIANCE") || screen.getByTestId("position-row-RELIANCE");
+      expect(row.textContent).toContain("0×");
+    });
+
+    test("window.confirm false path does not call closePaperPosition", async () => {
+      const user = userEvent.setup();
+      const { closePaperPosition } = await import("../../api/paperTrading");
+      const confirmMock = vi.fn(() => false);
+      window.confirm = confirmMock as any;
+      rWithPosition({ current_price: 2550 });
+      const closeBtn = screen.queryByTestId("close-position-1-RELIANCE") || screen.getByTestId("close-position-RELIANCE");
+      await user.click(closeBtn);
+      expect(confirmMock).toHaveBeenCalled();
+      expect(closePaperPosition).not.toHaveBeenCalled();
+    });
+
+    test("window.confirm false path for Close All does not call closeAllPositions", async () => {
+      const user = userEvent.setup();
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      const confirmMock = vi.fn(() => false);
+      window.confirm = confirmMock as any;
+      rWithCloseAllEnabled();
+      await user.click(screen.getByTestId("close-all-positions"));
+      expect(closeAllPositions).not.toHaveBeenCalled();
+    });
+
+    test("concurrent handleCloseAll double-click calls closeAllPositions only once", async () => {
+      const user = userEvent.setup();
+      const { closeAllPositions } = await import("../../api/paperTrading");
+      // pending promise to keep closing=true
+      let resolve: any;
+      vi.mocked(closeAllPositions).mockReturnValueOnce(new Promise((res) => { resolve = res; }) as any);
+      const confirmMock = vi.fn(() => true);
+      window.confirm = confirmMock as any;
+      rWithCloseAllEnabled();
+      const btn = screen.getByTestId("close-all-positions");
+      await user.click(btn);
+      // second click while still closing should be ignored
+      await user.click(btn);
+      expect(closeAllPositions).toHaveBeenCalledTimes(1);
+      resolve(undefined);
+      await waitFor(() => expect(screen.queryByText("Closing...")).not.toBeInTheDocument());
+    });
+
+    test("XSS symbol \"<script>\" is escaped not executed", () => {
+      const xss = "<script>alert(1)</script>";
+      rWithPosition({ symbol: xss });
+      // composite sanitizes non-alnum to -, so id becomes 1--script-alert-1--script-
+      const row = document.querySelector('[data-testid^="position-row-"]') as HTMLElement;
+      expect(row).toBeInTheDocument();
+      expect(row.textContent).toContain("<script>");
+      // Ensure innerHTML does not contain raw executable script tag (React escapes)
+      expect(row.innerHTML).not.toContain("<script>alert(1)</script>");
+      // No script element created in DOM outside
+      const scripts = document.querySelectorAll("script");
+      // only original template scripts, not injected XSS
+      expect(Array.from(scripts).some(s=>s.textContent?.includes("alert(1)"))).toBe(false);
     });
   });
 });

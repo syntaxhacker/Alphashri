@@ -10,6 +10,8 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 const baseProps: StrategiesPageProps = {

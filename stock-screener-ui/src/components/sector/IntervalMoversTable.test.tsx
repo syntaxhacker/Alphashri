@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import type { InternalStockMover } from "./sectorUtils";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("IntervalMoversTable", () => {
   it("shows empty state when no movers", () => {

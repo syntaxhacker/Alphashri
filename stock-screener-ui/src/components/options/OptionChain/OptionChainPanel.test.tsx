@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithMantine } from "../../../test-utils/renderWithMantine";
-import { screen, cleanup, fireEvent } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { OptionChainPanel } from "./OptionChainPanel";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
@@ -108,10 +109,11 @@ describe("OptionChainPanel", () => {
     expect(screen.getByTestId("options-chain-selection")).toHaveTextContent("BANKNIFTY · 01JUN");
   });
 
-  it("calls refreshChain when refresh icon is clicked", () => {
+  it("calls refreshChain when refresh icon is clicked", async () => {
+      const user = userEvent.setup();
     const refreshChain = vi.fn();
     renderWithMantine(<OptionChainPanel {...defaultProps} refreshChain={refreshChain} />);
-    fireEvent.click(screen.getByTestId("refresh-chain-btn"));
+    await user.click(screen.getByTestId("refresh-chain-btn"));
     expect(refreshChain).toHaveBeenCalledTimes(1);
   });
 
@@ -127,12 +129,13 @@ describe("OptionChainPanel", () => {
     expect(refreshBtn.style.opacity).toBe("1");
   });
 
-  it("renders Guide button and opens guide modal on click", () => {
+  it("renders Guide button and opens guide modal on click", async () => {
+      const user = userEvent.setup();
     renderWithMantine(<OptionChainPanel {...defaultProps} />);
     const guideBtn = screen.getByTestId("open-guide-btn");
     expect(guideBtn).toBeInTheDocument();
     expect(screen.queryByTestId("options-chain-guide-modal")).not.toBeInTheDocument();
-    fireEvent.click(guideBtn);
+    await user.click(guideBtn);
     expect(screen.getByTestId("options-chain-guide-modal")).toBeInTheDocument();
   });
 

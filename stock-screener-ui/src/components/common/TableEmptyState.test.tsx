@@ -6,6 +6,8 @@ import { TableEmptyState } from "./TableEmptyState";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 vi.mock("@/ui", () => ({

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, within } from "@testing-library/react";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 const mockStateStore: any = {
@@ -284,16 +285,15 @@ describe("PaperTradingView", () => {
 
   describe("error alert", () => {
     test("error alert close button clears error", async () => {
+      const user = userEvent.setup();
       mockStateStore.error = "Something went wrong";
       r();
       const alert = screen.getByTestId("paper-error");
       expect(alert).toBeInTheDocument();
-      const closeBtn = alert.querySelector("button");
-      if (closeBtn) {
-        closeBtn.click();
-        const { setError } = await import("../../state/paperTrading");
-        expect(setError).toHaveBeenCalledWith(null);
-      }
+      const closeBtn = within(alert).getByRole("button");
+      await user.click(closeBtn);
+      const { setError } = await import("../../state/paperTrading");
+      expect(setError).toHaveBeenCalledWith(null);
     });
   });
 

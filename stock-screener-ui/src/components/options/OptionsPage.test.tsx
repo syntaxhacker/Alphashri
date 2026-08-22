@@ -19,7 +19,10 @@ vi.mock("./OptionGreeks/GreeksPanel", () => ({
 }));
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 const defaultProps = {
   activeTab: "chain",

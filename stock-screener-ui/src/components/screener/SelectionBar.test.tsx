@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { SelectionBar } from "./SelectionBar";
 import { UIProvider } from "@/ui";
 
@@ -62,14 +63,15 @@ describe("SelectionBar", () => {
     expect(screen.getByText("3 selected")).toBeInTheDocument();
   });
 
-  it("Clear button calls clearSelectedSymbols", () => {
+  it("Clear button calls clearSelectedSymbols", async () => {
+      const user = userEvent.setup();
     mockSelectedSymbols = ["RELIANCE"];
     render(
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("clear-selection-btn"));
+    await user.click(screen.getByTestId("clear-selection-btn"));
     expect(mockClearSelectedSymbols).toHaveBeenCalledTimes(1);
   });
 
@@ -83,14 +85,15 @@ describe("SelectionBar", () => {
     expect(screen.getByTestId("compare-btn")).toBeDisabled();
   });
 
-  it("Compare button calls onCompare when clicked", () => {
+  it("Compare button calls onCompare when clicked", async () => {
+      const user = userEvent.setup();
     mockSelectedSymbols = ["RELIANCE", "TCS"];
     render(
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("compare-btn"));
+    await user.click(screen.getByTestId("compare-btn"));
     expect(onCompare).toHaveBeenCalledTimes(1);
   });
 });

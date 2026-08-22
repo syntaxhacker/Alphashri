@@ -9,13 +9,29 @@ from cache.redis_client import get_redis_client
 from config import IST
 
 # Max age of a scan item before it's considered stale and dropped from the UI.
-# The bot re-stamps scan items on every persist (~30s), so anything older than
-# this is from a stopped bot or a strategy that stopped producing scan results.
-SCAN_ITEM_STALE_SECONDS = 15 * 60
+# Intraday strategies scan every ~5s; swing strategies (52W, ADX, VOLUME_SURGE)
+# only scan every 10 cycles (~50s) and during market hours.  Using a single
+# 15-min window caused ADX Trend watchlists to flip to "No data" after
+# ~15 min of no persist (e.g. bot restart + Redis TTL 300s expiry): DB
+# scan_items at 11:52 were filtered to 0 at 12:29 and the UI fell back to
+# BotRuntimeState.updated_at (06:22, 6h ago).  Use a longer window and a
+# per-strategy override so swing scan results stay visible for 60 min.
+SCAN_ITEM_STALE_SECONDS = 60 * 60
+SCAN_ITEM_STALE_SECONDS_INTRADAY = 15 * 60
+SCAN_ITEM_STALE_SECONDS_SWING = 60 * 60
+
+# Strategy types that are considered swing (longer staleness window).
+_SWING_STRATEGY_TYPES = {"52W_CHASER", "52W_TARGET", "BLIND_52W", "ADX_TREND", "SHORT_52W_FAILED", "VOLUME_SURGE"}
 
 
 def _is_fresh_scan_item(item: dict, now_ist: datetime) -> bool:
-    """Return True if the scan item has a recent enough timestamp to show."""
+    """Return True if the scan item has a recent enough timestamp to show.
+
+    Swing strategies use a longer window (60m) than intraday (15m) so a short
+    gap in persists (restart, rate-limit, Redis expiry) does not blank the
+    watchlist.  If the item does not carry strategy_type, fall back to the
+    global 60-min window (backwards-compatible).
+    """
     ts = item.get('timestamp')
     if not ts:
         return False
@@ -23,7 +39,13 @@ def _is_fresh_scan_item(item: dict, now_ist: datetime) -> bool:
         parsed = datetime.fromisoformat(str(ts))
         if parsed.tzinfo is None:
             parsed = parsed.replace(tzinfo=IST)
-        return (now_ist - parsed).total_seconds() <= SCAN_ITEM_STALE_SECONDS
+        age = (now_ist - parsed).total_seconds()
+        stype = (item.get('strategy_type') or '').upper()
+        if stype in _SWING_STRATEGY_TYPES:
+            return age <= SCAN_ITEM_STALE_SECONDS_SWING
+        if stype and stype not in _SWING_STRATEGY_TYPES:
+            return age <= SCAN_ITEM_STALE_SECONDS_INTRADAY
+        return age <= SCAN_ITEM_STALE_SECONDS
     except Exception:
         return False
 
@@ -162,10 +184,15 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
             pass
 
     now_ist = datetime.now(IST)
+    # Keep raw list so staleness fallback can surface the last scan time
+    # instead of falling back to BotRuntimeState.updated_at (often hours old
+    # when scan_items go stale after a restart + Redis expiry).
+    raw_scan_items = list(scan_items)
     scan_items = [it for it in scan_items if _is_fresh_scan_item(it, now_ist)]
 
     # DB column may hold stale items (bot stopped / empty scans) while Redis
     # still has fresh ones — retry Redis only after filtering DB items.
+    raw_redis_items: list = []
     if not scan_items and bot_runtime and getattr(bot_runtime, 'scan_items', None):
         try:
             client = get_redis_client()
@@ -173,6 +200,7 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
                 raw = client.get(f"bot:{bot_id}:scan_items")
                 if raw:
                     redis_items = json.loads(raw)
+                    raw_redis_items = list(redis_items)
                     scan_items = [it for it in redis_items if _is_fresh_scan_item(it, now_ist)]
         except Exception:
             pass
@@ -187,6 +215,15 @@ def get_bot_state(bot_id: int, user_id: int, db) -> Optional[dict]:
         timestamps = [it['timestamp'] for it in scan_items if it.get('timestamp')]
         if timestamps:
             served_ts = max(timestamps)
+    # Don't fall back to updated_at (6h-old) when the watchlist is stale —
+    # surface the actual last scan time so the UI can show "stale" rather
+    # than "No data 6h ago".  Prefer raw DB timestamps, then raw Redis.
+    if served_ts is None:
+        stale_pool = raw_scan_items or raw_redis_items
+        if stale_pool:
+            stale_ts = [it['timestamp'] for it in stale_pool if it.get('timestamp')]
+            if stale_ts:
+                served_ts = max(stale_ts)
     if served_ts is None:
         served_ts = (
             bot_runtime.updated_at.isoformat()

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { ReactElement } from "react";
 
@@ -175,17 +176,19 @@ describe("ScreenerConfigView", () => {
     expect(screen.getByTestId("screener-filters")).toBeInTheDocument();
   });
 
-  it("Clicking row calls onScreenerChange", () => {
+  it("Clicking row calls onScreenerChange", async () => {
+      const user = userEvent.setup();
     const onChange = vi.fn();
     renderWithProvider(<ScreenerConfigView {...defaultProps} onScreenerChange={onChange} />);
-    fireEvent.click(screen.getByTestId("screener-row-new-highs"));
+    await user.click(screen.getByTestId("screener-row-new-highs"));
     expect(onChange).toHaveBeenCalledWith("new-highs");
   });
 
   describe("create modal", () => {
     it("Create button opens modal with form", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
@@ -194,8 +197,9 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Create form has indicator checkboxes", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByRole("checkbox", { name: "RSI" })).toBeInTheDocument();
       });
@@ -205,20 +209,22 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Toggling indicator adds filter inputs", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByRole("checkbox", { name: "RSI" })).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByRole("checkbox", { name: "Momentum" }));
+      await user.click(screen.getByRole("checkbox", { name: "Momentum" }));
       await waitFor(() => {
         expect(screen.getAllByText("Momentum").length).toBeGreaterThan(1);
       });
     });
 
     it("Filter inputs render for pre-selected indicators", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByRole("checkbox", { name: "RSI" })).toBeInTheDocument();
       });
@@ -226,8 +232,9 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Default sort column and direction selects are present", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByRole("checkbox", { name: "RSI" })).toBeInTheDocument();
       });
@@ -235,16 +242,17 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Create calls createScreener API on submit", async () => {
+      const user = userEvent.setup();
       mockCreateScreener.mockResolvedValueOnce({ id: 99 });
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
-      fireEvent.change(screen.getByTestId("screener-name-input"), { target: { value: "My Screener" } });
+      await user.clear(screen.getByTestId("screener-name-input")); await user.type(screen.getByTestId("screener-name-input"), "My Screener");
       const confirmBtn = screen.getByTestId("confirm-create-btn");
       expect(confirmBtn).not.toBeDisabled();
-      fireEvent.click(confirmBtn);
+      await user.click(confirmBtn);
       await waitFor(() => {
         expect(mockCreateScreener).toHaveBeenCalled();
       });
@@ -254,8 +262,9 @@ describe("ScreenerConfigView", () => {
 
   describe("edit modal", () => {
     it("Edit button opens modal with prefilled form", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("edit-screener-trending"));
+      await user.click(screen.getByTestId("edit-screener-trending"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
@@ -263,13 +272,14 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Edit calls updateScreener API on submit", async () => {
+      const user = userEvent.setup();
       mockUpdateScreener.mockResolvedValueOnce({});
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("edit-screener-trending"));
+      await user.click(screen.getByTestId("edit-screener-trending"));
       await waitFor(() => {
         expect(screen.getByTestId("confirm-create-btn")).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByTestId("confirm-create-btn"));
+      await user.click(screen.getByTestId("confirm-create-btn"));
       await waitFor(() => {
         expect(mockUpdateScreener).toHaveBeenCalled();
       });
@@ -279,8 +289,9 @@ describe("ScreenerConfigView", () => {
 
   describe("delete modal", () => {
     it("Delete button opens delete confirmation modal", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("delete-screener-trending"));
+      await user.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText((content) => content.includes("Are you sure you want to delete"))).toBeInTheDocument();
       });
@@ -288,13 +299,14 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Delete calls deleteScreener API on confirm", async () => {
+      const user = userEvent.setup();
       mockDeleteScreener.mockResolvedValueOnce({});
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("delete-screener-trending"));
+      await user.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText("Delete")).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText("Delete"));
+      await user.click(screen.getByText("Delete"));
       await waitFor(() => {
         expect(mockDeleteScreener).toHaveBeenCalled();
       });
@@ -302,16 +314,17 @@ describe("ScreenerConfigView", () => {
     });
 
     it("Deleting active screener navigates to trending", async () => {
+      const user = userEvent.setup();
       const onChange = vi.fn();
       renderWithProvider(
         <ScreenerConfigView {...defaultProps} onScreenerChange={onChange} />,
       );
       mockDeleteScreener.mockResolvedValueOnce({});
-      fireEvent.click(screen.getByTestId("delete-screener-trending"));
+      await user.click(screen.getByTestId("delete-screener-trending"));
       await waitFor(() => {
         expect(screen.getByText("Delete")).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByText("Delete"));
+      await user.click(screen.getByText("Delete"));
       await waitFor(() => {
         expect(onChange).toHaveBeenCalledWith("trending");
       });
@@ -320,12 +333,13 @@ describe("ScreenerConfigView", () => {
 
   describe("cancel button", () => {
     it("Cancel button closes create modal", async () => {
+      const user = userEvent.setup();
       renderWithProvider(<ScreenerConfigView {...defaultProps} />);
-      fireEvent.click(screen.getByTestId("create-screener-btn"));
+      await user.click(screen.getByTestId("create-screener-btn"));
       await waitFor(() => {
         expect(screen.getByTestId("screener-name-input")).toBeInTheDocument();
       });
-      fireEvent.click(screen.getByTestId("cancel-create-btn"));
+      await user.click(screen.getByTestId("cancel-create-btn"));
       await waitFor(() => {
         expect(screen.queryByTestId("screener-name-input")).not.toBeInTheDocument();
       });

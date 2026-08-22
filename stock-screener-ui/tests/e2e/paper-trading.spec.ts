@@ -738,7 +738,7 @@ test.describe("Paper Trading - Chart Controls", () => {
     // networkidle times out due to SSE live-price stream; wait for target element instead
     await page.waitForSelector('[data-testid^="position-row-"]', { timeout: 15000 });
 
-    const positionRow = page.locator(`[data-testid="position-row-${SYMBOL}"]`);
+    const positionRow = page.locator(`[data-testid$="-${SYMBOL}"]`);
     await expect(positionRow).toBeVisible({ timeout: 15000 });
     // Click the symbol link inside the row to open chart (row click only toggles expansion)
     await positionRow.locator(".symbol-link").click({ timeout: 15000 });
