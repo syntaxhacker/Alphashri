@@ -19,6 +19,17 @@ def restore_position(portfolio, pos_data: dict):
     if key in portfolio.positions:
         return
 
+    raw_entry = pos_data.get('entry_time')
+    if raw_entry is None:
+        entry_time = datetime.now(config.IST)
+    elif isinstance(raw_entry, datetime):
+        entry_time = raw_entry
+    else:
+        try:
+            entry_time = datetime.fromisoformat(str(raw_entry))
+        except Exception:
+            entry_time = datetime.now(config.IST)
+
     pos = SharedPosition(
         symbol=symbol,
         side=OrderSide(pos_data['side']),
@@ -26,7 +37,7 @@ def restore_position(portfolio, pos_data: dict):
         entry_price=pos_data['entry_price'],
         stop_loss=pos_data['stop_loss'],
         take_profit=pos_data['take_profit'],
-        entry_time=datetime.fromisoformat(pos_data['entry_time']),
+        entry_time=entry_time,
         strategy_id=strategy_id,
         strategy_name=pos_data['strategy_name'],
         strategy_type=pos_data.get('strategy_type', ''),
