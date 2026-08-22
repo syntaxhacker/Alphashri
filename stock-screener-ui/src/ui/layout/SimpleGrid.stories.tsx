@@ -1,0 +1,41 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { SimpleGrid } from "./SimpleGrid";
+
+const meta: Meta<typeof SimpleGrid> = {
+  title: "Design System/Layout/SimpleGrid",
+  component: SimpleGrid,
+  tags: ["autodocs"],
+};
+
+export default meta;
+type Story = StoryObj<typeof SimpleGrid>;
+
+const cells = Array.from({ length: 6 }, (_, i) => (
+  <div
+    key={i}
+    style={{
+      background: "var(--mantine-color-blue-light)",
+      padding: 16,
+      borderRadius: 6,
+      textAlign: "center",
+    }}
+  >
+    Cell {i + 1}
+  </div>
+));
+
+export const FixedCols: Story = {
+  render: () => (
+    <SimpleGrid cols={3} spacing="md">
+      {cells}
+    </SimpleGrid>
+  ),
+};
+
+export const TwoCols: Story = {
+  render: () => (
+    <SimpleGrid cols={2} spacing="lg" verticalSpacing="lg" style={{ width: 300 }}>
+      {cells}
+    </SimpleGrid>
+  ),
+};

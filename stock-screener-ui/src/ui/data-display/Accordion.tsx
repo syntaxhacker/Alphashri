@@ -2,7 +2,7 @@ import { Accordion as MantineAccordion } from "@mantine/core";
 import type { UIAccordionProps, UIAccordionItemProps, UIAccordionControlProps, UIAccordionPanelProps } from "../types";
 
 export function Accordion({ multiple, defaultValue, value, onChange, variant, chevronPosition, disableChevronRotation, children, className, style, "data-testid": testId, ...rest }: UIAccordionProps) {
-  return <MantineAccordion multiple={multiple} defaultValue={defaultValue} value={value} onChange={onChange} variant={variant} chevronPosition={chevronPosition} disableChevronRotation={disableChevronRotation} className={className} style={style} data-testid={testId} {...rest}>{children}</MantineAccordion>;
+  return <MantineAccordion multiple={multiple} defaultValue={defaultValue} value={value} onChange={onChange as any} variant={variant} chevronPosition={chevronPosition} disableChevronRotation={disableChevronRotation} className={className} style={style} data-testid={testId} {...(rest as any)}>{children}</MantineAccordion>;
 }
 
 export function AccordionItem({ value, children, className, style, "data-testid": testId, ...rest }: UIAccordionItemProps) {

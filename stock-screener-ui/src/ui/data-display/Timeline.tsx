@@ -6,6 +6,6 @@ export function Timeline({ active, bulletSize, color, align, lineWidth, reverseA
 }
 
 export function TimelineItem({ title, bullet, color, lineVariant, active, children, className, style, "data-testid": testId, ...rest }: UITimelineItemProps) {
-  return <MantineTimeline.Item title={title} bullet={bullet} color={color} lineVariant={lineVariant} active={active} className={className} style={style} data-testid={testId} {...rest}>{children}</MantineTimeline.Item>;
+  return <MantineTimeline.Item title={title} bullet={bullet} color={color} lineVariant={lineVariant} active={active} {...({ className, style, "data-testid": testId, ...rest } as any)}>{children}</MantineTimeline.Item>;
 }
 Timeline.Item = TimelineItem;

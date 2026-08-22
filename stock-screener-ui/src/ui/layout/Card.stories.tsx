@@ -1,0 +1,39 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Card } from "./Card";
+
+const meta: Meta<typeof Card> = {
+  title: "Design System/Layout/Card",
+  component: Card,
+  tags: ["autodocs"],
+};
+
+export default meta;
+type Story = StoryObj<typeof Card>;
+
+export const Default: Story = {
+  render: () => (
+    <Card shadow="sm" padding="lg" radius="md" withBorder w={300}>
+      Simple card with shadow, border, and large padding.
+    </Card>
+  ),
+};
+
+export const PaddingVariants: Story = {
+  render: () => (
+    <div style={{ display: "flex", gap: 16, alignItems: "flex-start" }}>
+      {(["xs", "md", "xl"] as const).map((padding) => (
+        <Card key={padding} padding={padding} radius="md" withBorder>
+          padding=&quot;{padding}&quot;
+        </Card>
+      ))}
+    </div>
+  ),
+};
+
+export const WithShadowAndRadius: Story = {
+  render: () => (
+    <Card shadow="lg" radius="xl" padding="md" w={280}>
+      Rounded card with a large shadow
+    </Card>
+  ),
+};

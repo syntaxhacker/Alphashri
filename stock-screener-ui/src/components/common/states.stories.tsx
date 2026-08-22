@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Stack, Button, Title } from "@/ui";
+import { Stack, Title } from "@/ui";
 import { InlineLoader, EmptyState, ErrorAlert, EmptyCompact } from "./states";
 
 const meta: Meta<typeof InlineLoader> = {
@@ -61,6 +61,14 @@ export const EmptyDefault: Story = {
 
 export const EmptyWithEmoji: Story = {
   render: () => <EmptyState emoji="🔍" title="No results" description="Try adjusting your filters." />,
+};
+
+export const EmptyCompactStandalone: Story = {
+  render: () => (
+    <div style={{ padding: 16 }}>
+      <EmptyCompact title="Empty Panel" description="This panel has no content yet." />
+    </div>
+  ),
 };
 
 export const ErrorDefault: Story = {

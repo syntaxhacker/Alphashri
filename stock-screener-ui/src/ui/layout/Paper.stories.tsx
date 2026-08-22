@@ -1,0 +1,43 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Paper } from "./Paper";
+
+const meta: Meta<typeof Paper> = {
+  title: "Design System/Layout/Paper",
+  component: Paper,
+  tags: ["autodocs"],
+};
+
+export default meta;
+type Story = StoryObj<typeof Paper>;
+
+export const ShadowVariants: Story = {
+  render: () => (
+    <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+      {(["xs", "sm", "md", "lg", "xl"] as const).map((shadow) => (
+        <Paper key={shadow} shadow={shadow} p="md" radius="md">
+          shadow=&quot;{shadow}&quot;
+        </Paper>
+      ))}
+    </div>
+  ),
+};
+
+export const RadiusVariants: Story = {
+  render: () => (
+    <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
+      {(["xs", "sm", "md", "lg", "xl"] as const).map((radius) => (
+        <Paper key={radius} radius={radius} p="md" withBorder>
+          radius=&quot;{radius}&quot;
+        </Paper>
+      ))}
+    </div>
+  ),
+};
+
+export const WithBorder: Story = {
+  render: () => (
+    <Paper withBorder p="lg" radius="md" w={280}>
+      Bordered paper without shadow
+    </Paper>
+  ),
+};
