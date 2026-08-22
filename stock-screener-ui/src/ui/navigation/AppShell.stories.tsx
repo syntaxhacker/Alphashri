@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Badge, Group, Stack, Text } from "@mantine/core";
+import { Badge, Box, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { IconChartBar, IconChartLine, IconRobot, IconSettings } from "@tabler/icons-react";
 import { AppShell } from "./AppShell";
+import { NavLink } from "./NavLink";
 
 const meta: Meta<typeof AppShell> = {
   title: "Primitives/Navigation/AppShell",
@@ -8,62 +10,85 @@ const meta: Meta<typeof AppShell> = {
   tags: ["autodocs"],
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Application shell — fixed header + collapsible navbar + scrollable main. Mirrors `AppLayout` in the app. Navbar uses `NavLink` primitives, not raw `Text`.",
+      },
+    },
   },
 };
 
 export default meta;
 type Story = StoryObj<typeof AppShell>;
 
-const navLinks = [
-  { label: "Dashboard", active: false },
-  { label: "Paper Trading", active: true },
-  { label: "Screener", active: false },
-  { label: "Strategies", active: false },
-];
-
 export const FullShell: Story = {
   render: () => (
-    <AppShell header={{ height: 56 }} navbar={{ width: 220 }} padding="md">
+    <AppShell header={{ height: 50 }} navbar={{ width: 200, breakpoint: "sm" }} padding="md" h="100vh">
       <AppShell.Header>
-        <Group h="100%" px="md" justify="space-between">
+        <Group h="100%" px="sm" justify="space-between">
           <Text fw={700} size="lg">
-            Alphashri
+            🚀 Alphashri
           </Text>
+          {/* MarketTicker placeholder - real one needs WS */}
+          <Box flex={1} style={{ maxWidth: 360 }}>
+            <Text size="xs" c="dimmed" ta="center" style={{ border: "1px dashed var(--mantine-color-default-border)", borderRadius: 6, padding: "4px 8px" }}>
+              Market Ticker
+            </Text>
+          </Box>
           <Badge variant="light" color="teal" size="sm">
             Market Open
           </Badge>
         </Group>
       </AppShell.Header>
+
       <AppShell.Navbar p="xs">
-        <AppShell.Section>
-          <Stack gap={0}>
-            {navLinks.map((link) => (
-              <Text
-                key={link.label}
-                px="md"
-                py={8}
-                size="sm"
-                fw={link.active ? 700 : 400}
-                c={link.active ? "var(--mantine-color-blue-filled)" : undefined}
-                style={{ borderRadius: 6 }}
-              >
-                {link.label}
-              </Text>
-            ))}
+        <AppShell.Section grow>
+          <Stack gap={2}>
+            <NavLink label="Screener" icon={<IconChartLine size={16} />} active />
+            <NavLink label="Backtest" icon={<IconChartLine size={16} />} />
+            <NavLink label="Paper Trading" icon={<IconChartLine size={16} />} description="3 open" />
+            <NavLink label="Bots" icon={<IconRobot size={16} />} />
+            <NavLink label="Strategies" icon={<IconChartBar size={16} />} />
+            <NavLink label="Settings" icon={<IconSettings size={16} />} />
           </Stack>
         </AppShell.Section>
         <AppShell.Section>
-          <Text px="md" size="xs" c="dimmed">
+          <Text size="xs" c="dimmed" px="xs">
             v2.0.0
           </Text>
         </AppShell.Section>
       </AppShell.Navbar>
+
       <AppShell.Main>
-        <Stack gap="sm">
-          <Text fw={600}>Main Content</Text>
+        <Stack gap="md">
+          <Title order={3}>Dashboard</Title>
+          <Group gap="md">
+            <Card withBorder shadow="xs" padding="md" style={{ flex: 1 }}>
+              <Text size="xs" c="dimmed">
+                Positions
+              </Text>
+              <Text fw={700} size="xl">
+                3 open
+              </Text>
+            </Card>
+            <Card withBorder shadow="xs" padding="md" style={{ flex: 1 }}>
+              <Text size="xs" c="dimmed">
+                Unrealized P&L
+              </Text>
+              <Text fw={700} size="xl" c="teal">
+                +₹1,240
+              </Text>
+            </Card>
+            <Card withBorder shadow="xs" padding="md" style={{ flex: 1 }}>
+              <Text size="xs" c="dimmed">
+                Market Status
+              </Text>
+              <Text fw={600}>Open · NSE</Text>
+            </Card>
+          </Group>
           <Text size="sm" c="dimmed">
-            The app shell composes a fixed header, a navbar with sections, and a scrollable main area.
-            Use the toolbar to toggle light/dark and resize the viewport to see responsive behavior.
+            Main scrolls independently; header and navbar stay fixed. Resize the viewport to see the sm breakpoint collapse.
           </Text>
         </Stack>
       </AppShell.Main>
@@ -71,23 +96,24 @@ export const FullShell: Story = {
   ),
 };
 
-export const AltLayout: Story = {
+export const CollapsedNavbar: Story = {
   render: () => (
-    <AppShell header={{ height: 56 }} navbar={{ width: 200 }} padding="md" layout="alt">
+    <AppShell header={{ height: 50 }} navbar={{ width: 80, breakpoint: "sm" }} padding="md" h="100vh">
       <AppShell.Header>
-        <Group h="100%" px="md">
-          <Text fw={700}>Alt Layout</Text>
+        <Group h="100%" px="sm">
+          <Text fw={700}>🚀</Text>
         </Group>
       </AppShell.Header>
       <AppShell.Navbar p="xs">
-        <Stack gap={0}>
-          <Text px="md" py={8} size="sm">Item A</Text>
-          <Text px="md" py={8} size="sm">Item B</Text>
+        <Stack gap={4} align="center">
+          <IconChartLine size={20} />
+          <IconChartLine size={20} />
+          <IconRobot size={20} />
         </Stack>
       </AppShell.Navbar>
       <AppShell.Main>
         <Text size="sm" c="dimmed">
-          With layout=&quot;alt&quot; the header spans only beside the navbar instead of the full width.
+          Collapsed width 80 — icons only. Toggle via the sidebar button in the real app.
         </Text>
       </AppShell.Main>
     </AppShell>
