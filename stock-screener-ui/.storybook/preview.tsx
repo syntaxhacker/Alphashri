@@ -4,6 +4,18 @@ import { theme } from "../src/config/theme";
 import "@mantine/core/styles.css";
 import "../src/style.css";
 
+// The app's style.css sets `body { overflow: hidden }` (app-shell layout).
+// That leaks into Storybook's iframe and kills scrolling on docs/canvas pages.
+// Restore normal scrolling here only — the app bundle is unaffected.
+if (typeof document !== "undefined") {
+  const sbFix = document.createElement("style");
+  sbFix.dataset.storybookScrollFix = "true";
+  sbFix.innerHTML =
+    "body.sb-show-main { overflow: auto !important; height: auto !important; }" +
+    ".docs-story body, .sb-docs-preview-stories body { overflow: auto !important; }";
+  document.head.appendChild(sbFix);
+}
+
 const preview: Preview = {
   parameters: {
     controls: {
@@ -15,7 +27,7 @@ const preview: Preview = {
     a11y: {
       test: "todo",
     },
-    layout: "padded",
+    layout: "centered",
     backgrounds: {
       default: "light",
       values: [
