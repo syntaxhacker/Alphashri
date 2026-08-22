@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
+import { describe, it, expect, vi, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
@@ -13,17 +13,17 @@ import {
   getBotIndicatorColor,
 } from "./BotHelpers";
 import type {
-
-afterEach(() => {
-  cleanup();
-  vi.clearAllMocks();
-});
   PortfolioSummary,
   StrategyStatus,
   BotPosition,
   BotTrade,
   BotConfig,
 } from "../../types/bots";
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(<UIProvider>{ui}</UIProvider>);

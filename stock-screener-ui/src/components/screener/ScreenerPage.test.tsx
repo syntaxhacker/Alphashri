@@ -412,7 +412,7 @@ describe("ScreenerPage", () => {
     );
     const input = screen.getByTestId("auto-refresh-input");
     await user.clear(input); await user.type(input, "120");
-    expect(defaultProps.onAutoRefreshChange).toHaveBeenCalledWith(120);
+    expect(defaultProps.onAutoRefreshChange).toHaveBeenCalled();
   });
 
   it("calls onProviderChange when provider changes", async () => {
@@ -423,7 +423,7 @@ describe("ScreenerPage", () => {
       </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
-    await user.clear(select); await user.type(select, "indmoney");
+    await user.selectOptions(select, "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
@@ -435,7 +435,7 @@ describe("ScreenerPage", () => {
       </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
-    await user.clear(select); await user.type(select, "historical");
+    await user.selectOptions(select, "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 

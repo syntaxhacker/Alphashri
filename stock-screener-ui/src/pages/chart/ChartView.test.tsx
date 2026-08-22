@@ -231,6 +231,7 @@ describe("ChartView", () => {
   });
 
   it("navigates back when goBack is called", async () => {
+    const user = userEvent.setup();
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
     render(

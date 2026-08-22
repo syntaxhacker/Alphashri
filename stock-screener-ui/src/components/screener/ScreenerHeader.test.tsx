@@ -167,7 +167,7 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const select = screen.getByTestId("provider-select");
-    await user.clear(select); await user.type(select, "indmoney");
+    await user.selectOptions(select, "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
@@ -191,7 +191,7 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const select = screen.getByTestId("mode-select");
-    await user.clear(select); await user.type(select, "historical");
+    await user.selectOptions(select, "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 
@@ -287,7 +287,7 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const providerSelect = screen.getByTestId("provider-select");
-    await user.clear(providerSelect); await user.type(providerSelect, "indmoney");
+    await user.selectOptions(providerSelect, "indmoney");
     expect(defaultProps.onProviderChange).toHaveBeenCalledWith("indmoney");
   });
 
@@ -299,7 +299,7 @@ describe("ScreenerHeader", () => {
       </UIProvider>,
     );
     const modeSelect = screen.getByTestId("mode-select");
-    await user.clear(modeSelect); await user.type(modeSelect, "historical");
+    await user.selectOptions(modeSelect, "historical");
     expect(defaultProps.onModeChange).toHaveBeenCalledWith("historical");
   });
 

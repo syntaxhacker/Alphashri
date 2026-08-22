@@ -101,12 +101,9 @@ describe("ClickableSymbol", () => {
 
   it("debounces hover preview with timeout", async () => {
       const user = userEvent.setup();
-    vi.useFakeTimers();
     renderComponent({ showPreview: true, previewTimeout: 5000 });
     await user.hover(screen.getByText("RELIANCE"));
     await user.unhover(screen.getByText("RELIANCE"));
     expect(mocks.hidePreviewChart).toHaveBeenCalled();
-    vi.advanceTimersByTime(5000);
-    vi.useRealTimers();
   });
 });
