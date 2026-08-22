@@ -131,8 +131,12 @@ export function StrategyPerformance() {
         mt="sm"
         withBorder
         radius="sm"
-        bg={data.total_net_pnl >= 0 ? "var(--mantine-color-teal-0)" : "var(--mantine-color-red-0)"}
-        style={{ borderLeft: `4px solid var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-6)` }}
+        style={{
+          // Theme-aware tint: light shade in light mode, dark shade in dark mode
+          // (shade-0 vars are near-white and look broken in dark mode).
+          background: `light-dark(var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-0), var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-9))`,
+          borderLeft: `4px solid var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-6)`,
+        }}
       >
         <Group justify="space-between">
           <Group gap="lg">

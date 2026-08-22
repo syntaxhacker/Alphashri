@@ -1,6 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { buildTradeMarkers, getMarkerConfigs } from "./buildMarkers";
 import type { UnifiedTrade } from "./types";
+import {
+  MARKER_ENTRY,
+  MARKER_TP,
+  MARKER_SL,
+  MARKER_EOD,
+  MARKER_STOP_LOSS,
+  MARKER_MAX_HOLDING,
+  PIVOT_S2,
+  CHART_AVG_ENTRY,
+} from "../../config/colors";
 
 describe("getMarkerConfigs", () => {
   it("returns array of 7 marker configs", () => {
@@ -13,7 +23,7 @@ describe("getMarkerConfigs", () => {
     const entry = configs.find((c) => c.name === "Entry");
     expect(entry).toMatchObject({
       filter: expect.any(Function),
-      color: "#00FFFF",
+      color: MARKER_ENTRY,
       symbol: "triangle",
       size: 18,
       rotate: 180,
@@ -25,7 +35,7 @@ describe("getMarkerConfigs", () => {
     const tp = configs.find((c) => c.name === "TP");
     expect(tp).toMatchObject({
       filter: expect.any(Function),
-      color: "#FFFF00",
+      color: MARKER_TP,
       symbol: "circle",
       size: 16,
     });
@@ -36,7 +46,7 @@ describe("getMarkerConfigs", () => {
     const sl = configs.find((c) => c.name === "SL");
     expect(sl).toMatchObject({
       filter: expect.any(Function),
-      color: "#FF00FF",
+      color: MARKER_SL,
       symbol: "circle",
       size: 16,
     });
@@ -47,7 +57,7 @@ describe("getMarkerConfigs", () => {
     const eod = configs.find((c) => c.name === "EOD");
     expect(eod).toMatchObject({
       filter: expect.any(Function),
-      color: "#FFA500",
+      color: MARKER_EOD,
       symbol: "diamond",
       size: 16,
     });
@@ -58,7 +68,7 @@ describe("getMarkerConfigs", () => {
     const trailing = configs.find((c) => c.name === "Trailing");
     expect(trailing).toMatchObject({
       filter: expect.any(Function),
-      color: "#9C27B0",
+      color: MARKER_STOP_LOSS,
       symbol: "circle",
       size: 16,
     });
@@ -69,7 +79,7 @@ describe("getMarkerConfigs", () => {
     const maxHold = configs.find((c) => c.name === "MaxHold");
     expect(maxHold).toMatchObject({
       filter: expect.any(Function),
-      color: "#FF9800",
+      color: MARKER_MAX_HOLDING,
       symbol: "diamond",
       size: 16,
     });
@@ -80,7 +90,7 @@ describe("getMarkerConfigs", () => {
     const w52 = configs.find((c) => c.name === "52W");
     expect(w52).toMatchObject({
       filter: expect.any(Function),
-      color: "#00BCD4",
+      color: PIVOT_S2,
       symbol: "circle",
       size: 16,
     });
@@ -166,7 +176,7 @@ describe("buildTradeMarkers", () => {
       const trade = createMockTrade({ id: 5 });
       const result = buildTradeMarkers([trade], mockCandles, 5, false);
       const entryMarker = result[0].data[0];
-      expect(entryMarker.itemStyle.color).toBe("#FFD700"); // Gold
+      expect(entryMarker.itemStyle.color).toBe(CHART_AVG_ENTRY); // palette highlight
       expect(entryMarker.itemStyle.borderWidth).toBe(3);
       expect(entryMarker.symbolSize).toBe(26);
       expect(entryMarker.label).toBeDefined();
@@ -194,7 +204,7 @@ describe("buildTradeMarkers", () => {
       const result = buildTradeMarkers([trade], mockCandles, 5, false);
       const exitSeries = result.find((s: any) => s.name === "TP");
       expect(exitSeries).toBeDefined();
-      expect(exitSeries.data[0].itemStyle.color).toBe("#FFD700");
+      expect(exitSeries.data[0].itemStyle.color).toBe(CHART_AVG_ENTRY);
       expect(exitSeries.data[0].symbolSize).toBe(24);
       expect(exitSeries.data[0].label).toBeDefined();
     });

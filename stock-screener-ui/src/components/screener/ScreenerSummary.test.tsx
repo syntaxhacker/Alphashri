@@ -4,6 +4,11 @@ import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { buildSummaryItems, getTone, ScreenerSummary } from "./ScreenerSummary";
 
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
 vi.mock("../common/compact", () => ({
   CompactStatGrid: ({ children }: any) => <div data-testid="compact-stat-grid">{children}</div>,
   CompactStat: ({ label, value, tone, testId }: any) => (

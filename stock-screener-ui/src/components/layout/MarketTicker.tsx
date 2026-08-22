@@ -1,7 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
 import { Box, Group, Text, Badge, Skeleton } from "@/ui";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
-import { useThemeColors } from "../../hooks/useThemeColors";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
@@ -175,7 +174,6 @@ function TickerErrorState({ background }: { background: string }) {
 export function MarketTicker() {
   const [enabled] = useMarketTickerEnabled();
   const [data, setData] = useState<MarketTickerData | null>(null);
-  const { background } = useThemeColors();
   useStoreSubscription(subscribeToHolidays);
 
   // If disabled, render nothing
@@ -205,11 +203,11 @@ export function MarketTicker() {
   }, [fetchTicker]);
 
   if (!data || data.loading) {
-    return <TickerLoadingState background={background} />;
+    return <TickerLoadingState background="var(--mantine-color-body)" />;
   }
 
   if (data.error) {
-    return <TickerErrorState background={background} />;
+    return <TickerErrorState background="var(--mantine-color-body)" />;
   }
 
   const tickers = data.tickers || {};
@@ -217,7 +215,7 @@ export function MarketTicker() {
   const lastUpdated = formatLastUpdated(data.last_updated);
 
   return (
-    <TickerContainer background={background}>
+    <TickerContainer background="var(--mantine-color-body)">
       {sortedSymbols.map((symbol) => (
         <TickerItem key={symbol} symbol={symbol} item={tickers[symbol]} />
       ))}

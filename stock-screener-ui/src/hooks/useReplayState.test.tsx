@@ -4,6 +4,11 @@ import { renderHook, act, cleanup } from "@testing-library/react";
 import { useReplayState } from "./useReplayState";
 import * as rs from "../state/replay";
 
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
 const {
   capturedOnEvent,
   capturedOnError,
@@ -597,7 +602,7 @@ describe("useReplayState", () => {
   });
 
   describe("reset", () => {
-    test("calls rs.reset", async () => {
+    test("calls rs.reset", () => {
       rs.setConfig({ date: "2024-01-15" });
       const { result } = renderHook(() => useReplayState());
 

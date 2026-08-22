@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildTooltip } from "./buildTooltip";
 import { buildHolidayMap } from "../chartUtils";
+import { POSITIVE, NEGATIVE } from "../../config/colors";
 
 describe("buildTooltip", () => {
   const mockCandles = [
@@ -75,7 +76,7 @@ describe("buildTooltip", () => {
         },
       ];
       const result = formatter(params);
-      expect(result).toContain("color:#00E676");
+      expect(result).toContain(`color:${POSITIVE}`);
     });
 
     it("colors P&L red for loss", () => {
@@ -96,7 +97,7 @@ describe("buildTooltip", () => {
         },
       ];
       const result = formatter(params);
-      expect(result).toContain("color:#FF1744");
+      expect(result).toContain(`color:${NEGATIVE}`);
     });
 
     it("handles missing optional fields gracefully", () => {
@@ -297,7 +298,7 @@ describe("buildTooltip", () => {
         },
       ];
       const result = formatter(params);
-      expect(result).toContain("color:#00E676"); // Green for bullish
+      expect(result).toContain(`color:${POSITIVE}`); // palette green for bullish
       expect(result).toContain("+5.00%"); // (105-100)/100 = 5%
     });
 
@@ -310,7 +311,7 @@ describe("buildTooltip", () => {
       const formatter = buildTooltip([bearishCandle]);
       const params = [{ seriesType: "candlestick", dataIndex: 0 }];
       const result = formatter(params);
-      expect(result).toContain("color:#FF1744"); // Red for bearish
+      expect(result).toContain(`color:${NEGATIVE}`); // palette red for bearish
     });
 
     it("formats time label with date when date exists", () => {

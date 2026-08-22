@@ -8,7 +8,10 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function makeSector(overrides: Partial<SectorItem> = {}): SectorItem {
   return {

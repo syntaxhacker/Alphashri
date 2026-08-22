@@ -19,7 +19,10 @@ vi.mock("./IVSkewChart", () => ({
 }));
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function makeContract(overrides: any = {}) {
   return {

@@ -6,7 +6,10 @@ import "@testing-library/jest-dom/vitest";
 import { OptionsNav } from "./OptionsNav";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("OptionsNav", () => {
   it("renders all three tabs", () => {

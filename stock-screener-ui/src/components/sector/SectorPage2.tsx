@@ -9,7 +9,6 @@ import {
   Tabs,
   SimpleGrid,
   Loader,
-  Paper,
   SegmentedControl,
   Title,
   Badge,
@@ -38,41 +37,10 @@ import { formatPercentage } from "../../utils/ui-helpers";
 import { detectSectorAlerts, detectIntervalMovers } from "./SectorHelpers";
 import type { SectorAlert, InternalStockMover } from "./SectorHelpers";
 import { SectorHeatmapView } from "./SectorHeatmapView";
+import { SectorAlertsList } from "./SectorAlertsList";
 import type { ViewMode } from "./SectorHeatmapView";
 
 const API_BASE = import.meta.env.VITE_API_BASE_URL || "http://localhost:8765";
-
-function AlertsList({ alerts }: { alerts: SectorAlert[] }) {
-  if (alerts.length === 0) {
-    return (
-      <Text size="sm" c="dimmed" ta="center" py="xl">
-        Waiting for major movements...
-      </Text>
-    );
-  }
-
-  return (
-    <Stack gap="xs">
-      {alerts.map((alert, i) => (
-        <Paper
-          key={`${alert.timestamp}-${alert.sector}-${i}`}
-          p="xs"
-          withBorder
-          bg={alert.direction === "SURGING" ? "rgba(64, 192, 87, 0.05)" : "rgba(250, 82, 82, 0.05)"}
-        >
-          <Group justify="space-between">
-            <Text size="sm" fw={700}>
-              [{alert.timestamp}] {alert.sector}
-            </Text>
-            <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
-              {alert.direction} ({formatPercentage(alert.delta, 2, false)})
-            </Badge>
-          </Group>
-        </Paper>
-      ))}
-    </Stack>
-  );
-}
 
 function AlertsAndMovers({
   alerts,
@@ -95,7 +63,7 @@ function AlertsAndMovers({
         }
       >
         <ScrollArea flex={1}>
-          <AlertsList alerts={alerts} />
+          <SectorAlertsList alerts={alerts} />
         </ScrollArea>
       </CompactPanel>
 

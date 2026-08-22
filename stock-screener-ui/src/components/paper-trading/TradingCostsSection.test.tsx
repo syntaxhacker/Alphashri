@@ -1,12 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { TradingCostsSection } from "./TradingCostsSection";
 import type { StrategyConfig } from "../../types/strategies";
 import { TestWrapper } from "../../test/test-utils";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function mockConfig(overrides: Partial<StrategyConfig> = {}): StrategyConfig {
   return {
@@ -110,52 +114,59 @@ describe("TradingCostsSection", () => {
     expect(screen.getByTestId("config-min-brokerage")).toHaveValue("20");
   });
 
-  it("calls onChange with key and converted value for brokerage", () => {
+  it("calls onChange with key and converted value for brokerage", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-brokerage");
-    fireEvent.change(input, { target: { value: "0.2" } });
+    await user.clear(input); await user.type(input, "0.2");
     expect(mockOnChange).toHaveBeenCalledWith("brokerage_pct", 0.002); // 0.2/100
   });
 
-  it("calls onChange for min_brokerage", () => {
+  it("calls onChange for min_brokerage", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-min-brokerage");
-    fireEvent.change(input, { target: { value: "50" } });
+    await user.clear(input); await user.type(input, "50");
     expect(mockOnChange).toHaveBeenCalledWith("min_brokerage", 50);
   });
 
-  it("calls onChange for stt", () => {
+  it("calls onChange for stt", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-stt");
-    fireEvent.change(input, { target: { value: "0.05" } });
+    await user.clear(input); await user.type(input, "0.05");
     expect(mockOnChange).toHaveBeenCalledWith("stt_pct", 0.0005);
   });
 
-  it("calls onChange for exchange", () => {
+  it("calls onChange for exchange", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-exchange");
-    fireEvent.change(input, { target: { value: "0.02" } });
+    await user.clear(input); await user.type(input, "0.02");
     expect(mockOnChange).toHaveBeenCalledWith("exchange_pct", 0.0002);
   });
 
-  it("calls onChange for sebi", () => {
+  it("calls onChange for sebi", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-sebi");
-    fireEvent.change(input, { target: { value: "0.015" } });
+    await user.clear(input); await user.type(input, "0.015");
     expect(mockOnChange).toHaveBeenCalledWith("sebi_pct", 0.00015);
   });
 
-  it("calls onChange for stamp", () => {
+  it("calls onChange for stamp", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-stamp");
-    fireEvent.change(input, { target: { value: "0.02" } });
+    await user.clear(input); await user.type(input, "0.02");
     expect(mockOnChange).toHaveBeenCalledWith("stamp_pct", 0.0002);
   });
 
-  it("calls onChange for gst", () => {
+  it("calls onChange for gst", async () => {
+      const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     const input = screen.getByTestId("config-gst");
-    fireEvent.change(input, { target: { value: "20" } });
+    await user.clear(input); await user.type(input, "20");
     expect(mockOnChange).toHaveBeenCalledWith("gst_pct", 0.2); // 20/100
   });
 

@@ -240,7 +240,7 @@ describe("PaperSettings", () => {
       expect(screen.getByTestId("retry-button")).toBeInTheDocument();
     });
 
-    it("clicking retry calls fetchStrategyConfig", async () => {
+    it("clicking retry calls fetchStrategyConfig", () => {
       render(<PaperSettings />, { wrapper: TestWrapper });
       const retryButton = screen.getByTestId("retry-button");
       retryButton.click();

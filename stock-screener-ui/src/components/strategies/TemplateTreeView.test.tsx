@@ -9,6 +9,8 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 const makeTemplate = (id: number, overrides: Partial<StrategyConfig> = {}): StrategyConfig => ({

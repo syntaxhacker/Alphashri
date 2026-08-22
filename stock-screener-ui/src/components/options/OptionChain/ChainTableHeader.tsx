@@ -1,5 +1,7 @@
 import { Box } from "@/ui";
 import type { ThemeType } from "./chainStyles";
+import { hexToRgba } from "./cellPalette";
+import { TRADING_GREEN, TRADING_RED, CREAM } from "../../../config/colors";
 
 interface ChainTableHeaderProps {
   theme: ThemeType;
@@ -18,8 +20,7 @@ export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
         style={{
           ...styles.headerCell,
           color: theme.colors.green[8],
-          background:
-            "linear-gradient(135deg, rgba(34,197,94,0.14) 0%, rgba(20,184,166,0.12) 100%)",
+          background: `linear-gradient(135deg, ${hexToRgba(TRADING_GREEN, 0.14)} 0%, ${hexToRgba(TRADING_GREEN, 0.12)} 100%)`,
         }}
       >
         CALLS (CE)
@@ -29,8 +30,7 @@ export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
         style={{
           ...styles.headerCell,
           color: theme.colors.yellow[9],
-          background:
-            "linear-gradient(180deg, rgba(250,204,21,0.22) 0%, rgba(253,224,71,0.12) 100%)",
+          background: `linear-gradient(180deg, ${hexToRgba(CREAM, 0.22)} 0%, ${hexToRgba(CREAM, 0.12)} 100%)`,
         }}
       >
         STRIKE
@@ -40,8 +40,7 @@ export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
         style={{
           ...styles.headerCell,
           color: theme.colors.red[8],
-          background:
-            "linear-gradient(135deg, rgba(251,113,133,0.12) 0%, rgba(249,115,22,0.14) 100%)",
+          background: `linear-gradient(135deg, ${hexToRgba(TRADING_RED, 0.12)} 0%, ${hexToRgba(TRADING_RED, 0.14)} 100%)`,
         }}
       >
         PUTS (PE)

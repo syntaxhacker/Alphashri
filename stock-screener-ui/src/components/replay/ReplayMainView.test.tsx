@@ -7,6 +7,8 @@ import { ReplayMainView } from "./ReplayMainView";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 const baseProps = {
@@ -37,7 +39,7 @@ describe("ReplayMainView", () => {
       </UIProvider>,
     );
     const container = screen.getByTestId("replay-chart-empty").closest('[style*="height: 500px"]');
-    expect(container).toBeTruthy();
+    expect(container).toBeInTheDocument();
   });
 
   it("flex layout includes both chart and trade log", () => {

@@ -6,6 +6,11 @@ import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import { ActivityFeed } from "./ActivityFeed";
 import * as paperTradingState from "../../state/paperTrading";
 
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
+
 vi.mock("../../api/paperTrading", () => ({
   fetchActivityFeed: vi.fn().mockResolvedValue([]),
 }));

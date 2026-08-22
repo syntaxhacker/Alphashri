@@ -43,15 +43,6 @@ vi.mock("../news/NewsPanel2", () => ({
   default: () => <div data-testid="news-panel">NewsPanel2</div>,
 }));
 
-vi.mock("../../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    isDark: false,
-    colorScheme: "light",
-    background: "#ffffff",
-    text: "#000000",
-  }),
-}));
-
 describe("AppLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -68,6 +59,21 @@ describe("AppLayout", () => {
 
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
     expect(screen.getByText("Child Content")).toBeInTheDocument();
+  });
+
+  it("uses theme CSS variables for shell backgrounds (live theme aware)", () => {
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+    const main = document.querySelector("[data-testid='app-main']")!;
+    const header = document.querySelector("[data-testid='app-header']")!;
+    // Mantine AppShell converts bg/c props into inline CSS with the var value.
+    expect(main.getAttribute("style") || "").toContain("var(--mantine-color-body)");
+    expect(header.getAttribute("style") || "").toContain("var(--mantine-color-body)");
   });
 
   it("renders app shell structure", () => {
@@ -170,23 +176,5 @@ describe("AppLayout", () => {
 
     const navbar = screen.getByTestId("navbar-nested");
     expect(navbar).toHaveAttribute("data-collapsed", "false");
-  });
-
-  it("uses theme colors for background and text", () => {
-    render(
-      <TestWrapper>
-        <AppLayout>
-          <div>Content</div>
-        </AppLayout>
-      </TestWrapper>,
-    );
-
-    const header = screen.getByTestId("app-header");
-    const main = screen.getByTestId("app-main");
-
-    expect(header).toHaveStyle({ backgroundColor: "#ffffff" });
-    expect(header).toHaveStyle({ color: "#000000" });
-    expect(main).toHaveStyle({ backgroundColor: "#ffffff" });
-    expect(main).toHaveStyle({ color: "#000000" });
   });
 });

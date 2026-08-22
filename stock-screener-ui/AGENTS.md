@@ -8,7 +8,7 @@
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
-- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
+- `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
 - `bun run dev` — dev server only (proxy /api → localhost:8765)
 - `bun run build` — production build
 - `bun run lint` — oxlint (0 warnings/errors required before commit)
@@ -311,6 +311,20 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - Trade model columns: `notes` (String 500), `reason` (String 500), `peak_price` (Float), `low_price` (Float), `bot_id` (Integer FK)
 - `Trade.to_dict()` includes all columns including `bot_id`, `peak_price`, `low_price`
 - Position model has NO `peak_price`/`low_price` — restore defaults to `entry_price`. Position HAS `strategy_type`, `peak_price`, `low_price`, `metadata_json` columns (added in snapshot-to-DB migration).
+
+## Stock EDA Reports (research skill)
+
+- Reusable procedure for producing a volume / big-player / fundamentals EDA report for any NSE ticker:
+  **`.prime/agent/skills/stock-eda-report/`** (Prime Agent skill `stock-eda-report`).
+- One-shot generator (run from repo root, project venv):
+  ```bash
+  .venv/bin/python .prime/agent/skills/stock-eda-report/scripts/generate_stock_eda_report.py --symbol NETWEB
+  ```
+  Or reuse cached CSVs with `--daily-csv` / `--minute-csv`. Output → `reports/<SYMBOL>_EDA/`
+  (self-contained HTML + Markdown + figures + CSVs).
+- Reference thresholds & formulas: `.prime/agent/skills/stock-eda-report/references/analyses-and-thresholds.md`.
+- Data sources: Upstox V3 candles (`market_data.market_data.fetch_candles`) + `yfinance` (`TICKER.NS`
+  for earnings, results, ownership, analyst). A worked example exists at `reports/NETWEB_EDA/`.
 
 ## Known Issues / Deferred
 - **Replay system name→ID migration** (Phase 3) — deferred, known limitation

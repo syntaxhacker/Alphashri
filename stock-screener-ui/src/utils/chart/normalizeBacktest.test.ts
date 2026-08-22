@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
 import { normalizeBacktest } from "./normalizeBacktest";
+import {
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  BULLISH,
+  BEARISH,
+  BLACK,
+} from "../../config/colors";
 
 describe("normalizeBacktest", () => {
   const mockHolidays = [
@@ -236,7 +243,7 @@ describe("normalizeBacktest", () => {
               id: "line1",
               label: "EMA Fast",
               type: "line",
-              color: "#00FF00",
+              color: BULLISH,
               dash: [2, 2],
               levels: [{ value: 100 }],
             },
@@ -249,7 +256,7 @@ describe("normalizeBacktest", () => {
         id: "line1",
         label: "EMA Fast",
         type: "line",
-        color: "#00FF00",
+        color: BULLISH,
         dash: [2, 2],
         levels: [{ value: 100 }],
         showLabel: false,
@@ -262,7 +269,7 @@ describe("normalizeBacktest", () => {
         trades: [],
         visuals: {
           overlays: [
-            { id: "line1", label: "Test", type: "line", color: "#000", levels: [{ value: 100 }] },
+            { id: "line1", label: "Test", type: "line", color: BLACK, levels: [{ value: 100 }] },
           ],
         },
       };
@@ -280,7 +287,7 @@ describe("normalizeBacktest", () => {
               id: "line1",
               label: "Test",
               type: "line",
-              color: "#000",
+              color: BLACK,
               levels: [{ value: 100 }, { value: 110 }],
             },
           ],
@@ -304,8 +311,8 @@ describe("normalizeBacktest", () => {
         trades: [],
         visuals: {
           ema_series: [
-            { label: "EMA 9", color: "#00FF00", data: [100, 101] },
-            { label: "EMA 21", color: "#FF0000", data: [99, 100] },
+            { label: "EMA 9", color: BULLISH, data: [100, 101] },
+            { label: "EMA 21", color: BEARISH, data: [99, 100] },
           ],
         },
       };
@@ -313,7 +320,7 @@ describe("normalizeBacktest", () => {
       expect(result.emaData).toHaveLength(2);
       expect(result.emaData[0]).toMatchObject({
         label: "EMA 9",
-        color: "#00FF00",
+        color: BULLISH,
         data: [100, 101],
       });
     });
@@ -324,7 +331,7 @@ describe("normalizeBacktest", () => {
         trades: [],
         visuals: {
           ema_series: [
-            { label: "EMA 9", color: "#00FF00", data: [100, 101] }, // length 2, candles length 1
+            { label: "EMA 9", color: BULLISH, data: [100, 101] }, // length 2, candles length 1
           ],
         },
       };
@@ -337,7 +344,7 @@ describe("normalizeBacktest", () => {
         candles: [{ time: "09:30" }, { time: "09:31" }],
         trades: [],
         visuals: {
-          ema_series: [{ label: "EMA 9", color: "#00FF00", data: [100, 101] }],
+          ema_series: [{ label: "EMA 9", color: BULLISH, data: [100, 101] }],
         },
       };
       const result = normalizeBacktest(data, false);
@@ -368,12 +375,12 @@ describe("normalizeBacktest", () => {
       expect(result.markLines).toHaveLength(2);
       expect(result.markLines[0]).toMatchObject({
         yAxis: 105,
-        lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 },
         label: { formatter: "OR-H 105" },
       });
       expect(result.markLines[1]).toMatchObject({
         yAxis: 95,
-        lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 },
         label: { formatter: "OR-L 95" },
       });
     });

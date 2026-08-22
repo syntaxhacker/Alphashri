@@ -85,10 +85,28 @@ This will start:
 - **API Server**: http://localhost:8765
 - **UI Dashboard**: http://localhost:5173
 
-Logs are written to `/tmp/alphashri.log`. Tail them with:
+Logs are written to `logs/alphashri.log`. Tail them with:
 ```bash
-tail -f /tmp/alphashri.log
+./start.sh logs
+tail -f logs/alphashri.log
 ```
+
+Available modes/commands:
+
+```bash
+./start.sh              # background start (API + UI, reload on)
+./start.sh dev          # foreground, hot reload on, Ctrl+C to stop
+./start.sh prod         # foreground, NO reload (production)
+./start.sh restart      # restart (./start.sh restart prod for no reload)
+./start.sh stop         # stop API + UI + bots
+./start.sh status       # show API/UI/bot status
+./start.sh logs         # tail API log
+./start.sh bots start   # start all bots
+./start.sh bots stop    # stop all bots
+```
+
+Useful environment overrides: `START_BOTS=true`, `API_PORT`, `API_HOST`,
+`API_LOG`, `RELOAD_FLAG=""` (disable reload). See `./start.sh` for details.
 
 ### 4. Alternative: Start Services Individually
 

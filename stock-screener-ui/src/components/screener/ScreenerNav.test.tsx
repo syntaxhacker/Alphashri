@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { ScreenerNav } from "./ScreenerNav";
 import { UIProvider } from "@/ui";
 import type { ScreenerOption } from "../../types";
@@ -68,23 +69,25 @@ describe("ScreenerNav", () => {
     expect(screen.getByTestId("screener-nav-option-new-highs")).not.toHaveAttribute("data-active");
   });
 
-  it("calls onChange when option is clicked", () => {
+  it("calls onChange when option is clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerNav {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("screener-nav-option-new-highs"));
+    await user.click(screen.getByTestId("screener-nav-option-new-highs"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("new-highs");
   });
 
-  it("calls onChange with correct id from RSI Reversal", () => {
+  it("calls onChange with correct id from RSI Reversal", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerNav {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
+    await user.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("rsi_reversal");
   });
 
@@ -109,7 +112,8 @@ describe("ScreenerNav", () => {
     expect(screen.getByText("Simple")).toBeInTheDocument();
   });
 
-  it("changes active screener when different option selected", () => {
+  it("changes active screener when different option selected", async () => {
+      const user = userEvent.setup();
     let activeScreener = "trending";
     const handleChange = (id: string) => {
       activeScreener = id;
@@ -123,7 +127,7 @@ describe("ScreenerNav", () => {
 
     expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("data-active", "true");
 
-    fireEvent.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
+    await user.click(screen.getByTestId("screener-nav-option-rsi_reversal"));
 
     rerender(
       <UIProvider>
@@ -203,13 +207,14 @@ describe("ScreenerNav", () => {
     expect(screen.getByTestId("screener-nav-option-rsi_reversal")).toBeInTheDocument();
   });
 
-  it("calls onChange when option test id is clicked", () => {
+  it("calls onChange when option test id is clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerNav {...defaultProps} activeScreener="new-highs" />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("screener-nav-option-trending"));
+    await user.click(screen.getByTestId("screener-nav-option-trending"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("trending");
   });
 });

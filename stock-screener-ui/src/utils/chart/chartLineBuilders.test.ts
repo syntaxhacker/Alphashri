@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 import { buildPivotSeries, buildWeek52Series, buildEmaSeries } from "../chartLineBuilders";
-import { PIVOT_R1, PIVOT_PP, PIVOT_S1 } from "../../config/colors";
+import {
+  PIVOT_R1,
+  PIVOT_PP,
+  PIVOT_S1,
+  CHART_AVG_ENTRY,
+  INDICATOR_BLUE_A,
+  INDICATOR_BLUE_B,
+} from "../../config/colors";
 
 describe("buildPivotSeries", () => {
   const mockCandles = [
@@ -105,7 +112,7 @@ describe("buildPivotSeries", () => {
       const result = buildPivotSeries(mockCandles, mockPivotLevels);
       expect(result[0].tooltip.show).toBe(true);
       const formatter = result[0].tooltip.formatter as (params: any) => string;
-      expect(formatter({ value: 105 })).toBe('<span style="color:#EF5350">R1: ₹105.00</span>');
+      expect(formatter({ value: 105 })).toBe(`<span style="color:${PIVOT_R1}">R1: ₹105.00</span>`);
     });
 
     it("handles null values in tooltip", () => {
@@ -211,7 +218,7 @@ describe("buildWeek52Series", () => {
 
     it("uses gold color for 52W high", () => {
       const result = buildWeek52Series(mockCandles, mockWeek52Levels, (d) => d);
-      expect(result[0].lineStyle.color).toBe("#FFD700");
+      expect(result[0].lineStyle.color).toBe(CHART_AVG_ENTRY);
     });
 
     it("sets dashed line type with width 2", () => {
@@ -245,8 +252,8 @@ describe("buildWeek52Series", () => {
 
 describe("buildEmaSeries", () => {
   const mockEmaSeries = [
-    { label: "EMA 9", color: "#10ac84", data: [100, 101, 102] },
-    { label: "EMA 21", color: "#ee5253", data: [99, 100, 101] },
+    { label: "EMA 9", color: INDICATOR_BLUE_A, data: [100, 101, 102] },
+    { label: "EMA 21", color: INDICATOR_BLUE_B, data: [99, 100, 101] },
   ];
 
   describe("when ema_series is empty or null", () => {
@@ -275,9 +282,9 @@ describe("buildEmaSeries", () => {
     it("preserves label and color", () => {
       const result = buildEmaSeries(mockEmaSeries, (d) => d, []);
       expect(result[0].name).toBe("EMA 9");
-      expect(result[0].lineStyle.color).toBe("#10ac84");
+      expect(result[0].lineStyle.color).toBe(INDICATOR_BLUE_A);
       expect(result[1].name).toBe("EMA 21");
-      expect(result[1].lineStyle.color).toBe("#ee5253");
+      expect(result[1].lineStyle.color).toBe(INDICATOR_BLUE_B);
     });
 
     it("sets type to line", () => {

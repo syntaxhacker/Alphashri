@@ -8,7 +8,10 @@ import { mockPosition } from "./testFixtures";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import type { PaperPosition } from "../../types/paperTrading";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 vi.mock("./PositionsHelpers", () => ({
   PositionsTableBody: vi.fn(() => <div data-testid="positions-body" />),
@@ -46,8 +49,10 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText("ORB Strategy")).toBeTruthy();
-      expect(screen.getByText("3")).toBeTruthy();
+      const card = screen.getByTestId("strategy-card-ORB Strategy");
+      expect(card).toBeInTheDocument();
+      expect(card).toHaveTextContent("ORB Strategy");
+      expect(card.textContent).toContain("3");
     });
 
     test("shows total P&L positive", () => {
@@ -55,7 +60,7 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeInTheDocument();
     });
 
     test("shows total P&L negative", () => {
@@ -63,7 +68,7 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeInTheDocument();
     });
 
     test("renders close all button", () => {
@@ -71,7 +76,7 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByTestId("close-strategy-ORB Strategy")).toBeTruthy();
+      expect(screen.getByTestId("close-strategy-ORB Strategy")).toBeInTheDocument();
     });
 
     test("close all calls onCloseAll with stopPropagation", async () => {
@@ -130,14 +135,14 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByTestId("positions-body")).toBeTruthy();
+      expect(screen.getByTestId("positions-body")).toBeInTheDocument();
     });
 
     test("testId prop is passed to CompactPanel", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} strategyName="Test Strat" />,
       );
-      expect(screen.getByTestId("strategy-card-Test Strat")).toBeTruthy();
+      expect(screen.getByTestId("strategy-card-Test Strat")).toBeInTheDocument();
     });
   });
 
@@ -147,7 +152,8 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText("1")).toBeTruthy();
+      const card = screen.getByTestId("strategy-card-ORB Strategy");
+      expect(card.textContent).toContain("1");
     });
 
     test("capacity bar at 0% when maxCapacity > 0 and no positions", () => {
@@ -163,7 +169,7 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeInTheDocument();
     });
 
     test("formatSignedPnl renders negative P&L with - sign", () => {
@@ -171,7 +177,7 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeTruthy();
+      expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeInTheDocument();
     });
 
     test("does not crash when positions contain NaN P&L", () => {
@@ -179,7 +185,7 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText("ORB Strategy")).toBeTruthy();
+      expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
     });
 
     test("renders multiple positions across same strategy", () => {
@@ -187,7 +193,8 @@ describe("StrategyCard", () => {
       renderWithMantine(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
-      expect(screen.getByText("5")).toBeTruthy();
+      const card = screen.getByTestId("strategy-card-ORB Strategy");
+      expect(card.textContent).toContain("5");
     });
   });
 });

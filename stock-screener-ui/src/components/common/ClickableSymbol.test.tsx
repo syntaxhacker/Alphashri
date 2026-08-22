@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { BrowserRouter } from "react-router-dom";
 import { ClickableSymbol } from "./ClickableSymbol";
@@ -50,21 +51,24 @@ describe("ClickableSymbol", () => {
     expect(el.tagName).toBe("BUTTON");
   });
 
-  it("navigates to /chart/{symbol} on click", () => {
+  it("navigates to /chart/{symbol} on click", async () => {
+      const user = userEvent.setup();
     renderComponent();
-    fireEvent.click(screen.getByText("RELIANCE"));
+    await user.click(screen.getByText("RELIANCE"));
     expect(mocks.navigate).toHaveBeenCalledWith("/chart/RELIANCE");
   });
 
-  it("calls onClick when provided", () => {
+  it("calls onClick when provided", async () => {
+      const user = userEvent.setup();
     const onClick = vi.fn();
     renderComponent({ onClick });
-    fireEvent.click(screen.getByText("RELIANCE"));
+    await user.click(screen.getByText("RELIANCE"));
     expect(onClick).toHaveBeenCalledWith("RELIANCE");
     expect(mocks.navigate).not.toHaveBeenCalled();
   });
 
-  it("stops click propagation when stopClickPropagation=true", () => {
+  it("stops click propagation when stopClickPropagation=true", async () => {
+      const user = userEvent.setup();
     const parentHandler = vi.fn();
     render(
       <BrowserRouter>
@@ -76,30 +80,30 @@ describe("ClickableSymbol", () => {
         </UIProvider>
       </BrowserRouter>,
     );
-    fireEvent.click(screen.getByText("RELIANCE"));
+    await user.click(screen.getByText("RELIANCE"));
     expect(parentHandler).not.toHaveBeenCalled();
   });
 
-  it("shows preview chart on hover when showPreview=true", () => {
+  it("shows preview chart on hover when showPreview=true", async () => {
+      const user = userEvent.setup();
     renderComponent({ showPreview: true });
-    fireEvent.mouseEnter(screen.getByText("RELIANCE"));
+    await user.hover(screen.getByText("RELIANCE"));
     expect(mocks.showPreviewChart).toHaveBeenCalled();
   });
 
-  it("hides preview chart on mouse leave", () => {
+  it("hides preview chart on mouse leave", async () => {
+      const user = userEvent.setup();
     renderComponent({ showPreview: true });
-    fireEvent.mouseEnter(screen.getByText("RELIANCE"));
-    fireEvent.mouseLeave(screen.getByText("RELIANCE"));
+    await user.hover(screen.getByText("RELIANCE"));
+    await user.unhover(screen.getByText("RELIANCE"));
     expect(mocks.hidePreviewChart).toHaveBeenCalled();
   });
 
-  it("debounces hover preview with timeout", () => {
-    vi.useFakeTimers();
+  it("debounces hover preview with timeout", async () => {
+      const user = userEvent.setup();
     renderComponent({ showPreview: true, previewTimeout: 5000 });
-    fireEvent.mouseEnter(screen.getByText("RELIANCE"));
-    fireEvent.mouseLeave(screen.getByText("RELIANCE"));
+    await user.hover(screen.getByText("RELIANCE"));
+    await user.unhover(screen.getByText("RELIANCE"));
     expect(mocks.hidePreviewChart).toHaveBeenCalled();
-    vi.advanceTimersByTime(5000);
-    vi.useRealTimers();
   });
 });

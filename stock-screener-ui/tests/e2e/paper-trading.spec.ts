@@ -452,14 +452,14 @@ test.describe("Paper Trading - Position Actions", () => {
   test("should show close button for each position", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    const closeBtn = page.locator('[data-testid="close-position-TCS"]');
+    const closeBtn = page.locator('[data-testid="close-position-1-TCS"]');
     await expect(closeBtn).toBeVisible();
   });
 
   test("should click close position button without error", async ({ page }) => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
-    const closeBtn = page.locator('[data-testid="close-position-TCS"]');
+    const closeBtn = page.locator('[data-testid="close-position-1-TCS"]');
     await closeBtn.click({ timeout: 15000 });
 
     await page.waitForTimeout(500);
@@ -738,7 +738,7 @@ test.describe("Paper Trading - Chart Controls", () => {
     // networkidle times out due to SSE live-price stream; wait for target element instead
     await page.waitForSelector('[data-testid^="position-row-"]', { timeout: 15000 });
 
-    const positionRow = page.locator(`[data-testid="position-row-${SYMBOL}"]`);
+    const positionRow = page.locator(`[data-testid="position-row-1-${SYMBOL}"]`);
     await expect(positionRow).toBeVisible({ timeout: 15000 });
     // Click the symbol link inside the row to open chart (row click only toggles expansion)
     await positionRow.locator(".symbol-link").click({ timeout: 15000 });
@@ -809,7 +809,7 @@ test.describe("Paper Trading - Chart Controls", () => {
   test("should switch timeframe", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
-    const timeframeSelect = page.getByTestId("paper-chart-timeframe");
+    const timeframeSelect = page.getByTestId("chart-timeframe-select");
     await expect(timeframeSelect).toBeVisible();
 
     await timeframeSelect.click();

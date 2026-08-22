@@ -1,4 +1,5 @@
 import type { UnifiedLivePosition, MarkLineData } from "./types";
+import { MARKER_ENTRY, MARKER_BORDER, MARKER_SL, MARKER_TP } from "../../config/colors";
 
 export function buildLivePositionMarker(pos: UnifiedLivePosition, candleIdx: number): any[] {
   return [
@@ -8,7 +9,7 @@ export function buildLivePositionMarker(pos: UnifiedLivePosition, candleIdx: num
       data: [
         {
           value: [candleIdx, pos.entry_price],
-          itemStyle: { color: "#00FFFF", borderColor: "#FFFFFF", borderWidth: 3 },
+          itemStyle: { color: MARKER_ENTRY, borderColor: MARKER_BORDER, borderWidth: 3 },
           symbol: pos.side === "BUY" ? "triangle" : "triangleRotated",
           symbolSize: 22,
           trade: pos,
@@ -26,14 +27,14 @@ export function buildLivePositionMarkLines(pos: UnifiedLivePosition): MarkLineDa
   if (pos.stop_loss && pos.stop_loss > 0) {
     lines.push({
       yAxis: pos.stop_loss,
-      lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
+      lineStyle: { color: MARKER_SL, type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: `SL ${pos.stop_loss}` },
     });
   }
   if (pos.take_profit && pos.take_profit > 0) {
     lines.push({
       yAxis: pos.take_profit,
-      lineStyle: { color: "#FFFF00", type: "dashed", width: 2 },
+      lineStyle: { color: MARKER_TP, type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: `TP ${pos.take_profit}` },
     });
   }

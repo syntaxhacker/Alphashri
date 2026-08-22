@@ -7,6 +7,18 @@ import type {
   MarkAreaItem,
 } from "../chart/types";
 import { mapCandles, mapTrades } from "./normalizeCommon";
+import {
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  ORB_AREA,
+  PIVOT_R1,
+  PIVOT_PP,
+  PIVOT_S1,
+  PIVOT_52W_HIGH,
+  PIVOT_52W_LOW,
+  MARKER_SL,
+  MARKER_TP,
+} from "../../config/colors";
 
 export function normalizePaper(
   data: PaperChartData,
@@ -39,12 +51,12 @@ export function normalizePaper(
     markLines.push(
       {
         yAxis: orb.or_high,
-        lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_OR_HIGH, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: `OR-H${orbLabel} ${orb.or_high}` },
       },
       {
         yAxis: orb.or_low,
-        lineStyle: { color: "#2196F3", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_OR_LOW, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: `OR-L${orbLabel} ${orb.or_low}` },
       },
     );
@@ -59,7 +71,7 @@ export function normalizePaper(
         to: lastTime,
         fromY: orb.or_low,
         toY: orb.or_high,
-        color: "rgba(33,150,243,0.15)",
+        color: ORB_AREA,
       });
     }
   }
@@ -69,27 +81,27 @@ export function normalizePaper(
     markLines.push(
       {
         yAxis: piv.r2,
-        lineStyle: { color: "#EF5350", type: "dotted", width: 1 },
+        lineStyle: { color: PIVOT_R1, type: "dotted", width: 1 },
         label: { position: "insideEndTop", formatter: `R2 ${piv.r2}` },
       },
       {
         yAxis: piv.r1,
-        lineStyle: { color: "#EF5350", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_R1, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: `R1 ${piv.r1}` },
       },
       {
         yAxis: piv.pp,
-        lineStyle: { color: "#AB47BC", type: "dotted", width: 1 },
+        lineStyle: { color: PIVOT_PP, type: "dotted", width: 1 },
         label: { position: "insideEndTop", formatter: `PP ${piv.pp}` },
       },
       {
         yAxis: piv.s1,
-        lineStyle: { color: "#26A69A", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_S1, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: `S1 ${piv.s1}` },
       },
       {
         yAxis: piv.s2,
-        lineStyle: { color: "#26A69A", type: "dotted", width: 1 },
+        lineStyle: { color: PIVOT_S1, type: "dotted", width: 1 },
         label: { position: "insideEndTop", formatter: `S2 ${piv.s2}` },
       },
     );
@@ -99,13 +111,13 @@ export function normalizePaper(
     const w52 = data.week52_levels;
     markLines.push({
       yAxis: w52.high_52w,
-      lineStyle: { color: "#E91E63", type: "dashed", width: 2 },
+      lineStyle: { color: PIVOT_52W_HIGH, type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: `52W-H ${w52.high_52w}` },
     });
     if (w52.low_52w > 0) {
       markLines.push({
         yAxis: w52.low_52w,
-        lineStyle: { color: "#9C27B0", type: "dashed", width: 1 },
+        lineStyle: { color: PIVOT_52W_LOW, type: "dashed", width: 1 },
         label: { position: "insideEndTop", formatter: `52W-L ${w52.low_52w}` },
       });
     }
@@ -160,14 +172,14 @@ export function normalizePaper(
       if (trade.stop_loss && trade.stop_loss > 0) {
         markLines.push({
           yAxis: trade.stop_loss,
-          lineStyle: { color: "#FF5252", type: "dashed", width: 1 },
+          lineStyle: { color: MARKER_SL, type: "dashed", width: 1 },
           label: { position: "insideEndTop", formatter: `SL ${trade.stop_loss}` },
         });
       }
       if (trade.take_profit && trade.take_profit > 0) {
         markLines.push({
           yAxis: trade.take_profit,
-          lineStyle: { color: "#69F0AE", type: "dashed", width: 1 },
+          lineStyle: { color: MARKER_TP, type: "dashed", width: 1 },
           label: { position: "insideEndTop", formatter: `TP ${trade.take_profit}` },
         });
       }

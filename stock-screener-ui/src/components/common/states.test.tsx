@@ -1,10 +1,13 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { InlineLoader, EmptyState, ErrorAlert } from "./states";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -13,41 +16,41 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 describe("InlineLoader", () => {
   it("renders", () => {
     render(<InlineLoader />, { wrapper: Wrapper });
-    expect(document.querySelector(".mantine-Loader-root")).toBeTruthy();
+    expect(document.querySelector(".mantine-Loader-root")).toBeInTheDocument();
   });
 
   it("renders data-testid", () => {
     render(<InlineLoader data-testid="test-loading" />, { wrapper: Wrapper });
-    expect(screen.getByTestId("test-loading")).toBeTruthy();
+    expect(screen.getByTestId("test-loading")).toBeInTheDocument();
   });
 });
 
 describe("EmptyState", () => {
   it("renders title and description", () => {
     render(<EmptyState title="No data" description="Try again later" />, { wrapper: Wrapper });
-    expect(screen.getByText("No data")).toBeTruthy();
-    expect(screen.getByText("Try again later")).toBeTruthy();
+    expect(screen.getByText("No data")).toBeInTheDocument();
+    expect(screen.getByText("Try again later")).toBeInTheDocument();
   });
 
   it("renders emoji", () => {
     render(<EmptyState emoji="📊" title="No trades" />, { wrapper: Wrapper });
-    expect(screen.getByText("📊")).toBeTruthy();
+    expect(screen.getByText("📊")).toBeInTheDocument();
   });
 
   it("renders without description", () => {
     render(<EmptyState title="Empty" />, { wrapper: Wrapper });
-    expect(screen.getByText("Empty")).toBeTruthy();
+    expect(screen.getByText("Empty")).toBeInTheDocument();
   });
 });
 
 describe("ErrorAlert", () => {
   it("renders error message", () => {
     render(<ErrorAlert message="Something went wrong" />, { wrapper: Wrapper });
-    expect(screen.getByText("Something went wrong")).toBeTruthy();
+    expect(screen.getByText("Something went wrong")).toBeInTheDocument();
   });
 
   it("renders custom title", () => {
     render(<ErrorAlert title="Fetch Error" message="Failed" />, { wrapper: Wrapper });
-    expect(screen.getByText("Fetch Error")).toBeTruthy();
+    expect(screen.getByText("Fetch Error")).toBeInTheDocument();
   });
 });

@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
 import { renderWithMantine } from "../../../test-utils/renderWithMantine";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
@@ -7,7 +7,10 @@ import { ChainSummary } from "./ChainSummary";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("ChainSummary component rendering", () => {
   it("renders chain summary container", () => {
@@ -122,6 +125,6 @@ describe("ChainSummary component rendering", () => {
       />,
     );
     const pcrCard = screen.getByTestId("options-chain-summary-pcr");
-    expect(pcrCard.querySelector("svg")).toBeTruthy();
+    expect(pcrCard.querySelector("svg")).toBeInTheDocument();
   });
 });

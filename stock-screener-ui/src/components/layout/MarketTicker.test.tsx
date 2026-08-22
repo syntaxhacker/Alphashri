@@ -10,31 +10,6 @@ import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 const mockFetch = vi.fn();
 global.fetch = mockFetch;
 
-// Mock useThemeColors
-vi.mock("../../hooks/useThemeColors", () => ({
-  useThemeColors: () => ({
-    isDark: false,
-    colorScheme: "light",
-    background: "#ffffff",
-    text: "#000000",
-    theme: {
-      colors: {
-        dark: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-        gray: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
-      },
-      spacing: { xs: "4px", sm: "8px" },
-      radius: { sm: "4px" },
-    },
-    surface: "#f8f9fa",
-    border: "#e9ecef",
-    textSecondary: "#6c757d",
-    bg: () => "#ffffff",
-    color: (light: string) => light,
-    spacing: (size: string) => size,
-    radius: (size: string) => size,
-  }),
-}));
-
 // Mock useMarketTickerEnabled with controllable value
 let mockMarketTickerEnabled = true;
 const mockSetMarketTickerEnabled = vi.fn();
@@ -99,7 +74,7 @@ describe("MarketTicker", () => {
     expect(screen.getByTestId("market-ticker")).toBeInTheDocument();
   });
 
-  it("fetches ticker data on mount", async () => {
+  it("fetches ticker data on mount", () => {
     mockFetch.mockResolvedValueOnce({
       ok: true,
       json: async () => mockTickerData,

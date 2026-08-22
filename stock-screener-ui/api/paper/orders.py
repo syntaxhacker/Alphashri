@@ -206,11 +206,14 @@ async def close_all_positions(request: UpdatePricesRequest, user: "User" = Depen
     user_id = _get_user_id(user)
     trader = get_paper_trader(user_id)
 
+    trades_before = len(trader.trades)
     trader.close_all_positions(request.prices, ExitReason.MANUAL)
+    trades_closed = len(trader.trades) - trades_before
 
     return {
         "status": "success",
-        "message": f"Closed {len(trader.trades)} positions",
+        "message": f"Closed {trades_closed} positions",
+        "trades_closed": trades_closed,
         "portfolio": trader.get_portfolio_status()
     }
 
@@ -224,14 +227,17 @@ async def update_position_notes(
     """Update notes and/or entry_reason for an open position.
 
     Merges updates into the existing metadata_json on the Position DB model.
+    Validates notes/reason via Pydantic max_length=500 (422). Returns 404 for
+    unknown uuid and enforces user_id isolation.
     """
     from db.models.trade import Position
     from db.database import SessionLocal
     import json
 
+    user_id = _get_user_id(user)
     db = SessionLocal()
     try:
-        position = db.query(Position).filter(Position.uuid == position_id).first()
+        position = db.query(Position).filter(Position.uuid == position_id, Position.user_id == user_id).first()
         if not position:
             raise HTTPException(status_code=404, detail="Position not found")
 

@@ -5,7 +5,10 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainFilters } from "./OptionChainFilters";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("OptionChainFilters", () => {
   it("renders option type select", () => {

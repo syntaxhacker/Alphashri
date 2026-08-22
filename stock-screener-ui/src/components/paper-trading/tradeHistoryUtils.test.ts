@@ -183,7 +183,9 @@ describe("filterByRange", () => {
       mockTrade({ trade_id: "good", exit_time: "2026-03-20T14:30:00Z" }),
     ];
     const result = filterByRange(trades, "2026-03-15", "2026-03-25");
-    expect(result).toHaveLength(2);
+    // invalid dates are filtered out, only good remains, but should not crash
+    expect(result).toHaveLength(1);
+    expect(result[0].trade_id).toBe("good");
   });
 });
 
@@ -248,7 +250,8 @@ describe("groupTradesByDate", () => {
       mockTrade({ trade_id: "1", exit_time: "" }),
     ];
     const result = groupTradesByDate(trades);
-    expect(Object.keys(result)).toEqual([""]);
+    // empty/invalid dates are skipped, no group created
+    expect(Object.keys(result)).toEqual([]);
   });
 });
 

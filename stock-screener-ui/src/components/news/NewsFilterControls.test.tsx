@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { NewsFilterControls } from "./NewsFilterControls";
 import { TestWrapper } from "../../test/test-utils";
 
@@ -77,22 +78,24 @@ describe("NewsFilterControls", () => {
       expect(onAutoRefreshChange).not.toHaveBeenCalled();
     });
 
-    it("calls onRefresh when refresh button is clicked", () => {
+    it("calls onRefresh when refresh button is clicked", async () => {
+      const user = userEvent.setup();
       const onRefresh = vi.fn();
       render(<NewsFilterControls {...defaultProps} onRefresh={onRefresh} />, {
         wrapper: TestWrapper,
       });
-      screen.getByTestId("news-refresh-btn").click();
+      await user.click(screen.getByTestId("news-refresh-btn"));
       expect(onRefresh).toHaveBeenCalled();
     });
 
-    it("calls onMarkAllRead when unread badge is clicked", () => {
+    it("calls onMarkAllRead when unread badge is clicked", async () => {
+      const user = userEvent.setup();
       const onMarkAllRead = vi.fn();
       render(
         <NewsFilterControls {...defaultProps} unreadCount={5} onMarkAllRead={onMarkAllRead} />,
         { wrapper: TestWrapper },
       );
-      screen.getByTestId("news-unread-badge").click();
+      await user.click(screen.getByTestId("news-unread-badge"));
       expect(onMarkAllRead).toHaveBeenCalled();
     });
   });
@@ -145,15 +148,16 @@ describe("NewsFilterControls", () => {
     });
 
     it("handles rapid refresh clicks", async () => {
+      const user = userEvent.setup();
       const onRefresh = vi.fn();
       render(<NewsFilterControls {...defaultProps} onRefresh={onRefresh} />, {
         wrapper: TestWrapper,
       });
 
       const btn = screen.getByTestId("news-refresh-btn");
-      btn.click();
-      btn.click();
-      btn.click();
+      await user.click(btn);
+      await user.click(btn);
+      await user.click(btn);
 
       expect(onRefresh).toHaveBeenCalledTimes(3);
     });

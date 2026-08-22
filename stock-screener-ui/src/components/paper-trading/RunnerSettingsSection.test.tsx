@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { RunnerSettingsSection } from "./RunnerSettingsSection";
 import type { StrategyConfig } from "../../types/strategies";
 import { TestWrapper } from "../../test/test-utils";
@@ -140,41 +141,45 @@ describe("RunnerSettingsSection", () => {
   });
 
   describe("onChange behavior", () => {
-    it("calls onChange with correct key and value when cooldown changes", () => {
+    it("calls onChange with correct key and value when cooldown changes", async () => {
+      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const cooldownInput = screen.getByTestId("config-cooldown");
-      fireEvent.change(cooldownInput, { target: { value: "30" } });
+      await user.clear(cooldownInput); await user.type(cooldownInput, "30");
       expect(mockOnChange).toHaveBeenCalledWith("cooldown_minutes", 30);
     });
 
-    it("calls onChange with correct key and value when max_distance changes", () => {
+    it("calls onChange with correct key and value when max_distance changes", async () => {
+      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const maxDistanceInput = screen.getByTestId("config-max-distance");
-      fireEvent.change(maxDistanceInput, { target: { value: "2.5" } });
+      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, "2.5");
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 2.5);
     });
 
-    it("converts cooldown value to number", () => {
+    it("converts cooldown value to number", async () => {
+      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const cooldownInput = screen.getByTestId("config-cooldown");
-      fireEvent.change(cooldownInput, { target: { value: "45" } });
+      await user.clear(cooldownInput); await user.type(cooldownInput, "45");
       expect(mockOnChange).toHaveBeenCalledWith("cooldown_minutes", 45);
       // Verify it's a number not a string
       expect(typeof mockOnChange.mock.calls[0][1]).toBe("number");
     });
 
-    it("converts max_distance value to number including decimals", () => {
+    it("converts max_distance value to number including decimals", async () => {
+      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const maxDistanceInput = screen.getByTestId("config-max-distance");
-      fireEvent.change(maxDistanceInput, { target: { value: "1.75" } });
+      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, "1.75");
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 1.75);
       expect(typeof mockOnChange.mock.calls[0][1]).toBe("number");
     });
@@ -229,24 +234,26 @@ describe("RunnerSettingsSection", () => {
       expect(maxDistanceInput).toHaveValue("5");
     });
 
-    it("accepts fractional max_distance values like 0.5", () => {
+    it("accepts fractional max_distance values like 0.5", async () => {
+      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const maxDistanceInput = screen.getByTestId("config-max-distance");
-      fireEvent.change(maxDistanceInput, { target: { value: "0.5" } });
+      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, "0.5");
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 0.5);
     });
 
     test.each([
       ["1.5", 1.5],
       ["3.75", 3.75],
-    ])("accepts fractional max_distance values like %s", (inputVal, expected) => {
+    ])("accepts fractional max_distance values like %s", async (inputVal, expected) => {
+      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
       const maxDistanceInput = screen.getByTestId("config-max-distance");
-      fireEvent.change(maxDistanceInput, { target: { value: inputVal } });
+      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, String(inputVal));
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", expected);
     });
   });

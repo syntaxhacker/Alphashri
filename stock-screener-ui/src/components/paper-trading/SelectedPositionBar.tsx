@@ -3,9 +3,18 @@ import { Text, Group, Button, Tooltip, Box } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
+import { POSITIVE, NEGATIVE } from "../../config/colors";
 
-const TINT_POSITIVE = "rgba(64, 192, 87, 0.06)";
-const TINT_NEGATIVE = "rgba(250, 82, 82, 0.06)";
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
+
+const TINT_POSITIVE = withAlpha(POSITIVE, 0.06);
+const TINT_NEGATIVE = withAlpha(NEGATIVE, 0.06);
 
 interface SelectedPositionBarProps {
   position: PaperPosition | null;
@@ -62,7 +71,7 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
         <Box
           px={6}
           py={2}
-          style={{ borderRadius: 4, backgroundColor: `rgba(${position.pnl >= 0 ? "64, 192, 87" : "250, 82, 82"}, 0.1)` }}
+          style={{ borderRadius: 4, backgroundColor: withAlpha(position.pnl >= 0 ? POSITIVE : NEGATIVE, 0.1) }}
         >
           <Text size="xs" c={getPnLTextColor(position.pnl)} fw={700}>
             {position.pnl >= 0 ? "+" : ""}₹{formatNumber(position.pnl)} ({position.pnl_pct.toFixed(2)}%)

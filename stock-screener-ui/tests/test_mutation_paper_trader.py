@@ -81,12 +81,13 @@ MUTATIONS = [
     },
     # ── Commission / fee calculations ─────────────────────────────────
     {
-        "name": "Remove min_brokerage from cost calculation",
+        "name": "Brokerage min->max swap (capped lower vs upper)",
         "file": TARGET,
-        "old": "        brokerage = max(trade_value * self.brokerage_pct, self.min_brokerage)\n",
-        "new": "        brokerage = trade_value * self.brokerage_pct  # MUTATED: no min brokerage\n",
+        "old": "        brokerage = min(self.min_brokerage, trade_value * self.brokerage_pct)  # Lower of ₹20 or 0.03%\n",
+        "new": "        brokerage = max(self.min_brokerage, trade_value * self.brokerage_pct)  # MUTATED: min->max\n",
         "tests": [
             "TestCalculateCosts::test_brokerage_minimum",
+            "TestCalculateCosts::test_brokerage_percentage",
         ],
         "expect": "killed",
     },

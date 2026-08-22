@@ -282,9 +282,9 @@ describe("LivePriceUpdater", () => {
     const { setPositions } = await import("../../state/paperTrading");
     r(<LivePriceUpdater />);
     notifyLivePrices({ RELIANCE: { symbol: "RELIANCE", ltp: undefined } });
-    await vi.waitFor(() => {
-      expect(setPositions).toHaveBeenCalled();
-    });
+    // Guard: !Number.isFinite(ltp) => skip update, should NOT call setPositions
+    await new Promise((r) => setTimeout(r, 50));
+    expect(setPositions).not.toHaveBeenCalled();
   });
 
   test("calculates P&L correctly when position has stop_loss = 0", async () => {

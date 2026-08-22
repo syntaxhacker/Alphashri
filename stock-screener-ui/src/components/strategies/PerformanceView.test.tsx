@@ -8,6 +8,8 @@ import type { StrategyPerformance } from "../../types/strategies";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 describe("PerformanceView", () => {

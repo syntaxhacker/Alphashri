@@ -6,6 +6,8 @@ import { TableLoadingState } from "./TableLoadingState";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 vi.mock("@/ui", () => ({

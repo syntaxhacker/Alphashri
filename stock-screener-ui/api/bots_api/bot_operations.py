@@ -16,6 +16,8 @@ from .bots_router import (
     start_bot_process,
     stop_bot_process,
     _bot_logs,
+    get_bot_log_path,
+    _get_existing_bot_log_path,
     _db_available,
     get_db,
     SessionLocal,
@@ -47,7 +49,12 @@ def _get_sync_functions():
     if _sync_get_bot_logs_endpoint is None:
         def _sync_get_bot_logs(bot_uuid: str, user_id: int, lines: int, db: Session) -> dict:
             bot = get_bot_by_uuid(bot_uuid, user_id, db)
-            log_path = _bot_logs.get(bot.id)
+            log_path = _bot_logs.get(bot.id) or get_bot_log_path(user_id, bot.id)
+            # fallback to legacy /tmp or LOG_DIR scan
+            if not log_path.exists():
+                alt = _get_existing_bot_log_path(bot.id, user_id)
+                if alt and alt.exists():
+                    log_path = alt
             if not log_path or not log_path.exists():
                 return {"logs": "", "message": "No logs available"}
             try:

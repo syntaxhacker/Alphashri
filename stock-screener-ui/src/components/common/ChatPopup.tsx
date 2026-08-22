@@ -42,6 +42,7 @@ import {
   IconArrowsMaximize,
   IconArrowsMinimize,
 } from "@tabler/icons-react";
+import { BLACK } from "../../config/colors";
 import {
   checkTradingAgentsHealth,
   streamStockAnalysis,
@@ -72,6 +73,14 @@ interface Message {
 interface AgentProgress {
   agent: string;
   status: "pending" | "running" | "completed";
+}
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 const mdComponents = {
@@ -378,7 +387,7 @@ export function ChatPopup() {
           bottom: 20,
           right: 20,
           zIndex: 1000,
-          boxShadow: "0 4px 12px rgba(0, 0, 0, 0.15)",
+          boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}`,
         }}
         data-testid="chat-popup-toggle"
       >

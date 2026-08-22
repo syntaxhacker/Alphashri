@@ -1,6 +1,7 @@
 import type { MantineTheme } from "@/ui";
 import { fontWeights } from "../../../config/theme";
 import { hexToRgba } from "./cellPalette";
+import { CREAM, BROWN, BROWN_DARK, BLACK } from "../../../config/colors";
 
 export type ThemeType = MantineTheme;
 
@@ -13,15 +14,13 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     overflow: "hidden",
     border: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
     borderRadius: "var(--mantine-radius-lg)",
-    background:
-      "linear-gradient(180deg, light-dark(rgba(255,255,255,0.96), rgba(15,23,42,0.94)) 0%, light-dark(rgba(248,250,252,0.88), rgba(11,15,20,0.9)) 100%)",
-    boxShadow: "0 18px 50px rgba(15, 23, 42, 0.08)",
+    background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.94)}) 0%, light-dark(${hexToRgba(CREAM, 0.88)}, ${hexToRgba(BLACK, 0.9)}) 100%)`,
+    boxShadow: `0 18px 50px ${hexToRgba(BLACK, 0.08)}`,
   },
   header: {
     display: "grid",
     gridTemplateColumns: "1fr 80px 1fr",
-    background:
-      "linear-gradient(135deg, light-dark(rgba(240,253,250,0.96), rgba(12,22,20,0.96)) 0%, light-dark(rgba(255,255,255,0.96), rgba(17,24,39,0.95)) 50%, light-dark(rgba(255,240,245,0.96), rgba(24,13,18,0.96)) 100%)",
+    background: `linear-gradient(135deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.96)}) 0%, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BLACK, 0.95)}) 50%, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.96)}) 100%)`,
     borderBottom: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.75)}`,
     position: "sticky" as const,
     top: 0,
@@ -39,8 +38,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
   subHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
-    background:
-      "linear-gradient(90deg, light-dark(rgba(236,253,245,0.92), rgba(12,18,16,0.92)) 0%, light-dark(rgba(248,250,252,0.95), rgba(15,23,42,0.88)) 50%, light-dark(rgba(254,242,242,0.92), rgba(24,12,16,0.92)) 100%)",
+    background: `linear-gradient(90deg, light-dark(${hexToRgba(CREAM, 0.92)}, ${hexToRgba(BROWN_DARK, 0.92)}) 0%, light-dark(${hexToRgba(CREAM, 0.95)}, ${hexToRgba(BLACK, 0.88)}) 50%, light-dark(${hexToRgba(CREAM, 0.92)}, ${hexToRgba(BROWN_DARK, 0.92)}) 100%)`,
     borderBottom: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.7)}`,
     position: "sticky" as const,
     top: 40,
@@ -61,8 +59,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     borderBottom: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 5 : 2], 0.65)}`,
     transition: "background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease",
     position: "relative" as const,
-    background:
-      "linear-gradient(90deg, transparent 0%, light-dark(rgba(255,255,255,0.12), rgba(255,255,255,0.03)) 50%, transparent 100%)",
+    background: `linear-gradient(90deg, transparent 0%, light-dark(${hexToRgba(CREAM, 0.12)}, ${hexToRgba(CREAM, 0.03)}) 50%, transparent 100%)`,
   },
   cell: {
     padding: "6px 4px",
@@ -81,19 +78,17 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     flexDirection: "column" as const,
     alignItems: "center",
     justifyContent: "center",
-    background:
-      "linear-gradient(180deg, light-dark(rgba(255,255,255,0.96), rgba(15,23,42,0.92)) 0%, light-dark(rgba(245,247,250,0.95), rgba(11,15,20,0.95)) 100%)",
+    background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.92)}) 0%, light-dark(${hexToRgba(CREAM, 0.95)}, ${hexToRgba(BLACK, 0.95)}) 100%)`,
     borderLeft: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
     borderRight: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
     position: "sticky" as const,
     left: "calc(50% - 40px)",
     zIndex: 2,
-    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.02)",
+    boxShadow: `inset 0 0 0 1px ${hexToRgba(CREAM, 0.02)}`,
   },
   atmHighlight: {
-    background:
-      "linear-gradient(180deg, light-dark(rgba(254,240,138,0.96), rgba(133,77,14,0.52)) 0%, light-dark(rgba(253,224,71,0.9), rgba(120,53,15,0.42)) 100%)",
+    background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN, 0.52)}) 0%, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN, 0.42)}) 100%)`,
     color: "light-dark(var(--mantine-color-yellow-9), var(--mantine-color-yellow-0))",
-    boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.18)",
+    boxShadow: `inset 0 0 0 1px ${hexToRgba(CREAM, 0.18)}`,
   },
 });

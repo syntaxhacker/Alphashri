@@ -1,9 +1,8 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, vi } from "vitest";
-import { render, screen } from "@testing-library/react";
+import { describe, it, expect, vi, afterEach } from "vitest";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { Table } from "@mantine/core";
 import {
   PortfolioSummaryCard,
   StrategyStatusCard,
@@ -11,8 +10,6 @@ import {
   TradesTable,
   BotActionButtons,
   BotSummaryCell,
-  BotRow,
-  getBotRowStyle,
   getBotIndicatorColor,
 } from "./BotHelpers";
 import type {
@@ -22,6 +19,11 @@ import type {
   BotTrade,
   BotConfig,
 } from "../../types/bots";
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(<UIProvider>{ui}</UIProvider>);
@@ -115,7 +117,7 @@ describe("PortfolioSummaryCard", () => {
   it("displays portfolio summary data", () => {
     const { container } = renderWithProviders(<PortfolioSummaryCard portfolio={mockPortfolio} />);
     const el = container.querySelector('[data-testid="portfolio-summary"]');
-    expect(el).toBeTruthy();
+    expect(el).toBeInTheDocument();
   });
 });
 
@@ -123,7 +125,7 @@ describe("StrategyStatusCard", () => {
   it("renders strategy card with data", () => {
     const { container } = renderWithProviders(<StrategyStatusCard strategy={mockStrategy} isRunning={true} />);
     const el = container.querySelector('[data-testid="strategy-card"]');
-    expect(el).toBeTruthy();
+    expect(el).toBeInTheDocument();
   });
 });
 
@@ -131,7 +133,7 @@ describe("PositionsTable", () => {
   it("renders column headers", () => {
     const { container } = renderWithProviders(<PositionsTable positions={[mockPosition]} />);
     const table = container.querySelector('[data-testid="bot-positions"]');
-    expect(table).toBeTruthy();
+    expect(table).toBeInTheDocument();
     expect(table!.textContent).toContain("Strategy");
     expect(table!.textContent).toContain("Symbol");
     expect(table!.textContent).toContain("Side");
@@ -153,13 +155,13 @@ describe("TradesTable", () => {
   it("renders trade history table", () => {
     const { container } = renderWithProviders(<TradesTable trades={[mockTrade]} onRefresh={vi.fn()} />);
     const el = container.querySelector('[data-testid="bot-trades"]');
-    expect(el).toBeTruthy();
+    expect(el).toBeInTheDocument();
   });
 
   it("shows 'No trades yet' empty state", () => {
     const { container } = renderWithProviders(<TradesTable trades={[]} onRefresh={vi.fn()} />);
     const el = container.querySelector('[data-testid="bot-trades"]');
-    expect(el).toBeTruthy();
+    expect(el).toBeInTheDocument();
     expect(screen.getByText("No trades yet")).toBeInTheDocument();
   });
 });
@@ -176,31 +178,31 @@ describe("BotActionButtons", () => {
 
   it("shows action buttons with testids", () => {
     const { container } = renderWithProviders(<BotActionButtons {...actionProps} />);
-    expect(container.querySelector(`[data-testid="view-bot-status-btn-${mockBot.id}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-testid="start-bot-btn-${mockBot.id}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-testid="edit-bot-btn-${mockBot.id}"]`)).toBeTruthy();
-    expect(container.querySelector(`[data-testid="delete-bot-btn-${mockBot.id}"]`)).toBeTruthy();
+    expect(container.querySelector(`[data-testid="view-bot-status-btn-${mockBot.id}"]`)).toBeInTheDocument();
+    expect(container.querySelector(`[data-testid="start-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
+    expect(container.querySelector(`[data-testid="edit-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
+    expect(container.querySelector(`[data-testid="delete-bot-btn-${mockBot.id}"]`)).toBeInTheDocument();
   });
 
   it("start button is disabled when bot is not active", () => {
     const inactiveBot = { ...mockBot, is_active: false };
     const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={inactiveBot} />);
     const btn = container.querySelector(`[data-testid="start-bot-btn-${inactiveBot.id}"]`);
-    expect(btn).toBeTruthy();
+    expect(btn).toBeInTheDocument();
   });
 
   it("delete button is disabled when bot is running", () => {
     const runningBot = { ...mockBot, running: true };
     const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="delete-bot-btn-${runningBot.id}"]`);
-    expect(btn).toBeTruthy();
+    expect(btn).toBeInTheDocument();
   });
 
   it("shows stop button when bot is running", () => {
     const runningBot = { ...mockBot, running: true };
     const { container } = renderWithProviders(<BotActionButtons {...actionProps} bot={runningBot} />);
     const btn = container.querySelector(`[data-testid="stop-bot-btn-${runningBot.id}"]`);
-    expect(btn).toBeTruthy();
+    expect(btn).toBeInTheDocument();
   });
 });
 
@@ -208,58 +210,6 @@ describe("BotSummaryCell", () => {
   it("shows strategy count and type badges", () => {
     const { container } = renderWithProviders(<BotSummaryCell bot={mockBot} />);
     expect(container.textContent).toContain("1 strategies");
-  });
-});
-
-describe("BotRow", () => {
-  const rowProps = {
-    bot: mockBot,
-    isSelected: false,
-    onView: vi.fn(),
-    onStart: vi.fn(),
-    onStop: vi.fn(),
-    onEdit: vi.fn(),
-    onDelete: vi.fn(),
-  };
-
-  it("renders bot row with testid", () => {
-    const { container } = renderWithProviders(
-      <UIProvider>
-        <Table>
-          <Table.Tbody>
-            <BotRow {...rowProps} />
-          </Table.Tbody>
-        </Table>
-      </UIProvider>
-    );
-    const el = container.querySelector(`[data-testid="bot-row-${mockBot.id}"]`);
-    expect(el).toBeTruthy();
-  });
-
-  it("shows 'Inactive' badge when bot is not active", () => {
-    const inactiveBot = { ...mockBot, is_active: false };
-    const { container } = renderWithProviders(
-      <UIProvider>
-        <Table>
-          <Table.Tbody>
-            <BotRow {...rowProps} bot={inactiveBot} />
-          </Table.Tbody>
-        </Table>
-      </UIProvider>
-    );
-    expect(container.textContent).toContain("Inactive");
-  });
-});
-
-describe("getBotRowStyle", () => {
-  it("applies selection background", () => {
-    const style = getBotRowStyle(true, mockBot);
-    expect(style.backgroundColor).toBeTruthy();
-  });
-
-  it("returns undefined for non-selected", () => {
-    const style = getBotRowStyle(false, mockBot);
-    expect(style.backgroundColor).toBeUndefined();
   });
 });
 

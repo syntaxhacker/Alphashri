@@ -7,7 +7,10 @@ import { OptionChainTable } from "./OptionChainTable";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 beforeEach(() => setupBrowserMocks());
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function makeContract(overrides: any = {}) {
   return {

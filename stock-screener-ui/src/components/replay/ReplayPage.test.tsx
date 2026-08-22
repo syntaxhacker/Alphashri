@@ -61,7 +61,10 @@ vi.mock("./ReplaySummary", () => ({
   ReplaySummaryPanel: (props: any) => props.summary ? <div data-testid="replay-summary">ReplaySummary</div> : null,
 }));
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("ReplayPage", () => {
   it("renders page with data-testid", async () => {

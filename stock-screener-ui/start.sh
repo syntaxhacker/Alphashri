@@ -5,7 +5,7 @@ cd "$(dirname "$0")"
 
 # ── Config ───────────────────────────────────────────────────────────
 API_PORT="${API_PORT:-8765}"
-API_HOST="${API_HOST:-0.0.0.0}"
+API_HOST="${API_HOST:-127.0.0.1}"
 UI_HOST="${UI_HOST:-127.0.0.1}"
 UI_PORT="${UI_PORT:-5173}"
 API_LOG="${API_LOG:-logs/alphashri.log}"
@@ -14,9 +14,15 @@ UI_PID="/tmp/alphashri-ui.pid"
 START_BOTS="${START_BOTS:-false}"
 QA_EMAIL="${QA_EMAIL:-qa@test.com}"
 QA_PASS="${QA_PASS:-qa123}"
-RELOAD_FLAG="${RELOAD_FLAG:---reload}"
+RELOAD_FLAG="${RELOAD_FLAG---reload}"
 
-# ── Cleanup trap (Ctrl+C for `dev` mode) ────────────────────────────────
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+CYAN='\033[0;36m'
+NC='\033[0m'
+
+# ── Cleanup trap (Ctrl+C for `dev`/`prod` mode) ────────────────────────
 cleanup() {
   echo
   echo "Stopping services..."
@@ -25,6 +31,22 @@ cleanup() {
   echo "All stopped."
 }
 trap cleanup INT TERM
+
+# ── Prerequisites ─────────────────────────────────────────────────────
+check_prereqs() {
+  local ok=true
+  if ! command -v lsof &>/dev/null; then
+    echo "WARNING: lsof not found — port killing may be unreliable" >&2
+  fi
+  if [ ! -f .venv/bin/activate ]; then
+    echo "ERROR: .venv not found — run 'uv venv && uv pip install -r requirements.txt'" >&2
+    ok=false
+  fi
+  if [ ! -d node_modules ]; then
+    echo "WARNING: node_modules not found — run 'bun install'" >&2
+  fi
+  $ok
+}
 
 # ── Health check ──────────────────────────────────────────────────────
 wait_for() {
@@ -41,7 +63,7 @@ wait_for() {
   return 1
 }
 
-# ── Port killer ────────────────────────────────────────────────────────
+# ── Port killer ───────────────────────────────────────────────────────
 kill_port() {
   local port="$1"
   local pids
@@ -55,18 +77,17 @@ kill_port() {
   fi
 }
 
-# ── PID helpers ─────────────────────────────────────────────────────────
+# ── PID helpers ───────────────────────────────────────────────────────
 is_running() { [ -f "$1" ] && kill -0 "$(cat "$1")" 2>/dev/null; }
 cleanup_pid() { rm -f "$1"; }
 
-# ── Log helpers ─────────────────────────────────────────────────────────
+# ── Log helpers ───────────────────────────────────────────────────────
 setup_log() {
   mkdir -p "$(dirname "$API_LOG")"
   : > "$API_LOG"
   echo "Logging to: $API_LOG"
 }
 
-# ── Prerequisites ───────────────────────────────────────────────────────
 activate_venv() {
   local venv="${1:-.venv}"
   if [ -d "$venv/bin" ]; then
@@ -76,7 +97,7 @@ activate_venv() {
   fi
 }
 
-# ── Service management ───────────────────────────────────────────────────
+# ── Service management ─────────────────────────────────────────────────
 start_backend() {
   local reload_args=""
   if is_running "$API_PID"; then
@@ -91,7 +112,7 @@ start_backend() {
   # shellcheck disable=SC2086
   uvicorn api_server_fastapi:app --host "$API_HOST" --port "$API_PORT" $reload_args >> "$API_LOG" 2>&1 &
   echo $! > "$API_PID"
-  wait_for "API" "http://${API_HOST}:${API_PORT}/api/health" 20
+  wait_for "API" "http://localhost:${API_PORT}/api/health" 20
 }
 
 start_frontend() {
@@ -184,7 +205,14 @@ show_status() {
   $ok && echo "  Status:    ✓ All running" || echo "  Status:    ✗ Some down"
 }
 
-# ── Main ─────────────────────────────────────────────────────────────────
+# ── Logs ──────────────────────────────────────────────────────────────
+show_logs() {
+  local lines="${1:-50}"
+  tail -f "$API_LOG" -n "$lines"
+}
+
+# ── Main ──────────────────────────────────────────────────────────────
+check_prereqs || exit 1
 setup_log
 activate_venv ".venv"
 
@@ -204,7 +232,9 @@ case "${1:-status}" in
     echo "All stopped."
     ;;
   restart)
-    echo "Restarting..."
+    mode="${2:-dev}"
+    [ "$mode" = "prod" ] && RELOAD_FLAG=""
+    echo "Restarting in $mode mode..."
     stop_frontend
     stop_backend
     sleep 1
@@ -247,27 +277,34 @@ case "${1:-status}" in
   status)
     show_status
     ;;
-  backend)
+  logs)
+    shift
+    show_logs "${1:-50}"
+    ;;
+  backend|api)
     start_backend
     ;;
-  frontend)
+  frontend|ui)
     start_frontend
     ;;
   *)
-    echo "Usage: $0 {start|stop|restart|dev|prod|bots|status|backend|frontend}"
+    echo "Usage: $0 {start|stop|restart|dev|prod|bots|status|logs|backend|frontend}"
     echo ""
-    echo "  start       Start API + UI (background)"
+    echo "  start       Start API + UI (background, reload on)"
     echo "  stop        Stop all services + bots"
-    echo "  restart     Restart API + UI"
+    echo "  restart     Restart API + UI (./start.sh restart prod for no reload)"
     echo "  dev         Start API (reload) + UI (foreground, Ctrl+C to stop)"
     echo "  prod        Start API (no reload) + UI (foreground, Ctrl+C to stop)"
     echo "  bots        Manage bots: $0 bots start|stop|status"
     echo "  status      Show service status"
+    echo "  logs        Tail API log: $0 logs [lines]"
     echo ""
     echo "Environment:"
     echo "  START_BOTS=true   Auto-start bots after API is ready"
     echo "  API_PORT=8765     API server port"
+    echo "  API_HOST=127.0.0.1 API bind host"
     echo "  API_LOG=path      Log file path"
+    echo "  RELOAD_FLAG=''    Disable --reload"
     echo ""
     echo "Examples:"
     echo "  START_BOTS=true ./start.sh prod   # prod mode + auto-start bots"

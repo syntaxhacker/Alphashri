@@ -1,5 +1,8 @@
 .navbar {
-  background-color: light-dark(var(--mantine-color-white), var(--mantine-color-dark-9));
+  /* Use --mantine-color-body so the sidebar recolors with the app theme
+     (same variable as the shell/main — the playground and dark-scale
+     overrides both flow through it). */
+  background-color: var(--mantine-color-body);
   padding: var(--mantine-spacing-xs);
   padding-bottom: 0;
   display: flex;

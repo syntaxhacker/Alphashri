@@ -31,7 +31,9 @@ describe("RecentRunsTable", () => {
 
   afterEach(() => {
     cleanup();
-  });
+  
+  vi.clearAllMocks();
+});
 
   const mockRuns = [
     {

@@ -19,6 +19,15 @@ import {
   formatCurrencyIN,
   getPnLTextColor,
 } from "../../utils/ui-helpers";
+import { POSITIVE, NEGATIVE } from "../../config/colors";
+
+function withAlpha(hex: string, alpha: number): string {
+  const h = hex.replace("#", "");
+  const r = parseInt(h.slice(0, 2), 16);
+  const g = parseInt(h.slice(2, 4), 16);
+  const b = parseInt(h.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -77,16 +86,21 @@ export function calcStrategySummary(positions: PaperPosition[]): StrategySummary
 
 const PriceCell = memo(function PriceCell({ price, quantity, entry }: { price: number; quantity: number; entry: number }) {
   const prevPrice = usePrevPrice(price);
+  const safePrice = Number.isFinite(price) ? price : 0;
+  const safeEntry = Number.isFinite(entry) ? entry : 0;
+  const safeQty = Number.isFinite(quantity) ? quantity : 0;
   return (
     <Text size="sm">
-      {quantity}×₹{entry.toFixed(0)}
+      {safeQty}×₹{safeEntry.toFixed(0)}
       <Text span c="dimmed" size="xs">→</Text>
-      <PriceDisplay price={price} prevPrice={prevPrice} />
+      <PriceDisplay price={safePrice} prevPrice={Number.isFinite(prevPrice) ? prevPrice : 0} />
     </Text>
   );
 });
 
 const PriceDisplay = memo(function PriceDisplay({ price, prevPrice }: { price: number; prevPrice: number }) {
+  const safePrice = Number.isFinite(price) ? price : 0;
+  const safePrev = Number.isFinite(prevPrice) ? prevPrice : 0;
   const [flash, setFlash] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -97,13 +111,13 @@ const PriceDisplay = memo(function PriceDisplay({ price, prevPrice }: { price: n
   }, []);
 
   useEffect(() => {
-    if (price !== prevPrice && prevPrice > 0) {
-      const direction = price > prevPrice ? "up" : "down";
+    if (safePrice !== safePrev && safePrev > 0) {
+      const direction = safePrice > safePrev ? "up" : "down";
       setFlash(direction);
       if (timerRef.current) clearTimeout(timerRef.current);
       timerRef.current = setTimeout(() => setFlash(null), 600);
     }
-  }, [price, prevPrice]);
+  }, [safePrice, safePrev]);
 
   return (
     <span
@@ -113,7 +127,7 @@ const PriceDisplay = memo(function PriceDisplay({ price, prevPrice }: { price: n
       style={{ display: "inline-block", padding: "0 2px" }}
       onAnimationEnd={() => setFlash(null)}
     >
-      ₹{price.toFixed(2)}
+      ₹{safePrice.toFixed(2)}
     </span>
   );
 });
@@ -169,13 +183,23 @@ function usePrevPrice(price: number) {
   return prev;
 }
 
+function sanitizeTestIdValue(value: string | number): string {
+  return String(value).replace(/[^a-zA-Z0-9_-]/g, "-");
+}
+
+function getCompositeRowId(pos: PaperPosition): string {
+  const strat = pos.strategy_id ?? (pos as unknown as { id?: string | number }).id ?? 0;
+  return `${sanitizeTestIdValue(strat)}-${sanitizeTestIdValue(pos.symbol)}`;
+}
+
 function getSideColor(side: string): string {
-  return side === "BUY" ? "#22c55e" : "#ef4444";
+  return side === "BUY" ? POSITIVE : NEGATIVE;
 }
 
 function calcRowBg(current: number, entry: number, sl: number, tp: number): string {
+  if (!Number.isFinite(current) || !Number.isFinite(entry) || !Number.isFinite(sl)) return "transparent";
   const slDist = entry - sl;
-  const tpDist = tp > 0 ? tp - entry : null;
+  const tpDist = Number.isFinite(tp) && tp > 0 ? tp - entry : null;
   if (slDist <= 0 && (tpDist == null || tpDist <= 0)) return "transparent";
   let redPct = 0;
   let greenPct = 0;
@@ -189,7 +213,7 @@ function calcRowBg(current: number, entry: number, sl: number, tp: number): stri
   }
   const redStop = redPct * 50;
   const greenStart = 100 - greenPct * 50;
-  return `linear-gradient(90deg, rgba(239,68,68,0.08) 0%, rgba(239,68,68,0.12) ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, rgba(34,197,94,0.12) ${greenStart}%, rgba(34,197,94,0.08) 100%)`;
+  return `linear-gradient(90deg, ${withAlpha(NEGATIVE, 0.08)} 0%, ${withAlpha(NEGATIVE, 0.12)} ${redStop}%, transparent ${redStop}%, transparent ${greenStart}%, ${withAlpha(POSITIVE, 0.12)} ${greenStart}%, ${withAlpha(POSITIVE, 0.08)} 100%)`;
 }
 
 const _52wCache: Record<string, { high_52w: number; low_52w: number }> = {};
@@ -371,13 +395,13 @@ export function PositionsTableBody({
       header: "",
       size: 32,
       enableSorting: false,
-      cell: ({ row }) => (
+       cell: ({ row }) => (
         <ActionIcon
           variant="subtle"
           color="gray"
           size="sm"
           onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
-          data-testid={`position-expand-${row.original.symbol}`}
+          data-testid={`position-expand-${getCompositeRowId(row.original)}`}
         >
           {row.getIsExpanded() ? "▼" : "▶"}
         </ActionIcon>
@@ -443,7 +467,7 @@ export function PositionsTableBody({
               color="gray"
               size="sm"
               onClick={(e) => { e.stopPropagation(); handleClosePosition(pos.symbol, pos.current_price); }}
-              data-testid={`close-position-${pos.symbol}`}
+              data-testid={`close-position-${getCompositeRowId(pos)}`}
             >
               ✕
             </ActionIcon>
@@ -469,7 +493,7 @@ export function PositionsTableBody({
         borderLeft: `3px solid ${getSideColor(pos.side)}`,
         transition: "background 0.5s ease",
       })}
-      getRowTestId={(pos) => `position-row-${pos.symbol}`}
+      getRowTestId={(pos) => `position-row-${getCompositeRowId(pos)}`}
       dataTestId="positions-table"
     />
   );

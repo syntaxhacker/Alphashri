@@ -58,7 +58,7 @@ describe("TradingChart", () => {
         <TradingChart input={baseInput} isLoading />
       </UIProvider>,
     );
-    expect(container.querySelector(".mantine-Loader-root")).toBeTruthy();
+    expect(container.querySelector(".mantine-Loader-root")).toBeInTheDocument();
   });
 
   it("calls buildChartOption and setChartOption with input", () => {

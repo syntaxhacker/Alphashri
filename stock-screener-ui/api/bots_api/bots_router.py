@@ -35,6 +35,33 @@ _bot_logs: Dict[int, Path] = {}
 _bot_processes_lock = threading.Lock()
 
 
+def get_bot_log_path(user_id: int, bot_id: int) -> Path:
+    """Return durable per-bot log path. Respects LOG_DIR env, defaults to logs/bots."""
+    base = os.getenv("LOG_DIR") or os.getenv("BOT_LOG_DIR") or str(PROJECT_ROOT / "logs" / "bots")
+    # Allow absolute or relative path
+    p = Path(base)
+    if not p.is_absolute():
+        p = PROJECT_ROOT / p
+    p.mkdir(parents=True, exist_ok=True)
+    return p / f"bot-{user_id}-{bot_id}.log"
+
+
+def _get_existing_bot_log_path(bot_id: int, user_id: Optional[int] = None) -> Optional[Path]:
+    """Find existing log file — prefer new LOG_DIR location, fallback to /tmp for migration."""
+    if bot_id in _bot_logs and _bot_logs[bot_id].exists():
+        return _bot_logs[bot_id]
+    if user_id is not None:
+        new_path = get_bot_log_path(user_id, bot_id)
+        if new_path.exists():
+            return new_path
+        # fallback legacy /tmp
+        tmp_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
+        if tmp_path.exists():
+            return tmp_path
+    # scan LOG_DIR for any bot log
+    return None
+
+
 def get_user_id(user) -> int:
     if user is None:
         return 0
@@ -349,7 +376,7 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False, live_t
         if running:
             stop_bot_process(user_id, bot_id)
 
-        log_path = Path(f"/tmp/bot-{user_id}-{bot_id}.log")
+        log_path = get_bot_log_path(user_id, bot_id)
         runner_script = PROJECT_ROOT / "trading" / "runner_cli.py"
 
         if not runner_script.exists():

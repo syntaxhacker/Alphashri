@@ -26,7 +26,7 @@ describe("AdminPage", () => {
     cleanup();
   });
 
-  it("renders loading state initially", async () => {
+  it("renders loading state initially", () => {
     mockFetchWithAuth.mockImplementation(() => new Promise(() => {}));
     renderWithRouter(<div data-testid="admin-page">Loading LLM stats...</div>);
     expect(screen.getByText("Loading LLM stats...")).toBeInTheDocument();

@@ -11,6 +11,29 @@ import { theme } from "../../config/theme";
 import { buildPivotSeries } from "../../utils/chartLineBuilders";
 import { formatTimeLabel } from "../../utils/chartTimeUtils";
 import { getCandleFromParams } from "../../utils/chartUtils";
+import {
+  CHART_BG,
+  CHART_LIGHT_BG,
+  CHART_TEXT,
+  CHART_LIGHT_TEXT,
+  CHART_MUTED,
+  CHART_LIGHT_MUTED,
+  CHART_BORDER,
+  CHART_LIGHT_BORDER,
+  CHART_SPLIT,
+  CHART_LIGHT_SPLIT,
+  CHART_OVERLAY,
+  CHART_LIGHT_OVERLAY,
+  CHART_DATAZOOM_BG,
+  CHART_LIGHT_DATAZOOM_BG,
+  CHART_CROSSHAIR,
+  DATAZOOM_FILLER,
+  BULLISH,
+  BEARISH,
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  PIVOT_52W_HIGH,
+} from "../../config/colors";
 export { buildPivotSeries, formatTimeLabel };
 
 export type ChartSize = "preview" | "expanded" | "full";
@@ -52,13 +75,13 @@ export function buildChartOption(options: ChartRenderOptions): any {
   const isSmall = size === "preview";
   const isFull = size === "full";
 
-  const bgColor = isDark ? "#0a0a0a" : "#ffffff";
-  const textColor = isDark ? "#e0e0e0" : "#333333";
-  const mutedColor = isDark ? "#888" : "#666666";
-  const borderColor = isDark ? "#333" : "#e0e0e0";
-  const splitLineColor = isDark ? "#222" : "#eeeeee";
-  const tooltipBg = isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
-  const dataZoomBg = isDark ? "#111" : "#f5f5f5";
+  const bgColor = isDark ? CHART_BG : CHART_LIGHT_BG;
+  const textColor = isDark ? CHART_TEXT : CHART_LIGHT_TEXT;
+  const mutedColor = isDark ? CHART_MUTED : CHART_LIGHT_MUTED;
+  const borderColor = isDark ? CHART_BORDER : CHART_LIGHT_BORDER;
+  const splitLineColor = isDark ? CHART_SPLIT : CHART_LIGHT_SPLIT;
+  const tooltipBg = isDark ? CHART_OVERLAY : CHART_LIGHT_OVERLAY;
+  const dataZoomBg = isDark ? CHART_DATAZOOM_BG : CHART_LIGHT_DATAZOOM_BG;
 
   // Build candlestick data
   const candleData = candles.map((c) => [c.open, c.close, c.low, c.high]);
@@ -80,7 +103,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
     animation: !isSmall,
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross", lineStyle: { color: "#666" } },
+      axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
       backgroundColor: tooltipBg,
       borderColor: borderColor,
       borderWidth: 1,
@@ -125,10 +148,10 @@ export function buildChartOption(options: ChartRenderOptions): any {
         type: "candlestick",
         data: candleData,
         itemStyle: {
-          color: "#00E676", // Bullish - bright green
-          color0: "#FF1744", // Bearish - bright red
-          borderColor: "#00E676",
-          borderColor0: "#FF1744",
+          color: BULLISH, // Bullish
+          color0: BEARISH, // Bearish
+          borderColor: BULLISH,
+          borderColor0: BEARISH,
         },
       },
       // ORB High line
@@ -142,7 +165,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
         silent: true,
         z: 5,
         lineStyle: {
-          color: "#42A5F5", // Blue
+          color: PIVOT_OR_HIGH,
           width: isSmall ? 1 : 2,
           type: "dashed",
         },
@@ -150,7 +173,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
           show: !isSmall,
           formatter: (params: any) => {
             if (params.value === null) return "";
-            return `<span style="color:#42A5F5">OR High: ₹${params.value.toFixed(2)}</span>`;
+            return `<span style="color:${PIVOT_OR_HIGH}">OR High: ₹${params.value.toFixed(2)}</span>`;
           },
         },
       },
@@ -165,7 +188,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
         silent: true,
         z: 5,
         lineStyle: {
-          color: "#1E88E5", // Darker blue
+          color: PIVOT_OR_LOW,
           width: isSmall ? 1 : 2,
           type: "dashed",
         },
@@ -173,7 +196,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
           show: !isSmall,
           formatter: (params: any) => {
             if (params.value === null) return "";
-            return `<span style="color:#1E88E5">OR Low: ₹${params.value.toFixed(2)}</span>`;
+            return `<span style="color:${PIVOT_OR_LOW}">OR Low: ₹${params.value.toFixed(2)}</span>`;
           },
         },
       },
@@ -191,14 +214,14 @@ export function buildChartOption(options: ChartRenderOptions): any {
               silent: true,
               z: 4,
               lineStyle: {
-                color: "#FF9800", // Orange
+                color: PIVOT_52W_HIGH,
                 width: isSmall ? 1 : 2,
                 type: "dotted",
               },
               tooltip: {
                 show: !isSmall,
                 formatter: () =>
-                  `<span style="color:#FF9800">52W High: ₹${high_52w.toFixed(2)}</span>`,
+                  `<span style="color:${PIVOT_52W_HIGH}">52W High: ₹${high_52w.toFixed(2)}</span>`,
               },
             },
           ]
@@ -248,8 +271,8 @@ export function buildChartOption(options: ChartRenderOptions): any {
               bottom: 10,
               borderColor: borderColor,
               backgroundColor: dataZoomBg,
-              fillerColor: "rgba(0, 230, 118, 0.1)",
-              handleStyle: { color: "#00E676" },
+              fillerColor: DATAZOOM_FILLER,
+              handleStyle: { color: BULLISH },
               textStyle: { color: mutedColor },
             },
           ]
@@ -295,7 +318,7 @@ export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boo
 
   const c = result.candle;
   const { change, changeColor } = result.change;
-  const textColor = isDark ? "#e0e0e0" : "#333333";
+  const textColor = isDark ? CHART_TEXT : CHART_LIGHT_TEXT;
   const fontFamily = theme.fontFamily;
   const fontSizes = theme.fontSizes;
 

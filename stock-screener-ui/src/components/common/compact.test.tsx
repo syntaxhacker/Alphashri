@@ -48,27 +48,29 @@ vi.mock("@/ui", () => ({
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 describe("CompactPage", () => {
   it("renders children", () => {
     render(<CompactPage>Content</CompactPage>);
-    expect(screen.getByText("Content")).toBeTruthy();
+    expect(screen.getByText("Content")).toBeInTheDocument();
   });
 
   it("renders string title", () => {
     render(<CompactPage title="My Page">Content</CompactPage>);
-    expect(screen.getByText("My Page")).toBeTruthy();
+    expect(screen.getByText("My Page")).toBeInTheDocument();
   });
 
   it("renders string description", () => {
     render(<CompactPage description="A description">Content</CompactPage>);
-    expect(screen.getByText("A description")).toBeTruthy();
+    expect(screen.getByText("A description")).toBeInTheDocument();
   });
 
   it("renders actions", () => {
     render(<CompactPage actions={<button>Action</button>}>Content</CompactPage>);
-    expect(screen.getByText("Action")).toBeTruthy();
+    expect(screen.getByText("Action")).toBeInTheDocument();
   });
 
   it("renders without header when no title, description, or actions", () => {
@@ -78,34 +80,34 @@ describe("CompactPage", () => {
 
   it("renders ReactNode title directly", () => {
     render(<CompactPage title={<span>Custom Title</span>}>Content</CompactPage>);
-    expect(screen.getByText("Custom Title")).toBeTruthy();
+    expect(screen.getByText("Custom Title")).toBeInTheDocument();
   });
 });
 
 describe("CompactPanel", () => {
   it("renders children", () => {
     render(<CompactPanel>Panel Content</CompactPanel>);
-    expect(screen.getByText("Panel Content")).toBeTruthy();
+    expect(screen.getByText("Panel Content")).toBeInTheDocument();
   });
 
   it("renders string title", () => {
     render(<CompactPanel title="Panel Title">Content</CompactPanel>);
-    expect(screen.getByText("Panel Title")).toBeTruthy();
+    expect(screen.getByText("Panel Title")).toBeInTheDocument();
   });
 
   it("renders string description", () => {
     render(<CompactPanel description="Panel desc">Content</CompactPanel>);
-    expect(screen.getByText("Panel desc")).toBeTruthy();
+    expect(screen.getByText("Panel desc")).toBeInTheDocument();
   });
 
   it("renders action", () => {
     render(<CompactPanel action={<button>Action</button>}>Content</CompactPanel>);
-    expect(screen.getByText("Action")).toBeTruthy();
+    expect(screen.getByText("Action")).toBeInTheDocument();
   });
 
   it("sets testId", () => {
     render(<CompactPanel testId="my-panel">Content</CompactPanel>);
-    expect(screen.getByText("Content").closest('[data-testid="my-panel"]')).toBeTruthy();
+    expect(screen.getByText("Content").closest('[data-testid="my-panel"]')).toBeInTheDocument();
   });
 
   it("renders without header when no title, description, or action", () => {
@@ -117,23 +119,23 @@ describe("CompactPanel", () => {
 describe("CompactStat", () => {
   it("renders label and value", () => {
     render(<CompactStat label="Score" value={95} />);
-    expect(screen.getByText("Score")).toBeTruthy();
-    expect(screen.getByText("95")).toBeTruthy();
+    expect(screen.getByText("Score")).toBeInTheDocument();
+    expect(screen.getByText("95")).toBeInTheDocument();
   });
 
   it("renders string hint", () => {
     render(<CompactStat label="PnL" value={1000} hint="+5%" />);
-    expect(screen.getByText("+5%")).toBeTruthy();
+    expect(screen.getByText("+5%")).toBeInTheDocument();
   });
 
   it("renders number hint", () => {
     render(<CompactStat label="Count" value={10} hint={5} />);
-    expect(screen.getByText("5")).toBeTruthy();
+    expect(screen.getByText("5")).toBeInTheDocument();
   });
 
   it("renders ReactNode hint", () => {
     render(<CompactStat label="Status" value="OK" hint={<em>good</em>} />);
-    expect(screen.getByText("good")).toBeTruthy();
+    expect(screen.getByText("good")).toBeInTheDocument();
   });
 
   it("does not render hint when not provided", () => {
@@ -151,7 +153,7 @@ describe("CompactStatGrid", () => {
         <div>Stat 2</div>
       </CompactStatGrid>,
     );
-    expect(screen.getByText("Stat 1")).toBeTruthy();
-    expect(screen.getByText("Stat 2")).toBeTruthy();
+    expect(screen.getByText("Stat 1")).toBeInTheDocument();
+    expect(screen.getByText("Stat 2")).toBeInTheDocument();
   });
 });

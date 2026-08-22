@@ -1,12 +1,15 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { SectorTable } from "./SectorTable";
 import type { SectorItem } from "../../types/sector";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 const mockSectors: SectorItem[] = [
   {

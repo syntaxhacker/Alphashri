@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { TestWrapper } from "../../test/test-utils";
 import { RiskManagementSection } from "./RiskManagementSection";
 import type { StrategyConfig } from "../../types/strategies";
@@ -68,6 +69,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+  vi.clearAllMocks();
 });
 
 function testInputChange(
@@ -78,7 +80,8 @@ function testInputChange(
   expectedResult: number,
   conversion = 1,
 ) {
-  test(description, () => {
+  test(description, async () => {
+    const user = userEvent.setup();
     const onChange = vi.fn();
     render(
       <TestWrapper>
@@ -86,7 +89,7 @@ function testInputChange(
       </TestWrapper>,
     );
     const input = screen.getByTestId(testId) as HTMLInputElement;
-    fireEvent.change(input, { target: { value: inputValue } });
+    await user.clear(input); await user.type(input, String(inputValue));
     expect(onChange).toHaveBeenCalledWith(configKey, expectedResult / conversion);
   });
 }
@@ -300,7 +303,8 @@ describe("RiskManagementSection", () => {
       expect(screen.getByTestId("config-max-trade")).toHaveValue("0");
     });
 
-    it("handles entering zero in percentage inputs", () => {
+    it("handles entering zero in percentage inputs", async () => {
+      const user = userEvent.setup();
       const onChange = vi.fn();
       render(
         <TestWrapper>
@@ -308,9 +312,7 @@ describe("RiskManagementSection", () => {
         </TestWrapper>,
       );
 
-      fireEvent.change(screen.getByTestId("config-capital-per-trade"), {
-        target: { value: "0" },
-      });
+      await user.clear(screen.getByTestId("config-capital-per-trade")); await user.type(screen.getByTestId("config-capital-per-trade"), "0");
 
       expect(onChange).toHaveBeenCalledWith("max_capital_per_trade_pct", 0);
     });

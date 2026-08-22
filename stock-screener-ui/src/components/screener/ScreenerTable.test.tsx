@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { ScreenerTable } from "./ScreenerTable";
 import { UIProvider } from "@/ui";
 import type { Stock } from "../../types";
@@ -105,13 +106,14 @@ describe("ScreenerTable", () => {
     });
   });
 
-  it("calls onSymbolClick when stock row is clicked", () => {
+  it("calls onSymbolClick when stock row is clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerTable {...defaultProps} />
       </UIProvider>,
     );
-    fireEvent.click(screen.getByTestId("stock-row-TCS"));
+    await user.click(screen.getByTestId("stock-row-TCS"));
     expect(defaultProps.onSymbolClick).toHaveBeenCalledWith("TCS");
   });
 

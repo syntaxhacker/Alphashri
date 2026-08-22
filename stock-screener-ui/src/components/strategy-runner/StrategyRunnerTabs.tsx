@@ -378,7 +378,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
             return expandedTrade === key;
           }}
           renderSubComponent={(trade) => (
-            <Box p="md" style={{ background: "var(--mantine-color-gray-0)" }}>
+            <Box p="md" style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))" }}>
               <TradeChart
                 symbol={trade.symbol}
                 date={trade.entry_time?.slice(0, 10) || ""}

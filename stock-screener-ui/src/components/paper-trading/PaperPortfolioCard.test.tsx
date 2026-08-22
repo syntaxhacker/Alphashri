@@ -1,12 +1,14 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { cleanup, screen } from "@testing-library/react";
-import { afterEach, describe, expect, test } from "vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
 import { PaperPortfolioCard, type Portfolio } from "./PaperPortfolioCard";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 const renderWithPortfolio = (overrides: Partial<Portfolio> = {}) => {

@@ -2,6 +2,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import { AuthProvider, useAuth } from "./AuthProvider2";
 
@@ -106,6 +107,7 @@ describe("AuthProvider2", () => {
   });
 
   it("fetchWithAuth adds Authorization header when token exists", async () => {
+      const user = userEvent.setup();
     localStorage.setItem(TOKEN_KEY, "test-token");
     mockFetch.mockResolvedValue({
       ok: true,
@@ -133,7 +135,7 @@ describe("AuthProvider2", () => {
       </UIProvider>,
     );
     await act(async () => {
-      screen.getByText("Fetch").click();
+      await user.click(screen.getByText("Fetch"));
     });
     await waitFor(() => {
       expect(mockFetch).toHaveBeenCalled();
@@ -144,6 +146,7 @@ describe("AuthProvider2", () => {
   });
 
   it("login calls /api/auth/login and stores tokens on success", async () => {
+      const user = userEvent.setup();
     mockFetch
       .mockResolvedValueOnce({
         ok: true,
@@ -166,7 +169,7 @@ describe("AuthProvider2", () => {
     renderWithProvider();
 
     await act(async () => {
-      screen.getByTestId("btn-login").click();
+      await user.click(screen.getByTestId("btn-login"));
     });
 
     await waitFor(() => {
@@ -178,6 +181,7 @@ describe("AuthProvider2", () => {
   });
 
   it("login returns error on failure", async () => {
+      const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -186,7 +190,7 @@ describe("AuthProvider2", () => {
 
     renderWithProvider();
     await act(async () => {
-      screen.getByTestId("btn-login").click();
+      await user.click(screen.getByTestId("btn-login"));
     });
 
     await waitFor(() => {
@@ -195,6 +199,7 @@ describe("AuthProvider2", () => {
   });
 
   it("logout calls /api/auth/logout and clears stored tokens/user", async () => {
+      const user = userEvent.setup();
     localStorage.setItem(TOKEN_KEY, "test-token");
     localStorage.setItem(REFRESH_TOKEN_KEY, "test-refresh");
     localStorage.setItem(USER_KEY, JSON.stringify({ id: 1, email: "test@test.com" }));
@@ -204,7 +209,7 @@ describe("AuthProvider2", () => {
     renderWithProvider();
 
     await act(async () => {
-      screen.getByTestId("btn-logout").click();
+      await user.click(screen.getByTestId("btn-logout"));
     });
 
     expect(localStorage.getItem(TOKEN_KEY)).toBeNull();
@@ -233,6 +238,7 @@ describe("AuthProvider2", () => {
   });
 
   it("clearError sets error state to null", async () => {
+      const user = userEvent.setup();
     mockFetch.mockResolvedValueOnce({
       ok: false,
       status: 401,
@@ -242,7 +248,7 @@ describe("AuthProvider2", () => {
     renderWithProvider();
 
     await act(async () => {
-      screen.getByTestId("btn-login").click();
+      await user.click(screen.getByTestId("btn-login"));
     });
 
     await waitFor(() => {
@@ -250,7 +256,7 @@ describe("AuthProvider2", () => {
     });
 
     await act(async () => {
-      screen.getByTestId("btn-clear-error").click();
+      await user.click(screen.getByTestId("btn-clear-error"));
     });
 
     await waitFor(() => {

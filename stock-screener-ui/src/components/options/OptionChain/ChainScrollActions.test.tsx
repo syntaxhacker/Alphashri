@@ -5,7 +5,10 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChainScrollActions } from "./ChainScrollActions";
 
-afterEach(() => cleanup());
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("ChainScrollActions", () => {
   it("renders scroll action buttons", () => {

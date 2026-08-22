@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { UserButton } from "./UserButton";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
@@ -124,7 +125,8 @@ describe("UserButton", () => {
     expect(screen.getByText("Logout")).toBeInTheDocument();
   });
 
-  it("calls handleLogout when logout is clicked", () => {
+  it("calls handleLogout when logout is clicked", async () => {
+      const user = userEvent.setup();
     render(
       <UIProvider>
         <UserButton {...defaultProps} />
@@ -132,7 +134,7 @@ describe("UserButton", () => {
     );
 
     const logoutBtn = screen.getByTestId("logout-button");
-    fireEvent.click(logoutBtn);
+    await user.click(logoutBtn);
 
     expect(mockHandleLogout).toHaveBeenCalledTimes(1);
   });
@@ -163,7 +165,8 @@ describe("UserButton", () => {
     expect(screen.getByTestId("user-display-name")).toHaveTextContent("User");
   });
 
-  it("does not throw when handleLogout is not defined", () => {
+  it("does not throw when handleLogout is not defined", async () => {
+    const user = userEvent.setup();
     delete window.handleLogout;
 
     render(
@@ -173,6 +176,7 @@ describe("UserButton", () => {
     );
 
     const logoutBtn = screen.getByTestId("logout-button");
-    expect(() => fireEvent.click(logoutBtn)).not.toThrow();
+    await user.click(logoutBtn);
+    expect(logoutBtn).toBeInTheDocument();
   });
 });

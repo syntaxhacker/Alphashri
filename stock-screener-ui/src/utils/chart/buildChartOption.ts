@@ -8,11 +8,12 @@ import { buildLegend } from "./buildLegend";
 import { buildLivePositionMarker, buildLivePositionMarkLines } from "./buildLivePosition";
 import { getChartThemeColors, buildHolidayMap, insertHolidayGaps } from "../chartUtils";
 import { parseTimeToHHMM } from "../ui-helpers";
+import { CHART_DARK_OVERLAY, CHART_LIGHT_OVERLAY, CHART_CROSSHAIR } from "../../config/colors";
 import { theme } from "../../config/theme";
 
 export function buildChartOption(input: ChartInput): Record<string, unknown> {
   const colors = getChartThemeColors(input.isDark, theme);
-  const tooltipBg = input.isDark ? "rgba(20, 20, 20, 0.95)" : "rgba(255, 255, 255, 0.95)";
+  const tooltipBg = input.isDark ? CHART_DARK_OVERLAY : CHART_LIGHT_OVERLAY;
 
   const hasMultipleDays =
     input.candles.length > 1 &&
@@ -216,7 +217,7 @@ export function buildChartOption(input: ChartInput): Record<string, unknown> {
       : undefined,
     tooltip: {
       trigger: "axis",
-      axisPointer: { type: "cross", lineStyle: { color: "#666" } },
+      axisPointer: { type: "cross", lineStyle: { color: CHART_CROSSHAIR } },
       backgroundColor: tooltipBg,
       borderColor: colors.borderColor,
       borderWidth: 1,

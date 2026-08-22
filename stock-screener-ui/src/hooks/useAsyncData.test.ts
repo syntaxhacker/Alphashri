@@ -1,7 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi } from "vitest";
-import { renderHook, act, waitFor } from "@testing-library/react";
+import { renderHook, act, waitFor, cleanup } from "@testing-library/react";
 import { useAsyncData } from "./useAsyncData";
+
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 describe("useAsyncData", () => {
   it("fetches data on mount when autoFetch is true", async () => {
@@ -70,7 +75,7 @@ describe("useAsyncData", () => {
     expect(fetchFn).toHaveBeenCalledTimes(1);
   });
 
-  it("setData and setError work", async () => {
+  it("setData and setError work", () => {
     const fetchFn = vi.fn().mockResolvedValue("data");
 
     const { result } = renderHook(() => useAsyncData({ fetchFn }));

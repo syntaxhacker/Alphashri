@@ -198,6 +198,7 @@ export function ScreenerTable({
       getRowClassName={(row) => `stock-row ${touchedSymbols.has(row.symbol) ? "touched" : "approaching"}`}
       getRowTestId={(row) => `stock-row-${row.symbol}`}
       onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
+      rowWindowSize={stocks.length > 120 ? 80 : 0}
     />
   );
 }

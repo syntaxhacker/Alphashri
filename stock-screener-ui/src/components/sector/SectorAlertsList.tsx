@@ -1,7 +1,41 @@
-import { Stack, Paper, Group, Text, Badge } from "@/ui";
+import { Badge, Text } from "@/ui";
+import type { ColumnDef } from "@tanstack/react-table";
+import { TanStackTable } from "../common/TanStackTable";
 import type { SectorAlert } from "./sectorUtils";
 import { formatPercentage } from "../../utils/ui-helpers";
-import { TINT_POSITIVE, TINT_NEGATIVE } from "../../config/colors";
+
+function DirectionBadge({ alert }: { alert: SectorAlert }) {
+  return (
+    <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
+      {alert.direction} ({formatPercentage(alert.delta, 2, false)})
+    </Badge>
+  );
+}
+
+const columns: ColumnDef<SectorAlert>[] = [
+  {
+    id: "timestamp",
+    header: "Time",
+    accessorKey: "timestamp",
+    cell: (info) => (
+      <Text size="sm" fw={700}>
+        {info.getValue<string>()}
+      </Text>
+    ),
+  },
+  {
+    id: "sector",
+    header: "Sector",
+    accessorKey: "sector",
+    cell: (info) => <Text size="sm">{info.getValue<string>()}</Text>,
+  },
+  {
+    id: "direction",
+    header: "Move",
+    accessorKey: "direction",
+    cell: ({ row }) => <DirectionBadge alert={row.original} />,
+  },
+];
 
 export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   if (alerts.length === 0) {
@@ -13,24 +47,11 @@ export function SectorAlertsList({ alerts }: { alerts: SectorAlert[] }) {
   }
 
   return (
-    <Stack gap="xs">
-      {alerts.map((alert, i) => (
-        <Paper
-          key={`${alert.timestamp}-${alert.sector}-${i}`}
-          p="xs"
-          withBorder
-          bg={alert.direction === "SURGING" ? TINT_POSITIVE : TINT_NEGATIVE}
-        >
-          <Group justify="space-between">
-            <Text size="sm" fw={700}>
-              [{alert.timestamp}] {alert.sector}
-            </Text>
-            <Badge color={alert.direction === "SURGING" ? "green" : "red"} size="sm">
-              {alert.direction} ({formatPercentage(alert.delta, 2, false)})
-            </Badge>
-          </Group>
-        </Paper>
-      ))}
-    </Stack>
+    <TanStackTable<SectorAlert>
+      data={alerts}
+      columns={columns}
+      enableSorting={false}
+      dataTestId="sector-alerts-table"
+    />
   );
 }

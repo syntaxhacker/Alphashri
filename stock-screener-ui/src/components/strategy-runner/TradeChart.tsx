@@ -1,5 +1,15 @@
 import { useEffect, useRef } from "react";
 import { Box } from "@/ui";
+import {
+  CANDLESTICK_ITEM_STYLE,
+} from "../../utils/chartUtils";
+import {
+  CHART_AVG_ENTRY,
+  MARKER_TP,
+  MARKER_SL,
+  TRADING_GREEN,
+  TRADING_RED,
+} from "../../config/colors";
 
 const API_BASE = "";
 
@@ -53,14 +63,14 @@ export function TradeChart({ symbol, date, entryPrice, exitPrice, entryTime, exi
           series: [{
             type: "candlestick",
             data: ohlc,
-            itemStyle: { color: "#26a69a", color0: "#ef5350", borderColor: "#26a69a", borderColor0: "#ef5350" },
+            itemStyle: CANDLESTICK_ITEM_STYLE,
             markLine: {
               silent: true,
               data: [
-                { yAxis: entryPrice, label: { formatter: "Entry " + entryPrice, position: "insideEndTop" }, lineStyle: { color: "#4caf50", type: "dashed" } },
-                { yAxis: exitPrice, label: { formatter: "Exit " + exitPrice, position: "insideEndBottom" }, lineStyle: { color: entryPrice <= exitPrice ? "#4caf50" : "#f44336", type: "solid" } },
-                ...(stopLoss > 0 ? [{ yAxis: stopLoss, label: { formatter: "SL " + stopLoss, position: "insideEndTop" }, lineStyle: { color: "#f44336", type: "dotted" } }] : []),
-                ...(takeProfit > 0 ? [{ yAxis: takeProfit, label: { formatter: "TP " + takeProfit, position: "insideEndBottom" }, lineStyle: { color: "#4caf50", type: "dotted" } }] : []),
+                { yAxis: entryPrice, label: { formatter: "Entry " + entryPrice, position: "insideEndTop" }, lineStyle: { color: CHART_AVG_ENTRY, type: "dashed" } },
+                { yAxis: exitPrice, label: { formatter: "Exit " + exitPrice, position: "insideEndBottom" }, lineStyle: { color: entryPrice <= exitPrice ? TRADING_GREEN : TRADING_RED, type: "solid" } },
+                ...(stopLoss > 0 ? [{ yAxis: stopLoss, label: { formatter: "SL " + stopLoss, position: "insideEndTop" }, lineStyle: { color: MARKER_SL, type: "dotted" } }] : []),
+                ...(takeProfit > 0 ? [{ yAxis: takeProfit, label: { formatter: "TP " + takeProfit, position: "insideEndBottom" }, lineStyle: { color: MARKER_TP, type: "dotted" } }] : []),
               ],
             },
           }],

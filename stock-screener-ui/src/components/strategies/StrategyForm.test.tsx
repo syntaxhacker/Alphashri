@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
@@ -27,8 +27,7 @@ vi.mock("@/ui", async () => {
           </option>
         ))}
       </select>
-    ),
-  };
+    ) };
 });
 
 beforeEach(() => {
@@ -37,6 +36,8 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup();
+
+  vi.clearAllMocks();
 });
 
 const makeTemplate = (overrides: Partial<StrategyConfig> = {}): StrategyConfig => ({
@@ -58,8 +59,7 @@ const makeTemplate = (overrides: Partial<StrategyConfig> = {}): StrategyConfig =
   brokerage_pct: 0.03, min_brokerage: 20, stt_pct: 0.025,
   exchange_pct: 0.003, sebi_pct: 0.0001, stamp_pct: 0.003,
   gst_pct: 18, created_at: null, updated_at: null,
-  ...overrides,
-});
+  ...overrides });
 
 const baseProps = {
   mode: "create" as const,
@@ -67,8 +67,7 @@ const baseProps = {
   opened: true,
   onClose: vi.fn(),
   onSubmit: vi.fn(),
-  isBotRunning: false,
-};
+  isBotRunning: false };
 
 describe("StrategyForm", () => {
   it("renders modal with data-testid", () => {
@@ -268,8 +267,7 @@ describe("StrategyForm", () => {
       screener_profiles: [],
       brokerage_pct: 0.03, min_brokerage: 20, stt_pct: 0.025,
       exchange_pct: 0.003, sebi_pct: 0.0001, stamp_pct: 0.003,
-      gst_pct: 18, created_at: null, updated_at: null,
-    };
+      gst_pct: 18, created_at: null, updated_at: null };
     render(
       <UIProvider>
         <StrategyForm {...baseProps} template={template} />
@@ -285,8 +283,7 @@ describe("StrategyForm", () => {
     const template = makeTemplate({
       strategy_type: "EMA_CROSS",
       ema_fast_period: 21,
-      ema_slow_period: 9,
-    });
+      ema_slow_period: 9 });
     render(
       <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
@@ -303,8 +300,7 @@ describe("StrategyForm", () => {
     const template = makeTemplate({
       strategy_type: "EMA_CROSS",
       ema_fast_period: 9,
-      ema_slow_period: 21,
-    });
+      ema_slow_period: 21 });
     render(
       <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />
@@ -343,8 +339,7 @@ describe("StrategyForm", () => {
       or_minutes: 15,
       sl_pct: 2,
       tp_pct: 3,
-      screener_profiles: [],
-    });
+      screener_profiles: [] });
     render(
       <UIProvider>
         <StrategyForm {...baseProps} template={template} onSubmit={onSubmit} />

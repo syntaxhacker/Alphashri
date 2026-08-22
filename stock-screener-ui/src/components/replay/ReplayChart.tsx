@@ -12,6 +12,13 @@ import type {
 import { TradingChart } from "../chart/TradingChart";
 import type { TradingChartHandle } from "../chart/TradingChart";
 import { normalizeReplay } from "../../utils/chart/normalizeReplay";
+import {
+  MARKER_ENTRY,
+  PIVOT_OR_HIGH,
+  PIVOT_PP,
+  PIVOT_52W_HIGH,
+  INDICATOR_BLUE_A,
+} from "../../config/colors";
 
 const TF_PRESETS = [
   { label: "1m", minutes: 1 },
@@ -221,7 +228,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="Markers"
           defaultChecked
           disabled
-          styles={{ label: { color: "#00BFFF" } }}
+          styles={{ label: { color: MARKER_ENTRY } }}
           data-testid="replay-show-markers"
         />
         <Switch
@@ -229,7 +236,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="ORB"
           checked={chartOptions.show_orb_zones}
           onChange={(e) => setChartOptions({ show_orb_zones: e.currentTarget.checked })}
-          styles={{ label: { color: "#2196F3" } }}
+          styles={{ label: { color: PIVOT_OR_HIGH } }}
           data-testid="replay-show-orb"
         />
         <Switch
@@ -237,7 +244,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="Pivot"
           checked={chartOptions.show_pivot_levels}
           onChange={(e) => setChartOptions({ show_pivot_levels: e.currentTarget.checked })}
-          styles={{ label: { color: "#AB47BC" } }}
+          styles={{ label: { color: PIVOT_PP } }}
           data-testid="replay-show-pivot"
         />
         <Switch
@@ -245,7 +252,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="52W"
           checked={chartOptions.show_52w_high}
           onChange={(e) => setChartOptions({ show_52w_high: e.currentTarget.checked })}
-          styles={{ label: { color: "#E91E63" } }}
+          styles={{ label: { color: PIVOT_52W_HIGH } }}
           data-testid="replay-show-52w"
         />
         <Switch
@@ -253,7 +260,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="EMA"
           checked={chartOptions.show_ema}
           onChange={(e) => setChartOptions({ show_ema: e.currentTarget.checked })}
-          styles={{ label: { color: "#10ac84" } }}
+          styles={{ label: { color: INDICATOR_BLUE_A } }}
           data-testid="replay-show-ema"
         />
       </Group>

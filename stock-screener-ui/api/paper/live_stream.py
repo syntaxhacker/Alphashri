@@ -89,9 +89,13 @@ def _get_instrument_keys(user_id: int) -> tuple[list[str], dict[str, str]]:
             from sqlalchemy import text as sa_text
             db = SessionLocal()
             try:
-                placeholders = ",".join(f"'{s}'" for s in trading_symbols)
+                # Param query to avoid SQL injection via symbol like "A'B"
+                trading_list = list(trading_symbols)
+                placeholders = ",".join(f":sym_{i}" for i in range(len(trading_list)))
+                params = {f"sym_{i}": s for i, s in enumerate(trading_list)}
                 rows = db.execute(
-                    sa_text(f"SELECT trading_symbol, instrument_key FROM instruments WHERE trading_symbol IN ({placeholders})")
+                    sa_text(f"SELECT trading_symbol, instrument_key FROM instruments WHERE trading_symbol IN ({placeholders})"),
+                    params,
                 ).fetchall()
                 for sym, key in rows:
                     sym_to_key[sym] = key
@@ -142,10 +146,15 @@ async def live_price_stream(user: User = Depends(get_current_user)):
             headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
         )
 
+    # Upstox V3 max 5000 instrument keys per connection (ltpc mode)
+    if len(instrument_keys) > 5000:
+        instrument_keys = instrument_keys[:5000]
+
     key_to_sym = {v: k for k, v in sym_to_key.items()}
 
     import queue as thr_queue
-    q: thr_queue.Queue = thr_queue.Queue()
+    # maxsize 10000 to bound memory; overflow is dropped gracefully via Full exception
+    q: thr_queue.Queue = thr_queue.Queue(maxsize=10000)
     closed = threading.Event()
 
     def _run_streamer():
@@ -186,12 +195,18 @@ async def live_price_stream(user: User = Depends(get_current_user)):
                             "ltq": ltpc.get("ltq"),
                             "ts": ltpc.get("ltt", current_ts),
                         }
-                        q.put_nowait(event)
+                        try:
+                            q.put_nowait(event)
+                        except thr_queue.Full:
+                            pass
 
             def on_error(err):
                 if closed.is_set():
                     return
-                q.put_nowait({"type": "error", "message": str(err)})
+                try:
+                    q.put_nowait({"type": "error", "message": str(err)})
+                except thr_queue.Full:
+                    pass
 
             def on_open():
                 streamer.subscribe(instrument_keys, "ltpc")
@@ -206,7 +221,10 @@ async def live_price_stream(user: User = Depends(get_current_user)):
 
         except Exception as e:
             if not closed.is_set():
-                q.put_nowait({"type": "error", "message": str(e)})
+                try:
+                    q.put_nowait({"type": "error", "message": str(e)})
+                except thr_queue.Full:
+                    pass
         finally:
             if streamer_instance:
                 try:

@@ -1,12 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, fireEvent, cleanup } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { OrbSettingsSection } from "./OrbSettingsSection";
 import type { StrategyConfig } from "../../types/strategies";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -133,38 +137,43 @@ describe("OrbSettingsSection", () => {
   });
 
   describe("onChange behavior", () => {
-    it("passes or_minutes value as-is (Number from NumberInput)", () => {
+    it("passes or_minutes value as-is (Number from NumberInput)", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-or-minutes");
-      fireEvent.change(input, { target: { value: "30" } });
+      await user.clear(input); await user.type(input, "30");
       expect(mockOnChange).toHaveBeenCalledWith("or_minutes", 30);
     });
 
-    it("converts sl_pct string to Number", () => {
+    it("converts sl_pct string to Number", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-sl-pct");
-      fireEvent.change(input, { target: { value: "0.5" } });
+      await user.clear(input); await user.type(input, "0.5");
       expect(mockOnChange).toHaveBeenCalledWith("sl_pct", 0.5);
     });
 
-    it("converts tp_pct string to Number", () => {
+    it("converts tp_pct string to Number", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-tp-pct");
-      fireEvent.change(input, { target: { value: "2.5" } });
+      await user.clear(input); await user.type(input, "2.5");
       expect(mockOnChange).toHaveBeenCalledWith("tp_pct", 2.5);
     });
 
-    it("converts min_or_range_pct string to Number", () => {
+    it("converts min_or_range_pct string to Number", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-min-or-range");
-      fireEvent.change(input, { target: { value: "1.0" } });
+      await user.clear(input); await user.type(input, "1.0");
       expect(mockOnChange).toHaveBeenCalledWith("min_or_range_pct", 1.0);
     });
 
-    it("converts max_or_range_pct string to Number", () => {
+    it("converts max_or_range_pct string to Number", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-max-or-range");
-      fireEvent.change(input, { target: { value: "5.5" } });
+      await user.clear(input); await user.type(input, "5.5");
       expect(mockOnChange).toHaveBeenCalledWith("max_or_range_pct", 5.5);
     });
   });
@@ -285,31 +294,35 @@ describe("OrbSettingsSection", () => {
   });
 
   describe("fractional steps", () => {
-    it("accepts fractional step values for sl_pct (0.1 step)", () => {
+    it("accepts fractional step values for sl_pct (0.1 step)", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-sl-pct");
-      fireEvent.change(input, { target: { value: "0.25" } });
+      await user.clear(input); await user.type(input, "0.25");
       expect(mockOnChange).toHaveBeenCalledWith("sl_pct", 0.25);
     });
 
-    it("accepts fractional step values for tp_pct (0.1 step)", () => {
+    it("accepts fractional step values for tp_pct (0.1 step)", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-tp-pct");
-      fireEvent.change(input, { target: { value: "3.75" } });
+      await user.clear(input); await user.type(input, "3.75");
       expect(mockOnChange).toHaveBeenCalledWith("tp_pct", 3.75);
     });
 
-    it("accepts fractional step values for min_or_range_pct (0.1 step)", () => {
+    it("accepts fractional step values for min_or_range_pct (0.1 step)", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-min-or-range");
-      fireEvent.change(input, { target: { value: "2.35" } });
+      await user.clear(input); await user.type(input, "2.35");
       expect(mockOnChange).toHaveBeenCalledWith("min_or_range_pct", 2.35);
     });
 
-    it("accepts fractional step values for max_or_range_pct (0.5 step)", () => {
+    it("accepts fractional step values for max_or_range_pct (0.5 step)", async () => {
+      const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
       const input = screen.getByTestId("config-max-or-range");
-      fireEvent.change(input, { target: { value: "3.5" } });
+      await user.clear(input); await user.type(input, "3.5");
       expect(mockOnChange).toHaveBeenCalledWith("max_or_range_pct", 3.5);
     });
   });

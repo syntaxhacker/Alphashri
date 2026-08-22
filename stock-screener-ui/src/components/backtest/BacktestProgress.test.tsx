@@ -1,11 +1,14 @@
 // @vitest-environment happy-dom
-import { describe, it, expect, afterEach } from "vitest";
+import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { BacktestProgress, calcProgressPercent } from "./BacktestProgress";
 import "@testing-library/jest-dom/vitest";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;

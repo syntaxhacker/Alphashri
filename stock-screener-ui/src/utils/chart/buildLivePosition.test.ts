@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildLivePositionMarker, buildLivePositionMarkLines } from "./buildLivePosition";
 import type { UnifiedLivePosition } from "./types";
+import { MARKER_ENTRY, MARKER_BORDER, MARKER_SL, MARKER_TP } from "../../config/colors";
 
 describe("buildLivePositionMarker", () => {
   const createMockPosition = (
@@ -37,16 +38,16 @@ describe("buildLivePositionMarker", () => {
     expect(result[0].data[0].value[1]).toBe(150.5);
   });
 
-  it("sets cyan color for marker", () => {
+  it("sets palette entry color for marker", () => {
     const pos = createMockPosition();
     const result = buildLivePositionMarker(pos, 5);
-    expect(result[0].data[0].itemStyle.color).toBe("#00FFFF");
+    expect(result[0].data[0].itemStyle.color).toBe(MARKER_ENTRY);
   });
 
-  it("sets white border with width 3", () => {
+  it("sets palette border color with width 3", () => {
     const pos = createMockPosition();
     const result = buildLivePositionMarker(pos, 5);
-    expect(result[0].data[0].itemStyle.borderColor).toBe("#FFFFFF");
+    expect(result[0].data[0].itemStyle.borderColor).toBe(MARKER_BORDER);
     expect(result[0].data[0].itemStyle.borderWidth).toBe(3);
   });
 
@@ -110,7 +111,7 @@ describe("buildLivePositionMarkLines", () => {
     const result = buildLivePositionMarkLines(pos);
     expect(result[0]).toMatchObject({
       yAxis: 95,
-      lineStyle: { color: "#FF00FF", type: "dashed", width: 2 },
+      lineStyle: { color: MARKER_SL, type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: "SL 95" },
     });
   });
@@ -120,7 +121,7 @@ describe("buildLivePositionMarkLines", () => {
     const result = buildLivePositionMarkLines(pos);
     expect(result[1]).toMatchObject({
       yAxis: 110,
-      lineStyle: { color: "#FFFF00", type: "dashed", width: 2 },
+      lineStyle: { color: MARKER_TP, type: "dashed", width: 2 },
       label: { position: "insideEndTop", formatter: "TP 110" },
     });
   });

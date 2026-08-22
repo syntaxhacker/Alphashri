@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup, fireEvent } from "@testing-library/react";
+import { screen, cleanup } from "@testing-library/react";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 
 const mockStateStore: any = {
@@ -269,25 +270,27 @@ describe("PaperHistoryTable", () => {
       expect(screen.queryByText(/^2026-03-20$/)).not.toBeInTheDocument();
     });
 
-    test("collapses a day group when its header row is clicked", () => {
+    test("collapses a day group when its header row is clicked", async () => {
+      const user = userEvent.setup();
       mockStateStore.trades = [
         mockTrade({ trade_id: "t1", exit_time: "2026-05-09T10:30:00Z" }),
         mockTrade({ trade_id: "t2", exit_time: "2026-05-09T11:30:00Z", symbol: "TCS" }),
       ];
       r();
       expect(screen.getByTestId("trade-row-t1")).toBeInTheDocument();
-      fireEvent.click(screen.getByTestId("day-header-2026-05-09"));
+      await user.click(screen.getByTestId("day-header-2026-05-09"));
       expect(screen.queryByTestId("trade-row-t1")).not.toBeInTheDocument();
       expect(screen.queryByTestId("trade-row-t2")).not.toBeInTheDocument();
       // Day summary row stays visible
       expect(screen.getByTestId("day-group-2026-05-09")).toBeInTheDocument();
     });
 
-    test("expands a trade row to show detail", () => {
+    test("expands a trade row to show detail", async () => {
+      const user = userEvent.setup();
       mockStateStore.trades = [mockTrade({ trade_id: "trade-1" })];
       r();
       expect(screen.queryByTestId("trade-reason-trade-1")).not.toBeInTheDocument();
-      fireEvent.click(screen.getByTestId("trade-detail-toggle-trade-1"));
+      await user.click(screen.getByTestId("trade-detail-toggle-trade-1"));
       expect(screen.getByTestId("trade-reason-trade-1")).toBeInTheDocument();
     });
   });
@@ -306,51 +309,149 @@ describe("groupTradesByDate with sorting", () => {
   });
 });
 
+describe("tradeHistoryUtils edge cases", () => {
+  test("filterByRange excludes exit_time=\"\" ", async () => {
+    const { filterByRange } = await import("../../utils/tradeHistoryUtils");
+    const trades = [
+      mockTrade({ trade_id: "t1", exit_time: "" as any }),
+      mockTrade({ trade_id: "t2", exit_time: "2026-03-20T10:00:00Z" }),
+    ];
+    const res = filterByRange(trades as any, "2026-03-20", "2026-03-20");
+    expect(res.find(t=>t.trade_id==="t1")).toBeUndefined();
+    expect(res.find(t=>t.trade_id==="t2")).toBeDefined();
+  });
+
+  test("filterByRange excludes null exit_time", async () => {
+    const { filterByRange } = await import("../../utils/tradeHistoryUtils");
+    const trades = [
+      mockTrade({ trade_id: "t1", exit_time: null as any }),
+      mockTrade({ trade_id: "t2", exit_time: "2026-03-20T10:00:00Z" }),
+    ];
+    const res = filterByRange(trades as any, "2026-03-20", "2026-03-20");
+    expect(res.find(t=>t.trade_id==="t1")).toBeUndefined();
+  });
+
+  test("filterByRange excludes Invalid Date", async () => {
+    const { filterByRange } = await import("../../utils/tradeHistoryUtils");
+    const trades = [
+      mockTrade({ trade_id: "t1", exit_time: "Invalid Date" as any }),
+      mockTrade({ trade_id: "t2", exit_time: "2026-03-20T10:00:00Z" }),
+    ];
+    const res = filterByRange(trades as any, "2026-03-20", "2026-03-20");
+    expect(res.find(t=>t.trade_id==="t1")).toBeUndefined();
+  });
+
+  test("IST boundary: fromDate 2026-03-20 includes 2026-03-20T00:00:00Z (05:30 IST)", async () => {
+    const { filterByRange } = await import("../../utils/tradeHistoryUtils");
+    const trades = [mockTrade({ trade_id: "t1", exit_time: "2026-03-20T00:00:00Z" })];
+    const res = filterByRange(trades as any, "2026-03-20", "2026-03-20");
+    expect(res.length).toBe(1);
+  });
+
+  test("IST boundary: fromDate 2026-03-20 includes 2026-03-19T18:30:00Z (=00:00 IST)", async () => {
+    const { filterByRange } = await import("../../utils/tradeHistoryUtils");
+    const trades = [mockTrade({ trade_id: "t1", exit_time: "2026-03-19T18:30:00Z" })];
+    const res = filterByRange(trades as any, "2026-03-20", "2026-03-20");
+    expect(res.length).toBe(1);
+  });
+
+  test("IST boundary: fromDate 2026-03-20 excludes 2026-03-19T18:29:59Z (just before IST midnight)", async () => {
+    const { filterByRange } = await import("../../utils/tradeHistoryUtils");
+    const trades = [mockTrade({ trade_id: "t1", exit_time: "2026-03-19T18:29:59Z" })];
+    const res = filterByRange(trades as any, "2026-03-20", "2026-03-20");
+    expect(res.length).toBe(0);
+  });
+
+  test("groupTradesByDate with \"\" creates safe skip", async () => {
+    const { groupTradesByDate } = await import("../../utils/tradeHistoryUtils");
+    const trades = [
+      mockTrade({ trade_id: "t1", exit_time: "" as any }),
+      mockTrade({ trade_id: "t2", exit_time: "2026-05-09T10:30:00Z" }),
+    ];
+    const groups = groupTradesByDate(trades as any);
+    expect(groups[""]).toBeUndefined();
+    expect(groups["2026-05-09"].length).toBe(1);
+    expect(groups["2026-05-09"][0].trade_id).toBe("t2");
+  });
+
+  test("groupTradesByDate skips null and Invalid Date", async () => {
+    const { groupTradesByDate } = await import("../../utils/tradeHistoryUtils");
+    const trades = [
+      mockTrade({ trade_id: "t1", exit_time: null as any }),
+      mockTrade({ trade_id: "t2", exit_time: "Invalid Date" as any }),
+      mockTrade({ trade_id: "t3", exit_time: "2026-05-09T10:30:00Z" }),
+    ];
+    const groups = groupTradesByDate(trades as any);
+    expect(Object.keys(groups)).toEqual(["2026-05-09"]);
+  });
+
+  test("large-data 10k smoke: filterByRange+groupTradesByDate completes", async () => {
+    const { filterByRange, groupTradesByDate } = await import("../../utils/tradeHistoryUtils");
+    const trades = Array.from({ length: 10000 }, (_, i) => mockTrade({
+      trade_id: `t${i}`,
+      exit_time: `2026-03-${String(10 + (i % 20)).padStart(2,"0")}T10:00:00Z`,
+      symbol: `SYM${i%100}`,
+    }));
+    const filtered = filterByRange(trades as any, "2026-03-15", "2026-03-25");
+    expect(filtered.length).toBeGreaterThan(0);
+    const groups = groupTradesByDate(filtered as any);
+    expect(Object.keys(groups).length).toBeGreaterThan(0);
+    // ensure no throw and groups sum equals filtered
+    const total = Object.values(groups).reduce((s,a)=>s+a.length,0);
+    expect(total).toBe(filtered.length);
+  });
+});
+
 describe("PaperHistoryTable interactions", () => {
   test("quick filter triggers refreshHistoryData", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade()];
     r();
     const segControl = screen.getByTestId("quick-filter");
     const todayBtn = segControl.querySelector("button");
-    if (todayBtn) {
-      todayBtn.click();
-    }
+    expect(todayBtn).not.toBeNull();
+    await user.click(todayBtn!);
     expect(mocks.mockRefreshHistoryData).toHaveBeenCalled();
   });
 
   test("quick filter sets date filters", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade()];
     r();
     const { setFilterFromDate, setFilterToDate } = await import("../../state/paperTrading");
     const segControl = screen.getByTestId("quick-filter");
     const todayBtn = segControl.querySelector("button");
-    if (todayBtn) {
-      todayBtn.click();
-    }
-    expect(setFilterFromDate).toHaveBeenCalled();
-    expect(setFilterToDate).toHaveBeenCalled();
+    expect(todayBtn).not.toBeNull();
+    await user.click(todayBtn!);
+    const dayjs = (await import("dayjs")).default;
+    const today = dayjs().format("YYYY-MM-DD");
+    expect(setFilterFromDate).toHaveBeenCalledWith(today);
+    expect(setFilterToDate).toHaveBeenCalledWith(today);
   });
 
   test("handleSelectSymbol calls fetchPaperChart on row click", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ trade_id: "trade-1" })];
     r();
     const row = screen.getByTestId("trade-row-trade-1");
-    row.click();
+    await user.click(row);
     await vi.waitFor(() => {
       expect(mocks.mockFetchPaperChart).toHaveBeenCalled();
     });
   });
 
   test("handleSelectSymbol sets selectedTradeId", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ trade_id: "trade-1", symbol: "RELIANCE" })];
     r();
     const row = screen.getByTestId("trade-row-trade-1");
-    row.click();
+    await user.click(row);
     const { setSelectedTradeId } = await import("../../state/paperTrading");
     expect(setSelectedTradeId).toHaveBeenCalled();
   });
 
   test("clicking a trade always sets showAllTrades false via setSelectedTradeId", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [
       mockTrade({ trade_id: "t1", symbol: "RELIANCE", exit_time: "2026-05-09T10:00:00Z" }),
       mockTrade({ trade_id: "t2", symbol: "RELIANCE", exit_time: "2026-05-09T11:00:00Z" }),
@@ -358,16 +459,17 @@ describe("PaperHistoryTable interactions", () => {
     r();
     const { setSelectedTradeId } = await import("../../state/paperTrading");
     const row = screen.getByTestId("trade-row-t1");
-    row.click();
+    await user.click(row);
     expect(setSelectedTradeId).toHaveBeenCalled();
   });
 
   test("single symbol trade does not set showAllTrades", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ trade_id: "t1", symbol: "RELIANCE" })];
     r();
     const { setShowAllTrades } = await import("../../state/paperTrading");
     const row = screen.getByTestId("trade-row-t1");
-    row.click();
+    await user.click(row);
     expect(setShowAllTrades).not.toHaveBeenCalledWith(true);
   });
 

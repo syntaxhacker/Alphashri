@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderHook, act } from "@testing-library/react";
+import { renderHook, act, cleanup } from "@testing-library/react";
 import { useChartZoom, computeZoomRange, dispatchZoom } from "./useChartZoom";
 
 // Mock parseTimeToHHMM
@@ -25,6 +25,7 @@ describe("useChartZoom", () => {
   });
 
   afterEach(() => {
+  cleanup();
     vi.clearAllMocks();
   });
 
@@ -141,7 +142,7 @@ describe("useChartZoom", () => {
       expect(typeof result.current.zoomToTradeByIndex).toBe("function");
     });
 
-    it("zoomToTradeByIndex calls dispatchZoom after timeout", async () => {
+    it("zoomToTradeByIndex calls dispatchZoom after timeout", () => {
       vi.useFakeTimers();
       const { result } = renderHook(() =>
         useChartZoom({ chartInstance: { current: mockChartInstance } as any }),
@@ -174,7 +175,7 @@ describe("useChartZoom", () => {
       expect(mockChartInstance.dispatchAction).not.toHaveBeenCalled();
     });
 
-    it("zoomToTradeByTime finds exact time match", async () => {
+    it("zoomToTradeByTime finds exact time match", () => {
       vi.useFakeTimers();
       const { result } = renderHook(() =>
         useChartZoom({ chartInstance: { current: mockChartInstance } as any }),
@@ -203,7 +204,7 @@ describe("useChartZoom", () => {
       vi.useRealTimers();
     });
 
-    it("zoomToTradeByTime finds best match when exact not found", async () => {
+    it("zoomToTradeByTime finds best match when exact not found", () => {
       vi.useFakeTimers();
       const { result } = renderHook(() =>
         useChartZoom({ chartInstance: { current: mockChartInstance } as any }),
@@ -226,7 +227,7 @@ describe("useChartZoom", () => {
       vi.useRealTimers();
     });
 
-    it("zoomToTradeByTime handles empty times array", async () => {
+    it("zoomToTradeByTime handles empty times array", () => {
       vi.useFakeTimers();
       const { result } = renderHook(() =>
         useChartZoom({ chartInstance: { current: mockChartInstance } as any }),

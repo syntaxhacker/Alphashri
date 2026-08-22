@@ -1,12 +1,16 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, fireEvent } from "@testing-library/react";
+import { render, screen, cleanup } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { ParamInput } from "./ParamInput";
 import type { StrategyParam } from "../../types/backtest";
 import "@testing-library/jest-dom/vitest";
+import userEvent from "@testing-library/user-event";
 
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.clearAllMocks();
+});
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -57,10 +61,11 @@ describe("ParamInput", () => {
     });
 
     it("allows typing a new value", async () => {
+      const user = userEvent.setup();
       const param = mockParam({ type: "number" });
       render(<ParamInput param={param} value={10} onChange={mockOnChange} />, { wrapper: Wrapper });
       const input = screen.getByTestId("param-test_param");
-      fireEvent.change(input, { target: { value: "30" } });
+      await user.clear(input); await user.type(input, "30");
       expect(mockOnChange).toHaveBeenCalledWith(30);
     });
   });
