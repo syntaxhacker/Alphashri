@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { Checkbox } from "./Checkbox";
 
 const meta: Meta<typeof Checkbox> = {
-  title: "Design System/UI/Inputs/Checkbox",
+  title: "Primitives/Inputs/Checkbox",
   component: Checkbox,
   tags: ["autodocs"],
 };

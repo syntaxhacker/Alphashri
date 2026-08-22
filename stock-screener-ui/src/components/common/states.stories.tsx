@@ -3,7 +3,7 @@ import { Stack, Title } from "@/ui";
 import { InlineLoader, EmptyState, ErrorAlert, EmptyCompact } from "./states";
 
 const meta: Meta<typeof InlineLoader> = {
-  title: "Design System/Common/States",
+  title: "Composites/States",
   component: InlineLoader,
   tags: ["autodocs"],
 };

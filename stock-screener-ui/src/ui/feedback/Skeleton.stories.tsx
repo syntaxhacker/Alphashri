@@ -3,7 +3,7 @@ import { Group, Stack } from "@mantine/core";
 import { Skeleton } from "./Skeleton";
 
 const meta: Meta<typeof Skeleton> = {
-  title: "Design System/UI/Feedback/Skeleton",
+  title: "Primitives/Feedback/Skeleton",
   component: Skeleton,
   tags: ["autodocs"],
 };

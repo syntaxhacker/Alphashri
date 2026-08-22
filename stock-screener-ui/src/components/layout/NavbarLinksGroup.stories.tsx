@@ -5,7 +5,7 @@ import { BrowserRouter } from "react-router-dom";
 import { IconRocket, IconChartLine, IconTrendingUp, IconCurrencyDollar } from "@tabler/icons-react";
 
 const meta: Meta<typeof NavbarLinksGroup> = {
-  title: "Design System/Layout/NavItem",
+  title: "Examples/App Layout/NavItem",
   component: NavbarLinksGroup,
   tags: ["autodocs"],
   decorators: [

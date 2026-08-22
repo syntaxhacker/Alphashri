@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { NavLink } from "./NavLink";
 
 const meta: Meta<typeof NavLink> = {
-  title: "Design System/Navigation/NavLink",
+  title: "Primitives/Navigation/NavLink",
   component: NavLink,
   tags: ["autodocs"],
 };

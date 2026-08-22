@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { Progress } from "./Progress";
 
 const meta: Meta<typeof Progress> = {
-  title: "Design System/UI/Feedback/Progress",
+  title: "Primitives/Feedback/Progress",
   component: Progress,
   tags: ["autodocs"],
 };

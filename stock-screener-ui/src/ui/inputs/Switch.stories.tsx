@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { Switch } from "./Switch";
 
 const meta: Meta<typeof Switch> = {
-  title: "Design System/UI/Inputs/Switch",
+  title: "Primitives/Inputs/Switch",
   component: Switch,
   tags: ["autodocs"],
 };

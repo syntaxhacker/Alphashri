@@ -3,7 +3,7 @@ import { Box, Stack } from "@mantine/core";
 import { LoadingOverlay } from "./LoadingOverlay";
 
 const meta: Meta<typeof LoadingOverlay> = {
-  title: "Design System/UI/Feedback/LoadingOverlay",
+  title: "Primitives/Feedback/LoadingOverlay",
   component: LoadingOverlay,
   tags: ["autodocs"],
 };

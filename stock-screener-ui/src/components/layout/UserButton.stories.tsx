@@ -9,7 +9,7 @@ interface MockUser {
 }
 
 const meta: Meta<typeof UserButton> = {
-  title: "Design System/Layout/UserButton",
+  title: "Examples/App Layout/UserButton",
   component: UserButton,
   tags: ["autodocs"],
   decorators: [

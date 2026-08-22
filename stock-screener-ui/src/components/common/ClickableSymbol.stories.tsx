@@ -5,7 +5,7 @@ import { MemoryRouter } from "react-router-dom";
 import { PreviewChartProvider } from "./PreviewChartProvider";
 
 const meta: Meta<typeof ClickableSymbol> = {
-  title: "Design System/Common/ClickableSymbol",
+  title: "Composites/ClickableSymbol",
   component: ClickableSymbol,
   tags: ["autodocs"],
   decorators: [

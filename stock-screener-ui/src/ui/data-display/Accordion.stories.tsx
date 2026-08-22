@@ -3,7 +3,7 @@ import { Stack, Text, Title } from "@mantine/core";
 import { Accordion, AccordionItem, AccordionControl, AccordionPanel } from "./Accordion";
 
 const meta: Meta<typeof Accordion> = {
-  title: "Design System/UI/Data Display/Accordion",
+  title: "Primitives/Data Display/Accordion",
   component: Accordion,
   tags: ["autodocs"],
 };

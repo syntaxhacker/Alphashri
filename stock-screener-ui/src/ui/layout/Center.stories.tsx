@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Center } from "./Center";
 
 const meta: Meta<typeof Center> = {
-  title: "Design System/Layout/Center",
+  title: "Primitives/Layout/Center",
   component: Center,
   tags: ["autodocs"],
 };

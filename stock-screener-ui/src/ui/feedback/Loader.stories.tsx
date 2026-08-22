@@ -3,7 +3,7 @@ import { Group } from "@mantine/core";
 import { Loader } from "./Loader";
 
 const meta: Meta<typeof Loader> = {
-  title: "Design System/UI/Feedback/Loader",
+  title: "Primitives/Feedback/Loader",
   component: Loader,
   tags: ["autodocs"],
 };

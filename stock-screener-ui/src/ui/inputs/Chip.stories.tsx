@@ -3,7 +3,7 @@ import { Chip as MantineChip } from "@mantine/core";
 import { Chip } from "./Chip";
 
 const meta: Meta<typeof Chip> = {
-  title: "Design System/UI/Inputs/Chip",
+  title: "Primitives/Inputs/Chip",
   component: Chip,
   tags: ["autodocs"],
 };

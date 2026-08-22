@@ -44,7 +44,7 @@ function makeRows(count: number): User[] {
 }
 
 const meta: Meta<typeof TanStackTable<User>> = {
-  title: "Design System/Common/TanStackTable",
+  title: "Composites/TanStackTable",
   component: TanStackTable,
   tags: ["autodocs"],
 };

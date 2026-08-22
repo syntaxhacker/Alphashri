@@ -4,7 +4,7 @@ import { CopyButton } from "./CopyButton";
 import { Button } from "./Button";
 
 const meta: Meta<typeof CopyButton> = {
-  title: "Design System/UI/Inputs/CopyButton",
+  title: "Primitives/Inputs/CopyButton",
   component: CopyButton,
   tags: ["autodocs"],
 };

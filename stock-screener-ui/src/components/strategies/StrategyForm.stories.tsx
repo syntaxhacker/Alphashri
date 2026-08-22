@@ -5,7 +5,7 @@ import type { StrategyFormData } from "./types";
 import type { StrategyConfig } from "../../types/strategies";
 
 const meta: Meta<typeof StrategyForm> = {
-  title: "Design System/Strategies/Form",
+  title: "Examples/Strategies/Form",
   component: StrategyForm,
   tags: ["autodocs"],
   decorators: [

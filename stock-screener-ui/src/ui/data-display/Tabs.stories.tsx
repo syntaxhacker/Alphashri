@@ -3,7 +3,7 @@ import { Stack, Text, Title } from "@mantine/core";
 import { Tabs, TabsList, Tab, TabsPanel } from "./Tabs";
 
 const meta: Meta<typeof Tabs> = {
-  title: "Design System/UI/Data Display/Tabs",
+  title: "Primitives/Data Display/Tabs",
   component: Tabs,
   tags: ["autodocs"],
 };

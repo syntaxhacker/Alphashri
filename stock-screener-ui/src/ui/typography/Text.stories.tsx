@@ -3,7 +3,7 @@ import { Stack, Group, Title } from "@mantine/core";
 import { Text } from "./Text";
 
 const meta: Meta<typeof Text> = {
-  title: "Design System/Typography/Text",
+  title: "Primitives/Typography/Text",
   component: Text,
   tags: ["autodocs"],
 };

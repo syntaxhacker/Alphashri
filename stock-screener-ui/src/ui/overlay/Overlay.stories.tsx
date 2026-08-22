@@ -3,7 +3,7 @@ import { Stack, Text, Title, Box, Button, Group } from "@mantine/core";
 import { Overlay } from "./Overlay";
 
 const meta: Meta<typeof Overlay> = {
-  title: "Design System/UI/Overlay/Overlay",
+  title: "Primitives/Overlays/Overlay",
   component: Overlay,
   tags: ["autodocs"],
 };

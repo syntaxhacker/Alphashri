@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { MultiSelect } from "./MultiSelect";
 
 const meta: Meta<typeof MultiSelect> = {
-  title: "Design System/UI/Inputs/MultiSelect",
+  title: "Primitives/Inputs/MultiSelect",
   component: MultiSelect,
   tags: ["autodocs"],
 };

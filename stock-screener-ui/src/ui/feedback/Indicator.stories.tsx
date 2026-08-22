@@ -3,7 +3,7 @@ import { Box, Group } from "@mantine/core";
 import { Indicator } from "./Indicator";
 
 const meta: Meta<typeof Indicator> = {
-  title: "Design System/UI/Feedback/Indicator",
+  title: "Primitives/Feedback/Indicator",
   component: Indicator,
   tags: ["autodocs"],
 };

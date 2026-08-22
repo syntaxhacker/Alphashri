@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { PasswordInput } from "./PasswordInput";
 
 const meta: Meta<typeof PasswordInput> = {
-  title: "Design System/UI/Inputs/PasswordInput",
+  title: "Primitives/Inputs/PasswordInput",
   component: PasswordInput,
   tags: ["autodocs"],
 };

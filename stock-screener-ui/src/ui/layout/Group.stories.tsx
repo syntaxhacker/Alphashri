@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Group } from "./Group";
 
 const meta: Meta<typeof Group> = {
-  title: "Design System/Layout/Group",
+  title: "Primitives/Layout/Group",
   component: Group,
   tags: ["autodocs"],
 };

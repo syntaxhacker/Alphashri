@@ -3,7 +3,7 @@ import { Stack, Group, Title } from "@/ui";
 import { SideBadge, ExitReasonBadge, TradingModeBadge, StatusBadge } from "./BadgeComponents";
 
 const meta: Meta<typeof SideBadge> = {
-  title: "Design System/Common/Badges",
+  title: "Composites/Badges",
   component: SideBadge,
   tags: ["autodocs"],
 };

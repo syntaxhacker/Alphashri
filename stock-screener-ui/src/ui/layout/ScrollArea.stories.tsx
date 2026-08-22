@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { ScrollArea } from "./ScrollArea";
 
 const meta: Meta<typeof ScrollArea> = {
-  title: "Design System/Layout/ScrollArea",
+  title: "Primitives/Layout/ScrollArea",
   component: ScrollArea,
   tags: ["autodocs"],
 };

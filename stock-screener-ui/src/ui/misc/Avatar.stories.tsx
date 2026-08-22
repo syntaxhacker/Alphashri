@@ -3,7 +3,7 @@ import { Group } from "@mantine/core";
 import { Avatar } from "./Avatar";
 
 const meta: Meta<typeof Avatar> = {
-  title: "Design System/UI/Misc/Avatar",
+  title: "Primitives/Misc/Avatar",
   component: Avatar,
   tags: ["autodocs"],
 };

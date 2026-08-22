@@ -26,7 +26,7 @@ function CollapseDemo() {
 }
 
 const meta: Meta<typeof Collapse> = {
-  title: "Design System/Layout/Collapse",
+  title: "Primitives/Layout/Collapse",
   component: Collapse,
   tags: ["autodocs"],
 };

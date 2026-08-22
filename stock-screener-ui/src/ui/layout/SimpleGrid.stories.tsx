@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { SimpleGrid } from "./SimpleGrid";
 
 const meta: Meta<typeof SimpleGrid> = {
-  title: "Design System/Layout/SimpleGrid",
+  title: "Primitives/Layout/SimpleGrid",
   component: SimpleGrid,
   tags: ["autodocs"],
 };

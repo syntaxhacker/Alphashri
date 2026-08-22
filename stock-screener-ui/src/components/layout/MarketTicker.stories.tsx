@@ -74,7 +74,7 @@ const mockErrorData: MarketTickerData = {
 };
 
 const meta: Meta<typeof MarketTicker> = {
-  title: "Design System/Layout/MarketTicker",
+  title: "Examples/App Layout/MarketTicker",
   component: MarketTicker,
   tags: ["autodocs"],
   decorators: [

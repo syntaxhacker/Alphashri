@@ -3,7 +3,7 @@ import { Group } from "@mantine/core";
 import { UnstyledButton } from "./UnstyledButton";
 
 const meta: Meta<typeof UnstyledButton> = {
-  title: "Design System/UI/Inputs/UnstyledButton",
+  title: "Primitives/Inputs/UnstyledButton",
   component: UnstyledButton,
   tags: ["autodocs"],
 };

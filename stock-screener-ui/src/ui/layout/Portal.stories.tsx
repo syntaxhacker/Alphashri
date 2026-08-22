@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Portal } from "./Portal";
 
 const meta: Meta<typeof Portal> = {
-  title: "Design System/Layout/Portal",
+  title: "Primitives/Layout/Portal",
   component: Portal,
   tags: ["autodocs"],
 };

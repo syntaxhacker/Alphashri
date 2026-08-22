@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { Textarea } from "./Textarea";
 
 const meta: Meta<typeof Textarea> = {
-  title: "Design System/UI/Inputs/Textarea",
+  title: "Primitives/Inputs/Textarea",
   component: Textarea,
   tags: ["autodocs"],
 };

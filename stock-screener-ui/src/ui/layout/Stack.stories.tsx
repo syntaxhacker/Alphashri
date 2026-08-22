@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Stack } from "./Stack";
 
 const meta: Meta<typeof Stack> = {
-  title: "Design System/Layout/Stack",
+  title: "Primitives/Layout/Stack",
   component: Stack,
   tags: ["autodocs"],
 };

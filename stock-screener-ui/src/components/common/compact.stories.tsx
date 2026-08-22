@@ -4,7 +4,7 @@ import { IconRefresh, IconSearch, IconSparkles } from "@tabler/icons-react";
 import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 
 const meta: Meta<typeof CompactPanel> = {
-  title: "Design System/Common/Compact",
+  title: "Composites/Compact",
   component: CompactPanel,
   tags: ["autodocs"],
   parameters: {

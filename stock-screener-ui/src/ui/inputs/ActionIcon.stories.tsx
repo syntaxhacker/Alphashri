@@ -3,7 +3,7 @@ import { Group } from "@mantine/core";
 import { ActionIcon } from "./ActionIcon";
 
 const meta: Meta<typeof ActionIcon> = {
-  title: "Design System/UI/Inputs/ActionIcon",
+  title: "Primitives/Inputs/ActionIcon",
   component: ActionIcon,
   tags: ["autodocs"],
 };

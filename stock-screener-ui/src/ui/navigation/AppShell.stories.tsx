@@ -3,7 +3,7 @@ import { Badge, Group, Stack, Text } from "@mantine/core";
 import { AppShell } from "./AppShell";
 
 const meta: Meta<typeof AppShell> = {
-  title: "Design System/Navigation/AppShell",
+  title: "Primitives/Navigation/AppShell",
   component: AppShell,
   tags: ["autodocs"],
   parameters: {

@@ -4,7 +4,7 @@ import { IconAlertTriangle, IconInfoCircle } from "@tabler/icons-react";
 import { Alert } from "./Alert";
 
 const meta: Meta<typeof Alert> = {
-  title: "Design System/UI/Feedback/Alert",
+  title: "Primitives/Feedback/Alert",
   component: Alert,
   tags: ["autodocs"],
 };

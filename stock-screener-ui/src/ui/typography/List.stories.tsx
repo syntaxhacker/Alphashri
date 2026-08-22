@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { List } from "./List";
 
 const meta: Meta<typeof List> = {
-  title: "Design System/Typography/List",
+  title: "Primitives/Typography/List",
   component: List,
   tags: ["autodocs"],
 };

@@ -3,7 +3,7 @@ import { Group } from "@mantine/core";
 import { CloseButton } from "./CloseButton";
 
 const meta: Meta<typeof CloseButton> = {
-  title: "Design System/UI/Misc/CloseButton",
+  title: "Primitives/Misc/CloseButton",
   component: CloseButton,
   tags: ["autodocs"],
 };

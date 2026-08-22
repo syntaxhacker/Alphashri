@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { SegmentedControl } from "./SegmentedControl";
 
 const meta: Meta<typeof SegmentedControl> = {
-  title: "Design System/UI/Inputs/SegmentedControl",
+  title: "Primitives/Inputs/SegmentedControl",
   component: SegmentedControl,
   tags: ["autodocs"],
 };

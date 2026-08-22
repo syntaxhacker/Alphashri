@@ -3,7 +3,7 @@ import { Group, Stack, Title } from "@mantine/core";
 import { Badge } from "./Badge";
 
 const meta: Meta<typeof Badge> = {
-  title: "Design System/UI/Feedback/Badge",
+  title: "Primitives/Feedback/Badge",
   component: Badge,
   tags: ["autodocs"],
 };

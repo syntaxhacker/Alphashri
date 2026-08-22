@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Divider } from "./Divider";
 
 const meta: Meta<typeof Divider> = {
-  title: "Design System/Layout/Divider",
+  title: "Primitives/Layout/Divider",
   component: Divider,
   tags: ["autodocs"],
 };

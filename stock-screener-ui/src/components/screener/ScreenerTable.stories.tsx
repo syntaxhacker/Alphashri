@@ -84,7 +84,7 @@ const sampleStocks: Stock[] = [
 ];
 
 const meta: Meta<typeof ScreenerTable> = {
-  title: "Design System/Screener/Table",
+  title: "Examples/Screener/Table",
   component: ScreenerTable,
   tags: ["autodocs"],
   parameters: {

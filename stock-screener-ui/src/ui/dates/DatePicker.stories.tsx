@@ -4,7 +4,7 @@ import { Stack } from "@mantine/core";
 import { DatePicker } from "./DatePicker";
 
 const meta: Meta<typeof DatePicker> = {
-  title: "Design System/UI/Dates/DatePicker",
+  title: "Primitives/Dates/DatePicker",
   component: DatePicker,
   tags: ["autodocs"],
 };

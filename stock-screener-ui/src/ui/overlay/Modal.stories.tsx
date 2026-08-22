@@ -4,7 +4,7 @@ import { Stack, Text, Title, Button, Group } from "@mantine/core";
 import { Modal } from "./Modal";
 
 const meta: Meta<typeof Modal> = {
-  title: "Design System/UI/Overlay/Modal",
+  title: "Primitives/Overlays/Modal",
   component: Modal,
   tags: ["autodocs"],
 };

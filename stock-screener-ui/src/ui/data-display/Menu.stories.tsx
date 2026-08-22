@@ -4,7 +4,7 @@ import { IconTrash, IconSettings, IconLogout } from "@tabler/icons-react";
 import { Menu, MenuTarget, MenuDropdown, MenuItem } from "./Menu";
 
 const meta: Meta<typeof Menu> = {
-  title: "Design System/UI/Data Display/Menu",
+  title: "Primitives/Data Display/Menu",
   component: Menu,
   tags: ["autodocs"],
 };

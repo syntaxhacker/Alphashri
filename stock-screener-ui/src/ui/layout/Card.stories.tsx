@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Card } from "./Card";
 
 const meta: Meta<typeof Card> = {
-  title: "Design System/Layout/Card",
+  title: "Primitives/Layout/Card",
   component: Card,
   tags: ["autodocs"],
 };

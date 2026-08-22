@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box, Stack, Text, Title } from "@mantine/core";
 
 const meta = {
-  title: "Design System/Overview",
+  title: "Introduction/Overview",
   component: Box,
   parameters: {
     layout: "fullscreen",

@@ -4,7 +4,7 @@ import { Stack, Text, Title, Button, Group } from "@mantine/core";
 import { Popover, PopoverTarget, PopoverDropdown } from "./Popover";
 
 const meta: Meta<typeof Popover> = {
-  title: "Design System/UI/Overlay/Popover",
+  title: "Primitives/Overlays/Popover",
   component: Popover,
   tags: ["autodocs"],
 };

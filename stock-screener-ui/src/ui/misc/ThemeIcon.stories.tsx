@@ -4,7 +4,7 @@ import { IconCheck, IconFlame } from "@tabler/icons-react";
 import { ThemeIcon } from "./ThemeIcon";
 
 const meta: Meta<typeof ThemeIcon> = {
-  title: "Design System/UI/Misc/ThemeIcon",
+  title: "Primitives/Misc/ThemeIcon",
   component: ThemeIcon,
   tags: ["autodocs"],
 };

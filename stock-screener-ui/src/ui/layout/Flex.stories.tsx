@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Flex } from "./Flex";
 
 const meta: Meta<typeof Flex> = {
-  title: "Design System/Layout/Flex",
+  title: "Primitives/Layout/Flex",
   component: Flex,
   tags: ["autodocs"],
 };

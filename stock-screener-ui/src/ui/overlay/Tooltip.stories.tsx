@@ -3,7 +3,7 @@ import { Stack, Title, Button, Group } from "@mantine/core";
 import { Tooltip } from "./Tooltip";
 
 const meta: Meta<typeof Tooltip> = {
-  title: "Design System/UI/Overlay/Tooltip",
+  title: "Primitives/Overlays/Tooltip",
   component: Tooltip,
   tags: ["autodocs"],
 };

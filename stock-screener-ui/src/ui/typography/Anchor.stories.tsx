@@ -2,7 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Anchor } from "./Anchor";
 
 const meta: Meta<typeof Anchor> = {
-  title: "Design System/Typography/Anchor",
+  title: "Primitives/Typography/Anchor",
   component: Anchor,
   tags: ["autodocs"],
 };

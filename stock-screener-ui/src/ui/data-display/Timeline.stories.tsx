@@ -3,7 +3,7 @@ import { Stack, Text, Title } from "@mantine/core";
 import { Timeline, TimelineItem } from "./Timeline";
 
 const meta: Meta<typeof Timeline> = {
-  title: "Design System/UI/Data Display/Timeline",
+  title: "Primitives/Data Display/Timeline",
   component: Timeline,
   tags: ["autodocs"],
 };

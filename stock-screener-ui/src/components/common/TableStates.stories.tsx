@@ -5,7 +5,7 @@ import { TableEmptyState } from "./TableEmptyState";
 import { IconDatabaseOff } from "@tabler/icons-react";
 
 const meta: Meta<typeof TableLoadingState> = {
-  title: "Design System/Common/Table States",
+  title: "Composites/Table States",
   component: TableLoadingState,
   tags: ["autodocs"],
 };

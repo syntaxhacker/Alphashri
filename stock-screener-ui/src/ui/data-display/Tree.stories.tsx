@@ -5,7 +5,7 @@ import { useTree } from "../hooks";
 import type { UITreeNode } from "../types";
 
 const meta: Meta<typeof Tree> = {
-  title: "Design System/UI/Data Display/Tree",
+  title: "Primitives/Data Display/Tree",
   component: Tree,
   tags: ["autodocs"],
 };

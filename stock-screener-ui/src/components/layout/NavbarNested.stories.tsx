@@ -4,7 +4,7 @@ import { NavbarNested } from "./NavbarNested";
 import { BrowserRouter } from "react-router-dom";
 
 const meta: Meta<typeof NavbarNested> = {
-  title: "Design System/Layout/SideMenu",
+  title: "Examples/App Layout/SideMenu",
   component: NavbarNested,
   tags: ["autodocs"],
   decorators: [

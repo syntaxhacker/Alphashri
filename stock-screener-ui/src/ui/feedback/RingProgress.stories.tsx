@@ -3,7 +3,7 @@ import { Group } from "@mantine/core";
 import { RingProgress } from "./RingProgress";
 
 const meta: Meta<typeof RingProgress> = {
-  title: "Design System/UI/Feedback/RingProgress",
+  title: "Primitives/Feedback/RingProgress",
   component: RingProgress,
   tags: ["autodocs"],
 };

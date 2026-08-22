@@ -3,7 +3,7 @@ import { Stack } from "@mantine/core";
 import { NumberInput } from "./NumberInput";
 
 const meta: Meta<typeof NumberInput> = {
-  title: "Design System/UI/Inputs/NumberInput",
+  title: "Primitives/Inputs/NumberInput",
   component: NumberInput,
   tags: ["autodocs"],
 };

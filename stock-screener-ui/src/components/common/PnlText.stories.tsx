@@ -3,7 +3,7 @@ import { Stack, Group, Title } from "@/ui";
 import { PnlText, PnlBadge } from "./PnlText";
 
 const meta: Meta<typeof PnlText> = {
-  title: "Design System/Common/PnL",
+  title: "Composites/PnL",
   component: PnlText,
   tags: ["autodocs"],
 };

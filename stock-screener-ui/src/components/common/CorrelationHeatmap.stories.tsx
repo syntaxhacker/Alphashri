@@ -11,7 +11,7 @@ const matrix4x4: number[][] = [
 ];
 
 const meta: Meta<typeof CorrelationHeatmap> = {
-  title: "Design System/Common/CorrelationHeatmap",
+  title: "Composites/CorrelationHeatmap",
   component: CorrelationHeatmap,
   tags: ["autodocs"],
 };

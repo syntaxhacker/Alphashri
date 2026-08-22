@@ -4,7 +4,7 @@ import { Stack, Title, Text } from "@/ui";
 import { TradingDatePicker } from "./TradingDatePicker";
 
 const meta: Meta<typeof TradingDatePicker> = {
-  title: "Design System/Common/TradingDatePicker",
+  title: "Composites/TradingDatePicker",
   component: TradingDatePicker,
   tags: ["autodocs"],
 };
