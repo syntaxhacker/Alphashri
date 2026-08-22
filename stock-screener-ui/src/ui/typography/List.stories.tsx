@@ -34,3 +34,14 @@ export const WithIcon: Story = {
     children: items,
   },
 };
+
+// App usage: size="sm" lists in news articles / guides (ArticleDetail, OptionChainGuide)
+export const SmallWithPadding: Story = {
+  render: () => (
+    <List size="sm" withPadding spacing="sm">
+      <List.Item>Key point from article summary</List.Item>
+      <List.Item>Second analysis point</List.Item>
+      <List.Item>Third takeaway</List.Item>
+    </List>
+  ),
+};
