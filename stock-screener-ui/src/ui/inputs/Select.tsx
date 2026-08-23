@@ -125,12 +125,12 @@ export function Select({
         }}
       >
         {placeholder && (
-          <MenuItem value="" disabled={!clearable}>
+          <MenuItem value="" disabled>
             <em>{placeholder}</em>
           </MenuItem>
         )}
         {options.length === 0 ? (
-          <MenuItem disabled value="__empty__">
+          <MenuItem disabled value="">
             {nothingFoundMessage ?? "No options"}
           </MenuItem>
         ) : (

@@ -77,7 +77,6 @@ export function StrategiesPage({
         </Stack>
       );
     }
-
     switch (activeView) {
       case "tree":
         return (
@@ -134,28 +133,32 @@ export function StrategiesPage({
           <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
         </Flex>
 
-        <StrategyForm
-          mode="create"
-          template={parentTemplate}
-          opened={showCreateModal}
-          onClose={onCloseCreateModal}
-          onSubmit={onCreateStrategy}
-          data-testid="strategies-create-modal"
-        />
+        {showCreateModal && (
+          <StrategyForm
+            mode="create"
+            template={parentTemplate}
+            opened={true}
+            onClose={onCloseCreateModal}
+            onSubmit={onCreateStrategy}
+            data-testid="strategies-create-modal"
+          />
+        )}
 
-        <StrategyForm
-          mode="edit"
-          strategy={editingStrategy}
-          opened={showEditModal}
-          onClose={onCloseEditModal}
-          onSubmit={(data) => {
-            if (editingStrategy) {
-              onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
-            }
-          }}
-          isBotRunning={isAnyBotRunning}
-          data-testid="strategies-edit-modal"
-        />
+        {showEditModal && (
+          <StrategyForm
+            mode="edit"
+            strategy={editingStrategy}
+            opened={true}
+            onClose={onCloseEditModal}
+            onSubmit={(data) => {
+              if (editingStrategy) {
+                onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
+              }
+            }}
+            isBotRunning={isAnyBotRunning}
+            data-testid="strategies-edit-modal"
+          />
+        )}
       </Stack>
     </CompactPage>
   );

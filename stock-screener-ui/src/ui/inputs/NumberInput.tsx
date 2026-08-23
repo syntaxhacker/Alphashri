@@ -32,8 +32,12 @@ export function NumberInput({
   className,
   style,
   "data-testid": testId,
+  w: _w,
+  variant: _variant,
+  styles: _styles,
+  loading: _loading,
   ...rest
-}: UINumberInputProps) {
+}: any) {
   const muiSize = mapSize(size);
   const isError = Boolean(error);
   const helperText = isError

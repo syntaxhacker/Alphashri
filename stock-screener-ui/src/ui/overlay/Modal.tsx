@@ -46,10 +46,12 @@ export function Modal({
     onClose();
   };
 
+  if (!opened) return null;
   return (
     <Dialog
-      open={opened}
+      open={true}
       onClose={handleClose}
+      keepMounted={false}
       maxWidth={isPresetSize ? maxWidth : false}
       fullScreen={!!fullScreen}
       fullWidth
