@@ -26,7 +26,8 @@ export function Card({
     <MuiCard
       elevation={0} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
       sx={{
-        ...(withBorder && { border: "1px solid", borderColor: "divider" }),
+        border: "1px solid",
+        borderColor: "divider",
         ...(radius != null && { borderRadius: rad(radius) }),
         ...(pad != null && { p: sp(pad) }),
         ...(padding == null && px != null && { px: sp(px) }), ...(padding == null && py != null && { py: sp(py) }),

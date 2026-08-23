@@ -13,6 +13,7 @@ import Toolbar from "@mui/material/Toolbar";
 import IconButton from "@mui/material/IconButton";
 import MenuIcon from "@mui/icons-material/Menu";
 import { useState } from "react";
+import { FIN_HEADER_H, FIN_NAV_W, FIN_NAV_W_COLLAPSED } from "@/ui/palette";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -23,26 +24,26 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const headerHeight = 50;
-  const navWidth = desktopCollapsed ? 80 : 200;
+  const headerHeight = FIN_HEADER_H;
+  const navWidth = desktopCollapsed ? FIN_NAV_W_COLLAPSED : FIN_NAV_W;
 
   return (
     <Box sx={{ display: "flex", minHeight: "100vh" }} id="app-shell" data-testid="app-shell">
       <MuiAppBar position="fixed" sx={{ height: headerHeight, zIndex: (t) => t.zIndex.drawer + 1 }} id="app-header" data-testid="app-header">
-        <Toolbar sx={{ minHeight: headerHeight, height: headerHeight, bgcolor: "background.paper" }}>
-          <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
-            <Group gap="xs">
-              <IconButton size="small" onClick={toggleMobile} sx={{ display: { sm: "none" } }} aria-label="Toggle navigation">
-                <MenuIcon />
+        <Toolbar sx={{ minHeight: headerHeight, height: headerHeight, bgcolor: "background.paper", px: 2 }}>
+          <Group justify="space-between" align="center" h="100%" gap={2} style={{ width: "100%" }}>
+            <Group gap={1}>
+              <IconButton size="medium" onClick={toggleMobile} sx={{ display: { sm: "none" }, width: 32, height: 32 }} aria-label="Toggle navigation">
+                <MenuIcon fontSize="small" />
               </IconButton>
-              <IconButton size="small" onClick={toggleDesktop} sx={{ display: { xs: "none", sm: "inline-flex" } }} aria-label="Toggle sidebar">
-                <MenuIcon />
+              <IconButton size="medium" onClick={toggleDesktop} sx={{ display: { xs: "none", sm: "inline-flex" }, width: 32, height: 32 }} aria-label="Toggle sidebar">
+                <MenuIcon fontSize="small" />
               </IconButton>
-              <Text fw={700} size="lg" id="app-logo" data-testid="app-logo" style={{ flex: "none" }}>
-                🚀 Alphashri
+              <Text fw={700} size="md" id="app-logo" data-testid="app-logo" style={{ flex: "none", letterSpacing: "-0.01em" }}>
+                Alphashri
               </Text>
             </Group>
-            <Box flex={1}>
+            <Box flex={1} sx={{ minWidth: 0, overflow: "hidden" }}>
               <MarketTicker />
             </Box>
             <NewsPanel2 />

@@ -16,7 +16,7 @@
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 
 ## Stack
-React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
+React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backend: FastAPI (Python).
 
 ## Commands
 - `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
@@ -58,13 +58,13 @@ React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
 - **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
 
-## Mantine v8 Rules
-- Reference `mantine_llm.txt` for component docs — never guess APIs
-- Use Mantine components (`Flex`, `Stack`, `ScrollArea`, `Group`, `Grid`, `Text`) instead of raw `<div>` + inline styles
-- Use `CompactPanel`, `CompactStat`, `CompactStatGrid` from `components/common/compact.tsx` for small stat displays
-- Never hardcode dark colors (`#0a0a0a`, `#1a1a1a`) — use Mantine CSS vars (`var(--mantine-color-body)`) or theme object
-- Use `styles` prop on Mantine components for overrides, not global CSS classes
-- Default sizes: `size="sm"` for inputs/buttons, `size="xs"` for dense tables/badges
+## MUI 9 Financial Theme Rules (Migrated from Mantine)
+- Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
+- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never `var(--mantine-*)`
+- Use MUI wrappers from `src/ui/` (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea` via `Box overflow:auto`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx` `radius sm 8` `p sm 8` `gap sm 8`)
+- 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
+- `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
+- Reference MUI docs — never guess APIs; use `sx` prop, not global CSS; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
@@ -113,9 +113,10 @@ src/
 - **Price vs Polling**: WebSocket delivers first tick in ~30ms vs REST ~174ms. Live ticks stream at ~4/sec during market hours.
 
 ## CSS
-- Legacy hardcoded CSS in `style.css` is being migrated to Mantine — prefer `var(--mantine-color-*)` vars
+- `style.css` purged `1651 → ~80` lines: flash animations + `box-sizing` + `body var(--mui-palette-*)` only; `divider` no longer used as text color (was grey wash — win/loss same)
+- Semantic P&L: `success #16A34A` / `error #DC2626` distinct, `toast` left-border `success/error/warning/info`, `table th` `paper + text.secondary`
 - Remove dead CSS classes when removing old components (verify with grep before deleting)
-- No CSS modules — global CSS with Mantine class overrides
+- No CSS modules — global CSS with MUI `sx` overrides
 
 ## Backend (Python)
 - Single source of truth for IST timezone: `config.IST` (root `config.py`, re-exported in `stock-screener-ui/config.py`)

@@ -25,7 +25,8 @@ export function Paper({
     <MuiPaper
       elevation={0} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
       sx={{
-        ...(withBorder && { border: "1px solid", borderColor: "divider" }),
+        border: "1px solid",
+        borderColor: "divider",
         ...(radius != null && { borderRadius: rad(radius) }),
         ...(p != null && { p: sp(p) }), ...(px != null && { px: sp(px) }), ...(py != null && { py: sp(py) }),
         ...(pt != null && { pt: sp(pt) }), ...(pb != null && { pb: sp(pb) }), ...(pl != null && { pl: sp(pl) }), ...(pr != null && { pr: sp(pr) }),

@@ -5,7 +5,7 @@
 // FIN_* are single source for muiTheme.ts — never duplicate hex there.
 // ============================================================
 
-// ----- Financial theme tokens (MUI) -----
+// ----- Financial theme tokens (MUI) — 8pt grid, data-first -----
 export const FIN_BG_LIGHT = "#F8FAFC";
 export const FIN_BG_DARK = "#0B1220";
 export const FIN_PAPER_LIGHT = "#FFFFFF";
@@ -21,6 +21,17 @@ export const FIN_POSITIVE = "#16A34A";
 export const FIN_NEGATIVE = "#DC2626";
 export const FIN_WARNING = "#D97706";
 export const FIN_INFO = "#0891B2";
+// layout tokens — single source for alignments (8pt grid)
+export const FIN_RADIUS_SM = 4;
+export const FIN_RADIUS = 8;
+export const FIN_RADIUS_LG = 12;
+export const FIN_HEADER_H = 48;
+export const FIN_NAV_W = 200;
+export const FIN_NAV_W_COLLAPSED = 64;
+export const FIN_OUTER_PAD = 16;
+export const FIN_INNER_PAD = 8;
+export const FIN_TABLE_CELL_PY = 8;
+export const FIN_TABLE_CELL_PX = 12;
 
 // ============================================================
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP (LEGACY DARK)

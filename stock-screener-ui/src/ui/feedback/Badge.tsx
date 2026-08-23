@@ -82,9 +82,15 @@ export function Badge({
               ? `${radius}px`
               : radius === "xs"
                 ? "4px"
-                : radius === "xl"
-                  ? "16px"
-                  : undefined,
+                : radius === "sm"
+                  ? "6px"
+                  : radius === "md"
+                    ? "8px"
+                    : radius === "lg"
+                      ? "12px"
+                      : radius === "xl"
+                        ? "16px"
+                        : undefined,
         }
       : {}),
     fontWeight: 600,

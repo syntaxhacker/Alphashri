@@ -15,6 +15,8 @@ import {
   FIN_TEXT_MUTED_DARK,
   FIN_BORDER_LIGHT,
   FIN_BORDER_DARK,
+  FIN_RADIUS,
+  FIN_RADIUS_SM,
 } from "./palette";
 
 // Financial theme — simple, intuitive, data-first (TradingView/Bloomberg minimal)
@@ -74,7 +76,7 @@ export const muiTheme = createTheme({
     body2: { fontSize: "12px", lineHeight: 1.5 },
     button: { textTransform: "none" as const, fontWeight: 600 },
   },
-  shape: { borderRadius: 8 },
+  shape: { borderRadius: FIN_RADIUS },
   components: {
     MuiCssBaseline: {
       styleOverrides: {
@@ -87,7 +89,8 @@ export const muiTheme = createTheme({
       styleOverrides: {
         root: ({ theme }: any) => ({
           border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 8,
+          borderRadius: FIN_RADIUS,
+          boxShadow: "none",
         }),
       },
     },
@@ -96,23 +99,25 @@ export const muiTheme = createTheme({
       styleOverrides: {
         root: ({ theme }: any) => ({
           border: `1px solid ${theme.palette.divider}`,
-          borderRadius: 8,
+          borderRadius: FIN_RADIUS,
+          boxShadow: "none",
         }),
       },
     },
     MuiButton: {
       defaultProps: { size: "small" },
       styleOverrides: {
-        root: { borderRadius: 6, textTransform: "none" as const, fontWeight: 600 },
+        root: { borderRadius: FIN_RADIUS_SM, textTransform: "none" as const, fontWeight: 600, minHeight: 32 },
       },
     },
     MuiChip: {
       defaultProps: { size: "small" },
+      styleOverrides: { root: { borderRadius: FIN_RADIUS_SM } },
     },
     MuiTableCell: {
       styleOverrides: {
-        root: { padding: "6px 8px", fontVariantNumeric: "tabular-nums" as const },
-        head: { fontWeight: 600 },
+        root: { padding: "8px 12px", fontSize: "12px", fontVariantNumeric: "tabular-nums" as const, lineHeight: 1.4 },
+        head: { fontWeight: 600, fontSize: "11px", textTransform: "uppercase" as const, letterSpacing: "0.02em", color: FIN_TEXT_MUTED_LIGHT },
       },
     },
     MuiAppBar: {
@@ -120,7 +125,13 @@ export const muiTheme = createTheme({
       styleOverrides: {
         root: ({ theme }: any) => ({
           borderBottom: `1px solid ${theme.palette.divider}`,
+          boxShadow: "none",
         }),
+      },
+    },
+    MuiDialog: {
+      styleOverrides: {
+        paper: { borderRadius: FIN_RADIUS, border: `1px solid ${FIN_BORDER_LIGHT}`, boxShadow: "0 8px 32px rgba(15,23,42,0.08)" },
       },
     },
   },
