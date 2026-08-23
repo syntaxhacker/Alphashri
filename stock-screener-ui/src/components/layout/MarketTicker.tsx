@@ -203,11 +203,11 @@ export function MarketTicker() {
   }, [fetchTicker]);
 
   if (!data || data.loading) {
-    return <TickerLoadingState background="var(--mantine-color-body)" />;
+    return <TickerLoadingState background="background.paper" />;
   }
 
   if (data.error) {
-    return <TickerErrorState background="var(--mantine-color-body)" />;
+    return <TickerErrorState background="background.paper" />;
   }
 
   const tickers = data.tickers || {};
@@ -215,7 +215,7 @@ export function MarketTicker() {
   const lastUpdated = formatLastUpdated(data.last_updated);
 
   return (
-    <TickerContainer background="var(--mantine-color-body)">
+    <TickerContainer background="background.paper">
       {sortedSymbols.map((symbol) => (
         <TickerItem key={symbol} symbol={symbol} item={tickers[symbol]} />
       ))}

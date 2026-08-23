@@ -1,4 +1,5 @@
 import { useMemo } from "react";
+import { alpha } from "@mui/material/styles";
 import { Box, Text, Group } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { BacktestResult } from "../../types/backtest";
@@ -125,7 +126,7 @@ export function BacktestResultsTable({
         getRowTestId={(row) => `result-row-${row.symbol}`}
         getRowStyle={(row) => ({
           backgroundColor:
-            selectedSymbol === row.symbol ? "var(--mantine-color-blue-light)" : undefined,
+            selectedSymbol === row.symbol ? alpha("#2563EB", 0.08) : undefined,
         })}
         onRowClick={(row) => onRowClick(row.symbol)}
       />

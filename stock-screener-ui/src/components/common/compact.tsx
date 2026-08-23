@@ -93,7 +93,7 @@ export function CompactPanel({
       radius="xs"
       p={padded ? "xs" : 0}
       shadow="none"
-      bg="var(--mantine-color-body)"
+      sx={{ bgcolor: "background.paper" }}
       style={panelStyle}
       data-testid={testId}
       {...paperProps}
@@ -136,7 +136,7 @@ interface CompactStatProps extends UIPaperProps {
 export function CompactStat({
   label,
   value,
-  tone = "var(--mantine-color-text)",
+  tone = "text.primary",
   hint,
   labelSize = "xs",
   valueSize = "lg",

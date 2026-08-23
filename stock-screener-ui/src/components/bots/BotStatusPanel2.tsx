@@ -60,11 +60,11 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
           withBorder
           id="bot-header-card"
           data-testid="bot-header-card"
-          style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
+          sx={(theme) => ({ borderLeft: `4px solid ${theme.palette.primary.main}` })}
         >
           <Group justify="space-between">
             <Stack gap={4}>
-              <Text fw={700} size="lg" c="var(--mantine-color-blue-4)" data-testid="bot-name">
+              <Text fw={700} size="lg" c="primary.main" data-testid="bot-name">
                 {bot.name}
               </Text>
               <Group gap="xs">
@@ -148,7 +148,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
         {status?.strategies && (
           <Stack gap={0} data-testid="strategies-status">
             <Group gap="xs" mb="sm">
-              <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-violet-6)" }} />
+              <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
               <Text fw={600}>
                 Strategy Status
               </Text>

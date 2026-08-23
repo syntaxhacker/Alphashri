@@ -233,7 +233,7 @@ function BotsTable({
   return (
     <CompactPanel id="bots-list-card" data-testid="bots-list-card">
       <Group gap="xs" mb="xs">
-        <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-teal-6)" }} />
+        <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
         <Text size="sm" fw={600}>Configured Bots</Text>
         <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
         <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>

@@ -72,7 +72,7 @@ export function DashboardContent({
         <CompactStat
           label="Top Sector"
           value={data.sectors[0].sector}
-          tone="var(--mantine-color-green-6)"
+          tone="success.main"
           hint={`Avg Change: ${formatPercentage(data.sectors[0].avg_change)}`}
         />
         <CompactStat
@@ -91,7 +91,7 @@ export function DashboardContent({
         <CompactStat
           label="Weakest Sector"
           value={bottomSector.sector}
-          tone="var(--mantine-color-red-6)"
+          tone="error.main"
           hint={`Avg Change: ${formatPercentage(bottomSector.avg_change)}`}
         />
       </CompactStatGrid>

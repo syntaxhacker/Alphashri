@@ -70,13 +70,13 @@ export function BacktestLeftPanel({
           />
         ) : !results || results.length === 0 ? (
           <Box
-            style={{
+            sx={(theme) => ({
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
               height: "100%",
-              color: "var(--mantine-color-dimmed)",
-            }}
+              color: theme.palette.text.secondary,
+            })}
             data-testid="results-empty"
           >
             No results yet. Run a backtest.

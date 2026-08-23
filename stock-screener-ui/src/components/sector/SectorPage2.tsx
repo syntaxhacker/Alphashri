@@ -166,7 +166,7 @@ function DashboardContent({
         <CompactStat
           label="Top Sector"
           value={data.sectors[0].sector}
-          tone="var(--mantine-color-green-6)"
+          tone="success.main"
           hint={`Avg Change: ${formatPercentage(data.sectors[0].avg_change)}`}
         />
         <CompactStat
@@ -185,7 +185,7 @@ function DashboardContent({
         <CompactStat
           label="Weakest Sector"
           value={bottomSector.sector}
-          tone="var(--mantine-color-red-6)"
+          tone="error.main"
           hint={`Avg Change: ${formatPercentage(bottomSector.avg_change)}`}
         />
       </CompactStatGrid>
@@ -525,11 +525,11 @@ function SectorTabContent({
         h="100%"
         className="sector-analysis-frame-wrap"
         data-testid="sector-analysis-frame"
-        style={{
-          borderRadius: "var(--mantine-radius-default)",
+        sx={(theme) => ({
+          borderRadius: 2,
           overflow: "auto",
-          border: "1px solid var(--mantine-color-dark-4)",
-        }}
+          border: `1px solid ${theme.palette.divider}`,
+        })}
       >
         <iframe
           src={`${API_BASE}/sector/dashboard-modular.html`}
@@ -632,7 +632,7 @@ export function SectorPage() {
           flex={1}
           style={{
             minHeight: 0,
-            padding: "0 var(--mantine-spacing-md) var(--mantine-spacing-md)",
+            padding: (theme) => `0 ${theme.spacing(2)} ${theme.spacing(2)}`,
             overflow: "auto",
           }}
         >

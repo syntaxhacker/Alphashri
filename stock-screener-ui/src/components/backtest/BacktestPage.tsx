@@ -317,13 +317,13 @@ export function BacktestPage() {
       id="backtest-main"
       className="backtest-page"
       h="100%"
-      style={{
+      sx={(theme) => ({
         display: "flex",
         flexDirection: "column",
-        padding: "var(--mantine-spacing-md)",
+        padding: theme.spacing(2),
         minHeight: 0,
         overflow: "hidden",
-      }}
+      })}
       data-testid="backtest-view"
     >
       {state.error && (

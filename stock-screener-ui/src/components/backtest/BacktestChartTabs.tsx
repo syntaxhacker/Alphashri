@@ -58,8 +58,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
         className="backtest-chart-tabs backtest-chart-empty"
         data-testid="chart-container"
         h={400}
-        bg="var(--mantine-color-body)"
-        styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
+        sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
@@ -133,8 +132,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
           <Center
             data-testid="chart-placeholder"
             h="100%"
-            bg="var(--mantine-color-body)"
-            styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
+            sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>

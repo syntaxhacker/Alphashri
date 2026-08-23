@@ -65,7 +65,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
       radius="md"
       withBorder
       data-testid="portfolio-summary"
-      style={{ borderLeft: `4px solid var(--mantine-color-${isGreen ? "teal" : "red"}-6)` }}
+      sx={(theme) => ({ borderLeft: `4px solid ${isGreen ? theme.palette.success.main : theme.palette.error.main}` })}
     >
       <Group justify="space-between" mb="sm">
         <Text fw={600}>Portfolio Summary</Text>
@@ -137,7 +137,7 @@ export function StrategyStatusCard({
       radius="md"
       withBorder
       data-testid="strategy-card"
-      style={{ borderTop: `3px solid var(--mantine-color-${stratColor}-6)` }}
+      sx={(theme) => ({ borderTop: `3px solid ${(theme.palette as any)[stratColor]?.main || theme.palette.primary.main}` })}
     >
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
@@ -535,7 +535,7 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
             size="sm"
             variant="light"
             color={getStrategyColor(s.strategy_type)}
-            style={!s.enable_shorts ? { borderLeft: "3px solid var(--mantine-color-orange-6)" } : undefined}
+            sx={!s.enable_shorts ? (theme: any) => ({ borderLeft: `3px solid ${theme.palette.warning.main}` }) : undefined}
           >
             {s.strategy_type}
             {!s.enable_shorts && <span style={{ marginLeft: 2 }}>L</span>}

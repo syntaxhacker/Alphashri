@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { alpha } from "@mui/material/styles";
 import { Text, Title, Group, Paper, Badge, Box } from "@/ui";
 import { type ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../common/TanStackTable";
@@ -118,7 +119,7 @@ export function StrategyPerformance() {
   return (
     <Paper p="md" withBorder radius="md">
       <Group gap="xs" mb="md">
-        <Box w={4} h={24} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
+        <Box w={4} h={24} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
         <Title order={4}>Strategy Performance</Title>
         <Badge size="sm" variant="light" color="cyan">last {data.days} days</Badge>
       </Group>
@@ -131,12 +132,10 @@ export function StrategyPerformance() {
         mt="sm"
         withBorder
         radius="sm"
-        style={{
-          // Theme-aware tint: light shade in light mode, dark shade in dark mode
-          // (shade-0 vars are near-white and look broken in dark mode).
-          background: `light-dark(var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-0), var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-9))`,
-          borderLeft: `4px solid var(--mantine-color-${data.total_net_pnl >= 0 ? "teal" : "red"}-6)`,
-        }}
+        sx={(theme) => ({
+          background: alpha(data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.08),
+          borderLeft: `4px solid ${data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main}`,
+        })}
       >
         <Group justify="space-between">
           <Group gap="lg">
