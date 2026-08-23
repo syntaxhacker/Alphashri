@@ -16,7 +16,7 @@ import {
   IconAdjustments,
   IconFlask,
 } from "@tabler/icons-react";
-import { Box, Group, ScrollArea, AppShellSection, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
+import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
 import { useAuth } from "../auth/AuthProvider2";
@@ -71,15 +71,17 @@ export function NavbarNested({
 
   return (
     <Box data-testid="sidemenu" id="navbar-nested" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <AppShellSection grow component={ScrollArea} scrollbars="y" type="scroll" offsetScrollbars id="navbar-links" data-testid="navbar-links">
-        <Stack gap={4} p="xs">
-          {links}
-        </Stack>
-      </AppShellSection>
+      <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "hidden" }} id="navbar-links" data-testid="navbar-links">
+        <ScrollArea h="100%" type="scroll">
+          <Stack gap={4} p="xs">
+            {links}
+          </Stack>
+        </ScrollArea>
+      </Box>
 
       <Divider />
 
-      <AppShellSection p="xs" id="navbar-footer" data-testid="navbar-footer">
+      <Box p="xs" id="navbar-footer" data-testid="navbar-footer">
         <Group justify="space-between" px="xs">
           <UserButton collapsed={collapsed} />
           <Group gap={4}>
@@ -105,7 +107,7 @@ export function NavbarNested({
             )}
           </Group>
         </Group>
-      </AppShellSection>
+      </Box>
     </Box>
   );
 }
