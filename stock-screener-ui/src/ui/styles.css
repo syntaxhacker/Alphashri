@@ -1,3 +1,1 @@
-@import "@mantine/core/styles.css";
-@import "@mantine/dates/styles.css";
-@import "@mantine/notifications/styles.css";
+/* MUI baseline handled via CssBaseline + muiTheme — no Mantine imports */

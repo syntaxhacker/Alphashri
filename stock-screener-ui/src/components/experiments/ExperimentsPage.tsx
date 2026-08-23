@@ -52,7 +52,7 @@ export function ExperimentsPage() {
       style={{
         display: "flex",
         flexDirection: "column",
-        padding: "var(--mantine-spacing-md)",
+        padding: "16px",
         minHeight: 0,
         overflow: "auto",
       }}
@@ -65,7 +65,7 @@ export function ExperimentsPage() {
           color="red"
           variant="filled"
           withCloseButton
-          style={{ marginBottom: "var(--mantine-spacing-md)" }}
+          style={{ marginBottom: "16px" }}
         >
           {state.error}
         </Alert>
@@ -89,7 +89,7 @@ export function ExperimentsPage() {
             <Text
               fw={600}
               size="sm"
-              style={{ marginBottom: "var(--mantine-spacing-xs)" }}
+              style={{ marginBottom: "8px" }}
             >
               Sessions
             </Text>

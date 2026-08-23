@@ -128,7 +128,7 @@ export function ExperimentsChart() {
         justify="center"
         h="100%"
         bg="background.paper"
-        style={{ borderRadius: "var(--mantine-radius-md)" }}
+        style={{ borderRadius: "8px" }}
       >
         <Text c="dimmed" size="sm">
           Select a run to view its chart
@@ -150,7 +150,7 @@ export function ExperimentsChart() {
         display: "flex",
         flexDirection: "column",
         minHeight: 0,
-        borderRadius: "var(--mantine-radius-md)",
+        borderRadius: "8px",
       }}
     >
       <Group justify="space-between" align="center" mb="sm" wrap="nowrap">

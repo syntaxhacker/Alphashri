@@ -33,7 +33,6 @@ export default defineConfig(({ mode }) => {
           manualChunks(id: string) {
             if (id.includes("node_modules/react") || id.includes("node_modules/react-dom") || id.includes("node_modules/react-router-dom")) return "vendor";
             if (id.includes("@mui/") || id.includes("@emotion/")) return "mui";
-            if (id.includes("node_modules/@mantine/")) return "mantine";
             if (id.includes("@tanstack")) return "tanstack";
             if (id.includes("echarts") || id.includes("zrender")) return "echarts";
             if (id.includes("node_modules/@tabler/icons-react")) return "icons";
