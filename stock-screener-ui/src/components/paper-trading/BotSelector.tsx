@@ -68,14 +68,14 @@ export function BotSelector({
       />
       <Tooltip label={running ? "Running" : "Stopped"}>
         <Box
-          style={{
+          sx={(theme) => ({
             width: 8,
             height: 8,
             borderRadius: "50%",
             background: selectedBotId
-              ? `var(--mantine-color-${running ? "green" : "gray"}-6)`
-              : "var(--mantine-color-gray-4)",
-          }}
+              ? running ? theme.palette.success.main : theme.palette.grey[500]
+              : theme.palette.grey[400],
+          })}
         />
       </Tooltip>
       <Text size="xs" c="dimmed" data-testid="bot-status">

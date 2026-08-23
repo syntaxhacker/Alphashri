@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { alpha } from "@mui/material/styles";
 import {
   Stack,
   Text,
@@ -311,11 +312,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   return (
     <Box style={{ display: "flex", height: "100%", gap: 8 }}>
       <Box
-        style={{
+        sx={(theme) => ({
           width: 280,
           flexShrink: 0,
-          borderRight: "1px solid var(--mantine-color-default-border)",
-        }}
+          borderRight: `1px solid ${theme.palette.divider}`,
+        })}
         data-testid="screener-list-panel"
       >
         <ScrollArea h="100%">
@@ -383,18 +384,18 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 key={option.id}
                 p={4}
                 data-testid={`screener-row-${option.id}`}
-                style={{
+                sx={(theme) => ({
                   borderRadius: 4,
                   cursor: "pointer",
                   backgroundColor:
                     option.id === activeScreener
-                      ? "var(--mantine-color-blue-light)"
+                      ? alpha(theme.palette.primary.main, 0.08)
                       : "transparent",
                   border:
                     option.id === activeScreener
-                      ? "1px solid var(--mantine-color-blue)"
+                      ? `1px solid ${theme.palette.primary.main}`
                       : "1px solid transparent",
-                }}
+                })}
                 onClick={() => onScreenerChange(option.id)}
               >
                 <Group justify="space-between" mb={4}>
@@ -652,11 +653,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         </Box>
 
         <Box
-          style={{
+          sx={(theme) => ({
             flex: 1,
-            borderLeft: "1px solid var(--mantine-color-default-border)",
+            borderLeft: `1px solid ${theme.palette.divider}`,
             paddingLeft: 24,
-          }}
+          })}
         >
           <Stack gap="xs" data-testid="create-modal-preview">
             <Group justify="space-between">

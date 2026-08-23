@@ -5,11 +5,21 @@ export function buildSummaryItems(items: SummaryItem[]): SummaryItem[] {
   return items;
 }
 
+const COLOR_MAP: Record<string, string> = {
+  green: "success.main",
+  teal: "success.main",
+  red: "error.main",
+  blue: "primary.main",
+  cyan: "info.main",
+  violet: "secondary.main",
+  orange: "warning.main",
+  gray: "text.secondary",
+};
 export function getTone(item: SummaryItem): string {
   if (item.color) {
-    return `var(--mantine-color-${item.color}-6)`;
+    return COLOR_MAP[item.color] || "text.primary";
   }
-  return "var(--mantine-color-text)";
+  return "text.primary";
 }
 
 export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
@@ -20,7 +30,7 @@ export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
           key={item.label}
           label={item.label}
           value={item.value}
-          tone={item.color ? `var(--mantine-color-${item.color}-6)` : "var(--mantine-color-text)"}
+          tone={item.color ? COLOR_MAP[item.color] || "text.primary" : "text.primary"}
           className="summary-card"
           testId={`summary-card-${item.label}`}
         />

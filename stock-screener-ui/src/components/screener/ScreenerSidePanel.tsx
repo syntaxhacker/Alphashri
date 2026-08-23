@@ -101,14 +101,14 @@ export function ScreenerSidePanel({
 
   return (
     <Box
-      style={{
+      sx={(theme) => ({
         width: 148,
         padding: 6,
-        borderRight: "1px solid var(--mantine-color-default-border)",
-        backgroundColor: "var(--mantine-color-body)",
+        borderRight: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
         overflowY: "auto",
         flexShrink: 0,
-      }}
+      })}
       data-testid="screener-side-panel"
     >
       <Stack gap={4}>

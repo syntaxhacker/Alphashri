@@ -64,7 +64,7 @@ function CompactAlerts({
     <Box
       px={8}
       py={2}
-      style={{ flexShrink: 0, borderBottom: "1px solid var(--mantine-color-default-border)" }}
+      sx={(theme) => ({ flexShrink: 0, borderBottom: `1px solid ${theme.palette.divider}` })}
       data-testid="screener-52w-high-banner"
     >
       {lines.map((line) => (

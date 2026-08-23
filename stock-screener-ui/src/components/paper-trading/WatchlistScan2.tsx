@@ -1,4 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
+import { alpha } from "@mui/material/styles";
 import {
   ActionIcon,
   Badge,
@@ -36,11 +37,11 @@ const STATUS_ORDER: Record<string, number> = {
   skipped: 3,
 };
 
-const STATUS_BORDER_COLOR: Record<string, string> = {
-  signal: "var(--mantine-color-green-6)",
-  watching: "var(--mantine-color-yellow-6)",
-  rejected: "var(--mantine-color-red-6)",
-  skipped: "var(--mantine-color-gray-5)",
+const STATUS_BORDER_KIND: Record<string, "success" | "warning" | "error" | "muted"> = {
+  signal: "success",
+  watching: "warning",
+  rejected: "error",
+  skipped: "muted",
 };
 
 function isNewSignal(item: PaperScanItem, snapshotTs: string | null) {
@@ -154,7 +155,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
               )}
               {isNewSignal(row, snapshot?.timestamp ?? null) && (
                 <Tooltip label="New (< 1 min)">
-                  <IconSparkles size={12} color="var(--mantine-color-green-6)" />
+                  <IconSparkles size={12} color="green" />
                 </Tooltip>
               )}
             </Group>
@@ -335,14 +336,20 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           getRowStyle={(row) => {
             const isSelected = row.symbol === selectedSymbol;
             const isNew = isNewSignal(row, snapshot?.timestamp ?? null);
-            const borderColor = STATUS_BORDER_COLOR[row.status] || STATUS_BORDER_COLOR.skipped;
+            const kind = STATUS_BORDER_KIND[row.status] || "muted";
+            const borderMap: Record<string, string> = {
+              success: "#16A34A",
+              warning: "#D97706",
+              error: "#DC2626",
+              muted: "#94A3B8",
+            };
             return {
               cursor: "pointer",
-              borderLeft: `3px solid ${borderColor}`,
+              borderLeft: `3px solid ${borderMap[kind]}`,
               backgroundColor: isSelected
-                ? "var(--mantine-color-teal-light)"
+                ? alpha("#14B8A6", 0.08)
                 : isNew
-                  ? "var(--mantine-color-green-light)"
+                  ? alpha("#16A34A", 0.08)
                   : undefined,
             };
           }}

@@ -1,3 +1,4 @@
+import { alpha } from "@mui/material/styles";
 import { Group, Button, Badge } from "@/ui";
 import { IconChartDots, IconX } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -15,11 +16,11 @@ export function SelectionBar({ onCompare }: SelectionBarProps) {
     <Group
       p="sm"
       gap="sm"
-      style={{
-        borderTop: "1px solid var(--mantine-color-dark-5)",
-        background: "var(--mantine-color-dark-8)",
+      sx={(theme) => ({
+        borderTop: `1px solid ${theme.palette.divider}`,
+        background: alpha(theme.palette.grey[900], 0.9),
         flexShrink: 0,
-      }}
+      })}
       data-testid="selection-bar"
     >
       <Badge size="lg" variant="filled" color="blue">

@@ -291,7 +291,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
             value={notes}
             onChange={(val) => setNotes(val)}
             placeholder="Any additional notes..."
-            styles={{ input: { background: "var(--mantine-color-body)" } }}
+            styles={{ input: { background: "var(--mui-palette-background-paper)" } }}
             data-testid={`trade-notes-${trade.trade_id}`}
           />
         </Stack>

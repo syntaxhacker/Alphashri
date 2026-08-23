@@ -186,14 +186,14 @@ function SummaryCards({ summary }: { summary: AnalyticsData["summary"] }) {
   const base = { p: 4 as const, valueSize: "xs" as const, labelSize: "xs" as const };
   return (
     <CompactStatGrid cols={8} spacing={4}>
-      <CompactStat label="Total" value={`₹${summary.final_pnl.toFixed(0)}`} tone={tone(summary.final_pnl >= 0, "var(--mantine-color-teal-4)", "var(--mantine-color-red-4)")} {...base} />
-      <CompactStat label="Win Rate" value={`${summary.win_rate.toFixed(1)}%`} tone="var(--mantine-color-teal-4)" {...base} />
-      <CompactStat label="PF" value={summary.profit_factor === Infinity ? "∞" : summary.profit_factor.toFixed(2)} tone={tone(summary.profit_factor >= 1, "var(--mantine-color-teal-4)", "var(--mantine-color-red-4)")} {...base} />
+      <CompactStat label="Total" value={`₹${summary.final_pnl.toFixed(0)}`} tone={tone(summary.final_pnl >= 0, "success.main", "error.main")} {...base} />
+      <CompactStat label="Win Rate" value={`${summary.win_rate.toFixed(1)}%`} tone="success.main" {...base} />
+      <CompactStat label="PF" value={summary.profit_factor === Infinity ? "∞" : summary.profit_factor.toFixed(2)} tone={tone(summary.profit_factor >= 1, "success.main", "error.main")} {...base} />
       <CompactStat label="Trades" value={summary.total_trades.toString()} {...base} />
-      <CompactStat label="Max DD" value={`${summary.max_drawdown_pct.toFixed(1)}%`} tone="var(--mantine-color-red-4)" {...base} />
-      <CompactStat label="Avg Win" value={`₹${summary.avg_win.toFixed(0)}`} tone="var(--mantine-color-teal-4)" {...base} />
-      <CompactStat label="Avg Loss" value={`₹${summary.avg_loss.toFixed(0)}`} tone="var(--mantine-color-red-4)" {...base} />
-      <CompactStat label="Costs" value={`₹${summary.total_costs.toFixed(0)}`} tone="var(--mantine-color-gray-5)" {...base} />
+      <CompactStat label="Max DD" value={`${summary.max_drawdown_pct.toFixed(1)}%`} tone="error.main" {...base} />
+      <CompactStat label="Avg Win" value={`₹${summary.avg_win.toFixed(0)}`} tone="success.main" {...base} />
+      <CompactStat label="Avg Loss" value={`₹${summary.avg_loss.toFixed(0)}`} tone="error.main" {...base} />
+      <CompactStat label="Costs" value={`₹${summary.total_costs.toFixed(0)}`} tone="text.secondary" {...base} />
     </CompactStatGrid>
   );
 }
@@ -229,8 +229,8 @@ export function PerformanceAnalytics() {
     <Flex direction="column" gap="xs">
       <Flex justify="space-between" align="center">
         <Group gap="xs">
-          <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
-          <Text fw={700} size="lg">Performance Analytics</Text>
+            <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
+            <Text fw={700} size="lg">Performance Analytics</Text>
         </Group>
         <SegmentedControl
           size="xs"
@@ -252,14 +252,14 @@ export function PerformanceAnalytics() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper withBorder p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
+            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
             <Text fw={600} size="xs">Equity Curve</Text>
           </Group>
           <EquityCurveChart data={equity_curve} />
         </Paper>
         <Paper withBorder p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
+            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
             <Text fw={600} size="xs">Daily P&L</Text>
           </Group>
           <DailyPnLChart data={daily_pnl} />
@@ -269,14 +269,14 @@ export function PerformanceAnalytics() {
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
         <Paper withBorder p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-red-6)" }} />
+            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.error.main })} />
             <Text fw={600} size="xs">Drawdown</Text>
           </Group>
           <DrawdownChart data={drawdown} />
         </Paper>
         <Paper withBorder p="xs" radius="md">
           <Group gap="xs" mb={2}>
-            <Box w={4} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
+            <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
             <Text fw={600} size="xs">Monthly P&L</Text>
           </Group>
           <MonthlyChart data={monthly_pnl} />

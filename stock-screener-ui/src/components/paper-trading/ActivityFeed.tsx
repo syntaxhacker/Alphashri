@@ -22,12 +22,12 @@ const EventRow = memo(function EventRow({ event }: { event: ActivityEvent }) {
       gap="xs"
       align="center"
       p="4px 8px"
-      style={{
-        borderBottom: "1px solid var(--mantine-color-gray-2)",
+      sx={(theme) => ({
+        borderBottom: `1px solid ${theme.palette.divider}`,
         fontSize: 12,
         fontFamily: "monospace",
         whiteSpace: "nowrap",
-      }}
+      })}
     >
       <Text size="xs" c="dimmed" w={60}>
         {formatTimeOnly(event.timestamp)}
@@ -106,7 +106,7 @@ export function ActivityFeed() {
         <Flex
           gap="xs"
           p="4px 8px"
-          style={{ borderBottom: "2px solid var(--mantine-color-gray-4)", fontSize: 11, fontWeight: 600, color: "var(--mantine-color-dimmed)" }}
+          sx={(theme) => ({ borderBottom: `2px solid ${theme.palette.divider}`, fontSize: 11, fontWeight: 600, color: theme.palette.text.secondary })}
         >
           <Text w={60}>Time</Text>
           <Text w={60}>Type</Text>

@@ -318,8 +318,8 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
 export function getPositionAgeColor(entryTime: string): string {
   const elapsed = Date.now() - new Date(entryTime).getTime();
   const hours = elapsed / (1000 * 60 * 60);
-  if (hours > 4) return "var(--mantine-color-orange-1)";
-  if (hours > 2) return "var(--mantine-color-orange-0)";
+  if (hours > 4) return "rgba(251, 146, 60, 0.15)";
+  if (hours > 2) return "rgba(251, 146, 60, 0.08)";
   return "transparent";
 }
 
@@ -483,7 +483,7 @@ export function PositionsTableBody({
       columns={columns}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box p="xs" style={{ background: "var(--mantine-color-dark-7)", borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
+        <Box p="xs" sx={(theme) => ({ background: theme.palette.grey[800], borderBottom: `1px solid ${theme.palette.divider}` })}>
           <PositionDetail pos={pos} />
         </Box>
       )}
@@ -531,7 +531,7 @@ export function StrategySummaryFooter({
       direction="column"
       mt={2}
       pt={2}
-      style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
+      sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}
       data-testid="strategy-summary-footer"
       className="paper-strategy-summary"
       id="strategy-summary"

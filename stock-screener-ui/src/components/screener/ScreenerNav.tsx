@@ -68,7 +68,7 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
         className="screener-nav screener-profile-rail"
         data-options-count={0}
         w={RAIL_WIDTH}
-        style={{ flexShrink: 0, borderRight: "1px solid var(--mantine-color-default-border)" }}
+        sx={(theme) => ({ flexShrink: 0, borderRight: `1px solid ${theme.palette.divider}` })}
       />
     );
   }
@@ -78,11 +78,11 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       type="auto"
       offsetScrollbars
       w={RAIL_WIDTH}
-      style={{
+      sx={(theme) => ({
         flexShrink: 0,
-        borderRight: "1px solid var(--mantine-color-default-border)",
-        backgroundColor: "var(--mantine-color-body)",
-      }}
+        borderRight: `1px solid ${theme.palette.divider}`,
+        backgroundColor: theme.palette.background.paper,
+      })}
       data-testid="screener-nav"
       id="screener-nav"
       className="screener-nav screener-profile-rail"

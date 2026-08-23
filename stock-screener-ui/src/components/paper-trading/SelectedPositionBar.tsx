@@ -27,10 +27,10 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
       <Group
         px="xs"
         py={4}
-        style={{
-          borderTop: "1px solid var(--mantine-color-default-border)",
-          background: "var(--mantine-color-body)",
-        }}
+        sx={(theme) => ({
+          borderTop: `1px solid ${theme.palette.divider}`,
+          background: theme.palette.background.paper,
+        })}
       >
         <Text size="xs" c="dimmed">No position selected — click a row to view details</Text>
       </Group>
@@ -45,17 +45,17 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
       px="xs"
       py={4}
       justify="space-between"
-      style={{
-        borderTop: "1px solid var(--mantine-color-default-border)",
+      sx={(theme) => ({
+        borderTop: `1px solid ${theme.palette.divider}`,
         background: bgTint,
-      }}
+      })}
     >
       <Group gap="md">
         <Text size="sm" fw={600}>{position.symbol}</Text>
         <Box
           px={6}
           py={2}
-          style={{ borderRadius: 4, backgroundColor: `var(--mantine-color-${sideColor}-1)` }}
+          sx={(theme) => ({ borderRadius: 4, backgroundColor: alpha(position.side === "BUY" ? theme.palette.success.main : theme.palette.error.main, 0.08) })}
         >
           <Text size="xs" fw={600} c={`${sideColor}.8`}>{position.side}</Text>
         </Box>
@@ -105,12 +105,13 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
 });
 
 function Badge({ color, children }: { color: string; children: React.ReactNode }) {
+  const paletteKey = color === "blue" ? "primary.main" : color === "red" ? "error.main" : color === "green" ? "success.main" : "text.primary";
   return (
     <Text
       component="span"
       size="xs"
       fw={600}
-      style={{ color: `var(--mantine-color-${color}-6)` }}
+      c={paletteKey}
     >
       {children}
     </Text>

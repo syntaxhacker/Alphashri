@@ -46,7 +46,7 @@ export function ScreenerHeader({
       data-testid="screener-header"
       py={4}
       px={8}
-      style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
+      sx={(theme) => ({ borderBottom: `1px solid ${theme.palette.divider}`, flexShrink: 0 })}
     >
       <Group justify="space-between" align="center" gap={6} wrap="nowrap">
         <Text

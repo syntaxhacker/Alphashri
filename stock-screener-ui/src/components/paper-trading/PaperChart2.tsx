@@ -86,18 +86,18 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
   if (hasTrades) {
     items.push(
-      { color: "var(--mantine-color-cyan-5)", label: "Entry", shape: "square" },
-      { color: "var(--mantine-color-lime-5)", label: "TP", shape: "circle" },
-      { color: "var(--mantine-color-pink-5)", label: "SL", shape: "circle" },
+      { color: "#06B6D4", label: "Entry", shape: "square" },
+      { color: "#84CC16", label: "TP", shape: "circle" },
+      { color: "#EC4899", label: "SL", shape: "circle" },
     );
   }
-  if (orbLabel) items.push({ color: "var(--mantine-color-blue-6)", label: orbLabel, shape: "square" });
-  if (hasWeek52) items.push({ color: "var(--mantine-color-pink-6)", label: "52W High", shape: "square" });
+  if (orbLabel) items.push({ color: "#2563EB", label: orbLabel, shape: "square" });
+  if (hasWeek52) items.push({ color: "#DB2777", label: "52W High", shape: "square" });
 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
+    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}>
       {items.map((item, i) => (
         <Flex key={i} align="center" gap={2}>
           <Box className={`legend-marker ${item.label.toLowerCase()}`} w={8} h={8} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
@@ -302,7 +302,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         <PopoverDropdown p="xs">
           <Stack gap="xs">
             <Group gap="xs">
-              <Box w={3} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
+              <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group gap={4}>
@@ -326,7 +326,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             <Divider my={1} />
 
             <Group gap="xs">
-              <Box w={3} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
+              <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group gap={4}>
