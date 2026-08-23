@@ -1,11 +1,13 @@
-import "@mantine/dates/styles.css";
 import "./style.css";
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { SnackbarProvider } from "notistack";
 import { UIProvider } from "@/ui";
-import { Notifications } from "@/ui";
+import { muiTheme } from "@/ui/muiTheme";
 import App from "./App";
 import { store } from "./state/store";
 import "@/ui/styles.css";
@@ -28,11 +30,15 @@ if (!root) {
 
 createRoot(root).render(
   <Provider store={store}>
-    <UIProvider defaultColorScheme="dark">
-      <Notifications position="bottom-right" />
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </UIProvider>
+    <ThemeProvider theme={muiTheme}>
+      <CssBaseline />
+      <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} autoHideDuration={4000}>
+        <UIProvider defaultColorScheme="dark">
+          <BrowserRouter>
+            <App />
+          </BrowserRouter>
+        </UIProvider>
+      </SnackbarProvider>
+    </ThemeProvider>
   </Provider>,
 );

@@ -1,8 +1,8 @@
 import type { Preview } from "@storybook/react-vite";
-import { MantineProvider } from "@mantine/core";
-import { theme } from "../src/config/theme";
-import "@mantine/core/styles.css";
-import "@mantine/dates/styles.css";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { SnackbarProvider } from "notistack";
+import { muiTheme } from "../src/ui/muiTheme";
 import "../src/style.css";
 import { AuthContext } from "../src/components/auth/AuthProvider2";
 import { NewsWebSocketProvider } from "../src/state/newsWebSocket";
@@ -103,12 +103,19 @@ const preview: Preview = {
     },
     (Story, context) => {
       const colorScheme = context.globals.colorScheme || "light";
+      // Update MUI theme mode via document attribute for CssBaseline; ThemeProvider handles colorSchemes internally
+      if (typeof document !== "undefined") {
+        document.documentElement.setAttribute("data-color-scheme", colorScheme);
+      }
       return (
-        <MantineProvider theme={theme} defaultColorScheme={colorScheme} forceColorScheme={colorScheme}>
-          <div style={{ backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff", padding: "1rem", borderRadius: "8px" }}>
-            <Story />
-          </div>
-        </MantineProvider>
+        <ThemeProvider theme={muiTheme} defaultColorScheme={colorScheme}>
+          <CssBaseline />
+          <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }}>
+            <div style={{ backgroundColor: colorScheme === "dark" ? "#1a1a1a" : "#ffffff", padding: "1rem", borderRadius: "8px" }}>
+              <Story />
+            </div>
+          </SnackbarProvider>
+        </ThemeProvider>
       );
     },
   ],
