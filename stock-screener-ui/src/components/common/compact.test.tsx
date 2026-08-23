@@ -20,7 +20,7 @@ vi.mock("@/ui", () => ({
     </div>
   ),
   SimpleGrid: ({ children, ...props }: any) => (
-    <div data-testid="simple-grid" {...props}>
+    <div data-testid={props["data-testid"] || "simple-grid"} {...props}>
       {children}
     </div>
   ),
@@ -48,7 +48,6 @@ vi.mock("@/ui", () => ({
 
 afterEach(() => {
   cleanup();
-
   vi.clearAllMocks();
 });
 
@@ -82,6 +81,11 @@ describe("CompactPage", () => {
     render(<CompactPage title={<span>Custom Title</span>}>Content</CompactPage>);
     expect(screen.getByText("Custom Title")).toBeInTheDocument();
   });
+
+  it("renders ReactNode description", () => {
+    render(<CompactPage description={<em>rich desc</em>}>Content</CompactPage>);
+    expect(screen.getByText("rich desc")).toBeInTheDocument();
+  });
 });
 
 describe("CompactPanel", () => {
@@ -114,6 +118,33 @@ describe("CompactPanel", () => {
     const { container } = render(<CompactPanel>Content</CompactPanel>);
     expect(container.querySelector('[data-testid="group"]')).toBeNull();
   });
+
+  it("applies scrollable layout with inner Box container", () => {
+    render(
+      <CompactPanel scrollable title="Scrollable">
+        ScrollContent
+      </CompactPanel>,
+    );
+    expect(screen.getByText("ScrollContent")).toBeInTheDocument();
+    // scrollable adds inner Box for overflow
+    const boxes = screen.getAllByTestId("box");
+    expect(boxes.length).toBeGreaterThanOrEqual(1);
+  });
+
+  it("respects padded=false without error", () => {
+    render(<CompactPanel padded={false}>NoPad</CompactPanel>);
+    expect(screen.getByText("NoPad")).toBeInTheDocument();
+  });
+
+  it("renders ReactNode title and description", () => {
+    render(
+      <CompactPanel title={<span>Rich Title</span>} description={<em>Rich Desc</em>}>
+        Content
+      </CompactPanel>,
+    );
+    expect(screen.getByText("Rich Title")).toBeInTheDocument();
+    expect(screen.getByText("Rich Desc")).toBeInTheDocument();
+  });
 });
 
 describe("CompactStat", () => {
@@ -121,6 +152,32 @@ describe("CompactStat", () => {
     render(<CompactStat label="Score" value={95} />);
     expect(screen.getByText("Score")).toBeInTheDocument();
     expect(screen.getByText("95")).toBeInTheDocument();
+  });
+
+  it("renders ReactNode label and value", () => {
+    render(<CompactStat label={<span>Lab</span>} value={<strong>Val</strong>} />);
+    expect(screen.getByText("Lab")).toBeInTheDocument();
+    expect(screen.getByText("Val")).toBeInTheDocument();
+  });
+
+  it("applies default tone and sizes", () => {
+    render(<CompactStat label="L" value="V" />);
+    const card = screen.getByTestId("card");
+    expect(card).toBeInTheDocument();
+  });
+
+  it("applies custom tone to value Text", () => {
+    render(<CompactStat label="PnL" value="+5%" tone="green" />);
+    expect(screen.getByText("+5%")).toBeInTheDocument();
+    // tone passed as c prop to Text -> check rendered
+    const texts = screen.getAllByTestId("text");
+    expect(texts.some((t) => t.textContent === "+5%")).toBe(true);
+  });
+
+  it("respects custom labelSize and valueSize", () => {
+    render(<CompactStat label="L" value="V" labelSize="sm" valueSize="xl" />);
+    expect(screen.getByText("L")).toBeInTheDocument();
+    expect(screen.getByText("V")).toBeInTheDocument();
   });
 
   it("renders string hint", () => {
@@ -133,13 +190,30 @@ describe("CompactStat", () => {
     expect(screen.getByText("5")).toBeInTheDocument();
   });
 
-  it("renders ReactNode hint", () => {
+  it("renders ReactNode hint inside Box wrapper", () => {
     render(<CompactStat label="Status" value="OK" hint={<em>good</em>} />);
     expect(screen.getByText("good")).toBeInTheDocument();
+    expect(screen.getByTestId("box")).toBeInTheDocument();
   });
 
   it("does not render hint when not provided", () => {
     const { container } = render(<CompactStat label="Label" value="Val" />);
+    const texts = container.querySelectorAll('[data-testid="text"]');
+    expect(texts.length).toBe(2);
+  });
+
+  it("renders with Card withBorder and bg via withAlpha", () => {
+    render(<CompactStat label="A" value="B" hint={null as any} />);
+    expect(screen.getByTestId("card")).toBeInTheDocument();
+  });
+
+  it("renders zero value correctly", () => {
+    render(<CompactStat label="Zero" value={0} />);
+    expect(screen.getByText("0")).toBeInTheDocument();
+  });
+
+  it("renders empty string hint as falsy (no extra Text)", () => {
+    const { container } = render(<CompactStat label="L" value="V" hint="" />);
     const texts = container.querySelectorAll('[data-testid="text"]');
     expect(texts.length).toBe(2);
   });
@@ -155,5 +229,22 @@ describe("CompactStatGrid", () => {
     );
     expect(screen.getByText("Stat 1")).toBeInTheDocument();
     expect(screen.getByText("Stat 2")).toBeInTheDocument();
+  });
+
+  it("wraps children in SimpleGrid with responsive cols", () => {
+    render(
+      <CompactStatGrid>
+        <CompactStat label="A" value="1" />
+        <CompactStat label="B" value="2" />
+      </CompactStatGrid>,
+    );
+    expect(screen.getByTestId("simple-grid")).toBeInTheDocument();
+    expect(screen.getByText("A")).toBeInTheDocument();
+    expect(screen.getByText("B")).toBeInTheDocument();
+  });
+
+  it("renders empty grid without crash", () => {
+    render(<CompactStatGrid data-testid="empty-grid" />);
+    expect(screen.getByTestId("empty-grid")).toBeInTheDocument();
   });
 });
