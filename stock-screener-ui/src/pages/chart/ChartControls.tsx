@@ -28,7 +28,7 @@ export function ChartControls({
         <Group gap="xs" wrap="nowrap">
           <span
             className="control-label"
-            style={{ fontSize: "12px", color: "var(--mantine-color-dimmed)" }}
+            style={{ fontSize: "12px", color: "text.secondary" }}
           >
             Timeframe:
           </span>
@@ -49,7 +49,7 @@ export function ChartControls({
         <Group gap="xs" wrap="nowrap">
           <span
             className="control-label"
-            style={{ fontSize: "12px", color: "var(--mantine-color-dimmed)" }}
+            style={{ fontSize: "12px", color: "text.secondary" }}
           >
             OR:
           </span>

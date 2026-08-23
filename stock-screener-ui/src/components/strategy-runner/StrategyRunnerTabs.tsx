@@ -378,7 +378,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
             return expandedTrade === key;
           }}
           renderSubComponent={(trade) => (
-            <Box p="md" style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))" }}>
+            <Box p="md" sx={{ bgcolor: "background.paper" }}>
               <TradeChart
                 symbol={trade.symbol}
                 date={trade.entry_time?.slice(0, 10) || ""}
@@ -443,10 +443,10 @@ function CorrelationTab({ summary, trades, bots }: TabsProps) {
           }
           const netPnl = botTrades.reduce((s, t) => s + t.net_pnl, 0);
           const wins = botTrades.filter((t) => t.pnl > 0).length;
-          const bgColor = netPnl > 0 ? "var(--mantine-color-green-1)" : "var(--mantine-color-red-1)";
-          const textColor = netPnl > 0 ? "var(--mantine-color-green-8)" : "var(--mantine-color-red-8)";
+          const bgColor = netPnl > 0 ? "success.light" : "error.light";
+          const textColor = netPnl > 0 ? "success.main" : "error.main";
           return (
-            <Box ta="center" style={{ background: bgColor, padding: "2px 4px" }}>
+            <Box ta="center" sx={{ bgcolor: bgColor, padding: "2px 4px" }}>
               <Text size="xs" fw={500} c={textColor}>
                 {netPnl >= 0 ? "+" : ""}{netPnl.toFixed(0)}
               </Text>

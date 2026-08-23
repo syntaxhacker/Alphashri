@@ -66,7 +66,7 @@ export function StrategyRunnerStats({ trades, summary, isRunning, progress }: Pr
         <CompactStat
           label="Profit Factor"
           value={pf === 0 ? "\u2014" : pf.toFixed(2)}
-          tone={pf > 1 ? "green" : pf < 1 ? "red" : "var(--mantine-color-text)"}
+          tone={pf > 1 ? "green" : pf < 1 ? "red" : "text.primary"}
         />
         <CompactStat
           label="Net P&L"

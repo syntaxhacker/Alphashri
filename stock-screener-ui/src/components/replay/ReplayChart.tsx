@@ -168,14 +168,14 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
     return (
       <Box
         data-testid="replay-chart-empty"
-        sx={
+        sx={{
           height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "background.paper",
-          borderRadius: "var(--mantine-radius-md)",
-        }
+          bgcolor: "background.paper",
+          borderRadius: 2,
+        }}
       >
         <Text c="dimmed">Run a replay to see chart</Text>
       </Box>

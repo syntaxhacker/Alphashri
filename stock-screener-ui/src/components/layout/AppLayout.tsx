@@ -32,7 +32,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       id="app-shell"
       data-testid="app-shell"
     >
-      <AppShellHeader id="app-header" data-testid="app-header" style={{ backgroundColor: "var(--mantine-color-body)" }}>
+      <AppShellHeader id="app-header" data-testid="app-header" sx={{ bgcolor: "background.paper" }}>
         <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
           <Group gap="xs">
             <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
@@ -61,7 +61,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         />
       </AppShellNavbar>
 
-      <AppShellMain id="app-main" data-testid="app-main" style={{ backgroundColor: "var(--mantine-color-body)" }}>
+      <AppShellMain id="app-main" data-testid="app-main" sx={{ bgcolor: "background.paper" }}>
         {children}
       </AppShellMain>
     </AppShell>

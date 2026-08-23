@@ -230,23 +230,13 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         wrap="nowrap"
                         px="xs"
                         py={3}
-                        sx={
-                          borderRadius: 4,
+                        sx={{
+                          borderRadius: 1,
                           cursor: "pointer",
-                          background: idx % 2 === 1
-                            ? "background.paper, background.paper)"
-                            : undefined,
-                        }
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "background.paper, divider)";
+                          bgcolor: idx % 2 === 1 ? "background.default" : undefined,
+                          "&:hover": { bgcolor: "action.hover" },
                         }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            idx % 2 === 1
-                              ? "background.paper, background.paper)"
-                              : "";
-                        }}
+
                       >
                         <Checkbox
                           size="xs"
