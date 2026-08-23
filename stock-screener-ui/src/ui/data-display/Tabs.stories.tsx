@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Text, Title } from "@mantine/core";
+import { Stack, Text, Title } from "@/ui";
 import { Tabs, TabsList, Tab, TabsPanel } from "./Tabs";
 
 const meta: Meta<typeof Tabs> = {

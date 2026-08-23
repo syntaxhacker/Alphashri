@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, userEvent, within } from "storybook/test";
-import { Stack, Text as MText } from "@mantine/core";
+import { Stack, Text as MText } from "@/ui";
 import { Select } from "./Select";
 
 /**

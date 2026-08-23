@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Title, Button, Group } from "@mantine/core";
+import { Stack, Title, Button, Group } from "@/ui";
 import { Tooltip } from "./Tooltip";
 
 const meta: Meta<typeof Tooltip> = {

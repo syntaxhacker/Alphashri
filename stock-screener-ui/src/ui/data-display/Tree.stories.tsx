@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Text, Title } from "@mantine/core";
+import { Stack, Text, Title } from "@/ui";
 import { Tree } from "./Tree";
 import { useTree } from "../hooks";
 import type { UITreeNode } from "../types";

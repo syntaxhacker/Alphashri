@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import type { ColumnDef } from "@tanstack/react-table";
-import { Button, Group, Text } from "@mantine/core";
+import { Button, Group, Text } from "@/ui";
 import { IconDatabaseOff } from "@tabler/icons-react";
 import { TanStackTable } from "./TanStackTable";
 

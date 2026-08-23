@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Group } from "@mantine/core";
+import { Group } from "@/ui";
 import { Loader } from "./Loader";
 
 const meta: Meta<typeof Loader> = {

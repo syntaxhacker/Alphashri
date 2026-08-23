@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 import { MarketTicker } from "./MarketTicker";
 import type { MarketTickerData } from "./MarketTicker";
 

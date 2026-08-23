@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Group } from "@mantine/core";
+import { Group } from "@/ui";
 import { Avatar } from "./Avatar";
 
 const meta: Meta<typeof Avatar> = {

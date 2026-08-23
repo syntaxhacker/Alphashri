@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Group } from "@mantine/core";
+import { Group } from "@/ui";
 import { ActionIcon } from "./ActionIcon";
 
 const meta: Meta<typeof ActionIcon> = {

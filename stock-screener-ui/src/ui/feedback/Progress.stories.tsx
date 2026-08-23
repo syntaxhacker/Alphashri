@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack } from "@mantine/core";
+import { Stack } from "@/ui";
 import { Progress } from "./Progress";
 
 const meta: Meta<typeof Progress> = {

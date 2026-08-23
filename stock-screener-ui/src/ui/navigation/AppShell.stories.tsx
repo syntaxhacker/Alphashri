@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Badge, Box, Card, Group, Stack, Text, Title } from "@mantine/core";
+import { Badge, Box, Card, Group, Stack, Text, Title } from "@/ui";
 import { IconChartBar, IconChartLine, IconRobot, IconSettings } from "@tabler/icons-react";
 import { AppShell } from "./AppShell";
 import { NavLink } from "./NavLink";

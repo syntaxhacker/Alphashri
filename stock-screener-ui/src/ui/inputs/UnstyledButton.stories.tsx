@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Group } from "@mantine/core";
+import { Group } from "@/ui";
 import { UnstyledButton } from "./UnstyledButton";
 
 const meta: Meta<typeof UnstyledButton> = {

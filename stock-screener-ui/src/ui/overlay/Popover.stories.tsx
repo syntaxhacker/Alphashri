@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useState } from "react";
-import { Stack, Text, Title, Button, Group } from "@mantine/core";
+import { Stack, Text, Title, Button, Group } from "@/ui";
 import { Popover, PopoverTarget, PopoverDropdown } from "./Popover";
 
 const meta: Meta<typeof Popover> = {

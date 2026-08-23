@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Group, Stack } from "@mantine/core";
+import { Group, Stack } from "@/ui";
 import { Skeleton } from "./Skeleton";
 
 const meta: Meta<typeof Skeleton> = {

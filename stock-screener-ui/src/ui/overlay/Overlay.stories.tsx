@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Text, Title, Box, Button, Group } from "@mantine/core";
+import { Stack, Text, Title, Box, Button, Group } from "@/ui";
 import { Overlay } from "./Overlay";
 
 const meta: Meta<typeof Overlay> = {

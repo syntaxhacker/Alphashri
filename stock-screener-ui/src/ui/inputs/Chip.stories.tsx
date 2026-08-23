@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Chip as MantineChip } from "@mantine/core";
+import { Chip as MantineChip } from "@/ui";
 import { Chip } from "./Chip";
 
 const meta: Meta<typeof Chip> = {

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Group, Box as MBox, Text as MText, Title } from "@mantine/core";
+import { Stack, Group, Box as MBox, Text as MText, Title } from "@/ui";
 
 const meta: Meta = {
   title: "Foundations/Spacing & Elevation",

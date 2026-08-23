@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Text, Title } from "@mantine/core";
+import { Stack, Text, Title } from "@/ui";
 import { Accordion, AccordionItem, AccordionControl, AccordionPanel } from "./Accordion";
 
 const meta: Meta<typeof Accordion> = {

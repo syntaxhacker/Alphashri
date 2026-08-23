@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Box, Group } from "@mantine/core";
+import { Box, Group } from "@/ui";
 import { Indicator } from "./Indicator";
 
 const meta: Meta<typeof Indicator> = {

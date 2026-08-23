@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AppShell } from "@mantine/core";
+import { AppShell } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { BrowserRouter } from "react-router-dom";
 import { IconRocket, IconChartLine, IconTrendingUp, IconCurrencyDollar } from "@tabler/icons-react";

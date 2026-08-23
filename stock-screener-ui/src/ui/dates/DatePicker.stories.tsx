@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack } from "@mantine/core";
+import { Stack } from "@/ui";
 import { DatePicker } from "./DatePicker";
 
 const meta: Meta<typeof DatePicker> = {

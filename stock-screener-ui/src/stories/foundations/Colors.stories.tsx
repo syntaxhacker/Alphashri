@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Group, Text as MText, Title } from "@mantine/core";
+import { Stack, Group, Text as MText, Title } from "@/ui";
 import {
   PRIMARY,
   POSITIVE_COLOR,

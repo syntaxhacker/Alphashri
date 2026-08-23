@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AppShell } from "@mantine/core";
+import { AppShell } from "@/ui";
 import { NavbarNested } from "./NavbarNested";
 import { BrowserRouter } from "react-router-dom";
 import { expect, fn, userEvent, within } from "storybook/test";

@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider } from "@/ui";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategyFormData } from "./types";
 import type { StrategyConfig } from "../../types/strategies";

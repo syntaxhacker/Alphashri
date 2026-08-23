@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { Stack, Title, Button } from "@mantine/core";
+import { Stack, Title, Button } from "@/ui";
 import { IconTrash, IconSettings, IconLogout } from "@tabler/icons-react";
 import { Menu, MenuTarget, MenuDropdown, MenuItem } from "./Menu";
 
