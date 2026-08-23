@@ -25,7 +25,15 @@ function ExpandTrigger({ symbol }: { symbol: string }) {
 const meta: Meta = {
   title: "Composites/Overlays/PreviewChart",
   tags: ["autodocs"],
-  parameters: { layout: "centered" },
+  parameters: {
+    layout: "centered",
+    docs: {
+      description: {
+        component:
+          'Chart overlay system — `PreviewChartProvider` supplies hover previews (320×200, tf=15/days=1, 45m OR) and click-to-expand panels (650×480, tf=15/days=5) via portal for any `ClickableSymbol`. Wrap app or story decorators with the provider. When not: for static inline charts render ECharts directly without this provider.',
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <MemoryRouter>

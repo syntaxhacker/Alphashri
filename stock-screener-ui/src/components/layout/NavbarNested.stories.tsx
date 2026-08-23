@@ -8,6 +8,7 @@ const meta: Meta<typeof NavbarNested> = {
   title: "Examples/App Layout/SideMenu",
   component: NavbarNested,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "App sidebar navigation — collapsible grouped links for AppShell navbar. Use as the primary app navigation. When not: for top nav use Tabs or NavLink row." } } },
   decorators: [
     (Story) => (
       <BrowserRouter>

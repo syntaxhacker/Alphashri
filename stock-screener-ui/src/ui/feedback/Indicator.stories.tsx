@@ -6,6 +6,7 @@ const meta: Meta<typeof Indicator> = {
   title: "Primitives/Feedback/Indicator",
   component: Indicator,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Dot or badge anchored to a child. Use for unread counts or status dots on avatars. When not to use: for standalone badges use Badge. Uses Mantine Indicator with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

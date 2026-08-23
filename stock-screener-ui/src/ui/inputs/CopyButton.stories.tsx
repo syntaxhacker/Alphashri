@@ -7,6 +7,7 @@ const meta: Meta<typeof CopyButton> = {
   title: "Primitives/Inputs/CopyButton",
   component: CopyButton,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "One-click copy to clipboard with copied feedback. Use for copying symbols, IDs, or commands. When not to use: for general actions use Button. Uses Mantine CopyButton with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

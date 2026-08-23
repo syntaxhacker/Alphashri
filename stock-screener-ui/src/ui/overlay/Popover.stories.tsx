@@ -7,6 +7,7 @@ const meta: Meta<typeof Popover> = {
   title: "Primitives/Overlays/Popover",
   component: Popover,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Floating panel anchored to a trigger. Use for filters, pickers, or contextual menus. When not to use: for modal dialogs use Modal. Uses Mantine Popover with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

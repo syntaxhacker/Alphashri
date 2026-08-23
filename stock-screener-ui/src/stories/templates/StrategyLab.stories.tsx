@@ -31,7 +31,15 @@ function withMock(Story: React.FC, empty?: boolean) {
 const meta: Meta = {
   title: "Templates/Strategy Lab",
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen", docs: { description: { component: "Strategy Lab — exact `BacktestPage` with mocked `/api/backtest/strategies`, `/api/strategies/variations`, `/api/backtest/run` returning `MOCK_BACKTEST_RESULTS` from `fixtures.ts`. Default is populated; Empty shows no results." } } },
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Strategy Lab — strategy catalogue + param variations + backtest run and results from `components/backtest/BacktestPage.tsx`. Use to design and validate strategies at /backtest. When not: for live execution use Bots at /bots or Paper Trading at /paper.",
+      },
+    },
+  },
 };
 export default meta;
 

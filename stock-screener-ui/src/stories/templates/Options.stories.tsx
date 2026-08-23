@@ -11,9 +11,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Options — exact `OptionsPage` from `components/options/OptionsPage.tsx` with realistic NIFTY chain (mocked via `fixtures.ts`). " +
-          "Shows the real chain table with 7 strikes around spot 23500, OI/volume bars, IV, greeks, and PCR/max-pain. " +
-          "Uses the same `OptionChainTable` + `ChainSummary` as `/options` — no custom wrapper.",
+          "Options — NIFTY/spot option chain table with OI, volume, IV, greeks, PCR and max pain from `components/options/OptionsPage.tsx`. Use to analyze expiries and strikes at /options. When not: for equity screening use Stock Screener at /.",
       },
     },
   },

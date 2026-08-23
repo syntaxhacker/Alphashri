@@ -6,6 +6,7 @@ const meta: Meta<typeof LoadingOverlay> = {
   title: "Primitives/Feedback/LoadingOverlay",
   component: LoadingOverlay,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Overlay with centered Loader over content. Use while refreshing a panel or table. When not to use: for page-level loading use Loader centered. Uses Mantine LoadingOverlay with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

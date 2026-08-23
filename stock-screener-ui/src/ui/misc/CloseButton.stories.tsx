@@ -6,6 +6,7 @@ const meta: Meta<typeof CloseButton> = {
   title: "Primitives/Misc/CloseButton",
   component: CloseButton,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Close/dismiss icon button. Use inside modals, alerts, or tags to dismiss. When not to use: for general actions use ActionIcon. Uses Mantine CloseButton with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

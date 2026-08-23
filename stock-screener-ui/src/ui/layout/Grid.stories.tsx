@@ -5,6 +5,7 @@ const meta: Meta<typeof Grid> = {
   title: "Primitives/Layout/Grid",
   component: Grid,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "12-column responsive grid. Use for dashboard layouts and card grids that must reflow at breakpoints. When not to use: for single-axis stacks use Stack or Flex. Uses Mantine Grid with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

@@ -77,6 +77,7 @@ const meta: Meta<typeof MarketTicker> = {
   title: "Examples/App Layout/MarketTicker",
   component: MarketTicker,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Live market ticker — polling NSE indices in the AppShell header. Use in AppLayout header only. When not: for static status use Badge." } } },
   decorators: [
     (Story, context) => {
       const data = context.parameters.marketData || mockMarketData;

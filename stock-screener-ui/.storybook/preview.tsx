@@ -19,6 +19,14 @@ if (typeof document !== "undefined") {
   document.head.appendChild(sbFix);
 }
 
+// ECharts is available as an npm package (echarts) — in the app it is also
+// exposed as window.echarts for useECharts. Provide it synchronously in the
+// Storybook iframe so TradingChart/CorrelationHeatmap actually render.
+import * as echarts from "echarts";
+if (typeof window !== "undefined") {
+  (window as any).echarts = (echarts as any).default ?? echarts;
+}
+
 const preview: Preview = {
   parameters: {
     controls: {

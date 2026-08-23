@@ -7,6 +7,7 @@ const meta: Meta<typeof Menu> = {
   title: "Primitives/Data Display/Menu",
   component: Menu,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Dropdown menu with items and dividers. Use for row actions or context menus. When not to use: for single select use Select. Uses Mantine Menu with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

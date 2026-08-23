@@ -16,7 +16,15 @@ function Placeholder({ label }: { label: string }) {
 const meta: Meta = {
   title: "Templates/Application Shell",
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen" },
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Application shell — header (logo + ticker + news) + collapsible navbar + main. Use as the top-level layout for every authenticated route. When not: for standalone auth pages use a centered Card without the shell.",
+      },
+    },
+  },
 };
 export default meta;
 

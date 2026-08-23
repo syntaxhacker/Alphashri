@@ -6,6 +6,7 @@ const meta: Meta<typeof UnstyledButton> = {
   title: "Primitives/Inputs/UnstyledButton",
   component: UnstyledButton,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Button with no default styles — fully custom. Use for clickable cards, rows, or custom interactive surfaces. When not to use: for standard actions use Button. Uses Mantine UnstyledButton with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

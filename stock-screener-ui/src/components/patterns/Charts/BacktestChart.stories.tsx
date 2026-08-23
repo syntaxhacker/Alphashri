@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box } from "@/ui";
 import { BacktestChart } from "@/components/backtest/BacktestChart";
@@ -40,7 +41,16 @@ const bareData = baseData({});
 const meta: Meta<typeof BacktestChart> = {
   title: "Patterns/Charts/BacktestChart",
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  decorators: [(Story) => <MemoryRouter><Story /></MemoryRouter>],
+  parameters: {
+    layout: "padded",
+    docs: {
+      description: {
+        component:
+          "BacktestChart pattern — ECharts candlestick chart with strategy overlays (ORB zones, S/R pivots, 52W high, EMA 9/21) + trade entry/exit markers. Use for backtest result visualization; toggle overlays via `chartData.orb_zones/pivot_levels/week52_levels/visuals.ema_series`. When not: for replay/live mode use ReplayChart.",
+      },
+    },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof BacktestChart>;

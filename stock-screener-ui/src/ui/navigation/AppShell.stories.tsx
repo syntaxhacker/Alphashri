@@ -8,15 +8,7 @@ const meta: Meta<typeof AppShell> = {
   title: "Primitives/Navigation/AppShell",
   component: AppShell,
   tags: ["autodocs"],
-  parameters: {
-    layout: "fullscreen",
-    docs: {
-      description: {
-        component:
-          "Application shell — fixed header + collapsible navbar + scrollable main. Mirrors `AppLayout` in the app. Navbar uses `NavLink` primitives, not raw `Text`.",
-      },
-    },
-  },
+  parameters: { layout: "fullscreen", docs: { description: { component: "Application shell — fixed header + collapsible navbar + scrollable main. Mirrors AppLayout in the app. Navbar uses NavLink primitives, not raw Text." } } },
 };
 
 export default meta;

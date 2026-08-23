@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box } from "@/ui";
 import { SectorHeatmapView } from "@/components/sector/SectorHeatmapView";
@@ -18,7 +19,16 @@ const mockSectors = buildSectors();
 const meta: Meta<typeof SectorHeatmapView> = {
   title: "Patterns/Charts/SectorHeatmap",
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  decorators: [(Story) => <MemoryRouter><Story /></MemoryRouter>],
+  parameters: {
+    layout: "padded",
+    docs: {
+      description: {
+        component:
+          "SectorHeatmap pattern — ECharts treemap/heatmap for sector performance (`SectorHeatmapView`). Use for sector-level breadth view filtered by metric (change_pct, RSI, etc.) and `viewMode`. When not: for symbol correlation matrix use CorrelationHeatmap; for tabular sector data use SectorTable.",
+      },
+    },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof SectorHeatmapView>;

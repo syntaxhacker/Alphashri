@@ -6,6 +6,14 @@ const meta: Meta<typeof SideBadge> = {
   title: "Composites/Badges",
   component: SideBadge,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Status badges for trading UI — `SideBadge` (BUY/SELL/LONG/SHORT), `ExitReasonBadge` (TP/SL/trailing/EOD), `TradingModeBadge` (live vs paper), and `StatusBadge` (bot running/stopped). Use inside tables, position rows, or headers where a compact color-coded state is needed. When not: for P&L values use `PnlText`/`PnlBadge` instead.',
+      },
+    },
+  },
 };
 
 export default meta;

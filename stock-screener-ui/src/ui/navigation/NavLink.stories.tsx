@@ -6,6 +6,7 @@ const meta: Meta<typeof NavLink> = {
   title: "Primitives/Navigation/NavLink",
   component: NavLink,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Navigation link with icon, label, and active state. Use inside AppShell navbar. When not to use: for external links use Anchor. Uses Mantine NavLink with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

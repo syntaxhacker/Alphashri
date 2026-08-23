@@ -12,6 +12,7 @@ const meta: Meta<typeof UserButton> = {
   title: "Examples/App Layout/UserButton",
   component: UserButton,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "User avatar + name button for AppShell navbar/footer. Use for account menu and logout. When not: for generic user display use Avatar + Text." } } },
   decorators: [
     (Story, context) => {
       const params = context.parameters as { userData?: MockUser | null; unauthenticated?: boolean };

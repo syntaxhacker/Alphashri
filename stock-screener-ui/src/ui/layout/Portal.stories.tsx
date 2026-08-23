@@ -5,6 +5,7 @@ const meta: Meta<typeof Portal> = {
   title: "Primitives/Layout/Portal",
   component: Portal,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Renders children at document body. Use for dropdowns, modals, and overlays that must escape parent overflow. When not to use: regular layout content. Uses Mantine Portal with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

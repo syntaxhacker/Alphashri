@@ -6,6 +6,7 @@ const meta: Meta<typeof Tabs> = {
   title: "Primitives/Data Display/Tabs",
   component: Tabs,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Tabbed content switcher. Use for screener vs backtest views or settings sections. When not to use: for <3 short options use SegmentedControl. Uses Mantine Tabs with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

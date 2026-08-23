@@ -10,9 +10,7 @@ const meta: Meta<typeof NewsPage> = {
     docs: {
       description: {
         component:
-          "News — exact `NewsPage` from `pages/NewsPage.tsx` with no mocks. " +
-          "Renders the real list + article detail layout as used at `/news`. " +
-          "Requires backend at `http://localhost:8765` for data; otherwise shows loading/empty states.",
+          "News — curated feed + article detail with sentiment and symbol tags from `pages/NewsPage.tsx`. Use to browse market news and linked tickers at /news. When not: for price action and levels use Chart at /chart/:symbol.",
       },
     },
   },

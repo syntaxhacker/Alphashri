@@ -47,6 +47,14 @@ const meta: Meta<typeof TanStackTable<User>> = {
   title: "Composites/TanStackTable",
   component: TanStackTable,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Headless table (TanStack) with Mantine styling — sorting, windowing (`rowWindowSize`), sticky header, empty/loading states. Use for any tabular data with >20 rows. When not: for 2-3 stat cards use `CompactStatGrid`.',
+      },
+    },
+  },
 };
 
 export default meta;

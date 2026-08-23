@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box } from "@/ui";
 import { TradeHistoryTable } from "@/components/backtest/TradeHistoryTable";
@@ -19,7 +20,16 @@ const mockTrades = toTrades();
 const meta: Meta<typeof TradeHistoryTable> = {
   title: "Patterns/Tables/TradeHistory",
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  decorators: [(Story) => <MemoryRouter><Story /></MemoryRouter>],
+  parameters: {
+    layout: "padded",
+    docs: {
+      description: {
+        component:
+          "TradeHistory pattern — sortable backtest trade table (entry/exit, gross/net P&L, exit reason, hold duration) with row click → chart highlight. Use for backtest results review. When not: for live paper trades with expandable notes use PaperHistory.",
+      },
+    },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof TradeHistoryTable>;

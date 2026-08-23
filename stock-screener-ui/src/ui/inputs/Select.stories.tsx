@@ -26,14 +26,7 @@ const meta: Meta<typeof Select> = {
   title: "Primitives/Inputs/Select",
   component: Select,
   tags: ["autodocs", "a11y-tested"],
-  parameters: {
-    docs: {
-      description: {
-        component:
-          "Searchable single-select. Use `label` always, `error` for validation, `clearable` when optional.\n\n**Do:** pair with `Text size=\"xs\" c=\"dimmed\"` helper below.\n**Don't:** render 5000+ unsearchable options.",
-      },
-    },
-  },
+  parameters: { docs: { description: { component: "Searchable single-select. Use `label` always, `error` for validation, `clearable` when optional. Do: pair with helper text. Don't: render 5000+ unsearchable options." } } },
 };
 
 export default meta;

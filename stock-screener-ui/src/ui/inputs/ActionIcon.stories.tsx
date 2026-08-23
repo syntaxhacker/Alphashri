@@ -6,6 +6,7 @@ const meta: Meta<typeof ActionIcon> = {
   title: "Primitives/Inputs/ActionIcon",
   component: ActionIcon,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Icon-only button with variant and size. Use for toolbar actions, close buttons, or compact controls. When not to use: for text actions use Button. Uses Mantine ActionIcon with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

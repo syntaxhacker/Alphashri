@@ -7,6 +7,7 @@ const meta: Meta<typeof ThemeIcon> = {
   title: "Primitives/Misc/ThemeIcon",
   component: ThemeIcon,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Colored icon container with variant and gradient. Use for feature icons or empty-state illustrations. When not to use: for interactive icons use ActionIcon. Uses Mantine ThemeIcon with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

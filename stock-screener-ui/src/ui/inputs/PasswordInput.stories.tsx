@@ -6,6 +6,7 @@ const meta: Meta<typeof PasswordInput> = {
   title: "Primitives/Inputs/PasswordInput",
   component: PasswordInput,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Password field with visibility toggle. Use for authentication forms. When not to use: for plain text use TextInput. Uses Mantine PasswordInput with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

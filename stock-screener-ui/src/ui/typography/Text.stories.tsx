@@ -6,6 +6,7 @@ const meta: Meta<typeof Text> = {
   title: "Primitives/Typography/Text",
   component: Text,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Base typography — size, weight, color, truncation. Use for any body copy or labels. When not to use: for headings use Title. Uses Mantine Text with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

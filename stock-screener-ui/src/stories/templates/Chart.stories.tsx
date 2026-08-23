@@ -29,7 +29,12 @@ const meta: Meta<typeof ChartView> = {
   tags: ["autodocs"],
   parameters: {
     layout: "fullscreen",
-    docs: { description: { component: "Chart — exact `ChartView` from `pages/chart/ChartView.tsx` with mocked 50x 15m RELIANCE candles (via `fixtures.ts`). Shows OR zones, pivot levels, 52W high, and timeframe controls as at `/chart/RELIANCE`." } },
+    docs: {
+      description: {
+        component:
+          "Chart — single-stock ECharts view with OR zones, pivot levels, 52W high, EMA and timeframe controls from `pages/chart/ChartView.tsx`. Use for deep dive on one symbol at /chart/:symbol. When not: for universe scan use Stock Screener at / or Heatmap at /heatmap.",
+      },
+    },
   },
 };
 export default meta;

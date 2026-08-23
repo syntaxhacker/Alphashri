@@ -49,7 +49,15 @@ const meta: Meta<typeof ScreenerContainer> = {
   title: "Templates/Stock Screener",
   component: ScreenerContainer,
   tags: ["autodocs"],
-  parameters: { layout: "fullscreen", docs: { description: { component: "ScreenerContainer — exact container from `pages/screener/ScreenerContainer.tsx` with mocked fetch for `/api/screener?provider=upstox&mode=intraday&screener=trending` returning 50 stocks from `MOCK_SECTOR_STOCKS` via `fixtures.ts`. Shows populated table/heatmap. Empty shows no stocks." } } },
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Stock Screener — List + Filter + Table/Heatmap from `pages/screener/ScreenerContainer.tsx`. Use to browse ~500 NSE stocks by screener at /. When not: for single-stock deep dive use Chart at /chart/:symbol.",
+      },
+    },
+  },
 };
 export default meta;
 

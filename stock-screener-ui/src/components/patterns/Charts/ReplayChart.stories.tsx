@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box } from "@/ui";
 import { ReplayChart } from "@/components/replay/ReplayChart";
@@ -13,7 +14,16 @@ const defaultProps = {
 const meta: Meta<typeof ReplayChart> = {
   title: "Patterns/Charts/ReplayChart",
   tags: ["autodocs"],
-  parameters: { layout: "padded" },
+  decorators: [(Story) => <MemoryRouter><Story /></MemoryRouter>],
+  parameters: {
+    layout: "padded",
+    docs: {
+      description: {
+        component:
+          "ReplayChart pattern — intraday replay candlestick chart with date/symbol switching and overlay toggles (ORB, pivots, 52W high, EMA). Use for forward-testing/replay sessions via `candlesBySymbol` + `chartOptions`. When not: for historical backtest overlays use BacktestChart.",
+      },
+    },
+  },
 };
 export default meta;
 type Story = StoryObj<typeof ReplayChart>;

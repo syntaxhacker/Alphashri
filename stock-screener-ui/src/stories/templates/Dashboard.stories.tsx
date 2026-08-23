@@ -55,7 +55,19 @@ const sectorEmptyMock = (u: string) => (u.includes("/api/sector") ? mockSector(t
 const adminMock = (u: string) => (u.includes("/api/admin/llm") ? mockLlm(false) : u.includes("/api/admin/52w") ? { job: { status: "completed", total: 10, processed: 10, ok: 10, progress_pct: 100 }, database: { db_row_count: 10, db_latest_updated_at: new Date().toISOString(), expected_universe: 10, coverage_pct: 100 }, fetched_at: new Date().toISOString() } : u.includes("/api/admin/news-queue") ? { queue: { pending: 2, processing: 1, done: 40, failed: 0, total: 43 }, needs_analysis: { broken_summary: 0, null_analysis: 2 }, recent_failures: [] } : undefined);
 const adminEmptyMock = (u: string) => (u.includes("/api/admin/llm") ? mockLlm(true) : undefined);
 
-const meta: Meta = { title: "Templates/Trading Desk", tags: ["autodocs"], parameters: { layout: "fullscreen" } };
+const meta: Meta = {
+  title: "Templates/Trading Desk",
+  tags: ["autodocs"],
+  parameters: {
+    layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          "Trading Desk — aggregated dashboards for paper P&L, sector breadth, and admin ops. Use to overview performance across bots/sectors at a glance. When not: for single-bot control use Bots at /bots or for trade drill-down use Paper Trading at /paper.",
+      },
+    },
+  },
+};
 export default meta;
 export const PaperDefault: StoryObj = { name: "Paper — Default (populated)", decorators: [withFetch(paperMock)], render: () => <Box p="xs" h="100vh" style={{ overflow: "auto" }}><AggregatedDashboard /></Box> };
 export const PaperEmpty: StoryObj = { name: "Paper — Empty", decorators: [withFetch(paperEmptyMock)], render: () => <Box p="xs" h="100vh" style={{ overflow: "auto" }}><AggregatedDashboard /></Box> };

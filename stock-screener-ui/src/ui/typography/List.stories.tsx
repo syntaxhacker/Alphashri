@@ -5,6 +5,7 @@ const meta: Meta<typeof List> = {
   title: "Primitives/Typography/List",
   component: List,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Ordered/unordered list with custom markers. Use for feature lists, bullet points, or steps. When not to use: for navigation use NavLink. Uses Mantine List with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

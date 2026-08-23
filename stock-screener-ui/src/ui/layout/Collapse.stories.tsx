@@ -29,6 +29,7 @@ const meta: Meta<typeof Collapse> = {
   title: "Primitives/Layout/Collapse",
   component: Collapse,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Height-transition collapsible section. Use for expandable filters, accordion-like toggles, or show/hide content. When not to use: for route-level nav use Accordion. Uses Mantine Collapse with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

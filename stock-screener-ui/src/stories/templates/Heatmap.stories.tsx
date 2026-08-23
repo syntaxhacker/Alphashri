@@ -23,7 +23,7 @@ const meta: Meta<typeof HeatmapPage> = {
     docs: {
       description: {
         component:
-          "Heatmap — exact HeatmapPage from pages/heatmap/HeatmapPage.tsx as used at /heatmap. Shows NSE 500 treemap/list/scatter.",
+          "Heatmap — NSE 500 treemap / list / scatter by sector and momentum from `pages/heatmap/HeatmapPage.tsx`. Use to spot sector-wide moves and outliers at /heatmap. When not: for filtered lists use Stock Screener at / or for single-stock detail use Chart at /chart/:symbol.",
       },
     },
   },

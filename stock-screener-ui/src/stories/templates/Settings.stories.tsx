@@ -11,9 +11,7 @@ const meta: Meta<typeof SettingsPage> = {
     docs: {
       description: {
         component:
-          "Settings — exact `SettingsPage` from `pages/settings/SettingsPage.tsx` with no mocks. " +
-          "Renders broker connection card + market ticker toggle as used at `/settings`. " +
-          "Fetches real broker status from `GET /api/brokers/status` — shows loading/empty states when backend is unavailable.",
+          "Settings — broker connection card + market ticker toggle and account prefs from `pages/settings/SettingsPage.tsx`. Use to connect OAuth broker and toggle UI prefs at /settings. When not: for strategy tuning use Strategy Lab at /backtest.",
       },
     },
   },

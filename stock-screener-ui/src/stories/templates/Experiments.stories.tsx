@@ -11,9 +11,7 @@ const meta: Meta<typeof ExperimentsPage> = {
     docs: {
       description: {
         component:
-          "Experiments Lab — exact `ExperimentsPage` from `components/experiments/ExperimentsPage.tsx` with no mocks. " +
-          "Renders the real component (Config → Sessions → Progress → Results → Chart) as used at `/experiments`. " +
-          "Requires backend at `http://localhost:8765` for data; otherwise shows natural loading/empty states.",
+          "Experiments Lab — strategy config + backtest sessions + progress and results chart from `components/experiments/ExperimentsPage.tsx`. Use to run and compare backtests at /experiments. When not: for live/paper positions use Paper Trading at /paper.",
       },
     },
   },

@@ -11,9 +11,7 @@ const meta: Meta<typeof ReplayPage> = {
     docs: {
       description: {
         component:
-          "Replay Trading Day — exact `ReplayPage` from `components/replay/ReplayPage.tsx` with no mocks. " +
-          "Renders the real component (ConfigBar → Stats → Positions → MainView → Summary) as used at `/replay`. " +
-          "Requires backend at `http://localhost:8765` for data; otherwise shows natural loading/empty states.",
+          "Replay Trading Day — ConfigBar → Stats → Positions → MainView replay of a historical session from `components/replay/ReplayPage.tsx`. Use to step through and audit a trading day at /replay. When not: for live trading use Paper Trading at /paper.",
       },
     },
   },

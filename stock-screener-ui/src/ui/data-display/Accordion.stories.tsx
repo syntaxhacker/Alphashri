@@ -6,6 +6,7 @@ const meta: Meta<typeof Accordion> = {
   title: "Primitives/Data Display/Accordion",
   component: Accordion,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Collapsible sections with header. Use for FAQs, grouped settings, or expandable rows. When not to use: for single collapse use Collapse. Uses Mantine Accordion with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

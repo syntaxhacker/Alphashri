@@ -5,7 +5,15 @@ import { LoginForm, RegisterForm } from "@/components/auth/LoginForm2";
 const meta: Meta = {
   title: "Templates/Auth",
   tags: ["autodocs"],
-  parameters: { layout: "centered" },
+  parameters: {
+    layout: "centered",
+    docs: {
+      description: {
+        component:
+          "Auth — centered Login/Register forms with validation and switch links. Use for unauthenticated /login and /register routes. When not: for authenticated pages use Application Shell instead.",
+      },
+    },
+  },
   decorators: [(Story) => <MemoryRouter><Story /></MemoryRouter>],
 };
 export default meta;

@@ -15,9 +15,7 @@ const meta: Meta<typeof StrategyForm> = {
       </MantineProvider>
     ),
   ],
-  parameters: {
-    layout: "centered",
-  },
+  parameters: { layout: "centered", docs: { description: { component: "Strategy create/edit form — modal with ORB and risk parameters. Use inside Strategy management drawers/modals. When not: for display alone use StrategyCard." } } },
 };
 
 export default meta;

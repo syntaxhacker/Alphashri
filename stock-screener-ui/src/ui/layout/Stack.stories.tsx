@@ -5,6 +5,7 @@ const meta: Meta<typeof Stack> = {
   title: "Primitives/Layout/Stack",
   component: Stack,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Vertical flex stack with gap. Use for form fields, card content, page sections. When not to use: for horizontal layout use Group. Uses Mantine Stack with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

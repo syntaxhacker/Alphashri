@@ -6,6 +6,7 @@ const meta: Meta<typeof Switch> = {
   title: "Primitives/Inputs/Switch",
   component: Switch,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Toggle switch for boolean settings. Use for on/off settings like bot enable. When not to use: for multi-option choice use SegmentedControl or Checkbox. Uses Mantine Switch with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

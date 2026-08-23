@@ -5,6 +5,7 @@ const meta: Meta<typeof SimpleGrid> = {
   title: "Primitives/Layout/SimpleGrid",
   component: SimpleGrid,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Grid with equal-width columns via cols prop. Use for quick card grids without Grid.Col nesting. When not to use: for asymmetric layouts use Grid. Uses Mantine SimpleGrid with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

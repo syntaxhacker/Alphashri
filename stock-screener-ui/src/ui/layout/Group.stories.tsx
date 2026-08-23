@@ -5,6 +5,7 @@ const meta: Meta<typeof Group> = {
   title: "Primitives/Layout/Group",
   component: Group,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Horizontal flex group with gap and alignment. Use for button rows, header bars, inline controls. When not to use: for vertical stacking use Stack. Uses Mantine Group with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

@@ -5,6 +5,7 @@ const meta: Meta<typeof Center> = {
   title: "Primitives/Layout/Center",
   component: Center,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Centering utility — flex centers children both axes. Use for empty states, loaders, or single-child centering. When not to use: for multi-item layouts use Group or Stack. Uses Mantine Center with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

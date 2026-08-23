@@ -48,7 +48,15 @@ const mockBotTrades = MOCK_PAPER_TRADES.slice(0, 2).map((t: any) => ({ id: t.tra
 const meta: Meta = {
   title: "Templates/Asset Detail",
   tags: ["autodocs"],
-  parameters: { layout: "padded", docs: { description: { component: "Detail View — Header → Body → Footer. NewsDetail uses `MOCK_SECTOR_STOCKS`/`MOCK_SPOT_RELIANCE`; BotDetail uses `MOCK_PAPER_POSITIONS`/`MOCK_PAPER_TRADES` from `fixtures.ts`." } } },
+  parameters: {
+    layout: "padded",
+    docs: {
+      description: {
+        component:
+          "Asset Detail — composable Header → Body → Footer for chart, news article, or bot status. Use as the detail chrome inside Chart at /chart/:symbol, News at /news and Bots at /bots. When not: for list/browse views use Stock Screener at /, Heatmap at /heatmap or News list.",
+      },
+    },
+  },
 };
 export default meta;
 

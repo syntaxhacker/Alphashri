@@ -8,6 +8,7 @@ const meta: Meta<typeof Tree> = {
   title: "Primitives/Data Display/Tree",
   component: Tree,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Hierarchical tree with expand/collapse. Use for file structures, category navigation, or nested watchlists. When not to use: for flat lists use List. Uses Mantine Tree with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

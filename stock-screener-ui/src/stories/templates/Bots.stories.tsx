@@ -11,9 +11,7 @@ const meta: Meta<typeof BotsPage> = {
     docs: {
       description: {
         component:
-          "Bots — exact `BotsPage` from `components/bots/BotsPage.tsx` with no mocks. " +
-          "Reads from `BotsState` store (no props). Renders bot list tabs, table, and status panels as used at `/bots`. " +
-          "Requires backend at `http://localhost:8765` for data; otherwise shows the component's natural loading/empty states.",
+          "Bots — bot list tabs, config table, and live status panels from `components/bots/BotsPage.tsx`. Use to manage and monitor trading bots at /bots. When not: for trade execution and history use Paper Trading at /paper.",
       },
     },
   },

@@ -5,6 +5,7 @@ const meta: Meta<typeof Code> = {
   title: "Primitives/Typography/Code",
   component: Code,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Inline and block code display with monospace font. Use for symbols, API snippets, or monospace values. When not to use: for preformatted blocks use Code block variant. Uses Mantine Code with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

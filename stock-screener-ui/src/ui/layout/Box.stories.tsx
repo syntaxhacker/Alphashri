@@ -5,6 +5,7 @@ const meta: Meta<typeof Box> = {
   title: "Primitives/Layout/Box",
   component: Box,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Polymorphic container — the base of every Mantine component. Use for any Box-model layout (p, m, bg) that doesn't need a semantic wrapper. When not to use: prefer Stack/Group/Flex for flex layouts. Uses Mantine Box with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

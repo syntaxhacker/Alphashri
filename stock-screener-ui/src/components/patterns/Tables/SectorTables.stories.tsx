@@ -1,3 +1,4 @@
+import { MemoryRouter } from "react-router-dom";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { Box } from "@/ui";
 import { SectorTable } from "@/components/sector/SectorTable";
@@ -21,7 +22,20 @@ function buildSectors(): SectorItem[] {
 const mockSectors = buildSectors();
 const mockMovers = MOCK_SECTOR_STOCKS.slice(0, 6).map(s => ({ symbol: s.symbol, change: s.change_pct, prev_change: s.change_pct - 0.8, delta: 0.8 }));
 
-const meta: Meta = { title: "Patterns/Tables/SectorTables", tags: ["autodocs"], parameters: { layout: "padded" } };
+const meta: Meta = {
+  title: "Patterns/Tables/SectorTables",
+  tags: ["autodocs"],
+  decorators: [(Story) => <MemoryRouter><Story /></MemoryRouter>],
+  parameters: {
+    layout: "padded",
+    docs: {
+      description: {
+        component:
+          "SectorTables pattern — SectorTable (aggregated sector rows with advances/declines, avg change/RSI/ADX) + IntervalMoversTable (top movers with delta). Use for sector overview and intraday movers panels. When not: for single-symbol history use PaperHistory/TradeHistory.",
+      },
+    },
+  },
+};
 export default meta;
 
 export const SectorTableDefault: StoryObj = { name: "SectorTable — Default", render: () => <Box p="sm"><SectorTable sectors={mockSectors} /></Box> };

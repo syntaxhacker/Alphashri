@@ -86,9 +86,7 @@ const meta: Meta<typeof ScreenerTable> = {
   title: "Examples/Screener/Table",
   component: ScreenerTable,
   tags: ["autodocs"],
-  parameters: {
-    layout: "fullscreen",
-  },
+  parameters: { layout: "fullscreen", docs: { description: { component: "Virtualized screener results table — sortable columns and symbol interactions. Use for screener results pages. When not: for small static tables use Table." } } },
 };
 
 export default meta;

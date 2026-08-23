@@ -8,6 +8,7 @@ const meta: Meta<typeof NavbarLinksGroup> = {
   title: "Examples/App Layout/NavItem",
   component: NavbarLinksGroup,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Sidebar nav item — single link or collapsible group for AppShell navbar. Use inside NavbarNested/SideMenu. When not: for header nav use NavLink or Tabs." } } },
   decorators: [
     (Story) => (
       <BrowserRouter>

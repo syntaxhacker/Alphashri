@@ -27,6 +27,14 @@ const meta: Meta<typeof CorrelationHeatmap> = {
   title: "Composites/CorrelationHeatmap",
   component: CorrelationHeatmap,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "CorrelationHeatmap — ECharts heatmap (via `useECharts`) rendering an NxN correlation matrix. Use for portfolio/screener correlation views. Pass `matrix` (square number[][] with 1.0 diagonal) + `symbols` labels; handles loading/empty via `TableStates` pattern. When not: for single-metric tables use `CompactStatGrid` or `SectorTable`.",
+      },
+    },
+  },
 };
 
 export default meta;

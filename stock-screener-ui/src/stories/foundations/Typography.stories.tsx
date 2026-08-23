@@ -9,7 +9,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "The app's two dominant idioms: **small + dimmed meta text** and **weighted values** (fw 500–800). Sizes map to Mantine scale; weights are numeric.",
+          "Type scale from theme.tsx — sm/xs for meta, h1-h6 for headings, weights 400-800. App idiom: Text size=xs c=dimmed for labels. Mantine sizes map directly; use `Text`/`Title` from `@/ui`, never raw `<p>`/`<h*>`.",
       },
     },
   },

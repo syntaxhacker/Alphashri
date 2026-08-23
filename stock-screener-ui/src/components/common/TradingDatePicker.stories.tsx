@@ -7,6 +7,14 @@ const meta: Meta<typeof TradingDatePicker> = {
   title: "Composites/TradingDatePicker",
   component: TradingDatePicker,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Trading-day date picker — wraps Mantine `DatePickerInput` with weekends and NSE holidays disabled and IST-aware value handling. Use for backtest dates, replay selectors, or any trading-day input. When not: for free-form or non-trading dates use the plain Mantine `DatePickerInput` directly.',
+      },
+    },
+  },
 };
 
 export default meta;
