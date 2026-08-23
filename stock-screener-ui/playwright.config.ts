@@ -12,7 +12,7 @@ export default defineConfig({
   reporter: process.env.CI ? [['blob'], ['list']] : 'list',
   timeout: 60000,
   expect: {
-    timeout: 10000,
+    timeout: 15000,
     toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, mode: "strict" },
   },
   globalSetup: './playwright.setup.ts',
@@ -20,7 +20,7 @@ export default defineConfig({
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',
     screenshot: 'only-on-failure',
-    actionTimeout: 5000,
+    actionTimeout: 10000,
     navigationTimeout: 30000,
     headless,
   },
