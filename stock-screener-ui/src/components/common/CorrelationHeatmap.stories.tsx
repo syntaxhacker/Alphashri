@@ -1,6 +1,19 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { CorrelationHeatmap } from "./CorrelationHeatmap";
 
+// ECharts is loaded via CDN in the app (window.echarts), but Storybook's iframe needs a mock
+if (typeof window !== "undefined" && !(window as any).echarts) {
+  (window as any).echarts = {
+    init: () => ({
+      setOption: () => {},
+      resize: () => {},
+      dispose: () => {},
+      on: () => {},
+      off: () => {},
+    }),
+  };
+}
+
 const symbols = ["RELIANCE", "TCS", "INFY", "HDFCBANK"];
 
 const matrix4x4: number[][] = [

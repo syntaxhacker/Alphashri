@@ -48,7 +48,7 @@ export function useChartInstance({
     const chartOption = buildChartOption({
       symbol: data.symbol,
       candles: data.candles,
-      orb_zones: [],
+      orb_zones: data.orb_zones ?? [],
       pivot_levels: data.pivot_levels,
       high_52w: data.high_52w,
       size: "full",

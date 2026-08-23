@@ -16,11 +16,10 @@ import {
   IconAdjustments,
   IconFlask,
 } from "@tabler/icons-react";
-import { Box, Group, ScrollArea, AppShellSection, Stack, ActionIcon, useColorScheme } from "@/ui";
+import { Box, Group, ScrollArea, AppShellSection, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { UserButton } from "./UserButton";
 import { useAuth } from "../auth/AuthProvider2";
-import classes from "./NavbarNested.module.css";
 
 interface NavbarNestedProps {
   activePath: string;
@@ -71,46 +70,42 @@ export function NavbarNested({
   ));
 
   return (
-    <nav className={classes.navbar} data-testid="sidemenu" id="navbar-nested">
-      <AppShellSection
-        grow
-        component={ScrollArea}
-        className={classes.links}
-        id="navbar-links"
-        data-testid="navbar-links"
-      >
-        <Box className={classes.linksInner}>{links}</Box>
+    <Box data-testid="sidemenu" id="navbar-nested" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+      <AppShellSection grow component={ScrollArea} scrollbars="y" type="scroll" offsetScrollbars id="navbar-links" data-testid="navbar-links">
+        <Stack gap={4} p="xs">
+          {links}
+        </Stack>
       </AppShellSection>
 
-      <AppShellSection className={classes.footer} id="navbar-footer" data-testid="navbar-footer">
-        <Stack gap="xs">
-          <Group justify="space-between" px="xs">
-            <UserButton collapsed={collapsed} />
-            <Group gap={4}>
+      <Divider />
+
+      <AppShellSection p="xs" id="navbar-footer" data-testid="navbar-footer">
+        <Group justify="space-between" px="xs">
+          <UserButton collapsed={collapsed} />
+          <Group gap={4}>
+            <ActionIcon
+              variant="subtle"
+              size="sm"
+              onClick={toggleColorScheme}
+              aria-label="Toggle color scheme"
+              data-testid="theme-toggle-btn"
+            >
+              {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+            </ActionIcon>
+            {!collapsed && (
               <ActionIcon
                 variant="subtle"
                 size="sm"
-                onClick={toggleColorScheme}
-                aria-label="Toggle color scheme"
-                data-testid="theme-toggle-btn"
+                onClick={onToggleCollapse}
+                aria-label="Toggle sidebar"
+                data-testid="sidebar-collapse-toggle"
               >
-                {colorScheme === "dark" ? <IconSun size={16} /> : <IconMoon size={16} />}
+                <IconChevronLeft size={16} />
               </ActionIcon>
-              {!collapsed && (
-                <ActionIcon
-                  variant="subtle"
-                  size="sm"
-                  onClick={onToggleCollapse}
-                  aria-label="Toggle sidebar"
-                  data-testid="sidebar-collapse-toggle"
-                >
-                  <IconChevronLeft size={16} />
-                </ActionIcon>
-              )}
-            </Group>
+            )}
           </Group>
-        </Stack>
+        </Group>
       </AppShellSection>
-    </nav>
+    </Box>
   );
 }

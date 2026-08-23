@@ -456,6 +456,7 @@ export interface UINavLinkProps extends UIBaseProps {
   label: ReactNode;
   description?: ReactNode;
   icon?: ReactNode;
+  leftSection?: ReactNode;
   rightSection?: ReactNode;
   href?: string;
   active?: boolean;
@@ -469,19 +470,41 @@ export interface UINavLinkProps extends UIBaseProps {
 }
 
 export interface UIAppShellProps extends UIBaseProps {
-  header?: { height: number | string; collapsed?: boolean };
-  navbar?: { width: number | string; collapsed?: boolean; breakpoint?: UISize };
+  header?: { height: number | string; collapsed?: boolean; offset?: boolean };
+  navbar?: {
+    width: number | string | Record<string, number | string>;
+    breakpoint?: UISize | number | string;
+    collapsed?: boolean | { mobile?: boolean; desktop?: boolean };
+  };
+  aside?: { width: number | string; breakpoint?: UISize | number | string; collapsed?: boolean | { mobile?: boolean; desktop?: boolean } };
+  footer?: { height: number | string; collapsed?: boolean };
   padding?: UISize | number | string;
   layout?: "default" | "alt";
+  withBorder?: boolean;
+  zIndex?: number | string;
+  transitionDuration?: number;
+  transitionTimingFunction?: string;
+  disabled?: boolean;
+  offsetScrollbars?: boolean;
 }
 
-export interface UIAppShellHeaderProps extends UIBaseProps {}
+export interface UIAppShellHeaderProps extends UIBaseProps {
+  withBorder?: boolean;
+  zIndex?: number | string;
+}
 
 export interface UIAppShellNavbarProps extends UIBaseProps {
   p?: UISize | number | string;
+  withBorder?: boolean;
+  zIndex?: number | string;
 }
 
 export interface UIAppShellMainProps extends UIBaseProps {}
+
+export interface UIAppShellSectionProps extends UIBaseProps {
+  grow?: boolean;
+  component?: any;
+}
 
 export interface UITabsProps extends UIBaseProps {
   value?: string | null;

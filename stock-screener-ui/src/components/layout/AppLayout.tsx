@@ -1,6 +1,8 @@
 import { useLocation } from "react-router-dom";
 import { AppShell, AppShellHeader, AppShellNavbar, AppShellMain, Group, Box, Text } from "@/ui";
+import { Burger } from "@mantine/core";
 import { useState } from "react";
+import { useDisclosure } from "@mantine/hooks";
 import { NavbarNested } from "./NavbarNested";
 import { NotificationsPanel } from "../notifications/NotificationsPanel";
 import { IconBell } from "@tabler/icons-react";
@@ -14,33 +16,30 @@ interface AppLayoutProps {
 
 export function AppLayout({ children }: AppLayoutProps) {
   const location = useLocation();
-  const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpened, { toggle: toggleMobile }] = useDisclosure();
+  const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   const [notifOpen, setNotifOpen] = useState(false);
-
-  const toggleCollapsed = () => setCollapsed((prev) => !prev);
 
   return (
     <AppShell
       header={{ height: 50 }}
       navbar={{
-        width: collapsed ? 80 : 200,
+        width: desktopCollapsed ? 80 : 200,
         breakpoint: "sm",
+        collapsed: { mobile: !mobileOpened, desktop: false },
       }}
       padding="md"
-      h="100vh"
       id="app-shell"
       data-testid="app-shell"
     >
-      <AppShellHeader
-        bg="var(--mantine-color-body)"
-        c="var(--mantine-color-text)"
-        id="app-header"
-        data-testid="app-header"
-      >
+      <AppShellHeader id="app-header" data-testid="app-header" style={{ backgroundColor: "var(--mantine-color-body)" }}>
         <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
-          <Text fw={700} size="lg" id="app-logo" data-testid="app-logo" style={{ flex: "none" }}>
-            🚀 Alphashri
-          </Text>
+          <Group gap="xs">
+            <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
+            <Text fw={700} size="lg" id="app-logo" data-testid="app-logo" style={{ flex: "none" }}>
+              🚀 Alphashri
+            </Text>
+          </Group>
           <Box flex={1}>
             <MarketTicker />
           </Box>
@@ -56,19 +55,13 @@ export function AppLayout({ children }: AppLayoutProps) {
       <AppShellNavbar id="app-navbar" data-testid="app-navbar">
         <NavbarNested
           activePath={location.pathname}
-          collapsed={collapsed}
-          onToggleCollapse={toggleCollapsed}
+          collapsed={desktopCollapsed}
+          onToggleCollapse={toggleDesktop}
+          onMobileNavigate={toggleMobile}
         />
       </AppShellNavbar>
 
-      <AppShellMain
-        bg="var(--mantine-color-body)"
-        c="var(--mantine-color-text)"
-        h="100%"
-        style={{ overflow: "auto" }}
-        id="app-main"
-        data-testid="app-main"
-      >
+      <AppShellMain id="app-main" data-testid="app-main" style={{ backgroundColor: "var(--mantine-color-body)" }}>
         {children}
       </AppShellMain>
     </AppShell>

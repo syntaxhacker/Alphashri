@@ -1,3 +1,4 @@
+import "@mantine/dates/styles.css";
 import "./style.css";
 import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";

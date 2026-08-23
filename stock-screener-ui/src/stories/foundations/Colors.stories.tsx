@@ -90,3 +90,34 @@ export const ColorScales: StoryObj = {
     </Stack>
   ),
 };
+
+export const LightDarkPreview: StoryObj = {
+  name: "Light / Dark Preview",
+  render: () => (
+    <Stack gap="md">
+      <MText size="xs" c="dimmed">
+        Semantic tokens are defined once in <code>src/ui/palette.ts</code>. Components should use Mantine&apos;s{" "}
+        <code>light-dark()</code> or semantic tokens (<code>POSITIVE</code>, <code>NEGATIVE</code>) — never raw hex.
+        Below the same swatches are shown on both light and dark surfaces to verify contrast.
+      </MText>
+      <Group gap="xl" align="flex-start">
+        <div style={{ background: "#ffffff", padding: 12, borderRadius: 8, border: "1px solid #D0D7DE" }}>
+          <MText size="xs" fw={600} mb={8}>On light ( #ffffff )</MText>
+          <Group gap={8}>
+            <Swatch name="PRIMARY" hex={PRIMARY} />
+            <Swatch name="POSITIVE" hex={POSITIVE_COLOR} />
+            <Swatch name="NEGATIVE" hex={NEGATIVE_COLOR} />
+          </Group>
+        </div>
+        <div style={{ background: BG_COLOR, padding: 12, borderRadius: 8, border: `1px solid ${BORDER_COLOR}` }}>
+          <MText size="xs" fw={600} mb={8} c={TEXT_COLOR}>On dark ( BG_COLOR )</MText>
+          <Group gap={8}>
+            <Swatch name="PRIMARY" hex={PRIMARY} />
+            <Swatch name="POSITIVE" hex={POSITIVE_COLOR} />
+            <Swatch name="NEGATIVE" hex={NEGATIVE_COLOR} />
+          </Group>
+        </div>
+      </Group>
+    </Stack>
+  ),
+};

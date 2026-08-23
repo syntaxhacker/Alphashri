@@ -2,7 +2,10 @@ import type { Preview } from "@storybook/react-vite";
 import { MantineProvider } from "@mantine/core";
 import { theme } from "../src/config/theme";
 import "@mantine/core/styles.css";
+import "@mantine/dates/styles.css";
 import "../src/style.css";
+import { AuthContext } from "../src/components/auth/AuthProvider2";
+import { NewsWebSocketProvider } from "../src/state/newsWebSocket";
 
 // The app's style.css sets `body { overflow: hidden }` (app-shell layout).
 // That leaks into Storybook's iframe and kills scrolling on docs/canvas pages.
@@ -58,6 +61,38 @@ const preview: Preview = {
     },
   },
   decorators: [
+    // Global providers HOC — every story that uses `useAuth` (AdminPage, NavbarNested, UserButton, AppLayout)
+    // or `useNewsWebSocket` (NewsPanel2, SectorPage) needs these. Provides mocked admin user and
+    // a no-op news socket so stories render without hitting the real backend or WebSocket.
+    // Router is NOT provided globally — stories that need `useLocation`/`useNavigate` add their own `MemoryRouter`/`BrowserRouter`.
+    (Story) => {
+      const mockAuth: any = {
+        user: {
+          id: 1,
+          email: "qa@test.com",
+          display_name: "QA User",
+          initial_capital: 100000,
+          created_at: new Date().toISOString(),
+          is_admin: true,
+        },
+        isAuthenticated: true,
+        loading: false,
+        error: null,
+        login: async () => ({ success: true }),
+        register: async () => ({ success: true }),
+        logout: async () => {},
+        getAccessToken: () => "mock-token",
+        fetchWithAuth: (url: string, opts?: RequestInit) => fetch(url, opts),
+        clearError: () => {},
+      };
+      return (
+        <AuthContext.Provider value={mockAuth}>
+          <NewsWebSocketProvider>
+            <Story />
+          </NewsWebSocketProvider>
+        </AuthContext.Provider>
+      );
+    },
     (Story, context) => {
       const colorScheme = context.globals.colorScheme || "light";
       return (

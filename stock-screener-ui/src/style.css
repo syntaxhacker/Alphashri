@@ -35,14 +35,6 @@
   border-radius: 3px;
 }
 
-.mantine-AppShell-navbar {
-  display: flex !important;
-}
-
-body {
-  overflow: hidden;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;

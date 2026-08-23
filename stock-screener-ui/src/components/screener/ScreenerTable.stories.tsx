@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { ScreenerTable } from "./ScreenerTable";
-import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import type { Stock } from "../../types";
 import type { ColumnDef } from "./columns";
@@ -119,26 +118,68 @@ export const WithData: Story = {
   },
 };
 
+// NOTE: ScreenerTable sorting is client-side via TanStackTable (enableSorting + column.sortable).
+// There are no sortColumn/sortDirection props — users sort by clicking column headers.
+// These stories demonstrate the gap by pre-sorting data so visual order is distinct.
+
+const sortedByScoreDesc = [...sampleStocks].sort((a, b) => b.score - a.score);
+const sortedByScoreAsc = [...sampleStocks].sort((a, b) => a.score - b.score);
+
 export const SortedByScore: Story = {
   args: {
-    stocks: sampleStocks,
+    stocks: sortedByScoreDesc,
     columns: sampleColumns,
     touchedSymbols: new Set(),
     onSymbolClick: () => {},
     onSymbolHover: () => {},
+  },
+  parameters: {
+    docs: { description: { story: "Pre-sorted descending by score (highest first) — click Score header to toggle in the live table." } },
   },
 };
 
 export const SortedAscending: Story = {
   args: {
-    stocks: sampleStocks,
+    stocks: sortedByScoreAsc,
     columns: sampleColumns,
     touchedSymbols: new Set(),
     onSymbolClick: () => {},
     onSymbolHover: () => {},
   },
+  parameters: {
+    docs: { description: { story: "Pre-sorted ascending by score (lowest first) — opposite order to SortedByScore to prove sort is observable." } },
+  },
 };
 
-export const EmptyState: Story = {
-  render: () => <ScreenerEmpty message="No stocks match your filters" />,
+// Deduplicated: previous `EmptyState` (ScreenerEmpty standalone) removed — `Empty` already covers the empty table state.
+// To demo the standalone empty illustration, render <ScreenerEmpty> directly in docs or use the Empty story.
+
+function makeManyRows(count: number): Stock[] {
+  const sectors = ["Energy", "IT", "Finance", "FMCG", "Pharma"];
+  return Array.from({ length: count }, (_, i) => ({
+    symbol: `STOCK${String(i + 1).padStart(2, "0")}`,
+    score: Math.round(Math.random() * 100),
+    tv_price: Math.round((100 + Math.random() * 3000) * 10) / 10,
+    upstox_price: Math.round((100 + Math.random() * 3000) * 10) / 10,
+    broker_diff: Math.round((Math.random() - 0.5) * 2 * 100) / 100,
+    high_52w: 3500,
+    to_52w_high: -Math.round(Math.random() * 25 * 10) / 10,
+    recent_return_5d: Math.round((Math.random() - 0.5) * 10 * 10) / 10,
+    perf_w: Math.round((Math.random() - 0.5) * 10 * 10) / 10,
+    sector: sectors[i % sectors.length],
+    touched_52w: i % 3 === 0,
+  }));
+}
+
+export const WithManyRows: Story = {
+  args: {
+    stocks: makeManyRows(50),
+    columns: sampleColumns,
+    touchedSymbols: new Set(["STOCK01", "STOCK04"]),
+    onSymbolClick: () => {},
+    onSymbolHover: () => {},
+  },
+  parameters: {
+    docs: { description: { story: "50 rows — performance / virtualization smoke test (TanStackTable rowWindowSize kicks in above 120 rows)." } },
+  },
 };

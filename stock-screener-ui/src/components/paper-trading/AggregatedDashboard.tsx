@@ -20,6 +20,7 @@ import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchDashboardAnalytics } from "../../api/paperTrading";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { SectionHeader } from "../common/SectionHeader";
 import { formatCurrencyCompact, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 import {
   PERF_POSITIVE,
@@ -60,16 +61,6 @@ const EXIT_PIE_COLORS = [
   POSITIVE, NEGATIVE, SECTOR_GREEN, SECTOR_RED,
   CREAM, TEXT_MUTED, BROWN, BROWN_DARK,
 ];
-
-function SectionHeading({ title, badge, color = "blue" }: { title: string; badge?: string; color?: string }) {
-  return (
-    <Group gap="xs">
-      <Box w={4} h={18} style={{ borderRadius: 2, backgroundColor: `var(--mantine-color-${color}-6)` }} />
-      <Text fw={600} size="sm">{title}</Text>
-      {badge && <Badge size="sm" variant="light" color={color}>{badge}</Badge>}
-    </Group>
-  );
-}
 
 function formatPf(value: number | null) {
   if (value === null) return "∞";
@@ -306,11 +297,7 @@ function TradesTable({ title, trades }: { title: string; trades: PaperDashboardT
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Group gap="xs" mb="xs">
-        <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: `var(--mantine-color-${accentColor}-6)` }} />
-        <Text fw={600} size="sm">{title}</Text>
-        <Badge size="sm" variant="light" color={accentColor}>{trades.length}</Badge>
-      </Group>
+      <Box mb="xs"><SectionHeader title={title} badge={trades.length} color={accentColor} /></Box>
       <TanStackTable columns={columns} data={trades} />
     </CompactPanel>
   );
@@ -325,11 +312,7 @@ function SymbolPanel({ data }: { data: PaperDashboardAnalyticsData }) {
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Group gap="xs" mb="xs">
-        <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-indigo-6)" }} />
-        <Text fw={600} size="sm">Symbol Performance</Text>
-        <Badge size="sm" variant="light" color="indigo">{data.symbol_performance.length}</Badge>
-      </Group>
+      <Box mb="xs"><SectionHeader title="Symbol Performance" badge={data.symbol_performance.length} color="indigo" /></Box>
       <TanStackTable columns={columns} data={data.symbol_performance.slice(0, 12)} />
     </CompactPanel>
   );
@@ -369,7 +352,7 @@ export function AggregatedDashboard() {
   return (
     <Flex direction="column" gap="xs" p="xs" data-testid="paper-dashboard">
       <Stack gap={2}>
-        <SectionHeading title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="blue" />
+        <SectionHeader title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="blue" />
         <Text size="xs" c="dimmed">
           {data?.period.from_date || "first trade"} to {data?.period.to_date || "today"}
         </Text>
@@ -419,43 +402,28 @@ export function AggregatedDashboard() {
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
             <BotRankingPanel bots={data.bot_rankings} />
             <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
-                <Text fw={600} size="sm">Equity Curve</Text>
-              </Group>
+              <Box mb="xs"><SectionHeader title="Equity Curve" color="blue" /></Box>
               <EquityChart data={data} />
             </Paper>
           </SimpleGrid>
 
           <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="xs">
             <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-teal-6)" }} />
-                <Text fw={600} size="sm">Bot Comparison</Text>
-              </Group>
+              <Box mb="xs"><SectionHeader title="Bot Comparison" color="teal" /></Box>
               <BotComparisonChart data={data} />
             </Paper>
             <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
-                <Text fw={600} size="sm">Daily P&L</Text>
-              </Group>
+              <Box mb="xs"><SectionHeader title="Daily P&L" color="grape" /></Box>
               <DailyPnlChart data={data} />
             </Paper>
             <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-red-6)" }} />
-                <Text fw={600} size="sm">Drawdown</Text>
-              </Group>
+              <Box mb="xs"><SectionHeader title="Drawdown" color="red" /></Box>
               <DrawdownChart data={data} />
             </Paper>
           </SimpleGrid>
 
           <Paper withBorder p="xs" radius="xs">
-            <Group gap="xs" mb="xs">
-              <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
-              <Text fw={600} size="sm">Strategy Performance</Text>
-            </Group>
+            <Box mb="xs"><SectionHeader title="Strategy Performance" color="cyan" /></Box>
             <StrategyTable rows={data.strategy_rankings} />
           </Paper>
 
@@ -467,10 +435,7 @@ export function AggregatedDashboard() {
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
             <SymbolPanel data={data} />
             <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-orange-6)" }} />
-                <Text fw={600} size="sm">Exit Reason Breakdown</Text>
-              </Group>
+              <Box mb="xs"><SectionHeader title="Exit Reason Breakdown" color="orange" /></Box>
               <ExitReasonChart data={data} />
             </Paper>
           </SimpleGrid>
