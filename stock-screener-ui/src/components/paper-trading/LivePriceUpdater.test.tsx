@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
-import { MantineProvider } from "@mantine/core";
+import { MantineProvider } from "@/ui";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return <MantineProvider>{children}</MantineProvider>;

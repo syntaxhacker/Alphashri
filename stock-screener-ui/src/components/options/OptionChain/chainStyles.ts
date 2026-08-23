@@ -13,7 +13,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     minHeight: 400,
     overflow: "hidden",
     border: `1px solid ${hexToRgba(theme.colors.gray[isDark ? 4 : 3], 0.8)}`,
-    borderRadius: "var(--mantine-radius-lg)",
+    borderRadius: "12px",
     background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.94)}) 0%, light-dark(${hexToRgba(CREAM, 0.88)}, ${hexToRgba(BLACK, 0.9)}) 100%)`,
     boxShadow: `0 18px 50px ${hexToRgba(BLACK, 0.08)}`,
   },

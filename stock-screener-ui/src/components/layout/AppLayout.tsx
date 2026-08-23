@@ -1,8 +1,9 @@
 import { useLocation } from "react-router-dom";
 import { AppShell, AppShellHeader, AppShellNavbar, AppShellMain, Group, Box, Text } from "@/ui";
-import { Burger } from "@mantine/core";
+import MenuIcon from "@mui/icons-material/Menu";
+import IconButton from "@mui/material/IconButton";
 import { useState } from "react";
-import { useDisclosure } from "@mantine/hooks";
+import { useDisclosure } from "@/ui/hooks";
 import { NavbarNested } from "./NavbarNested";
 import { NotificationsPanel } from "../notifications/NotificationsPanel";
 import { IconBell } from "@tabler/icons-react";
@@ -35,7 +36,7 @@ export function AppLayout({ children }: AppLayoutProps) {
       <AppShellHeader id="app-header" data-testid="app-header" sx={{ bgcolor: "background.paper" }}>
         <Group justify="space-between" align="center" h="100%" px="sm" gap="sm">
           <Group gap="xs">
-            <Burger opened={mobileOpened} onClick={toggleMobile} hiddenFrom="sm" size="sm" aria-label="Toggle navigation" />
+            <IconButton size="small"><MenuIcon /></IconButton>
             <Text fw={700} size="lg" id="app-logo" data-testid="app-logo" style={{ flex: "none" }}>
               🚀 Alphashri
             </Text>

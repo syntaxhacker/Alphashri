@@ -371,21 +371,21 @@ export function StrategyForm({
             <Group gap="xs">
               <button
                 type="button"
-                className="mantine-UnstyledButton-root mantine-Button-root mantine-Button--variant-light strategy-form-cancel-btn"
+                className="MuiButton-root strategy-form-cancel-btn"
                 onClick={onClose}
                 data-testid="strategy-cancel-btn"
               >
-                <span className="mantine-Button-inner">
-                  <span className="mantine-Button-label">Cancel</span>
+                <span className="MuiButton-label">
+                  <span className="MuiButton-label">Cancel</span>
                 </span>
               </button>
               <button
                 type="submit"
-                className="mantine-UnstyledButton-root mantine-Button-root mantine-Button--variant-filled strategy-form-submit-btn"
+                className="MuiButton-root strategy-form-submit-btn"
                 data-testid="submit-strategy-btn"
               >
-                <span className="mantine-Button-inner">
-                  <span className="mantine-Button-label">
+                <span className="MuiButton-label">
+                  <span className="MuiButton-label">
                     {mode === "create" ? "Create" : "Save"}
                   </span>
                 </span>

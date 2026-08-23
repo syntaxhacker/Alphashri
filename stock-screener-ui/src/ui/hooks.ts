@@ -101,7 +101,7 @@ export function useColorScheme(): UIUseColorSchemeResult {
 
   const getInitial = (): "light" | "dark" => {
     if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("mantine-color-scheme") ?? window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
+      const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
       if (stored === "light" || stored === "dark") return stored;
       if (muiColorScheme === "light" || muiColorScheme === "dark") return muiColorScheme;
       if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
@@ -113,7 +113,7 @@ export function useColorScheme(): UIUseColorSchemeResult {
 
   useEffect(() => {
     // sync from storage on mount (in case SSR mismatch)
-    const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mantine-color-scheme") ?? window.localStorage.getItem("mui-color-scheme")) : null;
+    const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("mui-color-scheme")) : null;
     if (stored === "light" || stored === "dark") setColorSchemeState(stored);
   }, []);
 
@@ -121,10 +121,10 @@ export function useColorScheme(): UIUseColorSchemeResult {
     setColorSchemeState(scheme);
     if (typeof window !== "undefined") {
       try {
-        window.localStorage.setItem("mantine-color-scheme", scheme);
+        window.localStorage.setItem("mui-color-scheme", scheme);
         window.localStorage.setItem("mui-color-scheme", scheme);
       } catch {}
-      document.documentElement?.setAttribute("data-mantine-color-scheme", scheme);
+      document.documentElement?.setAttribute("data-color-scheme", scheme);
       document.documentElement?.setAttribute("data-color-scheme", scheme);
     }
   }, []);
@@ -134,10 +134,10 @@ export function useColorScheme(): UIUseColorSchemeResult {
       const next = prev === "dark" ? "light" : "dark";
       if (typeof window !== "undefined") {
         try {
-          window.localStorage.setItem("mantine-color-scheme", next);
+          window.localStorage.setItem("mui-color-scheme", next);
           window.localStorage.setItem("mui-color-scheme", next);
         } catch {}
-        document.documentElement?.setAttribute("data-mantine-color-scheme", next);
+        document.documentElement?.setAttribute("data-color-scheme", next);
         document.documentElement?.setAttribute("data-color-scheme", next);
       }
       return next;

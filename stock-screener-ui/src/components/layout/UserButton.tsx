@@ -28,7 +28,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
           className={classes.user}
           data-testid="user-menu-trigger"
           id="user-button"
-          style={{ padding: collapsed ? "var(--mantine-spacing-xs)" : undefined }}
+          style={{ padding: collapsed ? "8px" : undefined }}
         >
           <Group justify={collapsed ? "center" : "flex-start"} wrap="nowrap" gap="sm">
             <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />

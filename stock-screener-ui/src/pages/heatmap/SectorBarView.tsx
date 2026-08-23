@@ -1,5 +1,5 @@
 import { Flex, Text } from "@/ui";
-import { rgba } from "@mantine/core";
+import { alpha } from "@mui/material/styles";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { TOOLTIP_DARK_BG, TOOLTIP_LIGHT_BG, TOOLTIP_DARK_BORDER, TOOLTIP_LIGHT_BORDER, TOOLTIP_DARK_TEXT, TOOLTIP_LIGHT_TEXT, AXIS_DARK_LINE, AXIS_LIGHT_LINE, AXIS_DARK_SPLIT, AXIS_LIGHT_SPLIT, BLACK } from "../../config/colors";
@@ -93,7 +93,7 @@ export function SectorBarView({ stocks, metric, getMetricValue, getMetricColor, 
           itemStyle: { color: getMetricColor(e.avg, minAvg, maxAvg) },
         })),
         barMaxWidth: 28,
-        emphasis: { itemStyle: { shadowBlur: 4, shadowColor: rgba(BLACK, 0.3) } },
+        emphasis: { itemStyle: { shadowBlur: 4, shadowColor: alpha(BLACK, 0.3) } },
         label: {
           show: true,
           position: 'right',

@@ -6,11 +6,12 @@ import { describe, it, expect, vi } from "vitest";
 import { render, screen } from "@testing-library/react";
 import { renderHook } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
-import { MantineProvider } from "@mantine/core";
+import { ThemeProvider } from "@mui/material/styles";
+import { muiTheme } from "@/ui/muiTheme";
 import { theme } from "@/ui/theme";
 
 function withMantine(ui: React.ReactNode) {
-  return <MantineProvider theme={theme}>{ui}</MantineProvider>;
+  return <ThemeProvider theme={muiTheme}>{ui}</ThemeProvider>;
 }
 
 // ── 1. AuthProvider missing — AdminPage / NavbarNested would throw ──
@@ -86,8 +87,8 @@ describe("NavLink leftSection", () => {
       withMantine(<NavLink label="Screener" leftSection={<span data-testid="icon">ICON</span>} active />)
     );
     expect(screen.getByTestId("icon")).toBeInTheDocument();
-    // Mantine v8 renders leftSection inside .mantine-NavLink-section
-    expect(container.querySelector(".mantine-NavLink-section")).toBeInTheDocument();
+    // Mantine v8 renders leftSection inside .MuiListItemIcon-root
+    expect(container.querySelector(".MuiListItemIcon-root")).toBeInTheDocument();
   });
 
   it("also works via legacy icon prop (backwards compat)", async () => {
@@ -96,7 +97,7 @@ describe("NavLink leftSection", () => {
       withMantine(<NavLink label="Screener" icon={<span data-testid="icon-legacy">ICON</span>} active />)
     );
     expect(screen.getByTestId("icon-legacy")).toBeInTheDocument();
-    expect(container.querySelector(".mantine-NavLink-section")).toBeInTheDocument();
+    expect(container.querySelector(".MuiListItemIcon-root")).toBeInTheDocument();
   });
 });
 

@@ -42,7 +42,7 @@ function ReplayPageContent(
         display: "flex",
         flexDirection: "column",
         overflow: "auto",
-        padding: "var(--mantine-spacing-md)",
+        padding: "16px",
       }}
       data-testid="replay-page"
     >

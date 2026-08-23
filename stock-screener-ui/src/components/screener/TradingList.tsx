@@ -63,7 +63,7 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
           autosize
           minRows={2}
           maxRows={6}
-          styles={{ input: { fontSize: "var(--mantine-font-size-sm)" } }}
+          styles={{ input: { fontSize: "12px" } }}
           className="trading-list-textarea"
           data-testid="trading-list-textarea"
         />

@@ -1,6 +1,9 @@
 import type { ReactNode, CSSProperties, MouseEvent, KeyboardEvent } from "react";
 
-export type { MantineTheme, MantineColor, MantineColorsTuple } from "@mantine/core";
+export type UITheme = import("./muiTheme").MuiTheme;
+export type MantineTheme = UITheme;
+export type MantineColor = string;
+export type MantineColorsTuple = string[];
 
 export interface UIBaseProps {
   children?: ReactNode;
