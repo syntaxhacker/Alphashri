@@ -4,6 +4,17 @@
 - **NEVER delete or directly modify `db/alphashri.db`** — it contains user accounts, bot state, and trade history. Tests use in-memory SQLite via `test_engine` fixture. If a migration is stuck, use `SKIP_ALEMBIC=1` or ask the user.
 - **NEVER commit secrets, API keys, or tokens** to the repo.
 
+## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
+**Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash clear/drop`, or any `HEAD`-moving command.
+
+**Before any multi-file/subagent work:**
+1. `git status --porcelain` — if dirty, create checkpoint BEFORE work.
+2. Subagents are git-forbidden (read-only `status/log/diff` only); main agent is sole git actor.
+
+**Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but no `bash` git destructive. If a subagent proposes `reset/clean`, main agent must reject and surface to user.
+
+**Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
+
 ## Stack
 React 19 + Vite 8 + Mantine 8 + TypeScript. Backend: FastAPI (Python).
 
@@ -298,8 +309,15 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 ## Mutation Testing
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
-## Committing
-- Never commit unless asked
+## Committing (SMALL COMMITS ALWAYS)
+**Rule: Commit small, commit often — locally. Push only when user says `push`/`commit`.**
+
+- **Size:** One logical change per commit, max ~80-120 lines / one `src/ui/*` group / one component family.
+- **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `build-storybook` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
+- **Format:** Conventional `type: scope` — `feat`, `fix`, `refactor`, `chore`. No `Co-authored-by` line unless user asks.
+- **Local only:** `git commit -m "..."` is always allowed. `git push` / PR creation requires explicit user `push`/`pr`.
+- **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: mui scaffold — Box/Stack`.
+- **Safety net:** Before any `reset`/`clean`, `git stash push -m "pre-<task>"` or commit — never lose working tree.
 - Lint + build must pass: `bun run lint && bun run build`
 
 ## DB Migrations (Alembic)

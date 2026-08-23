@@ -2,14 +2,7 @@ import type { ReactNode, CSSProperties } from "react";
 import { Card, Group, Box, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 import { CREAM, BROWN_DARK } from "../../config/colors";
-
-function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+import { withAlpha } from "../../utils/color";
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
