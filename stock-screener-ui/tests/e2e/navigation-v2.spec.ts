@@ -23,6 +23,14 @@ test.describe("Navigation V2 - All Nav Items Visible", () => {
     await expect(page.locator('[data-testid="nav-settings"]')).toBeVisible();
   });
 
+  test("desktop nav shell visual", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });
+    await expect(page.locator('[data-testid="app-shell"]')).toBeVisible();
+    await expect(page.locator('[data-testid="app-navbar"]')).toBeInViewport();
+    await expect(page.locator('[data-testid="app-shell"]')).toHaveScreenshot("nav-shell-desktop.png", { maxDiffPixelRatio: 0.01 });
+  });
+
   test("should not display admin nav item for non-admin user", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 30000 });

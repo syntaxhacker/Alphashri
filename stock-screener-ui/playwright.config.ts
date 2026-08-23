@@ -13,6 +13,7 @@ export default defineConfig({
   timeout: 60000,
   expect: {
     timeout: 10000,
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, mode: "strict" },
   },
   globalSetup: './playwright.setup.ts',
   use: {
