@@ -131,9 +131,9 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
   };
 
   const itemStyle = {
-    background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
-    borderRadius: "var(--mantine-radius-sm)",
-  };
+    background: "background.paper",
+    borderRadius: 4,
+  } as any;
 
   return (
     <Stack id="oi-analysis" className="oi-analysis" gap="sm" data-testid="oi-analysis">
@@ -212,7 +212,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
             className="oi-sentiment-panel"
             data-testid="options-oi-sentiment-panel"
             flex={1}
-            style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
+            sx={{ borderLeft: 4, borderColor: "primary.main" }}
           >
             <Group align="flex-start" wrap="nowrap">
               <Box>

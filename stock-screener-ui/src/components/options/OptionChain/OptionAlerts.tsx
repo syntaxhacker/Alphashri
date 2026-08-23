@@ -136,9 +136,11 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
       <CompactPanel
         mt="md"
         p="xs"
-        style={{
-          border: "1px dashed var(--mantine-color-blue-4)",
-          background: "light-dark(var(--mantine-color-blue-0), var(--mantine-color-dark-6))",
+        sx={{
+          border: 1,
+          borderColor: "primary.light",
+          borderStyle: "dashed",
+          bgcolor: "primary.light",
         }}
         className="alerts-profit-tip"
         data-testid="options-alerts-profit-tip"

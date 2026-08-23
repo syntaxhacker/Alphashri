@@ -33,7 +33,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     fontSize: theme.fontSizes.md,
     letterSpacing: "0.08em",
     textTransform: "uppercase" as const,
-    color: "light-dark(var(--mantine-color-gray-8), var(--mantine-color-dark-0))",
+    color: "text.primary",
   },
   subHeader: {
     display: "grid",
@@ -48,7 +48,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     padding: "5px 2px",
     textAlign: "center" as const,
     fontSize: "11px",
-    color: "var(--mantine-color-dimmed)",
+    color: "text.secondary",
     fontWeight: fontWeights.semibold,
     textTransform: "uppercase" as const,
     letterSpacing: "0.04em",
@@ -88,7 +88,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
   },
   atmHighlight: {
     background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN, 0.52)}) 0%, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN, 0.42)}) 100%)`,
-    color: "light-dark(var(--mantine-color-yellow-9), var(--mantine-color-yellow-0))",
+    color: "warning.main",
     boxShadow: `inset 0 0 0 1px ${hexToRgba(CREAM, 0.18)}`,
   },
 });

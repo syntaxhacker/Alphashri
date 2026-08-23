@@ -260,7 +260,7 @@ export function ArticleDetail({
         </>
       ) : (
         <Stack align="center" justify="center" h="100%" py="xl">
-          <IconNews size={48} stroke={1} color="var(--mantine-color-dimmed)" />
+          <IconNews size={48} stroke={1} color="var(--mui-palette-text-secondary)" />
           <Text c="dimmed" ta="center">
             Select an article from the list to view details
           </Text>

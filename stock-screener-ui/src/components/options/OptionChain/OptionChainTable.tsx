@@ -158,9 +158,9 @@ function OptionColumn({
       </Text>
       <Box
         mt={5}
-        style={{
-          borderTop:
-            "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+        sx={{
+          borderTop: 1,
+          borderColor: "divider",
         }}
         pt={5}
       >
@@ -172,9 +172,9 @@ function OptionColumn({
       </Box>
       <Box
         mt={5}
-        style={{
-          borderTop:
-            "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
+        sx={{
+          borderTop: 1,
+          borderColor: "divider",
         }}
         pt={5}
       >

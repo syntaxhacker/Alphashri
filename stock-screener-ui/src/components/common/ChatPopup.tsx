@@ -141,8 +141,9 @@ const mdComponents = {
   th: ({ children }: any) => (
     <Box
       component="th"
-      style={{
-        border: "1px solid var(--mantine-color-default-border)",
+      sx={{
+        border: 1,
+        borderColor: "divider",
         padding: 2,
         fontWeight: 600,
       }}
@@ -153,7 +154,7 @@ const mdComponents = {
   td: ({ children }: any) => (
     <Box
       component="td"
-      style={{ border: "1px solid var(--mantine-color-default-border)", padding: 2 }}
+      sx={{ border: 1, borderColor: "divider", padding: 2 }}
     >
       {children}
     </Box>
@@ -417,9 +418,10 @@ export function ChatPopup() {
         >
           <Box
             p="sm"
-            style={{
-              borderBottom: "1px solid var(--mantine-color-default-border)",
-              backgroundColor: "var(--mantine-color-blue-light)",
+            sx={{
+              borderBottom: 1,
+              borderColor: "divider",
+              bgcolor: "primary.light",
             }}
           >
             <Group justify="space-between">
@@ -463,10 +465,11 @@ export function ChatPopup() {
 
           <Collapse in={showHistory}>
             <Box
-              style={{
+              sx={{
                 maxHeight: 180,
                 overflowY: "auto",
-                borderBottom: "1px solid var(--mantine-color-default-border)",
+                borderBottom: 1,
+                borderColor: "divider",
               }}
             >
               <Group p="xs" justify="space-between">
@@ -526,16 +529,16 @@ export function ChatPopup() {
                 {agentProgress.map((agent) => (
                   <Group key={agent.agent} gap={4}>
                     <Box
-                      style={{
+                      sx={{
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        backgroundColor:
+                        bgcolor:
                           agent.status === "completed"
-                            ? "var(--mantine-color-green-6)"
+                            ? "success.main"
                             : agent.status === "running"
-                              ? "var(--mantine-color-blue-6)"
-                              : "var(--mantine-color-gray-5)",
+                              ? "primary.main"
+                              : "grey.400",
                       }}
                     />
                     <Text size="xs" c="dimmed">
@@ -557,7 +560,7 @@ export function ChatPopup() {
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
                           </Text>
-                          <Text size="xs" c="gray" style={{ opacity: 0.5 }}>
+                          <Text size="xs" c="gray" sx={{ opacity: 0.5 }}>
                             {tc.agent}
                           </Text>
                         </Group>
@@ -592,12 +595,13 @@ export function ChatPopup() {
                     <Paper
                       p="xs"
                       radius="md"
-                      bg={
-                        msg.role === "user"
-                          ? "var(--mantine-color-blue-light)"
-                          : "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
-                      }
-                      style={{ maxWidth: "85%" }}
+                      sx={{
+                        bgcolor:
+                          msg.role === "user"
+                            ? "primary.light"
+                            : "background.paper",
+                        maxWidth: "85%",
+                      }}
                     >
                       <Group gap={4} mb={4}>
                         {msg.role === "user" ? <IconUser size={14} /> : <IconRobot size={14} />}
@@ -630,12 +634,11 @@ export function ChatPopup() {
                           {msg.analysis.reports && Object.keys(msg.analysis.reports).length > 0 && (
                             <Stack gap={2}>
                               {Object.entries(msg.analysis.reports).map(([section, content]) => (
-                                <Paper
+                                  <Paper
                                   key={section}
                                   p={4}
-                                  style={{
-                                    background:
-                                      "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
+                                  sx={{
+                                    bgcolor: "background.paper",
                                   }}
                                 >
                                   <Text size="xs" fw={600} tt="capitalize">
@@ -671,7 +674,7 @@ export function ChatPopup() {
             )}
           </ScrollArea>
 
-          <Box p="sm" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
+          <Box p="sm" sx={{ borderTop: 1, borderColor: "divider" }}>
             <Group gap="xs">
               <TextInput
                 size="sm"

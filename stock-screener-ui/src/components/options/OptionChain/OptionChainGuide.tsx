@@ -130,11 +130,11 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           bg="blue.0"
           radius="md"
           className="guide-pro-tip"
-          style={{ border: "1px solid var(--mantine-color-blue-2)" }}
+          sx={{ border: 1, borderColor: "primary.light" }}
           data-testid="options-guide-pro-tip"
         >
           <Group gap="xs" wrap="nowrap">
-            <IconTarget size={20} color="var(--mantine-color-blue-6)" />
+            <IconTarget size={20} color="var(--mui-palette-primary-main)" />
             <Text size="sm" fw={600} c="blue.9">
               PRO TIP: Look for strikes where both OI and Volume are spiking with an "LB"
               badge—that's where the next big move might happen!

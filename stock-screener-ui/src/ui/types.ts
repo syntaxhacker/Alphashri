@@ -103,6 +103,7 @@ export interface UIScrollAreaProps extends UIBaseProps {
   offsetScrollbars?: boolean;
   scrollbarSize?: number;
   scrollHideDelay?: number;
+  onScrollPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
 export interface UIDividerProps extends UIBaseProps {

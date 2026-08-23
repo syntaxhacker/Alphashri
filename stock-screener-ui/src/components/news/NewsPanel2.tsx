@@ -344,13 +344,12 @@ function NewsPanelContainer({ isOpen, children }: { isOpen: boolean; children: R
       right={isOpen ? 0 : -400}
       w={400}
       h="100vh"
-      bg="var(--mantine-color-body)"
+      sx={{ bgcolor: "background.paper", borderLeft: 1, borderColor: "divider" }}
       className={`news-panel ${isOpen ? "open" : ""}`}
       id="news-panel"
       style={{
         zIndex: 200,
         transition: "right 0.3s ease",
-        borderLeft: "1px solid var(--mantine-color-default-border)",
         display: "flex",
         flexDirection: "column",
       }}

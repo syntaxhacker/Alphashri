@@ -73,7 +73,8 @@ const cellStyle: CSSProperties = {
   padding: "2px 6px",
   fontSize: 11,
   whiteSpace: "nowrap",
-  borderBottom: "1px solid var(--mantine-color-default-border)",
+  borderBottom: "1px solid",
+  borderBottomColor: "divider" as unknown as string,
 };
 
 const baseHeaderStyle: CSSProperties = {
@@ -82,8 +83,9 @@ const baseHeaderStyle: CSSProperties = {
   fontWeight: 700,
   whiteSpace: "nowrap",
   userSelect: "none",
-  borderBottom: "2px solid var(--mantine-color-default-border)",
-  background: "var(--mantine-color-body)",
+  borderBottom: "2px solid",
+  borderBottomColor: "divider" as unknown as string,
+  background: "background.paper" as unknown as string,
 };
 
 /** Returns the explicit column width, or undefined when the column has no size set. */
@@ -217,14 +219,19 @@ export function TanStackTable<T>({
                 const width = getColumnWidth(h.column);
                 const { align } = getColumnMeta(h.column);
                 return (
-                  <th
+                  <Box
+                    component="th"
                     key={h.id}
-                    style={{
-                      ...baseHeaderStyle,
+                    sx={{
+                      padding: "4px 6px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      whiteSpace: "nowrap",
+                      userSelect: "none",
+                      borderBottom: 2,
+                      borderColor: "divider",
+                      bgcolor: "background.paper",
                       width: width !== undefined ? width : undefined,
-                      // Default: left for text, right for numeric columns, so
-                      // headers line up with cell values (browsers default th
-                      // to center, which misaligns headers); meta.align overrides.
                       textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
                       cursor: h.column.getCanSort() ? "pointer" : "default",
                       position: stickyHeader ? "sticky" : undefined,
@@ -241,7 +248,7 @@ export function TanStackTable<T>({
                         {h.column.getIsSorted() === "desc" && " ▼"}
                       </>
                     )}
-                  </th>
+                  </Box>
                 );
               })}
             </tr>
@@ -270,21 +277,22 @@ export function TanStackTable<T>({
               {renderedRows.map((row, index) => (
               <Fragment key={`row-group-${row.id}`}>
                 {row.getIsGrouped() ? (
-                  <tr
+                  <Box
+                    component="tr"
                     key={row.id}
                     data-testid={getGroupRowTestId?.(row.groupingValue)}
                     onClick={row.getToggleExpandedHandler()}
-                    style={{ cursor: "pointer", background: "var(--mantine-color-body)" }}
+                    sx={{ cursor: "pointer", bgcolor: "background.paper" }}
                   >
-                    <td colSpan={colCount} style={{ padding: 0, border: "none", background: "var(--mantine-color-body)" }}>
+                    <Box component="td" colSpan={colCount} sx={{ padding: 0, border: "none", bgcolor: "background.paper" }}>
                       {renderGroupHeader?.({
                         value: row.groupingValue,
                         rows: row.subRows.map((r) => r.original),
                         isExpanded: row.getIsExpanded(),
                         toggle: row.toggleExpanded,
                       })}
-                    </td>
-                  </tr>
+                    </Box>
+                  </Box>
                 ) : (
                   <>
                     <tr
@@ -298,19 +306,24 @@ export function TanStackTable<T>({
                         const width = getColumnWidth(cell.column);
                         const { align } = getColumnMeta(cell.column);
                         return (
-                          <td
+                          <Box
+                            component="td"
                             key={cell.id}
-                            style={{
-                              ...cellStyle,
+                            sx={{
+                              padding: "2px 6px",
+                              fontSize: 11,
+                              whiteSpace: "nowrap",
+                              borderBottom: 1,
+                              borderColor: "divider",
                               width: width !== undefined ? width : undefined,
                               textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
                               ...(width !== undefined
                                 ? { overflow: "hidden", textOverflow: "ellipsis" }
-                                : null),
+                                : {}),
                             }}
                           >
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
+                          </Box>
                         );
                       })}
                     </tr>

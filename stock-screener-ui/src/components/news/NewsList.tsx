@@ -97,9 +97,9 @@ export function NewsList({
                 <Group
                   gap="xs"
                   p="xs"
-                  style={{
-                    borderRadius: "var(--mantine-radius-sm)",
-                    backgroundColor: "var(--mantine-color-default-hover)",
+                  sx={{
+                    borderRadius: 1,
+                    bgcolor: "action.hover",
                   }}
                   onClick={() => toggleSourceExpanded(source)}
                   data-testid={`news-source-group-${source}`}
@@ -120,10 +120,10 @@ export function NewsList({
                         key={item.id}
                         padding="xs"
                         withBorder
-                        style={{
-                          backgroundColor:
+                        sx={{
+                          bgcolor:
                             selectedArticle?.id === item.id
-                              ? "var(--mantine-color-blue-light)"
+                              ? "primary.light"
                               : undefined,
                         }}
                         onClick={() => onArticleClick(item)}
@@ -148,7 +148,7 @@ export function NewsList({
                           >
                             {item.headline}
                           </Text>
-                          <Text size="xs" c="dimmed" style={{ whiteSpace: "nowrap" }}>
+                          <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>
                             {formatTimeAgo(item.publishedAt)}
                           </Text>
                         </Group>

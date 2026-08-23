@@ -327,7 +327,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
         gap={6}
         px="xs"
         py={4}
-        style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}
+        sx={{ borderBottom: 1, borderColor: "divider" }}
       >
         <Text size="xs" fw={600} c="blue">
           {symbol}
@@ -453,7 +453,7 @@ function ExpandedPanel({
         gap="md"
         px="md"
         py="xs"
-        style={{ borderBottom: "1px solid var(--mantine-color-dark-4)", flexShrink: 0 }}
+        sx={{ borderBottom: 1, borderColor: "divider", flexShrink: 0 }}
       >
         <Text size="lg" fw={600} c="blue">
           {symbol}
@@ -520,7 +520,7 @@ function ExpandedPanel({
         justify="flex-end"
         px="md"
         py="xs"
-        style={{ borderTop: "1px solid var(--mantine-color-dark-4)", flexShrink: 0 }}
+        sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}
       >
         <ActionIcon
           variant="subtle"

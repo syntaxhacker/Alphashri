@@ -136,7 +136,7 @@ export function ArticleView({
         p="sm"
         justify="space-between"
         className="news-article-header"
-        style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+        sx={{ borderBottom: 1, borderColor: "divider" }}
       >
         <Button
           variant="subtle"
@@ -193,8 +193,9 @@ function NewsItemCard({
     <Card
       padding="xs"
       className={`news-item-card ${isUnread ? "unread" : ""}`}
-      style={{
-        borderLeft: isUnread ? "3px solid var(--mantine-color-blue-6)" : undefined,
+      sx={{
+        borderLeft: isUnread ? 3 : undefined,
+        borderColor: isUnread ? "primary.main" : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -203,7 +204,7 @@ function NewsItemCard({
       data-testid="news-item"
     >
       <Group gap="xs" wrap="nowrap">
-        {isUnread && <Box w={5} h={5} bg="blue" style={{ borderRadius: "50%", flexShrink: 0 }} />}
+        {isUnread && <Box w={5} h={5} bg="blue" sx={{ borderRadius: "50%", flexShrink: 0 }} />}
         <Text
           size="xs"
           fw={isUnread ? 500 : 400}
@@ -241,9 +242,9 @@ function NewsSourceGroup({
       <Group
         gap="xs"
         p="xs"
-        style={{
-          borderRadius: "var(--mantine-radius-sm)",
-          backgroundColor: "var(--mantine-color-default-hover)",
+        sx={{
+          borderRadius: 1,
+          bgcolor: "action.hover",
         }}
         onClick={onToggle}
         data-testid={`news-source-group-${source}`}

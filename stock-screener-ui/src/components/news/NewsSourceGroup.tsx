@@ -23,9 +23,9 @@ export function NewsSourceGroup({
       <Group
         gap="xs"
         p="xs"
-        style={{
-          borderRadius: "var(--mantine-radius-sm)",
-          backgroundColor: "var(--mantine-color-default-hover)",
+        sx={{
+          borderRadius: 1,
+          bgcolor: "action.hover",
         }}
         onClick={onToggle}
         data-testid={`news-source-group-${source}`}
