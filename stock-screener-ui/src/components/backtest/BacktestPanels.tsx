@@ -7,7 +7,7 @@ import {
   BacktestHistory,
   BacktestChartTabs,
   TradeHistoryTable,
-} from "./mantine";
+} from ".";
 
 interface BacktestLeftPanelProps {
   activeTab: string | null;

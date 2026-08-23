@@ -25,7 +25,7 @@ import {
   PaperSettings,
   ActivityFeed,
   AggregatedDashboard,
-} from "./mantine";
+} from ".";
 import {
   usePaperViewActions,
   useHistoryFilters,

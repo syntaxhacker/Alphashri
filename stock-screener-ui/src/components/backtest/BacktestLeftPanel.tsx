@@ -6,7 +6,7 @@ import {
   BacktestSummary,
   BacktestProgress,
   BacktestHistory,
-} from "./mantine";
+} from ".";
 
 interface BacktestLeftPanelProps {
   activeTab: string | null;

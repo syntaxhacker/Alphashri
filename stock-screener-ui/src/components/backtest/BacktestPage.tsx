@@ -3,7 +3,7 @@ import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
-import { BacktestConfig } from "./mantine";
+import { BacktestConfig } from ".";
 import { BacktestLeftPanel, BacktestRightPanel } from "./BacktestPanels";
 import { zoomToTrade } from "./BacktestChart";
 import {
