@@ -70,20 +70,20 @@ interface Props<T> {
 }
 
 const cellStyle: CSSProperties = {
-  padding: "2px 6px",
-  fontSize: 11,
+  padding: "8px 12px",
+  fontSize: 12,
   whiteSpace: "nowrap",
   borderBottom: "1px solid",
   borderBottomColor: "divider" as unknown as string,
 };
 
 const baseHeaderStyle: CSSProperties = {
-  padding: "4px 6px",
+  padding: "8px 12px",
   fontSize: 11,
-  fontWeight: 700,
+  fontWeight: 600,
   whiteSpace: "nowrap",
   userSelect: "none",
-  borderBottom: "2px solid",
+  borderBottom: "1px solid",
   borderBottomColor: "divider" as unknown as string,
   background: "background.paper" as unknown as string,
 };
@@ -184,7 +184,7 @@ export function TanStackTable<T>({
   // row selection keep working over every row.
   const allRows = table.getRowModel().rows;
   const useRowWindow = rowWindowSize > 0 && !enableGrouping && allRows.length > rowWindowSize;
-  const ROW_ESTIMATED_HEIGHT = 32;
+  const ROW_ESTIMATED_HEIGHT = 28;
   const rowWindowStart = useRowWindow
     ? Math.min(
         Math.max(0, Math.floor(scrollTop / ROW_ESTIMATED_HEIGHT) - 8),
@@ -223,12 +223,13 @@ export function TanStackTable<T>({
                     component="th"
                     key={h.id}
                     sx={{
-                      padding: "4px 6px",
+                      padding: "8px 12px",
                       fontSize: 11,
-                      fontWeight: 700,
+                      fontWeight: 600,
+                      letterSpacing: "0.02em",
                       whiteSpace: "nowrap",
                       userSelect: "none",
-                      borderBottom: 2,
+                      borderBottom: 1,
                       borderColor: "divider",
                       bgcolor: "background.paper",
                       width: width !== undefined ? width : undefined,
@@ -236,7 +237,8 @@ export function TanStackTable<T>({
                       cursor: h.column.getCanSort() ? "pointer" : "default",
                       position: stickyHeader ? "sticky" : undefined,
                       top: stickyHeader ? 0 : undefined,
-                      zIndex: stickyHeader ? 1 : undefined,
+                      zIndex: stickyHeader ? 2 : undefined,
+                      boxShadow: stickyHeader ? "0 1px 0 var(--mui-palette-divider)" : undefined,
                     }}
                     onClick={h.column.getToggleSortingHandler()}
                     colSpan={h.colSpan}
@@ -310,8 +312,9 @@ export function TanStackTable<T>({
                             component="td"
                             key={cell.id}
                             sx={{
-                              padding: "2px 6px",
-                              fontSize: 11,
+                              padding: "8px 12px",
+                              fontSize: 12,
+                              lineHeight: 1.4,
                               whiteSpace: "nowrap",
                               borderBottom: 1,
                               borderColor: "divider",
