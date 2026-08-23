@@ -1,6 +1,7 @@
-import { Portal as MantinePortal } from "@mantine/core";
+import MuiPortal from "@mui/material/Portal";
 import type { UIPortalProps } from "../types";
 
 export function Portal({ children, target }: UIPortalProps) {
-  return <MantinePortal target={target as any}>{children}</MantinePortal>;
+  const container = typeof target === "string" ? (typeof document !== "undefined" ? document.querySelector(target) : undefined) : (target as HTMLElement | undefined);
+  return <MuiPortal container={container as never}>{children}</MuiPortal>;
 }
