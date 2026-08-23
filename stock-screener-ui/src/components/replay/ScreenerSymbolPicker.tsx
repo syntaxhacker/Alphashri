@@ -36,7 +36,7 @@ function getScoreColor(score: number): string {
 }
 
 function pctColor(pct: number): string {
-  return pct >= 0 ? "var(--mantine-color-teal-6)" : "var(--mantine-color-red-6)";
+  return pct >= 0 ? "info.main" : "error.main";
 }
 
 function formatPrice(p: number): string {
@@ -230,21 +230,21 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         wrap="nowrap"
                         px="xs"
                         py={3}
-                        style={{
+                        sx={
                           borderRadius: 4,
                           cursor: "pointer",
                           background: idx % 2 === 1
-                            ? "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))"
+                            ? "background.paper, background.paper)"
                             : undefined,
-                        }}
+                        }
                         onMouseEnter={(e) => {
                           (e.currentTarget as HTMLElement).style.background =
-                            "light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4))";
+                            "background.paper, divider)";
                         }}
                         onMouseLeave={(e) => {
                           (e.currentTarget as HTMLElement).style.background =
                             idx % 2 === 1
-                              ? "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))"
+                              ? "background.paper, background.paper)"
                               : "";
                         }}
                       >

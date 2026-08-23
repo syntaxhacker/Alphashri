@@ -107,13 +107,13 @@ export function ExperimentsPage() {
                       data-testid={`experiments-session-${session.session}`}
                       onClick={() => void selectSession(session.session)}
                       p="xs"
-                      style={{
+                      sx={
                         cursor: "pointer",
                         borderRadius: "var(--mantine-radius-sm)",
                         backgroundColor: active
-                          ? "var(--mantine-color-blue-light)"
+                          ? "primary.light"
                           : undefined,
-                      }}
+                      }
                     >
                       <Text size="sm" fw={500} truncate>
                         {session.session}

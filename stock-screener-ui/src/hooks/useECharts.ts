@@ -8,7 +8,15 @@ interface UseEChartsOptions {
 interface UseEChartsReturn {
   chartRef: React.RefObject<HTMLDivElement | null>;
   chartInstance: React.MutableRefObject<any>;
-  setChartOption: (option: any) => void;
+  setChartOption: (option: any) => Promise<void>;
+}
+
+async function loadEcharts(): Promise<any> {
+  if ((window as any).echarts) return (window as any).echarts;
+  const mod = await import("echarts");
+  const lib = (mod as any).default ?? mod;
+  (window as any).echarts = lib;
+  return lib;
 }
 
 export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
@@ -21,9 +29,9 @@ export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
   isDarkRef.current = options.isDark;
   onChartClickRef.current = onChartClick;
 
-  const setChartOption = useCallback((option: any) => {
+  const setChartOption = useCallback(async (option: any) => {
     if (!chartRef.current) return;
-    const echartsLib = (window as any).echarts;
+    const echartsLib = await loadEcharts();
     if (!echartsLib) return;
 
     if (!chartInstance.current) {

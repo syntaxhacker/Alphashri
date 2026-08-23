@@ -45,6 +45,14 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   }));
 
   useEffect(() => {
+    if (!(window as any).echarts) {
+      void import("echarts").then((mod) => {
+        (window as any).echarts = (mod as any).default ?? mod;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     if (isLoading || !input.candles.length) return;
 
     const times = input.candles.map((c) => {

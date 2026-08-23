@@ -127,7 +127,7 @@ export function ExperimentsChart() {
         align="center"
         justify="center"
         h="100%"
-        bg="var(--mantine-color-body)"
+        bg="background.paper"
         style={{ borderRadius: "var(--mantine-radius-md)" }}
       >
         <Text c="dimmed" size="sm">
@@ -144,7 +144,7 @@ export function ExperimentsChart() {
     <Box
       data-testid="experiments-chart"
       h="100%"
-      bg="var(--mantine-color-body)"
+      bg="background.paper"
       p="sm"
       style={{
         display: "flex",

@@ -354,9 +354,9 @@ export function ExperimentsResultsTable() {
           cursor: "pointer",
           backgroundColor:
             selectedRun?.run === run.run
-              ? "var(--mantine-color-blue-light)"
+              ? "primary.light"
               : bestRun?.run === run.run
-                ? "var(--mantine-color-teal-light)"
+                ? "success.light"
                 : undefined,
         })}
       />

@@ -189,7 +189,7 @@ describe("ExperimentsResultsTable", () => {
     render(<ExperimentsResultsTable />, { wrapper: Wrapper });
     expect(
       screen.getByTestId("experiments-run-row-2").getAttribute("style"),
-    ).toContain("var(--mantine-color-blue-light)");
+    ).toContain("primary.light");
   });
 
   it("shows low-sample warning badge for runs under 10 trades", () => {

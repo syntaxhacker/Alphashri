@@ -94,7 +94,7 @@ export function HeatmapPage() {
 
   return (
     <Box data-testid="heatmap-page" style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <Box p="sm" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
+      <Box p="sm" style={{ borderBottom: 1 }}>
         <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
           <Group gap="xs">
             <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
@@ -214,7 +214,7 @@ export function HeatmapPage() {
         )}
       </Box>
 
-      <Box data-testid="heatmap-legend" p="xs" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
+      <Box data-testid="heatmap-legend" p="xs" style={{ borderTop: 1 }}>
         <Group gap="md">
           <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
           <Group gap={4}>

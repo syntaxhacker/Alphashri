@@ -98,7 +98,7 @@ function NewsPageDesktop({
         w="35%"
         miw={300}
         style={{
-          borderRight: "1px solid var(--mantine-color-default-border)",
+          borderRight: 1,
           overflow: "hidden",
         }}
       >

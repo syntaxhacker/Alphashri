@@ -43,7 +43,7 @@
 
 body {
   font: var(--font-size-sm) var(--font-family);
-  background: var(--mantine-color-body);
+  background: var(--mui-palette-background-default, var(--mantine-color-body));
   color: var(--mantine-color-text);
 }
 

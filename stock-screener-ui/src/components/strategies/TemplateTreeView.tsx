@@ -268,7 +268,7 @@ export function TemplateTreeView({
         gap={6}
         px="sm"
         pb={4}
-        style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+        style={{ borderBottom: 1 }}
       >
         <span style={{ width: 14, flexShrink: 0 }} />
         <Text size="xs" c="dimmed" style={{ minWidth: 160 }}>

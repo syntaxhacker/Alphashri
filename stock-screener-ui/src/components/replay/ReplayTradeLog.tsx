@@ -249,7 +249,7 @@ export function ReplayTradeLog({
             cursor: onTradeClick ? "pointer" : undefined,
             backgroundColor:
               highlightedTradeId === row.id
-                ? "var(--mantine-color-blue-light)"
+                ? "primary.light"
                 : undefined,
           })}
           getRowClassName={(row) =>

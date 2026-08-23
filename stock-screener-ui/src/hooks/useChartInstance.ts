@@ -15,6 +15,14 @@ interface UseChartInstanceResult {
   error: string | null;
 }
 
+async function loadEcharts(): Promise<any> {
+  if ((window as any).echarts) return (window as any).echarts;
+  const mod = await import("echarts");
+  const lib = (mod as any).default ?? mod;
+  (window as any).echarts = lib;
+  return lib;
+}
+
 export function useChartInstance({
   data,
   showPivots,
@@ -32,42 +40,50 @@ export function useChartInstance({
       return;
     }
 
-    // Check if echarts is available
-    if (!(window as any).echarts) {
-      errorRef.current = "ECharts not loaded";
-      return;
-    }
+    let cancelled = false;
 
-    // Dispose previous chart
-    if (chartInstanceRef.current) {
-      chartInstanceRef.current.dispose();
-      chartInstanceRef.current = null;
-    }
+    (async () => {
+      const echartsLib = await loadEcharts();
+      if (cancelled) return;
 
-    // Build chart option
-    const chartOption = buildChartOption({
-      symbol: data.symbol,
-      candles: data.candles,
-      orb_zones: data.orb_zones ?? [],
-      pivot_levels: data.pivot_levels,
-      high_52w: data.high_52w,
-      size: "full",
-      showPivots,
-      show52wHigh,
-      isDark,
-    });
+      if (!echartsLib) {
+        errorRef.current = "ECharts not loaded";
+        return;
+      }
 
-    if (!chartOption) {
-      errorRef.current = "Failed to build chart";
-      return;
-    }
+      // Dispose previous chart
+      if (chartInstanceRef.current) {
+        chartInstanceRef.current.dispose();
+        chartInstanceRef.current = null;
+      }
 
-    // Initialize chart
-    chartInstanceRef.current = (window as any).echarts.init(
-      chartRef.current,
-      isDark ? "dark" : null,
-    );
-    chartInstanceRef.current.setOption(chartOption);
+      // Build chart option
+      const chartOption = buildChartOption({
+        symbol: data.symbol,
+        candles: data.candles,
+        orb_zones: data.orb_zones ?? [],
+        pivot_levels: data.pivot_levels,
+        high_52w: data.high_52w,
+        size: "full",
+        showPivots,
+        show52wHigh,
+        isDark,
+      });
+
+      if (!chartOption) {
+        errorRef.current = "Failed to build chart";
+        return;
+      }
+
+      if (!chartRef.current) return;
+
+      // Initialize chart
+      chartInstanceRef.current = echartsLib.init(
+        chartRef.current,
+        isDark ? "dark" : null,
+      );
+      chartInstanceRef.current.setOption(chartOption);
+    })();
 
     // Handle resize
     const handleResize = () => {
@@ -76,6 +92,7 @@ export function useChartInstance({
     window.addEventListener("resize", handleResize);
 
     return () => {
+      cancelled = true;
       window.removeEventListener("resize", handleResize);
       chartInstanceRef.current?.dispose();
       chartInstanceRef.current = null;

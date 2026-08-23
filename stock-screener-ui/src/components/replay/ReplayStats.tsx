@@ -66,7 +66,7 @@ export function ReplayStats({
         <CompactStat
           label="Profit Factor"
           value={pf === 0 ? "—" : pf.toFixed(2)}
-          tone={pf > 1 ? "green" : pf < 1 ? "red" : "var(--mantine-color-text)"}
+          tone={pf > 1 ? "green" : pf < 1 ? "red" : "text.primary"}
         />
         <CompactStat label="Net P&L" value={formatNetPnl(netPnl)} tone={getPnLTextColor(netPnl)} />
         <CompactStat label="Winners / Losers" value={`${winners} / ${losers}`} />
