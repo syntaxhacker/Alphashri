@@ -54,7 +54,12 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
   if (!svgParams) return null;
 
   const isPositive = history[history.length - 1].price >= history[0].price;
-  const color = isPositive ? (theme as any).palette.success.main : (theme as any).palette.error.main;
+  const t = theme as any;
+  const palette = t?.palette;
+  const colors = t?.colors;
+  const successColor = palette?.success?.main ?? colors?.green?.[6] ?? colors?.teal?.[6] ?? "#22c55e";
+  const errorColor = palette?.error?.main ?? colors?.red?.[6] ?? "#ef4444";
+  const color = isPositive ? successColor : errorColor;
 
   return (
     <Group gap="xs" wrap="nowrap" className="live-spot-chart" data-testid="options-live-spot-chart">

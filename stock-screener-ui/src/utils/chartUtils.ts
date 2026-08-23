@@ -20,12 +20,34 @@ import {
 } from "../config/colors";
 
 export function getChartThemeColors(isDark: boolean, theme: MantineTheme | Record<string, any>) {
+  const t: any = theme as any;
+  const colors = t?.colors;
+  const palette = t?.palette;
+  // Support both Mantine (colors) and MUI (palette) themes; FormControl muiName crash guard
+  if (colors?.dark && colors?.gray) {
+    return {
+      bgColor: isDark ? colors.dark[7] : t.white ?? "#ffffff",
+      textColor: isDark ? (t.white ?? "#ffffff") : colors.gray[8],
+      gridLineColor: isDark ? colors.dark[5] : colors.gray[2],
+      borderColor: isDark ? colors.dark[4] : colors.gray[3],
+      mutedColor: isDark ? colors.dark[1] : colors.gray[6],
+      positiveColor: POSITIVE,
+      negativeColor: NEGATIVE,
+    };
+  }
+  // MUI palette fallback
+  const bgDefault = palette?.background?.default;
+  const bgPaper = palette?.background?.paper;
+  const textPrimary = palette?.text?.primary;
+  const textSecondary = palette?.text?.secondary;
+  const divider = palette?.divider;
+  const grey = palette?.grey;
   return {
-    bgColor: isDark ? theme.colors.dark[7] : theme.white,
-    textColor: isDark ? theme.white : theme.colors.gray[8],
-    gridLineColor: isDark ? theme.colors.dark[5] : theme.colors.gray[2],
-    borderColor: isDark ? theme.colors.dark[4] : theme.colors.gray[3],
-    mutedColor: isDark ? theme.colors.dark[1] : theme.colors.gray[6],
+    bgColor: isDark ? (bgPaper ?? bgDefault ?? "#121212") : (bgPaper ?? "#ffffff"),
+    textColor: isDark ? (textPrimary ?? "#ffffff") : (textPrimary ?? "#1a1a1a"),
+    gridLineColor: divider ?? (grey?.[700] ?? "#333"),
+    borderColor: divider ?? (grey?.[400] ?? "#e0e0e0"),
+    mutedColor: textSecondary ?? (grey?.[500] ?? "#888"),
     positiveColor: POSITIVE,
     negativeColor: NEGATIVE,
   };

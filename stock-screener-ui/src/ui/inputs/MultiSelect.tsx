@@ -99,16 +99,16 @@ export function MultiSelect({
           required={required}
           size={muiSize}
           InputProps={{
-            ...params.InputProps,
+            ...(params.InputProps ?? {}),
             startAdornment: (
               <>
                 {leftSection ? <InputAdornment position="start">{leftSection}</InputAdornment> : null}
-                {params.InputProps.startAdornment}
+                {params.InputProps?.startAdornment}
               </>
             ),
             endAdornment: (
               <>
-                {params.InputProps.endAdornment}
+                {params.InputProps?.endAdornment}
                 {rightSection ? <InputAdornment position="end">{rightSection}</InputAdornment> : null}
               </>
             ),
