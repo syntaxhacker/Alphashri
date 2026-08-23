@@ -8,11 +8,9 @@ import { UIProvider } from "@/ui";
 import type { ScreenerOption } from "../../types";
 
 vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
   const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
   return {
-    ...core,
-    UIProvider: ui.UIProvider,
+    ...ui,
     Tooltip: ({ label, children }: { label: string; children: React.ReactNode }) => (
       <div data-testid="tooltip-wrapper" data-label={label}>
         {children}
@@ -216,5 +214,54 @@ describe("ScreenerNav", () => {
     );
     await user.click(screen.getByTestId("screener-nav-option-trending"));
     expect(defaultProps.onChange).toHaveBeenCalledWith("trending");
+  });
+
+  it("sets aria-current=page only on active option", () => {
+    render(
+      <UIProvider>
+        <ScreenerNav {...defaultProps} activeScreener="trending" />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("screener-nav-option-trending")).toHaveAttribute("aria-current", "page");
+    expect(screen.getByTestId("screener-nav-option-new-highs")).not.toHaveAttribute("aria-current");
+    expect(screen.getByTestId("screener-nav-option-rsi_reversal")).not.toHaveAttribute("aria-current");
+  });
+
+  it("exactly one option is active at a time", () => {
+    render(
+      <UIProvider>
+        <ScreenerNav {...defaultProps} activeScreener="new-highs" />
+      </UIProvider>,
+    );
+    const actives = mockOptions.filter((o) =>
+      screen.getByTestId(`screener-nav-option-${o.id}`).hasAttribute("data-active"),
+    );
+    expect(actives).toHaveLength(1);
+    expect(actives[0].id).toBe("new-highs");
+  });
+
+  it("no option active when activeScreener is unknown", () => {
+    render(
+      <UIProvider>
+        <ScreenerNav {...defaultProps} activeScreener="unknown" />
+      </UIProvider>,
+    );
+    mockOptions.forEach((o) => {
+      expect(screen.getByTestId(`screener-nav-option-${o.id}`)).not.toHaveAttribute("data-active");
+    });
+  });
+
+  it("active state works for legacy options", async () => {
+    const options: ScreenerOption[] = [
+      { id: "52w_high", label: "52W High", status: "current" },
+      { id: "old_one", label: "Old One", status: "legacy" },
+    ];
+    render(
+      <UIProvider>
+        <ScreenerNav options={options} activeScreener="old_one" onChange={vi.fn()} />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("screener-nav-option-old_one")).toHaveAttribute("data-active", "true");
+    expect(screen.getByTestId("screener-nav-option-52w_high")).not.toHaveAttribute("data-active");
   });
 });
