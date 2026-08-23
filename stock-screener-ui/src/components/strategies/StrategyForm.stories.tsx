@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { MantineProvider } from "@/ui";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategyFormData } from "./types";
 import type { StrategyConfig } from "../../types/strategies";
@@ -8,13 +7,7 @@ const meta: Meta<typeof StrategyForm> = {
   title: "Examples/Strategies/Form",
   component: StrategyForm,
   tags: ["autodocs"],
-  decorators: [
-    (Story) => (
-      <MantineProvider>
-        <Story />
-      </MantineProvider>
-    ),
-  ],
+  decorators: [(Story) => <Story />],
   parameters: { layout: "centered", docs: { description: { component: "Strategy create/edit form — modal with ORB and risk parameters. Use inside Strategy management drawers/modals. When not: for display alone use StrategyCard." } } },
 };
 
