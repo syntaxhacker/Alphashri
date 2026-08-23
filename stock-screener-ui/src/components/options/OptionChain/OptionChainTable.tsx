@@ -366,11 +366,11 @@ function OptionChainTableInner({
               ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
               : 0;
             const rowCallBg = hexToRgba(
-              theme.colors.green[6],
+              theme.palette.success.main,
               0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
             );
             const rowPutBg = hexToRgba(
-              theme.colors.red[6],
+              theme.palette.error.main,
               0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
             );
 
@@ -381,9 +381,9 @@ function OptionChainTableInner({
                 className={`chain-row ${isATM ? "chain-row-atm" : ""}`}
                 style={{
                   ...styles.row,
-                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.colors.yellow[4], 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
+                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.palette.warning.light, 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
                   boxShadow: isHovered
-                    ? `inset 0 0 0 1px ${hexToRgba(theme.colors.yellow[4], 0.5)}, 0 6px 16px ${hexToRgba(theme.black, 0.08)}`
+                    ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.light, 0.5)}, 0 6px 16px ${hexToRgba(theme.palette.common.black, 0.08)}`
                     : undefined,
                 }}
                 data-testid={`options-chain-row-${strike}`}
@@ -409,7 +409,7 @@ function OptionChainTableInner({
                     ...styles.strikeCell,
                     ...(isATM ? styles.atmHighlight : {}),
                     boxShadow: isHovered
-                      ? `inset 0 0 0 1px ${hexToRgba(theme.colors.yellow[5], 0.45)}, 0 8px 22px ${hexToRgba(theme.black, 0.08)}`
+                      ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.main, 0.45)}, 0 8px 22px ${hexToRgba(theme.palette.common.black, 0.08)}`
                       : undefined,
                   }}
                   data-testid="strike-cell"
