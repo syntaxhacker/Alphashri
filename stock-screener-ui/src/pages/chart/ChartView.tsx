@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { Box } from "@mui/material";
 import { useColorScheme } from "@/ui";
 import { useChartData } from "../../hooks/useChartData";
 import { useChartInstance } from "../../hooks/useChartInstance";
@@ -61,7 +62,11 @@ const ChartView: React.FC = () => {
   }
 
   return (
-    <div className="chart-view" data-testid="chart-view" id="chart-view">
+    <Box
+      data-testid="chart-view"
+      id="chart-view"
+      sx={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden", bgcolor: "background.default" }}
+    >
       <ChartHeader
         symbol={vm.symbol}
         timeframe={vm.timeframe}
@@ -84,7 +89,7 @@ const ChartView: React.FC = () => {
       />
 
       {vm.data && <ChartFooter data={vm.data} timeframe={vm.timeframe} orMinutes={vm.orMinutes} />}
-    </div>
+    </Box>
   );
 };
 

@@ -1,3 +1,4 @@
+import { Box, Typography, Button } from "@mui/material";
 import { ChartControls } from "./ChartControls";
 
 interface ChartHeaderProps {
@@ -26,13 +27,17 @@ export function ChartHeader({
   on52wHighChange,
 }: ChartHeaderProps) {
   return (
-    <div className="chart-view-header" id="chart-header" data-testid="chart-header">
-      <button className="back-btn" onClick={onBack} data-testid="chart-back-btn">
+    <Box
+      id="chart-header"
+      data-testid="chart-header"
+      sx={{ display: "flex", alignItems: "center", gap: 2, px: 2.5, py: 1.5, bgcolor: "background.paper", borderBottom: (t) => `1px solid ${t.palette.divider}`, flexShrink: 0 }}
+    >
+      <Button size="small" onClick={onBack} data-testid="chart-back-btn">
         ← Back
-      </button>
-      <h2 className="chart-title" data-testid="chart-title">
+      </Button>
+      <Typography variant="h2" data-testid="chart-title" sx={{ flexShrink: 0 }}>
         {symbol}
-      </h2>
+      </Typography>
 
       <ChartControls
         timeframe={timeframe}
@@ -44,6 +49,6 @@ export function ChartHeader({
         onPivotsChange={onPivotsChange}
         on52wHighChange={on52wHighChange}
       />
-    </div>
+    </Box>
   );
 }

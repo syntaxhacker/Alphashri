@@ -42,7 +42,6 @@ export function ScreenerHeader({
   return (
     <Box
       id="screener-header"
-      className="screener-header"
       data-testid="screener-header"
       py={4}
       px={8}
@@ -59,7 +58,7 @@ export function ScreenerHeader({
         >
           {status}
         </Text>
-        <Group gap={6} align="center" wrap="nowrap" className="header-controls" data-testid="header-controls">
+        <Group gap={6} align="center" wrap="nowrap" data-testid="header-controls">
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
@@ -68,7 +67,6 @@ export function ScreenerHeader({
               loading={isLoading}
               data-testid="refresh-btn"
               id="refresh-btn"
-              className="refresh-btn"
             >
               <IconRefresh size={14} />
             </ActionIcon>

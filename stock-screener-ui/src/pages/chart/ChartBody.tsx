@@ -1,4 +1,5 @@
 import { forwardRef } from "react";
+import { Box, Button, Typography } from "@mui/material";
 
 interface ChartBodyProps {
   loading: boolean;
@@ -12,36 +13,32 @@ export const ChartBody = forwardRef<HTMLDivElement, ChartBodyProps>(
     const displayError = error || chartError;
 
     return (
-      <div className="chart-view-body" id="chart-body" data-testid="chart-body">
+      <Box id="chart-body" data-testid="chart-body" sx={{ flex: 1, minHeight: 0, p: 1.5, display: "flex", flexDirection: "column" }}>
         {loading && (
-          <div className="chart-loading" data-testid="chart-loading">
-            <p>Loading chart...</p>
-          </div>
+          <Box data-testid="chart-loading" sx={{ p: 2 }}>
+            <Typography>Loading chart...</Typography>
+          </Box>
         )}
 
         {displayError && !loading && (
-          <div className="chart-error" data-testid="chart-error">
-            <p>{displayError}</p>
-            <button
-              onClick={() => window.location.reload()}
-              data-testid="chart-retry-btn"
-              className="retry-btn"
-            >
+          <Box data-testid="chart-error" sx={{ p: 2, display: "flex", flexDirection: "column", gap: 1 }}>
+            <Typography color="error">{displayError}</Typography>
+            <Button onClick={() => window.location.reload()} data-testid="chart-retry-btn" size="small" variant="outlined">
               Retry
-            </button>
-          </div>
+            </Button>
+          </Box>
         )}
 
         {!loading && !displayError && hasData && (
-          <div
+          <Box
             ref={ref}
-            className="chart-container-full"
             data-testid="candlestick-chart"
             id="candlestick-chart"
             style={{ width: "100%", height: "100%" }}
+            sx={{ bgcolor: "background.paper", borderRadius: 1 }}
           />
         )}
-      </div>
+      </Box>
     );
   },
 );

@@ -55,7 +55,6 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
     return (
       <Center
         id="chart-container"
-        className="backtest-chart-tabs backtest-chart-empty"
         data-testid="chart-container"
         h={400}
         sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
@@ -70,12 +69,11 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
   return (
     <Box
       id="chart-container"
-      className="backtest-chart-tabs"
       data-testid="chart-container"
       h="100%"
       style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
     >
-      <Box mb="xs" flex="0 0 auto" className="chart-tabs-header">
+      <Box mb="xs" flex="0 0 auto" data-testid="chart-tabs-header">
         <Group justify="space-between" align="center">
           <Tabs
             value={selectedSymbol}
@@ -103,7 +101,6 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
             />
             <Select
               id="chart-zoom-select"
-              className="chart-zoom-select"
               value={zoomValue}
               onChange={(value) => value && onZoomChange(value)}
               data={ZOOM_OPTIONS}
@@ -117,7 +114,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
 
       <Box
         flex={1}
-        className="chart-tabs-content"
+        data-testid="chart-tabs-content"
         style={{ minHeight: 0, position: "relative", overflow: "hidden" }}
       >
         {selectedSymbol ? (

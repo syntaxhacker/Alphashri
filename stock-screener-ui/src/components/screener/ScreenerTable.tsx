@@ -193,7 +193,6 @@ export function ScreenerTable({
       dataTestId="screener-table"
       enableSorting
       stickyHeader
-      className="screener-table"
       style={{ width: "100%", minWidth: 0 }}
       getRowClassName={(row) => `stock-row ${touchedSymbols.has(row.symbol) ? "touched" : "approaching"}`}
       getRowTestId={(row) => `stock-row-${row.symbol}`}

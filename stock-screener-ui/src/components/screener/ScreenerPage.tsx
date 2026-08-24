@@ -135,11 +135,11 @@ export function ScreenerPage({
       <Stack
         h="100%"
         id="screener-main"
-        className="screener-page"
         gap={4}
         data-testid="screener-page"
+        sx={{ p: 0 }}
       >
-        <Box flex="0 0 auto" className="screener-controls" data-testid="screener-controls">
+        <Box flex="0 0 auto" data-testid="screener-controls" sx={{ px: 1 }}>
           <Tabs
             value={activeTab}
             onChange={(v) => {
@@ -180,9 +180,9 @@ export function ScreenerPage({
         <Box
           flex={1}
           id="screener-content"
-          className="screener-content"
           style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
           data-testid="screener-content"
+          sx={{ minHeight: 0 }}
         >
           {activeTab === "screener" ? (
             <Flex flex={1} miw={0} mih={0}>

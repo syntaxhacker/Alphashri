@@ -65,7 +65,6 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       <Box
         data-testid="screener-nav"
         id="screener-nav"
-        className="screener-nav screener-profile-rail"
         data-options-count={0}
         w={RAIL_WIDTH}
         sx={(theme) => ({ flexShrink: 0, borderRight: `1px solid ${theme.palette.divider}` })}
@@ -85,7 +84,6 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       })}
       data-testid="screener-nav"
       id="screener-nav"
-      className="screener-nav screener-profile-rail"
       data-options-count={optionList.length}
     >
       <Stack gap={2} p={6} pb={8}>
