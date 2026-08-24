@@ -190,11 +190,10 @@ export function TanStackTable<T>({
         <Box
           component="table"
           data-testid={dataTestId}
+          style={{ tableLayout: hasSizedColumns ? "fixed" : "auto", ...(style || {}) } as React.CSSProperties}
           sx={{
             width: "100%",
             borderCollapse: "collapse",
-            tableLayout: hasSizedColumns ? "fixed" : "auto",
-            ...(style ? { ...style } : {}),
           }}
           className={className}
         >
