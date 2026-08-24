@@ -28,10 +28,10 @@ describe("base columns", () => {
   describe("dayChangeCol formatting with getPnLTextColor", () => {
     const fmt = dayChangeCol.format!;
     it.each([
-      [1.25, "+1.25%", "green"],
-      [-0.5, "-0.50%", "red"],
-      [0, "+0.00%", "green"],
-      [NaN, "NaN%", "red"], // NaN >=0 false => red
+      [1.25, "+1.25%", "success"],
+      [-0.5, "-0.50%", "error"],
+      [0, "+0.00%", "success"],
+      [NaN, "NaN%", "error"], // NaN >=0 false => red
     ])("value %s -> %s %s", (val, expVal, expCls) => {
       const res: any = fmt(val, {} as any);
       expect(res.value).toBe(expVal);
@@ -100,14 +100,14 @@ describe("base columns", () => {
       expect(col.sortable).toBe(true);
     });
     it.each([
-      [2.5, "+2.50%", "green"],
-      [-1.2, "-1.20%", "red"],
-      [0, "0.00%", "red"], // 0 not >0 => red? Actually getPnLTextColor(0)=green but moveCol uses getPnLTextColor which returns green for 0; check implementation: getPnLTextColor(0)=green, but test expects...
+      [2.5, "+2.50%", "success"],
+      [-1.2, "-1.20%", "error"],
+      [0, "0.00%", "error"], // 0 not >0 => red? Actually getPnLTextColor(0)=green but moveCol uses getPnLTextColor which returns green for 0; check implementation: getPnLTextColor(0)=green, but test expects...
       // Let's check base.tsx moveCol: className: value != null ? getPnLTextColor(value) : "" . getPnLTextColor(0)=green
     ])("move %s", (val, expVal, expCls) => {
       const res: any = col.format!(val as any, {} as any);
       // For 0, implementation returns green not red, so adjust expectation
-      if (val === 0) expCls = "green";
+      if (val === 0) expCls = "success";
       expect(res.value).toBe(expVal);
       expect(res.className).toBe(expCls);
     });
@@ -124,12 +124,12 @@ describe("base columns", () => {
   describe("recentReturn5dCol", () => {
     const fmt = recentReturn5dCol.format!;
     it.each([
-      [8.5, "🚀 +8.5%", "green"],
-      [3.2, "🟢 +3.2%", "green"],
-      [-2.1, "🔴 -2.1%", "red"],
-      [0, "🔴 0.0%", "red"],
-      [5, "🟢 +5.0%", "green"], // boundary exactly 5 -> not >5 so green circle
-      [5.01, "🚀 +5.0%", "green"],
+      [8.5, "🚀 +8.5%", "success"],
+      [3.2, "🟢 +3.2%", "success"],
+      [-2.1, "🔴 -2.1%", "error"],
+      [0, "🔴 0.0%", "error"],
+      [5, "🟢 +5.0%", "success"], // boundary exactly 5 -> not >5 so green circle
+      [5.01, "🚀 +5.0%", "success"],
     ])("return %s", (val, expVal, expCls) => {
       const res: any = fmt(val as any, {} as any);
       expect(res.value).toBe(expVal);
@@ -137,17 +137,17 @@ describe("base columns", () => {
     });
     it("NaN -> red circle", () => {
       const res: any = fmt(NaN as any, {} as any);
-      expect(res.className).toBe("red");
+      expect(res.className).toBe("error");
     });
   });
 
   describe("perfWCol", () => {
     const fmt = perfWCol.format!;
     it.each([
-      [1.5, "+1.5%", "green"],
-      [-3.2, "-3.2%", "red"],
-      [0, "0.0%", "red"],
-      [NaN, "NaN%", "red"],
+      [1.5, "+1.5%", "success"],
+      [-3.2, "-3.2%", "error"],
+      [0, "0.0%", "error"],
+      [NaN, "NaN%", "error"],
     ])("perf %s", (val, expVal, expCls) => {
       const res: any = fmt(val as any, {} as any);
       // pctFormat uses value>0 green else red, NaN>0 false => red

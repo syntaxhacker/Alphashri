@@ -74,11 +74,11 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                   data-testid="bot-running-badge"
                 />
                 {bot.live_trading ? (
-                  <Badge color="red" variant="filled" size="sm" data-testid="live-trading-badge">
+                  <Badge color="error" variant="filled" size="sm" data-testid="live-trading-badge">
                     LIVE
                   </Badge>
                 ) : (
-                  <Badge color="green" variant="filled" size="sm" data-testid="paper-trading-badge">
+                  <Badge color="success" variant="filled" size="sm" data-testid="paper-trading-badge">
                     PAPER
                   </Badge>
                 )}
@@ -89,7 +89,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                 <Button
                   leftSection={<IconPlayerStop size={16} />}
                   variant="light"
-                  color="orange"
+                  color="warning"
                   onClick={handleStop}
                   data-testid="stop-bot-btn"
                 >
@@ -104,7 +104,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                     <Button
                       leftSection={<IconPlayerPlay size={16} />}
                       variant="light"
-                      color="green"
+                      color="success"
                       onClick={handleStart}
                       disabled={marketClosed}
                       data-testid="start-bot-btn"
@@ -117,7 +117,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               <Button
                 leftSection={<IconRefresh size={16} />}
                 variant="light"
-                color="gray"
+                color="secondary"
                 onClick={handleRefresh}
                 data-testid="refresh-bot-status-btn"
               >
@@ -153,7 +153,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               <Text fw={600} size="sm">
                 Strategy Status
               </Text>
-              <Badge size="sm" variant="light" color="violet">
+              <Badge size="sm" variant="light" color="secondary">
                 {Object.keys(status.strategies).length}
               </Badge>
             </Group>

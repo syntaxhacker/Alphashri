@@ -28,7 +28,7 @@ export const Default: Story = {
       <Title order={5}>Dark overlay at 0.6 opacity</Title>
       <Box style={panelStyle}>
         <Text size="sm">Content beneath the overlay</Text>
-        <Overlay opacity={0.6} color="#000" zIndex={5} />
+        <Overlay opacity={0.6} color="common.black" zIndex={5} />
       </Box>
     </Stack>
   ),
@@ -46,7 +46,7 @@ export const OpacityScale: Story = {
         ].map(({ opacity, label }) => (
           <Box key={label} style={{ ...panelStyle, height: 120 }}>
             <Button size="compact-sm" variant="light">{label}</Button>
-            <Overlay opacity={opacity} color="#000" zIndex={5} />
+            <Overlay opacity={opacity} color="common.black" zIndex={5} />
           </Box>
         ))}
       </Group>

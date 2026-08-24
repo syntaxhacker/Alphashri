@@ -34,7 +34,7 @@ export const DelayedAndMultiline: Story = {
       <Title order={5}>Open delay + multiline + colored</Title>
       <Group gap="lg">
         <Tooltip label="Appears after 500ms" position="top" openDelay={500}>
-          <Button variant="light" color="blue">Open delay</Button>
+          <Button variant="light" color="primary">Open delay</Button>
         </Tooltip>
         <Tooltip
           multiline
@@ -43,10 +43,10 @@ export const DelayedAndMultiline: Story = {
           label="Strategy pauses for the rest of the day after 3 consecutive stop-loss hits."
           position="bottom"
         >
-          <Button variant="light" color="violet">Multiline</Button>
+          <Button variant="light" color="secondary">Multiline</Button>
         </Tooltip>
-        <Tooltip label="Danger zone" color="red" position="top" withArrow>
-          <Button variant="light" color="red">Colored</Button>
+        <Tooltip label="Danger zone" color="error" position="top" withArrow>
+          <Button variant="light" color="error">Colored</Button>
         </Tooltip>
         <Tooltip label="You cannot interact with this" disabled position="top">
           <Button disabled>Disabled tooltip</Button>

@@ -37,25 +37,19 @@ function mapSize(size: UIButtonProps["size"]): "small" | "medium" | "large" {
 function mapColor(color: UIButtonProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" {
   if (!color) return "primary";
   switch (color) {
-    case "teal":
-    case "green":
     case "success":
       return "success";
-    case "red":
+    case "error":
     case "danger":
       return "error";
-    case "orange":
-    case "yellow":
     case "warning":
       return "warning";
-    case "cyan":
-    case "violet":
-    case "blue":
-    case "pink":
+    case "info":
       return "info";
-    case "gray":
-    case "dark":
+    case "secondary":
       return "secondary";
+    case "primary":
+      return "primary";
     default:
       return "primary";
   }

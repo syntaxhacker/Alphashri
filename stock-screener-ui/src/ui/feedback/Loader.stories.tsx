@@ -39,10 +39,10 @@ export const Types: Story = {
 export const Colored: Story = {
   render: () => (
     <Group gap="lg">
-      <Loader color="blue" />
-      <Loader color="green" />
-      <Loader color="red" />
-      <Loader color="orange" size="sm" />
+      <Loader color="primary" />
+      <Loader color="success" />
+      <Loader color="error" />
+      <Loader color="warning" size="sm" />
     </Group>
   ),
 };
@@ -50,6 +50,6 @@ export const Colored: Story = {
 export const CustomSizeNumber: Story = {
   args: {
     size: 42,
-    color: "teal",
+    color: "info",
   },
 };

@@ -34,21 +34,21 @@ export const Colors: Story = {
     <Stack gap="xs">
       <Title order={6}>Light</Title>
       <Group gap="xs">
-        <Badge variant="light" color="blue">blue</Badge>
-        <Badge variant="light" color="green">green</Badge>
-        <Badge variant="light" color="red">red</Badge>
-        <Badge variant="light" color="orange">orange</Badge>
-        <Badge variant="light" color="teal">teal</Badge>
-        <Badge variant="light" color="violet">violet</Badge>
-        <Badge variant="light" color="gray">gray</Badge>
+        <Badge variant="light" color="primary">blue</Badge>
+        <Badge variant="light" color="success">green</Badge>
+        <Badge variant="light" color="error">red</Badge>
+        <Badge variant="light" color="warning">orange</Badge>
+        <Badge variant="light" color="info">teal</Badge>
+        <Badge variant="light" color="secondary">violet</Badge>
+        <Badge variant="light" color="secondary">gray</Badge>
       </Group>
       <Title order={6}>Filled</Title>
       <Group gap="xs">
-        <Badge variant="filled" color="blue">blue</Badge>
-        <Badge variant="filled" color="green">green</Badge>
-        <Badge variant="filled" color="red">red</Badge>
-        <Badge variant="filled" color="orange">orange</Badge>
-        <Badge variant="filled" color="teal">teal</Badge>
+        <Badge variant="filled" color="primary">blue</Badge>
+        <Badge variant="filled" color="success">green</Badge>
+        <Badge variant="filled" color="error">red</Badge>
+        <Badge variant="filled" color="warning">orange</Badge>
+        <Badge variant="filled" color="info">teal</Badge>
       </Group>
     </Stack>
   ),
@@ -69,10 +69,10 @@ export const Sizes: Story = {
 export const WithSections: Story = {
   render: () => (
     <Group gap="xs">
-      <Badge leftSection={<span>↑</span>} color="green">
+      <Badge leftSection={<span>↑</span>} color="success">
         +2.4%
       </Badge>
-      <Badge rightSection={<span>×</span>} color="red">
+      <Badge rightSection={<span>×</span>} color="error">
         -1.1%
       </Badge>
     </Group>

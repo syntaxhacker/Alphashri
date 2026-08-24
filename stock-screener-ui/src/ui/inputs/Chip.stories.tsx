@@ -23,8 +23,8 @@ export const Variants: Story = {
   render: () => (
     <Chip.Group multiple value={["filled"]}>
       <Chip variant="filled" value="filled">filled</Chip>
-      <Chip variant="light" color="teal" value="light">light</Chip>
-      <Chip variant="outline" color="blue" value="outline">outline</Chip>
+      <Chip variant="light" color="info" value="light">light</Chip>
+      <Chip variant="outline" color="primary" value="outline">outline</Chip>
     </Chip.Group>
   ),
 };

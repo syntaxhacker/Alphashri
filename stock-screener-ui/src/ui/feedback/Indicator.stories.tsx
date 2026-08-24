@@ -37,7 +37,7 @@ export const Default: Story = {
       <Indicator>
         <Placeholder />
       </Indicator>
-      <Indicator color="red">
+      <Indicator color="error">
         <Placeholder />
       </Indicator>
     </Group>
@@ -46,7 +46,7 @@ export const Default: Story = {
 
 export const WithLabel: Story = {
   args: {
-    color: "red",
+    color: "error",
     label: "3",
     size: 18,
   },
@@ -58,13 +58,13 @@ export const Positions: Story = {
       <Indicator position="top-start">
         <Placeholder />
       </Indicator>
-      <Indicator position="top-end" color="green">
+      <Indicator position="top-end" color="success">
         <Placeholder />
       </Indicator>
-      <Indicator position="bottom-start" color="orange">
+      <Indicator position="bottom-start" color="warning">
         <Placeholder />
       </Indicator>
-      <Indicator position="bottom-end" color="violet">
+      <Indicator position="bottom-end" color="secondary">
         <Placeholder />
       </Indicator>
     </Group>
@@ -93,7 +93,7 @@ export const Disabled: Story = {
 export const Inline: Story = {
   render: () => (
     <Group gap={8}>
-      <Indicator color="teal" size={10}>
+      <Indicator color="info" size={10}>
         <span style={{ fontSize: 12 }}>Live feed</span>
       </Indicator>
     </Group>

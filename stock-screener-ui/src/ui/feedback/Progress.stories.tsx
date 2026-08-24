@@ -31,10 +31,10 @@ export const Values: Story = {
 export const Colors: Story = {
   render: () => (
     <Stack gap="sm">
-      <Progress value={75} color="blue" />
-      <Progress value={60} color="green" />
-      <Progress value={40} color="orange" />
-      <Progress value={20} color="red" />
+      <Progress value={75} color="primary" />
+      <Progress value={60} color="success" />
+      <Progress value={40} color="warning" />
+      <Progress value={20} color="error" />
     </Stack>
   ),
 };

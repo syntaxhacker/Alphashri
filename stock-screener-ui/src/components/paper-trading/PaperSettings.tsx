@@ -115,7 +115,7 @@ function SettingsErrorState({ error }: { error: string }) {
       <Alert
         icon={<IconAlertCircle size={16} />}
         title="Error"
-        color="red"
+        color="error"
         variant="light"
         data-testid="settings-error"
       >
@@ -166,7 +166,7 @@ function SettingsContent({
       {configError && (
         <Alert
           icon={<IconAlertCircle size={16} />}
-          color="red"
+          color="error"
           variant="light"
           mb="sm"
           onClose={() => {}}
@@ -186,7 +186,7 @@ function SettingsContent({
           </Text>
         </div>
         {configDirty && (
-          <Badge color="yellow" variant="light">
+          <Badge color="warning" variant="light">
             Unsaved Changes
           </Badge>
         )}

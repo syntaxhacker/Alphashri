@@ -202,13 +202,13 @@ export function LLMStatsPanel() {
         </CompactPanel>
       )}
 
-      {error && <Alert color="red" variant="light">{error}</Alert>}
+      {error && <Alert color="error" variant="light">{error}</Alert>}
 
       <Group justify="space-between">
         <Text size="sm" fw={500}>Recent Runs</Text>
         <Group gap="xs">
           <Button size="compact-xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStats} loading={loading}>Refresh</Button>
-          <Button size="compact-xs" variant="light" color="red" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
+          <Button size="compact-xs" variant="light" color="error" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
         </Group>
       </Group>
 

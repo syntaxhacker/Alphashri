@@ -42,16 +42,16 @@ import {
 } from "../../config/colors";
 
 const STRATEGY_COLORS: Record<string, string> = {
-  ORB: "blue",
-  SR_BREAKOUT: "violet",
-  EMA_CROSS: "cyan",
-  WEEK_52_CHASER: "orange",
-  WEEK_52_TARGET: "teal",
-  BLIND_52W: "pink",
+  ORB: "primary",
+  SR_BREAKOUT: "secondary",
+  EMA_CROSS: "info",
+  WEEK_52_CHASER: "warning",
+  WEEK_52_TARGET: "info",
+  BLIND_52W: "secondary",
 };
 
 function getStrategyColor(type: string): string {
-  return STRATEGY_COLORS[type] || "gray";
+  return STRATEGY_COLORS[type] || "secondary";
 }
 
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
@@ -70,7 +70,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={isGreen ? "teal" : "red"} variant="light" size="sm">
+          <Badge color={isGreen ? "info" : "error"} variant="light" size="sm">
             {isGreen ? "PROFIT" : "LOSS"}
           </Badge>
         </Box>
@@ -115,7 +115,7 @@ export function StrategyStatusCard({
   const usedPct = (strategy.capital_used / strategy.allocated_capital) * 100;
   const pnlColor = getPnLTextColor(strategy.total_pnl);
   const stratColor = getStrategyColor(strategy.strategy_name);
-  const progColor = usedPct > 80 ? "red" : usedPct > 50 ? "orange" : stratColor;
+  const progColor = usedPct > 80 ? "error" : usedPct > 50 ? "warning" : stratColor;
   const isGreen = strategy.total_pnl >= 0;
 
   return (
@@ -133,7 +133,7 @@ export function StrategyStatusCard({
           </Badge>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={strategy.status === "running" ? "green" : "gray"} variant="light" size="sm">
+          <Badge color={strategy.status === "running" ? "success" : "secondary"} variant="light" size="sm">
             {strategy.status}
           </Badge>
         </Box>
@@ -257,9 +257,9 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       cell: ({ row }) => (
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Group gap="xs" wrap="nowrap" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-            <Badge color="red" variant="dot" size="sm" />
+            <Badge color="error" variant="dot" size="sm" />
             <Text size="sm" c="dimmed">₹{row.original.stop_loss.toFixed(2)}</Text>
-            <Badge color="green" variant="dot" size="sm" />
+            <Badge color="success" variant="dot" size="sm" />
             <Text size="sm" c="dimmed">₹{row.original.take_profit.toFixed(2)}</Text>
           </Group>
         </Box>
@@ -273,7 +273,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Open Positions</Text></Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={positions.some(p => p.unrealized_pnl >= 0) ? "teal" : "red"} variant="light" size="sm">
+          <Badge color={positions.some(p => p.unrealized_pnl >= 0) ? "info" : "error"} variant="light" size="sm">
             {positions.length} active
           </Badge>
         </Box>
@@ -319,7 +319,7 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
               {row.original.strategy_name}
             </Badge>
             {row.original.is_test && (
-              <Badge color="yellow" size="sm" variant="light">
+              <Badge color="warning" size="sm" variant="light">
                 TEST
               </Badge>
             )}
@@ -417,14 +417,14 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Trade History ({trades.length})</Text></Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Badge
-            color="green"
+            color="success"
             variant="light"
             size="sm"
           >
             {trades.filter(t => t.pnl >= 0).length} W
           </Badge>
           <Badge
-            color="red"
+            color="error"
             variant="light"
             size="sm"
           >
@@ -474,7 +474,7 @@ export const BotActionButtons = memo(function BotActionButtons({
     <Group gap="xs">
       <ActionIcon
         variant="subtle"
-        color="blue"
+        color="primary"
         onClick={() => onView(bot)}
         title="View Status"
         data-testid={`view-bot-status-btn-${bot.id}`}
@@ -484,7 +484,7 @@ export const BotActionButtons = memo(function BotActionButtons({
       {bot.running ? (
         <ActionIcon
           variant="subtle"
-          color="orange"
+          color="warning"
           onClick={() => onStop(bot.id)}
           title="Stop Bot"
           data-testid={`stop-bot-btn-${bot.id}`}
@@ -499,7 +499,7 @@ export const BotActionButtons = memo(function BotActionButtons({
           <span>
             <ActionIcon
               variant="subtle"
-              color="green"
+              color="success"
               onClick={() => onStart(bot.id)}
               disabled={!bot.is_active || marketClosed}
               title={marketClosed ? "Market closed" : "Start Bot"}
@@ -512,7 +512,7 @@ export const BotActionButtons = memo(function BotActionButtons({
       )}
       <ActionIcon
         variant="subtle"
-        color="blue"
+        color="primary"
         onClick={() => onEdit(bot)}
         title="Edit Bot"
         data-testid={`edit-bot-btn-${bot.id}`}
@@ -521,7 +521,7 @@ export const BotActionButtons = memo(function BotActionButtons({
       </ActionIcon>
       <ActionIcon
         variant="subtle"
-        color="red"
+        color="error"
         onClick={() => onDelete(bot.id)}
         disabled={bot.running}
         title="Delete Bot"

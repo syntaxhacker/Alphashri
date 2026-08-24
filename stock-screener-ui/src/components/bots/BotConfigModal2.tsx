@@ -93,7 +93,7 @@ function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
 
   return (
     <Group gap="xs" mt={4} wrap="wrap">
-      <ThemeIcon size="xs" variant="transparent" color="gray" style={{ flex: "0 0 auto" }}>
+      <ThemeIcon size="xs" variant="transparent" color="secondary" style={{ flex: "0 0 auto" }}>
         <IconInfoCircle size={12} />
       </ThemeIcon>
       {items.map((item) => (
@@ -301,7 +301,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                   description="Places real orders via Upstox API. Use with caution!"
                   checked={liveTrading}
                   onChange={(e) => setLiveTrading(e.currentTarget.checked)}
-                  color="red"
+                  color="error"
                   data-testid="bot-live-trading-switch"
                 />
               </Box>
@@ -378,7 +378,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                         />
                       </Box>
                       <ActionIcon
-                        color="red"
+                        color="error"
                         variant="subtle"
                         onClick={() => handleRemoveStrategy(strategy.id)}
                         title="Remove"
@@ -436,12 +436,12 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mt="sm">
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total Allocation</Text>
-                <Text size="sm" fw={700} c={isOverAllocated ? "red" : undefined} sx={{ flex: 1, textAlign: "right" }}>
+                <Text size="sm" fw={700} c={isOverAllocated ? "error" : undefined} sx={{ flex: 1, textAlign: "right" }}>
                   {totalAllocation.toFixed(0)}%
                 </Text>
               </Box>
               {isOverAllocated && (
-                <Alert color="red" variant="light" p="xs">
+                <Alert color="error" variant="light" p="xs">
                   Over 100%
                 </Alert>
               )}

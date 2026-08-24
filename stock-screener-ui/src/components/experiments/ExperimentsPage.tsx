@@ -24,13 +24,13 @@ import { ExperimentsChart } from "./ExperimentsChart";
 function sessionStatusColor(status: string): string {
   switch (status) {
     case "running":
-      return "blue";
+      return "primary";
     case "completed":
-      return "green";
+      return "success";
     case "error":
-      return "red";
+      return "error";
     default:
-      return "gray";
+      return "secondary";
   }
 }
 
@@ -61,7 +61,7 @@ export function ExperimentsPage() {
           data-testid="experiments-error"
           icon={<IconAlertCircle size={16} />}
           title="Error"
-          color="red"
+          color="error"
           variant="filled"
           withCloseButton
           sx={{ mb: 1, width: "100%" }}
@@ -117,7 +117,7 @@ export function ExperimentsPage() {
                             {session.session}
                           </Text>
                           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, flexWrap: "wrap" }}>
-                            <Badge size="xs" variant="light" color="blue">
+                            <Badge size="xs" variant="light" color="primary">
                               {session.strategy}
                             </Badge>
                             <Text size="xs" c="dimmed">

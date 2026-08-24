@@ -22,13 +22,13 @@ export function SelectionBar({ onCompare }: SelectionBarProps) {
         sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
         data-testid="selection-bar"
       >
-      <Badge size="lg" variant="filled" color="blue">
+      <Badge size="lg" variant="filled" color="primary">
         {selectedSymbols.length} selected
       </Badge>
       <Button
         size="sm"
         variant="subtle"
-        color="gray"
+        color="secondary"
         leftSection={<IconX size={14} />}
         onClick={clearSelectedSymbols}
         data-testid="clear-selection-btn"

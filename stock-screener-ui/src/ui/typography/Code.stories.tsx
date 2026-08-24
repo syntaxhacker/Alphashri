@@ -28,5 +28,5 @@ export const BlockCode: Story = {
 };
 
 export const ColoredBlock: Story = {
-  args: { block: true, color: "teal", children: "npm install @mui/material" },
+  args: { block: true, color: "info", children: "npm install @mui/material" },
 };

@@ -6,19 +6,19 @@ import { TanStackTable } from "../common/TanStackTable";
 import { apiGet } from "../../api/utils";
 
 const STRATEGY_COLORS: Record<string, string> = {
-  ORB: "blue",
-  SR_BREAKOUT: "violet",
-  EMA_CROSS: "cyan",
-  WEEK_52_CHASER: "orange",
-  WEEK_52_TARGET: "teal",
-  BLIND_52W: "pink",
+  ORB: "primary",
+  SR_BREAKOUT: "secondary",
+  EMA_CROSS: "info",
+  WEEK_52_CHASER: "warning",
+  WEEK_52_TARGET: "info",
+  BLIND_52W: "secondary",
 };
 
 function getStrategyColor(name: string): string {
   for (const [key, color] of Object.entries(STRATEGY_COLORS)) {
     if (name.toUpperCase().includes(key)) return color;
   }
-  return "gray";
+  return "secondary";
 }
 
 interface StrategyPerf {
@@ -66,7 +66,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     meta: { align: "center" } as any,
     cell: ({ getValue }) => (
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-        <Badge color="green" variant="dot" size="sm" />
+        <Badge color="success" variant="dot" size="sm" />
         <Text span ml={4} ta="center">{getValue<number>()}</Text>
       </Box>
     ),
@@ -78,7 +78,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     meta: { align: "center" } as any,
     cell: ({ getValue }) => (
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-        <Badge color="red" variant="dot" size="sm" />
+        <Badge color="error" variant="dot" size="sm" />
         <Text span ml={4} ta="center">{getValue<number>()}</Text>
       </Box>
     ),
@@ -90,7 +90,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     meta: { align: "center" } as any,
     cell: ({ getValue }) => {
       const v = getValue<number>();
-      return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} c={v >= 50 ? "teal" : "orange"} ta="center">{v}%</Text></Box>;
+      return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} c={v >= 50 ? "info" : "warning"} ta="center">{v}%</Text></Box>;
     },
   },
   {
@@ -101,7 +101,7 @@ const columns: ColumnDef<StrategyPerf>[] = [
     cell: ({ getValue }) => {
       const v = getValue<number>();
       return (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} c={v >= 0 ? "teal" : "red"} ta="center">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} c={v >= 0 ? "info" : "error"} ta="center">
           {v >= 0 ? "+" : ""}₹{v.toLocaleString()}
         </Text></Box>
       );
@@ -130,7 +130,7 @@ export function StrategyPerformance() {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Box w={4} h={24} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
           <Title order={4} ta="center">Strategy Performance</Title>
-          <Badge size="sm" variant="light" color="cyan">last {data.days} days</Badge>
+          <Badge size="sm" variant="light" color="info">last {data.days} days</Badge>
         </Box>
       </Box>
       <TanStackTable<StrategyPerf>
@@ -156,15 +156,15 @@ export function StrategyPerformance() {
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-start" }}>
               <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Win / Loss</Text>
               <Group gap={1} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Badge color="green" variant="light" size="sm">{totalWins} W</Badge>
-                <Badge color="red" variant="light" size="sm">{totalLosses} L</Badge>
+                <Badge color="success" variant="light" size="sm">{totalWins} W</Badge>
+                <Badge color="error" variant="light" size="sm">{totalLosses} L</Badge>
                 <Text size="sm" c="dimmed">({totalWinRate}%)</Text>
               </Group>
             </Box>
           </Group>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-end" }}>
             <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Total Net P&L</Text>
-            <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "teal" : "red"} sx={{ flex: 1, textAlign: "right" }}>
+            <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "info" : "error"} sx={{ flex: 1, textAlign: "right" }}>
               {data.total_net_pnl >= 0 ? "+" : ""}₹{data.total_net_pnl.toLocaleString()}
             </Text>
           </Box>

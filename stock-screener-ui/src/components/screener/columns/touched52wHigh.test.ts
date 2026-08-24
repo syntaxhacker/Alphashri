@@ -45,11 +45,11 @@ describe("touched52wHigh columns", () => {
 
   describe("day_change / recent_return_5d / perf_w", () => {
     it("day_change green/red", () => {
-      expect((fmt("day_change")(2) as any).className).toBe("green");
-      expect((fmt("day_change")(-1) as any).className).toBe("red");
+      expect((fmt("day_change")(2) as any).className).toBe("success");
+      expect((fmt("day_change")(-1) as any).className).toBe("error");
     });
     it("recent_return rocket", () => expect((fmt("recent_return_5d")(6) as any).value).toContain("🚀"));
-    it("perf_w red for 0", () => expect((fmt("perf_w")(0) as any).className).toBe("red"));
+    it("perf_w red for 0", () => expect((fmt("perf_w")(0) as any).className).toBe("error"));
   });
 
   describe("volume_m", () => {

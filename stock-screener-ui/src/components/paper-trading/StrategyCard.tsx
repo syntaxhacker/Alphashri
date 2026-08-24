@@ -53,7 +53,7 @@ export const StrategyCard = memo(function StrategyCard({
             value={capacityPct}
             size="xs"
             w={60}
-            color={capacityPct >= 100 ? "red" : "blue"}
+            color={capacityPct >= 100 ? "error" : "primary"}
             aria-label={`${summary.count} of ${maxCapacity} positions`}
           />
           <Text size="xs" c="dimmed">{summary.count}/{maxCapacity}</Text>
@@ -62,7 +62,7 @@ export const StrategyCard = memo(function StrategyCard({
           <Button
             size="compact-xs"
             variant="light"
-            color="red"
+            color="error"
             leftSection={<IconX size={12} />}
             onClick={(e) => {
               e.stopPropagation();

@@ -1,5 +1,5 @@
 import { useMemo, useState, useCallback } from "react";
-import { alpha } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import {
   ActionIcon,
   Badge,
@@ -57,6 +57,7 @@ interface ScanRow extends PaperScanItem {
 }
 
 export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing }: WatchlistScan2Props) {
+  const theme = useTheme();
   const [statusFilter, setStatusFilter] = useState<"all" | "signal" | "watching" | "rejected">("all");
   const [strategyFilter, setStrategyFilter] = useState<string[]>([]);
   const [symbolQuery, setSymbolQuery] = useState("");
@@ -151,11 +152,11 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             <Group gap={6} wrap="nowrap">
               <ClickableSymbol symbol={row.symbol} showPreview />
               {row.source === "custom" && (
-                <Badge size="xs" variant="light" color="violet">Custom</Badge>
+                <Badge size="xs" variant="light" color="secondary">Custom</Badge>
               )}
               {isNewSignal(row, snapshot?.timestamp ?? null) && (
                 <Tooltip label="New (< 1 min)">
-                  <IconSparkles size={12} color="green" />
+                  <IconSparkles size={12} color="var(--mui-palette-success-main)" />
                 </Tooltip>
               )}
             </Group>
@@ -189,7 +190,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           const near = nearBreakoutPct(row);
           const nearText = Number.isFinite(near) && near < 9999 ? `${near.toFixed(2)}%` : "-";
           return (
-            <Text size="xs" c={row.status === "watching" ? "yellow" : "dimmed"}>
+            <Text size="xs" c={row.status === "watching" ? "warning" : "dimmed"}>
               {nearText}
             </Text>
           );
@@ -202,7 +203,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         cell: (info) => {
           const val = info.getValue<string | null>();
           return (
-            <Badge variant="outline" color="blue" size="xs">
+            <Badge variant="outline" color="primary" size="xs">
               {val || "-"}
             </Badge>
           );
@@ -244,7 +245,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             <Text fw={600} size="xs" c="dimmed" tt="uppercase">
               Watchlist Scan
             </Text>
-            <Badge size="xs" variant="outline" color="orange">
+            <Badge size="xs" variant="outline" color="warning">
               No data
             </Badge>
           </Group>
@@ -259,7 +260,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             </Text>
           </Group>
         </Group>
-        <Text size="xs" c="orange" fs="italic" ta="center" py="xs">
+        <Text size="xs" c="warning" fs="italic" ta="center" py="xs">
           No recent scan results — bot may be idle, stopped, or rate-limited
         </Text>
       </Stack>
@@ -273,7 +274,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
           </Text>
-          <Badge size="xs" variant="filled" color="teal" data-testid="watchlist-count">
+          <Badge size="xs" variant="filled" color="info" data-testid="watchlist-count">
             {allItems.length}
           </Badge>
         </Group>
@@ -339,9 +340,9 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             return {
               cursor: "pointer",
               backgroundColor: isSelected
-                ? alpha("#14B8A6", 0.08)
+                ? alpha(theme.palette.info.main, 0.08)
                 : isNew
-                  ? alpha("#16A34A", 0.08)
+                  ? alpha(theme.palette.success.main, 0.08)
                   : undefined,
             };
           }}
@@ -355,7 +356,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             Showing {visibleItems.length} of {allItems.length}
           </Text>
           {counts.skipped > 0 && !showSkipped && (
-            <Text size="xs" c="gray">
+            <Text size="xs" c="secondary">
               +{counts.skipped} skipped
             </Text>
           )}

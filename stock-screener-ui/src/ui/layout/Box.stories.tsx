@@ -13,7 +13,7 @@ type Story = StoryObj<typeof Box>;
 
 export const BackgroundPadding: Story = {
   render: () => (
-    <Box bg="blue" p="md" c="white" w={200}>
+    <Box bg="primary" p="md" c="white" w={200}>
       bg + padding via props
     </Box>
   ),

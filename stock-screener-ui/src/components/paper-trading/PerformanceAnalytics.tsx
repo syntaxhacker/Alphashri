@@ -234,7 +234,7 @@ export function PerformanceAnalytics() {
         </Group>
         <SegmentedControl
           size="xs"
-          color="cyan"
+          color="info"
           value={daysBack.toString()}
           onChange={(v) => setDaysBack(Number(v))}
           data={[

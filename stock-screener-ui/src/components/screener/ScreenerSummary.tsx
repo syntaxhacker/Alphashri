@@ -6,20 +6,20 @@ export function buildSummaryItems(items: SummaryItem[]): SummaryItem[] {
 }
 
 const COLOR_MAP: Record<string, string> = {
-  green: "success.main",
-  teal: "success.main",
-  red: "error.main",
-  blue: "primary.main",
-  cyan: "info.main",
-  violet: "secondary.main",
-  orange: "warning.main",
-  gray: "text.secondary",
+  green: "var(--mui-palette-success-main)",
+  teal: "var(--mui-palette-info-main)",
+  red: "var(--mui-palette-error-main)",
+  blue: "var(--mui-palette-primary-main)",
+  cyan: "var(--mui-palette-info-main)",
+  violet: "var(--mui-palette-secondary-main)",
+  orange: "var(--mui-palette-warning-main)",
+  gray: "var(--mui-palette-secondary-main)",
 };
 export function getTone(item: SummaryItem): string {
   if (item.color) {
-    return COLOR_MAP[item.color] || "text.primary";
+    return COLOR_MAP[item.color] || "var(--mui-palette-text-primary)";
   }
-  return "text.primary";
+  return "var(--mui-palette-text-primary)";
 }
 
 export function ScreenerSummary({ summary }: ScreenerSummaryProps) {

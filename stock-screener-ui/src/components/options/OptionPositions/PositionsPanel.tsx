@@ -55,7 +55,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
           </Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-          <Alert icon={<IconAlertCircle size={16} />} color="red" variant="light" className="positions-error" data-testid="options-positions-error">
+          <Alert icon={<IconAlertCircle size={16} />} color="error" variant="light" className="positions-error" data-testid="options-positions-error">
             {error}
           </Alert>
         </Box>
@@ -82,7 +82,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
         cell: (info) => (
           <Badge
             size="sm"
-            color={info.getValue<string>() === "CE" ? "green" : "red"}
+            color={info.getValue<string>() === "CE" ? "success" : "error"}
             variant="light"
           >
             {info.getValue<string>()}

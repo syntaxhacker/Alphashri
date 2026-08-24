@@ -30,9 +30,9 @@ const SCREENER_OPTIONS = [
 ];
 
 function getScoreColor(score: number): string {
-  if (score >= 70) return "green";
-  if (score >= 40) return "yellow";
-  return "red";
+  if (score >= 70) return "success";
+  if (score >= 40) return "warning";
+  return "error";
 }
 
 function pctColor(pct: number): string {
@@ -139,7 +139,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
       <Button
         size="sm"
         variant="subtle"
-        color="gray"
+        color="secondary"
         leftSection={<IconDatabase size={16} />}
         onClick={() => setOpened(true)}
         data-testid="screener-picker-btn"
@@ -177,7 +177,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
           </Group>
 
           {error && (
-            <Text size="sm" c="red" data-testid="screener-error">
+            <Text size="sm" c="error" data-testid="screener-error">
               {error}
             </Text>
           )}
@@ -254,7 +254,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                           {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                         </Text>
                         {stock.touched_52w ? (
-                          <Text size="xs" w={72} ta="center" c="blue" style={{ fontFamily: "monospace" }}>
+                          <Text size="xs" w={72} ta="center" c="primary" style={{ fontFamily: "monospace" }}>
                             {formatTouchDate(stock)}
                           </Text>
                         ) : (

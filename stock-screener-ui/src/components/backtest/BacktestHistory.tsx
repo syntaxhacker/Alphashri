@@ -156,7 +156,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         accessorKey: "strategy_name",
         meta: { align: "center" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Badge variant="light" color="blue">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Badge variant="light" color="primary">
             {info.getValue<string>()}
           </Badge></Box>
         ),
@@ -195,7 +195,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={500} c={val >= 50 ? "green" : "orange"} ta="center">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={500} c={val >= 50 ? "success" : "warning"} ta="center">
               {val.toFixed(1)}%
             </Text></Box>
           );
@@ -237,7 +237,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
               </Button>
               <ActionIcon
                 variant="subtle"
-                color="red"
+                color="error"
                 onClick={() => handleDelete(row.id)}
                 data-testid={`history-delete-btn-${row.id}`}
               >
@@ -265,7 +265,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
       <Alert
         icon={<IconAlertCircle size="1rem" />}
         title="Error"
-        color="red"
+        color="error"
         className="backtest-history-error"
         data-testid="backtest-history-error"
       >
@@ -287,7 +287,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
       >
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, p: 1 }}>
           <EmptyState
-            icon={<IconDatabase size={40} color="gray" />}
+            icon={<IconDatabase size={40} color="secondary" />}
             title="No backtest history"
             description="Run a backtest and save it to see it here."
           />
@@ -313,7 +313,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           <Button
             size="sm"
             variant="light"
-            color="red"
+            color="error"
             leftSection={<IconTrash size={14} />}
             onClick={handleClearAll}
             disabled={history.length === 0}

@@ -263,11 +263,11 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
       <SimpleGrid cols={4} spacing={2}>
         <Box>
           <Text size="xs" c="dimmed">Stop Loss</Text>
-          <Text size="sm" c="red">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
+          <Text size="sm" c="error">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
         </Box>
         <Box>
           <Text size="xs" c="dimmed">Take Profit</Text>
-          <Text size="sm" c="teal">{pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "—"}</Text>
+          <Text size="sm" c="success">{pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "—"}</Text>
         </Box>
         <Box>
           <Text size="xs" c="dimmed">Peak</Text>
@@ -279,13 +279,13 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
         </Box>
         <Box>
           <Text size="xs" c="dimmed">52W High</Text>
-          <Text size="sm" c="orange">
+          <Text size="sm" c="warning">
             {loading52 ? <Loader size="xs" /> : week52?.high_52w ? `₹${week52.high_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
         <Box>
           <Text size="xs" c="dimmed">52W Low</Text>
-          <Text size="sm" c="blue">
+          <Text size="sm" c="primary">
             {loading52 ? <Loader size="xs" /> : week52?.low_52w ? `₹${week52.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
@@ -393,14 +393,14 @@ export function PositionsTableBody({
   const columns = useMemo<ColumnDef<PaperPosition>[]>(() => [
     {
       id: "toggle",
-      header: "",
+       header: "",
       size: 32,
       meta: { align: "center" },
       enableSorting: false,
        cell: ({ row }) => (
         <ActionIcon
           variant="subtle"
-          color="gray"
+          color="secondary"
           size="sm"
           onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
           data-testid={`position-expand-${getCompositeRowId(row.original)}`}
@@ -471,7 +471,7 @@ export function PositionsTableBody({
           <Tooltip label="Close position">
             <ActionIcon
               variant="subtle"
-              color="gray"
+              color="secondary"
               size="sm"
               onClick={(e) => { e.stopPropagation(); handleClosePosition(pos.symbol, pos.current_price); }}
               data-testid={`close-position-${getCompositeRowId(pos)}`}

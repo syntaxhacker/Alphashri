@@ -94,15 +94,15 @@ export function NewsQueuePanel() {
         ) : (
           <Group gap="xl" wrap="wrap" justify="center">
             <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c={q?.pending ? "orange" : "gray"}>{q?.pending ?? "—"}</Text>
+              <Text fw={700} size="xl" c={q?.pending ? "warning" : "secondary"}>{q?.pending ?? "—"}</Text>
               <Text size="xs" c="dimmed">Pending</Text>
             </Stack>
             <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c="green">{q?.done ?? "—"}</Text>
+              <Text fw={700} size="xl" c="success">{q?.done ?? "—"}</Text>
               <Text size="xs" c="dimmed">Done</Text>
             </Stack>
             <Stack gap={0} align="center">
-              <Text fw={700} size="xl" c={q?.failed ? "red" : "gray"}>{q?.failed ?? "—"}</Text>
+              <Text fw={700} size="xl" c={q?.failed ? "error" : "secondary"}>{q?.failed ?? "—"}</Text>
               <Text size="xs" c="dimmed">Failed</Text>
             </Stack>
             <Stack gap={0} align="center">
@@ -134,25 +134,25 @@ export function NewsQueuePanel() {
         <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={() => doAction("process", {})} loading={actionLoading === "process"} disabled={busy || !q?.pending}>
           Process next
         </Button>
-        <Badge size="lg" variant="outline" color={!needs?.broken_summary && !needs?.null_analysis ? "green" : "yellow"}>
+        <Badge size="lg" variant="outline" color={!needs?.broken_summary && !needs?.null_analysis ? "success" : "warning"}>
           {needs?.broken_summary ?? "—"} broken · {needs?.null_analysis ?? "—"} null
         </Badge>
       </Group>
 
       {/* error */}
-      {error && <Alert color="red">{error}</Alert>}
+      {error && <Alert color="error">{error}</Alert>}
 
       {/* last result */}
       {result && (
-        <Paper withBorder p="sm" radius="sm" bg={result.failed ? "red.0" : "green.0"}>
+        <Paper withBorder p="sm" radius="sm" bg={result.failed ? "error.light" : "success.light"}>
           {result.message && !result.processed && !result.failed ? (
             <Text size="sm">{result.message}</Text>
           ) : result.processed ? (
             <Stack gap={2}>
               <Group gap="xs">
-                <Badge size="sm" color="green">Done</Badge>
+                <Badge size="sm" color="success">Done</Badge>
                 <Text size="sm" fw={500}>ID {result.article_id}</Text>
-                <Badge size="sm" color={result.sentiment === "BULLISH" ? "green" : result.sentiment === "BEARISH" ? "red" : "gray"}>
+                <Badge size="sm" color={result.sentiment === "BULLISH" ? "success" : result.sentiment === "BEARISH" ? "error" : "secondary"}>
                   {result.sentiment}
                 </Badge>
                 <Text size="xs" c="dimmed">Impact: {result.impact_score}</Text>
@@ -163,11 +163,11 @@ export function NewsQueuePanel() {
           ) : (
             <Stack gap={2}>
               <Group gap="xs">
-                <Badge size="sm" color="red">Failed</Badge>
+                <Badge size="sm" color="error">Failed</Badge>
                 <Text size="sm" fw={500}>ID {result.article_id}</Text>
               </Group>
               <Text size="xs" c="dimmed">{(result.headline || "").slice(0, 80)}</Text>
-              <Text size="xs" c="red">{(result.error || "").slice(0, 200)}</Text>
+              <Text size="xs" c="error">{(result.error || "").slice(0, 200)}</Text>
             </Stack>
           )}
         </Paper>

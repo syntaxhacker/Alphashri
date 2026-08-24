@@ -128,7 +128,7 @@ export function HeatmapTreemap({
           }
           if (d.change != null && d.change !== "") {
             const ch = Number(d.change);
-            const col = ch >= 0 ? "#16A34A" : "#DC2626";
+            const col = ch >= 0 ? "var(--mui-palette-success-main)" : "var(--mui-palette-error-main)";
             lines.push(
               `  <div style="color:${col}">Change: <b>${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%</b></div>`,
             );

@@ -38,7 +38,6 @@ import { TanStackTable } from "../common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import { BotSummaryCell, BotActionButtons, getBotIndicatorColor } from "./BotHelpers";
 import { StatusBadge } from "../common/BadgeComponents";
-import { BOT_SELECTED_BG } from "../../config/colors";
 import { StrategyPerformance } from "./StrategyPerformance";
 
 function useViewChangeHandler() {
@@ -178,10 +177,10 @@ function BotsTable({
             />
             <Text fw={500} ta="center">{row.original.name}</Text>
             {row.original.live_trading && (
-              <Badge color="red" size="sm" variant="filled">LIVE</Badge>
+              <Badge color="error" size="sm" variant="filled">LIVE</Badge>
             )}
             {!row.original.is_active && (
-              <Badge color="gray" size="sm" variant="light">
+              <Badge color="secondary" size="sm" variant="light">
                 Inactive
               </Badge>
             )}
@@ -253,8 +252,8 @@ function BotsTable({
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
             <Text size="sm" fw={600} ta="center">Configured Bots</Text>
-            <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
-            <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
+            <Badge size="sm" variant="light" color="info">{state.bots.length}</Badge>
+            <Badge size="sm" variant="dot" color="success">{state.bots.filter(b => b.running).length} running</Badge>
           </Box>
         </Box>
         <TableContainer component={Paper} elevation={1}>
@@ -265,7 +264,7 @@ function BotsTable({
             getRowTestId={(row) => `bot-row-${row.id}`}
             getRowClassName={() => "bot-row"}
             getRowStyle={(row) => ({
-              backgroundColor: state.selectedBot?.id === row.id ? BOT_SELECTED_BG : undefined,
+              backgroundColor: state.selectedBot?.id === row.id ? "rgba(var(--mui-palette-primary-mainChannel) / 0.15)" : undefined,
             })}
           />
         </TableContainer>
@@ -379,7 +378,7 @@ export function BotsPage() {
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
             <Button
               variant="light"
-              color="green"
+              color="success"
               size="sm"
               leftSection={<IconPlayerPlay size={16} />}
               onClick={async () => {
@@ -396,7 +395,7 @@ export function BotsPage() {
             </Button>
             <Button
               variant="light"
-              color="orange"
+              color="warning"
               size="sm"
               leftSection={<IconPlayerStop size={16} />}
               onClick={async () => {

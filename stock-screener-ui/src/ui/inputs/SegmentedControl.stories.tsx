@@ -27,7 +27,7 @@ export const ControlledColors: Story = {
     <SegmentedControl
       data={data}
       defaultValue="1w"
-      color="teal"
+      color="info"
       aria-label="Chart timeframe"
     />
   ),

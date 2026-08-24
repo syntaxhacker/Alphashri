@@ -61,7 +61,7 @@ function AlertsAndMovers({
         title={
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Real-time Alerts</Title>
-            <IconBellRinging size={18} color="orange" />
+            <IconBellRinging size={18} color="var(--mui-palette-warning-main)" />
           </Box>
         }
       >
@@ -77,7 +77,7 @@ function AlertsAndMovers({
         title={
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Interval Movers</Title>
-            <IconTrendingUp size={18} color="blue" />
+            <IconTrendingUp size={18} color="var(--mui-palette-primary-main)" />
           </Box>
         }
       >
@@ -114,7 +114,7 @@ function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) 
       title="Error"
       description={error}
       action={
-        <Button variant="light" color="red" size="sm" onClick={onRetry}>
+        <Button variant="light" color="error" size="sm" onClick={onRetry}>
           Retry
         </Button>
       }
@@ -176,10 +176,10 @@ function DashboardContent({
           label="Market Breadth"
           value={
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-              <Badge color="green" variant="light">
+              <Badge color="success" variant="light">
                 {totalAdvances} UP
               </Badge>
-              <Badge color="red" variant="light">
+              <Badge color="error" variant="light">
                 {totalDeclines} DOWN
               </Badge>
             </Box>
@@ -202,7 +202,7 @@ function DashboardContent({
             <Title order={4}>Market Heatmap</Title>
             {data.last_updated && (
               <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <IconClock size={12} color="gray" />
+                <IconClock size={12} color="var(--mui-palette-text-secondary)" />
                 <Text size="sm" c="dimmed">
                   {new Date(data.last_updated).toLocaleTimeString()}
                 </Text>

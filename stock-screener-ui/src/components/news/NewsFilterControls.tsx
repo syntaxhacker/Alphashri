@@ -61,7 +61,7 @@ export function NewsFilterControls({
       />
 
       {unreadCount > 0 && (
-        <Badge size="sm" variant="light" color="blue" onClick={onMarkAllRead} data-testid="news-unread-badge">
+        <Badge size="sm" variant="light" color="primary" onClick={onMarkAllRead} data-testid="news-unread-badge">
           {unreadCount} unread
         </Badge>
       )}

@@ -123,7 +123,7 @@ describe("CompactStat", () => {
   });
 
   it("applies custom tone to value Text", () => {
-    render(<CompactStat label="PnL" value="+5%" tone="green" />);
+    render(<CompactStat label="PnL" value="+5%" tone="success" />);
     expect(screen.getByText("+5%")).toBeInTheDocument();
     expect(screen.getByText("PnL")).toBeInTheDocument();
   });

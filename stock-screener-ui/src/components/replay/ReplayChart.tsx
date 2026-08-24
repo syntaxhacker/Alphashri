@@ -189,7 +189,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           <Badge
             key={sym}
             variant={sym === selectedSymbol ? "filled" : "light"}
-            color={sym === selectedSymbol ? "teal" : "gray"}
+            color={sym === selectedSymbol ? "info" : "secondary"}
             size="sm"
             style={{ cursor: "pointer" }}
             onClick={() => setSelectedSymbol(sym)}
@@ -205,7 +205,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
                 key={preset.label}
                 size="compact-xs"
                 variant={activeTF === preset.minutes ? "filled" : "subtle"}
-                color={activeTF === preset.minutes ? "teal" : "gray"}
+                color={activeTF === preset.minutes ? "info" : "secondary"}
                 onClick={() => setActiveTF(preset.minutes)}
                 data-testid={`tf-btn-${preset.label}`}
               >

@@ -216,7 +216,7 @@ export function StrategyForm({
           {mode === "edit" && isBotRunning && (
             <Alert
               icon={<IconAlertTriangle size={16} />}
-              color="yellow"
+              color="warning"
               variant="light"
               data-testid="strategy-form-restart-warning"
             >
@@ -227,7 +227,7 @@ export function StrategyForm({
           {template && (
             <Alert
               icon={<IconInfoCircle size={16} />}
-              color="blue"
+              color="primary"
               variant="light"
               className="strategy-form-template-info"
               data-testid="strategy-form-template-info"

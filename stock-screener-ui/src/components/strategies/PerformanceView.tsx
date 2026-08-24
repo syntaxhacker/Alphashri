@@ -82,13 +82,13 @@ export function PerformanceView({
         cell: (info) => (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-            <Text size="sm" c="teal">
+            <Text size="sm" c="info">
               {info.row.original.winners}
             </Text>
             <Text size="sm" c="dimmed">
               /
             </Text>
-            <Text size="sm" c="red">
+            <Text size="sm" c="error">
               {info.row.original.losers}
             </Text>
           </Group>
@@ -104,7 +104,7 @@ export function PerformanceView({
           const winRate = info.getValue<number>();
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Badge size="sm" color={winRate >= 50 ? "teal" : "red"} variant="light">
+            <Badge size="sm" color={winRate >= 50 ? "info" : "error"} variant="light">
               {winRate.toFixed(1)}%
             </Badge>
             </Box>
@@ -120,7 +120,7 @@ export function PerformanceView({
           const val = info.getValue<number>();
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <span style={{ color: val >= 0 ? "teal" : "red", fontWeight: 500, fontSize: 13 }}>
+            <span style={{ color: val >= 0 ? "var(--mui-palette-info-main)" : "var(--mui-palette-error-main)", fontWeight: 500, fontSize: 13 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}
             </span>

@@ -272,7 +272,7 @@ export function PaperTradingTabs({
         <Tabs.Tab value="live" leftSection={<IconChartDots size={14} />} data-testid="tab-live">
           Positions
           {state.positions.length > 0 && (
-            <Text span ml={4} size="sm" c="blue">
+            <Text span ml={4} size="sm" c="primary">
               ({state.positions.length})
             </Text>
           )}
@@ -280,7 +280,7 @@ export function PaperTradingTabs({
         <Tabs.Tab value="history" leftSection={<IconClipboardList size={14} />} data-testid="trade-history-tab">
           Trade History
           {state.trades.length > 0 && (
-            <Text span ml={4} size="sm" c="blue">
+            <Text span ml={4} size="sm" c="primary">
               ({state.trades.length})
             </Text>
           )}

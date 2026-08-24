@@ -61,12 +61,12 @@ export function StrategyRunnerStats({ trades, summary, isRunning, progress }: Pr
         <CompactStat
           label="Win Rate"
           value={`${winRate.toFixed(1)}%`}
-          tone={winRate >= 50 ? "green" : "red"}
+          tone={winRate >= 50 ? "success" : "error"}
         />
         <CompactStat
           label="Profit Factor"
           value={pf === 0 ? "\u2014" : pf.toFixed(2)}
-          tone={pf > 1 ? "green" : pf < 1 ? "red" : "text.primary"}
+          tone={pf > 1 ? "success" : pf < 1 ? "error" : "text.primary"}
         />
         <CompactStat
           label="Net P&L"
@@ -75,7 +75,7 @@ export function StrategyRunnerStats({ trades, summary, isRunning, progress }: Pr
         />
         <CompactStat label="Winners / Losers" value={`${winners} / ${losers}`} />
         {totalCosts > 0 && (
-          <CompactStat label="Total Costs" value={formatNetPnl(totalCosts)} tone="red" />
+          <CompactStat label="Total Costs" value={formatNetPnl(totalCosts)} tone="error" />
         )}
         {isRunning && progress.totalBots > 0 && (
           <CompactStat

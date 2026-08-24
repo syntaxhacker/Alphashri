@@ -401,7 +401,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                       {option.label}
                     </Text>
                     {option.id === activeScreener && (
-                      <Badge size="xs" color="blue" data-testid="screener-active-badge">
+                      <Badge size="xs" color="primary" data-testid="screener-active-badge">
                         Active
                       </Badge>
                     )}
@@ -421,7 +421,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                     <ActionIcon
                       size="sm"
                       variant="subtle"
-                      color="red"
+                      color="error"
                       onClick={(e) => {
                         e.stopPropagation();
                         openDeleteConfirm(option.id);
@@ -449,7 +449,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           {activeOption && (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
               <Group gap="sm" wrap="wrap" data-testid="screener-filters" align="center">
-                <Badge size="xs" color="blue" data-testid="screener-name-badge">
+                <Badge size="xs" color="primary" data-testid="screener-name-badge">
                   {activeOption.label}
                 </Badge>
                 {(() => {
@@ -462,7 +462,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                     filterObj = activeOption.filters as Record<string, any>;
                   }
                   return Object.entries(filterObj).map(([key, value]) => (
-                    <Badge key={key} size="xs" color="red" variant="light">
+                    <Badge key={key} size="xs" color="error" variant="light">
                       {key.replace(/_/g, " ")}: {String(value)}
                     </Badge>
                   ));
@@ -558,7 +558,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           >
             Cancel
           </Button>
-          <Button color="red" onClick={handleDelete} loading={saving}>
+          <Button color="error" onClick={handleDelete} loading={saving}>
             Delete
           </Button>
         </Group>
@@ -664,7 +664,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               <Text fw={600} size="sm" data-testid="modal-live-preview-title">
                 LIVE PREVIEW
               </Text>
-              <Badge size="sm" color="blue">
+              <Badge size="sm" color="primary">
                 {stocks.length} stocks
               </Badge>
             </Box>

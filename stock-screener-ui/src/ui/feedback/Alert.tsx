@@ -5,24 +5,16 @@ import type { UIAlertProps } from "../types";
 function mapSeverity(color: UIAlertProps["color"]): "success" | "error" | "warning" | "info" {
   if (!color) return "info";
   switch (color) {
-    case "teal":
-    case "green":
     case "success":
       return "success";
-    case "red":
+    case "error":
     case "danger":
       return "error";
-    case "orange":
-    case "yellow":
     case "warning":
       return "warning";
-    case "cyan":
-    case "violet":
-    case "blue":
-    case "pink":
-      return "info";
-    case "gray":
-    case "dark":
+    case "primary":
+    case "secondary":
+    case "info":
       return "info";
     default:
       return "info";

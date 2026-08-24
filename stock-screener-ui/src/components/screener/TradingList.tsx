@@ -45,7 +45,7 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
           {({ copied, copy }) => (
             <ActionIcon
               variant="subtle"
-              color={copied ? "teal" : "gray"}
+              color={copied ? "info" : "secondary"}
               onClick={copy}
               data-testid="copy-trading-symbols-btn"
             >

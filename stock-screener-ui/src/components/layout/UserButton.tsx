@@ -59,7 +59,7 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
         <MenuItem
           leftSection={<IconLogout style={{ width: rem(14), height: rem(14) }} />}
           onClick={handleLogout}
-          color="red"
+          color="error"
           data-testid="logout-button"
         >
           Logout

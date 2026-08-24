@@ -126,7 +126,7 @@ function TreemapTile({
         gridRow: span.row,
         minHeight: span.minHeight,
         background: sector.itemStyle.color,
-        color: "#F8FAFC",
+        color: "var(--mui-palette-common-white)",
         padding: index === 0 ? "16px" : "12px",
         display: "flex",
         flexDirection: "column",
@@ -157,11 +157,11 @@ function TreemapTile({
           <Badge
             size="xs"
             variant="filled"
-            color="dark"
+            color="secondary"
             styles={{
               root: {
                 backgroundColor: withAlpha(BLACK, 0.28),
-                color: "#F8FAFC",
+                color: "var(--mui-palette-common-white)",
               },
             }}
           >

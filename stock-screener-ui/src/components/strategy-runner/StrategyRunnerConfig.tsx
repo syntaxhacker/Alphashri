@@ -167,7 +167,7 @@ export function StrategyRunnerConfig({
                   <ActionIcon
                     size="sm"
                     variant="subtle"
-                    color="gray"
+                    color="secondary"
                     onClick={handleAddAllSymbols}
                   >
                     <Text size="xs" fw={700}>
@@ -213,7 +213,7 @@ export function StrategyRunnerConfig({
             {isRunning ? (
               <Button
                 size="sm"
-                color="red"
+                color="error"
                 variant="light"
                 leftSection={<IconPlayerStop size={16} />}
                 onClick={stopRunner}
@@ -237,7 +237,7 @@ export function StrategyRunnerConfig({
                     <ActionIcon
                       size="sm"
                       variant="subtle"
-                      color="gray"
+                      color="secondary"
                       onClick={reset}
                     >
                       <IconRotate size={16} />

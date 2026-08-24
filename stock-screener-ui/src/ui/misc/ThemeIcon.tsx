@@ -1,23 +1,18 @@
 import Box from "@mui/material/Box";
-import { alpha } from "@mui/material/styles";
+import { alpha, useTheme } from "@mui/material/styles";
 import type { UIThemeIconProps } from "../types";
 
-function resolveColor(color?: string): { main: string; dark: string } {
-  const map: Record<string, { main: string; dark: string }> = {
-    teal: { main: "#0FAE99", dark: "#0C8575" },
-    green: { main: "#16A34A", dark: "#14532D" },
-    red: { main: "#DC2626", dark: "#7F1D1D" },
-    orange: { main: "#D97706", dark: "#78350F" },
-    blue: { main: "#2563EB", dark: "#1D4ED8" },
-    gray: { main: "#64748B", dark: "#475569" },
-    dark: { main: "#1E293B", dark: "#0F172A" },
-    yellow: { main: "#D97706", dark: "#78350F" },
-    violet: { main: "#8250DF", dark: "#4E2A8F" },
-    pink: { main: "#E64980", dark: "#9c36b5" },
-    cyan: { main: "#0891B2", dark: "#164E63" },
-  };
-  if (!color) return { main: "#2563EB", dark: "#1D4ED8" };
-  return map[color] ?? { main: color, dark: color };
+function useResolveColor(color?: string): { main: string; dark: string } {
+  const theme = useTheme();
+  const palette = theme.palette as unknown as Record<string, { main: string; dark: string }>;
+  const fallback = palette.primary ?? { main: theme.palette.primary.main, dark: theme.palette.primary.dark };
+  if (!color) return fallback;
+  if (color.startsWith("#") || color.startsWith("rgb")) return { main: color, dark: color };
+  const key = color.split(".")[0];
+  const entry = palette[key];
+  if (entry?.main) return entry;
+  // fallback to direct color
+  return { main: color, dark: color };
 }
 
 function toPx(size: UIThemeIconProps["size"]): number | undefined {
@@ -29,7 +24,7 @@ function toPx(size: UIThemeIconProps["size"]): number | undefined {
 }
 
 export function ThemeIcon({ variant, color, size, radius, children, className, style, "data-testid": testId, id, ...rest }: UIThemeIconProps) {
-  const { main, dark } = resolveColor(color as string);
+  const { main, dark } = useResolveColor(color as string);
   const px = toPx(size);
   const br =
     radius != null
@@ -50,7 +45,7 @@ export function ThemeIcon({ variant, color, size, radius, children, className, s
     ...(px != null ? { width: px, height: px, fontSize: px * 0.5 } : { width: 36, height: 36 }),
     borderRadius: br,
     ...(variant === "filled"
-      ? { bgcolor: dark, color: "#fff" }
+      ? { bgcolor: dark, color: "common.white" }
       : variant === "outline"
         ? { bgcolor: "transparent", color: dark }
         : variant === "white"

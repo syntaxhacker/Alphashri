@@ -18,25 +18,19 @@ function mapSize(size: UIChipProps["size"]): "small" | "medium" {
 function mapColor(color: UIChipProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" | "default" {
   if (!color) return "default";
   switch (color) {
-    case "teal":
-    case "green":
     case "success":
       return "success";
-    case "red":
+    case "error":
     case "danger":
       return "error";
-    case "orange":
-    case "yellow":
     case "warning":
       return "warning";
-    case "blue":
-    case "violet":
-    case "cyan":
-    case "pink":
+    case "info":
       return "info";
-    case "gray":
-    case "dark":
+    case "secondary":
       return "secondary";
+    case "primary":
+      return "primary";
     default:
       return "default";
   }

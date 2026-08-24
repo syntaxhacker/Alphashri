@@ -26,7 +26,7 @@ export function NewsItemCard({
       data-testid="news-item"
     >
       <Group gap="xs" wrap="nowrap">
-        {isUnread && <Box w={5} h={5} bg="blue" sx={{ borderRadius: "50%", flexShrink: 0 }} />}
+        {isUnread && <Box w={5} h={5} bg="primary" sx={{ borderRadius: "50%", flexShrink: 0 }} />}
         <Text
           size="xs"
           fw={isUnread ? 500 : 400}

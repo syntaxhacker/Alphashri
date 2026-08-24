@@ -78,14 +78,14 @@ export function OptionChainPanel({
           <LiveSpotChart underlying={selectedUnderlying} />
           {timestamp && !loading && (
             <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
-              <Badge variant="light" color="gray" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
+              <Badge variant="light" color="secondary" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
                 {dayjs(timestamp).format("HH:mm:ss")}
               </Badge>
             </Tooltip>
           )}
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-          <Button variant="light" color="blue" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
+          <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
             Guide
           </Button>
           <Text size="xs" c="dimmed" data-testid="options-chain-selection" sx={{ textAlign: "center" }}>
@@ -119,7 +119,7 @@ export function OptionChainPanel({
           id="chain-error"
          
           icon={<IconAlertCircle size={16} />}
-          color="red"
+          color="error"
           variant="light"
           data-testid="chain-error-alert"
         >
@@ -134,7 +134,7 @@ export function OptionChainPanel({
           <Text c="dimmed">Loading option chain...</Text>
         </Box>
       ) : strikeMatrix.length === 0 ? (
-        <Alert id="chain-no-data" icon={<IconAlertCircle size={16} />} color="yellow" variant="light" data-testid="no-data-alert">
+        <Alert id="chain-no-data" icon={<IconAlertCircle size={16} />} color="warning" variant="light" data-testid="no-data-alert">
           No options data available. Select an underlying and expiry to view the chain.
         </Alert>
       ) : (

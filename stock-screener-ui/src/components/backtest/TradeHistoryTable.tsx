@@ -6,7 +6,6 @@ import type { ColumnDef } from "@tanstack/react-table";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { TanStackTable } from "../common/TanStackTable";
-import { TINT_LOSS_ROW } from "../../config/colors";
 
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
   return [...trades].sort((a, b) => {
@@ -181,9 +180,9 @@ export function TradeHistoryTable({
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
           return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{side === "LONG" ? (
-            <Text size="sm" c="green" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
+            <Text size="sm" c="success" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
           ) : (
-            <Text size="sm" c="red" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
+            <Text size="sm" c="error" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
           )}</Box>;
         },
       },
@@ -270,7 +269,7 @@ export function TradeHistoryTable({
           const reason = row.original.exit_reason ?? "EOD";
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Badge size="sm" color={reason === "TP" ? "green" : reason === "SL" ? "red" : reason === "TRAILING_STOP" ? "orange" : "gray"}>
+              <Badge size="sm" color={reason === "TP" ? "success" : reason === "SL" ? "error" : reason === "TRAILING_STOP" ? "warning" : "secondary"}>
                 {reason}
               </Badge>
             </Box>
@@ -296,7 +295,7 @@ export function TradeHistoryTable({
         <Text fw={600} size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
           📋 {symbol} Trades ({trades.length})
         </Text>
-        <ActionIcon variant="subtle" color="gray" size="sm" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
+        <ActionIcon variant="subtle" color="secondary" size="sm" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
           <IconX size={14} />
         </ActionIcon>
       </Box>
@@ -323,7 +322,7 @@ export function TradeHistoryTable({
           dataTestId="trade-history-table"
           enableSorting={false}
           getRowStyle={(row) => ({
-            backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
+            backgroundColor: row.net_pnl >= 0 ? undefined : "rgba(var(--mui-palette-error-mainChannel) / 0.12)",
           })}
           getRowTestId={(_row, index) => `trade-history-row-${index}`}
           onRowClick={(row) => onRowClick(safeTrades.indexOf(row))}

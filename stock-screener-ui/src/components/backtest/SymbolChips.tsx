@@ -71,7 +71,7 @@ export function SymbolChips({
             <ActionIcon
               size="sm"
               variant="subtle"
-              color="gray"
+              color="secondary"
               onClick={() => onSymbolsChange([])}
               data-testid="clear-symbols-btn"
             >
@@ -100,7 +100,7 @@ export function SymbolChips({
           {hasOverflow && !symbolsExpanded && (
             <Badge
               variant="light"
-              color="gray"
+              color="secondary"
               size="sm"
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(true)}
@@ -113,7 +113,7 @@ export function SymbolChips({
           {symbolsExpanded && hasOverflow && (
             <Badge
               variant="light"
-              color="gray"
+              color="secondary"
               size="sm"
               className="symbol-chip symbol-expand-toggle"
               onClick={() => setSymbolsExpanded(false)}

@@ -50,6 +50,6 @@ export const WithZIndex: Story = {
   args: {
     visible: true,
     zIndex: 50,
-    loaderProps: { size: "sm", color: "teal" },
+    loaderProps: { size: "sm", color: "info" },
   },
 };

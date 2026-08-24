@@ -36,7 +36,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
             description: `Aggressive building! Added ${Math.round(changePct)}% (${(change / 1000).toFixed(1)}k) new contracts. Professional sellers are defending this strike.`,
             intensity: "High",
             icon: <IconWall size={16} />,
-            color: type === "CE" ? "red" : "green",
+            color: type === "CE" ? "error" : "success",
           });
         }
 
@@ -49,7 +49,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
             description: `Exited ${Math.abs(Math.round(changePct))}% (${(Math.abs(change) / 1000).toFixed(1)}k) contracts while price is rising. Sellers are running for cover!`,
             intensity: "Critical",
             icon: <IconBolt size={16} />,
-            color: "cyan",
+            color: "info",
           });
         }
 
@@ -61,7 +61,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
             description: `High Volume (${(volume / 1000).toFixed(1)}k) with ${Math.round(changePct)}% OI addition. Fresh directional bets are being placed.`,
             intensity: "Medium",
             icon: <IconActivity size={16} />,
-            color: "indigo",
+            color: "secondary",
           });
         }
       });
@@ -74,14 +74,14 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
     <CompactPanel id="option-alerts" className="option-alerts-panel" data-testid="options-alerts-panel">
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }} className="alerts-header" data-testid="options-alerts-header">
         <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <ThemeIcon color="orange" variant="light">
+          <ThemeIcon color="warning" variant="light">
             <IconBellRinging size={18} />
           </ThemeIcon>
           <Text fw={800} size="sm" style={{ letterSpacing: "0.5px" }}>
             LIVE SMART MONEY ALERTS
           </Text>
         </Box>
-        <Badge variant="dot" color="green" size="sm" className="alerts-status-badge">
+        <Badge variant="dot" color="success" size="sm" className="alerts-status-badge">
           Scanning Live
         </Badge>
       </Box>
@@ -98,7 +98,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
             <TimelineItem key={i} bullet={alert.icon} color={alert.color} className="alert-item" data-testid={`options-alert-item-${i}`} title={
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
                   <Text size="sm" fw={700}>{alert.title}</Text>
-                  <Badge size="sm" color={alert.intensity === "Critical" ? "red" : "blue"}>{alert.intensity}</Badge>
+                  <Badge size="sm" color={alert.intensity === "Critical" ? "error" : "primary"}>{alert.intensity}</Badge>
                 </Box>
               }>
               <Text size="sm" c="dimmed" mt={4}>
@@ -111,7 +111,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
 
       <Box sx={{ mt: 1 }}>
         <CompactPanel p="xs" className="alerts-profit-tip" data-testid="options-alerts-profit-tip">
-          <Text size="sm" fw={600} c="blue.7">
+          <Text size="sm" fw={600} c="primary">
             💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
           </Text>
         </CompactPanel>

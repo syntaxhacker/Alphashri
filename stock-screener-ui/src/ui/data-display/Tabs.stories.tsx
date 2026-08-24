@@ -42,7 +42,7 @@ export const Variants: Story = {
     <Stack gap="md">
       <div>
         <Title order={5}>Pills</Title>
-        <Tabs defaultValue="a" variant="pills" color="teal">
+        <Tabs defaultValue="a" variant="pills" color="info">
           <TabsList>
             <Tab value="a">Overview</Tab>
             <Tab value="b">Signals</Tab>
@@ -55,7 +55,7 @@ export const Variants: Story = {
       </div>
       <div>
         <Title order={5}>Outline</Title>
-        <Tabs defaultValue="x" variant="outline" color="blue">
+        <Tabs defaultValue="x" variant="outline" color="primary">
           <TabsList>
             <Tab value="x">Chart</Tab>
             <Tab value="y">Depth</Tab>

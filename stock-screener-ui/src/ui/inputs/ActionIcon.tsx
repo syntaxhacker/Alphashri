@@ -21,25 +21,19 @@ function mapSize(size: UIActionIconProps["size"]): "small" | "medium" | "large" 
 function mapColor(color: UIActionIconProps["color"]): "primary" | "secondary" | "success" | "error" | "warning" | "info" | "default" {
   if (!color) return "default";
   switch (color) {
-    case "teal":
-    case "green":
     case "success":
       return "success";
-    case "red":
+    case "error":
     case "danger":
       return "error";
-    case "orange":
-    case "yellow":
     case "warning":
       return "warning";
-    case "cyan":
-    case "violet":
-    case "blue":
-    case "pink":
+    case "info":
       return "info";
-    case "gray":
-    case "dark":
+    case "secondary":
       return "secondary";
+    case "primary":
+      return "primary";
     default:
       return "default";
   }

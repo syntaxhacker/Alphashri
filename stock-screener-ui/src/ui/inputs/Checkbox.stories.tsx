@@ -44,6 +44,6 @@ export const WithDescription: Story = {
   args: {
     label: "Enable shorts",
     description: "Allow short entries when signal fires",
-    color: "teal",
+    color: "info",
   },
 };

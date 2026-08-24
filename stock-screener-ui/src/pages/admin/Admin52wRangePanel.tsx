@@ -139,7 +139,7 @@ export function Admin52wRangePanel() {
                 <Text size="xs" c="dimmed">Job:</Text>
                 <Badge
                   size="sm"
-                  color={running ? "orange" : job.status === "completed" ? "green" : job.status === "failed" ? "red" : "gray"}
+                  color={running ? "warning" : job.status === "completed" ? "success" : job.status === "failed" ? "error" : "secondary"}
                   variant="light"
                 >
                   {job.status}
@@ -161,10 +161,10 @@ export function Admin52wRangePanel() {
         <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={startBatch} loading={starting} disabled={running} data-testid="admin-52w-run">
           Run batch
         </Button>
-        <Button size="sm" variant="light" color="orange" leftSection={<IconTrash size={14} />} onClick={() => clearAction(false)} loading={clearing} disabled={running}>
+        <Button size="sm" variant="light" color="warning" leftSection={<IconTrash size={14} />} onClick={() => clearAction(false)} loading={clearing} disabled={running}>
           Clear cache
         </Button>
-        <Button size="sm" variant="light" color="red" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
+        <Button size="sm" variant="light" color="error" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
           Clear cache + DB
         </Button>
         <Button size="compact-sm" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStatus} loading={loading}>
@@ -182,7 +182,7 @@ export function Admin52wRangePanel() {
       />
 
       {/* error */}
-      {error && <Alert color="red">{error}</Alert>}
+      {error && <Alert color="error">{error}</Alert>}
 
       {/* batch progress */}
       {running && (
@@ -201,14 +201,14 @@ export function Admin52wRangePanel() {
 
       {/* status alerts */}
       {!running && job?.status === "completed" && (
-        <Alert color="green">
+        <Alert color="success">
           <Text size="sm">Batch completed{job.elapsed_sec != null ? ` in ${job.elapsed_sec}s` : ""}</Text>
           {job.message && <Text size="xs" c="dimmed">{job.message}</Text>}
         </Alert>
       )}
 
       {!running && job?.status === "failed" && (
-        <Alert color="red">
+        <Alert color="error">
           <Text size="sm">Batch failed</Text>
           <Text size="xs">{(job.error || job.message || "").slice(0, 300)}</Text>
         </Alert>

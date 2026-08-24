@@ -376,7 +376,7 @@ export function ChatPopup() {
         size={56}
         radius="xl"
         variant="filled"
-        color="blue"
+        color="primary"
         onClick={toggleChat}
         style={{
           position: "fixed",
@@ -443,7 +443,7 @@ export function ChatPopup() {
                   </>
                 )}
                 {isAvailable === false && (
-                  <Badge size="xs" color="red">
+                  <Badge size="xs" color="error">
                     Unavailable
                   </Badge>
                 )}
@@ -477,7 +477,7 @@ export function ChatPopup() {
                         <ActionIcon
                           variant="subtle"
                           size="xs"
-                          color="red"
+                          color="error"
                           onClick={(e) => handleDeleteConversation(c.id, e)}
                           data-testid={`chat-delete-convo-${c.id}`}
                         >
@@ -541,7 +541,7 @@ export function ChatPopup() {
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
                           </Text>
-                          <Text size="xs" c="gray" sx={{ opacity: 0.5 }}>
+                          <Text size="xs" c="secondary" sx={{ opacity: 0.5 }}>
                             {tc.agent}
                           </Text>
                         </Group>
@@ -596,17 +596,17 @@ export function ChatPopup() {
                       {msg.analysis && (
                         <Stack gap={4} mt="xs">
                           <Group gap={4}>
-                            <Badge size="xs" color="blue">
+                            <Badge size="xs" color="primary">
                               {msg.analysis.ticker}
                             </Badge>
                             <Badge
                               size="xs"
                               color={
                                 msg.analysis.decision === "BUY"
-                                  ? "green"
+                                  ? "success"
                                   : msg.analysis.decision === "SELL"
-                                    ? "red"
-                                    : "yellow"
+                                    ? "error"
+                                    : "warning"
                               }
                             >
                               {msg.analysis.decision}
@@ -670,7 +670,7 @@ export function ChatPopup() {
               <ActionIcon
                 size="sm"
                 variant="filled"
-                color="blue"
+                color="primary"
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading || isAvailable === false}
                 data-testid="chat-send-button"

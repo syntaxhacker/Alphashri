@@ -17,7 +17,7 @@ export const Default: Story = {
   render: () => (
     <CopyButton value="RELIANCE">
       {({ copied, copy }) => (
-        <Button variant={copied ? "light" : "filled"} color={copied ? "teal" : "blue"} onClick={copy}>
+        <Button variant={copied ? "light" : "filled"} color={copied ? "info" : "primary"} onClick={copy}>
           {copied ? "Copied!" : "Copy symbol"}
         </Button>
       )}

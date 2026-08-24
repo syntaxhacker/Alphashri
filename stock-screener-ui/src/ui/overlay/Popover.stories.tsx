@@ -45,9 +45,9 @@ function ControlledPopover() {
       <PopoverDropdown>
         <Group justify="space-between" gap="xl">
           <Text size="sm">Entry: ₹2,410.50</Text>
-          <Text size="sm" c="teal">P&L: +1.24%</Text>
+          <Text size="sm" c="info">P&L: +1.24%</Text>
         </Group>
-        <Button size="compact-sm" mt="xs" variant="subtle" color="red" onClick={() => setOpened(false)}>
+        <Button size="compact-sm" mt="xs" variant="subtle" color="error" onClick={() => setOpened(false)}>
           Dismiss
         </Button>
       </PopoverDropdown>

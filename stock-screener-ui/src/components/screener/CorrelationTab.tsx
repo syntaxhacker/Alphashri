@@ -167,7 +167,7 @@ export function CorrelationTab() {
           </Box>
 
           {error && (
-            <Alert icon={<IconAlertCircle size={16} />} color="red" size="sm">
+            <Alert icon={<IconAlertCircle size={16} />} color="error" size="sm">
               {error}
             </Alert>
           )}

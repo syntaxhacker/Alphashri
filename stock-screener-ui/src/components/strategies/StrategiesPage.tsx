@@ -59,7 +59,7 @@ export function StrategiesPage({
                 <Button
                   onClick={onRefresh}
                   variant="light"
-                  color="red"
+                  color="error"
                   size="sm"
                   leftSection={<IconRefresh size={14} />}
                   data-testid="strategies-retry-btn"

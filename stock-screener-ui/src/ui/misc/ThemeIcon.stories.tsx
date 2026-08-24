@@ -23,8 +23,8 @@ export const Variants: Story = {
   render: () => (
     <Group gap="md">
       <ThemeIcon variant="filled"><IconCheck size={16} /></ThemeIcon>
-      <ThemeIcon variant="light" color="teal"><IconCheck size={16} /></ThemeIcon>
-      <ThemeIcon variant="outline" color="blue"><IconCheck size={16} /></ThemeIcon>
+      <ThemeIcon variant="light" color="info"><IconCheck size={16} /></ThemeIcon>
+      <ThemeIcon variant="outline" color="primary"><IconCheck size={16} /></ThemeIcon>
       <ThemeIcon variant="default"><span style={{ fontSize: 12 }}>A</span></ThemeIcon>
     </Group>
   ),
@@ -35,19 +35,19 @@ export const Colors: Story = {
     <Stack gap="xs">
       <Title order={6}>Light</Title>
       <Group gap="xs">
-        <ThemeIcon variant="light" color="green"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="light" color="red"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="light" color="orange"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="light" color="violet"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="light" color="cyan"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="light" color="success"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="light" color="error"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="light" color="warning"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="light" color="secondary"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="light" color="info"><IconCheck size={14} /></ThemeIcon>
       </Group>
       <Title order={6}>Filled</Title>
       <Group gap="xs">
-        <ThemeIcon variant="filled" color="green"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="filled" color="red"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="filled" color="orange"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="filled" color="violet"><IconCheck size={14} /></ThemeIcon>
-        <ThemeIcon variant="filled" color="cyan"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="filled" color="success"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="filled" color="error"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="filled" color="warning"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="filled" color="secondary"><IconCheck size={14} /></ThemeIcon>
+        <ThemeIcon variant="filled" color="info"><IconCheck size={14} /></ThemeIcon>
       </Group>
     </Stack>
   ),

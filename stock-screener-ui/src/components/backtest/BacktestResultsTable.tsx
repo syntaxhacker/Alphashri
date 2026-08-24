@@ -1,5 +1,4 @@
 import { useMemo } from "react";
-import { alpha } from "@mui/material/styles";
 import { Box, Text, Group } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { BacktestResult } from "../../types/backtest";
@@ -107,11 +106,11 @@ export function BacktestResultsTable({
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Group gap={2} data-testid={`tpsl-${row.symbol}`} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                <Text c="green" size="sm">
+                <Text c="success" size="sm">
                   {row.tp_exits}
                 </Text>
                 <Text size="sm">/</Text>
-                <Text c="red" size="sm">
+                <Text c="error" size="sm">
                   {row.sl_exits}
                 </Text>
               </Group>
@@ -144,7 +143,7 @@ export function BacktestResultsTable({
         getRowTestId={(row) => `result-row-${row.symbol}`}
         getRowStyle={(row) => ({
           backgroundColor:
-            selectedSymbol === row.symbol ? alpha("#2563EB", 0.08) : undefined,
+            selectedSymbol === row.symbol ? "rgba(var(--mui-palette-primary-mainChannel) / 0.08)" : undefined,
         })}
         onRowClick={(row) => onRowClick(row.symbol)}
       />

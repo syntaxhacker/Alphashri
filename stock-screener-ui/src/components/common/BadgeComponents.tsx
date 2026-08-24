@@ -10,7 +10,7 @@ export function SideBadge({ side, size = "sm", "data-testid": testId }: SideBadg
   const isBuy = side.toUpperCase() === "BUY" || side.toUpperCase() === "LONG";
   const arrow = side.toUpperCase() === "BUY" ? "▲" : side.toUpperCase() === "SELL" ? "▼" : "";
   return (
-    <Badge color={isBuy ? "green" : "red"} variant="light" size={size} data-testid={testId}>
+    <Badge color={isBuy ? "success" : "error"} variant="light" size={size} data-testid={testId}>
       {arrow} {side.toUpperCase()}
     </Badge>
   );
@@ -27,16 +27,16 @@ export function ExitReasonBadge({
   size = "sm",
   "data-testid": testId,
 }: ExitReasonBadgeProps) {
-  let color: string = "gray";
+  let color: string = "secondary";
   const r = (reason || "").toLowerCase().trim();
-  if (r === "tp" || r === "target") color = "green";
-  else if (r === "sl" || r === "stop_loss" || r.includes("stop loss")) color = "red";
-  else if (r === "trailing_stop" || r === "trailing stop" || r.includes("trailing")) color = "orange";
-  else if (r === "force_close" || r === "force close" || r === "forceclose") color = "violet";
-  else if (r === "max_holding" || r === "max holding" || r.includes("max holding")) color = "yellow";
-  else if (r === "new_52w_high" || r === "new 52w" || r.includes("52w")) color = "cyan";
-  else if (r === "eod" || r === "manual_close" || r === "manual") color = "gray";
-  else if (r.startsWith("stop loss hit") || r.startsWith("take profit")) color = r.includes("stop") ? "red" : "green";
+  if (r === "tp" || r === "target") color = "success";
+  else if (r === "sl" || r === "stop_loss" || r.includes("stop loss")) color = "error";
+  else if (r === "trailing_stop" || r === "trailing stop" || r.includes("trailing")) color = "warning";
+  else if (r === "force_close" || r === "force close" || r === "forceclose") color = "secondary";
+  else if (r === "max_holding" || r === "max holding" || r.includes("max holding")) color = "warning";
+  else if (r === "new_52w_high" || r === "new 52w" || r.includes("52w")) color = "info";
+  else if (r === "eod" || r === "manual_close" || r === "manual") color = "secondary";
+  else if (r.startsWith("stop loss hit") || r.startsWith("take profit")) color = r.includes("stop") ? "error" : "success";
 
   const label =
     r === "tp"
@@ -66,7 +66,7 @@ export function ExitReasonBadge({
 
 export function TradingModeBadge({ liveTrading, size = "sm" }: { liveTrading: boolean; size?: "sm" | "md" | "lg" }) {
   return (
-    <Badge color={liveTrading ? "red" : "green"} variant="filled" size={size}>
+    <Badge color={liveTrading ? "error" : "success"} variant="filled" size={size}>
       {liveTrading ? "LIVE" : "PAPER"}
     </Badge>
   );
@@ -89,13 +89,13 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   if (statusUnknown) {
     return (
-      <Badge color="yellow" variant="light" size={size} data-testid={testId}>
+      <Badge color="warning" variant="light" size={size} data-testid={testId}>
         Unknown (Redis unavailable)
       </Badge>
     );
   }
   return (
-    <Badge color={running ? "green" : "gray"} variant="light" size={size} data-testid={testId}>
+    <Badge color={running ? "success" : "secondary"} variant="light" size={size} data-testid={testId}>
       {running ? (pid ? `Running (PID ${pid})` : "Running") : "Stopped"}
     </Badge>
   );

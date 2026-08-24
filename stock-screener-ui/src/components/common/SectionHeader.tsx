@@ -7,7 +7,7 @@ interface SectionHeaderProps {
   "data-testid"?: string;
 }
 
-export function SectionHeader({ title, badge, color = "blue", "data-testid": testId }: SectionHeaderProps) {
+export function SectionHeader({ title, badge, color = "primary", "data-testid": testId }: SectionHeaderProps) {
   return (
     <Group gap="xs" data-testid={testId}>
       <Box w={4} h={18} sx={{ borderRadius: 1, bgcolor: `${{ blue: "primary.main", green: "success.main", red: "error.main", orange: "warning.main", teal: "info.main", cyan: "info.main", violet: "secondary.main", grape: "secondary.main" }[color] ?? "primary.main"}` }} />

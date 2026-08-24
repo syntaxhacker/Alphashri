@@ -48,7 +48,7 @@ export function Checkbox({
       disabled={disabled}
       size={muiSize}
       indeterminate={indeterminate}
-      color={(color === "red" || color === "danger" ? "error" : color === "teal" || color === "green" || color === "success" ? "success" : "primary") as never}
+      color={(color === "error" || color === "danger" ? "error" : color === "info" || color === "success" || color === "success" ? "success" : "primary") as never}
       id={id}
       slotProps={{ input: { "data-testid": testId } as never } as never}
       sx={style && !label && !description ? { ...style } : undefined}

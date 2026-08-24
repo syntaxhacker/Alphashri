@@ -99,7 +99,7 @@ function TickerItem({ symbol, item }: TickerItemProps) {
       </Text>
       <Badge
         size="sm"
-        color={isPositive ? "green" : "red"}
+        color={isPositive ? "success" : "error"}
         variant="light"
         leftSection={isPositive ? <IconTrendingUp size={10} /> : <IconTrendingDown size={10} />}
       >

@@ -26,7 +26,7 @@ export const AllOrders: Story = {
 export const ColoredTitle: Story = {
   render: () => (
     <div>
-      <Title order={3} c="teal">
+      <Title order={3} c="info">
         Teal title
       </Title>
       <Title order={3} c="dimmed">

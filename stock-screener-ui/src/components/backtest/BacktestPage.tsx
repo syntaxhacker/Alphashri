@@ -326,7 +326,7 @@ export function BacktestPage() {
         <Alert
           icon={<IconAlertCircle size={16} />}
           title="Error"
-          color="red"
+          color="error"
           variant="filled"
           mb="md"
           data-testid="backtest-error"

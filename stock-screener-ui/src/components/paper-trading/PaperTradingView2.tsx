@@ -241,7 +241,7 @@ function ErrorAlert({ message, onClose }: ErrorAlertProps) {
   return (
     <Alert
       title="Error"
-      color="red"
+      color="error"
       variant="filled"
       mb="xs"
       data-testid="paper-error"

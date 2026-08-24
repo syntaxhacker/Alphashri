@@ -183,10 +183,10 @@ const DaySummary = memo(function DaySummary({
         <Text size="xs" c={pnlColor} fw={600} sx={{ textAlign: "right" }}>
           {formatSignedPnl(dayPnl)}
         </Text>
-        <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
+        <Badge color={wins > 0 ? "success" : "secondary"} variant="light" size="xs">
           ▲{wins}
         </Badge>
-        <Badge color={losses > 0 ? "red" : "gray"} variant="light" size="xs">
+        <Badge color={losses > 0 ? "error" : "secondary"} variant="light" size="xs">
           ▼{losses}
         </Badge>
       </Box>
@@ -374,7 +374,7 @@ function TradeHistoryTable({
         cell: ({ row }) => (
           <ActionIcon
             variant="subtle"
-            color="gray"
+            color="secondary"
             size="sm"
             onClick={(e) => {
               e.stopPropagation();

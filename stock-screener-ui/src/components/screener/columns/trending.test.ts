@@ -26,11 +26,11 @@ describe("trending columns", () => {
 
   describe("to_52w_high", () => {
     it.each([
-      [-5.76, "-5.76%", "green"],
+      [-5.76, "-5.76%", "success"],
       [0.3, "+0.30%", ""],
-      [0.51, "+0.51%", "red"],
+      [0.51, "+0.51%", "error"],
       [0.5, "+0.50%", ""],
-      [1.2, "+1.20%", "red"],
+      [1.2, "+1.20%", "error"],
     ])("to_52w_high %s -> %s %s", (v, ev, ec) => {
       const r: any = fmt("to_52w_high")(v);
       expect(r.value).toBe(ev);
@@ -62,18 +62,18 @@ describe("trending columns", () => {
       expect(r.value).toContain(icon);
     });
     it.each([
-      [2, "green"],
-      [-1, "red"],
-      [0, "red"],
+      [2, "success"],
+      [-1, "error"],
+      [0, "error"],
     ])("perf_w %s -> %s", (v, ec) => expect((fmt("perf_w")(v) as any).className).toBe(ec));
   });
 
   describe("day_change", () => {
     it("+ green - red", () => {
-      expect((fmt("day_change")(1) as any).className).toBe("green");
-      expect((fmt("day_change")(-1) as any).className).toBe("red");
+      expect((fmt("day_change")(1) as any).className).toBe("success");
+      expect((fmt("day_change")(-1) as any).className).toBe("error");
     });
-    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("green"));
+    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("success"));
   });
 
   it("handles NaN/0/empty volume edge via day_change not crash", () => {

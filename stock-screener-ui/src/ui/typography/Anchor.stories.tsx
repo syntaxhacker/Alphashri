@@ -35,7 +35,7 @@ export const ExternalTarget: Story = {
   args: {
     href: "https://example.com",
     target: "_blank",
-    c: "blue",
+    c: "primary",
     size: "lg",
     fw: "bold",
     children: "Opens in a new tab",

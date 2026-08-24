@@ -10,11 +10,11 @@ import {
 } from "../../state/experiments";
 
 const STATUS_COLOR: Record<string, string> = {
-  running: "blue",
-  paused: "yellow",
-  completed: "green",
-  cancelled: "gray",
-  error: "red",
+  running: "primary",
+  paused: "warning",
+  completed: "success",
+  cancelled: "secondary",
+  error: "error",
 };
 
 function lastResultDescription(lastResult: any, bestDesc: string): string | null {
@@ -49,7 +49,7 @@ export function ExperimentsProgress() {
       <Stack gap={1} sx={{ width: "100%", alignItems: "stretch" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-            <Badge color={STATUS_COLOR[status] ?? "gray"} size="sm" data-testid="experiments-progress-status">
+            <Badge color={STATUS_COLOR[status] ?? "secondary"} size="sm" data-testid="experiments-progress-status">
               {status}
             </Badge>
             {s.activeSession && (
@@ -110,7 +110,7 @@ export function ExperimentsProgress() {
               <Button
                 size="sm"
                 variant="subtle"
-                color="red"
+                color="error"
                 data-testid="experiments-cancel-btn"
                 leftSection={<IconX size={12} />}
                 onClick={() => void cancelExperiment()}

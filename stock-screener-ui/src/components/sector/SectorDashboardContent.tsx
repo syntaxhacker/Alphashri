@@ -26,7 +26,7 @@ function AlertsAndMovers({
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
             <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Real-time Alerts</Typography>
-            <IconBellRinging size={18} color="orange" />
+            <IconBellRinging size={18} color="var(--mui-palette-warning-main)" />
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, minHeight: 0, overflow: "auto" }}>
             <SectorAlertsList alerts={alerts} />
@@ -38,7 +38,7 @@ function AlertsAndMovers({
         <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
             <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Interval Movers</Typography>
-            <IconTrendingUp size={18} color="blue" />
+            <IconTrendingUp size={18} color="var(--mui-palette-primary-main)" />
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, minHeight: 0, overflow: "auto" }}>
             <IntervalMoversTable movers={intervalMovers} />
@@ -104,7 +104,7 @@ export function DashboardContent({
                 <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Live Sector Map</Typography>
                 {data.last_updated && (
                   <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                    <IconClock size={12} color="gray" />
+                    <IconClock size={12} color="var(--mui-palette-text-secondary)" />
                     <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{new Date(data.last_updated).toLocaleTimeString()}</Typography>
                   </Box>
                 )}

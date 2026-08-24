@@ -23,16 +23,16 @@ describe("highMomentum columns", () => {
   });
 
   describe("day_change", () => {
-    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("green"));
-    it("-1 red", () => expect((fmt("day_change")(-1) as any).className).toBe("red"));
+    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("success"));
+    it("-1 red", () => expect((fmt("day_change")(-1) as any).className).toBe("error"));
   });
 
   describe("recent_return_5d", () => {
     it.each([
-      [6.0, "🚀", "green"],
-      [3.0, "🟢", "green"],
-      [-4.5, "🔴", "red"],
-      [0, "🔴", "red"],
+      [6.0, "🚀", "success"],
+      [3.0, "🟢", "success"],
+      [-4.5, "🔴", "error"],
+      [0, "🔴", "error"],
     ])("return %s -> %s %s", (v, icon, ec) => {
       const r: any = fmt("recent_return_5d")(v);
       expect(r.value).toContain(icon);
@@ -42,9 +42,9 @@ describe("highMomentum columns", () => {
 
   describe("perf_w", () => {
     it.each([
-      [2.1, "green"],
-      [-1.0, "red"],
-      [0, "red"],
+      [2.1, "success"],
+      [-1.0, "error"],
+      [0, "error"],
     ])("perf %s -> %s", (v, ec) => expect((fmt("perf_w")(v) as any).className).toBe(ec));
   });
 

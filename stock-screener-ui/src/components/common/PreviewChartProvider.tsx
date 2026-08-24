@@ -324,7 +324,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
       data-testid="preview-chart-hover"
     >
       <Group gap={6} px="xs" py={4}>
-        <Text size="xs" fw={600} c="blue">
+        <Text size="xs" fw={600} c="primary">
           {symbol}
         </Text>
         <Text size="xs" c="dimmed">
@@ -445,7 +445,7 @@ function ExpandedPanel({
       data-testid="preview-chart-expanded"
     >
       <Group gap="md" px="md" py="xs" sx={{ flexShrink: 0 }}>
-        <Text size="lg" fw={600} c="blue">
+        <Text size="lg" fw={600} c="primary">
           {symbol}
           {data?.candles.length ? ` (${data.candles.length} candles)` : ""}
         </Text>
@@ -509,7 +509,7 @@ function ExpandedPanel({
       <Group justify="flex-end" px="md" py="xs" sx={{ flexShrink: 0 }}>
         <ActionIcon
           variant="subtle"
-          color="blue"
+          color="primary"
           onClick={() => onOpenFull(symbol)}
           data-testid="preview-open-full-btn"
         >
@@ -517,7 +517,7 @@ function ExpandedPanel({
         </ActionIcon>
         <Text
           size="xs"
-          c="blue"
+          c="primary"
           style={{ cursor: "pointer" }}
           onClick={() => onOpenFull(symbol)}
           data-testid="preview-open-full-link"

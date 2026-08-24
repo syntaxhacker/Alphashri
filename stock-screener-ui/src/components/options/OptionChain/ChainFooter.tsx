@@ -28,16 +28,16 @@ export function ChainFooter({ spotPrice }: ChainFooterProps) {
           </Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }} data-testid="options-legend-badges">
-          <Badge size="sm" variant="light" color="green">
+          <Badge size="sm" variant="light" color="success">
             LB: Long Buildup
           </Badge>
-          <Badge size="sm" variant="light" color="red">
+          <Badge size="sm" variant="light" color="error">
             SB: Short Buildup
           </Badge>
-          <Badge size="sm" variant="light" color="cyan">
+          <Badge size="sm" variant="light" color="info">
             SC: Short Covering
           </Badge>
-          <Badge size="sm" variant="light" color="orange">
+          <Badge size="sm" variant="light" color="warning">
             LU: Long Unwinding
           </Badge>
         </Box>
@@ -45,7 +45,7 @@ export function ChainFooter({ spotPrice }: ChainFooterProps) {
       {spotPrice && (
         <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
           Spot:{" "}
-          <Text component="span" c="blue">
+          <Text component="span" c="primary">
             {spotPrice.toFixed(2)}
           </Text>
         </Text>

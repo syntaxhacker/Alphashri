@@ -60,7 +60,7 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
 }
 
 export function computePcrColor(pcr: number): string {
-  return pcr > 1.2 ? "green" : pcr < 0.7 ? "red" : "blue";
+  return pcr > 1.2 ? "success" : pcr < 0.7 ? "error" : "primary";
 }
 
 export function ChainSummary({
@@ -89,8 +89,8 @@ export function ChainSummary({
               thickness={6}
               roundCaps
               sections={[
-                { value: (stats.totalPE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "red.6" },
-                { value: (stats.totalCE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "green.6" },
+                { value: (stats.totalPE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "error" },
+                { value: (stats.totalCE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "success" },
               ]}
             />
           </Box>
@@ -101,14 +101,14 @@ export function ChainSummary({
             <CompactStat
               label="Market Range"
               value={stats.expectedMove ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}` : "Data pending"}
-              tone={stats.expectedMove ? "blue.6" : "dimmed"}
+              tone={stats.expectedMove ? "primary" : "dimmed"}
               hint={stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined}
             />
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, width: "100%" }} data-testid="options-chain-support-resistance">
-              <Text size="sm" fw={700} c="red.6">
+              <Text size="sm" fw={700} c="error">
                 RES {stats.resistanceStrike}
               </Text>
-              <Text size="sm" fw={700} c="green.6">
+              <Text size="sm" fw={700} c="success">
                 SUP {stats.supportStrike}
               </Text>
             </Box>
@@ -117,7 +117,7 @@ export function ChainSummary({
 
         <CompactPanel className="chain-summary-card chain-summary-max-pain" data-testid="options-chain-summary-max-pain">
           <Stack spacing={1} sx={{ alignItems: "center" }}>
-            <CompactStat label="Max Pain" value={stats.maxPain} tone="orange.6" hint="Institutional target" />
+            <CompactStat label="Max Pain" value={stats.maxPain} tone="warning" hint="Institutional target" />
           </Stack>
         </CompactPanel>
       </CompactStatGrid>

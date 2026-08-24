@@ -89,7 +89,7 @@ export function HeatmapPage() {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, width: "100%", flexWrap: "wrap" }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
-            <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "green" : "blue"}>
+            <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "success" : "primary"}>
               {heatmapData?.cached ? "Cached" : "Live"}
             </Badge>
           </Box>
@@ -142,7 +142,7 @@ export function HeatmapPage() {
         <LoadingOverlay visible={heatmapLoading} />
         {heatmapError && (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, width: "100%" }}>
-            <Text data-testid="heatmap-error" c="red">Error: {heatmapError.message || "Failed to load"}</Text>
+            <Text data-testid="heatmap-error" c="error">Error: {heatmapError.message || "Failed to load"}</Text>
           </Box>
         )}
         {!heatmapLoading && isChartView && (

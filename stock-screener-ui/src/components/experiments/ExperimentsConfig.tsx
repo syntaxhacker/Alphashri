@@ -254,7 +254,7 @@ export function ExperimentsConfig() {
                             <ActionIcon
                               size="sm"
                               variant="subtle"
-                              color="gray"
+                              color="secondary"
                               data-testid={`sweep-value-remove-${param.key}-${idx}`}
                               onClick={() => removeSweepValue(param.key, idx)}
                             >
@@ -284,7 +284,7 @@ export function ExperimentsConfig() {
                       <Button
                         size="xs"
                         variant="light"
-                        color="teal"
+                        color="info"
                         data-testid={`sweep-remove-${param.key}`}
                         onClick={() => removeSweepParam(param.key)}
                       >
@@ -322,7 +322,7 @@ export function ExperimentsConfig() {
             </Text>
             {tooLarge && (
               <Badge
-                color="red"
+                color="error"
                 size="sm"
                 variant="outline"
                 data-testid="experiments-candidates-warning"

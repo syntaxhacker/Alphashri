@@ -14,7 +14,7 @@ export const SettingsActions = memo(function SettingsActions({ loading, dirty, o
     <Group justify="flex-end" gap="xs" className="paper-settings-actions" id="settings-actions">
       <Button
         variant="light"
-        color="gray"
+        color="secondary"
         size="sm"
         onClick={onReset}
         loading={loading}

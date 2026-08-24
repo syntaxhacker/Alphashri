@@ -40,9 +40,9 @@ describe("rsiReversal columns", () => {
 
   describe("day_change", () => {
     it.each([
-      [1.25, "+1.25%", "green"],
-      [-0.5, "-0.50%", "red"],
-      [0, "+0.00%", "green"],
+      [1.25, "+1.25%", "success"],
+      [-0.5, "-0.50%", "error"],
+      [0, "+0.00%", "success"],
     ])("day_change %s -> %s %s", (v, ev, ec) => {
       const r: any = fmt("day_change")(v);
       expect(r.value).toBe(ev);

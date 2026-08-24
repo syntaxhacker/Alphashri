@@ -336,30 +336,30 @@ export function formatDateHeader(date: string): string {
 // MUI Color Helpers (for table cells)
 // ============================================
 
-export function getPnLTextColor(value: number): "green" | "red" {
-  return value >= 0 ? "green" : "red";
+export function getPnLTextColor(value: number): "success" | "error" {
+  return value >= 0 ? "success" : "error";
 }
 
-export function getValueColor(value: number | null | undefined): "green" | "red" | undefined {
+export function getValueColor(value: number | null | undefined): "success" | "error" | undefined {
   if (value === null || value === undefined) return undefined;
   if (isNaN(value)) return undefined;
-  if (value > 0) return "green";
-  if (value < 0) return "red";
+  if (value > 0) return "success";
+  if (value < 0) return "error";
   return undefined;
 }
 
 export function getWinRateColor(value: number): string {
-  if (value >= 50) return "green";
+  if (value >= 50) return "success";
   if (value >= 40) return "dimmed";
-  return "red";
+  return "error";
 }
 
 export function getScoreColor(score: number): string {
-  if (score >= 80) return "teal";
-  if (score >= 60) return "green";
-  if (score >= 40) return "yellow";
-  if (score >= 20) return "orange";
-  return "gray";
+  if (score >= 80) return "info";
+  if (score >= 60) return "success";
+  if (score >= 40) return "warning";
+  if (score >= 20) return "warning";
+  return "secondary";
 }
 
 // ============================================
@@ -380,13 +380,13 @@ export function formatExitReason(reason: string): string {
 export function getStatusColor(status: string): string {
   switch (status.toLowerCase()) {
     case "success":
-      return "green";
+      return "success";
     case "error":
-      return "red";
+      return "error";
     case "pending":
-      return "yellow";
+      return "warning";
     default:
-      return "gray";
+      return "secondary";
   }
 }
 

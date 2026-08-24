@@ -98,7 +98,7 @@ export function BotSelector({
         <Button
           size="compact-xs"
           variant="subtle"
-          color="red"
+          color="error"
           leftSection={<IconPlayerStop size={14} />}
           onClick={onToggleBot}
           data-testid="stop-bot-btn"
@@ -114,7 +114,7 @@ export function BotSelector({
             <Button
               size="compact-xs"
               variant="subtle"
-              color="blue"
+              color="primary"
               leftSection={<IconPlayerPlay size={14} />}
               onClick={onToggleBot}
               disabled={marketClosed || !selectedBotId}

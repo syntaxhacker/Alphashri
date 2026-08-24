@@ -81,7 +81,7 @@ export function ScreenerTable({
                     <Tooltip label={copied ? "Copied" : "Copy all symbols"}>
                       <ActionIcon
                         variant="subtle"
-                        color={copied ? "teal" : "gray"}
+                        color={copied ? "info" : "secondary"}
                         size="sm"
                         onClick={(e) => { e.stopPropagation(); copy(); }}
                         data-testid="copy-all-symbols-btn"
@@ -137,7 +137,7 @@ export function ScreenerTable({
                   {({ copied, copy }) => (
                     <ActionIcon
                       variant="subtle"
-                      color={copied ? "teal" : "gray"}
+                      color={copied ? "info" : "secondary"}
                       size="sm"
                       onClick={(e) => { e.stopPropagation(); copy(); }}
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
@@ -147,7 +147,7 @@ export function ScreenerTable({
                   )}
                 </CopyButton>
                 {touchedSymbols.has(stock.symbol) && badgeLabel ? (
-                  <Badge size="sm" variant="light" color="blue" data-testid={`touched-badge-${stock.symbol}`}>
+                  <Badge size="sm" variant="light" color="primary" data-testid={`touched-badge-${stock.symbol}`}>
                     {badgeLabel}
                   </Badge>
                 ) : null}

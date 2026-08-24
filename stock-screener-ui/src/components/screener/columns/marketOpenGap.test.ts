@@ -18,11 +18,11 @@ describe("marketOpenGap columns", () => {
 
   describe("gap_pct", () => {
     it.each([
-      [2.5, "+2.50%", "green"],
-      [-3.1, "-3.10%", "red"],
-      [0, "+0.00%", "green"],
-      [NaN, "NaN%", "red"],
-      [Infinity, "+Infinity%", "green"],
+      [2.5, "+2.50%", "success"],
+      [-3.1, "-3.10%", "error"],
+      [0, "+0.00%", "success"],
+      [NaN, "NaN%", "error"],
+      [Infinity, "+Infinity%", "success"],
     ])("gap %s -> %s %s", (v, ev, ec) => {
       const r: any = fmt("gap_pct")(v);
       expect(r.value).toBe(ev);
@@ -32,9 +32,9 @@ describe("marketOpenGap columns", () => {
 
   describe("premarket_change", () => {
     it.each([
-      [1.5, "+1.50%", "green"],
-      [-0.5, "-0.50%", "red"],
-      [0, "+0.00%", "green"],
+      [1.5, "+1.50%", "success"],
+      [-0.5, "-0.50%", "error"],
+      [0, "+0.00%", "success"],
     ])("premarket %s -> %s %s", (v, ev, ec) => {
       const r: any = fmt("premarket_change")(v);
       expect(r.value).toBe(ev);
@@ -44,10 +44,10 @@ describe("marketOpenGap columns", () => {
 
   describe("day_change", () => {
     it("positive green negative red", () => {
-      expect((fmt("day_change")(3.45) as any).className).toBe("green");
-      expect((fmt("day_change")(-2.1) as any).className).toBe("red");
+      expect((fmt("day_change")(3.45) as any).className).toBe("success");
+      expect((fmt("day_change")(-2.1) as any).className).toBe("error");
     });
-    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("green"));
+    it("0 green", () => expect((fmt("day_change")(0) as any).className).toBe("success"));
   });
 
   describe("volume_m", () => {

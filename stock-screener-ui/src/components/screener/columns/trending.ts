@@ -32,7 +32,7 @@ export function getTrendingColumns(): ColumnDef[] {
       type: "number",
       sortable: true,
       format: (value: number) => {
-        const cls = value < 0 ? "green" : value > 0.5 ? "red" : "";
+        const cls = value < 0 ? "success" : value > 0.5 ? "error" : "";
         return { value: formatSignedPercent(value), className: cls };
       },
     },

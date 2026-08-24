@@ -29,9 +29,9 @@ describe("buyerInterest columns", () => {
 
   describe("day_change", () => {
     it.each([
-      [1.25, "+1.25%", "green"],
-      [-0.75, "-0.75%", "red"],
-      [0, "+0.00%", "green"],
+      [1.25, "+1.25%", "success"],
+      [-0.75, "-0.75%", "error"],
+      [0, "+0.00%", "success"],
     ])("day_change %s", (v, ev, ec) => {
       const r: any = fmt("day_change")(v);
       expect(r.value).toBe(ev);
@@ -49,14 +49,14 @@ describe("buyerInterest columns", () => {
     it("3.2 green", () => {
       const r: any = fmt("recent_return_5d")(3.2);
       expect(r.value).toBe("+3.2%");
-      expect(r.className).toBe("green");
+      expect(r.className).toBe("success");
     });
     it("-1.5 red", () => {
       const r: any = fmt("recent_return_5d")(-1.5);
       expect(r.value).toBe("-1.5%");
-      expect(r.className).toBe("red");
+      expect(r.className).toBe("error");
     });
-    it("0 red", () => expect((fmt("recent_return_5d")(0) as any).className).toBe("red"));
+    it("0 red", () => expect((fmt("recent_return_5d")(0) as any).className).toBe("error"));
   });
 
   it("all sortable", () => getBuyerInterestColumns().forEach((c) => expect(c.sortable).toBe(true)));

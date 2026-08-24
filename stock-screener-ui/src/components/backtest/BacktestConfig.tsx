@@ -277,7 +277,7 @@ export function BacktestConfig({
                 <Menu.Divider />
                 <Menu.Item
                   onClick={onReset}
-                  color="gray"
+                  color="secondary"
                   leftSection={<IconRotate size={14} />}
                   data-testid="reset-btn"
                 >

@@ -34,7 +34,7 @@ export function NewsSourceGroup({
         <Text size="sm" fw={600} tt="uppercase">
           {source}
         </Text>
-        <Badge size="xs" variant="light" color="gray">
+        <Badge size="xs" variant="light" color="secondary">
           {items.length}
         </Badge>
       </Group>

@@ -52,7 +52,7 @@ export function Tooltip({
             ...(color
               ? {
                   bgcolor: color as string,
-                  color: "#fff",
+                  color: "common.white",
                   "& .MuiTooltip-arrow": { color: color as string },
                 }
               : {}),

@@ -100,7 +100,10 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
                 fontSize: 11,
                 textAlign: "right",
                 display: "block",
-                color: getPnLTextColor(val),
+                color:
+                  getPnLTextColor(val) === "success"
+                    ? "var(--mui-palette-success-main)"
+                    : "var(--mui-palette-error-main)",
               }}
             >
               {val >= 0 ? "+" : ""}
@@ -117,10 +120,10 @@ export function ReplaySummaryPanel({ summary }: ReplaySummaryProps) {
           const val = info.getValue<number | null>();
           const color =
             val != null && val > 1
-              ? "green"
+              ? "var(--mui-palette-success-main)"
               : val != null && val < 1
-                ? "red"
-                : "gray";
+                ? "var(--mui-palette-error-main)"
+                : "var(--mui-palette-secondary-main)";
           return (
             <span
               style={{

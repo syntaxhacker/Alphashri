@@ -83,7 +83,7 @@ export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClo
 
 function SurgeCard({ event }: { event: PriceSurgeEvent }) {
   const isUp = event.direction === "up";
-  const color = isUp ? "green" : "red";
+  const color = isUp ? "success" : "error";
   const icon = isUp ? "\u{1F680}" : "\u{1F4C9}";
   const sign = isUp ? "+" : "";
 
@@ -97,7 +97,7 @@ function SurgeCard({ event }: { event: PriceSurgeEvent }) {
           <Text size="sm" fw={600}>{icon} {event.symbol}</Text>
           <Text size="sm" c={color} fw={600}>{sign}{event.move_pct.toFixed(1)}%</Text>
         </Group>
-        <Badge size="xs" variant="light" color="gray">{event.screen_label}</Badge>
+        <Badge size="xs" variant="light" color="secondary">{event.screen_label}</Badge>
       </Group>
       <Group gap={4}>
         {event.price != null && (

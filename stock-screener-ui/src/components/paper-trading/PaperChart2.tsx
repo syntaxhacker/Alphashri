@@ -70,7 +70,7 @@ function PositionInfo({ position }: { position: PaperPosition }) {
       data-testid="position-info"
       id={`position-info-${position.symbol}`}
     >
-      <Badge size="sm" variant="light" color={position.side === "BUY" ? "green" : "red"}>
+      <Badge size="sm" variant="light" color={position.side === "BUY" ? "success" : "error"}>
         {sideIcon} {position.side}
       </Badge>
       <Text size="sm" fw={500}>
@@ -87,13 +87,13 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
   if (hasTrades) {
     items.push(
-      { color: "#06B6D4", label: "Entry", shape: "square" },
-      { color: "#84CC16", label: "TP", shape: "circle" },
-      { color: "#EC4899", label: "SL", shape: "circle" },
+      { color: "var(--mui-palette-info-main)", label: "Entry", shape: "square" },
+      { color: "var(--mui-palette-success-main)", label: "TP", shape: "circle" },
+      { color: "var(--mui-palette-error-main)", label: "SL", shape: "circle" },
     );
   }
-  if (orbLabel) items.push({ color: "#2563EB", label: orbLabel, shape: "square" });
-  if (hasWeek52) items.push({ color: "#DB2777", label: "52W High", shape: "square" });
+  if (orbLabel) items.push({ color: "var(--mui-palette-primary-main)", label: orbLabel, shape: "square" });
+  if (hasWeek52) items.push({ color: "var(--mui-palette-secondary-main)", label: "52W High", shape: "square" });
 
   if (items.length === 0 && !position) return null;
 
@@ -151,11 +151,11 @@ const OVERLAY_ITEMS = [
 ] as const;
 
 const OVERLAY_COLORS: Record<string, string> = {
-  showAllTrades: "blue",
-  showOrbLines: "grape",
-  showPivotLines: "cyan",
-  show52wLines: "pink",
-  showEmaLines: "lime",
+  showAllTrades: "primary",
+  showOrbLines: "secondary",
+  showPivotLines: "info",
+  show52wLines: "secondary",
+  showEmaLines: "success",
 };
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
@@ -278,7 +278,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           <ActionIcon
             size="sm"
             variant={hasActiveOverlays ? "filled" : "subtle"}
-            color={hasActiveOverlays ? "blue" : "gray"}
+            color={hasActiveOverlays ? "primary" : "secondary"}
             data-testid="chart-more-button"
             onClick={() => setPopoverOpened((o) => !o)}
           >
@@ -293,7 +293,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             </Group>
             <Group gap={1}>
               {QUICK_RANGES.map((r) => {
-                const rangeColors = ["blue", "cyan", "teal", "grape", "orange", "pink"];
+                const rangeColors = ["primary", "info", "info", "secondary", "warning", "secondary"] as const;
                 const idx = QUICK_RANGES.indexOf(r);
                 return (
                   <Button
@@ -322,7 +322,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
                     size="xs"
                     variant="light"
                     radius="sm"
-                    color={OVERLAY_COLORS[key] || "blue"}
+                    color={OVERLAY_COLORS[key] || "primary"}
                     checked={state[key]}
                     onChange={(checked) => setter(checked)}
                   >

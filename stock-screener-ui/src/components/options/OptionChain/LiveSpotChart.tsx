@@ -59,8 +59,8 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
   const t = theme as any;
   const palette = t?.palette;
   const colors = t?.colors;
-  const successColor = palette?.success?.main ?? colors?.green?.[6] ?? colors?.teal?.[6] ?? "#22c55e";
-  const errorColor = palette?.error?.main ?? colors?.red?.[6] ?? "#ef4444";
+  const successColor = palette?.success?.main ?? colors?.success?.[6] ?? "var(--mui-palette-success-main)";
+  const errorColor = palette?.error?.main ?? colors?.error?.[6] ?? "var(--mui-palette-error-main)";
   const color = isPositive ? successColor : errorColor;
 
   return (

@@ -132,31 +132,31 @@ describe("marketOpenGap columns", () => {
   });
 
   test("gap_pct formats positive values with green class", () => {
-    expectFormattedCell(fmt(columns, "gap_pct", 2.5), "+2.50%", "green");
+    expectFormattedCell(fmt(columns, "gap_pct", 2.5), "+2.50%", "success");
   });
 
   test("gap_pct formats negative values with red class", () => {
-    expectFormattedCell(fmt(columns, "gap_pct", -3.1), "-3.10%", "red");
+    expectFormattedCell(fmt(columns, "gap_pct", -3.1), "-3.10%", "error");
   });
 
   test("gap_pct formats zero with green class", () => {
-    expectFormattedCell(fmt(columns, "gap_pct", 0), "+0.00%", "green");
+    expectFormattedCell(fmt(columns, "gap_pct", 0), "+0.00%", "success");
   });
 
   test("premarket_change formats positive with green", () => {
-    expectFormattedCell(fmt(columns, "premarket_change", 1.5), "+1.50%", "green");
+    expectFormattedCell(fmt(columns, "premarket_change", 1.5), "+1.50%", "success");
   });
 
   test("premarket_change formats negative with red", () => {
-    expectFormattedCell(fmt(columns, "premarket_change", -0.5), "-0.50%", "red");
+    expectFormattedCell(fmt(columns, "premarket_change", -0.5), "-0.50%", "error");
   });
 
   test("day_change formats positive with green", () => {
-    expectFormattedCell(fmt(columns, "day_change", 3.45), "+3.45%", "green");
+    expectFormattedCell(fmt(columns, "day_change", 3.45), "+3.45%", "success");
   });
 
   test("day_change formats negative with red", () => {
-    expectFormattedCell(fmt(columns, "day_change", -2.1), "-2.10%", "red");
+    expectFormattedCell(fmt(columns, "day_change", -2.1), "-2.10%", "error");
   });
 
   test("volume_m formats with 2 decimal places", () => {
@@ -227,7 +227,7 @@ describe("trending columns", () => {
   });
 
   test("to_52w_high negative gets green class", () => {
-    expectFormattedCell(fmt(columns, "to_52w_high", -5.76), "-5.76%", "green");
+    expectFormattedCell(fmt(columns, "to_52w_high", -5.76), "-5.76%", "success");
   });
 
   test("to_52w_high small positive gets no class", () => {
@@ -235,34 +235,34 @@ describe("trending columns", () => {
   });
 
   test("to_52w_high large positive gets red class", () => {
-    expectFormattedCell(fmt(columns, "to_52w_high", 1.2), "+1.20%", "red");
+    expectFormattedCell(fmt(columns, "to_52w_high", 1.2), "+1.20%", "error");
   });
 
   test("recent_return_5d high positive shows rocket", () => {
     const result = fmt(columns, "recent_return_5d", 8.5);
-    expectFormattedCell(result, "🚀 +8.5%", "green");
+    expectFormattedCell(result, "🚀 +8.5%", "success");
   });
 
   test("recent_return_5d moderate positive shows green circle", () => {
     const result = fmt(columns, "recent_return_5d", 3.2);
-    expectFormattedCell(result, "🟢 +3.2%", "green");
+    expectFormattedCell(result, "🟢 +3.2%", "success");
   });
 
   test("recent_return_5d negative shows red circle", () => {
     const result = fmt(columns, "recent_return_5d", -2.1);
-    expectFormattedCell(result, "🔴 -2.1%", "red");
+    expectFormattedCell(result, "🔴 -2.1%", "error");
   });
 
   test("perf_w positive gets green", () => {
-    expectFormattedCell(fmt(columns, "perf_w", 1.5), "+1.5%", "green");
+    expectFormattedCell(fmt(columns, "perf_w", 1.5), "+1.5%", "success");
   });
 
   test("perf_w negative gets red", () => {
-    expectFormattedCell(fmt(columns, "perf_w", -3.2), "-3.2%", "red");
+    expectFormattedCell(fmt(columns, "perf_w", -3.2), "-3.2%", "error");
   });
 
   test("perf_w zero gets red (not > 0)", () => {
-    expectFormattedCell(fmt(columns, "perf_w", 0), "0.0%", "red");
+    expectFormattedCell(fmt(columns, "perf_w", 0), "0.0%", "error");
   });
 });
 
@@ -282,7 +282,7 @@ describe("52wHigh columns", () => {
   });
 
   test("to_52w_high negative gets green class", () => {
-    expectFormattedCell(fmt(columns, "to_52w_high", -5.76), "-5.76%", "green");
+    expectFormattedCell(fmt(columns, "to_52w_high", -5.76), "-5.76%", "success");
   });
 
   test("upstox_price formats as LTP with rupee symbol", () => {
@@ -323,12 +323,12 @@ describe("rsiReversal columns", () => {
   });
 
   test("day_change positive green, negative red", () => {
-    expectFormattedCell(fmt(columns, "day_change", 1.25), "+1.25%", "green");
-    expectFormattedCell(fmt(columns, "day_change", -0.5), "-0.50%", "red");
+    expectFormattedCell(fmt(columns, "day_change", 1.25), "+1.25%", "success");
+    expectFormattedCell(fmt(columns, "day_change", -0.5), "-0.50%", "error");
   });
 
   test("day_change zero is green", () => {
-    expectFormattedCell(fmt(columns, "day_change", 0), "+0.00%", "green");
+    expectFormattedCell(fmt(columns, "day_change", 0), "+0.00%", "success");
   });
 
   test("volume_m formats and handles null", () => {
@@ -351,33 +351,33 @@ describe("highMomentum columns", () => {
   });
 
   test("day_change zero is green", () => {
-    expectFormattedCell(fmt(columns, "day_change", 0), "+0.00%", "green");
+    expectFormattedCell(fmt(columns, "day_change", 0), "+0.00%", "success");
   });
 
   test("recent_return_5d > 5 shows rocket", () => {
     const result = fmt(columns, "recent_return_5d", 6.0);
-    expectFormattedCell(result, "🚀 +6.0%", "green");
+    expectFormattedCell(result, "🚀 +6.0%", "success");
   });
 
   test("recent_return_5d 0-5 shows green circle", () => {
     const result = fmt(columns, "recent_return_5d", 3.0);
-    expectFormattedCell(result, "🟢 +3.0%", "green");
+    expectFormattedCell(result, "🟢 +3.0%", "success");
   });
 
   test("recent_return_5d negative shows red circle", () => {
     const result = fmt(columns, "recent_return_5d", -4.5);
-    expectFormattedCell(result, "🔴 -4.5%", "red");
+    expectFormattedCell(result, "🔴 -4.5%", "error");
   });
 
   test("recent_return_5d zero shows red circle", () => {
     const result = fmt(columns, "recent_return_5d", 0);
-    expectFormattedCell(result, "🔴 0.0%", "red");
+    expectFormattedCell(result, "🔴 0.0%", "error");
   });
 
   test("perf_w positive green, zero/negative red", () => {
-    expectFormattedCell(fmt(columns, "perf_w", 2.1), "+2.1%", "green");
-    expectFormattedCell(fmt(columns, "perf_w", -1.0), "-1.0%", "red");
-    expectFormattedCell(fmt(columns, "perf_w", 0), "0.0%", "red");
+    expectFormattedCell(fmt(columns, "perf_w", 2.1), "+2.1%", "success");
+    expectFormattedCell(fmt(columns, "perf_w", -1.0), "-1.0%", "error");
+    expectFormattedCell(fmt(columns, "perf_w", 0), "0.0%", "error");
   });
 });
 
@@ -389,15 +389,15 @@ describe("niftyMovers columns", () => {
   });
 
   test("impact_score positive green", () => {
-    expectFormattedCell(fmt(columns, "impact_score", 2.5), "+2.50", "green");
+    expectFormattedCell(fmt(columns, "impact_score", 2.5), "+2.50", "success");
   });
 
   test("impact_score negative red", () => {
-    expectFormattedCell(fmt(columns, "impact_score", -1.3), "-1.30", "red");
+    expectFormattedCell(fmt(columns, "impact_score", -1.3), "-1.30", "error");
   });
 
   test("impact_score zero green", () => {
-    expectFormattedCell(fmt(columns, "impact_score", 0), "+0.00", "green");
+    expectFormattedCell(fmt(columns, "impact_score", 0), "+0.00", "success");
   });
 
   test("market_cap_b formats with B suffix", () => {
@@ -414,8 +414,8 @@ describe("niftyMovers columns", () => {
   });
 
   test("day_change positive/negative formatting", () => {
-    expectFormattedCell(fmt(columns, "day_change", 1.5), "+1.50%", "green");
-    expectFormattedCell(fmt(columns, "day_change", -2.0), "-2.00%", "red");
+    expectFormattedCell(fmt(columns, "day_change", 1.5), "+1.50%", "success");
+    expectFormattedCell(fmt(columns, "day_change", -2.0), "-2.00%", "error");
   });
 });
 
@@ -432,21 +432,21 @@ describe("buyerInterest columns", () => {
   });
 
   test("day_change positive/negative", () => {
-    expectFormattedCell(fmt(columns, "day_change", 1.25), "+1.25%", "green");
-    expectFormattedCell(fmt(columns, "day_change", -0.75), "-0.75%", "red");
+    expectFormattedCell(fmt(columns, "day_change", 1.25), "+1.25%", "success");
+    expectFormattedCell(fmt(columns, "day_change", -0.75), "-0.75%", "error");
   });
 
   test("day_change zero is green", () => {
-    expectFormattedCell(fmt(columns, "day_change", 0), "+0.00%", "green");
+    expectFormattedCell(fmt(columns, "day_change", 0), "+0.00%", "success");
   });
 
   test("recent_return_5d positive green, negative red", () => {
-    expectFormattedCell(fmt(columns, "recent_return_5d", 3.2), "+3.2%", "green");
-    expectFormattedCell(fmt(columns, "recent_return_5d", -1.5), "-1.5%", "red");
+    expectFormattedCell(fmt(columns, "recent_return_5d", 3.2), "+3.2%", "success");
+    expectFormattedCell(fmt(columns, "recent_return_5d", -1.5), "-1.5%", "error");
   });
 
   test("recent_return_5d zero is red", () => {
-    expectFormattedCell(fmt(columns, "recent_return_5d", 0), "0.0%", "red");
+    expectFormattedCell(fmt(columns, "recent_return_5d", 0), "0.0%", "error");
   });
 });
 

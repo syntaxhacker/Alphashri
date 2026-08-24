@@ -11,7 +11,7 @@ export function TradeIdeaCard({ idea }: TradeIdeaCardProps) {
   return (
     <Card padding="md" withBorder data-testid="trade-idea">
       <Group justify="space-between" mb="sm">
-        <Badge color={isLong ? "green" : "red"} variant="filled" size="sm">
+        <Badge color={isLong ? "success" : "error"} variant="filled" size="sm">
           {idea.direction}
         </Badge>
         <Text size="sm" fw={600}>

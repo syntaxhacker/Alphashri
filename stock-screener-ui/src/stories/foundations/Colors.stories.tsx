@@ -101,8 +101,8 @@ export const LightDarkPreview: StoryObj = {
         Below the same swatches are shown on both light and dark surfaces to verify contrast.
       </MText>
       <Group gap="xl" align="flex-start">
-        <div style={{ background: "#ffffff", padding: 12, borderRadius: 8, border: "1px solid #D0D7DE" }}>
-          <MText size="xs" fw={600} mb={8}>On light ( #ffffff )</MText>
+        <div style={{ background: "var(--mui-palette-background-paper)", padding: 12, borderRadius: 8, border: "1px solid #D0D7DE" }}>
+          <MText size="xs" fw={600} mb={8}>On light ( var(--mui-palette-background-paper) )</MText>
           <Group gap={8}>
             <Swatch name="PRIMARY" hex={PRIMARY} />
             <Swatch name="POSITIVE" hex={POSITIVE_COLOR} />

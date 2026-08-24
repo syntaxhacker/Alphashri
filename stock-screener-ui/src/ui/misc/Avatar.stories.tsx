@@ -21,7 +21,7 @@ export const Default: Story = {
 
 export const FallbackInitials: Story = {
   args: {
-    color: "teal",
+    color: "info",
     children: "AS",
   },
 };
@@ -30,7 +30,7 @@ export const BrokenSrcFallsBack: Story = {
   args: {
     src: "https://invalid.example/nope.png",
     alt: "Broken image",
-    color: "violet",
+    color: "secondary",
     children: "BK",
   },
 };
@@ -51,9 +51,9 @@ export const RadiusVariants: Story = {
   render: () => (
     <Group gap="sm">
       <Avatar size="lg" radius="xs">R1</Avatar>
-      <Avatar size="lg" radius="md" color="blue">R2</Avatar>
-      <Avatar size="lg" radius="xl" color="orange">R3</Avatar>
-      <Avatar size="lg" radius={0} color="red">SQ</Avatar>
+      <Avatar size="lg" radius="md" color="primary">R2</Avatar>
+      <Avatar size="lg" radius="xl" color="warning">R3</Avatar>
+      <Avatar size="lg" radius={0} color="error">SQ</Avatar>
     </Group>
   ),
 };

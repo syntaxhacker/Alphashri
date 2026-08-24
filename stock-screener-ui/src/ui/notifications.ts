@@ -5,10 +5,10 @@ import type { UIThemeNotifyProps } from "./types";
 function mapColorToVariant(color?: string): "default" | "success" | "error" | "warning" | "info" {
   if (!color) return "default";
   const c = String(color).toLowerCase();
-  if (c === "green" || c === "success") return "success";
-  if (c === "red" || c === "error" || c === "danger") return "error";
-  if (c === "orange" || c === "yellow" || c === "warning") return "warning";
-  if (c === "blue" || c === "info" || c === "cyan" || c === "teal") return "info";
+  if (c === "success" || c === "success") return "success";
+  if (c === "error" || c === "error" || c === "danger") return "error";
+  if (c === "warning" || c === "warning" || c === "warning") return "warning";
+  if (c === "primary" || c === "info" || c === "info" || c === "info") return "info";
   return "default";
 }
 

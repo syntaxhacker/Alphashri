@@ -26,15 +26,15 @@ export function formatExpiresIn(hours: number | null): string {
 
 export function getStatusBadge(status: BrokerStatus | null) {
   if (!status) {
-    return <Badge color="gray">Unknown</Badge>;
+    return <Badge color="secondary">Unknown</Badge>;
   }
   if (!status.connected) {
-    return <Badge color="red">Disconnected</Badge>;
+    return <Badge color="error">Disconnected</Badge>;
   }
   if (status.expires_in_hours !== null && status.expires_in_hours < 0) {
-    return <Badge color="yellow">Expired</Badge>;
+    return <Badge color="warning">Expired</Badge>;
   }
-  return <Badge color="green">Connected</Badge>;
+  return <Badge color="success">Connected</Badge>;
 }
 
 export function BrokerConnectionCard({
@@ -78,11 +78,11 @@ export function BrokerConnectionCard({
 
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
             {isConnected ? (
-              <Button leftSection={<IconPlugX size={16} />} variant="light" color="red" onClick={onDisconnect} loading={loading} data-testid="disconnect-upstox-btn">
+              <Button leftSection={<IconPlugX size={16} />} variant="light" color="error" onClick={onDisconnect} loading={loading} data-testid="disconnect-upstox-btn">
                 Disconnect
               </Button>
             ) : (
-              <Button leftSection={<IconPlugConnected size={16} />} variant="light" color="green" onClick={onConnect} loading={loading} data-testid="connect-upstox-btn">
+              <Button leftSection={<IconPlugConnected size={16} />} variant="light" color="success" onClick={onConnect} loading={loading} data-testid="connect-upstox-btn">
                 Connect
               </Button>
             )}

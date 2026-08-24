@@ -28,7 +28,7 @@ export const FullShell: Story = {
               Market Ticker
             </Text>
           </Box>
-          <Badge variant="light" color="teal" size="sm">
+          <Badge variant="light" color="info" size="sm">
             Market Open
           </Badge>
         </Group>
@@ -68,7 +68,7 @@ export const FullShell: Story = {
               <Text size="xs" c="dimmed">
                 Unrealized P&L
               </Text>
-              <Text fw={700} size="xl" c="teal">
+              <Text fw={700} size="xl" c="info">
                 +₹1,240
               </Text>
             </Card>

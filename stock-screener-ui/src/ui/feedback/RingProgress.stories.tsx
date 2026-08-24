@@ -28,9 +28,9 @@ export const WithLabel: Story = {
 export const Colored: Story = {
   render: () => (
     <Group gap="md">
-      <RingProgress value={80} color="green" label="80%" />
-      <RingProgress value={45} color="orange" label="45%" />
-      <RingProgress value={15} color="red" label="15%" />
+      <RingProgress value={80} color="success" label="80%" />
+      <RingProgress value={45} color="warning" label="45%" />
+      <RingProgress value={15} color="error" label="15%" />
     </Group>
   ),
 };
@@ -38,9 +38,9 @@ export const Colored: Story = {
 export const Sections: Story = {
   args: {
     sections: [
-      { value: 40, color: "teal", tooltip: "Longs" },
-      { value: 25, color: "orange", tooltip: "Shorts" },
-      { value: 15, color: "red", tooltip: "Losses" },
+      { value: 40, color: "info", tooltip: "Longs" },
+      { value: 25, color: "warning", tooltip: "Shorts" },
+      { value: 15, color: "error", tooltip: "Losses" },
     ],
   },
 };

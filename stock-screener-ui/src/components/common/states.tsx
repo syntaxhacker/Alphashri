@@ -36,7 +36,7 @@ export function EmptyState({
   return (
     <Stack align="center" gap="xs" py="sm" data-testid={testId} className={className}>
       {icon ??
-        (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="gray" />)}
+        (emoji ? <Text size="xl">{emoji}</Text> : <IconDatabaseOff size={40} color="secondary" />)}
       <Text fw={600}>{title}</Text>
       {description && (
         <Text size="sm" c="dimmed">
@@ -70,7 +70,7 @@ export function ErrorAlert({
     <Alert
       icon={<IconAlertCircle size="1rem" />}
       title={title}
-      color="red"
+      color="error"
       variant="filled"
       mb="md"
       withCloseButton={!!onClose}
@@ -82,7 +82,7 @@ export function ErrorAlert({
       {withRetry && onRetry && (
         <Button
           variant="light"
-          color="red"
+          color="error"
           size="sm"
           onClick={onRetry}
           mt="xs"

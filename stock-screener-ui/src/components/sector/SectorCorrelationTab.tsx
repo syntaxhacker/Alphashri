@@ -74,7 +74,7 @@ function CorrelationHeader({
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
             {lastUpdated && (
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                <IconClock size={12} color="gray" />
+                <IconClock size={12} color="var(--mui-palette-text-secondary)" />
                 <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{new Date(lastUpdated).toLocaleTimeString()}</Typography>
               </Box>
             )}

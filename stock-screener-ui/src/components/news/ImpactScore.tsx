@@ -6,7 +6,7 @@ interface ImpactScoreProps {
 
 export function ImpactScore({ score }: ImpactScoreProps) {
   if (score === undefined || score === null) return null;
-  const color = score >= 7 ? "red" : score >= 4 ? "orange" : "gray";
+  const color = score >= 7 ? "error" : score >= 4 ? "warning" : "secondary";
   const label = score >= 7 ? "High impact" : score >= 4 ? "Moderate impact" : "Low impact";
 
   return (

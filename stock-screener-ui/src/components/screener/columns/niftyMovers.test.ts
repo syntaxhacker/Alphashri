@@ -17,12 +17,12 @@ describe("niftyMovers columns", () => {
 
   describe("impact_score", () => {
     it.each([
-      [2.5, "+2.50", "green"],
-      [-1.3, "-1.30", "red"],
-      [0, "+0.00", "green"],
-      [NaN, "NaN", "red"],
-      [Infinity, "+Infinity", "green"],
-      [-Infinity, "-Infinity", "red"],
+      [2.5, "+2.50", "success"],
+      [-1.3, "-1.30", "error"],
+      [0, "+0.00", "success"],
+      [NaN, "NaN", "error"],
+      [Infinity, "+Infinity", "success"],
+      [-Infinity, "-Infinity", "error"],
     ])("impact %s -> %s %s", (v, ev, ec) => {
       const r: any = fmt("impact_score")(v);
       expect(r.value).toBe(ev);
@@ -45,9 +45,9 @@ describe("niftyMovers columns", () => {
 
   describe("day_change", () => {
     it("positive green negative red zero green", () => {
-      expect((fmt("day_change")(1.5) as any).className).toBe("green");
-      expect((fmt("day_change")(-2) as any).className).toBe("red");
-      expect((fmt("day_change")(0) as any).className).toBe("green");
+      expect((fmt("day_change")(1.5) as any).className).toBe("success");
+      expect((fmt("day_change")(-2) as any).className).toBe("error");
+      expect((fmt("day_change")(0) as any).className).toBe("success");
     });
   });
 

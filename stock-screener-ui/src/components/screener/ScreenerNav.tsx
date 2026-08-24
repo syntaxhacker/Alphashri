@@ -11,12 +11,12 @@ function ScreenerNavLabel({ option }: { option: ScreenerOption }) {
         {option.label}
       </Text>
       {option.status === "legacy" && (
-        <Badge size="xs" color="gray" variant="light" sx={{ flexShrink: 0 }}>
+        <Badge size="xs" color="secondary" variant="light" sx={{ flexShrink: 0 }}>
           L
         </Badge>
       )}
       {option.status === "current" && (
-        <Badge size="xs" color="teal" variant="light" sx={{ flexShrink: 0 }}>
+        <Badge size="xs" color="info" variant="light" sx={{ flexShrink: 0 }}>
           N
         </Badge>
       )}

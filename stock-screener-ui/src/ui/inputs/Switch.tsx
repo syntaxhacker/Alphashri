@@ -48,7 +48,7 @@ export function Switch({
       onChange={onChange}
       disabled={disabled}
       size={muiSize}
-      color={(color === "red" || color === "danger" ? "error" : color === "teal" || color === "green" || color === "success" ? "success" : "primary") as never}
+      color={(color === "error" || color === "danger" ? "error" : color === "info" || color === "success" || color === "success" ? "success" : "primary") as never}
       id={id}
       slotProps={{ input: { "data-testid": testId } as never } as never}
       sx={style ? { ...style } : undefined}

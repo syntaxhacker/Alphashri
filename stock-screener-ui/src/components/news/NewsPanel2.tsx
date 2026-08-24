@@ -199,7 +199,7 @@ function NewsPanelToggle({
 }) {
   return (
     <Indicator
-      color={hasNewArticles ? "green" : "red"}
+      color={hasNewArticles ? "success" : "error"}
       size={16}
       label={unreadCount > 99 ? "99+" : unreadCount}
       disabled={unreadCount === 0 || isOpen}
@@ -208,7 +208,7 @@ function NewsPanelToggle({
     >
       <Button
         variant="filled"
-        color="blue"
+        color="primary"
         size="sm"
         onClick={onToggle}
         data-testid="news-toggle-btn"
@@ -224,7 +224,7 @@ function NewsPanelToggle({
 function NewsPanelOverlay({ onClose }: { onClose: () => void }) {
   return (
     <Overlay
-      color="dark"
+      color="secondary"
       backgroundOpacity={0.5}
       onClick={onClose}
       zIndex={100}

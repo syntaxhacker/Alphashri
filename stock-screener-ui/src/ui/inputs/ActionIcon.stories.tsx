@@ -23,8 +23,8 @@ export const Variants: Story = {
   render: () => (
     <Group gap="md">
       <ActionIcon variant="subtle">✎</ActionIcon>
-      <ActionIcon variant="light" color="blue">✎</ActionIcon>
-      <ActionIcon variant="filled" color="blue">✎</ActionIcon>
+      <ActionIcon variant="light" color="primary">✎</ActionIcon>
+      <ActionIcon variant="filled" color="primary">✎</ActionIcon>
     </Group>
   ),
 };

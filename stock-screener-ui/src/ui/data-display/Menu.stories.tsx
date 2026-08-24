@@ -29,7 +29,7 @@ export const Default: Story = {
             Stop bot
           </MenuItem>
           <MenuItem
-            color="red"
+            color="error"
             leftSection={<IconTrash size={16} />}
             onClick={() => {}}
           >
@@ -47,12 +47,12 @@ export const HoverTrigger: Story = {
       <Title order={5}>Hover trigger + disabled item</Title>
       <Menu trigger="hover">
         <MenuTarget>
-          <Button variant="light" color="blue">Hover me</Button>
+          <Button variant="light" color="primary">Hover me</Button>
         </MenuTarget>
         <MenuDropdown>
           <MenuItem onClick={() => {}}>View chart</MenuItem>
           <MenuItem disabled>Add to watchlist</MenuItem>
-          <MenuItem color="red" onClick={() => {}}>Remove</MenuItem>
+          <MenuItem color="error" onClick={() => {}}>Remove</MenuItem>
         </MenuDropdown>
       </Menu>
     </Stack>

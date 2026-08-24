@@ -92,7 +92,7 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
       <Button
         size="compact-xs"
         variant="light"
-        color="red"
+        color="error"
         loading={closing}
         onClick={handleCloseAll}
         data-testid="close-all-positions"
@@ -167,7 +167,7 @@ export function PaperPositionsTable() {
           <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
             Positions ({sortedPositions.length})
           </Text>
-          <Badge color={isLive ? "red" : "green"} variant="light" size="xs">
+          <Badge color={isLive ? "error" : "success"} variant="light" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
         </Box>

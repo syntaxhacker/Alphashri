@@ -58,7 +58,7 @@ export const LabelValuePattern: Story = {
       <Text size="xs" c="dimmed">Entry:</Text>
       <Text size="sm" fw={600}>₹2,450.50</Text>
       <Text size="xs" c="dimmed">P&L:</Text>
-      <Text size="sm" fw={600} c="green">+₹500.00</Text>
+      <Text size="sm" fw={600} c="success">+₹500.00</Text>
     </Group>
   ),
 };
@@ -76,12 +76,12 @@ export const Alignment: Story = {
 export const ColorVariants: Story = {
   render: () => (
     <div style={{ display: "flex", gap: 16, flexWrap: "wrap" }}>
-      <Text c="teal">teal</Text>
-      <Text c="green">green</Text>
-      <Text c="red">red</Text>
-      <Text c="orange">orange</Text>
-      <Text c="blue">blue</Text>
-      <Text c="gray">gray</Text>
+      <Text c="info">teal</Text>
+      <Text c="success">green</Text>
+      <Text c="error">red</Text>
+      <Text c="warning">orange</Text>
+      <Text c="primary">blue</Text>
+      <Text c="secondary">gray</Text>
       <Text c="dimmed">dimmed</Text>
       <Text c="success">success</Text>
       <Text c="danger">danger</Text>

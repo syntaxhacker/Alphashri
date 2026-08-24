@@ -14,7 +14,7 @@ const EventRow = memo(function EventRow({ event }: { event: ActivityEvent }) {
   const pnl = event.net_pnl ?? event.pnl ?? 0;
   const isProfit = pnl >= 0;
 
-  const badgeColor = isEntry ? "blue" : isExit ? (isProfit ? "green" : "red") : "gray";
+  const badgeColor = isEntry ? "primary" : isExit ? (isProfit ? "success" : "error") : "secondary";
   const label = isEntry ? "ENTRY" : isExit ? "EXIT" : event.type.toUpperCase();
 
   return (
@@ -49,12 +49,12 @@ const EventRow = memo(function EventRow({ event }: { event: ActivityEvent }) {
         </Text>
       )}
       {isExit && (
-        <Text size="xs" w={90} c={isProfit ? "green" : "red"} fw={500}>
+        <Text size="xs" w={90} c={isProfit ? "success" : "error"} fw={500}>
           {isProfit ? "+" : ""}₹{pnl.toFixed(0)} ({event.pnl_pct?.toFixed(2)}%)
         </Text>
       )}
       {event.strategy_name && (
-        <Badge size="xs" variant="outline" color="gray" style={{ textTransform: "none" }}>
+        <Badge size="xs" variant="outline" color="secondary" style={{ textTransform: "none" }}>
           {event.strategy_name}
         </Badge>
       )}

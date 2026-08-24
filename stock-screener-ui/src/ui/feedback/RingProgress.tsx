@@ -1,5 +1,6 @@
 import Box from "@mui/material/Box";
 import CircularProgress from "@mui/material/CircularProgress";
+import { useTheme } from "@mui/material/styles";
 import type { UIBaseProps, UIColor } from "../types";
 
 export interface UIRingProgressProps extends UIBaseProps {
@@ -12,27 +13,27 @@ export interface UIRingProgressProps extends UIBaseProps {
   sections?: { value: number; color: UIColor; tooltip?: string }[];
 }
 
-function resolveColor(c?: string): string {
-  if (!c) return "#2563EB";
-  // Map theme names to MUI palette hex fallback
-  const map: Record<string, string> = {
-    teal: "#0FAE99",
-    green: "#16A34A",
-    red: "#DC2626",
-    orange: "#D97706",
-    blue: "#2563EB",
-    gray: "#64748B",
-    dark: "#1E293B",
-    yellow: "#D97706",
-    violet: "#8250DF",
-    pink: "#E64980",
-    cyan: "#0891B2",
+function useResolveColor() {
+  const theme = useTheme();
+  const palette = theme.palette as unknown as Record<string, { main: string }>;
+  return (c?: string): string => {
+    if (!c) return palette.primary?.main ?? theme.palette.primary.main;
+    if (c.startsWith("#") || c.startsWith("rgb")) return c;
+    const key = c.split(".")[0];
+    const entry = palette[key];
+    if (entry?.main) return entry.main;
+    // fallback to MUI palette lookup via theme
+    const mui = (theme.palette as unknown as Record<string, { main: string }>)[c];
+    if (mui?.main) return mui.main;
+    return c;
   };
-  return map[c] ?? c;
 }
 
 export function RingProgress({ sections, color, value, label, size = 80, thickness = 8, roundCaps, className, style, "data-testid": testId, id }: UIRingProgressProps) {
-  const effSections = sections ?? [{ value, color: (color as string) ?? "blue" }];
+  const effSections = sections ?? [{ value, color: (color as string) ?? "primary" }];
+  const resolveColor = useResolveColor();
+  const theme = useTheme();
+  const trackColor = (theme.palette as unknown as Record<string, { main: string }>).grey?.[200] ?? theme.palette.divider ?? theme.palette.grey[200];
 
   // Build conic-gradient from sections
   let acc = 0;
@@ -45,7 +46,7 @@ export function RingProgress({ sections, color, value, label, size = 80, thickne
     acc = end;
   }
   if (acc < 100) {
-    stops.push(`#E2E8F0 ${acc}% 100%`);
+    stops.push(`${trackColor} ${acc}% 100%`);
   }
   const conic = `conic-gradient(${stops.join(", ")})`;
 

@@ -54,7 +54,7 @@ function withAlpha(hex: string, alpha: number): string {
 }
 
 const PRESETS = ["7D", "30D", "90D", "YTD", "All"];
-const PRESET_COLORS = ["blue", "cyan", "teal", "grape", "gray"];
+const PRESET_COLORS = ["primary", "info", "info", "secondary", "secondary"] as const;
 const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.14) } };
 
 const EXIT_PIE_COLORS = [
@@ -287,7 +287,7 @@ function StrategyTable({ rows }: { rows: PaperDashboardStrategyRanking[] }) {
 
 function TradesTable({ title, trades }: { title: string; trades: PaperDashboardTradeItem[] }) {
   const isWinners = title.toLowerCase().includes("win");
-  const accentColor = isWinners ? "teal" : "red";
+  const accentColor = isWinners ? "info" : "error";
   const columns = useMemo<ColumnDef<PaperDashboardTradeItem>[]>(() => [
     { header: "Symbol", accessorKey: "symbol", cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
     { header: "Bot", accessorKey: "bot_name" },
@@ -312,7 +312,7 @@ function SymbolPanel({ data }: { data: PaperDashboardAnalyticsData }) {
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Box mb="xs"><SectionHeader title="Symbol Performance" badge={data.symbol_performance.length} color="indigo" /></Box>
+      <Box mb="xs"><SectionHeader title="Symbol Performance" badge={data.symbol_performance.length} color="secondary" /></Box>
       <TanStackTable columns={columns} data={data.symbol_performance.slice(0, 12)} />
     </CompactPanel>
   );
@@ -352,7 +352,7 @@ export function AggregatedDashboard() {
   return (
     <Flex direction="column" gap="xs" p="xs" data-testid="paper-dashboard">
       <Stack gap={2}>
-        <SectionHeader title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="blue" />
+        <SectionHeader title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="primary" />
         <Text size="xs" c="dimmed">
           {data?.period.from_date || "first trade"} to {data?.period.to_date || "today"}
         </Text>
@@ -402,28 +402,28 @@ export function AggregatedDashboard() {
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
             <BotRankingPanel bots={data.bot_rankings} />
             <Paper p="xs" radius="xs">
-              <Box mb="xs"><SectionHeader title="Equity Curve" color="blue" /></Box>
+              <Box mb="xs"><SectionHeader title="Equity Curve" color="primary" /></Box>
               <EquityChart data={data} />
             </Paper>
           </SimpleGrid>
 
           <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="xs">
             <Paper p="xs" radius="xs">
-              <Box mb="xs"><SectionHeader title="Bot Comparison" color="teal" /></Box>
+              <Box mb="xs"><SectionHeader title="Bot Comparison" color="info" /></Box>
               <BotComparisonChart data={data} />
             </Paper>
             <Paper p="xs" radius="xs">
-              <Box mb="xs"><SectionHeader title="Daily P&L" color="grape" /></Box>
+              <Box mb="xs"><SectionHeader title="Daily P&L" color="secondary" /></Box>
               <DailyPnlChart data={data} />
             </Paper>
             <Paper p="xs" radius="xs">
-              <Box mb="xs"><SectionHeader title="Drawdown" color="red" /></Box>
+              <Box mb="xs"><SectionHeader title="Drawdown" color="error" /></Box>
               <DrawdownChart data={data} />
             </Paper>
           </SimpleGrid>
 
           <Paper p="xs" radius="xs">
-            <Box mb="xs"><SectionHeader title="Strategy Performance" color="cyan" /></Box>
+            <Box mb="xs"><SectionHeader title="Strategy Performance" color="info" /></Box>
             <StrategyTable rows={data.strategy_rankings} />
           </Paper>
 
@@ -435,7 +435,7 @@ export function AggregatedDashboard() {
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
             <SymbolPanel data={data} />
             <Paper p="xs" radius="xs">
-              <Box mb="xs"><SectionHeader title="Exit Reason Breakdown" color="orange" /></Box>
+              <Box mb="xs"><SectionHeader title="Exit Reason Breakdown" color="warning" /></Box>
               <ExitReasonChart data={data} />
             </Paper>
           </SimpleGrid>

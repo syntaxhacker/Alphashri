@@ -36,7 +36,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           <Grid size={{ xs: 12, sm: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
             <Paper elevation={1} sx={{ p: 1, width: "100%" }} className="guide-card guide-card-calls">
               <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-                <Text fw={700} size="sm" c="green.7">CALLS (CE)</Text>
+                <Text fw={700} size="sm" c="success">CALLS (CE)</Text>
                 <Text size="sm">Right to buy. Traders buy CE if they expect the price to **GO UP**.</Text>
               </CardContent>
             </Paper>
@@ -44,7 +44,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           <Grid size={{ xs: 12, sm: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
             <Paper elevation={1} sx={{ p: 1, width: "100%" }} className="guide-card guide-card-puts">
               <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-                <Text fw={700} size="sm" c="red.7">PUTS (PE)</Text>
+                <Text fw={700} size="sm" c="error">PUTS (PE)</Text>
                 <Text size="sm">Right to sell. Traders buy PE if they expect the price to **GO DOWN**.</Text>
               </CardContent>
             </Paper>
@@ -55,7 +55,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           <Text size="sm" fw={700}>Key Indicators</Text>
         </Box>
 
-        <List spacing="xs" size="sm" className="guide-indicators" data-testid="options-guide-indicators" icon={<ThemeIcon color="blue" size={20} radius="xl"><IconInfoCircle size={12} /></ThemeIcon>}>
+        <List spacing="xs" size="sm" className="guide-indicators" data-testid="options-guide-indicators" icon={<ThemeIcon color="primary" size={20} radius="xl"><IconInfoCircle size={12} /></ThemeIcon>}>
           <ListItem className="guide-indicator-item" data-testid="options-guide-pcr">
             <Text component="span" fw={700}>PCR (Put-Call Ratio):</Text> If {">"} 1.2, more puts are being sold (Bullish). If {"<"} 0.7, more calls are being sold (Bearish).
           </ListItem>
@@ -73,22 +73,22 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
 
         <Stack spacing={1} sx={{ width: "100%", alignItems: "center" }} data-testid="options-guide-badges">
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "center" }} data-testid="options-guide-badge-lb">
-            <Badge color="green" variant="light" w={80}>LB</Badge>
+            <Badge color="success" variant="light" w={80}>LB</Badge>
             <Text size="sm" fw={700}>Long Buildup:</Text>
             <Text size="sm">New buyers entering. **Strong Bullish signal.**</Text>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "center" }} data-testid="options-guide-badge-sb">
-            <Badge color="red" variant="light" w={80}>SB</Badge>
+            <Badge color="error" variant="light" w={80}>SB</Badge>
             <Text size="sm" fw={700}>Short Buildup:</Text>
             <Text size="sm">Sellers creating new positions. **Strong Bearish signal.**</Text>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "center" }} data-testid="options-guide-badge-sc">
-            <Badge color="cyan" variant="light" w={80}>SC</Badge>
+            <Badge color="info" variant="light" w={80}>SC</Badge>
             <Text size="sm" fw={700}>Short Covering:</Text>
             <Text size="sm">Sellers closing positions. **Price usually bounces up.**</Text>
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "center" }} data-testid="options-guide-badge-lu">
-            <Badge color="orange" variant="light" w={80}>LU</Badge>
+            <Badge color="warning" variant="light" w={80}>LU</Badge>
             <Text size="sm" fw={700}>Long Unwinding:</Text>
             <Text size="sm">Buyers closing positions. **Price usually profit books (down).**</Text>
           </Box>
@@ -98,7 +98,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
           <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
             <Box sx={{ display: "flex", alignItems: "center", gap: 1, justifyContent: "center" }}>
               <IconTarget size={20} color="var(--mui-palette-primary-main)" />
-              <Text size="sm" fw={600} c="blue.9">
+              <Text size="sm" fw={600} c="primary">
                 PRO TIP: Look for strikes where both OI and Volume are spiking with an "LB" badge—that's where the next big move might happen!
               </Text>
             </Box>

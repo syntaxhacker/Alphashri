@@ -22,7 +22,7 @@ function OpenByDefault() {
       </Text>
       <Group justify="flex-end" gap="sm">
         <Button variant="subtle" onClick={() => setOpened(false)}>Cancel</Button>
-        <Button color="red" onClick={() => setOpened(false)}>Force exit</Button>
+        <Button color="error" onClick={() => setOpened(false)}>Force exit</Button>
       </Group>
     </Modal>
   );
@@ -55,7 +55,7 @@ function TriggeredModal() {
         </Text>
         <Group justify="flex-end" gap="sm">
           <Button variant="default" onClick={() => setOpened(false)}>Keep positions</Button>
-          <Button color="red" onClick={() => setOpened(false)}>Close all</Button>
+          <Button color="error" onClick={() => setOpened(false)}>Close all</Button>
         </Group>
       </Modal>
     </>

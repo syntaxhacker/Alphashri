@@ -18,9 +18,13 @@ export interface UIBaseProps {
 
 export type UISize = "xs" | "sm" | "md" | "lg" | "xl";
 export type UIColor =
-  | "teal" | "green" | "red" | "orange" | "dark"
-  | "blue" | "gray" | "yellow" | "violet" | "pink" | "cyan"
-  | "success" | "danger" | "warning"
+  | "primary"
+  | "secondary"
+  | "success"
+  | "error"
+  | "warning"
+  | "info"
+  | "danger"
   | string;
 export type UITone = UIColor;
 export type UIFontWeight = "normal" | "medium" | "semibold" | "bold" | number;
