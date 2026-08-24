@@ -254,7 +254,7 @@ describe("NavbarNested theme toggle", () => {
     const after = localStorage.getItem("mui-color-scheme");
     // should have flipped to light or dark
     expect(after).toBeTruthy();
-    expect(["light", "secondary"]).toContain(after);
+    expect(["light", "dark"]).toContain(after);
     // document attribute should be set
     expect(document.documentElement.getAttribute("data-color-scheme")).toBe(after);
     // clicking again flips back
@@ -278,7 +278,7 @@ describe("NavbarNested theme toggle", () => {
   it("calls underlying useColorScheme toggle (spy)", async () => {
     const toggleSpy = vi.fn();
     vi.spyOn(hooks, "useColorScheme").mockReturnValue({
-      colorScheme: "secondary",
+      colorScheme: "dark",
       isDark: true,
       toggleColorScheme: toggleSpy,
       setColorScheme: vi.fn(),

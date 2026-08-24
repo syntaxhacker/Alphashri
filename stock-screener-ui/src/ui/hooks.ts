@@ -88,23 +88,35 @@ export function useDisclosure(
   return [opened, { open, close, toggle }];
 }
 
-// useColorScheme: simple localStorage + data attributes (works with MUI default theme)
+// useColorScheme: MUI default theme + localStorage fallback (works in app and tests)
 export function useColorScheme(): UIUseColorSchemeResult {
+  let mui: any = null;
+  try {
+    mui = useMuiColorScheme();
+  } catch {
+    mui = null;
+  }
+
   const getInitial = (): "light" | "dark" => {
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
       if (stored === "light" || stored === "dark") return stored as any;
+      if (mui?.mode === "light" || mui?.mode === "dark") return mui.mode;
       if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
     }
     return "light";
   };
 
-  const [colorScheme, setColorSchemeState] = useState<"light" | "dark">(getInitial);
+  const [fallback, setFallback] = useState<"light" | "dark">(getInitial);
+
+  const colorScheme: "light" | "dark" = mui?.mode === "light" || mui?.mode === "dark" ? mui.mode : fallback;
 
   useEffect(() => {
-    const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme")) : null;
-    if (stored === "light" || stored === "dark") setColorSchemeState(stored as any);
-  }, []);
+    if (!mui?.mode) {
+      const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme")) : null;
+      if (stored === "light" || stored === "dark") setFallback(stored as any);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (typeof document !== "undefined") {
@@ -114,34 +126,30 @@ export function useColorScheme(): UIUseColorSchemeResult {
     }
   }, [colorScheme]);
 
-  const setColorScheme = useCallback((scheme: "light" | "dark") => {
-    setColorSchemeState(scheme);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem("mui-color-scheme", scheme);
-        window.localStorage.setItem("color-scheme", scheme);
-      } catch {}
-      document.documentElement?.setAttribute("data-color-scheme", scheme);
-      document.documentElement?.setAttribute("data-mui-color-scheme", scheme);
-      document.documentElement.style.colorScheme = scheme;
-    }
-  }, []);
-
-  const toggleColorScheme = useCallback(() => {
-    setColorSchemeState((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
+  const setColorScheme = useCallback(
+    (scheme: "light" | "dark") => {
+      if (mui?.setMode) {
+        mui.setMode(scheme);
+      } else {
+        setFallback(scheme);
+      }
       if (typeof window !== "undefined") {
         try {
-          window.localStorage.setItem("mui-color-scheme", next);
-          window.localStorage.setItem("color-scheme", next);
+          window.localStorage.setItem("mui-color-scheme", scheme);
+          window.localStorage.setItem("color-scheme", scheme);
         } catch {}
-        document.documentElement?.setAttribute("data-color-scheme", next);
-        document.documentElement?.setAttribute("data-mui-color-scheme", next);
-        document.documentElement.style.colorScheme = next;
+        document.documentElement?.setAttribute("data-color-scheme", scheme);
+        document.documentElement?.setAttribute("data-mui-color-scheme", scheme);
+        document.documentElement.style.colorScheme = scheme;
       }
-      return next;
-    });
-  }, []);
+    },
+    [mui],
+  );
+
+  const toggleColorScheme = useCallback(() => {
+    const next = colorScheme === "dark" ? "light" : "dark";
+    setColorScheme(next);
+  }, [colorScheme, setColorScheme]);
 
   return {
     isDark: colorScheme === "dark",
