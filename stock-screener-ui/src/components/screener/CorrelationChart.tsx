@@ -121,7 +121,7 @@ export function CorrelationChart({ normalized, symbols, isLoading }: Correlation
       />
       {isLoading && (
         <Flex pos="absolute" inset={0} justify="center" align="center" style={{ zIndex: 1 }}>
-          <Stack align="center" gap="xs">
+          <Stack align="center" gap="sm">
             <Loader size="sm" />
             <Text size="sm" c="dimmed">
               Loading chart data...

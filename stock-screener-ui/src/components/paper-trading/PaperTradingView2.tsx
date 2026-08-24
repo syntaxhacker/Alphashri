@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Stack, Alert, ScrollArea } from "@/ui";
 import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Box from "@mui/material/Box";
@@ -154,15 +153,15 @@ function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
   }, [state.positions, state.selectedSymbol]);
 
   return (
-    <Grid container spacing={2} sx={{ flex: 1, minHeight: 0 }} data-testid="live-view-grid" id="live-view-grid">
-      <Grid size={{ xs: 12, md: 5 }} sx={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
-        <Card elevation={1}>
-          <CardContent sx={{ p: "8px", "&:last-child": { pb: "8px" } }}>
+    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="live-view-grid" id="live-view-grid">
+      <Box sx={{ flex: { xs: "1 1 auto", md: "0 0 42%" }, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
+        <Card elevation={0}>
+          <CardContent>
             <PaperPortfolioCard portfolio={state.portfolio as any} />
           </CardContent>
         </Card>
-        <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ p: "8px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: "8px" } }}>
+        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <ScrollArea flex={1} sx={{ minHeight: 0 }}>
               <Stack spacing={1}>
                 <PaperPositionsTable />
@@ -170,21 +169,21 @@ function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
             </ScrollArea>
           </CardContent>
         </Card>
-        <Card elevation={1}>
-          <CardContent sx={{ p: "8px", "&:last-child": { pb: "8px" } }}>
+        <Card elevation={0}>
+          <CardContent>
             <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} onRefresh={handleScanRefresh} refreshing={scanRefreshing} />
           </CardContent>
         </Card>
-      </Grid>
-      <Grid size={{ xs: 12, md: 7 }} sx={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }} data-testid="paper-right-panel" id="right-panel">
-        <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ p: "8px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: "8px" } }}>
+      </Box>
+      <Box sx={{ flex: { xs: "1 1 auto", md: "1 1 58%" }, minWidth: 0, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }} data-testid="paper-right-panel" id="right-panel">
+        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperChart />
           </CardContent>
         </Card>
         <SelectedPositionBar position={selectedPosition} />
-      </Grid>
-    </Grid>
+      </Box>
+    </Box>
   );
 }
 
@@ -194,22 +193,22 @@ interface HistoryViewProps {
 
 function HistoryView({ state: _state }: HistoryViewProps) {
   return (
-    <Grid container spacing={2} sx={{ flex: 1, minHeight: 0 }} data-testid="paper-history-panel" id="history-view">
-      <Grid size={{ xs: 12, md: 6 }} sx={{ minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ p: "8px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: "8px" } }}>
+    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="paper-history-panel" id="history-view">
+      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperHistoryTable />
           </CardContent>
         </Card>
-      </Grid>
-      <Grid size={{ xs: 12, md: 6 }} sx={{ minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ p: "8px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: "8px" } }}>
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperChart />
           </CardContent>
         </Card>
-      </Grid>
-    </Grid>
+      </Box>
+    </Box>
   );
 }
 
@@ -222,7 +221,7 @@ function SettingsView({ state: _state }: SettingsViewProps) {
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="paper-settings-panel" id="settings-view">
       <ScrollArea flex={1} sx={{ minHeight: 0 }} type="auto">
         <Box sx={{ maxWidth: 780, mx: "auto", width: "100%" }}>
-          <Card elevation={1}>
+          <Card elevation={0}>
             <CardContent>
               <PaperSettings />
             </CardContent>
@@ -296,7 +295,7 @@ export function PaperTradingView() {
     usePaperTradingViewModel();
 
   return (
-    <Container maxWidth="xl" disableGutters={false} sx={{ py: "16px", display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }} data-testid="paper-trading-view" id="paper-trading-main">
+    <Container maxWidth="xl" disableGutters={false} sx={{ py: 2, display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }} data-testid="paper-trading-view" id="paper-trading-main">
       <LivePriceUpdater />
       {state.error && <ErrorAlert message={state.error} onClose={handleClearError} />}
 

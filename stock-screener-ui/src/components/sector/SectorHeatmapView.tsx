@@ -347,9 +347,9 @@ export function SectorHeatmapView({
   return (
     <Box
       data-testid="sector-heatmap-view"
-      style={{ display: "flex", flexDirection: "column", minHeight: 0 }}
+      style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}
     >
-      <Group gap="sm" p="sm" wrap="nowrap" style={{ flexShrink: 0 }}>
+      <Group gap={1} p={1} wrap="nowrap" style={{ flexShrink: 0 }}>
         <SegmentedControl
           size="xs"
           value={viewMode}
@@ -390,10 +390,10 @@ export function SectorHeatmapView({
         )}
         {loading && <Loader size="xs" />}
       </Group>
-      <Box style={{ height: 420, width: "100%", minWidth: 320 }} data-testid="sector-heatmap-chart">
+      <Box style={{ flex: 1, minHeight: 320, width: "100%", minWidth: 320, display: "flex" }} data-testid="sector-heatmap-chart">
         <ReactECharts
           option={chartOption}
-          style={{ height: 420, width: "100%" }}
+          style={{ height: 420, width: "100%", flex: 1 }}
           opts={{ renderer: "canvas" }}
           onEvents={
             onSymbolClick && viewMode === "stock"

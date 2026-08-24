@@ -6,8 +6,6 @@ import {
   Group,
   Loader,
   SegmentedControl,
-  Flex,
-  ScrollArea,
   Anchor,
   Badge,
   ActionIcon,
@@ -15,7 +13,6 @@ import {
   Textarea,
   Button,
 } from "@/ui";
-import Grid from "@mui/material/Grid";
 import Box from "@mui/material/Box";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { PaperTrade } from "../../types/paperTrading";
@@ -220,8 +217,8 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Grid container spacing={2}>
-      <Grid size={{ xs: 12, md: 6 }}>
+    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
         <Stack spacing={1}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
           {entryContext.map((item) => (
@@ -231,8 +228,8 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
             </Group>
           ))}
         </Stack>
-      </Grid>
-      <Grid size={{ xs: 12, md: 6 }}>
+      </Box>
+      <Box sx={{ flex: 1, minWidth: 0 }}>
         <Stack spacing={1}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">Exit</Text>
           {exitContext.map((item) => (
@@ -246,8 +243,8 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
             <ExitReasonBadge reason={trade.exit_reason} />
           </Group>
         </Stack>
-      </Grid>
-    </Grid>
+      </Box>
+    </Box>
   );
 });
 
@@ -546,7 +543,7 @@ function HistoryList({
   handleSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => Promise<void>;
 }) {
   return (
-    <ScrollArea flex={1} sx={{ flex: 1, minHeight: 0 }} type="scroll" id="history-list">
+    <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }} id="history-list">
       {filteredTrades.length === 0 ? (
         <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 1, py: 1 }}>
           <Text size="xs" fw={500} c="dimmed">
@@ -560,7 +557,7 @@ function HistoryList({
           onSelectSymbol={handleSelectSymbol}
         />
       )}
-    </ScrollArea>
+    </Box>
   );
 }
 

@@ -45,7 +45,7 @@ export function ScreenerHeader({
       data-testid="screener-header"
       py="sm"
       px="md"
-      sx={{ flexShrink: 0 }}
+      sx={{ flexShrink: 0, minHeight: 48, display: "flex", alignItems: "center" }}
     >
       <Group justify="space-between" align="center" gap="sm" wrap="nowrap">
         <Text

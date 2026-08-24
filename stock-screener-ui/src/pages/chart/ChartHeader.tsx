@@ -30,7 +30,7 @@ export function ChartHeader({
     <Box
       id="chart-header"
       data-testid="chart-header"
-      sx={{ display: "flex", alignItems: "center", gap: 2, px: 2.5, py: 1.5, bgcolor: "background.paper", flexShrink: 0 }}
+      sx={{ display: "flex", alignItems: "center", gap: 2, px: 2, py: 1, bgcolor: "background.paper", flexShrink: 0, minHeight: 48 }}
     >
       <Button size="small" onClick={onBack} data-testid="chart-back-btn">
         ← Back

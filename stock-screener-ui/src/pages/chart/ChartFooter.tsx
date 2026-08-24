@@ -12,7 +12,7 @@ export function ChartFooter({ data, timeframe, orMinutes }: ChartFooterProps) {
     <Box
       id="chart-footer"
       data-testid="chart-footer"
-      sx={{ display: "flex", gap: 1, py: 1, px: 2.5, bgcolor: "background.paper", typography: "body2", color: "text.secondary", flexWrap: "wrap" }}
+      sx={{ display: "flex", gap: 1, py: 1, px: 2, bgcolor: "background.paper", typography: "body2", color: "text.secondary", flexWrap: "wrap" }}
     >
       <Typography variant="body2" color="text.secondary" component="span">{data.candles.length} candles</Typography>
       <Typography variant="body2" color="text.secondary" component="span">•</Typography>

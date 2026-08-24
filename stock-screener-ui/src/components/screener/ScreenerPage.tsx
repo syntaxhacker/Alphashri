@@ -1,9 +1,9 @@
 import { useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import Grid from "@mui/material/Grid";
 import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import CardContent from "@mui/material/CardContent";
+import Divider from "@mui/material/Divider";
 import { Stack, Box, Tabs, Text } from "@/ui";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
@@ -192,17 +192,19 @@ export function ScreenerPage({
                   viewMode={viewMode}
                   onViewModeChange={setViewMode}
                 />
+                <Divider />
                 <CompactAlerts activeScreener={activeScreener} warning={warning} />
-                <Box sx={{ display: "flex", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
+                <Divider />
+                <Box sx={{ display: "flex", gap: 1, flex: 1, minHeight: 0, overflow: "hidden" }}>
                   {hasSideFilters && (
-                    <Box sx={{ width: 220, flexShrink: 0, display: "flex" }}>
+                    <Box sx={{ width: 164, flexShrink: 0, display: "flex" }}>
                       <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", p: 1 }}>
                         <ScreenerSidePanel activeScreener={activeScreener} screenerOptions={screenerOptions} />
                       </Paper>
                     </Box>
                   )}
                   <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-                    <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1.5 }}>
+                    <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1, "&:last-child": { pb: 1 } }}>
                       <ScreenerContent
                         approachingStocks={approachingStocks}
                         touchedStocks={touchedStocks}

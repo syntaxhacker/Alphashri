@@ -13,7 +13,7 @@ export const ChartBody = forwardRef<HTMLDivElement, ChartBodyProps>(
     const displayError = error || chartError;
 
     return (
-      <Box id="chart-body" data-testid="chart-body" sx={{ flex: 1, minHeight: 0, p: 1.5, display: "flex", flexDirection: "column" }}>
+      <Box id="chart-body" data-testid="chart-body" sx={{ flex: 1, minHeight: 0, p: 1, display: "flex", flexDirection: "column" }}>
         {loading && (
           <Box data-testid="chart-loading" sx={{ p: 2 }}>
             <Typography>Loading chart...</Typography>

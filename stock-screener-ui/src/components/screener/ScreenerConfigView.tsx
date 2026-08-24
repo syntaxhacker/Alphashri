@@ -310,7 +310,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   };
 
   return (
-    <Box style={{ display: "flex", height: "100%", gap: 8 }}>
+    <Box sx={{ display: "flex", height: "100%", gap: 1 }}>
       <Box
         sx={{
           width: 280,
@@ -319,7 +319,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         data-testid="screener-list-panel"
       >
         <ScrollArea h="100%">
-          <Stack gap={4} p="xs">
+          <Stack gap="sm" p="sm">
             <Group justify="space-between" data-testid="screener-list-header">
               <Text fw={600} size="xs" data-testid="screener-configs-title">
                 CONFIGS
@@ -381,10 +381,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             {screenerOptions.map((option) => (
               <Box
                 key={option.id}
-                p={4}
+                p="sm"
                 data-testid={`screener-row-${option.id}`}
                 sx={(theme) => ({
-                  borderRadius: 8,
+                  borderRadius: 1,
                   cursor: "pointer",
                   backgroundColor:
                     option.id === activeScreener
@@ -393,8 +393,8 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 })}
                 onClick={() => onScreenerChange(option.id)}
               >
-                <Group justify="space-between" mb={4}>
-                  <Group gap={4}>
+                <Group justify="space-between" mb="sm">
+                  <Group gap="sm">
                     <Text size="sm" fw={500}>
                       {option.label}
                     </Text>
@@ -404,7 +404,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                       </Badge>
                     )}
                   </Group>
-                  <Group gap={4}>
+                  <Group gap="sm">
                     <ActionIcon
                       size="sm"
                       variant="subtle"
@@ -443,9 +443,9 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
         data-testid="screener-preview-panel"
       >
-        <Box p="xs" style={{ overflow: "auto" }} data-testid="screener-details-bar">
+        <Box p="sm" sx={{ overflow: "auto" }} data-testid="screener-details-bar">
           {activeOption && (
-            <Group gap={8} wrap="wrap" data-testid="screener-filters">
+            <Group gap="sm" wrap="wrap" data-testid="screener-filters">
               <Badge size="xs" color="blue" data-testid="screener-name-badge">
                 {activeOption.label}
               </Badge>
@@ -481,7 +481,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             ↻
           </Button>
         </Group>
-        <Box style={{ flex: 1, overflow: "auto" }} p="xs">
+        <Box sx={{ flex: 1, overflow: "auto" }} p="sm">
           {previewLoading ? (
             <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-loading">
               Loading...
@@ -562,8 +562,8 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
 
   function renderFormModal(isEdit: boolean, onSubmit: () => void, isSaving: boolean) {
     return (
-      <Box style={{ display: "flex", gap: 24 }}>
-        <Box style={{ flex: 1 }}>
+      <Box sx={{ display: "flex", gap: 3 }}>
+        <Box sx={{ flex: 1 }}>
           <Stack gap="md" data-testid="create-screener-form">
             <TextInput
               label="Name"
@@ -653,7 +653,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             paddingLeft: 3,
           }}
         >
-          <Stack gap="xs" data-testid="create-modal-preview">
+          <Stack gap="sm" data-testid="create-modal-preview">
             <Group justify="space-between">
               <Text fw={600} size="sm" data-testid="modal-live-preview-title">
                 LIVE PREVIEW
@@ -667,7 +667,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 Select columns to preview
               </Text>
             ) : stocks.length > 0 ? (
-              <Box style={{ height: 300, overflow: "auto" }}>
+              <Box sx={{ height: 300, overflow: "auto" }}>
                 <ScreenerTable
                   stocks={stocks.slice(0, 10)}
                   columns={form.columns.slice(0, 5).map((key) => ({

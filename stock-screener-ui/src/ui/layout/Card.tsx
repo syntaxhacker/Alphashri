@@ -24,7 +24,7 @@ export function Card({
   const pad = padding ?? p;
   return (
     <MuiCard
-      elevation={1} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
+      elevation={0} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
       sx={{
         ...(radius != null && { borderRadius: rad(radius) }),
         ...(pad != null && { p: sp(pad) }),

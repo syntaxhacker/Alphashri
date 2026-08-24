@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Group, Text, Badge, ActionIcon, ScrollArea, Stack } from "@/ui";
+import { Group, Text, Badge, ActionIcon, Stack } from "@/ui";
+import Box from "@mui/material/Box";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Trade } from "../../types/backtest";
@@ -292,7 +293,7 @@ export function TradeHistoryTable({
         <Text size="sm" data-testid="trade-summary-wins">Wins: {wins}/{trades.length}</Text>
       </Group>
 
-      <ScrollArea flex={1} type="auto" offsetScrollbars style={{ minHeight: 0 }} className="trade-history-scroll">
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} className="trade-history-scroll">
         <TanStackTable<Trade>
           data={sortedTrades}
           columns={columns}
@@ -304,7 +305,7 @@ export function TradeHistoryTable({
           getRowTestId={(_row, index) => `trade-history-row-${index}`}
           onRowClick={(row) => onRowClick(safeTrades.indexOf(row))}
         />
-      </ScrollArea>
+      </Box>
     </Stack>
   );
 }

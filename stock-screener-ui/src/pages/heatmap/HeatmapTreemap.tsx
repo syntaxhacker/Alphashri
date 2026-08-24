@@ -1,5 +1,5 @@
 import { useMemo, useRef } from "react";
-import { Box, Group, Select, Text, ScrollArea, useColorScheme } from "@/ui";
+import { Box, Group, Select, Text, useColorScheme } from "@/ui";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";
 import {
@@ -184,7 +184,7 @@ export function HeatmapTreemap({
   const metricOptions = metrics.map((m) => ({ value: m.value, label: m.label }));
 
   return (
-    <Box data-testid={testId} style={{ display: "flex", flexDirection: "column", minHeight: 0 }}>
+    <Box data-testid={testId} style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}>
       {showMetricSelect && onMetricChange && (
         <Group gap="xs" p={6} wrap="nowrap">
           <Select
@@ -201,25 +201,23 @@ export function HeatmapTreemap({
           </Text>
         </Group>
       )}
-      <ScrollArea style={{ flex: 1 }} type="auto">
-        <Box style={{ minHeight: typeof chartHeight === "number" ? chartHeight : undefined, minWidth: 320 }}>
-          <ReactECharts
-            ref={chartRef}
-            option={chartOption}
-            style={{ height: chartHeight, width: "100%" }}
-            opts={{ renderer: "canvas" }}
-            onEvents={
-              onSymbolClick
-                ? {
-                    click: (params: { name?: string }) => {
-                      if (params?.name) onSymbolClick(params.name);
-                    },
-                  }
-                : undefined
-            }
-          />
-        </Box>
-      </ScrollArea>
+      <Box style={{ flex: 1, minHeight: typeof chartHeight === "number" ? chartHeight : undefined, minWidth: 320, display: "flex" }}>
+        <ReactECharts
+          ref={chartRef}
+          option={chartOption}
+          style={{ height: chartHeight, width: "100%", flex: 1 }}
+          opts={{ renderer: "canvas" }}
+          onEvents={
+            onSymbolClick
+              ? {
+                  click: (params: { name?: string }) => {
+                    if (params?.name) onSymbolClick(params.name);
+                  },
+                }
+              : undefined
+          }
+        />
+      </Box>
       {showLegend && stocks.length > 0 && (
         <Box
           data-testid={`${testId}-legend`}

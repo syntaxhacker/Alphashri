@@ -119,7 +119,7 @@ function ChartEmptyState({
   children: React.ReactNode;
 }) {
   return (
-    <Card elevation={1} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Card elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <CardContent sx={{ textAlign: "center" }}>
         {icon && (
           <Text size="lg" c="dimmed" mb="xs">
@@ -407,7 +407,7 @@ export function PaperChart() {
   }
 
   return (
-    <Card elevation={1} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: 0, overflow: "hidden" }}>
+    <Card elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
       <ChartHeader state={state} />
       <Box sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />

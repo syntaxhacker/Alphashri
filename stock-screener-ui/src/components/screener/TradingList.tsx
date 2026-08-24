@@ -24,7 +24,7 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
         mb={opened ? "xs" : 0}
         data-testid="trading-list-header"
       >
-        <Group gap="xs" data-testid="trading-list-title-group">
+        <Group gap="sm" data-testid="trading-list-title-group">
           <ActionIcon
             variant="subtle"
             onClick={() => setOpened((o) => !o)}

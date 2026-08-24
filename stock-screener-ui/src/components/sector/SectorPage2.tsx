@@ -24,11 +24,8 @@ import {
   IconClock,
   IconNetwork,
 } from "@tabler/icons-react";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
 import CardContent from "@mui/material/CardContent";
-import TableContainer from "@mui/material/TableContainer";
-import MuiCard from "@mui/material/Card";
+import MuiPaper from "@mui/material/Paper";
 import { SectorTable } from "./SectorTable";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import { SectorCorrelationTab } from "./SectorCorrelationTab";
@@ -450,8 +447,8 @@ function SectorPageHeader({
   onRefresh: () => void;
 }) {
   return (
-    <Box className="sector-analysis-header">
-      <Stack gap={2}>
+    <Box className="sector-analysis-header" sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexShrink: 0 }}>
+      <Stack gap={1}>
         <Title order={2} size="h4">
           Sector Dashboard
         </Title>
@@ -459,7 +456,7 @@ function SectorPageHeader({
           Real-time sector performance and technical strength.
         </Text>
       </Stack>
-      <Group gap="xs">
+      <Group gap={1}>
         <SegmentedControl
           value={market}
           onChange={(v) => setMarket(v as "india" | "america")}
@@ -528,8 +525,9 @@ function SectorTabContent({
   if (activeTab !== "dashboard") {
     return (
       <Paper
-        elevation={1}
-        sx={{ borderRadius: 2, overflow: "auto", height: "100%" }}
+        shadow="none"
+        p={0}
+        sx={{ overflow: "auto", height: "100%", bgcolor: "background.paper" }}
         className="sector-analysis-frame-wrap"
         data-testid="sector-analysis-frame"
       >
@@ -601,76 +599,60 @@ export function SectorPage() {
   }, [heatmapStocks]);
 
   return (
-    <Container
-      maxWidth="xl"
-      sx={{ py: 2, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }}
+    <Box
+      sx={{ p: 2, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 2, width: "100%" }}
       data-testid="sector-analysis-view"
     >
-      <Grid container spacing={2} sx={{ flex: 1, minHeight: 0, flexDirection: "column" }}>
-        <Grid size={{ xs: 12 }}>
-          <SectorPageHeader
-            market={state.market}
-            setMarket={state.setMarket}
-            loading={state.loading}
-            onRefresh={() => state.loadData(state.market)}
-          />
-        </Grid>
-        <Grid size={{ xs: 12 }} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <MuiCard elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: 2 } }}>
-              <TableContainer sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-                <Box
-                  id="sector-page"
-                  className="sector-page"
-                  sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
-                >
-                  <Tabs value={state.activeTab} onChange={state.setActiveTab}>
-                    <Tabs.List>
-                      <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
-                        Live Dashboard
-                      </Tabs.Tab>
-                      <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
-                        Sector Correlation
-                      </Tabs.Tab>
-                      <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
-                        Historical Cycles
-                      </Tabs.Tab>
-                    </Tabs.List>
-                  </Tabs>
-                  <Box
-                    flex={1}
-                    style={{
-                      minHeight: 0,
-                      padding: (theme) => `0 ${theme.spacing(2)} ${theme.spacing(2)}`,
-                      overflow: "auto",
-                    }}
-                  >
-                    <SectorTabContent
-                      activeTab={state.activeTab}
-                      data={state.data}
-                      loading={state.loading}
-                      error={state.error}
-                      market={state.market}
-                      alerts={state.alerts}
-                      intervalMovers={state.intervalMovers}
-                      loadData={state.loadData}
-                      viewMode={viewMode}
-                      onViewModeChange={setViewMode}
-                      heatmapStocks={heatmapStocks}
-                      heatmapMetric={heatmapMetric}
-                      onHeatmapMetricChange={setHeatmapMetric}
-                      stockSectorFilter={stockSectorFilter}
-                      onStockSectorFilterChange={setStockSectorFilter}
-                      sectorOptions={sectorOptions}
-                      heatmapLoading={heatmapLoading}
-                    />
-                  </Box>
-                </Box>
-              </TableContainer>
-            </CardContent>
-          </MuiCard>
-        </Grid>
-      </Grid>
-    </Container>
+      <SectorPageHeader
+        market={state.market}
+        setMarket={state.setMarket}
+        loading={state.loading}
+        onRefresh={() => state.loadData(state.market)}
+      />
+      <MuiPaper elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", p: 0 }}>
+        <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, overflow: "hidden" }}>
+          <Box
+            id="sector-page"
+            className="sector-page"
+            sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
+          >
+            <Tabs value={state.activeTab} onChange={state.setActiveTab}>
+              <Tabs.List>
+                <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+                  Live Dashboard
+                </Tabs.Tab>
+                <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
+                  Sector Correlation
+                </Tabs.Tab>
+                <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+                  Historical Cycles
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+            <Box flex={1} sx={{ minHeight: 0, p: 2, overflow: "auto" }}>
+              <SectorTabContent
+                activeTab={state.activeTab}
+                data={state.data}
+                loading={state.loading}
+                error={state.error}
+                market={state.market}
+                alerts={state.alerts}
+                intervalMovers={state.intervalMovers}
+                loadData={state.loadData}
+                viewMode={viewMode}
+                onViewModeChange={setViewMode}
+                heatmapStocks={heatmapStocks}
+                heatmapMetric={heatmapMetric}
+                onHeatmapMetricChange={setHeatmapMetric}
+                stockSectorFilter={stockSectorFilter}
+                onStockSectorFilterChange={setStockSectorFilter}
+                sectorOptions={sectorOptions}
+                heatmapLoading={heatmapLoading}
+              />
+            </Box>
+          </Box>
+        </CardContent>
+      </MuiPaper>
+    </Box>
   );
 }

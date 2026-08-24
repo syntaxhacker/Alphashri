@@ -1,8 +1,5 @@
 import { useState } from "react";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
-import CardContent from "@mui/material/CardContent";
-import TableContainer from "@mui/material/TableContainer";
+import Box from "@mui/material/Box";
 import { useOptionsState } from "../../hooks/useOptionsState";
 import { OptionsPage } from "../../components/options/OptionsPage";
 
@@ -11,22 +8,15 @@ export function OptionsContainer() {
   const [activeTab, setActiveTab] = useState<string>("chain");
 
   return (
-    <Container
-      maxWidth="xl"
+    <Box
       id="options-container"
       className="options-container"
       data-testid="options-container"
-      sx={{ py: 2, height: "100%", overflow: "hidden" }}
+      sx={{ p: 2, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 2, width: "100%" }}
     >
-      <Grid container spacing={2} sx={{ height: "100%" }}>
-        <Grid size={{ xs: 12 }}>
-          <CardContent sx={{ p: 0, "&:last-child": { pb: 0 } }}>
-            <TableContainer>
-              <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
-            </TableContainer>
-          </CardContent>
-        </Grid>
-      </Grid>
-    </Container>
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
+      </Box>
+    </Box>
   );
 }

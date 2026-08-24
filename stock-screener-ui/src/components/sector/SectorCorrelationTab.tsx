@@ -1,10 +1,5 @@
 import { useEffect, useMemo } from "react";
 import { Box, Stack, Text, Title, Badge, Group, SegmentedControl, ScrollArea, Loader, Tooltip, Button, SimpleGrid, useColorScheme } from "@/ui";
-import Paper from "@mui/material/Paper";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
-import TableContainer from "@mui/material/TableContainer";
-import CardContent from "@mui/material/CardContent";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -55,8 +50,8 @@ function CorrelationHeader({
   };
 
   return (
-    <Group justify="space-between">
-      <Group gap="xs">
+    <Group justify="space-between" style={{ minHeight: 48 }}>
+      <Group gap={1}>
         <SegmentedControl
           data-testid="market-segment"
           value={currentMarket}
@@ -75,7 +70,7 @@ function CorrelationHeader({
           size="sm"
         />
       </Group>
-      <Group gap="xs">
+      <Group gap={1}>
         {lastUpdated && (
           <Group gap={4} display="inline-flex">
             <IconClock size={12} color="gray" />
@@ -85,9 +80,9 @@ function CorrelationHeader({
           </Group>
         )}
         <Tooltip label="Refresh data">
-          <Paper sx={{ p: 1, cursor: "pointer" }} onClick={handleRefresh}>
+          <Box sx={{ p: 1, cursor: "pointer", display: "inline-flex" }} onClick={handleRefresh}>
             <IconRefresh size={14} />
-          </Paper>
+          </Box>
         </Tooltip>
       </Group>
     </Group>

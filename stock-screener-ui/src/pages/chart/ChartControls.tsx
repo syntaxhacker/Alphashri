@@ -23,10 +23,10 @@ export function ChartControls({
   on52wHighChange,
 }: ChartControlsProps) {
   return (
-    <Box id="chart-controls" data-testid="chart-controls" sx={{ p: "16px", borderRadius: "8px" }}>
-      <Stack gap="xs" sx={{ gap: "8px" }}>
+    <Box id="chart-controls" data-testid="chart-controls" sx={{ p: 2, borderRadius: 1 }}>
+      <Stack gap="xs" sx={{ gap: 1 }}>
         <Group gap="xs" wrap="nowrap">
-          <Box component="span" sx={{ fontSize: "12px", color: "text.secondary" }}>
+          <Box component="span" sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
             Timeframe:
           </Box>
           <Box
@@ -34,7 +34,7 @@ export function ChartControls({
             value={timeframe}
             onChange={(e: any) => onTimeframeChange(parseInt(e.target.value))}
             data-testid="chart-timeframe-select"
-            sx={{ p: "4px", borderRadius: "8px" }}
+            sx={{ p: 0.5, borderRadius: 1 }}
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>
@@ -45,7 +45,7 @@ export function ChartControls({
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <Box component="span" sx={{ fontSize: "12px", color: "text.secondary" }}>
+          <Box component="span" sx={{ fontSize: "0.75rem", color: "text.secondary" }}>
             OR:
           </Box>
           <Box
@@ -53,7 +53,7 @@ export function ChartControls({
             value={orMinutes}
             onChange={(e: any) => onOrMinutesChange(parseInt(e.target.value))}
             data-testid="chart-or-select"
-            sx={{ p: "4px", borderRadius: "8px" }}
+            sx={{ p: 0.5, borderRadius: 1 }}
           >
             {OR_MINUTES_OPTIONS.map((or) => (
               <option key={or.value} value={or.value}>
@@ -64,7 +64,7 @@ export function ChartControls({
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <Box component="label" data-testid="chart-pivots-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <Box component="label" data-testid="chart-pivots-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <input
               type="checkbox"
               checked={showPivots}
@@ -72,12 +72,12 @@ export function ChartControls({
               data-testid="chart-pivots-checkbox"
               aria-label="Toggle pivot levels"
             />
-            <Box component="span" sx={{ fontSize: "12px" }}>Pivots</Box>
+            <Box component="span" sx={{ fontSize: "0.75rem" }}>Pivots</Box>
           </Box>
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <Box component="label" data-testid="chart-52w-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <Box component="label" data-testid="chart-52w-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
             <input
               type="checkbox"
               checked={show52wHigh}
@@ -85,7 +85,7 @@ export function ChartControls({
               data-testid="chart-52w-checkbox"
               aria-label="Toggle 52-week high"
             />
-            <Box component="span" sx={{ fontSize: "12px" }}>52W High</Box>
+            <Box component="span" sx={{ fontSize: "0.75rem" }}>52W High</Box>
           </Box>
         </Group>
       </Stack>

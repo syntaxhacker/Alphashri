@@ -1,8 +1,5 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import Container from "@mui/material/Container";
-import MuiStack from "@mui/material/Stack";
-import Grid from "@mui/material/Grid";
 import Paper from "@mui/material/Paper";
 import CardContent from "@mui/material/CardContent";
 import { useMediaQuery, Box, Stack, ScrollArea, Modal } from "@/ui";
@@ -72,23 +69,21 @@ function NewsPageMobile({
   onCloseArticle: () => void;
 }) {
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
-      <Box p={1} data-testid="news-page">
-        <ScrollArea.Autosize mah="calc(100vh - 100px)" offsetScrollbars>
-          <NewsList {...newsListProps} />
-        </ScrollArea.Autosize>
-        <Modal
-          opened={modalOpen}
-          onClose={onCloseArticle}
-          title="Article Analysis"
-          size="lg"
-          scrollAreaComponent={ScrollArea.Autosize}
-          data-testid="article-modal"
-        >
-          <ArticleDetail {...articleDetailProps} />
-        </Modal>
+    <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, width: "100%", minHeight: 0, height: "100%", overflow: "hidden" }} data-testid="news-page">
+      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }} p={1}>
+        <NewsList {...newsListProps} />
       </Box>
-    </Container>
+      <Modal
+        opened={modalOpen}
+        onClose={onCloseArticle}
+        title="Article Analysis"
+        size="lg"
+        scrollAreaComponent={ScrollArea.Autosize}
+        data-testid="article-modal"
+      >
+        <ArticleDetail {...articleDetailProps} />
+      </Modal>
+    </Box>
   );
 }
 
@@ -100,28 +95,22 @@ function NewsPageDesktop({
   articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
 }) {
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
-      <Grid container spacing={2} data-testid="news-page" sx={{ minHeight: 0, overflow: "hidden" }}>
-        <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", minHeight: 0 }}>
-          <Paper elevation={1} sx={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
-            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0 }}>
-              <ScrollArea h="100%" offsetScrollbars p={1}>
-                <NewsList {...newsListProps} />
-              </ScrollArea>
-            </CardContent>
-          </Paper>
-        </Grid>
-        <Grid size={{ xs: 12, md: 7 }} sx={{ display: "flex", minHeight: 0 }}>
-          <Paper elevation={1} sx={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
-            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0 }}>
-              <ScrollArea h="100%" offsetScrollbars p={1}>
-                <ArticleDetail {...articleDetailProps} />
-              </ScrollArea>
-            </CardContent>
-          </Paper>
-        </Grid>
-      </Grid>
-    </Container>
+    <Box sx={{ p: 2, display: "flex", gap: 2, minHeight: 0, height: "100%", overflow: "hidden", width: "100%" }} data-testid="news-page">
+      <Paper elevation={0} sx={{ flex: "0 0 40%", display: "flex", minHeight: 0, overflow: "hidden", minWidth: 0 }}>
+        <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <Box flex={1} style={{ minHeight: 0, overflow: "auto" }} p={1}>
+            <NewsList {...newsListProps} />
+          </Box>
+        </CardContent>
+      </Paper>
+      <Paper elevation={0} sx={{ flex: "1 1 60%", display: "flex", minHeight: 0, overflow: "hidden", minWidth: 0 }}>
+        <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <Box flex={1} style={{ minHeight: 0, overflow: "auto" }} p={1}>
+            <ArticleDetail {...articleDetailProps} />
+          </Box>
+        </CardContent>
+      </Paper>
+    </Box>
   );
 }
 
