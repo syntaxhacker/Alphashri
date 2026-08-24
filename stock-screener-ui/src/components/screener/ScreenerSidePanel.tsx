@@ -103,7 +103,7 @@ export function ScreenerSidePanel({
     <Box
       sx={(theme) => ({
         width: 148,
-        padding: 6,
+        p: 1,
         borderRight: `1px solid ${theme.palette.divider}`,
         backgroundColor: theme.palette.background.paper,
         overflowY: "auto",
@@ -111,12 +111,12 @@ export function ScreenerSidePanel({
       })}
       data-testid="screener-side-panel"
     >
-      <Stack gap={4}>
-        <Text size="10px" fw={600} c="dimmed" tt="uppercase">
+      <Stack gap={1}>
+        <Text size="11px" fw={600} c="dimmed" tt="uppercase">
           Filters
         </Text>
-        <Stack gap={4}>{filters.map(renderFilter)}</Stack>
-        <Divider my={2} />
+        <Stack gap={1}>{filters.map(renderFilter)}</Stack>
+        <Divider my={0.5} />
         <Button size="xs" variant="light" onClick={handleApplyFilters} fullWidth>
           Apply filters
         </Button>

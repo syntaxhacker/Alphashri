@@ -43,22 +43,22 @@ export function ScreenerHeader({
     <Box
       id="screener-header"
       data-testid="screener-header"
-      py={4}
-      px={8}
+      py={1}
+      px={2}
       sx={(theme) => ({ borderBottom: `1px solid ${theme.palette.divider}`, flexShrink: 0 })}
     >
-      <Group justify="space-between" align="center" gap={6} wrap="nowrap">
+      <Group justify="space-between" align="center" gap={1} wrap="nowrap">
         <Text
           size="xs"
           c="dimmed"
           truncate
-          style={{ flex: 1, minWidth: 0 }}
+          sx={{ flex: 1, minWidth: 0 }}
           title={status}
           data-testid="status"
         >
           {status}
         </Text>
-        <Group gap={6} align="center" wrap="nowrap" data-testid="header-controls">
+        <Group gap={1} align="center" wrap="nowrap" data-testid="header-controls">
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
@@ -77,7 +77,7 @@ export function ScreenerHeader({
             min={0}
             max={3600}
             step={10}
-            w={52}
+            w={64}
             size="xs"
             disabled={isLoading}
             data-testid="auto-refresh-input"
@@ -91,7 +91,7 @@ export function ScreenerHeader({
               { value: "indmoney", label: "IND" },
             ]}
             size="xs"
-            w={88}
+            w={96}
             disabled={isLoading}
             data-testid="provider-select"
             comboboxProps={{ withinPortal: true }}
@@ -104,7 +104,7 @@ export function ScreenerHeader({
               { value: "historical", label: "5D" },
             ]}
             size="xs"
-            w={72}
+            w={96}
             disabled={isLoading}
             data-testid="mode-select"
             comboboxProps={{ withinPortal: true }}

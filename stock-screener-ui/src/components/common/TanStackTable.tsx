@@ -1,4 +1,6 @@
 import { useState, Fragment, useMemo, type ReactNode, type CSSProperties } from "react";
+import TableContainer from "@mui/material/TableContainer";
+import Paper from "@mui/material/Paper";
 import { Box, ScrollArea } from "@/ui";
 import {
   flexRender,
@@ -69,24 +71,7 @@ interface Props<T> {
   rowWindowSize?: number;
 }
 
-const cellStyle: CSSProperties = {
-  padding: "2px 6px",
-  fontSize: 11,
-  whiteSpace: "nowrap",
-  borderBottom: "1px solid",
-  borderBottomColor: "divider" as unknown as string,
-};
-
-const baseHeaderStyle: CSSProperties = {
-  padding: "4px 6px",
-  fontSize: 11,
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-  userSelect: "none",
-  borderBottom: "2px solid",
-  borderBottomColor: "divider" as unknown as string,
-  background: "background.paper" as unknown as string,
-};
+const ROW_ESTIMATED = 28;
 
 /** Returns the explicit column width, or undefined when the column has no size set. */
 function getColumnWidth<T>(column: Column<T, unknown>): number | undefined {
@@ -184,7 +169,7 @@ export function TanStackTable<T>({
   // row selection keep working over every row.
   const allRows = table.getRowModel().rows;
   const useRowWindow = rowWindowSize > 0 && !enableGrouping && allRows.length > rowWindowSize;
-  const ROW_ESTIMATED_HEIGHT = 32;
+  const ROW_ESTIMATED_HEIGHT = ROW_ESTIMATED;
   const rowWindowStart = useRowWindow
     ? Math.min(
         Math.max(0, Math.floor(scrollTop / ROW_ESTIMATED_HEIGHT) - 8),
@@ -197,21 +182,22 @@ export function TanStackTable<T>({
   const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
 
   return (
-    <ScrollArea
-      style={{ height: "100%" }}
-      onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
-    >
-      <Box
-        component="table"
-        data-testid={dataTestId}
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          tableLayout: hasSizedColumns ? "fixed" : "auto",
-          ...style,
-        }}
-        className={className}
+    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 1 }}>
+      <ScrollArea
+        sx={{ height: "100%" }}
+        onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >
+        <Box
+          component="table"
+          data-testid={dataTestId}
+          sx={{
+            width: "100%",
+            borderCollapse: "collapse",
+            tableLayout: hasSizedColumns ? "fixed" : "auto",
+            ...(style ? { ...style } : {}),
+          }}
+          className={className}
+        >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
@@ -223,7 +209,7 @@ export function TanStackTable<T>({
                     component="th"
                     key={h.id}
                     sx={{
-                      padding: "4px 6px",
+                      padding: "8px 12px",
                       fontSize: 11,
                       fontWeight: 700,
                       whiteSpace: "nowrap",
@@ -237,6 +223,7 @@ export function TanStackTable<T>({
                       position: stickyHeader ? "sticky" : undefined,
                       top: stickyHeader ? 0 : undefined,
                       zIndex: stickyHeader ? 1 : undefined,
+                      boxShadow: stickyHeader ? "0 1px 0 rgba(0,0,0,0.06)" : undefined,
                     }}
                     onClick={h.column.getToggleSortingHandler()}
                     colSpan={h.colSpan}
@@ -310,8 +297,8 @@ export function TanStackTable<T>({
                             component="td"
                             key={cell.id}
                             sx={{
-                              padding: "2px 6px",
-                              fontSize: 11,
+                              padding: "8px 12px",
+                              fontSize: 12,
                               whiteSpace: "nowrap",
                               borderBottom: 1,
                               borderColor: "divider",
@@ -346,7 +333,8 @@ export function TanStackTable<T>({
             </>
           )}
         </tbody>
-      </Box>
-    </ScrollArea>
+        </Box>
+      </ScrollArea>
+    </TableContainer>
   );
 }

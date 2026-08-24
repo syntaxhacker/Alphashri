@@ -1,9 +1,13 @@
 import { useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Box, Tabs, Flex, Text } from "@/ui";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import MuiStack from "@mui/material/Stack";
+import Paper from "@mui/material/Paper";
+import CardContent from "@mui/material/CardContent";
+import { Stack, Box, Tabs, Text } from "@/ui";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
-import { CompactPage } from "../common/compact";
 import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
@@ -62,13 +66,13 @@ function CompactAlerts({
   }
   return (
     <Box
-      px={8}
-      py={2}
+      px={2}
+      py={1}
       sx={(theme) => ({ flexShrink: 0, borderBottom: `1px solid ${theme.palette.divider}` })}
       data-testid="screener-52w-high-banner"
     >
       {lines.map((line) => (
-        <Text key={line} size="10px" c="dimmed" lineClamp={2}>
+        <Text key={line} size="11px" c="dimmed" lineClamp={2}>
           {line}
         </Text>
       ))}
@@ -130,16 +134,17 @@ export function ScreenerPage({
     );
   }, [setSearchParams]);
 
+  const hasSideFilters = screenerHasSideFilters(activeScreener);
+
   return (
-    <CompactPage gap={4}>
-      <Stack
-        h="100%"
+    <Container maxWidth="xl" sx={{ py: 2 }}>
+      <MuiStack
+        spacing={2}
         id="screener-main"
-        gap={4}
         data-testid="screener-page"
-        sx={{ p: 0 }}
+        sx={{ minHeight: 0 }}
       >
-        <Box flex="0 0 auto" data-testid="screener-controls" sx={{ px: 1 }}>
+        <Box data-testid="screener-controls" sx={{ px: 1, flex: "0 0 auto" }}>
           <Tabs
             value={activeTab}
             onChange={(v) => {
@@ -149,12 +154,12 @@ export function ScreenerPage({
               if (v) setActiveTab(v);
             }}
           >
-            <Tabs.List style={{ minHeight: 32 }}>
+            <Tabs.List sx={{ minHeight: 40, alignItems: "center" }}>
               <Tabs.Tab
                 value="screener"
                 leftSection={<IconTable size={14} />}
                 data-testid="tab-screener"
-                py={4}
+                py={1}
               >
                 Screener
               </Tabs.Tab>
@@ -162,7 +167,7 @@ export function ScreenerPage({
                 value="correlation"
                 leftSection={<IconChartDots size={14} />}
                 data-testid="tab-correlation"
-                py={4}
+                py={1}
               >
                 Correlation
               </Tabs.Tab>
@@ -170,7 +175,7 @@ export function ScreenerPage({
                 value="config"
                 leftSection={<IconSettings size={14} />}
                 data-testid="tab-config"
-                py={4}
+                py={1}
               >
                 Config
               </Tabs.Tab>
@@ -178,20 +183,18 @@ export function ScreenerPage({
           </Tabs>
         </Box>
         <Box
-          flex={1}
           id="screener-content"
-          style={{ minHeight: 0, display: "flex", overflow: "hidden" }}
           data-testid="screener-content"
-          sx={{ minHeight: 0 }}
+          sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
         >
           {activeTab === "screener" ? (
-            <Flex flex={1} miw={0} mih={0}>
+            <Box sx={{ display: "flex", flex: 1, minWidth: 0, minHeight: 0 }}>
               <ScreenerNav
                 options={screenerOptions}
                 activeScreener={activeScreener}
                 onChange={onScreenerChange}
               />
-              <Stack flex={1} gap={0} miw={0} mih={0}>
+              <MuiStack sx={{ flex: 1, minWidth: 0, minHeight: 0, gap: 0 }}>
                 <ScreenerHeader
                   status={status}
                   isLoading={isLoading}
@@ -206,42 +209,38 @@ export function ScreenerPage({
                   onViewModeChange={setViewMode}
                 />
                 <CompactAlerts activeScreener={activeScreener} warning={warning} />
-                <Flex flex={1} miw={0} mih={0}>
-                  {screenerHasSideFilters(activeScreener) && (
-                    <ScreenerSidePanel
-                      activeScreener={activeScreener}
-                      screenerOptions={screenerOptions}
-                    />
-                  )}
-                  <Box
-                    style={{
-                      flex: 1,
-                      display: "flex",
-                      flexDirection: "column",
-                      overflow: "hidden",
-                      minWidth: 0,
-                    }}
-                  >
-                    <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>
-                      <ScreenerContent
-                        approachingStocks={approachingStocks}
-                        touchedStocks={touchedStocks}
-                        isLoading={isLoading}
-                        error={error}
-                        onRefresh={onRefresh}
-                        onSymbolClick={onSymbolClick}
-                        onSymbolHover={onSymbolHover}
+                <Grid container spacing={2} sx={{ flex: 1, minHeight: 0, minWidth: 0, flexWrap: "nowrap", overflow: "hidden" }}>
+                  {hasSideFilters && (
+                    <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", minWidth: 0, maxWidth: { md: 220 } }}>
+                      <ScreenerSidePanel
                         activeScreener={activeScreener}
-                        viewMode={viewMode}
+                        screenerOptions={screenerOptions}
                       />
-                    </Box>
-                    <SelectionBar onCompare={handleCompare} />
-                  </Box>
-                </Flex>
-              </Stack>
-            </Flex>
+                    </Grid>
+                  )}
+                  <Grid size={{ xs: 12, md: hasSideFilters ? 7 : 12 }} sx={{ display: "flex", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+                    <Paper elevation={0} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+                      <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1, "&:last-child": { pb: 1 } }}>
+                        <ScreenerContent
+                          approachingStocks={approachingStocks}
+                          touchedStocks={touchedStocks}
+                          isLoading={isLoading}
+                          error={error}
+                          onRefresh={onRefresh}
+                          onSymbolClick={onSymbolClick}
+                          onSymbolHover={onSymbolHover}
+                          activeScreener={activeScreener}
+                          viewMode={viewMode}
+                        />
+                      </CardContent>
+                      <SelectionBar onCompare={handleCompare} />
+                    </Paper>
+                  </Grid>
+                </Grid>
+              </MuiStack>
+            </Box>
           ) : (
-            <Box style={{ flex: 1, overflow: "auto", minHeight: 0, width: "100%" }}>
+            <Box sx={{ flex: 1, overflow: "auto", minHeight: 0, width: "100%" }}>
               {activeTab === "config" ? (
                 <ScreenerConfigView
                   screenerOptions={screenerOptions}
@@ -254,7 +253,7 @@ export function ScreenerPage({
             </Box>
           )}
         </Box>
-      </Stack>
-    </CompactPage>
+      </MuiStack>
+    </Container>
   );
 }

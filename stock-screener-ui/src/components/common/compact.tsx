@@ -1,4 +1,5 @@
 import type { ReactNode, CSSProperties } from "react";
+import MuiCardContent from "@mui/material/CardContent";
 import { Card, Group, Box, Paper, SimpleGrid, Stack, Text, Title } from "@/ui";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 import { CREAM, BROWN_DARK } from "../../config/colors";
@@ -32,13 +33,13 @@ export function CompactPage({
 }: CompactPageProps) {
   return (
     <Stack
-      gap="sm"
-      style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+      gap={1}
+      sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0 }}
       {...stackProps}
     >
       {(title || description || actions) && (
-        <Group justify="space-between" align="flex-start" gap="sm">
-          <Stack gap={2}>
+        <Group justify="space-between" align="flex-start" gap={1}>
+          <Stack gap={1}>
             {title ? (
               typeof title === "string" ? (
                 <Title order={2} size="h4">
@@ -57,7 +58,7 @@ export function CompactPage({
           {actions}
         </Group>
       )}
-      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+      <Box flex={1} sx={{ minHeight: 0, overflow: "auto" }}>
         {children}
       </Box>
     </Stack>
@@ -91,35 +92,37 @@ export function CompactPanel({
   return (
     <Paper
       radius="xs"
-      p={padded ? "xs" : 0}
+      p={0}
       shadow="none"
       sx={{ bgcolor: "background.paper" }}
       style={panelStyle}
       data-testid={testId}
       {...paperProps}
     >
-      {(title || description || action) && (
-        <Group justify="space-between" align="flex-start" gap="xs" mb="xs">
-          <Stack gap={2}>
-            {title ? (
-              typeof title === "string" ? (
-                <Title order={4} size="h5">
-                  {title}
-                </Title>
-              ) : (
-                title
-              )
-            ) : null}
-            {description ? (
-              <Text size="sm" c="dimmed" data-testid="status">
-                {description}
-              </Text>
-            ) : null}
-          </Stack>
-          {action}
-        </Group>
-      )}
-      {scrollable ? <Box style={SCROLL_CONTAINER_STYLE}>{children}</Box> : children}
+      <MuiCardContent sx={{ p: padded ? 1 : 0, "&:last-child": { pb: padded ? 1 : 0 } }}>
+        {(title || description || action) && (
+          <Group justify="space-between" align="flex-start" gap={1} sx={{ mb: 1 }}>
+            <Stack gap={1}>
+              {title ? (
+                typeof title === "string" ? (
+                  <Title order={4} size="h5">
+                    {title}
+                  </Title>
+                ) : (
+                  title
+                )
+              ) : null}
+              {description ? (
+                <Text size="sm" c="dimmed" data-testid="status">
+                  {description}
+                </Text>
+              ) : null}
+            </Stack>
+            {action}
+          </Group>
+        )}
+        {scrollable ? <Box sx={SCROLL_CONTAINER_STYLE}>{children}</Box> : children}
+      </MuiCardContent>
     </Paper>
   );
 }
@@ -145,27 +148,29 @@ export function CompactStat({
   return (
     <Card
       radius="xs"
-      p="xs"
+      p={0}
       withBorder
       shadow="none"
       bg={`light-dark(${withAlpha(CREAM, 0.85)}, ${withAlpha(BROWN_DARK, 0.55)})`}
       {...paperProps}
     >
-      <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1}>
-        {label}
-      </Text>
-      <Text size={valueSize} fw={700} c={tone} lh={1.1}>
-        {value}
-      </Text>
-      {hint ? (
-        typeof hint === "string" || typeof hint === "number" ? (
-          <Text size="xs" c="dimmed" mt={2}>
-            {hint}
-          </Text>
-        ) : (
-          <Box mt={4}>{hint}</Box>
-        )
-      ) : null}
+      <MuiCardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+        <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1}>
+          {label}
+        </Text>
+        <Text size={valueSize} fw={700} c={tone} lh={1.1}>
+          {value}
+        </Text>
+        {hint ? (
+          typeof hint === "string" || typeof hint === "number" ? (
+            <Text size="xs" c="dimmed" sx={{ mt: 0.25 }}>
+              {hint}
+            </Text>
+          ) : (
+            <Box sx={{ mt: 0.5 }}>{hint}</Box>
+          )
+        ) : null}
+      </MuiCardContent>
     </Card>
   );
 }

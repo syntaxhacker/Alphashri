@@ -6,17 +6,17 @@ const RAIL_WIDTH = 152;
 
 function ScreenerNavLabel({ option }: { option: ScreenerOption }) {
   return (
-    <Box component="span" style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+    <Box component="span" sx={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}>
       <Text component="span" size="xs" truncate>
         {option.label}
       </Text>
       {option.status === "legacy" && (
-        <Badge size="xs" color="gray" variant="light" style={{ flexShrink: 0 }}>
+        <Badge size="xs" color="gray" variant="light" sx={{ flexShrink: 0 }}>
           L
         </Badge>
       )}
       {option.status === "current" && (
-        <Badge size="xs" color="teal" variant="light" style={{ flexShrink: 0 }}>
+        <Badge size="xs" color="teal" variant="light" sx={{ flexShrink: 0 }}>
           N
         </Badge>
       )}
@@ -86,11 +86,11 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       id="screener-nav"
       data-options-count={optionList.length}
     >
-      <Stack gap={2} p={6} pb={8}>
+      <Stack gap={1} p={1} >
         {current.map(renderItem)}
         {legacy.length > 0 && (
           <>
-            <Text size="10px" c="dimmed" tt="uppercase" fw={600} px={8} pt={6} pb={2}>
+            <Text size="11px" c="dimmed" tt="uppercase" fw={600} sx={{ px: 1, pt: 0.75, pb: 0.25 }}>
               Legacy
             </Text>
             {legacy.map(renderItem)}

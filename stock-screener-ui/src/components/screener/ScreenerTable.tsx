@@ -72,7 +72,7 @@ export function ScreenerTable({
         header: () => {
           const isSymbolColumn = col.key === "symbol";
           return (
-            <Group gap={4} wrap="nowrap">
+            <Group gap={1} wrap="nowrap">
               <Text fw={700}>{col.label}</Text>
               {isSymbolColumn && stocks.length > 0 && (
                 <CopyButton value={allSymbols}>
@@ -118,7 +118,7 @@ export function ScreenerTable({
 
           if (col.key === "symbol") {
             return (
-              <Group gap={4} wrap="nowrap" className="symbol-cell" data-testid={`symbol-cell-${stock.symbol}`}>
+              <Group gap={1} wrap="nowrap" className="symbol-cell" data-testid={`symbol-cell-${stock.symbol}`}>
                 <Tooltip label="Click for details">
                   <Anchor
                     component="button"
@@ -186,14 +186,14 @@ export function ScreenerTable({
     return cols;
   }, [columns, stocks, allSymbols, allVisibleSelected, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, showPreviewChart, hidePreviewChart]);
 
-  return (
+    return (
     <TanStackTable<Stock>
       data={stocks}
       columns={tanStackColumns}
       dataTestId="screener-table"
       enableSorting
       stickyHeader
-      style={{ width: "100%", minWidth: 0 }}
+      style={{ width: "100%", minWidth: 0 } as any}
       getRowClassName={(row) => `stock-row ${touchedSymbols.has(row.symbol) ? "touched" : "approaching"}`}
       getRowTestId={(row) => `stock-row-${row.symbol}`}
       onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
