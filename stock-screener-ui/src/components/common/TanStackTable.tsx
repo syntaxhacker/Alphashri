@@ -182,9 +182,9 @@ export function TanStackTable<T>({
   const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
 
   return (
-    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 1 }}>
+    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "65vh", minHeight: 200 }}>
       <ScrollArea
-        sx={{ height: "100%" }}
+        sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}
         onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >
         <Box

@@ -364,12 +364,12 @@ describe("TanStackTable", () => {
         data={data}
         columns={columns}
         getRowClassName={(r) => (r.value > 150 ? "highlight" : undefined)}
-        getRowStyle={(r) => (r.name === "Alpha" ? { background: "warning" } : undefined)}
+        getRowStyle={(r) => (r.name === "Alpha" ? { background: "yellow" } : undefined)}
         getRowTestId={(r) => `styled-${r.id}`}
       />,
     );
     const row1 = screen.getByTestId("styled-1");
-    expect(row1.style.background).toBe("warning");
+    expect(row1.style.background).toBe("yellow");
     const row2 = screen.getByTestId("styled-2");
     expect(row2.className).toContain("highlight");
   });
