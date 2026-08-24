@@ -1,4 +1,4 @@
-import type { MantineTheme } from "@/ui";
+import type { UITheme } from "@/ui";
 import {
   POSITIVE,
   NEGATIVE,
@@ -19,11 +19,11 @@ import {
   INDICATOR_BLUE_B,
 } from "../config/colors";
 
-export function getChartThemeColors(isDark: boolean, theme: MantineTheme | Record<string, any>) {
+export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<string, any>) {
   const t: any = theme as any;
   const colors = t?.colors;
   const palette = t?.palette;
-  // Support both Mantine (colors) and MUI (palette) themes; FormControl muiName crash guard
+  // Support both legacy (colors) and MUI (palette) themes; FormControl muiName crash guard
   if (colors?.dark && colors?.gray) {
     return {
       bgColor: isDark ? colors.dark[7] : t.white ?? "#ffffff",

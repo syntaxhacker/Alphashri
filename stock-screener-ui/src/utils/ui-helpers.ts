@@ -333,7 +333,7 @@ export function formatDateHeader(date: string): string {
 }
 
 // ============================================
-// Mantine Color Helpers (for table cells)
+// MUI Color Helpers (for table cells)
 // ============================================
 
 export function getPnLTextColor(value: number): "green" | "red" {

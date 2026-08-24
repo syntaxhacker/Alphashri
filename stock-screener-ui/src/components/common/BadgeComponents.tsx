@@ -28,10 +28,15 @@ export function ExitReasonBadge({
   "data-testid": testId,
 }: ExitReasonBadgeProps) {
   let color: string = "gray";
-  const r = (reason || "").toLowerCase();
+  const r = (reason || "").toLowerCase().trim();
   if (r === "tp" || r === "target") color = "green";
-  else if (r === "sl" || r === "stop_loss") color = "red";
-  else if (r === "trailing_stop" || r === "eod") color = "orange";
+  else if (r === "sl" || r === "stop_loss" || r.includes("stop loss")) color = "red";
+  else if (r === "trailing_stop" || r === "trailing stop" || r.includes("trailing")) color = "orange";
+  else if (r === "force_close" || r === "force close" || r === "forceclose") color = "violet";
+  else if (r === "max_holding" || r === "max holding" || r.includes("max holding")) color = "yellow";
+  else if (r === "new_52w_high" || r === "new 52w" || r.includes("52w")) color = "cyan";
+  else if (r === "eod" || r === "manual_close" || r === "manual") color = "gray";
+  else if (r.startsWith("stop loss hit") || r.startsWith("take profit")) color = r.includes("stop") ? "red" : "green";
 
   const label =
     r === "tp"
@@ -42,9 +47,15 @@ export function ExitReasonBadge({
           ? "SL"
           : r === "target"
             ? "Target"
-            : r === "trailing_stop"
+            : r === "trailing_stop" || r === "trailing stop"
               ? "Trail"
-              : reason;
+              : r === "force_close" || r === "force close"
+                ? "Force"
+                : r === "max_holding" || r === "max holding"
+                  ? "Max Hold"
+                  : r === "new_52w_high"
+                    ? "52W High"
+                    : reason;
 
   return (
     <Badge color={color} variant="light" size={size} data-testid={testId}>
