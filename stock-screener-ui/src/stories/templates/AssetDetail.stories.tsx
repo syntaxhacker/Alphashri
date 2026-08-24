@@ -63,7 +63,7 @@ export default meta;
 export const Anatomy: StoryObj = {
   render: () => (
     <DetailChrome title="RELIANCE — Detail anatomy" subtitle="Header · Body · Footer">
-      <Stack gap="sm"><Card withBorder p="sm"><Title order={6}>Body</Title><Text size="xs" c="dimmed">Chart, article, or bot — same shell.</Text></Card></Stack>
+      <Stack gap="sm"><Card p="sm"><Title order={6}>Body</Title><Text size="xs" c="dimmed">Chart, article, or bot — same shell.</Text></Card></Stack>
     </DetailChrome>
   ),
 };

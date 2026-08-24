@@ -91,7 +91,7 @@ function SurgeCard({ event }: { event: PriceSurgeEvent }) {
   const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   return (
-    <Paper p="xs" withBorder data-testid={`surge-card-${event.id}`}>
+    <Paper p="xs" data-testid={`surge-card-${event.id}`}>
       <Group justify="space-between" gap={4}>
         <Group gap={4}>
           <Text size="sm" fw={600}>{icon} {event.symbol}</Text>

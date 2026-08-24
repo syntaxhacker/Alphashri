@@ -168,7 +168,7 @@ export function LLMStatsPanel() {
 
   return (
     <Stack gap="sm" data-testid="admin-llm-panel">
-      <Paper withBorder p="sm" radius="sm">
+      <Paper p="sm" radius="sm">
         {loading && !data ? (
           <Group gap="sm" justify="center" py="sm">
             <Loader size="sm" />

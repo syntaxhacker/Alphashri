@@ -6,7 +6,7 @@ import { AuthProvider } from "@/components/auth/AuthProvider2";
 
 function Placeholder({ label }: { label: string }) {
   return (
-    <Paper withBorder p="md" data-testid="placeholder-page">
+    <Paper p="md" data-testid="placeholder-page">
       <Text fw={600}>{label}</Text>
       <Text size="sm" c="dimmed">Page content inside AppShellMain</Text>
     </Paper>

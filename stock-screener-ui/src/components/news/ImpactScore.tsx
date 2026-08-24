@@ -11,7 +11,7 @@ export function ImpactScore({ score }: ImpactScoreProps) {
 
   return (
     <Tooltip label={`Impact Score: ${score}/10`}>
-      <Paper withBorder p="xs" radius="md" maw={220} miw={180} data-testid="impact-score">
+      <Paper p="xs" radius="md" maw={220} miw={180} data-testid="impact-score">
         <Stack gap={6}>
           <Group justify="space-between" gap="xs" wrap="nowrap">
             <Text size="xs" fw={700} tt="uppercase" c="dimmed">

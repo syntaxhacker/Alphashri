@@ -83,7 +83,7 @@ export function NewsQueuePanel() {
   return (
     <Stack gap="sm" data-testid="admin-news-queue-panel">
       {/* stats row */}
-      <Paper withBorder p="sm" radius="sm">
+      <Paper p="sm" radius="sm">
         {loading && !data ? (
           <Group gap="sm" justify="center" py="sm">
             <Loader size="sm" />
@@ -144,7 +144,7 @@ export function NewsQueuePanel() {
 
       {/* last result */}
       {result && (
-        <Paper withBorder p="sm" radius="sm" bg={result.failed ? "error.light" : "success.light"}>
+        <Paper p="sm" radius="sm" bg={result.failed ? "error.light" : "success.light"}>
           {result.message && !result.processed && !result.failed ? (
             <Text size="sm">{result.message}</Text>
           ) : result.processed ? (

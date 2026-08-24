@@ -67,10 +67,10 @@ export function CorrelationTab() {
           setPeriod(parseInt(p, 10));
           setPeriodUnit(tf === "intraday" ? "minutes" : "days");
         }
-        fetchCorrelationData();
+        setTimeout(() => fetchCorrelationData(), 0);
       }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query || query.length < 2) {

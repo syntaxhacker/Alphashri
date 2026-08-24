@@ -418,7 +418,7 @@ export function NewsListHeader({
   onClose: () => void;
 }) {
   return (
-    <Paper withBorder p="sm" mb="xs" id="news-panel-header" data-testid="news-panel-header">
+    <Paper p="sm" mb="xs" id="news-panel-header" data-testid="news-panel-header">
       <Group justify="space-between">
         <Group gap="xs">
           <Text fw={600}>NEWS</Text>

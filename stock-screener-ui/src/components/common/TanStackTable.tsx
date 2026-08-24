@@ -71,7 +71,7 @@ interface Props<T> {
   rowWindowSize?: number;
 }
 
-const ROW_ESTIMATED = 28;
+const ROW_ESTIMATED = 24;
 
 /** Returns the explicit column width, or undefined when the column has no size set. */
 function getColumnWidth<T>(column: Column<T, unknown>): number | undefined {
@@ -208,7 +208,7 @@ export function TanStackTable<T>({
                     component="th"
                     key={h.id}
                     sx={{
-                      padding: "8px 12px",
+                      padding: "6px 8px",
                       fontSize: 11,
                       fontWeight: 700,
                       whiteSpace: "nowrap",
@@ -294,8 +294,8 @@ export function TanStackTable<T>({
                             component="td"
                             key={cell.id}
                             sx={{
-                              padding: "8px 12px",
-                              fontSize: 12,
+                              padding: "6px 8px",
+                              fontSize: 11,
                               whiteSpace: "nowrap",
                               width: width !== undefined ? width : undefined,
                               textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),

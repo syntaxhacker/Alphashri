@@ -112,7 +112,7 @@ export function Admin52wRangePanel() {
   return (
     <Stack gap="sm" data-testid="admin-52w-range-panel">
       {/* stats row + job status badge */}
-      <Paper withBorder p="sm" radius="sm">
+      <Paper p="sm" radius="sm">
         {loading && !data ? (
           <Group gap="sm" justify="center" py="sm">
             <Loader size="sm" />

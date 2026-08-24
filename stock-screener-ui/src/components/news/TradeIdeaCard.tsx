@@ -9,7 +9,7 @@ export function TradeIdeaCard({ idea }: TradeIdeaCardProps) {
   if (!idea) return null;
   const isLong = idea.direction === "LONG";
   return (
-    <Card padding="md" withBorder data-testid="trade-idea">
+    <Card padding="md" data-testid="trade-idea">
       <Group justify="space-between" mb="sm">
         <Badge color={isLong ? "success" : "error"} variant="filled" size="sm">
           {idea.direction}

@@ -303,7 +303,7 @@ function NewsPanelBody({
     <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
       <NewsListHeader wsConnected={wsConnected} isRefreshing={isRefreshing} onClose={handleClose} />
 
-      <Paper withBorder p="sm" id="news-panel-controls" data-testid="news-panel-controls">
+      <Paper p="sm" id="news-panel-controls" data-testid="news-panel-controls">
         <NewsFilterControls
           sourceData={sourceData}
           selectedSource={selectedSource}
