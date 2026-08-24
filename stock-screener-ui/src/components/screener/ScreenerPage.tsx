@@ -1,6 +1,5 @@
 import { useState, useCallback } from "react";
 import { useSearchParams } from "react-router-dom";
-import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
 import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
@@ -68,7 +67,7 @@ function CompactAlerts({
     <Box
       px={2}
       py={1}
-      sx={(theme) => ({ flexShrink: 0, borderBottom: `1px solid ${theme.palette.divider}` })}
+      sx={{ flexShrink: 0 }}
       data-testid="screener-52w-high-banner"
     >
       {lines.map((line) => (
@@ -137,14 +136,14 @@ export function ScreenerPage({
   const hasSideFilters = screenerHasSideFilters(activeScreener);
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2 }}>
+    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
       <MuiStack
-        spacing={2}
+        spacing={1}
         id="screener-main"
         data-testid="screener-page"
-        sx={{ minHeight: 0 }}
+        sx={{ minHeight: 0, width: "100%" }}
       >
-        <Box data-testid="screener-controls" sx={{ px: 1, flex: "0 0 auto" }}>
+        <Box data-testid="screener-controls" sx={{ px: 0, flex: "0 0 auto", width: "100%" }}>
           <Tabs
             value={activeTab}
             onChange={(v) => {
@@ -219,7 +218,7 @@ export function ScreenerPage({
                     </Grid>
                   )}
                   <Grid size={{ xs: 12, md: hasSideFilters ? 7 : 12 }} sx={{ display: "flex", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
-                    <Paper elevation={0} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+                    <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
                       <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1, "&:last-child": { pb: 1 } }}>
                         <ScreenerContent
                           approachingStocks={approachingStocks}
@@ -254,6 +253,6 @@ export function ScreenerPage({
           )}
         </Box>
       </MuiStack>
-    </Container>
+    </Box>
   );
 }

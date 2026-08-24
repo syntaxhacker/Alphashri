@@ -94,9 +94,9 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       <Box component="main" sx={{ flexGrow: 1, width: { md: `calc(100% - ${navWidth}px)` }, ml: { md: `${navWidth}px` }, minWidth: 0, minHeight: 0, bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
         <Toolbar />
-        <Container maxWidth="xl" disableGutters sx={{ p: 0, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%" }}>
           {children}
-        </Container>
+        </Box>
       </Box>
     </Box>
   );
