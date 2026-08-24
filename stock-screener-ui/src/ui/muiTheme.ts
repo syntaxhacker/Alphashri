@@ -2,7 +2,9 @@ import { createTheme } from "@mui/material/styles";
 
 // Default MUI theme only — no custom palette
 export const muiTheme = createTheme({
-  cssVariables: true,
+  cssVariables: {
+    colorSchemeSelector: "data-mui-color-scheme",
+  },
   colorSchemes: {
     light: true,
     dark: true,

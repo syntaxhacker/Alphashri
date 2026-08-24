@@ -6,7 +6,6 @@ import { Provider } from "react-redux";
 import { ThemeProvider } from "@mui/material/styles";
 import CssBaseline from "@mui/material/CssBaseline";
 import { SnackbarProvider } from "notistack";
-import { UIProvider } from "@/ui";
 import { muiTheme } from "@/ui/muiTheme";
 import App from "./App";
 import { store } from "./state/store";
@@ -28,16 +27,14 @@ if (!root) {
   throw new Error("Missing #app root element");
 }
 
-createRoot(root).render(
+  createRoot(root).render(
   <Provider store={store}>
-    <ThemeProvider theme={muiTheme}>
+    <ThemeProvider theme={muiTheme} defaultMode="light" modeStorageKey="mui-color-scheme" colorSchemeStorageKey="mui-color-scheme">
       <CssBaseline />
       <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} autoHideDuration={4000}>
-        <UIProvider defaultColorScheme="dark">
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
-        </UIProvider>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
       </SnackbarProvider>
     </ThemeProvider>
   </Provider>,
