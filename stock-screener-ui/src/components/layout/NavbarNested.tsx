@@ -70,10 +70,10 @@ export function NavbarNested({
   ));
 
   return (
-    <Box data-testid="sidemenu" id="navbar-nested" style={{ display: "flex", flexDirection: "column", height: "100%" }}>
+    <Box data-testid="sidemenu" id="navbar-nested" sx={{ display: "flex", flexDirection: "column", height: "100%" }}>
       <Box sx={{ flexGrow: 1, minHeight: 0, overflow: "hidden" }} id="navbar-links" data-testid="navbar-links">
         <ScrollArea h="100%" type="scroll">
-          <Stack gap={4} p="xs">
+          <Stack gap={1} p={1}>
             {links}
           </Stack>
         </ScrollArea>
@@ -81,10 +81,10 @@ export function NavbarNested({
 
       <Divider />
 
-      <Box p="xs" id="navbar-footer" data-testid="navbar-footer">
-        <Group justify="space-between" px="xs">
+      <Box p={1} id="navbar-footer" data-testid="navbar-footer">
+        <Group justify="space-between" px={1}>
           <UserButton collapsed={collapsed} />
-          <Group gap={4}>
+          <Group gap={1}>
             <ActionIcon
               variant="subtle"
               size="sm"

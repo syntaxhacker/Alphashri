@@ -136,14 +136,14 @@ export function ScreenerPage({
   const hasSideFilters = screenerHasSideFilters(activeScreener);
 
   return (
-    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
       <MuiStack
-        spacing={1}
+        spacing={0}
         id="screener-main"
         data-testid="screener-page"
         sx={{ minHeight: 0, width: "100%" }}
       >
-        <Box data-testid="screener-controls" sx={{ px: 0, flex: "0 0 auto", width: "100%" }}>
+        <Paper elevation={1} sx={{ p: 1, display: "flex", alignItems: "center" }} data-testid="screener-controls">
           <Tabs
             value={activeTab}
             onChange={(v) => {
@@ -153,34 +153,19 @@ export function ScreenerPage({
               if (v) setActiveTab(v);
             }}
           >
-            <Tabs.List sx={{ minHeight: 40, alignItems: "center" }}>
-              <Tabs.Tab
-                value="screener"
-                leftSection={<IconTable size={14} />}
-                data-testid="tab-screener"
-                py={1}
-              >
+            <Tabs.List sx={{ minHeight: 36 }}>
+              <Tabs.Tab value="screener" leftSection={<IconTable size={16} />} data-testid="tab-screener">
                 Screener
               </Tabs.Tab>
-              <Tabs.Tab
-                value="correlation"
-                leftSection={<IconChartDots size={14} />}
-                data-testid="tab-correlation"
-                py={1}
-              >
+              <Tabs.Tab value="correlation" leftSection={<IconChartDots size={16} />} data-testid="tab-correlation">
                 Correlation
               </Tabs.Tab>
-              <Tabs.Tab
-                value="config"
-                leftSection={<IconSettings size={14} />}
-                data-testid="tab-config"
-                py={1}
-              >
+              <Tabs.Tab value="config" leftSection={<IconSettings size={16} />} data-testid="tab-config">
                 Config
               </Tabs.Tab>
             </Tabs.List>
           </Tabs>
-        </Box>
+        </Paper>
         <Box
           id="screener-content"
           data-testid="screener-content"
@@ -208,34 +193,31 @@ export function ScreenerPage({
                   onViewModeChange={setViewMode}
                 />
                 <CompactAlerts activeScreener={activeScreener} warning={warning} />
-                <Grid container spacing={2} sx={{ flex: 1, minHeight: 0, minWidth: 0, flexWrap: "nowrap", overflow: "hidden" }}>
+                <Box sx={{ display: "flex", gap: 2, flex: 1, minHeight: 0, overflow: "hidden" }}>
                   {hasSideFilters && (
-                    <Grid size="auto" sx={{ display: "flex", minWidth: 0 }}>
-                      <ScreenerSidePanel
-                        activeScreener={activeScreener}
-                        screenerOptions={screenerOptions}
-                      />
-                    </Grid>
+                    <Box sx={{ width: 220, flexShrink: 0, display: "flex" }}>
+                      <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", p: 1 }}>
+                        <ScreenerSidePanel activeScreener={activeScreener} screenerOptions={screenerOptions} />
+                      </Paper>
+                    </Box>
                   )}
-                  <Grid size="grow" sx={{ display: "flex", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
-                    <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-                      <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 0, "&:last-child": { pb: 0 } }}>
-                        <ScreenerContent
-                          approachingStocks={approachingStocks}
-                          touchedStocks={touchedStocks}
-                          isLoading={isLoading}
-                          error={error}
-                          onRefresh={onRefresh}
-                          onSymbolClick={onSymbolClick}
-                          onSymbolHover={onSymbolHover}
-                          activeScreener={activeScreener}
-                          viewMode={viewMode}
-                        />
-                      </CardContent>
-                      <SelectionBar onCompare={handleCompare} />
-                    </Paper>
-                  </Grid>
-                </Grid>
+                  <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
+                    <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1.5 }}>
+                      <ScreenerContent
+                        approachingStocks={approachingStocks}
+                        touchedStocks={touchedStocks}
+                        isLoading={isLoading}
+                        error={error}
+                        onRefresh={onRefresh}
+                        onSymbolClick={onSymbolClick}
+                        onSymbolHover={onSymbolHover}
+                        activeScreener={activeScreener}
+                        viewMode={viewMode}
+                      />
+                    </CardContent>
+                    <SelectionBar onCompare={handleCompare} />
+                  </Paper>
+                </Box>
               </MuiStack>
             </Box>
           ) : (

@@ -88,16 +88,9 @@ export function useDisclosure(
   return [opened, { open, close, toggle }];
 }
 
-// useColorScheme: syncs with MUI ThemeProvider cssVariables (useColorScheme)
+// useColorScheme: simple localStorage + data attributes (works with MUI default theme)
 export function useColorScheme(): UIUseColorSchemeResult {
-  let mui: any = null;
-  try {
-    mui = useMuiColorScheme();
-  } catch {
-    mui = null;
-  }
-
-  const getFallback = (): "light" | "dark" => {
+  const getInitial = (): "light" | "dark" => {
     if (typeof window !== "undefined") {
       const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
       if (stored === "light" || stored === "dark") return stored as any;
@@ -106,48 +99,49 @@ export function useColorScheme(): UIUseColorSchemeResult {
     return "light";
   };
 
-  const [fallbackScheme, setFallbackScheme] = useState<"light" | "dark">(getFallback);
+  const [colorScheme, setColorSchemeState] = useState<"light" | "dark">(getInitial);
 
-  // Sync fallback from storage on mount when MUI not available
   useEffect(() => {
-    if (!mui?.mode) {
-      const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme")) : null;
-      if (stored === "light" || stored === "dark") setFallbackScheme(stored as any);
-    }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Keep document attribute in sync for cssVariables
-  const colorScheme: "light" | "dark" = mui?.mode === "light" || mui?.mode === "dark" ? mui.mode : fallbackScheme;
+    const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme")) : null;
+    if (stored === "light" || stored === "dark") setColorSchemeState(stored as any);
+  }, []);
 
   useEffect(() => {
     if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-color-scheme", colorScheme);
       document.documentElement.setAttribute("data-mui-color-scheme", colorScheme);
       document.documentElement.style.colorScheme = colorScheme;
     }
   }, [colorScheme]);
 
-  const setColorScheme = useCallback(
-    (scheme: "light" | "dark") => {
-      if (mui?.setMode) {
-        mui.setMode(scheme);
-      } else {
-        setFallbackScheme(scheme);
-        if (typeof window !== "undefined") {
-          try {
-            window.localStorage.setItem("mui-color-scheme", scheme);
-          } catch {}
-          document.documentElement?.setAttribute("data-mui-color-scheme", scheme);
-          document.documentElement.style.colorScheme = scheme;
-        }
-      }
-    },
-    [mui],
-  );
+  const setColorScheme = useCallback((scheme: "light" | "dark") => {
+    setColorSchemeState(scheme);
+    if (typeof window !== "undefined") {
+      try {
+        window.localStorage.setItem("mui-color-scheme", scheme);
+        window.localStorage.setItem("color-scheme", scheme);
+      } catch {}
+      document.documentElement?.setAttribute("data-color-scheme", scheme);
+      document.documentElement?.setAttribute("data-mui-color-scheme", scheme);
+      document.documentElement.style.colorScheme = scheme;
+    }
+  }, []);
 
   const toggleColorScheme = useCallback(() => {
-    const next = colorScheme === "dark" ? "light" : "dark";
-    setColorScheme(next);
-  }, [colorScheme, setColorScheme]);
+    setColorSchemeState((prev) => {
+      const next = prev === "dark" ? "light" : "dark";
+      if (typeof window !== "undefined") {
+        try {
+          window.localStorage.setItem("mui-color-scheme", next);
+          window.localStorage.setItem("color-scheme", next);
+        } catch {}
+        document.documentElement?.setAttribute("data-color-scheme", next);
+        document.documentElement?.setAttribute("data-mui-color-scheme", next);
+        document.documentElement.style.colorScheme = next;
+      }
+      return next;
+    });
+  }, []);
 
   return {
     isDark: colorScheme === "dark",
