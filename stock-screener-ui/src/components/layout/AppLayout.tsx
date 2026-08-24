@@ -6,7 +6,6 @@ import { UserButton } from "./UserButton";
 import MuiAppBar from "@mui/material/AppBar";
 import MuiDrawer from "@mui/material/Drawer";
 import Toolbar from "@mui/material/Toolbar";
-import Container from "@mui/material/Container";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
@@ -92,9 +91,9 @@ export function AppLayout({ children }: AppLayoutProps) {
         {drawerContent}
       </MuiDrawer>
 
-      <Box component="main" sx={{ flexGrow: 1, width: { md: `calc(100% - ${navWidth}px)` }, ml: { md: `${navWidth}px` }, minWidth: 0, minHeight: 0, bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
         <Toolbar />
-        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%" }}>
+        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%", p: 0, m: 0 }}>
           {children}
         </Box>
       </Box>
