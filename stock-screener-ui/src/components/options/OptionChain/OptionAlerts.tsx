@@ -1,4 +1,6 @@
-import { Box, Group, Text, Badge, ThemeIcon, Timeline, TimelineItem } from "@/ui";
+import { Text, Badge, ThemeIcon, Timeline, TimelineItem } from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import { IconBellRinging, IconBolt, IconWall, IconActivity } from "@tabler/icons-react";
 import { useMemo } from "react";
 import { CompactPanel } from "../../common/compact";
@@ -69,62 +71,36 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
   }, [strikeMatrix, spotPrice]);
 
   return (
-    <CompactPanel
-      id="option-alerts"
-      className="option-alerts-panel"
-      data-testid="options-alerts-panel"
-    >
-      <Group
-        justify="space-between"
-        mb="md"
-        className="alerts-header"
-        data-testid="options-alerts-header"
-      >
-        <Group gap="xs">
+    <CompactPanel id="option-alerts" className="option-alerts-panel" data-testid="options-alerts-panel">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }} className="alerts-header" data-testid="options-alerts-header">
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <ThemeIcon color="orange" variant="light">
             <IconBellRinging size={18} />
           </ThemeIcon>
           <Text fw={800} size="sm" style={{ letterSpacing: "0.5px" }}>
             LIVE SMART MONEY ALERTS
           </Text>
-        </Group>
+        </Box>
         <Badge variant="dot" color="green" size="sm" className="alerts-status-badge">
           Scanning Live
         </Badge>
-      </Group>
+      </Box>
 
       {alerts.length === 0 ? (
-        <Box py="lg" ta="center" className="alerts-empty-state" data-testid="options-alerts-empty">
+        <Box sx={{ py: 2, display: "flex", alignItems: "center", justifyContent: "center" }} className="alerts-empty-state" data-testid="options-alerts-empty">
           <Text size="sm" c="dimmed">
             Waiting for unusual activity patterns...
           </Text>
         </Box>
       ) : (
-        <Timeline
-          active={0}
-          bulletSize={24}
-          lineWidth={2}
-          className="alerts-timeline"
-          data-testid="options-alerts-timeline"
-        >
+        <Timeline active={0} bulletSize={24} lineWidth={2} className="alerts-timeline" data-testid="options-alerts-timeline">
           {alerts.map((alert, i) => (
-            <TimelineItem
-              key={i}
-              bullet={alert.icon}
-              color={alert.color}
-              className="alert-item"
-              data-testid={`options-alert-item-${i}`}
-              title={
-                <Group justify="space-between">
-                  <Text size="sm" fw={700}>
-                    {alert.title}
-                  </Text>
-                  <Badge size="sm" color={alert.intensity === "Critical" ? "red" : "blue"}>
-                    {alert.intensity}
-                  </Badge>
-                </Group>
-              }
-            >
+            <TimelineItem key={i} bullet={alert.icon} color={alert.color} className="alert-item" data-testid={`options-alert-item-${i}`} title={
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+                  <Text size="sm" fw={700}>{alert.title}</Text>
+                  <Badge size="sm" color={alert.intensity === "Critical" ? "red" : "blue"}>{alert.intensity}</Badge>
+                </Box>
+              }>
               <Text size="sm" c="dimmed" mt={4}>
                 {alert.description}
               </Text>
@@ -133,12 +109,13 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         </Timeline>
       )}
 
-      <CompactPanel mt="md" p="xs" className="alerts-profit-tip" data-testid="options-alerts-profit-tip">
-        <Text size="sm" fw={600} c="blue.7">
-          💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick
-          bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
-        </Text>
-      </CompactPanel>
+      <Box sx={{ mt: 1 }}>
+        <CompactPanel p="xs" className="alerts-profit-tip" data-testid="options-alerts-profit-tip">
+          <Text size="sm" fw={600} c="blue.7">
+            💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick bullish trade. When a "Wall" appears, expect the price to reverse from that strike.
+          </Text>
+        </CompactPanel>
+      </Box>
     </CompactPanel>
   );
 }

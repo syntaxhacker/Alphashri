@@ -53,16 +53,16 @@ function AlertsAndMovers({
   intervalMovers: InternalStockMover[];
 }) {
   return (
-    <Stack gap="md" style={{ overflow: "hidden" }}>
+    <Stack gap={1} sx={{ overflow: "hidden", display: "flex", alignItems: "stretch", justifyContent: "center" }}>
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+        sx={{ flex: "1 1 50%", display: "flex", flexDirection: "column", p: 1 }}
         title={
-          <Group justify="space-between" mb="xs">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Real-time Alerts</Title>
             <IconBellRinging size={18} color="orange" />
-          </Group>
+          </Box>
         }
       >
         <ScrollArea flex={1}>
@@ -73,12 +73,12 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        style={{ flex: "1 1 50%", display: "flex", flexDirection: "column" }}
+        sx={{ flex: "1 1 50%", display: "flex", flexDirection: "column", p: 1 }}
         title={
-          <Group justify="space-between" mb="xs">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Interval Movers</Title>
             <IconTrendingUp size={18} color="blue" />
-          </Group>
+          </Box>
         }
       >
         <ScrollArea flex={1}>
@@ -164,7 +164,7 @@ function DashboardContent({
   const totalDeclines = data.sectors.reduce((acc, s) => acc + s.declines, 0);
 
   return (
-    <Stack gap="sm">
+    <Stack gap={1} sx={{ p: 1 }}>
       <CompactStatGrid>
         <CompactStat
           label="Top Sector"
@@ -175,14 +175,14 @@ function DashboardContent({
         <CompactStat
           label="Market Breadth"
           value={
-            <Group gap="xs">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
               <Badge color="green" variant="light">
                 {totalAdvances} UP
               </Badge>
               <Badge color="red" variant="light">
                 {totalDeclines} DOWN
               </Badge>
-            </Group>
+            </Box>
           }
         />
         <CompactStat
@@ -198,17 +198,17 @@ function DashboardContent({
         data-testid="sector-heatmap-panel"
         padded={false}
         title={
-          <Group justify="space-between" mb="xs">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Market Heatmap</Title>
             {data.last_updated && (
-              <Group gap={4}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <IconClock size={12} color="gray" />
                 <Text size="sm" c="dimmed">
                   {new Date(data.last_updated).toLocaleTimeString()}
                 </Text>
-              </Group>
+              </Box>
             )}
-          </Group>
+          </Box>
         }
       >
         <SectorHeatmapView
@@ -226,15 +226,15 @@ function DashboardContent({
         />
       </CompactPanel>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm">
+      <SimpleGrid cols={{ base: 1, md: 2 }} spacing={1}>
         <CompactPanel
           id="sector-table-container"
           data-testid="sector-table-container"
           padded={false}
-          title={<Title order={4}>Sector Performance</Title>}
+          title={<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Title order={4}>Sector Performance</Title></Box>}
           scrollable
         >
-          <Box px="sm" pb="sm" flex={1} style={{ minHeight: 0 }}>
+          <Box sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, flex: 1 }}>
             <SectorTable sectors={data.sectors} />
           </Box>
         </CompactPanel>
@@ -447,8 +447,8 @@ function SectorPageHeader({
   onRefresh: () => void;
 }) {
   return (
-    <Box className="sector-analysis-header" sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, flexShrink: 0 }}>
-      <Stack gap={1}>
+    <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexShrink: 0, p: 1 }}>
+      <Stack gap={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
         <Title order={2} size="h4">
           Sector Dashboard
         </Title>
@@ -456,7 +456,7 @@ function SectorPageHeader({
           Real-time sector performance and technical strength.
         </Text>
       </Stack>
-      <Group gap={1}>
+      <Group gap={1} sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
         <SegmentedControl
           value={market}
           onChange={(v) => setMarket(v as "india" | "america")}
@@ -600,7 +600,7 @@ export function SectorPage() {
 
   return (
     <Box
-      sx={{ p: 2, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 2, width: "100%" }}
+      sx={{ p: 1, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 1, width: "100%" }}
       data-testid="sector-analysis-view"
     >
       <SectorPageHeader
@@ -609,27 +609,28 @@ export function SectorPage() {
         loading={state.loading}
         onRefresh={() => state.loadData(state.market)}
       />
-      <MuiPaper elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", p: 0 }}>
-        <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, overflow: "hidden" }}>
+      <MuiPaper elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", p: 1 }}>
+        <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, alignItems: "center", justifyContent: "center", "&:last-child": { pb: 1 }, overflow: "hidden" }}>
           <Box
             id="sector-page"
-            className="sector-page"
             sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
           >
-            <Tabs value={state.activeTab} onChange={state.setActiveTab}>
-              <Tabs.List>
-                <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
-                  Live Dashboard
-                </Tabs.Tab>
-                <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
-                  Sector Correlation
-                </Tabs.Tab>
-                <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
-                  Historical Cycles
-                </Tabs.Tab>
-              </Tabs.List>
-            </Tabs>
-            <Box flex={1} sx={{ minHeight: 0, p: 2, overflow: "auto" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <Tabs value={state.activeTab} onChange={state.setActiveTab}>
+                <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                  <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+                    Live Dashboard
+                  </Tabs.Tab>
+                  <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
+                    Sector Correlation
+                  </Tabs.Tab>
+                  <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+                    Historical Cycles
+                  </Tabs.Tab>
+                </Tabs.List>
+              </Tabs>
+            </Box>
+            <Box flex={1} sx={{ minHeight: 0, p: 1, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
               <SectorTabContent
                 activeTab={state.activeTab}
                 data={state.data}

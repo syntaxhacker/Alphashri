@@ -95,7 +95,7 @@ function SettingsLoadingState() {
       id="paper-settings"
       style={{ width: "100%" }}
     >
-      <Group justify="center" gap="sm">
+      <Group justify="center" align="center" gap="sm">
         <Loader size="sm" />
         <Text c="dimmed">Loading configuration...</Text>
       </Group>
@@ -176,7 +176,7 @@ function SettingsContent({
         </Alert>
       )}
 
-      <Group justify="space-between" mb="xs" className="paper-settings-header" id="settings-header">
+      <Group justify="space-between" align="center" mb="xs" className="paper-settings-header" id="settings-header">
         <div>
           <Text fw={600} size="md">
             Strategy Configuration
@@ -197,7 +197,7 @@ function SettingsContent({
           <Text fw={600} size="xs" tt="uppercase">
             Active Strategy
           </Text>
-          <Group gap="xs" align="flex-end">
+          <Group gap="xs" align="center">
             <Select
               data-testid="strategy-selector"
               placeholder="Select strategy"
@@ -214,7 +214,7 @@ function SettingsContent({
                 label: s.is_default ? `${s.name} (Default)` : s.name,
               }))}
               disabled={strategiesLoading || configLoading}
-              style={{
+                      style={{
                 width: 240,
                 flex: "0 0 auto",
               }}

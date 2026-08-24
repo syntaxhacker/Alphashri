@@ -73,23 +73,25 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       h="100%"
       style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
     >
-      <Box mb="xs" flex="0 0 auto" data-testid="chart-tabs-header">
-        <Group justify="space-between" align="center">
-          <Tabs
-            value={selectedSymbol}
-            onChange={(value) => value && onSymbolSelect(value)}
-            data-testid="chart-tabs"
-          >
-            <Tabs.List>
-              {symbols.map((symbol) => (
-                <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
-                  {symbol}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs>
+      <Box mb="xs" flex="0 0 auto" data-testid="chart-tabs-header" sx={{ p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Tabs
+              value={selectedSymbol}
+              onChange={(value) => value && onSymbolSelect(value)}
+              data-testid="chart-tabs"
+            >
+              <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                {symbols.map((symbol) => (
+                  <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
+                    {symbol}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs>
+          </Box>
 
-          <Group gap="xs">
+          <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Select
               data-testid="chart-tf-select"
               value={selectedTf}
@@ -109,7 +111,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
               size="sm"
             />
           </Group>
-        </Group>
+        </Box>
       </Box>
 
       <Box

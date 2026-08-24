@@ -65,7 +65,7 @@ const ChartView: React.FC = () => {
     <Box
       data-testid="chart-view"
       id="chart-view"
-      sx={{ display: "flex", flexDirection: "column", height: "100%", minHeight: 0, flex: 1, overflow: "hidden", bgcolor: "background.default" }}
+      sx={{ display: "flex", flexDirection: "column", alignItems: "center", height: "100%", minHeight: 0, flex: 1, overflow: "hidden", bgcolor: "background.default", width: "100%" }}
     >
       <ChartHeader
         symbol={vm.symbol}

@@ -59,29 +59,31 @@ function renderFilter(filter: ProfileFilter) {
           ? String(filter.default)
           : null;
     return (
-      <Select
-        key={filter.key}
-        label={filter.label}
-        data={selectData}
-        value={selected}
-        onChange={(val) => handleFilterChange(filter.key, val)}
-        size="xs"
-        clearable
-      />
+      <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+        <Select
+          label={filter.label}
+          data={selectData}
+          value={selected}
+          onChange={(val) => handleFilterChange(filter.key, val)}
+          size="xs"
+          clearable
+        />
+      </Box>
     );
   }
 
   return (
-    <NumberInput
-      key={filter.key}
-      label={filter.label}
-      value={(value as number) || filter.default || ""}
-      onChange={(val) => handleFilterChange(filter.key, val as number)}
-      min={filter.min}
-      max={filter.max}
-      step={filter.step}
-      size="xs"
-    />
+    <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: "100%" }}>
+      <NumberInput
+        label={filter.label}
+        value={(value as number) || filter.default || ""}
+        onChange={(val) => handleFilterChange(filter.key, val as number)}
+        min={filter.min}
+        max={filter.max}
+        step={filter.step}
+        size="xs"
+      />
+    </Box>
   );
 }
 
@@ -110,9 +112,11 @@ export function ScreenerSidePanel({
       data-testid="screener-side-panel"
     >
       <Stack gap="sm">
-        <Text size="11px" fw={600} c="dimmed" tt="uppercase">
-          Filters
-        </Text>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Text size="11px" fw={600} c="dimmed" tt="uppercase">
+            Filters
+          </Text>
+        </Box>
         <Stack gap="sm">{filters.map(renderFilter)}</Stack>
         <Divider my={0.5} />
         <Button size="xs" variant="light" onClick={handleApplyFilters} fullWidth>

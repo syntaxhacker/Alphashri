@@ -9,6 +9,7 @@ import {
   Card,
   Stack,
   Alert,
+  Box,
 } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import {
@@ -144,33 +145,38 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         id: "date",
         header: "Date",
         accessorKey: "created_at",
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Text size="sm">{new Date(info.getValue<string>()).toLocaleString()}</Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{new Date(info.getValue<string>()).toLocaleString()}</Text></Box>
         ),
       },
       {
         id: "strategy",
         header: "Strategy",
         accessorKey: "strategy_name",
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Badge variant="light" color="blue">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Badge variant="light" color="blue">
             {info.getValue<string>()}
-          </Badge>
+          </Badge></Box>
         ),
       },
       {
         id: "symbols",
         header: "Symbols",
         accessorKey: "symbols",
+        meta: { align: "center" } as any,
         cell: (info) => {
           const symbols = info.getValue<string[]>();
           return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Tooltip label={symbols.join(", ")}>
-              <Text size="sm" truncate maw={150}>
+              <Text size="sm" truncate maw={150} ta="center">
                 {symbols.length} stocks: {symbols.slice(0, 3).join(", ")}
                 {symbols.length > 3 ? "..." : ""}
               </Text>
             </Tooltip>
+            </Box>
           );
         },
       },
@@ -178,18 +184,20 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         id: "trades",
         header: "Trades",
         accessorFn: (row) => row.metrics.total_trades,
-        cell: (info) => <Text size="sm">{info.getValue<number>()}</Text>,
+        meta: { align: "center" } as any,
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{info.getValue<number>()}</Text></Box>,
       },
       {
         id: "win_rate",
         header: "Win Rate",
         accessorFn: (row) => row.metrics.win_rate,
+        meta: { align: "center" } as any,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Text size="sm" fw={500} c={val >= 50 ? "green" : "orange"}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={500} c={val >= 50 ? "green" : "orange"} ta="center">
               {val.toFixed(1)}%
-            </Text>
+            </Text></Box>
           );
         },
       },
@@ -197,13 +205,14 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         id: "pnl",
         header: "Net P&L",
         accessorFn: (row) => row.metrics.total_pnl,
+        meta: { align: "center" } as any,
         cell: (info) => {
           const row = info.row.original;
           return (
-            <Text size="sm" fw={700} c={getPnLTextColor(row.metrics.total_pnl)}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={700} c={getPnLTextColor(row.metrics.total_pnl)} ta="center">
               ₹{row.metrics.total_pnl.toLocaleString()} (
               {row.metrics.total_pnl_pct.toFixed(2)}%)
-            </Text>
+            </Text></Box>
           );
         },
       },
@@ -211,10 +220,12 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
         id: "actions",
         header: "Actions",
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: (info) => {
           const row = info.row.original;
           return (
-            <Group gap={8}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Group gap={8} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
               <Button
                 size="compact-xs"
                 variant="light"
@@ -233,6 +244,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
                 <IconTrash size={16} />
               </ActionIcon>
             </Group>
+            </Box>
           );
         },
       },
@@ -267,14 +279,19 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
       <Card
         padding="xl"
         radius="md"
+        shadow="none"
         className="backtest-history-empty"
         data-testid="backtest-history-empty"
+        sx={{ p: 1 }}
+        style={{ boxShadow: "none" } as any}
       >
-        <EmptyState
-          icon={<IconDatabase size={40} color="gray" />}
-          title="No backtest history"
-          description="Run a backtest and save it to see it here."
-        />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, p: 1 }}>
+          <EmptyState
+            icon={<IconDatabase size={40} color="gray" />}
+            title="No backtest history"
+            description="Run a backtest and save it to see it here."
+          />
+        </Box>
       </Card>
     );
   }
@@ -283,14 +300,16 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
     <Stack
       id="backtest-history"
       className="backtest-history"
+      spacing={1}
       gap="md"
       data-testid="backtest-history"
+      sx={{ gap: 1, p: 1 }}
     >
-      <Group justify="space-between" className="history-header">
-        <Text size="sm" c="dimmed">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+        <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
           {history.length} backtest{history.length !== 1 ? "s" : ""} saved
         </Text>
-        <Group gap="xs" className="history-actions">
+        <Group gap={1} align="center" className="history-actions" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Button
             size="sm"
             variant="light"
@@ -313,7 +332,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
             Refresh
           </Button>
         </Group>
-      </Group>
+      </Box>
       <TanStackTable<BacktestHistoryItem>
         data={history}
         columns={columns}

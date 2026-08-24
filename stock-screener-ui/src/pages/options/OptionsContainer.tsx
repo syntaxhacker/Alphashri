@@ -12,9 +12,9 @@ export function OptionsContainer() {
       id="options-container"
       className="options-container"
       data-testid="options-container"
-      sx={{ p: 2, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 2, width: "100%" }}
+      sx={{ p: 1, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}
     >
-      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", width: "100%", maxWidth: 1400, alignItems: "center" }}>
         <OptionsPage activeTab={activeTab} setActiveTab={setActiveTab} {...options} />
       </Box>
     </Box>

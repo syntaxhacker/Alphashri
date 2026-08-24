@@ -102,14 +102,15 @@ function BotsPageTabs({
   onViewChange: (view: BotsView) => void;
 }) {
   return (
-    <Box sx={{ flex: "0 0 auto", mb: 2 }} id="bots-tabs" data-testid="bots-tabs">
+    <Box sx={{ flex: "0 0 auto", mb: 2, display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} id="bots-tabs" data-testid="bots-tabs">
       <Tabs
         value={currentView}
         onChange={(v) => v && onViewChange(v)}
         id="bots-tabs"
         data-testid="bots-tabs"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
       >
-        <Tabs.List>
+        <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Tabs.Tab value="list" leftSection={<IconRobot size={16} />} data-testid="bots-tab-list">
             Bots
           </Tabs.Tab>
@@ -166,81 +167,96 @@ function BotsTable({
       id: "name",
       header: "Name",
       accessorKey: "name",
+      meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <Group gap="xs">
-          <Box
-            w={8}
-            h={8}
-            sx={{ borderRadius: "50%", backgroundColor: getBotIndicatorColor(row.original.running) }}
-          />
-          <Text fw={500}>{row.original.name}</Text>
-          {row.original.live_trading && (
-            <Badge color="red" size="sm" variant="filled">LIVE</Badge>
-          )}
-          {!row.original.is_active && (
-            <Badge color="gray" size="sm" variant="light">
-              Inactive
-            </Badge>
-          )}
-        </Group>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Group gap="xs" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+            <Box
+              w={8}
+              h={8}
+              sx={{ borderRadius: "50%", backgroundColor: getBotIndicatorColor(row.original.running) }}
+            />
+            <Text fw={500} ta="center">{row.original.name}</Text>
+            {row.original.live_trading && (
+              <Badge color="red" size="sm" variant="filled">LIVE</Badge>
+            )}
+            {!row.original.is_active && (
+              <Badge color="gray" size="sm" variant="light">
+                Inactive
+              </Badge>
+            )}
+          </Group>
+        </Box>
       ),
     },
     {
       id: "status",
       header: "Status",
+      meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <StatusBadge
-          running={row.original.running}
-          pid={row.original.pid ?? undefined}
-          statusUnknown={row.original.status === "UNKNOWN"}
-          data-testid={`bot-status-${row.original.id}`}
-        />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <StatusBadge
+            running={row.original.running}
+            pid={row.original.pid ?? undefined}
+            statusUnknown={row.original.status === "UNKNOWN"}
+            data-testid={`bot-status-${row.original.id}`}
+          />
+        </Box>
       ),
       enableSorting: false,
     },
     {
       id: "strategies",
       header: "Strategies",
-      cell: ({ row }) => <BotSummaryCell bot={row.original} />,
+      meta: { align: "center" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><BotSummaryCell bot={row.original} /></Box>,
       enableSorting: false,
     },
     {
       id: "max_total_positions",
       header: "Max Positions",
       accessorKey: "max_total_positions",
+      meta: { align: "center" } as any,
+      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text ta="center">{String(getValue() as number)}</Text></Box>,
     },
     {
       id: "max_total_capital_pct",
       header: "Max Capital",
       accessorKey: "max_total_capital_pct",
-      cell: ({ getValue }) => `${((getValue() as number) * 100).toFixed(0)}%`,
+      meta: { align: "center" } as any,
+      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text ta="center">{`${((getValue() as number) * 100).toFixed(0)}%`}</Text></Box>,
     },
     {
       id: "actions",
       header: "Actions",
+      meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <BotActionButtons
-          bot={row.original}
-          onView={onViewStatus}
-          onStart={onStart}
-          onStop={onStop}
-          onEdit={onEdit}
-          onDelete={onDelete}
-        />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <BotActionButtons
+            bot={row.original}
+            onView={onViewStatus}
+            onStart={onStart}
+            onStop={onStop}
+            onEdit={onEdit}
+            onDelete={onDelete}
+          />
+        </Box>
       ),
       enableSorting: false,
     },
   ], [onViewStatus, onStart, onStop, onEdit, onDelete]);
 
   return (
-    <Card elevation={1} id="bots-list-card" data-testid="bots-list-card">
-      <CardContent sx={{ p: "8px" }}>
-        <Group gap="xs" mb="xs">
-          <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
-          <Text size="sm" fw={600}>Configured Bots</Text>
-          <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
-          <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
-        </Group>
+    <Card elevation={1} id="bots-list-card" data-testid="bots-list-card" sx={{ p: 1 }}>
+      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="xs">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+            <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
+            <Text size="sm" fw={600} ta="center">Configured Bots</Text>
+            <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
+            <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
+          </Box>
+        </Box>
         <TableContainer component={Paper} elevation={1}>
           <TanStackTable
             data={state.bots}
@@ -354,13 +370,13 @@ export function BotsPage() {
 
   return (
     <Container maxWidth="xl" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="bots-view">
-      <Stack spacing={1} sx={{ mb: 2 }}>
-        <Group justify="space-between" align="flex-start">
-          <Stack spacing={1}>
-            <Text size="lg" fw={600}>Bots</Text>
-            <Text size="sm" c="dimmed">Manage bot configurations, live status, and execution controls.</Text>
+      <Stack spacing={1} sx={{ mb: 2, gap: 1, p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Stack spacing={1} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="lg" fw={600} ta="center">Bots</Text></Box>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c="dimmed" ta="center">Manage bot configurations, live status, and execution controls.</Text></Box>
           </Stack>
-          <Group gap="sm">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
             <Button
               variant="light"
               color="green"
@@ -401,8 +417,8 @@ export function BotsPage() {
             >
               New Bot
             </Button>
-          </Group>
-        </Group>
+          </Box>
+        </Box>
       </Stack>
       {renderPageContent({
         currentView,

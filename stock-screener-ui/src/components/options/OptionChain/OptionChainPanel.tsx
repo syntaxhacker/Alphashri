@@ -1,23 +1,5 @@
-import {
-  Group,
-  Text,
-  Stack,
-  Badge,
-  Loader,
-  Alert,
-  Tabs,
-  TabsList,
-  Tab,
-  TabsPanel,
-  Button,
-  Tooltip,
-} from "@/ui";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
+import { Group, Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip } from "@/ui";
+import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import {
   IconRefresh,
@@ -78,58 +60,35 @@ export function OptionChainPanel({
     <Stack
       id="chain-panel"
       spacing={1}
-      sx={{ height: "100%" }}
+      sx={{ height: "100%", width: "100%", alignItems: "center" }}
       data-testid="options-chain-panel"
     >
       <OptionChainGuide opened={guideOpened} onClose={close} />
 
-      {/* Header Row */}
-      <Group
+      {/* Header Row - centered */}
+      <Box
         id="chain-header"
-       
-        justify="space-between"
-        wrap="nowrap"
         data-testid="options-chain-header"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexWrap: "wrap", gap: 1, p: 1 }}
       >
-        <Group gap="xs" wrap="nowrap">
-          <Text size="md" fw={600} sx={{ whiteSpace: "nowrap" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap" }}>
+          <Text size="md" fw={600} sx={{ whiteSpace: "nowrap", textAlign: "center" }}>
             Option Chain
           </Text>
           <LiveSpotChart underlying={selectedUnderlying} />
           {timestamp && !loading && (
-            <Tooltip
-              label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}
-            >
-              <Badge
-                variant="light"
-                color="gray"
-                leftSection={<IconClock size={12} />}
-               
-                data-testid="options-chain-timestamp"
-              >
+            <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
+              <Badge variant="light" color="gray" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
                 {dayjs(timestamp).format("HH:mm:ss")}
               </Badge>
             </Tooltip>
           )}
-        </Group>
-        <Group gap="xs">
-          <Button
-            variant="light"
-            color="blue"
-            size="compact-xs"
-            leftSection={<IconHelpCircle size={14} />}
-            onClick={open}
-           
-            data-testid="open-guide-btn"
-          >
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+          <Button variant="light" color="blue" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
             Guide
           </Button>
-          <Text
-            size="xs"
-            c="dimmed"
-           
-            data-testid="options-chain-selection"
-          >
+          <Text size="xs" c="dimmed" data-testid="options-chain-selection" sx={{ textAlign: "center" }}>
             {selectedUnderlying} · {selectedExpiry}
           </Text>
           <Box
@@ -139,8 +98,8 @@ export function OptionChainPanel({
             onClick={() => !loading && refreshChain()}
             data-testid="refresh-chain-btn"
           />
-        </Group>
-      </Group>
+        </Box>
+      </Box>
 
       {/* Controls */}
       <OptionChainHeader
@@ -170,86 +129,46 @@ export function OptionChainPanel({
 
       {/* Content */}
       {loading && strikeMatrix.length === 0 ? (
-        <Group
-          id="chain-loading"
-         
-          justify="center"
-          py="xl"
-          data-testid="chain-loading"
-        >
+        <Box id="chain-loading" data-testid="chain-loading" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, py: 4, width: "100%" }}>
           <Loader size="md" />
           <Text c="dimmed">Loading option chain...</Text>
-        </Group>
+        </Box>
       ) : strikeMatrix.length === 0 ? (
-        <Alert
-          id="chain-no-data"
-         
-          icon={<IconAlertCircle size={16} />}
-          color="yellow"
-          variant="light"
-          data-testid="no-data-alert"
-        >
+        <Alert id="chain-no-data" icon={<IconAlertCircle size={16} />} color="yellow" variant="light" data-testid="no-data-alert">
           No options data available. Select an underlying and expiry to view the chain.
         </Alert>
       ) : (
-        <Tabs
-          id="chain-view-tabs"
-         
-          defaultValue="table"
-          data-testid="chain-view-tabs"
-        >
-          <TabsList
-           
-            mb="sm"
-            data-testid="options-chain-view-tabs-list"
-          >
-            <Tab
-              value="table"
-             
-              leftSection={<IconTable size={14} />}
-              data-testid="chain-tab-table"
-            >
-              Option Chain Table
-            </Tab>
-            <Tab
-              value="analysis"
-             
-              leftSection={<IconChartBar size={14} />}
-              data-testid="chain-tab-analysis"
-            >
-              Deep OI Analysis
-            </Tab>
-          </TabsList>
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+          <Tabs id="chain-view-tabs" defaultValue="table" data-testid="chain-view-tabs" style={{ width: "100%" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
+              <TabsList data-testid="options-chain-view-tabs-list" sx={{ display: "flex", alignItems: "center", justifyContent: "center" } as any}>
+                <Tab value="table" leftSection={<IconTable size={14} />} data-testid="chain-tab-table">
+                  Option Chain Table
+                </Tab>
+                <Tab value="analysis" leftSection={<IconChartBar size={14} />} data-testid="chain-tab-analysis">
+                  Deep OI Analysis
+                </Tab>
+              </TabsList>
+            </Box>
 
-          <TabsPanel
-            value="table"
-           
-            data-testid="options-chain-table-panel"
-          >
-            <Stack gap="sm">
-              <ChainSummary
-                strikeMatrix={strikeMatrix}
-                spotPrice={spotPrice}
-                selectedExpiry={selectedExpiry}
-                summary={summary}
-              />
-              <OptionChainTable
-                strikeMatrix={strikeMatrix}
-                filters={filters}
-                spotPrice={spotPrice}
-                onRowClick={(contract) => console.log("clicked", contract)}
-              />
-            </Stack>
-          </TabsPanel>
+            <TabsPanel value="table" data-testid="options-chain-table-panel">
+              <Stack spacing={1} sx={{ width: "100%", alignItems: "center" }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+                  <ChainSummary strikeMatrix={strikeMatrix} spotPrice={spotPrice} selectedExpiry={selectedExpiry} summary={summary} />
+                </Box>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+                  <OptionChainTable strikeMatrix={strikeMatrix} filters={filters} spotPrice={spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
+                </Box>
+              </Stack>
+            </TabsPanel>
 
-          <TabsPanel
-            value="analysis"
-           
-            data-testid="options-chain-analysis-panel"
-          >
-            <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
-          </TabsPanel>
-        </Tabs>
+            <TabsPanel value="analysis" data-testid="options-chain-analysis-panel">
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+                <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
+              </Box>
+            </TabsPanel>
+          </Tabs>
+        </Box>
       )}
     </Stack>
   );

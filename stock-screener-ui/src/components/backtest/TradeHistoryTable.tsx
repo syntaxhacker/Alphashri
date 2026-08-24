@@ -154,54 +154,61 @@ export function TradeHistoryTable({
         id: "#",
         header: "#",
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">{getTradeIndex(row.original) + 1}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{getTradeIndex(row.original) + 1}</Text></Box>,
       },
       {
         id: "entry_time",
-        header: () => <span onClick={() => handleHeaderClick("entry_time")} style={{ cursor: "pointer" }}>Entry Time</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("entry_time")} style={{ cursor: "pointer" }}>Entry Time</span></Box>,
         accessorKey: "entry_time",
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">{formatDateTimeHuman(row.original.entry_time)}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{formatDateTimeHuman(row.original.entry_time)}</Text></Box>,
       },
       {
         id: "exit_time",
-        header: () => <span onClick={() => handleHeaderClick("exit_time")} style={{ cursor: "pointer" }}>Exit Time</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_time")} style={{ cursor: "pointer" }}>Exit Time</span></Box>,
         accessorKey: "exit_time",
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">{formatDateTimeHuman(row.original.exit_time)}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{formatDateTimeHuman(row.original.exit_time)}</Text></Box>,
       },
       {
         id: "side",
-        header: () => <span onClick={() => handleHeaderClick("side")} style={{ cursor: "pointer" }}>Side</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("side")} style={{ cursor: "pointer" }}>Side</span></Box>,
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
-          return side === "LONG" ? (
-            <Text size="sm" c="green"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{side === "LONG" ? (
+            <Text size="sm" c="green" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
           ) : (
-            <Text size="sm" c="red"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
-          );
+            <Text size="sm" c="red" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
+          )}</Box>;
         },
       },
       {
         id: "quantity",
-        header: () => <span onClick={() => handleHeaderClick("quantity")} style={{ cursor: "pointer" }}>Qty</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("quantity")} style={{ cursor: "pointer" }}>Qty</span></Box>,
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">{row.original.quantity ?? 0}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{row.original.quantity ?? 0}</Text></Box>,
       },
       {
         id: "entry_price",
-        header: () => <span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry Price</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry Price</span></Box>,
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text></Box>,
       },
       {
         id: "level_high",
-        header: () => <span onClick={() => handleHeaderClick("level_high")} style={{ cursor: "pointer" }}>{has52w ? "52W High" : "Level Hi"}</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("level_high")} style={{ cursor: "pointer" }}>{has52w ? "52W High" : "Level Hi"}</span></Box>,
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.or_high ?? row.original.r1 ?? row.original["52w_high"] ?? 0;
-          return <Text size="sm">₹{val.toFixed(2)}</Text>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{val.toFixed(2)}</Text></Box>;
         },
       },
     ];
@@ -209,11 +216,12 @@ export function TradeHistoryTable({
     if (!has52w) {
       cols.push({
         id: "level_low",
-        header: () => <span onClick={() => handleHeaderClick("level_low")} style={{ cursor: "pointer" }}>Level Lo</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("level_low")} style={{ cursor: "pointer" }}>Level Lo</span></Box>,
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.or_low ?? row.original.s1 ?? 0;
-          return <Text size="sm">₹{val.toFixed(2)}</Text>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{val.toFixed(2)}</Text></Box>;
         },
       });
     }
@@ -221,44 +229,51 @@ export function TradeHistoryTable({
     cols.push(
       {
         id: "exit_price",
-        header: () => <span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit Price</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit Price</span></Box>,
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text></Box>,
       },
       {
         id: "net_pnl",
-        header: () => <span onClick={() => handleHeaderClick("net_pnl")} style={{ cursor: "pointer" }}>P&L</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("net_pnl")} style={{ cursor: "pointer" }}>P&L</span></Box>,
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.net_pnl ?? 0;
-          return <Text size="sm" fw={600} c={getPnLTextColor(val)}>₹{val.toFixed(0)}</Text>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={600} c={getPnLTextColor(val)} ta="center">₹{val.toFixed(0)}</Text></Box>;
         },
       },
       {
         id: "net_pnl_pct",
-        header: () => <span onClick={() => handleHeaderClick("net_pnl_pct")} style={{ cursor: "pointer" }}>%</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("net_pnl_pct")} style={{ cursor: "pointer" }}>%</span></Box>,
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: ({ row }) => {
           const pnlPct = row.original.net_pnl_pct || (row.original.net_pnl / (row.original.entry_price * row.original.quantity)) * 100;
-          return <Text size="sm" c={getPnLTextColor(pnlPct)}>{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c={getPnLTextColor(pnlPct)} ta="center">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text></Box>;
         },
       },
       {
         id: "hold_duration_minutes",
-        header: () => <span onClick={() => handleHeaderClick("hold_duration_minutes")} style={{ cursor: "pointer" }}>Hold</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("hold_duration_minutes")} style={{ cursor: "pointer" }}>Hold</span></Box>,
         enableSorting: false,
-        cell: ({ row }) => <Text size="sm">{formatDuration(row.original.hold_duration_minutes ?? 0)}</Text>,
+        meta: { align: "center" } as any,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{formatDuration(row.original.hold_duration_minutes ?? 0)}</Text></Box>,
       },
       {
         id: "exit_reason",
-        header: () => <span onClick={() => handleHeaderClick("exit_reason")} style={{ cursor: "pointer" }}>Type</span>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_reason")} style={{ cursor: "pointer" }}>Type</span></Box>,
         enableSorting: false,
+        meta: { align: "center" } as any,
         cell: ({ row }) => {
           const reason = row.original.exit_reason ?? "EOD";
           return (
-            <Badge size="sm" color={reason === "TP" ? "green" : reason === "SL" ? "red" : reason === "TRAILING_STOP" ? "orange" : "gray"}>
-              {reason}
-            </Badge>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Badge size="sm" color={reason === "TP" ? "green" : reason === "SL" ? "red" : reason === "TRAILING_STOP" ? "orange" : "gray"}>
+                {reason}
+              </Badge>
+            </Box>
           );
         },
       },
@@ -274,23 +289,31 @@ export function TradeHistoryTable({
       className="trade-history-panel"
       data-testid="trade-history-panel"
       h="100%"
-      style={{ minHeight: 0, overflow: "hidden" }}
+      spacing={1}
+      sx={{ minHeight: 0, overflow: "hidden", gap: 1, p: 1 }}
     >
-      <Group justify="space-between" p="sm" flex="0 0 auto" data-testid="trade-history-header">
-        <Text fw={600} size="sm">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} data-testid="trade-history-header">
+        <Text fw={600} size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
           📋 {symbol} Trades ({trades.length})
         </Text>
         <ActionIcon variant="subtle" color="gray" size="sm" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
           <IconX size={14} />
         </ActionIcon>
-      </Group>
+      </Box>
 
-      <Group gap="md" p="xs" data-testid="trade-history-summary">
-        <Text size="sm" data-testid="trade-summary-pnl">
-          P&L: <Text component="span" fw={600} c={getPnLTextColor(totalPnl)}>₹{totalPnl.toFixed(0)}</Text>
-        </Text>
-        <Text size="sm" data-testid="trade-summary-wr">WR: {winRate}%</Text>
-        <Text size="sm" data-testid="trade-summary-wins">Wins: {wins}/{trades.length}</Text>
+      <Group gap={1} align="center" p="xs" data-testid="trade-history-summary" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>P&L</Text>
+          <Text size="sm" fw={600} c={getPnLTextColor(totalPnl)} sx={{ flex: 1, textAlign: "right" }}>₹{totalPnl.toFixed(0)}</Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>WR</Text>
+          <Text size="sm" sx={{ flex: 1, textAlign: "right" }}>{winRate}%</Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Wins</Text>
+          <Text size="sm" sx={{ flex: 1, textAlign: "right" }}>{wins}/{trades.length}</Text>
+        </Box>
       </Group>
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} className="trade-history-scroll">

@@ -3,6 +3,8 @@ import Container from "@mui/material/Container";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Box from "@mui/material/Box";
+import Grid from "@mui/material/Grid";
+import Stack from "@mui/material/Stack";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -204,28 +206,30 @@ function useBacktestActions(state: any) {
 
 function BacktestPageConfig({ state, actions }: { state: any; actions: any }) {
   return (
-    <Box sx={{ flex: "0 0 auto", mb: 2 }} id="backtest-config-section">
-      <BacktestConfig
-        strategies={state.strategies}
-        variations={state.variations}
-        selectedStrategy={state.selectedStrategy}
-        selectedVariation={state.selectedVariation}
-        params={state.params}
-        selectedSymbols={state.selectedSymbols}
-        days={state.days}
-        includeCosts={state.includeCosts}
-        isRunning={state.isRunning}
-        onStrategyChange={setSelectedStrategy}
-        onVariationChange={setSelectedVariation}
-        onParamChange={setParam}
-        onDaysChange={setDays}
-        onIncludeCostsChange={setIncludeCosts}
-        onSymbolsChange={setSelectedSymbols}
-        onReset={resetBacktestState}
-        onRun={actions.handleRunBacktest}
-        saveToHistory={actions.saveToHistory}
-        onSaveToHistoryChange={actions.setSaveToHistory}
-      />
+    <Box sx={{ flex: "0 0 auto", mb: 2, display: "flex", justifyContent: "center" }} id="backtest-config-section">
+      <Box sx={{ width: "100%", maxWidth: 1600 }}>
+        <BacktestConfig
+          strategies={state.strategies}
+          variations={state.variations}
+          selectedStrategy={state.selectedStrategy}
+          selectedVariation={state.selectedVariation}
+          params={state.params}
+          selectedSymbols={state.selectedSymbols}
+          days={state.days}
+          includeCosts={state.includeCosts}
+          isRunning={state.isRunning}
+          onStrategyChange={setSelectedStrategy}
+          onVariationChange={setSelectedVariation}
+          onParamChange={setParam}
+          onDaysChange={setDays}
+          onIncludeCostsChange={setIncludeCosts}
+          onSymbolsChange={setSelectedSymbols}
+          onReset={resetBacktestState}
+          onRun={actions.handleRunBacktest}
+          saveToHistory={actions.saveToHistory}
+          onSaveToHistoryChange={actions.setSaveToHistory}
+        />
+      </Box>
     </Box>
   );
 }
@@ -246,55 +250,61 @@ function BacktestPanels({
   setActiveTab: (tab: string | null) => void;
 }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} id="backtest-panels">
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }} id="backtest-left-panel">
-        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <BacktestLeftPanel
-              activeTab={activeTab}
-              setActiveTab={setActiveTab}
-              isRunning={state.isRunning}
-              progress={state.progress}
-              results={state.results}
-              totals={state.totals}
-              selectedChartSymbol={state.selectedChartSymbol}
-              sortedResults={actions.sortedResults}
-              resultsSortColumn={actions.resultsSort.column}
-              resultsSortDirection={actions.resultsSort.direction}
-              onRowClick={actions.handleViewChartAndTrades}
-              onSort={actions.resultsSort.handleSort}
-            />
-          </CardContent>
-        </Card>
-      </Box>
-      <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }} id="backtest-right-panel">
-        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <BacktestRightPanel
-              showCharts={state.showCharts}
-              results={state.results}
-              symbols={symbols}
-              selectedChartSymbol={state.selectedChartSymbol}
-              onSymbolSelect={setSelectedChartSymbol}
-              zoomValue={state.chartOptions.date_range}
-              onZoomChange={(value) => setChartOptions({ date_range: value as any })}
-              chartDataMap={state.chartData}
-              chartLoading={state.chartLoading}
-              onTradeClick={actions.handleZoomToTrade}
-              holidays={holidayState.holidays}
-              tradeHistory={state.tradeHistory}
-              tradeHistorySymbol={state.tradeHistorySymbol}
-              tradeSortColumn={actions.tradeSort.column}
-              tradeSortDirection={actions.tradeSort.direction}
-              onTradeSort={actions.tradeSort.handleSort}
-              onTradeRowClick={actions.handleZoomToTrade}
-              onCloseTradeHistory={() => setTradeHistory(null, null)}
-              selectedTf={actions.selectedTf}
-              onTfChange={actions.handleTfChange}
-            />
-          </CardContent>
-        </Card>
-      </Box>
+    <Box sx={{ display: "flex", justifyContent: "center", flex: 1, minHeight: 0, gap: 2 }} id="backtest-panels">
+      <Grid container spacing={2} sx={{ flex: 1, maxWidth: 1600, minHeight: 0, justifyContent: "center", alignItems: "stretch", gap: 2 }}>
+        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-left-panel">
+            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "center" }}>
+                <BacktestLeftPanel
+                  activeTab={activeTab}
+                  setActiveTab={setActiveTab}
+                  isRunning={state.isRunning}
+                  progress={state.progress}
+                  results={state.results}
+                  totals={state.totals}
+                  selectedChartSymbol={state.selectedChartSymbol}
+                  sortedResults={actions.sortedResults}
+                  resultsSortColumn={actions.resultsSort.column}
+                  resultsSortDirection={actions.resultsSort.direction}
+                  onRowClick={actions.handleViewChartAndTrades}
+                  onSort={actions.resultsSort.handleSort}
+                />
+              </CardContent>
+            </Card>
+          </Box>
+        </Grid>
+        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-right-panel">
+            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "center" }}>
+                <BacktestRightPanel
+                  showCharts={state.showCharts}
+                  results={state.results}
+                  symbols={symbols}
+                  selectedChartSymbol={state.selectedChartSymbol}
+                  onSymbolSelect={setSelectedChartSymbol}
+                  zoomValue={state.chartOptions.date_range}
+                  onZoomChange={(value) => setChartOptions({ date_range: value as any })}
+                  chartDataMap={state.chartData}
+                  chartLoading={state.chartLoading}
+                  onTradeClick={actions.handleZoomToTrade}
+                  holidays={holidayState.holidays}
+                  tradeHistory={state.tradeHistory}
+                  tradeHistorySymbol={state.tradeHistorySymbol}
+                  tradeSortColumn={actions.tradeSort.column}
+                  tradeSortDirection={actions.tradeSort.direction}
+                  onTradeSort={actions.tradeSort.handleSort}
+                  onTradeRowClick={actions.handleZoomToTrade}
+                  onCloseTradeHistory={() => setTradeHistory(null, null)}
+                  selectedTf={actions.selectedTf}
+                  onTfChange={actions.handleTfChange}
+                />
+              </CardContent>
+            </Card>
+          </Box>
+        </Grid>
+      </Grid>
     </Box>
   );
 }

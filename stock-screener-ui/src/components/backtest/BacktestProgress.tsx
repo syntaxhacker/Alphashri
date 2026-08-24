@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Progress, Text, Group, Stack } from "@/ui";
+import { Progress, Text, Group, Stack, Box } from "@/ui";
 
 interface BacktestProgressProps {
   progress: {
@@ -20,17 +20,19 @@ export const BacktestProgress = memo(function BacktestProgress({ progress }: Bac
     <Stack
       id="backtest-progress"
       className="backtest-progress"
+      spacing={1}
       gap="xs"
       data-testid="progress-container"
+      sx={{ gap: 1, p: 1 }}
     >
-      <Group justify="space-between" className="progress-header">
-        <Text size="sm" fw={500} className="progress-title">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+        <Text size="sm" fw={500} c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
           Running...
         </Text>
-        <Text size="sm" className="progress-counter" data-testid="progress-counter">
+        <Text size="sm" sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }} data-testid="progress-counter">
           {progress.current}/{progress.total}
         </Text>
-      </Group>
+      </Box>
       <Progress
         value={percent}
         animated

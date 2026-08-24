@@ -21,10 +21,12 @@ export function TradingList({ symbols, title = "Trading Symbols" }: TradingListP
     >
       <Group
         justify="space-between"
+        align="center"
         mb={opened ? "xs" : 0}
         data-testid="trading-list-header"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}
       >
-        <Group gap="sm" data-testid="trading-list-title-group">
+        <Group gap="sm" align="center" data-testid="trading-list-title-group" sx={{ display: "flex", alignItems: "center" }}>
           <ActionIcon
             variant="subtle"
             onClick={() => setOpened((o) => !o)}

@@ -24,7 +24,7 @@ export function getTone(item: SummaryItem): string {
 
 export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
   return (
-    <CompactStatGrid>
+    <CompactStatGrid sx={{ gap: 1, p: 1 }}>
       {summary.map((item) => (
         <CompactStat
           key={item.label}
@@ -32,6 +32,7 @@ export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
           value={item.value}
           tone={item.color ? COLOR_MAP[item.color] || "text.primary" : "text.primary"}
           testId={`summary-card-${item.label}`}
+          sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
         />
       ))}
     </CompactStatGrid>

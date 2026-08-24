@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { Badge, Text, Group, Tooltip, Button } from "@/ui";
+import { useMemo, useState, useCallback } from "react";
+import { Badge, Text, Tooltip, Button } from "@/ui";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
@@ -24,17 +24,17 @@ function usePositionsData(): PaperPosition[] {
 
 function EmptyPositions() {
   return (
-    <Stack spacing={1} alignItems="center" justifyContent="center" sx={{ py: 1 }} data-testid="positions-empty">
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 160, textAlign: "center" }} data-testid="positions-empty">
       <Text size="sm" fw={500} c="dimmed">
         No open positions
       </Text>
-    </Stack>
+    </Box>
   );
 }
 
 function LoadingState() {
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", py: 1 }} data-testid="positions-panel">
+    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
       <Text size="xs" c="dimmed">
         Loading positions...
       </Text>
@@ -44,7 +44,7 @@ function LoadingState() {
 
 function EmptyOrLoadingState() {
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", py: 1 }} data-testid="positions-panel">
+    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
       <EmptyPositions />
     </Box>
   );
@@ -162,19 +162,19 @@ export function PaperPositionsTable() {
 
   return (
     <Stack spacing={1} data-testid="positions-table-container">
-      <Group justify="space-between" py={2}>
-        <Group gap="xs">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1, gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
             Positions ({sortedPositions.length})
           </Text>
           <Badge color={isLive ? "red" : "green"} variant="light" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
-        </Group>
-        <Group gap={1}>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CloseAllButton positions={sortedPositions} />
-        </Group>
-      </Group>
+        </Box>
+      </Box>
 
       {sortedPositions.length > 0 && (
         <Stack spacing={1}>

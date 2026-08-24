@@ -1,4 +1,10 @@
-import { Flex, Group, Select, Text, Box } from "@/ui";
+import { Box, Stack } from "@/ui";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -142,32 +148,28 @@ export function ScatterView({ stocks, metricX, metricY, onMetricXChange, onMetri
   const metricOptions = METRICS.map(m => ({ value: m.value, label: m.label }));
 
   return (
-    <Flex direction="column" style={{ height: '100%', flex: 1 }}>
-      <Group p="xs" gap="sm">
-        <Select
-          size="xs"
-          label="X Axis"
-          value={metricX}
-          onChange={(v) => onMetricXChange(v || metricX)}
-          data={metricOptions}
-          style={{ width: 140 }}
-        />
-        <Select
-          size="xs"
-          label="Y Axis"
-          value={metricY}
-          onChange={(v) => onMetricYChange(v || metricY)}
-          data={metricOptions}
-          style={{ width: 140 }}
-        />
-      </Group>
-      <Box style={{ flex: 1, minHeight: 0 }}>
-        <ReactECharts
-          option={option}
-          style={{ height: '100%', width: '100%' }}
-          opts={{ renderer: 'canvas' }}
-        />
-      </Box>
-    </Flex>
+    <Stack spacing={1} sx={{ height: "100%", flex: 1, p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
+      <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%", flexWrap: "wrap" }}>
+            <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>X Axis</Typography>
+            <Select size="small" value={metricX} onChange={(e) => onMetricXChange(String(e.target.value) || metricX)} sx={{ minWidth: 140 }}>
+              {metricOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
+            </Select>
+            <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Y Axis</Typography>
+            <Select size="small" value={metricY} onChange={(e) => onMetricYChange(String(e.target.value) || metricY)} sx={{ minWidth: 140 }}>
+              {metricOptions.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
+            </Select>
+          </Box>
+        </CardContent>
+      </Card>
+      <Card elevation={1} sx={{ width: "100%", flex: 1, p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+          </Box>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

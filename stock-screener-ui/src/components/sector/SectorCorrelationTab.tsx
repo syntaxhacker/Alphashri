@@ -1,5 +1,15 @@
 import { useEffect, useMemo } from "react";
-import { Box, Stack, Text, Title, Badge, Group, SegmentedControl, ScrollArea, Loader, Tooltip, Button, SimpleGrid, useColorScheme } from "@/ui";
+import { Box, Stack } from "@/ui";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import TableContainer from "@mui/material/TableContainer";
+import Button from "@mui/material/Button";
+import CircularProgress from "@mui/material/CircularProgress";
+import Select from "@mui/material/Select";
+import MenuItem from "@mui/material/MenuItem";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -15,7 +25,6 @@ import {
   fetchCorrelationData,
   subscribe as subscribeToState,
 } from "../../state/sectorCorrelation";
-import { CompactPanel } from "../common/compact";
 import { TanStackTable } from "../common/TanStackTable";
 import { formatPercentage } from "../../utils/ui-helpers";
 import { CorrelationHeatmap, SectorBetaChart, RotationTimeline } from "./SectorCorrelationCharts";
@@ -50,42 +59,32 @@ function CorrelationHeader({
   };
 
   return (
-    <Group justify="space-between" style={{ minHeight: 48 }}>
-      <Group gap={1}>
-        <SegmentedControl
-          data-testid="market-segment"
-          value={currentMarket}
-          onChange={handleMarketChange}
-          data={[
-            { label: "India", value: "india" },
-            { label: "US", value: "america" },
-          ]}
-          size="sm"
-        />
-        <SegmentedControl
-          data-testid="lookback-segment"
-          value={String(currentLookback)}
-          onChange={handleLookbackChange}
-          data={LOOKBACK_OPTIONS.map((o) => ({ label: o.label, value: String(o.value) }))}
-          size="sm"
-        />
-      </Group>
-      <Group gap={1}>
-        {lastUpdated && (
-          <Group gap={4} display="inline-flex">
-            <IconClock size={12} color="gray" />
-            <Text size="sm" c="dimmed">
-              {new Date(lastUpdated).toLocaleTimeString()}
-            </Text>
-          </Group>
-        )}
-        <Tooltip label="Refresh data">
-          <Box sx={{ p: 1, cursor: "pointer", display: "inline-flex" }} onClick={handleRefresh}>
-            <IconRefresh size={14} />
+    <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+      <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
+        <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+            <Select size="small" value={currentMarket} onChange={(e) => handleMarketChange(String(e.target.value))} data-testid="market-segment">
+              <MenuItem value="india">India</MenuItem>
+              <MenuItem value="america">US</MenuItem>
+            </Select>
+            <Select size="small" value={String(currentLookback)} onChange={(e) => handleLookbackChange(String(e.target.value))} data-testid="lookback-segment">
+              {LOOKBACK_OPTIONS.map((o) => (<MenuItem key={o.value} value={String(o.value)}>{o.label}</MenuItem>))}
+            </Select>
           </Box>
-        </Tooltip>
-      </Group>
-    </Group>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+            {lastUpdated && (
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+                <IconClock size={12} color="gray" />
+                <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{new Date(lastUpdated).toLocaleTimeString()}</Typography>
+              </Box>
+            )}
+            <Box sx={{ p: 1, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }} onClick={handleRefresh}>
+              <IconRefresh size={14} />
+            </Box>
+          </Box>
+        </Box>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -94,82 +93,66 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
     () => [
       {
         id: "rank",
-        header: "Rank",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Rank</Box>,
         accessorKey: "rank_current",
+        meta: { align: "center" },
         cell: (info) => {
           const rank = info.getValue<number>();
-          return (
-            <Badge size="sm" color={rank <= 3 ? "green" : "gray"} variant="light">
-              #{rank}
-            </Badge>
-          );
+          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Chip size="small" label={`#${rank}`} color={rank <= 3 ? "success" : "default"} variant="outlined" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} /></Box>);
         },
       },
       {
         id: "sector",
-        header: "Sector",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Sector</Box>,
         accessorKey: "name",
-        cell: (info) => <Text fw={500}>{info.getValue<string>()}</Text>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
       },
       {
         id: "rs_5d",
-        header: "5D RS",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>5D RS</Box>,
         accessorKey: "relative_strength_5d",
-        meta: { align: "right" },
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<number>();
-          return (
-            <Text c={val >= 0 ? "green" : "red"}>{formatPercentage(val / 100, 2, false)}</Text>
-          );
+          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPercentage(val / 100, 2, false)}</Typography></Box>);
         },
       },
       {
         id: "rs_1m",
-        header: "1M RS",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>1M RS</Box>,
         accessorKey: "relative_strength_1m",
-        meta: { align: "right" },
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<number>();
-          return (
-            <Text c={val >= 0 ? "green" : "red"}>{formatPercentage(val / 100, 2, false)}</Text>
-          );
+          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPercentage(val / 100, 2, false)}</Typography></Box>);
         },
       },
       {
         id: "rs_3m",
-        header: "3M RS",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>3M RS</Box>,
         accessorKey: "relative_strength_3m",
-        meta: { align: "right" },
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<number>();
-          return (
-            <Text c={val >= 0 ? "green" : "red"}>{formatPercentage(val / 100, 2, false)}</Text>
-          );
+          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPercentage(val / 100, 2, false)}</Typography></Box>);
         },
       },
       {
         id: "beta",
-        header: "Beta",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Beta</Box>,
         accessorKey: "beta_vs_index",
-        meta: { align: "right" },
-        cell: (info) => <Text>{info.getValue<number>().toFixed(2)}</Text>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>().toFixed(2)}</Typography></Box>,
       },
       {
         id: "rank_change",
-        header: "1M Change",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>1M Change</Box>,
         accessorKey: "rank_change_1m",
-        meta: { align: "right" },
+        meta: { align: "center" },
         cell: (info) => {
           const change = info.getValue<number>();
-          return (
-            <Badge
-              size="sm"
-              color={change > 0 ? "green" : change < 0 ? "red" : "gray"}
-              variant="light"
-            >
-              {change > 0 ? `+${change}` : change}
-            </Badge>
-          );
+          return (<Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Chip size="small" label={change > 0 ? `+${change}` : String(change)} color={change > 0 ? "success" : change < 0 ? "error" : "default"} variant="outlined" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} /></Box>);
         },
       },
     ],
@@ -177,59 +160,53 @@ function RelativeStrengthTable({ sectors }: { sectors: SectorCorrelationResponse
   );
 
   return (
-    <ScrollArea.Autosize mah={400} mx="auto">
-      <TanStackTable
-        data={sectors}
-        columns={columns}
-        enableSorting={false}
-      />
-    </ScrollArea.Autosize>
+    <TableContainer sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, maxHeight: 400, overflow: "auto", width: "100%" }}>
+      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
+            <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <TanStackTable data={sectors} columns={columns} enableSorting={false} />
+            </Box>
+          </CardContent>
+        </Card>
+      </Stack>
+    </TableContainer>
   );
 }
 
 
 function LoadingState() {
   return (
-    <CompactPanel
-      title={
-        <Group gap="xs">
-          <Loader size="sm" />
-          <Text fw={600} size="sm">
-            Loading sector correlation...
-          </Text>
-        </Group>
-      }
-      description="Computing cross-sector relationships and relative strength."
-      style={{ minHeight: 400 }}
-    >
-      <Box />
-    </CompactPanel>
+    <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+          <CircularProgress size={20} />
+          <Typography variant="subtitle2" sx={{ fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>Loading sector correlation...</Typography>
+        </Box>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Computing cross-sector relationships and relative strength.</Typography>
+      </CardContent>
+    </Card>
   );
 }
 
 function ErrorState({ error }: { error: string }) {
-  const handleRefresh = () => {
-    void fetchCorrelationData();
-  };
+  const handleRefresh = () => { void fetchCorrelationData(); };
   return (
-    <CompactPanel
-      title="Error"
-      description={error}
-      action={
-        <Button variant="light" color="red" size="sm" onClick={handleRefresh}>
-          Retry
-        </Button>
-      }
-    >
-      <Box />
-    </CompactPanel>
+    <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+          <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Error</Typography>
+        </Box>
+        <Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{error}</Typography>
+        <Button variant="outlined" color="error" size="small" onClick={handleRefresh} sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Retry</Button>
+      </CardContent>
+    </Card>
   );
 }
 
 export function SectorCorrelationTab() {
   useStoreSubscription(subscribeToState);
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
+  const isDark = typeof document !== "undefined" ? document.documentElement.getAttribute("data-dark") === "true" : false;
   const data = stateData;
   const sortedSectors = useMemo(() => {
     if (!data?.sectors) return [];
@@ -244,67 +221,65 @@ export function SectorCorrelationTab() {
   if (stateError) return <ErrorState error={stateError} />;
   if (!data || !data.sector_names || data.sector_names.length === 0) {
     return (
-      <CompactPanel title="No data" description="No correlation data available.">
-        <Box />
-      </CompactPanel>
+      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
+          <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>No data</Typography>
+          <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>No correlation data available.</Typography>
+        </CardContent>
+      </Card>
     );
   }
   const benchmark = sectorMarket === "india" ? "NIFTY 50" : "SPY";
 
   return (
-    <Stack gap="sm">
-      <CorrelationHeader
-        currentMarket={sectorMarket}
-        currentLookback={lookbackDays}
-        lastUpdated={data.last_updated}
-      />
-      <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="sm">
-        <CompactPanel
-          id="sector-correlation-heatmap"
-          data-testid="sector-correlation-heatmap"
-          padded={false}
-          title={<Title order={4}>Cross-Sector Correlation</Title>}
-          style={{ minHeight: 400 }}
-        >
-          <Box px="sm" pb="sm" style={{ minHeight: 300 }}>
-            <CorrelationHeatmap
-              matrix={data.correlation_matrix}
-              symbols={data.sector_names}
-              isDark={isDark}
-            />
+    <Stack spacing={1} sx={{ p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
+      <CorrelationHeader currentMarket={sectorMarket} currentLookback={lookbackDays} lastUpdated={data.last_updated} />
+      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "stretch", width: "100%" }}>
+        <Grid size={{ xs: 12, lg: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+          <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 400, display: "flex", flexDirection: "column", alignItems: "center" }} id="sector-correlation-heatmap" data-testid="sector-correlation-heatmap">
+            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Cross-Sector Correlation</Typography>
+              </Box>
+              <Box sx={{ p: 1, minHeight: 300, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, lg: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+          <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 450, display: "flex", flexDirection: "column", alignItems: "center" }} id="sector-beta-chart" data-testid="sector-beta-chart">
+            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector Beta vs Benchmark</Typography>
+              </Box>
+              <Box sx={{ p: 1, height: 350, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center" }} id="relative-strength-table" data-testid="relative-strength-table">
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+            <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Relative Strength Rankings</Typography>
           </Box>
-        </CompactPanel>
-        <CompactPanel
-          id="sector-beta-chart"
-          data-testid="sector-beta-chart"
-          padded={false}
-          title={<Title order={4}>Sector Beta vs Benchmark</Title>}
-          style={{ minHeight: 450 }}
-        >
-          <Box px="sm" pb="sm" style={{ height: 350 }}>
-            <SectorBetaChart sectors={sortedSectors} benchmark={benchmark} isDark={isDark} />
+          <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+            <RelativeStrengthTable sectors={sortedSectors} />
           </Box>
-        </CompactPanel>
-      </SimpleGrid>
-      <CompactPanel
-        id="relative-strength-table"
-        data-testid="relative-strength-table"
-        padded={false}
-        title={<Title order={4}>Relative Strength Rankings</Title>}
-      >
-        <RelativeStrengthTable sectors={sortedSectors} />
-      </CompactPanel>
-      <CompactPanel
-        id="rotation-timeline"
-        data-testid="rotation-timeline"
-        padded={false}
-        title={<Title order={4}>Sector Rotation (1-Month Rank Change)</Title>}
-        style={{ minHeight: 500 }}
-      >
-        <Box px="sm" pb="sm" style={{ height: 450 }}>
-          <RotationTimeline sectors={sortedSectors} isDark={isDark} />
-        </Box>
-      </CompactPanel>
+        </CardContent>
+      </Card>
+      <Card elevation={1} sx={{ width: "100%", p: 1, minHeight: 500, display: "flex", flexDirection: "column", alignItems: "center" }} id="rotation-timeline" data-testid="rotation-timeline">
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+            <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector Rotation (1-Month Rank Change)</Typography>
+          </Box>
+          <Box sx={{ p: 1, height: 450, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <RotationTimeline sectors={sortedSectors} isDark={isDark} />
+          </Box>
+        </CardContent>
+      </Card>
     </Stack>
   );
 }

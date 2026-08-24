@@ -191,7 +191,7 @@ export function HistoryFilters({
 
   return (
     <Flex gap="xs" align="center" wrap="wrap">
-      <Group gap="xs">
+      <Group gap="xs" align="center">
         <Text size="sm" c="dimmed">
           From:
         </Text>
@@ -203,7 +203,7 @@ export function HistoryFilters({
           placeholder="From"
         />
       </Group>
-      <Group gap="xs">
+      <Group gap="xs" align="center">
         <Text size="sm" c="dimmed">
           To:
         </Text>
@@ -215,7 +215,7 @@ export function HistoryFilters({
           placeholder="To"
         />
       </Group>
-      <Group gap="xs">
+      <Group gap="xs" align="center">
         <Text size="sm" c="dimmed">
           Symbol:
         </Text>

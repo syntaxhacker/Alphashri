@@ -1,41 +1,26 @@
 import type { UITheme } from "@/ui";
 import { fontWeights } from "../../../config/theme";
-import { hexToRgba } from "./cellPalette";
-import { CREAM, BROWN, BROWN_DARK, BLACK } from "../../../config/colors";
 
 export type ThemeType = UITheme;
-
-function resolveGray(theme: any, isDark: boolean, lightIdx: number, darkIdx: number): string {
-  // Support legacy theme.colors.gray and MUI palette.grey/gray
-  const legacyGray = theme?.colors?.gray ?? theme?.colors?.grey;
-  if (Array.isArray(legacyGray)) return legacyGray[isDark ? darkIdx : lightIdx] ?? "#CBD5E1";
-  const muiGrey = theme?.palette?.grey ?? theme?.palette?.gray;
-  if (muiGrey) {
-    // MUI palette.grey is an object with 50-900 keys
-    const shades = [muiGrey[50], muiGrey[100], muiGrey[200], muiGrey[300], muiGrey[400], muiGrey[500], muiGrey[600], muiGrey[700], muiGrey[800], muiGrey[900]];
-    return shades[isDark ? darkIdx : lightIdx] ?? shades[3] ?? "#CBD5E1";
-  }
-  return "#CBD5E1";
-}
 
 function resolveFontSize(theme: any, key: "sm" | "md"): string {
   return theme?.fontSizes?.[key] ?? (key === "sm" ? "12px" : "14px");
 }
 
-export const getStyles = (theme: ThemeType, isDark: boolean) => ({
+export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
   container: {
     display: "flex",
     flexDirection: "column" as const,
     height: "calc(100vh - 300px)",
     minHeight: 400,
     overflow: "hidden",
-    borderRadius: "12px",
-    background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.94)}) 0%, light-dark(${hexToRgba(CREAM, 0.88)}, ${hexToRgba(BLACK, 0.9)}) 100%)`,
+    borderRadius: 1,
+    bgcolor: "background.paper",
   },
   header: {
     display: "grid",
     gridTemplateColumns: "1fr 80px 1fr",
-    background: `linear-gradient(135deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.96)}) 0%, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BLACK, 0.95)}) 50%, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.96)}) 100%)`,
+    bgcolor: "background.paper",
     position: "sticky" as const,
     top: 0,
     zIndex: 10,
@@ -52,7 +37,7 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
   subHeader: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
-    background: `linear-gradient(90deg, light-dark(${hexToRgba(CREAM, 0.92)}, ${hexToRgba(BROWN_DARK, 0.92)}) 0%, light-dark(${hexToRgba(CREAM, 0.95)}, ${hexToRgba(BLACK, 0.88)}) 50%, light-dark(${hexToRgba(CREAM, 0.92)}, ${hexToRgba(BROWN_DARK, 0.92)}) 100%)`,
+    bgcolor: "background.paper",
     position: "sticky" as const,
     top: 40,
     zIndex: 9,
@@ -69,9 +54,9 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
   row: {
     display: "grid",
     gridTemplateColumns: "repeat(5, 1fr) 80px repeat(5, 1fr)",
-    transition: "background 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease",
+    transition: "background 0.18s ease",
     position: "relative" as const,
-    background: `linear-gradient(90deg, transparent 0%, light-dark(${hexToRgba(CREAM, 0.12)}, ${hexToRgba(CREAM, 0.03)}) 50%, transparent 100%)`,
+    bgcolor: "background.default",
   },
   cell: {
     padding: "6px 4px",
@@ -90,14 +75,13 @@ export const getStyles = (theme: ThemeType, isDark: boolean) => ({
     flexDirection: "column" as const,
     alignItems: "center",
     justifyContent: "center",
-    background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN_DARK, 0.92)}) 0%, light-dark(${hexToRgba(CREAM, 0.95)}, ${hexToRgba(BLACK, 0.95)}) 100%)`,
+    bgcolor: "background.paper",
     position: "sticky" as const,
     left: "calc(50% - 40px)",
     zIndex: 2,
   },
   atmHighlight: {
-    background: `linear-gradient(180deg, light-dark(${hexToRgba(CREAM, 0.96)}, ${hexToRgba(BROWN, 0.52)}) 0%, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN, 0.42)}) 100%)`,
+    bgcolor: "action.selected",
     color: "warning.main",
-    boxShadow: `inset 0 0 0 1px ${hexToRgba(CREAM, 0.18)}`,
   },
 });

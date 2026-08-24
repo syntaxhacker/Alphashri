@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, Group, Button, Tooltip, Box } from "@/ui";
+import { Text, Button, Tooltip } from "@/ui";
+import MuiBox from "@mui/material/Box";
 import { IconX } from "@tabler/icons-react";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
@@ -24,15 +25,17 @@ interface SelectedPositionBarProps {
 export const SelectedPositionBar = memo(function SelectedPositionBar({ position, onClose }: SelectedPositionBarProps) {
   if (!position) {
     return (
-      <Group
-        px="xs"
-        py={4}
+      <MuiBox
         sx={(theme) => ({
+          display: "flex",
+          alignItems: "center",
+          px: 1,
+          py: 0.5,
           background: theme.palette.background.paper,
         })}
       >
         <Text size="xs" c="dimmed">No position selected — click a row to view details</Text>
-      </Group>
+      </MuiBox>
     );
   }
 
@@ -40,50 +43,50 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
   const bgTint = position.pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE;
 
   return (
-    <Group
-      px="xs"
-      py={4}
-      justify="space-between"
-      sx={() => ({
+    <MuiBox
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 1,
+        px: 1,
+        py: 0.5,
         background: bgTint,
-      })}
+      }}
     >
-      <Group gap="md">
+      <MuiBox sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
         <Text size="sm" fw={600}>{position.symbol}</Text>
-        <Box
-          px={6}
-          py={2}
-          sx={(theme) => ({ borderRadius: 4, backgroundColor: alpha(position.side === "BUY" ? theme.palette.success.main : theme.palette.error.main, 0.08) })}
+        <MuiBox
+          sx={(theme) => ({ display: "flex", alignItems: "center", px: 1, py: 0.5, borderRadius: 1, backgroundColor: withAlpha(position.side === "BUY" ? theme.palette.success.main : theme.palette.error.main, 0.08) })}
         >
           <Text size="xs" fw={600} c={`${sideColor}.8`}>{position.side}</Text>
-        </Box>
+        </MuiBox>
         <Text size="xs" c="dimmed">Qty <Text span fw={500}>{position.quantity}</Text></Text>
-        <Group gap={4}>
+        <MuiBox sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Text size="xs" c="dimmed">Entry</Text>
           <Text size="xs" fw={500}>₹{position.entry_price.toFixed(2)}</Text>
-        </Group>
-        <Group gap={4}>
+        </MuiBox>
+        <MuiBox sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Text size="xs" c="dimmed">Curr</Text>
           <Text size="xs" fw={500}>₹{position.current_price.toFixed(2)}</Text>
-        </Group>
-        <Box
-          px={6}
-          py={2}
-          style={{ borderRadius: 4, backgroundColor: withAlpha(position.pnl >= 0 ? POSITIVE : NEGATIVE, 0.1) }}
+        </MuiBox>
+        <MuiBox
+          sx={{ display: "flex", alignItems: "center", px: 1, py: 0.5, borderRadius: 1, backgroundColor: withAlpha(position.pnl >= 0 ? POSITIVE : NEGATIVE, 0.1) }}
         >
           <Text size="xs" c={getPnLTextColor(position.pnl)} fw={700}>
             {position.pnl >= 0 ? "+" : ""}₹{formatNumber(position.pnl)} ({position.pnl_pct.toFixed(2)}%)
           </Text>
-        </Box>
-        <Group gap={4}>
+        </MuiBox>
+        <MuiBox sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Text size="xs" c="dimmed">TP</Text>
           <Text size="xs" c="teal" fw={500}>{position.take_profit > 0 ? `₹${position.take_profit.toFixed(2)}` : "—"}</Text>
-        </Group>
-        <Group gap={4}>
+        </MuiBox>
+        <MuiBox sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Text size="xs" c="dimmed">SL</Text>
           <Text size="xs" c="red" fw={500}>{position.stop_loss > 0 ? `₹${position.stop_loss.toFixed(2)}` : "—"}</Text>
-        </Group>
-      </Group>
+        </MuiBox>
+      </MuiBox>
       {onClose && (
         <Tooltip label="Close position">
           <Button
@@ -98,20 +101,8 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
           </Button>
         </Tooltip>
       )}
-    </Group>
+    </MuiBox>
   );
 });
 
-function Badge({ color, children }: { color: string; children: React.ReactNode }) {
-  const paletteKey = color === "blue" ? "primary.main" : color === "red" ? "error.main" : color === "green" ? "success.main" : "text.primary";
-  return (
-    <Text
-      component="span"
-      size="xs"
-      fw={600}
-      c={paletteKey}
-    >
-      {children}
-    </Text>
-  );
-}
+

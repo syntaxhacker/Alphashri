@@ -1,7 +1,5 @@
-import { Box } from "@/ui";
+import Box from "@mui/material/Box";
 import type { ThemeType } from "./chainStyles";
-import { hexToRgba } from "./cellPalette";
-import { TRADING_GREEN, TRADING_RED, CREAM } from "../../../config/colors";
 
 interface ChainTableHeaderProps {
   theme: ThemeType;
@@ -10,39 +8,14 @@ interface ChainTableHeaderProps {
 
 export function ChainTableHeader({ theme, styles }: ChainTableHeaderProps) {
   return (
-    <Box
-      className="chain-table-header"
-      style={styles.header}
-      data-testid="options-chain-table-header"
-    >
-      <Box
-        className="chain-header-cell chain-calls-header"
-        style={{
-          ...styles.headerCell,
-          color: theme.palette.success.dark,
-          background: `linear-gradient(135deg, ${hexToRgba(TRADING_GREEN, 0.14)} 0%, ${hexToRgba(TRADING_GREEN, 0.12)} 100%)`,
-        }}
-      >
+    <Box className="chain-table-header" sx={{ ...styles.header, display: "grid", gap: 1, p: 1 }} data-testid="options-chain-table-header">
+      <Box className="chain-header-cell chain-calls-header" sx={{ ...styles.headerCell, color: "success.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
         CALLS (CE)
       </Box>
-      <Box
-        className="chain-header-cell chain-strike-header"
-        style={{
-          ...styles.headerCell,
-          color: theme.palette.warning.dark,
-          background: `linear-gradient(180deg, ${hexToRgba(CREAM, 0.22)} 0%, ${hexToRgba(CREAM, 0.12)} 100%)`,
-        }}
-      >
+      <Box className="chain-header-cell chain-strike-header" sx={{ ...styles.headerCell, color: "warning.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
         STRIKE
       </Box>
-      <Box
-        className="chain-header-cell chain-puts-header"
-        style={{
-          ...styles.headerCell,
-          color: theme.palette.error.dark,
-          background: `linear-gradient(135deg, ${hexToRgba(TRADING_RED, 0.12)} 0%, ${hexToRgba(TRADING_RED, 0.14)} 100%)`,
-        }}
-      >
+      <Box className="chain-header-cell chain-puts-header" sx={{ ...styles.headerCell, color: "error.main", bgcolor: "background.paper", display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
         PUTS (PE)
       </Box>
     </Box>

@@ -1,22 +1,8 @@
-import { Text, Group, useColorScheme, useTheme } from "@/ui";
+import { Text, useColorScheme, useTheme } from "@/ui";
+import Box from "@mui/material/Box";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { CompactPanel } from "../../common/compact";
-import {
-  TOOLTIP_DARK_BG,
-  TOOLTIP_LIGHT_BG,
-  TOOLTIP_DARK_BORDER,
-  TOOLTIP_LIGHT_BORDER,
-  TOOLTIP_DARK_TEXT,
-  TOOLTIP_LIGHT_TEXT,
-  AXIS_DARK_LINE,
-  AXIS_LIGHT_LINE,
-  AXIS_DARK_SPLIT,
-  AXIS_LIGHT_SPLIT,
-  INDICATOR_LINE,
-  IV_AREA_START,
-  IV_AREA_END,
-} from "../../../config/colors";
 
 interface IVSkewChartProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -44,10 +30,9 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         const data = params[0];
         return `Strike: ${data.name}<br/>IV: ${data.value}%`;
       },
-      backgroundColor: isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG,
-      borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+      backgroundColor: isDark ? "rgba(0,0,0,0.8)" : "#fff",
       textStyle: {
-        color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT,
+        color: isDark ? "#fff" : "#000",
         fontSize: theme.fontSizes.sm,
       },
     },
@@ -61,13 +46,13 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       type: "category",
       data: chartData.map((d) => d.strike),
       axisLabel: { color: "gray", fontSize: theme.fontSizes.sm },
-      axisLine: { lineStyle: { color: isDark ? AXIS_DARK_LINE : AXIS_LIGHT_LINE } },
+      axisLine: { lineStyle: { color: isDark ? "#30363d" : "#d0d7de" } },
     },
     yAxis: {
       type: "value",
       axisLabel: { color: "gray", fontSize: theme.fontSizes.sm, formatter: "{value}%" },
       splitLine: {
-        lineStyle: { color: isDark ? AXIS_DARK_SPLIT : AXIS_LIGHT_SPLIT, type: "dashed" },
+        lineStyle: { color: isDark ? "#21262d" : "#eff2f5", type: "dashed" },
       },
     },
     series: [
@@ -76,7 +61,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         type: "line",
         smooth: true,
         symbol: "none",
-        lineStyle: { width: 3, color: INDICATOR_LINE },
+        lineStyle: { width: 3, color: (theme as any).palette?.primary?.main ?? "#1976d2" },
         areaStyle: {
           color: {
             type: "linear",
@@ -85,8 +70,8 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: IV_AREA_START },
-              { offset: 1, color: IV_AREA_END },
+              { offset: 0, color: "rgba(25,118,210,0.3)" },
+              { offset: 1, color: "rgba(25,118,210,0)" },
             ],
           },
         },
@@ -96,20 +81,15 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
 
   return (
     <CompactPanel className="iv-skew-chart-panel" data-testid="options-iv-skew-chart">
-      <Group justify="space-between" mb="xs" className="iv-skew-header">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }} className="iv-skew-header">
         <Text size="sm" fw={800} c="blue.6" style={{ letterSpacing: "0.5px" }}>
           VOLATILITY SMILE (IV SKEW)
         </Text>
         <Text size="sm" c="dimmed">
           Predicts market turbulence
         </Text>
-      </Group>
-      <ReactECharts
-        option={option}
-        style={{ height: "148px" }}
-        opts={{ renderer: "svg" }}
-        className="iv-skew-chart"
-      />
+      </Box>
+      <ReactECharts option={option} style={{ height: "148px" }} opts={{ renderer: "svg" }} className="iv-skew-chart" />
     </CompactPanel>
   );
 }

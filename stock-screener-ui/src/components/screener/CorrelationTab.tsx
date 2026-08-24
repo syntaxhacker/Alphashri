@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Group, MultiSelect, SegmentedControl, Select, Button, Alert } from "@/ui";
+import { Stack, Group, Box, MultiSelect, SegmentedControl, Select, Button, Alert } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
@@ -116,13 +116,14 @@ export function CorrelationTab() {
   const currentPeriod = timeframe === "daily" ? period.toString() : period.toString();
 
   return (
-    <Stack data-testid="correlation-tab" gap="sm" style={{ height: "100%" }}>
+    <Stack data-testid="correlation-tab" gap="sm" sx={{ height: "100%" }}>
       <CompactPanel
         title="Correlation Analysis"
         description="Analyze price correlation between symbols"
       >
         <Stack gap="sm">
-          <Group gap="sm" align="flex-end">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
+            <Group gap="sm" align="center" justify="center" sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexWrap: "wrap" }}>
             <MultiSelect
               label="Symbols"
               placeholder="Search and select symbols"
@@ -132,7 +133,7 @@ export function CorrelationTab() {
               onSearchChange={handleSearch}
               searchable
               size="sm"
-              style={{ flex: 1 }}
+              sx={{ flex: 1 }}
             />
             <SegmentedControl
               value={timeframe}
@@ -162,7 +163,8 @@ export function CorrelationTab() {
             >
               Calculate
             </Button>
-          </Group>
+            </Group>
+          </Box>
 
           {error && (
             <Alert icon={<IconAlertCircle size={16} />} color="red" size="sm">
@@ -184,7 +186,7 @@ export function CorrelationTab() {
         </Stack>
       </CompactPanel>
 
-      <Stack gap="sm" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <Stack gap="sm" sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
         <CompactPanel title="Correlation Matrix">
           <CorrelationMatrix matrix={matrix || []} symbols={symbols} isLoading={isLoading} />
         </CompactPanel>

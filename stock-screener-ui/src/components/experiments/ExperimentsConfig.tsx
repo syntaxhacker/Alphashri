@@ -57,7 +57,7 @@ function ParamValueInput({
         onChange={(v) => v != null && onChange(v)}
         data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
         size="sm"
-        style={{ width: 90 }}
+        sx={{ width: 90 }}
       />
     );
   }
@@ -82,7 +82,7 @@ function ParamValueInput({
       max={param.max}
       step={param.step ?? 1}
       size="sm"
-      style={{ width: 70 }}
+      sx={{ width: 70 }}
     />
   );
 }
@@ -131,15 +131,15 @@ export function ExperimentsConfig() {
   };
 
   return (
-    <Paper p="sm" radius="sm" elevation={1} data-testid="experiments-config">
-      <Stack gap="xs">
-        <Group gap="sm" align="flex-start">
-          <Box w={90} pt={4}>
+    <Paper elevation={0} sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1, width: "100%", alignItems: "center" }} data-testid="experiments-config">
+      <Stack gap={1} sx={{ width: "100%", alignItems: "stretch" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+          <Box sx={{ width: 90, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Text size="sm" fw={500}>
               Strategy
             </Text>
           </Box>
-          <Box flex={1}>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
             <Select
               data-testid="experiments-strategy-select"
               value={config.strategy}
@@ -149,29 +149,29 @@ export function ExperimentsConfig() {
               searchable
             />
           </Box>
-        </Group>
+        </Box>
 
         <Divider />
 
-        <Group gap="sm" align="flex-start">
-          <Box w={90} pt={4}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap" }}>
+          <Box sx={{ width: 90, display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Text size="sm" fw={500}>
               Symbols
             </Text>
           </Box>
-          <Box flex={1} data-testid="experiments-symbol-chips">
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }} data-testid="experiments-symbol-chips">
             <SymbolChips
               selectedSymbols={config.symbols}
               onSymbolsChange={(symbols) => setConfig({ symbols })}
             />
           </Box>
-        </Group>
+        </Box>
 
         <Divider />
 
-        <Group gap="sm" align="flex-end" wrap="wrap">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap" }}>
           <Tooltip label="Timeframe in minutes" withArrow>
-            <Group gap={4}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
               <Text size="xs" c="dimmed">
                 TF
               </Text>
@@ -181,9 +181,9 @@ export function ExperimentsConfig() {
                 onChange={(v) => v && setConfig({ tf: Number(v) })}
                 data={TIMEFRAMES}
                 size="sm"
-                style={{ width: 70 }}
+                sx={{ width: 70 }}
               />
-            </Group>
+            </Box>
           </Tooltip>
           <TextInput
             data-testid="experiments-date-start"
@@ -208,7 +208,7 @@ export function ExperimentsConfig() {
             onChange={(e) => setConfig({ includeCosts: e.currentTarget.checked })}
             size="sm"
           />
-        </Group>
+        </Box>
 
         <TextInput
           data-testid="experiments-description"
@@ -220,33 +220,31 @@ export function ExperimentsConfig() {
 
         <Divider />
 
-        <Box>
-          <Box mb={4}>
+        <Box sx={{ p: 1, width: "100%" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
             <Text size="sm" fw={500}>
               Sweep space
             </Text>
           </Box>
           {strategy && strategy.params.length > 0 ? (
-            <Stack gap="xs">
+            <Stack gap={1} sx={{ alignItems: "stretch" }}>
               {strategy.params.map((param) => {
                 const sweep = sweeps.find((sw) => sw.key === param.key);
                 return (
-                  <Group
+                  <Box
                     key={param.key}
-                    gap="sm"
-                    align="center"
-                    wrap="wrap"
+                    sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, flexWrap: "wrap", p: 1 }}
                     data-testid={`sweep-param-${param.key}`}
                   >
-                    <Box w={110}>
+                    <Box sx={{ width: 110, display: "flex", alignItems: "center", justifyContent: "center" }}>
                       <Text size="xs" c="dimmed">
                         {param.label}
                       </Text>
                     </Box>
                     {sweep ? (
-                      <Group gap={4} wrap="wrap">
+                      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, flexWrap: "wrap" }}>
                         {sweep.values.map((value, idx) => (
-                          <Group key={idx} gap={2} align="center">
+                          <Box key={idx} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
                             <ParamValueInput
                               param={param}
                               value={value}
@@ -262,7 +260,7 @@ export function ExperimentsConfig() {
                             >
                               <IconX size={12} />
                             </ActionIcon>
-                          </Group>
+                          </Box>
                         ))}
                         <Button
                           size="xs"
@@ -273,7 +271,7 @@ export function ExperimentsConfig() {
                         >
                           Add
                         </Button>
-                      </Group>
+                      </Box>
                     ) : (
                       <ParamValueInput
                         param={param}
@@ -302,21 +300,23 @@ export function ExperimentsConfig() {
                         Add to sweep
                       </Button>
                     )}
-                  </Group>
+                  </Box>
                 );
               })}
             </Stack>
           ) : (
-            <Text size="sm" c="dimmed">
-              Select a strategy to configure sweep parameters
-            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <Text size="sm" c="dimmed">
+                Select a strategy to configure sweep parameters
+              </Text>
+            </Box>
           )}
         </Box>
 
         <Divider />
 
-        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-          <Group gap={6} align="center">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap", p: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Text size="sm" data-testid="experiments-candidates-count">
               candidates = {grid} x {config.symbols.length} symbols = {candidates}
             </Text>
@@ -330,8 +330,8 @@ export function ExperimentsConfig() {
                 {candidates} &gt; 500 — large grid
               </Badge>
             )}
-          </Group>
-          <Group gap="xs" align="center">
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Button
               variant="filled"
               size="sm"
@@ -352,8 +352,8 @@ export function ExperimentsConfig() {
             >
               Reset
             </Button>
-          </Group>
-        </Group>
+          </Box>
+        </Box>
       </Stack>
     </Paper>
   );

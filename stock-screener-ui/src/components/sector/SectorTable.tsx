@@ -1,5 +1,7 @@
 import { useMemo } from "react";
-import { Text, Badge, Group, Progress, Box, ScrollArea } from "@/ui";
+import { Text, Badge, Progress, Box, Stack } from "@/ui";
+import TableContainer from "@mui/material/TableContainer";
+import CardContent from "@mui/material/CardContent";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { SectorItem } from "../../types/sector";
 import { TanStackTable } from "../common/TanStackTable";
@@ -26,7 +28,7 @@ function getMovementBar(pctChange: number) {
   const { capped, color } = getMovementBarValue(pctChange);
 
   return (
-    <Box w={100}>
+    <Box sx={{ width: 100, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <Progress value={capped} color={color} size="sm" radius="xl" />
     </Box>
   );
@@ -37,67 +39,75 @@ export function SectorTable({ sectors }: SectorTableProps) {
     () => [
       {
         id: "sector",
-        header: "Sector",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector</Box>,
         accessorKey: "sector",
-        cell: (info) => <span style={{ fontWeight: 700, fontSize: 13 }}>{info.getValue<string>()}</span>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13 }}>{info.getValue<string>()}</Box>,
       },
       {
         id: "avg_change",
-        header: "Change",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Change</Box>,
         accessorKey: "avg_change",
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <span style={{ color: getPnLTextColor(val), fontWeight: 700, fontSize: 12, textAlign: "right", display: "block" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", color: getPnLTextColor(val), fontWeight: 700, fontSize: 12 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}%
-            </span>
+            </Box>
           );
         },
       },
       {
         id: "movement",
-        header: "Movement",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Movement</Box>,
         accessorKey: "avg_change",
-        cell: (info) => <Group justify="center">{getMovementBar(info.getValue<number>())}</Group>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{getMovementBar(info.getValue<number>())}</Box>,
       },
       {
         id: "ad_ratio",
-        header: "A/D Ratio",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>A/D Ratio</Box>,
         accessorFn: (row) => `${row.advances} : ${row.declines}`,
+        meta: { align: "center" },
         cell: (info) => {
           const row = info.row.original;
           const adColor = row.advances > row.declines ? "green" : "red";
           return (
-            <span style={{ color: adColor, fontSize: 12, fontWeight: 600, textAlign: "center", display: "block" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", color: adColor, fontSize: 12, fontWeight: 600 }}>
               {row.advances} : {row.declines}
-            </span>
+            </Box>
           );
         },
       },
       {
         id: "strength",
-        header: "Strength",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Strength</Box>,
         accessorKey: "avg_adx",
+        meta: { align: "center" },
         cell: (info) => {
           const { label, color } = getStrengthInfo(info.getValue<number>());
           return (
-            <Group justify="center">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Badge color={color} variant="light" size="sm">
                 {label}
               </Badge>
-            </Group>
+            </Box>
           );
         },
       },
       {
         id: "top_movers",
-        header: "Top Movers",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Top Movers</Box>,
         accessorKey: "top_movers",
+        meta: { align: "center" },
         cell: (info) => (
-          <Text size="sm" c="dimmed" lineClamp={1}>
-            {info.getValue<string>()}
-          </Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Text size="sm" c="dimmed" lineClamp={1}>
+              {info.getValue<string>()}
+            </Text>
+          </Box>
         ),
       },
     ],
@@ -105,15 +115,19 @@ export function SectorTable({ sectors }: SectorTableProps) {
   );
 
   return (
-    <ScrollArea h="100%" offsetScrollbars>
-      <TanStackTable<SectorItem>
-        data={sectors}
-        columns={columns}
-        enableSorting={false}
-        emptyMessage="No sector data available"
-        dataTestId="sector-table"
-        getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
-      />
-    </ScrollArea>
+    <TableContainer sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 1 }}>
+      <Stack gap={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+        <CardContent sx={{ p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+          <TanStackTable<SectorItem>
+            data={sectors}
+            columns={columns}
+            enableSorting={false}
+            emptyMessage="No sector data available"
+            dataTestId="sector-table"
+            getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
+          />
+        </CardContent>
+      </Stack>
+    </TableContainer>
   );
 }

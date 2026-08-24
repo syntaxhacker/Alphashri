@@ -1,7 +1,9 @@
 import { useMemo } from "react";
 import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
-import { Box, Text } from "@/ui";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import { Box, Stack } from "@/ui";
+import Typography from "@mui/material/Typography";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../../components/common/TanStackTable";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -20,78 +22,98 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
   const columns = useMemo<ColumnDef<HeatmapStock>[]>(() => [
     {
       id: "symbol",
-      header: "Symbol",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Symbol</Box>,
       accessorKey: "symbol",
-      cell: (info) => <Text fw={700} size="xs">{info.getValue<string>()}</Text>,
+      meta: { align: "center" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
     },
     {
       id: "metric",
-      header: activeMetric.label,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>{activeMetric.label}</Box>,
       accessorFn: (row) => getMetricValue(row, metric),
+      meta: { align: "center" },
       cell: (info) => {
         const val = info.getValue<number>();
         const bg = getMetricColor(val, metricMin, metricMax);
         const tc = getMetricTextColor(val, metricMin, metricMax);
         return (
-          <Box fw={700} style={{ backgroundColor: bg, color: tc, padding: "1px 4px", borderRadius: 2, textAlign: "right" }}>
-            {activeMetric.fmt(val)}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+            <Box sx={{ backgroundColor: bg, color: tc, p: 1, borderRadius: 1, fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {activeMetric.fmt(val)}
+            </Box>
           </Box>
         );
       },
     },
     {
       id: "name",
-      header: "Name",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Name</Box>,
       accessorKey: "name",
-      cell: (info) => <Text size="xs" c="dimmed">{info.getValue<string>()}</Text>,
+      meta: { align: "center" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
     },
     {
       id: "pe_ratio",
-      header: "P/E",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>P/E</Box>,
       accessorKey: "pe_ratio",
-      cell: (info) => <Text size="xs" ta="right">{info.getValue<number>()?.toFixed(1)}</Text>,
+      meta: { align: "center" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>()?.toFixed(1)}</Typography></Box>,
     },
     {
       id: "market_cap",
-      header: "MCap",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>MCap</Box>,
       accessorKey: "market_cap",
-      cell: (info) => <Text size="xs" ta="right">{formatMarketCap(info.getValue<number>())}</Text>,
+      meta: { align: "center" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{formatMarketCap(info.getValue<number>())}</Typography></Box>,
     },
     {
       id: "price",
-      header: "Price",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Price</Box>,
       accessorKey: "price",
-      cell: (info) => <Text size="xs" ta="right">₹{info.getValue<number>()?.toFixed(2)}</Text>,
+      meta: { align: "center" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>₹{info.getValue<number>()?.toFixed(2)}</Typography></Box>,
     },
     {
       id: "change_pct",
-      header: "Chg",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Chg</Box>,
       accessorKey: "change_pct",
+      meta: { align: "center" },
       cell: (info) => {
         const val = info.getValue<number>();
         return (
-          <Text size="xs" ta="right" c={val >= 0 ? "green" : "red"}>
-            {val >= 0 ? "+" : ""}{val?.toFixed(2)}%
-          </Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+            <Typography sx={{ fontSize: 12, color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              {val >= 0 ? "+" : ""}{val?.toFixed(2)}%
+            </Typography>
+          </Box>
         );
       },
     },
     {
       id: "sector",
-      header: "Sector",
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Sector</Box>,
       accessorKey: "sector",
-      cell: (info) => <Text size="xs" c="dimmed">{info.getValue<string>()}</Text>,
+      meta: { align: "center" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
     },
   ], [activeMetric, metric, metricMin, metricMax]);
 
   return (
-    <TableContainer component={Paper} elevation={1}>
-      <TanStackTable<HeatmapStock>
-        data={stocks}
-        columns={columns}
-        initialState={{ sorting: [{ id: metric, desc: true }] }}
-        dataTestId="heatmap-list-table"
-      />
+    <TableContainer sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+            <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <TanStackTable<HeatmapStock>
+                data={stocks}
+                columns={columns}
+                initialState={{ sorting: [{ id: metric, desc: true }] }}
+                dataTestId="heatmap-list-table"
+              />
+            </Box>
+          </CardContent>
+        </Card>
+      </Stack>
     </TableContainer>
   );
 }

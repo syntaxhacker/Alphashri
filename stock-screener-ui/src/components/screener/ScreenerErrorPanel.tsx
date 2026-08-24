@@ -1,4 +1,4 @@
-import { Stack, Text, Button } from "@/ui";
+import { Stack, Box, Text, Button } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 
 interface ScreenerErrorPanelProps {
@@ -14,20 +14,13 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
       data-testid="screener-error-container"
       sx={{ p: 1 }}
     >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "8px",
-        }}
-      >
-        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <IconAlertCircle size={18} />
           <Text fw={600} size="sm">
             Screener failed to load
           </Text>
-        </div>
+        </Box>
         <Button
           onClick={onRefresh}
           variant="light"
@@ -37,7 +30,7 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
         >
           Retry
         </Button>
-      </div>
+      </Box>
       <Text size="sm" c="dimmed">
         {error}
       </Text>

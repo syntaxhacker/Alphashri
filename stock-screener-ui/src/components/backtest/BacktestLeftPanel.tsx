@@ -48,39 +48,43 @@ export function BacktestLeftPanel({
       value={activeTab}
       onChange={onTabChange}
       h="100%"
-      style={{ display: "flex", flexDirection: "column" }}
+      sx={{ display: "flex", flexDirection: "column" }}
     >
-      <Tabs.List flex="0 0 auto">
-        <Tabs.Tab
-          value="results"
-          leftSection={<IconTable size={14} />}
-          data-testid="backtest-tab-results"
-        >
-          Results
-        </Tabs.Tab>
-        <Tabs.Tab
-          value="history"
-          leftSection={<IconHistory size={14} />}
-          data-testid="backtest-tab-history"
-        >
-          History
-        </Tabs.Tab>
-      </Tabs.List>
+      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Tabs.List>
+          <Tabs.Tab
+            value="results"
+            leftSection={<IconTable size={14} />}
+            data-testid="backtest-tab-results"
+          >
+            Results
+          </Tabs.Tab>
+          <Tabs.Tab
+            value="history"
+            leftSection={<IconHistory size={14} />}
+            data-testid="backtest-tab-history"
+          >
+            History
+          </Tabs.Tab>
+        </Tabs.List>
+      </Box>
 
       <Tabs.Panel
         value="results"
         className="backtest-results-panel"
         flex={1}
-        style={{ minHeight: 0, overflow: "hidden" }}
+        sx={{ minHeight: 0, overflow: "hidden" }}
       >
         {isRunning ? (
-          <BacktestProgress
-            progress={{
-              current: progress.current,
-              total: progress.total,
-              message: progress.message,
-            }}
-          />
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
+            <BacktestProgress
+              progress={{
+                current: progress.current,
+                total: progress.total,
+                message: progress.message,
+              }}
+            />
+          </Box>
         ) : !results || results.length === 0 ? (
           <Center h="100%" c="dimmed" data-testid="results-empty">
             No results yet. Run a backtest.
@@ -91,12 +95,12 @@ export function BacktestLeftPanel({
             gap="xs"
             h="100%"
             className="backtest-results-content"
-            style={{ minHeight: 0 }}
+            sx={{ minHeight: 0, gap: 1 }}
           >
-            <Box style={{ flex: "0 0 auto" }}>
+            <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
               <BacktestSummary totals={totals} />
             </Box>
-            <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+            <Box flex={1} sx={{ minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
               <BacktestResultsTable
                 results={sortedResults}
                 selectedSymbol={selectedChartSymbol}
@@ -114,7 +118,7 @@ export function BacktestLeftPanel({
         value="history"
         className="backtest-history-panel"
         flex={1}
-        style={{ minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+        sx={{ minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
       >
         <BacktestHistory active={activeTab === "history"} onLoad={() => onTabChange("results")} />
       </Tabs.Panel>

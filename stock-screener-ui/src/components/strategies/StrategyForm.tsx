@@ -2,6 +2,7 @@ import { useState, useEffect, useMemo, useCallback } from "react";
 import {
   Modal,
   Stack,
+  Box,
   TextInput,
   Select,
   Tabs,
@@ -240,84 +241,105 @@ export function StrategyForm({
             </Alert>
           )}
 
-          <TextInput
-            size="sm"
-            label="Strategy Name"
-            name="name"
-            placeholder="My Custom Strategy"
-            defaultValue={initialValues.name}
-            required
-            data-testid="strategy-name-input"
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Strategy Name</Text>
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <TextInput
+                size="sm"
+                name="name"
+                placeholder="My Custom Strategy"
+                defaultValue={initialValues.name}
+                required
+                data-testid="strategy-name-input"
+              />
+            </Box>
+          </Box>
 
-          <Select
-            size="sm"
-            label="Strategy Type"
-            name="strategy_type"
-            data={STRATEGY_TYPES}
-            defaultValue={initialValues.strategy_type}
-            disabled={mode === "edit"}
-            onChange={(val) => {
-              if (val) {
-                setCurrentStrategyType(val);
-                setActiveTab(
-                  val === "ORB"
-                    ? "orb"
-                    : val === "SR_BREAKOUT"
-                      ? "sr"
-                      : val === "EMA_CROSS"
-                        ? "ema"
-                        : "52w",
-                );
-              }
-            }}
-            required
-            data-testid="strategy-type-input"
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Strategy Type</Text>
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <Select
+                size="sm"
+                name="strategy_type"
+                data={STRATEGY_TYPES}
+                defaultValue={initialValues.strategy_type}
+                disabled={mode === "edit"}
+                onChange={(val) => {
+                  if (val) {
+                    setCurrentStrategyType(val);
+                    setActiveTab(
+                      val === "ORB"
+                        ? "orb"
+                        : val === "SR_BREAKOUT"
+                          ? "sr"
+                          : val === "EMA_CROSS"
+                            ? "ema"
+                            : "52w",
+                    );
+                  }
+                }}
+                required
+                data-testid="strategy-type-input"
+              />
+            </Box>
+          </Box>
 
-          <TextInput
-            size="sm"
-            label="Description"
-            name="description"
-            placeholder="Optional description"
-            defaultValue={initialValues.description}
-            data-testid="strategy-description-input"
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Description</Text>
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <TextInput
+                size="sm"
+                name="description"
+                placeholder="Optional description"
+                defaultValue={initialValues.description}
+                data-testid="strategy-description-input"
+              />
+            </Box>
+          </Box>
 
-          <MultiSelect
-            size="sm"
-            label="Screener Profiles"
-            placeholder="Select screener profiles"
-            data={SCREENER_PROFILE_OPTIONS}
-            value={selectedProfiles}
-            onChange={setSelectedProfiles}
-            clearable
-            searchable
-            data-testid="strategy-screener-profiles"
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Screener Profiles</Text>
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <MultiSelect
+                size="sm"
+                placeholder="Select screener profiles"
+                data={SCREENER_PROFILE_OPTIONS}
+                value={selectedProfiles}
+                onChange={setSelectedProfiles}
+                clearable
+                searchable
+                data-testid="strategy-screener-profiles"
+              />
+            </Box>
+          </Box>
 
-          <MultiSelect
-            size="sm"
-            label="Custom Stocks"
-            placeholder="Search and add specific stocks"
-            description="Always watched alongside screener results"
-            data={symbolOptions}
-            value={customWatchlist}
-            onChange={setCustomWatchlist}
-            searchValue={symbolSearch}
-            onSearchChange={setSymbolSearch}
-            searchable
-            clearable
-            data-testid="strategy-custom-watchlist"
-          />
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+            <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Custom Stocks</Text>
+            <Box sx={{ flex: 1, display: "flex", alignItems: "center", flexDirection: "column", alignContent: "flex-start" }}>
+              <MultiSelect
+                size="sm"
+                placeholder="Search and add specific stocks"
+                description="Always watched alongside screener results"
+                data={symbolOptions}
+                value={customWatchlist}
+                onChange={setCustomWatchlist}
+                searchValue={symbolSearch}
+                onSearchChange={setSymbolSearch}
+                searchable
+                clearable
+                data-testid="strategy-custom-watchlist"
+              />
+            </Box>
+          </Box>
 
           <Tabs
             value={activeTab}
             onChange={setActiveTab}
             className="strategy-form-tabs"
             data-testid="strategy-form-tabs"
+            sx={{ display: "flex", flexDirection: "column", alignItems: "center" }}
           >
-            <Tabs.List className="strategy-form-tabs-list" data-testid="strategy-form-tabs-list">
+            <Tabs.List className="strategy-form-tabs-list" data-testid="strategy-form-tabs-list" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
               {isOrb && (
                 <Tabs.Tab value="orb" data-testid="strategy-tab-orb">
                   ORB Params

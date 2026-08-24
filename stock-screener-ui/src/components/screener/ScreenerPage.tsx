@@ -136,14 +136,14 @@ export function ScreenerPage({
   const hasSideFilters = screenerHasSideFilters(activeScreener);
 
   return (
-    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 2 }}>
+    <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }}>
       <MuiStack
         spacing={0}
         id="screener-main"
         data-testid="screener-page"
         sx={{ minHeight: 0, width: "100%" }}
       >
-        <Paper elevation={1} sx={{ p: 1, display: "flex", alignItems: "center" }} data-testid="screener-controls">
+        <Paper elevation={1} sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }} data-testid="screener-controls">
           <Tabs
             value={activeTab}
             onChange={(v) => {
@@ -153,7 +153,7 @@ export function ScreenerPage({
               if (v) setActiveTab(v);
             }}
           >
-            <Tabs.List sx={{ minHeight: 36 }}>
+            <Tabs.List sx={{ minHeight: 36, display: "flex", alignItems: "center" }}>
               <Tabs.Tab value="screener" leftSection={<IconTable size={16} />} data-testid="tab-screener">
                 Screener
               </Tabs.Tab>

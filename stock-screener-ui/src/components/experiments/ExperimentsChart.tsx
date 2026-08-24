@@ -122,18 +122,14 @@ export function ExperimentsChart() {
 
   if (!selectedRun) {
     return (
-      <Flex
+      <Box
         data-testid="experiments-chart"
-        align="center"
-        justify="center"
-        h="100%"
-        bg="background.paper"
-        style={{ borderRadius: "8px" }}
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 1 }}
       >
         <Text c="dimmed" size="sm">
           Select a run to view its chart
         </Text>
-      </Flex>
+      </Box>
     );
   }
 
@@ -143,18 +139,10 @@ export function ExperimentsChart() {
   return (
     <Box
       data-testid="experiments-chart"
-      h="100%"
-      bg="background.paper"
-      p="sm"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-        borderRadius: "8px",
-      }}
+      sx={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 1, gap: 1, alignItems: "center" }}
     >
-      <Group justify="space-between" align="center" mb="sm" wrap="nowrap">
-        <Group gap={6} wrap="nowrap">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, width: "100%", p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Text fw={600} size="sm">
             Run {selectedRun.run}
           </Text>
@@ -164,8 +152,8 @@ export function ExperimentsChart() {
           <Text size="sm" c="dimmed">
             {selectedRun.strategy}
           </Text>
-        </Group>
-        <Group gap="xs" wrap="nowrap">
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Text size="sm" c="dimmed">
             {selectedRun.tf}m
           </Text>
@@ -176,12 +164,12 @@ export function ExperimentsChart() {
             onChange={handleSymbolChange}
             size="sm"
             searchable
-            style={{ width: 130 }}
+            sx={{ width: 130 }}
           />
-        </Group>
-      </Group>
+        </Box>
+      </Box>
 
-      <Box flex={1} style={{ minHeight: 0, position: "relative" }}>
+      <Box sx={{ flex: 1, minHeight: 0, position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
         {showChartLoading ? (
           <Flex
             align="center"

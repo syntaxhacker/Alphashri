@@ -489,8 +489,8 @@ describe("PaperPositionsTable", () => {
       rWithCloseAllEnabled();
       const btn = screen.getByTestId("close-all-positions");
       await user.click(btn);
-      // second click while still closing should be ignored
-      await user.click(btn);
+      // second click while still closing should be ignored (button is disabled when loading, so click throws pointer-events error)
+      try { await user.click(btn); } catch {}
       expect(closeAllPositions).toHaveBeenCalledTimes(1);
       resolve(undefined);
       await waitFor(() => expect(screen.queryByText("Closing...")).not.toBeInTheDocument());

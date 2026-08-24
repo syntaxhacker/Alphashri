@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Text, Group, Stack, Badge, Loader } from "@/ui";
+import { Text, Group, Stack, Badge, Loader, Box } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
@@ -60,24 +60,28 @@ export function PerformanceView({
         id: "strategy_name",
         header: "Strategy",
         accessorKey: "strategy_name",
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Text fw={500} size="sm">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} size="sm" ta="center">
             {info.getValue<string>()}
-          </Text>
+          </Text></Box>
         ),
       },
       {
         id: "total_trades",
         header: "Total Trades",
         accessorKey: "total_trades",
-        cell: (info) => <Text size="sm">{info.getValue<number>()}</Text>,
+        meta: { align: "center" } as any,
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{info.getValue<number>()}</Text></Box>,
       },
       {
         id: "wl",
         header: "W / L",
         accessorFn: (row) => `${row.winners}/${row.losers}`,
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Group gap={4}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Text size="sm" c="teal">
               {info.row.original.winners}
             </Text>
@@ -88,18 +92,22 @@ export function PerformanceView({
               {info.row.original.losers}
             </Text>
           </Group>
+          </Box>
         ),
       },
       {
         id: "win_rate",
         header: "Win Rate",
         accessorKey: "win_rate",
+        meta: { align: "center" } as any,
         cell: (info) => {
           const winRate = info.getValue<number>();
           return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
             <Badge size="sm" color={winRate >= 50 ? "teal" : "red"} variant="light">
               {winRate.toFixed(1)}%
             </Badge>
+            </Box>
           );
         },
       },
@@ -107,13 +115,16 @@ export function PerformanceView({
         id: "net_pnl",
         header: "Net P&L",
         accessorKey: "net_pnl",
+        meta: { align: "center" } as any,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
             <span style={{ color: val >= 0 ? "teal" : "red", fontWeight: 500, fontSize: 13 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}
             </span>
+            </Box>
           );
         },
       },
@@ -123,12 +134,14 @@ export function PerformanceView({
 
   return (
     <Stack
+      spacing={1}
       gap="sm"
       className="performance-view"
       id="performance-view"
       data-testid="performance-view"
+      sx={{ gap: 1, p: 1 }}
     >
-      <CompactStatGrid>
+      <CompactStatGrid sx={{ gap: 1, p: 1 }}>
         <CompactStat
           label="Total Trades"
           value={totalTrades}
@@ -167,13 +180,15 @@ export function PerformanceView({
         description="Click a row to inspect the strategy's trade history"
         scrollable
       >
-        <TanStackTable<StrategyPerformance>
-          data={performance}
-          columns={columns}
-          onRowClick={(row) => onSelectStrategy(row.strategy_id)}
-          dataTestId="performance-table"
-          stickyHeader={false}
-        />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+          <TanStackTable<StrategyPerformance>
+            data={performance}
+            columns={columns}
+            onRowClick={(row) => onSelectStrategy(row.strategy_id)}
+            dataTestId="performance-table"
+            stickyHeader={false}
+          />
+        </Box>
       </CompactPanel>
     </Stack>
   );

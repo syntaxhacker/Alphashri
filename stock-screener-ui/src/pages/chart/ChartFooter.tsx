@@ -12,19 +12,21 @@ export function ChartFooter({ data, timeframe, orMinutes }: ChartFooterProps) {
     <Box
       id="chart-footer"
       data-testid="chart-footer"
-      sx={{ display: "flex", gap: 1, py: 1, px: 2, bgcolor: "background.paper", typography: "body2", color: "text.secondary", flexWrap: "wrap" }}
+      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, bgcolor: "background.paper", typography: "body2", color: "text.secondary", flexWrap: "wrap", width: "100%" }}
     >
-      <Typography variant="body2" color="text.secondary" component="span">{data.candles.length} candles</Typography>
-      <Typography variant="body2" color="text.secondary" component="span">•</Typography>
-      <Typography variant="body2" color="text.secondary" component="span">TF: {timeframe}m</Typography>
-      <Typography variant="body2" color="text.secondary" component="span">•</Typography>
-      <Typography variant="body2" color="text.secondary" component="span">OR: {orMinutes}m</Typography>
-      {data.high_52w && (
-        <>
-          <Typography variant="body2" color="text.secondary" component="span">•</Typography>
-          <Typography variant="body2" color="text.secondary" component="span">52W High: ₹{data.high_52w.toFixed(2)}</Typography>
-        </>
-      )}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap" }}>
+        <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>{data.candles.length} candles</Typography>
+        <Typography variant="body2" color="text.secondary" component="span">•</Typography>
+        <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>TF: {timeframe}m</Typography>
+        <Typography variant="body2" color="text.secondary" component="span">•</Typography>
+        <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>OR: {orMinutes}m</Typography>
+        {data.high_52w && (
+          <>
+            <Typography variant="body2" color="text.secondary" component="span">•</Typography>
+            <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>52W High: ₹{data.high_52w.toFixed(2)}</Typography>
+          </>
+        )}
+      </Box>
     </Box>
   );
 }

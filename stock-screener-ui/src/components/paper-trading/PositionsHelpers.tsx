@@ -251,13 +251,13 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
   return (
     <Stack gap={2}>
       <SimpleGrid cols={2} spacing="xs">
-        <Box style={{ overflow: "hidden" }}>
+        <Box sx={{ overflow: "hidden" }}>
           <Text size="xs" c="dimmed">Entry Reason</Text>
-          <Text size="sm" style={{ wordBreak: "break-word" }}>{pos.entry_reason || "—"}</Text>
+          <Text size="sm" sx={{ wordBreak: "break-word" }}>{pos.entry_reason || "—"}</Text>
         </Box>
-        <Box style={{ overflow: "hidden" }}>
+        <Box sx={{ overflow: "hidden" }}>
           <Text size="xs" c="dimmed">Exit Reason</Text>
-          <Text size="sm" style={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
+          <Text size="sm" sx={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
       <SimpleGrid cols={4} spacing={2}>
@@ -291,25 +291,26 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
         </Box>
         <Box>
           <Text size="xs" c="dimmed">Position ID</Text>
-          <Text size="xs" style={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
+          <Text size="xs" sx={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
         </Box>
       </SimpleGrid>
       <Box>
         <Text size="xs" c="dimmed" mb={2}>Notes</Text>
-        <Group gap="xs">
-          <Textarea
-            size="xs"
-            value={notes}
-            onChange={(val) => setNotes(val)}
-            placeholder="Add notes..."
-            style={{ flex: 1 }}
-            maxLength={500}
-            autosize
-            minRows={1}
-            maxRows={3}
-          />
-          <Button size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving}>Save</Button>
-        </Group>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Textarea
+              size="xs"
+              value={notes}
+              onChange={(val) => setNotes(val)}
+              placeholder="Add notes..."
+              maxLength={500}
+              autosize
+              minRows={1}
+              maxRows={3}
+            />
+          </Box>
+          <Button size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving} sx={{ alignSelf: "center" }}>Save</Button>
+        </Box>
       </Box>
     </Stack>
   );
@@ -394,6 +395,7 @@ export function PositionsTableBody({
       id: "toggle",
       header: "",
       size: 32,
+      meta: { align: "center" },
       enableSorting: false,
        cell: ({ row }) => (
         <ActionIcon
@@ -411,6 +413,7 @@ export function PositionsTableBody({
       id: "symbol",
       header: "Symbol",
       size: 100,
+      meta: { align: "center" },
       accessorKey: "symbol",
       cell: ({ row }) => {
         const pos = row.original;
@@ -433,6 +436,7 @@ export function PositionsTableBody({
       id: "price",
       header: "Entry→Curr",
       size: 160,
+      meta: { align: "center" },
       accessorFn: (row) => row.current_price - row.entry_price,
       cell: ({ row }) => {
         const pos = row.original;
@@ -443,6 +447,7 @@ export function PositionsTableBody({
       id: "pnl",
       header: "P&L",
       size: 100,
+      meta: { align: "center" },
       accessorFn: (row) => row.pnl,
       cell: ({ row }) => <PnLDisplay pnl={row.original.pnl} pnlPct={row.original.pnl_pct} />,
     },
@@ -450,6 +455,7 @@ export function PositionsTableBody({
       id: "age",
       header: "Age",
       size: 80,
+      meta: { align: "center" },
       accessorFn: (row) => row.entry_time,
       cell: ({ row }) => <Text size="xs" c="dimmed">{formatElapsed(row.original.entry_time)}</Text>,
     },
@@ -457,6 +463,7 @@ export function PositionsTableBody({
       id: "close",
       header: "",
       size: 40,
+      meta: { align: "center" },
       enableSorting: false,
       cell: ({ row }) => {
         const pos = row.original;

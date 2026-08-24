@@ -84,17 +84,17 @@ export function HeatmapPage() {
   const isTop10View = view === "top10";
 
   return (
-    <Box sx={{ p: 2, display: "flex", flexDirection: "column", gap: 2, minHeight: 0, height: "100%", overflow: "hidden", width: "100%" }} data-testid="heatmap-page">
-      <Box p={1} sx={{ flexShrink: 0 }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
-          <Group gap="xs">
+    <Box sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1, minHeight: 0, height: "100%", overflow: "hidden", width: "100%", alignItems: "center" }} data-testid="heatmap-page">
+      <Box sx={{ flexShrink: 0, p: 1, width: "100%", display: "flex", flexDirection: "column", gap: 1, alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, width: "100%", flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
             <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "green" : "blue"}>
               {heatmapData?.cached ? "Cached" : "Live"}
             </Badge>
-          </Group>
-        </Flex>
-        <Group mt={1} gap={1} wrap="wrap">
+          </Box>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, flexWrap: "wrap", width: "100%" }}>
           <Select
             data-testid="heatmap-sector-filter"
             size="xs"
@@ -135,15 +135,15 @@ export function HeatmapPage() {
             sx={{ width: 130 }}
           />
           <Text data-testid="heatmap-stock-count" size="xs" c="dimmed">{filteredStocks.length} stocks</Text>
-        </Group>
+        </Box>
       </Box>
 
-      <Box sx={{ flex: 1, overflow: "auto", position: "relative", minHeight: 0, p: 1 }}>
+      <Box sx={{ flex: 1, overflow: "auto", position: "relative", minHeight: 0, p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%" }}>
         <LoadingOverlay visible={heatmapLoading} />
         {heatmapError && (
-          <Flex justify="center" align="center" h={200}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, width: "100%" }}>
             <Text data-testid="heatmap-error" c="red">Error: {heatmapError.message || "Failed to load"}</Text>
-          </Flex>
+          </Box>
         )}
         {!heatmapLoading && isChartView && (
           <HeatmapTreemap
@@ -205,19 +205,19 @@ export function HeatmapPage() {
         )}
       </Box>
 
-      <Box data-testid="heatmap-legend" p={1} sx={{ flexShrink: 0 }}>
-        <Group gap="md">
+      <Box data-testid="heatmap-legend" sx={{ flexShrink: 0, p: 1, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, flexWrap: "wrap", width: "100%" }}>
           <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
-          <Group gap={1}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Box sx={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMin, metricMin, metricMax), borderRadius: "2px" }} />
             <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
-          </Group>
+          </Box>
           <Box sx={{ flex: 1, maxWidth: 120, height: 8, borderRadius: "4px", background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-          <Group gap={1}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Box sx={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMax, metricMin, metricMax), borderRadius: "2px" }} />
             <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>
-          </Group>
-        </Group>
+          </Box>
+        </Box>
       </Box>
     </Box>
   );

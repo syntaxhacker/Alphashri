@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
-import { Badge, Text, Group, Progress, Tooltip, Button } from "@/ui";
+import { Badge, Text, Progress, Tooltip, Button } from "@/ui";
+import Box from "@mui/material/Box";
 import { IconX } from "@tabler/icons-react";
 import { CompactPanel } from "../common/compact";
 import { PositionsTableBody } from "./PositionsHelpers";
@@ -41,8 +42,8 @@ export const StrategyCard = memo(function StrategyCard({
 
   return (
     <CompactPanel testId={`strategy-card-${strategyName}`} scrollable={false}>
-      <Group justify="space-between" mb={2}>
-        <Group gap="xs" style={{ flex: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flex: 1, flexWrap: "wrap" }}>
           <Text size="sm" fw={600}>{strategyName}</Text>
           <Badge size="xs">{summary.count}</Badge>
           <Text size="xs" c={getPnLTextColor(summary.totalPnl)} fw={600}>
@@ -56,7 +57,7 @@ export const StrategyCard = memo(function StrategyCard({
             aria-label={`${summary.count} of ${maxCapacity} positions`}
           />
           <Text size="xs" c="dimmed">{summary.count}/{maxCapacity}</Text>
-        </Group>
+        </Box>
         <Tooltip label="Close all in this strategy">
           <Button
             size="compact-xs"
@@ -72,7 +73,7 @@ export const StrategyCard = memo(function StrategyCard({
             Close All
           </Button>
         </Tooltip>
-      </Group>
+      </Box>
       <PositionsTableBody positions={positions} onSelect={onSelectSymbol} onClose={onClosePosition} />
     </CompactPanel>
   );

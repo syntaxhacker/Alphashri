@@ -52,20 +52,21 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
       id="bot-status-panel"
       className="bot-status-panel"
     >
-      <Stack gap="sm">
+      <Stack spacing={1} gap="sm" sx={{ gap: 1, p: 1 }}>
         <Card
-          shadow="sm"
+          elevation={1}
           padding="sm"
-          radius="md"
+          radius="sm"
           id="bot-header-card"
           data-testid="bot-header-card"
+          sx={{ p: 1 }}
         >
-          <Group justify="space-between">
-            <Stack gap={4}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+            <Stack gap={1} sx={{ gap: 1 }}>
               <Text fw={700} size="lg" c="primary.main" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <Group gap="xs">
+              <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <StatusBadge
                   running={status?.running ?? false}
                   pid={status?.pid ?? undefined}
@@ -83,7 +84,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                 )}
               </Group>
             </Stack>
-            <Group gap="xs">
+            <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               {status?.running ? (
                 <Button
                   leftSection={<IconPlayerStop size={16} />}
@@ -123,30 +124,33 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                 Refresh
               </Button>
             </Group>
-          </Group>
+          </Box>
         </Card>
 
         {status?.portfolio ? (
           <PortfolioSummaryCard portfolio={status.portfolio} />
         ) : (
           <Card
-            shadow="sm"
+            elevation={1}
             padding="sm"
             radius="md"
             id="portfolio-placeholder"
             data-testid="portfolio-placeholder"
+            sx={{ p: 1 }}
           >
-            <Text c="dimmed" ta="center">
-              Start the bot to see live portfolio data
-            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <Text c="dimmed" ta="center">
+                Start the bot to see live portfolio data
+              </Text>
+            </Box>
           </Card>
         )}
 
         {status?.strategies && (
-          <Stack gap={0} data-testid="strategies-status">
-            <Group gap="xs" mb="sm">
+          <Stack spacing={1} gap={0} data-testid="strategies-status" sx={{ gap: 1, p: 1 }}>
+            <Group gap={1} align="center" mb="sm" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
               <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
-              <Text fw={600}>
+              <Text fw={600} size="sm">
                 Strategy Status
               </Text>
               <Badge size="sm" variant="light" color="violet">

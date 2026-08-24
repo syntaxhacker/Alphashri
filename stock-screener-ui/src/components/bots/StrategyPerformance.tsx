@@ -43,59 +43,67 @@ const columns: ColumnDef<StrategyPerf>[] = [
     accessorKey: "strategy_name",
     header: "Strategy",
     enableSorting: true,
+    meta: { align: "center" } as any,
     cell: ({ row }) => (
-      <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
-        {row.original.strategy_name}
-      </Badge>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
+          {row.original.strategy_name}
+        </Badge>
+      </Box>
     ),
   },
   {
     accessorKey: "trades",
     header: "Trades",
     enableSorting: true,
-    cell: ({ getValue }) => <Text fw={500}>{getValue<number>()}</Text>,
+    meta: { align: "center" } as any,
+    cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} ta="center">{getValue<number>()}</Text></Box>,
   },
   {
     accessorKey: "wins",
     header: "Wins",
     enableSorting: true,
+    meta: { align: "center" } as any,
     cell: ({ getValue }) => (
-      <>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
         <Badge color="green" variant="dot" size="sm" />
-        <Text span ml={4}>{getValue<number>()}</Text>
-      </>
+        <Text span ml={4} ta="center">{getValue<number>()}</Text>
+      </Box>
     ),
   },
   {
     accessorKey: "losses",
     header: "Losses",
     enableSorting: true,
+    meta: { align: "center" } as any,
     cell: ({ getValue }) => (
-      <>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
         <Badge color="red" variant="dot" size="sm" />
-        <Text span ml={4}>{getValue<number>()}</Text>
-      </>
+        <Text span ml={4} ta="center">{getValue<number>()}</Text>
+      </Box>
     ),
   },
   {
     accessorKey: "win_rate",
     header: "Win Rate",
     enableSorting: true,
+    meta: { align: "center" } as any,
     cell: ({ getValue }) => {
       const v = getValue<number>();
-      return <Text fw={500} c={v >= 50 ? "teal" : "orange"}>{v}%</Text>;
+      return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} c={v >= 50 ? "teal" : "orange"} ta="center">{v}%</Text></Box>;
     },
   },
   {
     accessorKey: "net_pnl",
     header: "Net P&L",
     enableSorting: true,
+    meta: { align: "center" } as any,
     cell: ({ getValue }) => {
       const v = getValue<number>();
       return (
-        <Text fw={600} c={v >= 0 ? "teal" : "red"}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} c={v >= 0 ? "teal" : "red"} ta="center">
           {v >= 0 ? "+" : ""}₹{v.toLocaleString()}
-        </Text>
+        </Text></Box>
       );
     },
   },
@@ -117,46 +125,50 @@ export function StrategyPerformance() {
   const totalWinRate = data.total_trades > 0 ? ((totalWins / data.total_trades) * 100).toFixed(1) : "0.0";
 
   return (
-    <Paper p="md" radius="md">
-      <Group gap="xs" mb="md">
-        <Box w={4} h={24} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
-        <Title order={4}>Strategy Performance</Title>
-        <Badge size="sm" variant="light" color="cyan">last {data.days} days</Badge>
-      </Group>
+    <Paper elevation={1} p="sm" radius="sm" sx={{ p: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          <Box w={4} h={24} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
+          <Title order={4} ta="center">Strategy Performance</Title>
+          <Badge size="sm" variant="light" color="cyan">last {data.days} days</Badge>
+        </Box>
+      </Box>
       <TanStackTable<StrategyPerf>
         data={data.strategies}
         columns={columns}
       />
       <Paper
+        elevation={1}
         p="sm"
         mt="sm"
         radius="sm"
         sx={(theme) => ({
+          p: 1,
           background: alpha(data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.08),
         })}
       >
-        <Group justify="space-between">
-          <Group gap="lg">
-            <div>
-              <Text size="xs" c="dimmed">Total Trades</Text>
-              <Text fw={700} size="lg">{data.total_trades}</Text>
-            </div>
-            <div>
-              <Text size="xs" c="dimmed">Win / Loss</Text>
-              <Group gap="xs">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-start" }}>
+              <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total Trades</Text>
+              <Text fw={700} size="lg" sx={{ flex: 1, textAlign: "right" }}>{data.total_trades}</Text>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-start" }}>
+              <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Win / Loss</Text>
+              <Group gap={1} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <Badge color="green" variant="light" size="sm">{totalWins} W</Badge>
                 <Badge color="red" variant="light" size="sm">{totalLosses} L</Badge>
                 <Text size="sm" c="dimmed">({totalWinRate}%)</Text>
               </Group>
-            </div>
+            </Box>
           </Group>
-          <div style={{ textAlign: "right" }}>
-            <Text size="xs" c="dimmed">Total Net P&L</Text>
-            <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "teal" : "red"}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-end" }}>
+            <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Total Net P&L</Text>
+            <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "teal" : "red"} sx={{ flex: 1, textAlign: "right" }}>
               {data.total_net_pnl >= 0 ? "+" : ""}₹{data.total_net_pnl.toLocaleString()}
             </Text>
-          </div>
-        </Group>
+          </Box>
+        </Box>
       </Paper>
     </Paper>
   );

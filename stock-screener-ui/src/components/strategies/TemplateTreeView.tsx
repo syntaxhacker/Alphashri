@@ -79,10 +79,11 @@ export function TemplateTreeView({
 
       return (
         <Group
-          gap={6}
+          gap={1}
           wrap="nowrap"
+          align="center"
           {...elementProps}
-          style={{ ...(elementProps.style as React.CSSProperties), padding: "2px 0" }}
+          style={{ ...(elementProps.style as React.CSSProperties), padding: "2px 0", display: "flex", alignItems: "center", gap: 8 }}
         >
           {hasChildren ? (
             <IconChevronDown
@@ -102,7 +103,7 @@ export function TemplateTreeView({
             <span style={{ width: 14, flexShrink: 0 }} />
           )}
 
-          <Text size="sm" fw={isTemplate ? 600 : 400} style={{ minWidth: 160, flexShrink: 0 }}>
+          <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ minWidth: 80, flexShrink: 0, display: "flex", alignItems: "center" }}>
             {node.label as string}
           </Text>
 
@@ -265,28 +266,29 @@ export function TemplateTreeView({
       scrollable
     >
       <Group
-        gap={6}
+        gap={1}
+        align="center"
         px="sm"
         pb={4}
-        style={{ borderBottom: 1 }}
+        sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}
       >
         <span style={{ width: 14, flexShrink: 0 }} />
-        <Text size="xs" c="dimmed" style={{ minWidth: 160 }}>
+        <Text size="xs" c="dimmed" style={{ minWidth: 80, display: "flex", alignItems: "center" }}>
           Name
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 90 }}>
+        <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", alignItems: "center" }}>
           Type
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 70 }}>
+        <Text size="xs" c="dimmed" style={{ width: 70, display: "flex", alignItems: "center" }}>
           SL%
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 70 }}>
+        <Text size="xs" c="dimmed" style={{ width: 70, display: "flex", alignItems: "center" }}>
           TP%
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 60 }}>
+        <Text size="xs" c="dimmed" style={{ width: 60, display: "flex", alignItems: "center" }}>
           MaxPos
         </Text>
-        <Text size="xs" c="dimmed" style={{ width: 90 }}>
+        <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", alignItems: "center" }}>
           Actions
         </Text>
       </Group>

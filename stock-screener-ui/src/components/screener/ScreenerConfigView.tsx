@@ -282,28 +282,30 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const renderFilterInput = (filter: ProfileFilter) => {
     if (filter.type === "number") {
       return (
-        <NumberInput
-          key={filter.key}
-          label={filter.label}
-          value={filter.default as number}
-          onChange={(val) => updateFilterValue(filter.key, val || 0)}
-          min={filter.min}
-          max={filter.max}
-          step={filter.step}
-          style={{ width: 120 }}
-        />
+        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+          <NumberInput
+            label={filter.label}
+            value={filter.default as number}
+            onChange={(val) => updateFilterValue(filter.key, val || 0)}
+            min={filter.min}
+            max={filter.max}
+            step={filter.step}
+            sx={{ width: 120 }}
+          />
+        </Box>
       );
     }
     if (filter.type === "select" && filter.options) {
       return (
-        <Select
-          key={filter.key}
-          label={filter.label}
-          data={filter.options}
-          value={filter.default as string}
-          onChange={(val) => updateFilterValue(filter.key, val || "")}
-          style={{ width: 120 }}
-        />
+        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+          <Select
+            label={filter.label}
+            data={filter.options}
+            value={filter.default as string}
+            onChange={(val) => updateFilterValue(filter.key, val || "")}
+            sx={{ width: 120 }}
+          />
+        </Box>
       );
     }
     return null;
@@ -320,7 +322,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       >
         <ScrollArea h="100%">
           <Stack gap="sm" p="sm">
-            <Group justify="space-between" data-testid="screener-list-header">
+            <Stack direction="row" align="center" justify="space-between" data-testid="screener-list-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
               <Text fw={600} size="xs" data-testid="screener-configs-title">
                 CONFIGS
               </Text>
@@ -375,7 +377,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               >
                 + Create
               </Button>
-            </Group>
+            </Stack>
             <Divider />
 
             {screenerOptions.map((option) => (
@@ -393,8 +395,8 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 })}
                 onClick={() => onScreenerChange(option.id)}
               >
-                <Group justify="space-between" mb="sm">
-                  <Group gap="sm">
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                  <Group gap="sm" align="center">
                     <Text size="sm" fw={500}>
                       {option.label}
                     </Text>
@@ -404,7 +406,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                       </Badge>
                     )}
                   </Group>
-                  <Group gap="sm">
+                  <Group gap="sm" align="center">
                     <ActionIcon
                       size="sm"
                       variant="subtle"
@@ -429,7 +431,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                       <Text size="xs">Del</Text>
                     </ActionIcon>
                   </Group>
-                </Group>
+                </Box>
                 <Text size="xs" c="dimmed" lineClamp={1}>
                   {option.id}
                 </Text>
@@ -440,47 +442,51 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       </Box>
 
       <Box
-        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
         data-testid="screener-preview-panel"
       >
         <Box p="sm" sx={{ overflow: "auto" }} data-testid="screener-details-bar">
           {activeOption && (
-            <Group gap="sm" wrap="wrap" data-testid="screener-filters">
-              <Badge size="xs" color="blue" data-testid="screener-name-badge">
-                {activeOption.label}
-              </Badge>
-              {(() => {
-                let filterObj: Record<string, any> = {};
-                if (Array.isArray(activeOption.filters)) {
-                  activeOption.filters.forEach((f: any) => {
-                    if (f.key && f.default !== undefined) filterObj[f.key] = f.default;
-                  });
-                } else if (activeOption.filters && typeof activeOption.filters === "object") {
-                  filterObj = activeOption.filters as Record<string, any>;
-                }
-                return Object.entries(filterObj).map(([key, value]) => (
-                  <Badge key={key} size="xs" color="red" variant="light">
-                    {key.replace(/_/g, " ")}: {String(value)}
-                  </Badge>
-                ));
-              })()}
-            </Group>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+              <Group gap="sm" wrap="wrap" data-testid="screener-filters" align="center">
+                <Badge size="xs" color="blue" data-testid="screener-name-badge">
+                  {activeOption.label}
+                </Badge>
+                {(() => {
+                  let filterObj: Record<string, any> = {};
+                  if (Array.isArray(activeOption.filters)) {
+                    activeOption.filters.forEach((f: any) => {
+                      if (f.key && f.default !== undefined) filterObj[f.key] = f.default;
+                    });
+                  } else if (activeOption.filters && typeof activeOption.filters === "object") {
+                    filterObj = activeOption.filters as Record<string, any>;
+                  }
+                  return Object.entries(filterObj).map(([key, value]) => (
+                    <Badge key={key} size="xs" color="red" variant="light">
+                      {key.replace(/_/g, " ")}: {String(value)}
+                    </Badge>
+                  ));
+                })()}
+              </Group>
+            </Box>
           )}
         </Box>
-        <Group justify="space-between" px="xs" data-testid="preview-header">
-          <Text fw={600} size="xs" data-testid="preview-count">
-            PREVIEW ({stocks.length})
-          </Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() => loadPreview()}
-            loading={previewLoading}
-            data-testid="preview-refresh-btn"
-          >
-            ↻
-          </Button>
-        </Group>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1 }}>
+          <Group justify="space-between" px="xs" align="center" data-testid="preview-header" sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Text fw={600} size="xs" data-testid="preview-count">
+              PREVIEW ({stocks.length})
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => loadPreview()}
+              loading={previewLoading}
+              data-testid="preview-refresh-btn"
+            >
+              ↻
+            </Button>
+          </Group>
+        </Box>
         <Box sx={{ flex: 1, overflow: "auto" }} p="sm">
           {previewLoading ? (
             <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-loading">
@@ -582,7 +588,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             <Text size="sm" fw={600}>
               Indicators
             </Text>
-            <Group gap="md">
+            <Group gap="md" align="center">
               {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map(
                 (ind) => (
                   <Checkbox
@@ -600,7 +606,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 <Text size="sm" fw={600}>
                   Filter Values
                 </Text>
-                <Group gap="md">{form.filters.map(renderFilterInput)}</Group>
+                <Group gap="md" align="center">{form.filters.map(renderFilterInput)}</Group>
               </>
             )}
 
@@ -623,7 +629,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               }
             />
 
-            <Group justify="flex-end" mt="md">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, mt: 2 }}>
               <Button
                 variant="light"
                 onClick={() => {
@@ -643,7 +649,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               >
                 {isEdit ? "Update" : "Create"}
               </Button>
-            </Group>
+            </Box>
           </Stack>
         </Box>
 
@@ -653,15 +659,15 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             paddingLeft: 3,
           }}
         >
-          <Stack gap="sm" data-testid="create-modal-preview">
-            <Group justify="space-between">
+            <Stack gap="sm" data-testid="create-modal-preview">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
               <Text fw={600} size="sm" data-testid="modal-live-preview-title">
                 LIVE PREVIEW
               </Text>
               <Badge size="sm" color="blue">
                 {stocks.length} stocks
               </Badge>
-            </Group>
+            </Box>
             {form.columns.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="xl">
                 Select columns to preview

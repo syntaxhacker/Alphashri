@@ -1,54 +1,33 @@
-import { Box, Text, Badge, Group, Flex } from "@/ui";
-import type { UITheme } from "@/ui";
-import { hexToRgba } from "./cellPalette";
-import { CREAM, BROWN, BROWN_DARK, BLACK, TRADING_GREEN } from "../../../config/colors";
+import Box from "@mui/material/Box";
+import { Text, Badge } from "@/ui";
 
 interface ChainFooterProps {
-  theme: UITheme;
+  theme: any;
   colorScheme: "light" | "dark";
   spotPrice: number | null;
 }
 
-export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps) {
+export function ChainFooter({ spotPrice }: ChainFooterProps) {
   return (
-    <Flex
+    <Box
       className="chain-table-footer"
-      p="xs"
-      justify="space-between"
-      align="center"
-      style={{
-        background: `linear-gradient(90deg, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN_DARK, 0.9)}) 0%, light-dark(${hexToRgba(CREAM, 0.88)}, ${hexToRgba(BLACK, 0.88)}) 50%, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN_DARK, 0.9)}) 100%)`,
-      }}
       data-testid="options-chain-table-footer"
+      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, bgcolor: "background.paper", flexWrap: "wrap", width: "100%" }}
     >
-      <Group gap="xl" className="chain-legend">
-        <Group gap={5} className="chain-legend-item" data-testid="options-legend-itm">
-          <Box
-            w={10}
-            h={10}
-            style={{
-              borderRadius: 999,
-              background: `linear-gradient(135deg, ${hexToRgba(CREAM, 0.45)} 0%, ${hexToRgba(TRADING_GREEN, 0.28)} 100%)`,
-            }}
-          />
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexWrap: "wrap", justifyContent: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} data-testid="options-legend-itm">
+          <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "success.main" }} />
           <Text size="sm" c="dimmed">
             ITM (In The Money)
           </Text>
-        </Group>
-        <Group gap={5} className="chain-legend-item" data-testid="options-legend-atm">
-          <Box
-            w={10}
-            h={10}
-            style={{
-              borderRadius: 999,
-              background: `linear-gradient(135deg, ${hexToRgba(CREAM, 0.95)} 0%, ${hexToRgba(BROWN, 0.65)} 100%)`,
-            }}
-          />
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }} data-testid="options-legend-atm">
+          <Box sx={{ width: 10, height: 10, borderRadius: 999, bgcolor: "warning.main" }} />
           <Text size="sm" c="dimmed">
             ATM (At The Money)
           </Text>
-        </Group>
-        <Group gap={15} className="chain-legend-badges" data-testid="options-legend-badges">
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }} data-testid="options-legend-badges">
           <Badge size="sm" variant="light" color="green">
             LB: Long Buildup
           </Badge>
@@ -61,21 +40,16 @@ export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps)
           <Badge size="sm" variant="light" color="orange">
             LU: Long Unwinding
           </Badge>
-        </Group>
-      </Group>
+        </Box>
+      </Box>
       {spotPrice && (
-        <Text
-          size="sm"
-          fw={600}
-          className="chain-spot-price"
-          data-testid="options-chain-spot-price"
-        >
+        <Text size="sm" fw={600} className="chain-spot-price" data-testid="options-chain-spot-price">
           Spot:{" "}
           <Text component="span" c="blue">
             {spotPrice.toFixed(2)}
           </Text>
         </Text>
       )}
-    </Flex>
+    </Box>
   );
 }

@@ -222,140 +222,172 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       id="bot-config-modal"
     >
       <form onSubmit={handleSubmit} data-testid="bot-config-form">
-        <Stack gap="sm">
-          <Stack gap="xs" data-testid="bot-config-basic-info">
-            <Text fw={600}>Basic Information</Text>
-            <Group grow>
-              <TextInput
-                label="Bot Name"
-                placeholder="e.g., Multi-ORB Test"
-                required
-                value={name}
-                onChange={(val) => setName(val)}
-                data-testid="bot-name-input"
-              />
-              <Checkbox
-                label="Active"
-                checked={isActive}
-                onChange={(e) => setIsActive(e.currentTarget.checked)}
-                mt="xl"
-                data-testid="bot-active-checkbox"
-              />
-            </Group>
+        <Stack spacing={1} gap="sm" sx={{ gap: 1, p: 1 }}>
+          <Stack spacing={1} gap="xs" data-testid="bot-config-basic-info" sx={{ gap: 1, p: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text fw={600} size="sm" ta="center">Basic Information</Text></Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Bot Name</Text>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <TextInput
+                  placeholder="e.g., Multi-ORB Test"
+                  required
+                  value={name}
+                  onChange={(val) => setName(val)}
+                  data-testid="bot-name-input"
+                />
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Active</Text>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <Checkbox
+                  label=""
+                  checked={isActive}
+                  onChange={(e) => setIsActive(e.currentTarget.checked)}
+                  data-testid="bot-active-checkbox"
+                />
+              </Box>
+            </Box>
           </Stack>
 
           <Divider />
 
-          <Stack gap="xs" data-testid="bot-config-global-limits">
-            <Text fw={600}>Global Limits</Text>
-            <Group grow>
-              <NumberInput
-                label="Max Total Positions"
-                min={1}
-                max={20}
-                value={maxPositions}
-                onChange={(val) => setMaxPositions(Number(val) || 10)}
-                data-testid="max-positions-input"
-              />
-              <NumberInput
-                label="Max Total Capital (%)"
-                min={10}
-                max={100}
-                step={5}
-                value={maxCapital}
-                onChange={(val) => setMaxCapital(Number(val) || 80)}
-                data-testid="max-capital-input"
-              />
-            </Group>
-            <Group grow>
-              <NumberInput
-                label="Max Daily Loss (%)"
-                description="Stops ALL strategies when hit. Default: 3%"
-                min={1}
-                max={20}
-                step={1}
-                value={maxDailyLoss}
-                onChange={(val) => setMaxDailyLoss(Number(val) || 3)}
-                data-testid="max-daily-loss-input"
-              />
-            </Group>
-            <Group>
-              <Switch
-                label="Live Trading"
-                description="Places real orders via Upstox API. Use with caution!"
-                checked={liveTrading}
-                onChange={(e) => setLiveTrading(e.currentTarget.checked)}
-                color="red"
-                data-testid="bot-live-trading-switch"
-              />
-            </Group>
+          <Stack spacing={1} gap="xs" data-testid="bot-config-global-limits" sx={{ gap: 1, p: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text fw={600} size="sm" ta="center">Global Limits</Text></Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Total Positions</Text>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <NumberInput
+                  min={1}
+                  max={20}
+                  value={maxPositions}
+                  onChange={(val) => setMaxPositions(Number(val) || 10)}
+                  data-testid="max-positions-input"
+                />
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Total Capital (%)</Text>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <NumberInput
+                  min={10}
+                  max={100}
+                  step={5}
+                  value={maxCapital}
+                  onChange={(val) => setMaxCapital(Number(val) || 80)}
+                  data-testid="max-capital-input"
+                />
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Daily Loss (%)</Text>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <NumberInput
+                  description="Stops ALL strategies when hit. Default: 3%"
+                  min={1}
+                  max={20}
+                  step={1}
+                  value={maxDailyLoss}
+                  onChange={(val) => setMaxDailyLoss(Number(val) || 3)}
+                  data-testid="max-daily-loss-input"
+                />
+              </Box>
+            </Box>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Live Trading</Text>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                <Switch
+                  label=""
+                  description="Places real orders via Upstox API. Use with caution!"
+                  checked={liveTrading}
+                  onChange={(e) => setLiveTrading(e.currentTarget.checked)}
+                  color="red"
+                  data-testid="bot-live-trading-switch"
+                />
+              </Box>
+            </Box>
           </Stack>
 
           <Divider />
 
-          <Stack gap="xs" data-testid="bot-config-strategies">
-            <Text fw={600}>Strategy Allocations</Text>
-            <Text size="sm" c="dimmed">
+          <Stack spacing={1} gap="xs" data-testid="bot-config-strategies" sx={{ gap: 1, p: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text fw={600} size="sm" ta="center">Strategy Allocations</Text></Box>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}><Text size="sm" c="dimmed" ta="center">
               Configure which strategies to run and their capital allocations. Total allocation
               should not exceed 100%.
-            </Text>
+            </Text></Box>
 
-            <Stack gap="sm" data-testid="strategy-allocations">
+            <Stack spacing={1} gap="sm" data-testid="strategy-allocations" sx={{ gap: 1 }}>
               {strategies.map((strategy) => (
-                <Card
+                  <Card
                   key={strategy.id}
                   padding="sm"
+                  radius="sm"
+                  elevation={1}
+                  sx={{ p: 1 }}
                   data-testid="strategy-allocation-row"
                 >
-                  <Group align="flex-end" grow>
-                    <Select
-                      label="Strategy"
-                      placeholder="Select a strategy..."
-                      data={selectableStrategies.map((s) => ({
-                        value: s.id,
-                        label: `${s.name} (${s.strategy_type})`,
-                      }))}
-                      value={strategy.strategy_id}
-                      onChange={(val) =>
-                        handleUpdateStrategy(strategy.id, "strategy_id", val || "")
-                      }
-                      data-testid={`strategy-allocation-select-${strategy.id}`}
-                    />
-                    <NumberInput
-                      label="Allocation %"
-                      min={5}
-                      max={100}
-                      step={5}
-                      value={strategy.capital_allocation_pct}
-                      onChange={(val) =>
-                        handleUpdateStrategy(
-                          strategy.id,
-                          "capital_allocation_pct",
-                          Number(val) || 20,
-                        )
-                      }
-                      data-testid={`strategy-allocation-pct-${strategy.id}`}
-                    />
-                    <NumberInput
-                      label="Max Positions"
-                      min={1}
-                      max={10}
-                      value={strategy.max_positions}
-                      onChange={(val) =>
-                        handleUpdateStrategy(strategy.id, "max_positions", Number(val) || 3)
-                      }
-                      data-testid={`strategy-allocation-positions-${strategy.id}`}
-                    />
-                    <ActionIcon
-                      color="red"
-                      variant="subtle"
-                      onClick={() => handleRemoveStrategy(strategy.id)}
-                      title="Remove"
-                      data-testid={`remove-strategy-btn-${strategy.id}`}
-                    >
-                      <IconTrash size={16} />
-                    </ActionIcon>
-                  </Group>
+                  <Stack spacing={1} sx={{ gap: 1 }}>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+                      <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Strategy</Text>
+                      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                        <Select
+                          placeholder="Select a strategy..."
+                          data={selectableStrategies.map((s) => ({
+                            value: s.id,
+                            label: `${s.name} (${s.strategy_type})`,
+                          }))}
+                          value={strategy.strategy_id}
+                          onChange={(val) =>
+                            handleUpdateStrategy(strategy.id, "strategy_id", val || "")
+                          }
+                          data-testid={`strategy-allocation-select-${strategy.id}`}
+                        />
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+                      <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Allocation %</Text>
+                      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                        <NumberInput
+                          min={5}
+                          max={100}
+                          step={5}
+                          value={strategy.capital_allocation_pct}
+                          onChange={(val) =>
+                            handleUpdateStrategy(
+                              strategy.id,
+                              "capital_allocation_pct",
+                              Number(val) || 20,
+                            )
+                          }
+                          data-testid={`strategy-allocation-pct-${strategy.id}`}
+                        />
+                      </Box>
+                    </Box>
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+                      <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Max Positions</Text>
+                      <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+                        <NumberInput
+                          min={1}
+                          max={10}
+                          value={strategy.max_positions}
+                          onChange={(val) =>
+                            handleUpdateStrategy(strategy.id, "max_positions", Number(val) || 3)
+                          }
+                          data-testid={`strategy-allocation-positions-${strategy.id}`}
+                        />
+                      </Box>
+                      <ActionIcon
+                        color="red"
+                        variant="subtle"
+                        onClick={() => handleRemoveStrategy(strategy.id)}
+                        title="Remove"
+                        data-testid={`remove-strategy-btn-${strategy.id}`}
+                      >
+                        <IconTrash size={16} />
+                      </ActionIcon>
+                    </Box>
+                  </Stack>
                   <StrategyParams
                     strategy={
                       selectableStrategies.find((s) => s.id === strategy.strategy_id) || {
@@ -401,24 +433,24 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
               Add Strategy
             </Button>
 
-            <Group justify="space-between" mt="md">
-              <Text size="sm">
-                Total Allocation:{" "}
-                <Text span fw={700} c={isOverAllocated ? "red" : undefined}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mt="sm">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total Allocation</Text>
+                <Text size="sm" fw={700} c={isOverAllocated ? "red" : undefined} sx={{ flex: 1, textAlign: "right" }}>
                   {totalAllocation.toFixed(0)}%
                 </Text>
-              </Text>
+              </Box>
               {isOverAllocated && (
                 <Alert color="red" variant="light" p="xs">
                   Over 100%
                 </Alert>
               )}
-            </Group>
+            </Box>
           </Stack>
 
           <Divider />
 
-          <Group justify="flex-end">
+          <Group justify="flex-end" gap={1} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
             <Button variant="subtle" onClick={handleClose} data-testid="cancel-bot-config-btn">
               Cancel
             </Button>

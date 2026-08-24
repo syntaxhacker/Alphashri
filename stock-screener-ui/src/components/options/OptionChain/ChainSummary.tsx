@@ -1,5 +1,6 @@
-import { Group, Text, Stack, Divider } from "@/ui";
-import { RingProgress } from "@/ui";
+import { Text, RingProgress } from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import { useMemo } from "react";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
 
@@ -73,82 +74,53 @@ export function ChainSummary({
   const pcrColor = computePcrColor(stats.pcr);
 
   return (
-    <CompactStatGrid data-testid="chain-summary">
-      <CompactPanel
-        className="chain-summary-card chain-summary-pcr"
-        data-testid="options-chain-summary-pcr"
-      >
-        <Group justify="space-between" wrap="nowrap" align="flex-start">
-          <Stack gap={2}>
-            <CompactStat label="PCR" value={stats.pcr.toFixed(2)} tone={pcrColor} />
-            <Text size="sm" c={pcrColor} fw={600}>
-              {stats.pcr > 1 ? "Bullish bias" : "Bearish bias"}
-            </Text>
+    <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
+      <CompactStatGrid data-testid="chain-summary">
+        <CompactPanel className="chain-summary-card chain-summary-pcr" data-testid="options-chain-summary-pcr">
+          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
+            <Stack spacing={1}>
+              <CompactStat label="PCR" value={stats.pcr.toFixed(2)} tone={pcrColor} />
+              <Text size="sm" c={pcrColor} fw={600}>
+                {stats.pcr > 1 ? "Bullish bias" : "Bearish bias"}
+              </Text>
+            </Stack>
+            <RingProgress
+              size={60}
+              thickness={6}
+              roundCaps
+              sections={[
+                { value: (stats.totalPE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "red.6" },
+                { value: (stats.totalCE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "green.6" },
+              ]}
+            />
+          </Box>
+        </CompactPanel>
+
+        <CompactPanel className="chain-summary-card chain-summary-range" data-testid="options-chain-summary-range">
+          <Stack spacing={1} sx={{ alignItems: "center" }}>
+            <CompactStat
+              label="Market Range"
+              value={stats.expectedMove ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}` : "Data pending"}
+              tone={stats.expectedMove ? "blue.6" : "dimmed"}
+              hint={stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined}
+            />
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, width: "100%" }} data-testid="options-chain-support-resistance">
+              <Text size="sm" fw={700} c="red.6">
+                RES {stats.resistanceStrike}
+              </Text>
+              <Text size="sm" fw={700} c="green.6">
+                SUP {stats.supportStrike}
+              </Text>
+            </Box>
           </Stack>
-          <RingProgress
-            size={60}
-            thickness={6}
-            roundCaps
-            sections={[
-              {
-                value: (stats.totalPE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100,
-                color: "red.6",
-              },
-              {
-                value: (stats.totalCE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100,
-                color: "green.6",
-              },
-            ]}
-          />
-        </Group>
-      </CompactPanel>
+        </CompactPanel>
 
-      <CompactPanel
-        className="chain-summary-card chain-summary-range"
-        data-testid="options-chain-summary-range"
-      >
-        <Stack gap={4}>
-          <CompactStat
-            label="Market Range"
-            value={
-              stats.expectedMove
-                ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}`
-                : "Data pending"
-            }
-            tone={stats.expectedMove ? "blue.6" : "dimmed"}
-            hint={
-              stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined
-            }
-          />
-          <Divider my={2} />
-          <Group
-            gap="xs"
-            className="chain-support-resistance"
-            data-testid="options-chain-support-resistance"
-          >
-            <Text size="sm" fw={700} c="red.6">
-              RES {stats.resistanceStrike}
-            </Text>
-            <Text size="sm" fw={700} c="green.6">
-              SUP {stats.supportStrike}
-            </Text>
-          </Group>
-        </Stack>
-      </CompactPanel>
-
-      <CompactPanel
-        className="chain-summary-card chain-summary-max-pain"
-        data-testid="options-chain-summary-max-pain"
-      >
-        <Stack gap={2}>
-          <CompactStat
-            label="Max Pain"
-            value={stats.maxPain}
-            tone="orange.6"
-            hint="Institutional target"
-          />
-        </Stack>
-      </CompactPanel>
-    </CompactStatGrid>
+        <CompactPanel className="chain-summary-card chain-summary-max-pain" data-testid="options-chain-summary-max-pain">
+          <Stack spacing={1} sx={{ alignItems: "center" }}>
+            <CompactStat label="Max Pain" value={stats.maxPain} tone="orange.6" hint="Institutional target" />
+          </Stack>
+        </CompactPanel>
+      </CompactStatGrid>
+    </Box>
   );
 }

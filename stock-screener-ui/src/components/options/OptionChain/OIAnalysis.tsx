@@ -1,29 +1,13 @@
-import {
-  Box,
-  Group,
-  Text,
-  Stack,
-  SimpleGrid,
-  Badge,
-  useColorScheme,
-  useTheme,
-} from "@/ui";
+import { Text, Badge, useColorScheme, useTheme } from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
 import { fontWeights } from "../../../config/theme";
 import { CompactPanel } from "../../common/compact";
-import {
-  TOOLTIP_DARK_BG,
-  TOOLTIP_LIGHT_BG,
-  TOOLTIP_DARK_BORDER,
-  TOOLTIP_LIGHT_BORDER,
-  TOOLTIP_DARK_TEXT,
-  TOOLTIP_LIGHT_TEXT,
-  OI_CALL,
-  OI_PUT,
-} from "../../../config/colors";
 
 interface OIAnalysisProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -78,10 +62,9 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
-      backgroundColor: isDark ? TOOLTIP_DARK_BG : TOOLTIP_LIGHT_BG,
-      borderColor: isDark ? TOOLTIP_DARK_BORDER : TOOLTIP_LIGHT_BORDER,
+      backgroundColor: isDark ? "rgba(0,0,0,0.8)" : "#fff",
       textStyle: {
-        color: isDark ? TOOLTIP_DARK_TEXT : TOOLTIP_LIGHT_TEXT,
+        color: isDark ? "#fff" : "#000",
         fontSize: theme.fontSizes.sm,
       },
     },
@@ -115,8 +98,8 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         stack: "total",
         label: { show: false },
         emphasis: { focus: "series" },
-        data: analysisData.chartData.map((d) => -Math.abs(d.ceChange)), // Negative for left side
-        itemStyle: { color: OI_CALL, borderRadius: [2, 0, 0, 2] },
+        data: analysisData.chartData.map((d) => -Math.abs(d.ceChange)),
+        itemStyle: { color: (theme as any).palette?.success?.main ?? "#16a34a", borderRadius: [2, 0, 0, 2] },
       },
       {
         name: "Put OI Chg",
@@ -125,7 +108,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
         label: { show: false },
         emphasis: { focus: "series" },
         data: analysisData.chartData.map((d) => Math.abs(d.peChange)),
-        itemStyle: { color: OI_PUT, borderRadius: [0, 2, 2, 0] },
+        itemStyle: { color: (theme as any).palette?.error?.main ?? "#dc2626", borderRadius: [0, 2, 2, 0] },
       },
     ],
   };
@@ -136,109 +119,84 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
   } as any;
 
   return (
-    <Stack id="oi-analysis" className="oi-analysis" gap="sm" data-testid="oi-analysis">
-      <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
+    <Stack id="oi-analysis" className="oi-analysis" spacing={1} sx={{ alignItems: "center", justifyContent: "center", width: "100%" }} data-testid="oi-analysis">
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+        <OptionAlerts strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
+      </Box>
 
-      <SimpleGrid cols={{ base: 1, md: 2 }} spacing="sm" className="oi-analysis-grid">
-        <Stack gap="sm" className="oi-analysis-left">
-          <IVSkewChart strikeMatrix={strikeMatrix} />
-
-          {/* OI Spikes List */}
-          <CompactPanel className="oi-spikes-panel" data-testid="options-oi-spikes-panel">
-            <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
-              🔥 INTENSITY (OI SPIKES)
-            </Text>
-            <Stack gap="xs" className="oi-spikes-list" data-testid="options-oi-spikes-list">
-              {analysisData.spikes.map((s, i) => (
-                <Group
-                  key={i}
-                  justify="space-between"
-                  p="xs"
-                  wrap="nowrap"
-                  style={itemStyle}
-                  className="oi-spike-item"
-                  data-testid={`options-oi-spike-${i}`}
-                >
-                  <Stack gap={0}>
-                    <Group gap={5}>
-                      <Text size="sm" fw={800} c={s.type === "CE" ? "green.7" : "red.7"}>
-                        {s.type} {s.strike}
+      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "center", width: "100%" }} className="oi-analysis-grid">
+        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+          <Stack spacing={1} sx={{ width: "100%" }} className="oi-analysis-left">
+            <IVSkewChart strikeMatrix={strikeMatrix} />
+            <CompactPanel className="oi-spikes-panel" data-testid="options-oi-spikes-panel">
+              <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
+                🔥 INTENSITY (OI SPIKES)
+              </Text>
+              <Stack spacing={1} className="oi-spikes-list" data-testid="options-oi-spikes-list">
+                {analysisData.spikes.map((s, i) => (
+                  <Box key={i} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", p: 1, bgcolor: "background.paper" }} className="oi-spike-item" data-testid={`options-oi-spike-${i}`}>
+                    <Stack spacing={0}>
+                      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                        <Text size="sm" fw={800} c={s.type === "CE" ? "green.7" : "red.7"}>
+                          {s.type} {s.strike}
+                        </Text>
+                        <Badge size="sm" variant="light" color={s.activityType === "Speculative" ? "pink" : "indigo"}>
+                          {s.activityType}
+                        </Badge>
+                      </Box>
+                      <Text size="sm" c="dimmed">
+                        {s.contract.trading_symbol}
                       </Text>
-                      <Badge
-                        size="sm"
-                        variant="light"
-                        color={s.activityType === "Speculative" ? "pink" : "indigo"}
-                      >
-                        {s.activityType}
-                      </Badge>
-                    </Group>
-                    <Text size="sm" c="dimmed">
-                      {s.contract.trading_symbol}
-                    </Text>
-                  </Stack>
-                  <Stack gap={0} align="flex-end">
-                    <Text size="sm" fw={800} c="orange.7">
-                      +{s.changePct.toFixed(1)}%
-                    </Text>
-                    <Text size="sm" c="dimmed">
-                      +{Math.round(s.change / 1000)}k
-                    </Text>
-                  </Stack>
-                </Group>
-              ))}
-            </Stack>
-          </CompactPanel>
-        </Stack>
+                    </Stack>
+                    <Stack spacing={0} sx={{ alignItems: "flex-end" }}>
+                      <Text size="sm" fw={800} c="orange.7">
+                        +{s.changePct.toFixed(1)}%
+                      </Text>
+                      <Text size="sm" c="dimmed">
+                        +{Math.round(s.change / 1000)}k
+                      </Text>
+                    </Stack>
+                  </Box>
+                ))}
+              </Stack>
+            </CompactPanel>
+          </Stack>
+        </Grid>
 
-        <Stack gap="sm" className="oi-analysis-right">
-          {/* OI Distribution Chart */}
-          <CompactPanel
-            className="oi-distribution-panel"
-            data-testid="options-oi-distribution-panel"
-          >
-            <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
-              📊 OI CHANGE DISTRIBUTION
-            </Text>
-            <ReactECharts
-              option={distributionOption}
-              style={{ height: "360px" }}
-              opts={{ renderer: "svg" }}
-              className="oi-distribution-chart"
-            />
-          </CompactPanel>
-
-          {/* Sentiment Overview */}
-          <CompactPanel className="oi-sentiment-panel" data-testid="options-oi-sentiment-panel" flex={1}>
-            <Group align="flex-start" wrap="nowrap">
-              <Box>
-                <Text fw={800} size="sm">
-                  MARKET CONTEXT
-                </Text>
-                <Text size="sm" mt={4} style={{ lineHeight: 1.5 }}>
-                  Aggressive position building seen at{" "}
-                  <Text component="span" fw={800} c="orange.7">
-                    {analysisData.spikes[0]?.strike}
+        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+          <Stack spacing={1} sx={{ width: "100%" }} className="oi-analysis-right">
+            <CompactPanel className="oi-distribution-panel" data-testid="options-oi-distribution-panel">
+              <Text size="xs" fw={800} mb="sm" c="blue.6" style={{ letterSpacing: "0.5px" }}>
+                📊 OI CHANGE DISTRIBUTION
+              </Text>
+              <ReactECharts option={distributionOption} style={{ height: "360px" }} opts={{ renderer: "svg" }} className="oi-distribution-chart" />
+            </CompactPanel>
+            <CompactPanel className="oi-sentiment-panel" data-testid="options-oi-sentiment-panel">
+              <Box sx={{ display: "flex", alignItems: "flex-start" }}>
+                <Box>
+                  <Text fw={800} size="sm">
+                    MARKET CONTEXT
                   </Text>
-                  .
-                  {analysisData.spikes[0]?.activityType === "Positional"
-                    ? " This looks like a long-term directional bet by institutional players."
-                    : " This is likely high-frequency intraday churn or hedging activity."}
-                  <Text component="span" display="block" mt={5} c="dimmed" size="sm">
-                    PCR is currently signaling a{" "}
-                    <Text component="span" fw={700}>
-                      {Math.max(...analysisData.chartData.map((d) => d.peChange)) >
-                      Math.max(...analysisData.chartData.map((d) => d.ceChange))
-                        ? "Bullish"
-                        : "Bearish"}
-                    </Text>{" "}
-                    trend in new contracts.
+                  <Text size="sm" mt={4} style={{ lineHeight: 1.5 }}>
+                    Aggressive position building seen at{" "}
+                    <Text component="span" fw={800} c="orange.7">
+                      {analysisData.spikes[0]?.strike}
+                    </Text>
+                    .{analysisData.spikes[0]?.activityType === "Positional" ? " This looks like a long-term directional bet by institutional players." : " This is likely high-frequency intraday churn or hedging activity."}
+                    <Text component="span" display="block" mt={5} c="dimmed" size="sm">
+                      PCR is currently signaling a{" "}
+                      <Text component="span" fw={700}>
+                        {Math.max(...analysisData.chartData.map((d) => d.peChange)) > Math.max(...analysisData.chartData.map((d) => d.ceChange)) ? "Bullish" : "Bearish"}
+                      </Text>{" "}
+                      trend in new contracts.
+                    </Text>
                   </Text>
-                </Text>
+                </Box>
               </Box>
-            </Group>
-          </CompactPanel>
-        </Stack>
-      </SimpleGrid>
+            </CompactPanel>
+          </Stack>
+        </Grid>
+      </Grid>
     </Stack>
   );
 }

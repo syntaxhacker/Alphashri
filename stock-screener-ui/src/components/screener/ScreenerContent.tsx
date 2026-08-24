@@ -71,7 +71,7 @@ export function ScreenerContent({
   if (sections.length === 0) return <ScreenerEmpty />;
 
   return (
-    <Stack gap={1} w="100%" p={0} sx={{ minHeight: 0 }}>
+    <Stack gap={1} w="100%" p={0} sx={{ minHeight: 0, display: "flex", alignItems: "stretch" }}>
       {sections.map((section) => {
         const columns = getColumnsForScreener(
           activeScreener,

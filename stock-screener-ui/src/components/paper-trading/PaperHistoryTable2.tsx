@@ -97,8 +97,8 @@ function HistoryFilters({
   return (
     <>
       <Box sx={{ flex: "none", py: 1 }} id="history-filters">
-        <Group gap="xs" justify="space-between" w="100%">
-          <Group gap="xs">
+        <Stack direction={{ xs: "column", sm: "row" } as any} justify="space-between" align="center" gap={1} sx={{ width: "100%" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
             {bots.length > 1 && (
               <Select
                 placeholder="All Bots"
@@ -127,29 +127,29 @@ function HistoryFilters({
                 data-testid="strategy-filter-select"
               />
             )}
-          </Group>
-          <SegmentedControl
-            value={getCurrentPeriod()}
-            onChange={handleQuickFilter}
-            data={[
-              { value: "today", label: "Today" },
-              { value: "week", label: "Week" },
-              { value: "month", label: "Month" },
-              { value: "year", label: "Year" },
-              { value: "all", label: "All" },
-            ]}
-            size="xs"
-            data-testid="quick-filter"
-          />
-        </Group>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center" }}>
+            <SegmentedControl
+              value={getCurrentPeriod()}
+              onChange={handleQuickFilter}
+              data={[
+                { value: "today", label: "Today" },
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+                { value: "year", label: "Year" },
+                { value: "all", label: "All" },
+              ]}
+              size="xs"
+              data-testid="quick-filter"
+            />
+          </Box>
+        </Stack>
       </Box>
 
-      <Box sx={{ flex: "none" }} data-testid="trades-header" id="trades-header">
-        <Group justify="space-between" px={4} py={2}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-            Trade History
-          </Text>
-        </Group>
+      <Box sx={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1 }} data-testid="trades-header" id="trades-header">
+        <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+          Trade History
+        </Text>
       </Box>
     </>
   );
@@ -170,17 +170,17 @@ const DaySummary = memo(function DaySummary({
   const pnlColor = getPnLTextColor(dayPnl);
 
   return (
-    <Group justify="space-between" px={4} py={1} wrap="nowrap" data-testid={`day-header-${date}`}>
-      <Group gap={6} wrap="nowrap">
-        <Text size="xs" c="dimmed">
+    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 0.5, gap: 1, flexWrap: "nowrap" }} data-testid={`day-header-${date}`}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
+        <Text size="xs" c="dimmed" sx={{ lineHeight: 1 }}>
           {expanded ? "▾" : "▸"}
         </Text>
         <Text size="xs" fw={600} c="dimmed" tt="uppercase">
           {formatDateHeader(date)}
         </Text>
-      </Group>
-      <Group gap="xs" wrap="nowrap">
-        <Text size="xs" c={pnlColor} fw={600}>
+      </Box>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
+        <Text size="xs" c={pnlColor} fw={600} sx={{ textAlign: "right" }}>
           {formatSignedPnl(dayPnl)}
         </Text>
         <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
@@ -189,8 +189,8 @@ const DaySummary = memo(function DaySummary({
         <Badge color={losses > 0 ? "red" : "gray"} variant="light" size="xs">
           ▼{losses}
         </Badge>
-      </Group>
-    </Group>
+      </Box>
+    </Box>
   );
 });
 
@@ -217,31 +217,31 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack spacing={1}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
+    <Box sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 3, maxWidth: 800, mx: "auto", width: "100%" }}>
+      <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Stack spacing={1} sx={{ width: "100%", maxWidth: 320 }}>
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.5, pb: 0.5, textAlign: "center", width: "100%" }}>Entry</Text>
           {entryContext.map((item) => (
-            <Group key={item.label} gap="xs" justify="space-between">
-              <Text size="xs" c="dimmed">{item.label}</Text>
-              <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
-            </Group>
+            <Box key={item.label} sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 1, gap: 0.5, textAlign: "center" }}>
+              <Text size="xs" c="dimmed" sx={{ lineHeight: 1 }}>{item.label}</Text>
+              <Text size="sm" fw={600} c={item.color} sx={{ lineHeight: 1.2 }}>{item.value}</Text>
+            </Box>
           ))}
         </Stack>
       </Box>
-      <Box sx={{ flex: 1, minWidth: 0 }}>
-        <Stack spacing={1}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Exit</Text>
+      <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Stack spacing={1} sx={{ width: "100%", maxWidth: 320 }}>
+          <Text size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.5, pb: 0.5, textAlign: "center", width: "100%" }}>Exit</Text>
           {exitContext.map((item) => (
-            <Group key={item.label} gap="xs" justify="space-between">
-              <Text size="xs" c="dimmed">{item.label}</Text>
-              <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
-            </Group>
+            <Box key={item.label} sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 1, gap: 0.5, textAlign: "center" }}>
+              <Text size="xs" c="dimmed" sx={{ lineHeight: 1 }}>{item.label}</Text>
+              <Text size="sm" fw={600} c={item.color} sx={{ lineHeight: 1.2 }}>{item.value}</Text>
+            </Box>
           ))}
-          <Group gap="xs" justify="space-between">
-            <Text size="xs" c="dimmed">Exit Reason</Text>
+          <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", py: 1, gap: 0.5, textAlign: "center" }}>
+            <Text size="xs" c="dimmed" sx={{ lineHeight: 1 }}>Exit Reason</Text>
             <ExitReasonBadge reason={trade.exit_reason} />
-          </Group>
+          </Box>
         </Stack>
       </Box>
     </Box>
@@ -261,34 +261,32 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
 
   return (
     <Stack spacing={1}>
-      <Group gap="xs" align="flex-start" grow>
-        <Stack spacing={1} sx={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">Reason</Text>
-          <Text size="xs" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }} data-testid={`trade-reason-${trade.trade_id}`}>
-            {trade.reason || "-"}
-          </Text>
-        </Stack>
-      </Group>
-      <Group gap="sm" align="flex-start" grow>
-        <Stack spacing={1} sx={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">Notes</Text>
-          <Textarea
-            size="xs"
-            minRows={2}
-            maxRows={4}
-            value={notes}
-            onChange={(val) => setNotes(val)}
-            placeholder="Any additional notes..."
-            styles={{ input: { background: "var(--mui-palette-background-paper)" } }}
-            data-testid={`trade-notes-${trade.trade_id}`}
-          />
-        </Stack>
-      </Group>
-      <Group justify="flex-end">
-        <Button size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`}>
-          Save
-        </Button>
-      </Group>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 2, py: 0.5 }}>
+        <Text size="xs" c="dimmed" sx={{ flexShrink: 0, minWidth: 80 }}>Reason</Text>
+        <Text size="xs" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5, textAlign: "right", flex: 1 }} data-testid={`trade-reason-${trade.trade_id}`}>
+          {trade.reason || "-"}
+        </Text>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Text size="xs" c="dimmed">Notes</Text>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Textarea
+              size="xs"
+              minRows={2}
+              maxRows={4}
+              value={notes}
+              onChange={(val) => setNotes(val)}
+              placeholder="Any additional notes..."
+              styles={{ input: { background: "var(--mui-palette-background-paper)" } }}
+              data-testid={`trade-notes-${trade.trade_id}`}
+            />
+          </Box>
+          <Button size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`} sx={{ alignSelf: "center" }}>
+            Save
+          </Button>
+        </Box>
+      </Box>
     </Stack>
   );
 });
@@ -545,7 +543,7 @@ function HistoryList({
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }} id="history-list">
       {filteredTrades.length === 0 ? (
-        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 1, py: 1 }}>
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 200, textAlign: "center" }}>
           <Text size="xs" fw={500} c="dimmed">
             No trades found
           </Text>

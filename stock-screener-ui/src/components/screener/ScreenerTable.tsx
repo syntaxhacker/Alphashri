@@ -55,6 +55,7 @@ export function ScreenerTable({
           />
         ),
         enableSorting: false,
+        meta: { align: "center" } as never,
         cell: ({ row }) => (
           <Checkbox
             size="xs"
@@ -72,8 +73,8 @@ export function ScreenerTable({
         header: () => {
           const isSymbolColumn = col.key === "symbol";
           return (
-            <Group gap={1} wrap="nowrap">
-              <Text fw={700}>{col.label}</Text>
+            <Group gap={1} wrap="nowrap" sx={{ justifyContent: "center" }}>
+              <Text fw={700} sx={{ textAlign: "center" }}>{col.label}</Text>
               {isSymbolColumn && stocks.length > 0 && (
                 <CopyButton value={allSymbols}>
                   {({ copied, copy }) => (
@@ -96,6 +97,7 @@ export function ScreenerTable({
         },
         accessorKey: col.key as keyof Stock,
         enableSorting: col.sortable ?? true,
+        meta: { align: "center" } as never,
         cell: ({ row }) => {
           const stock = row.original;
           const value = stock[col.key as keyof Stock];
@@ -191,7 +193,7 @@ export function ScreenerTable({
         dataTestId="screener-table"
         enableSorting
         stickyHeader
-        style={{ width: "100%", minWidth: 0 } as any}
+        sx={{ width: "100%", minWidth: 0 } as any}
         getRowTestId={(row) => `stock-row-${row.symbol}`}
         onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
         rowWindowSize={stocks.length > 120 ? 80 : 0}

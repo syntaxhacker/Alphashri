@@ -1,5 +1,6 @@
 import {
   Group,
+  Stack,
   Text,
   ActionIcon,
   NumberInput,
@@ -47,7 +48,7 @@ export function ScreenerHeader({
       px="md"
       sx={{ flexShrink: 0, minHeight: 48, display: "flex", alignItems: "center" }}
     >
-      <Group justify="space-between" align="center" gap="sm" wrap="nowrap">
+      <Stack direction="row" align="center" justify="space-between" gap="sm" sx={{ width: "100%", flexWrap: "nowrap" }}>
         <Text
           size="xs"
           c="dimmed"
@@ -58,7 +59,7 @@ export function ScreenerHeader({
         >
           {status}
         </Text>
-        <Group gap="sm" align="center" wrap="nowrap" data-testid="header-controls">
+        <Stack direction="row" align="center" gap="sm" data-testid="header-controls" sx={{ flexWrap: "nowrap" }}>
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
@@ -119,8 +120,8 @@ export function ScreenerHeader({
             ]}
             data-testid="screener-view-toggle"
           />
-        </Group>
-      </Group>
+        </Stack>
+      </Stack>
     </Box>
   );
 }

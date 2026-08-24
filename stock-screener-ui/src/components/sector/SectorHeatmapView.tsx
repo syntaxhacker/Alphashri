@@ -347,9 +347,9 @@ export function SectorHeatmapView({
   return (
     <Box
       data-testid="sector-heatmap-view"
-      style={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1 }}
+      sx={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1, p: 1, gap: 1, alignItems: "center" }}
     >
-      <Group gap={1} p={1} wrap="nowrap" style={{ flexShrink: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%", flexWrap: "wrap" }}>
         <SegmentedControl
           size="xs"
           value={viewMode}
@@ -368,7 +368,7 @@ export function SectorHeatmapView({
               value={metric}
               onChange={(v) => onMetricChange(v || "change_pct")}
               data={STOCK_METRICS}
-              style={{ width: 130 }}
+              sx={{ width: 130 }}
               data-testid="sector-heatmap-metric"
             />
             <Select
@@ -378,19 +378,19 @@ export function SectorHeatmapView({
               onChange={(v) => onSectorFilterChange?.(v || null)}
               data={[{ value: "", label: "All sectors" }, ...sectorOptions]}
               clearable
-              style={{ width: 160 }}
+              sx={{ width: 160 }}
               data-testid="sector-heatmap-sector-filter"
             />
           </>
         )}
         {lastUpdated && (
-          <Text size="xs" c="dimmed" style={{ marginLeft: "auto" }}>
+          <Text size="xs" c="dimmed" sx={{ ml: "auto" }}>
             Updated: {new Date(lastUpdated).toLocaleTimeString()}
           </Text>
         )}
         {loading && <Loader size="xs" />}
-      </Group>
-      <Box style={{ flex: 1, minHeight: 320, width: "100%", minWidth: 320, display: "flex" }} data-testid="sector-heatmap-chart">
+      </Box>
+      <Box sx={{ flex: 1, minHeight: 320, width: "100%", minWidth: 320, display: "flex", alignItems: "center", justifyContent: "center" }} data-testid="sector-heatmap-chart">
         <ReactECharts
           option={chartOption}
           style={{ height: 420, width: "100%", flex: 1 }}

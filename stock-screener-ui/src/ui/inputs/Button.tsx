@@ -112,6 +112,7 @@ export function Button({
       id={id}
       className={className}
       data-testid={testId}
+      data-loading={loading || undefined}
       onClick={onClick}
       onMouseEnter={onMouseEnter}
       onMouseLeave={onMouseLeave}

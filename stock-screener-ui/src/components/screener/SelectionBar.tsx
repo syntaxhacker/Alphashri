@@ -1,5 +1,5 @@
 import { alpha } from "@mui/material/styles";
-import { Group, Button, Badge } from "@/ui";
+import { Box, Group, Button, Badge } from "@/ui";
 import { IconChartDots, IconX } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { selectedSymbols, clearSelectedSymbols, subscribe } from "../../state";
@@ -13,15 +13,15 @@ export function SelectionBar({ onCompare }: SelectionBarProps) {
   if (selectedSymbols.length === 0) return null;
 
   return (
-    <Group
-      p="sm"
-      gap="sm"
-      sx={(theme) => ({
-        background: alpha(theme.palette.grey[900], 0.9),
-        flexShrink: 0,
-      })}
-      data-testid="selection-bar"
-    >
+    <Box sx={(theme) => ({ background: alpha(theme.palette.grey[900], 0.9), flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center", p: 1 })}>
+      <Group
+        p="sm"
+        gap="sm"
+        justify="center"
+        align="center"
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+        data-testid="selection-bar"
+      >
       <Badge size="lg" variant="filled" color="blue">
         {selectedSymbols.length} selected
       </Badge>
@@ -44,6 +44,7 @@ export function SelectionBar({ onCompare }: SelectionBarProps) {
       >
         Compare
       </Button>
-    </Group>
+      </Group>
+    </Box>
   );
 }

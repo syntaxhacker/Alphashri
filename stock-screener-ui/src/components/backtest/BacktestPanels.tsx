@@ -43,31 +43,35 @@ export function BacktestLeftPanel({
       value={activeTab}
       onChange={setActiveTab}
       h="100%"
-      style={{ display: "flex", flexDirection: "column" }}
+      sx={{ display: "flex", flexDirection: "column" }}
     >
-      <Tabs.List flex="0 0 auto">
-        <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
-          Results
-        </Tabs.Tab>
-        <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
-          History
-        </Tabs.Tab>
-      </Tabs.List>
+      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Tabs.List>
+          <Tabs.Tab value="results" leftSection={<IconTable size={14} />}>
+            Results
+          </Tabs.Tab>
+          <Tabs.Tab value="history" leftSection={<IconHistory size={14} />}>
+            History
+          </Tabs.Tab>
+        </Tabs.List>
+      </Box>
 
       <Tabs.Panel
         value="results"
         className="backtest-results-panel"
         flex={1}
-        style={{ minHeight: 0, overflow: "hidden" }}
+        sx={{ minHeight: 0, overflow: "hidden" }}
       >
         {isRunning ? (
-          <BacktestProgress
-            progress={{
-              current: progress.current,
-              total: progress.total,
-              message: progress.message,
-            }}
-          />
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 2 }}>
+            <BacktestProgress
+              progress={{
+                current: progress.current,
+                total: progress.total,
+                message: progress.message,
+              }}
+            />
+          </Box>
         ) : !results || results.length === 0 ? (
           <Box
             sx={(theme) => ({
@@ -87,12 +91,12 @@ export function BacktestLeftPanel({
             gap="xs"
             h="100%"
             className="backtest-results-content"
-            style={{ minHeight: 0 }}
+            sx={{ minHeight: 0, gap: 1 }}
           >
-            <Box style={{ flex: "0 0 auto" }}>
+            <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
               <BacktestSummary totals={totals} />
             </Box>
-            <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+            <Box flex={1} sx={{ minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
               <BacktestResultsTable
                 results={sortedResults}
                 selectedSymbol={selectedChartSymbol}
@@ -110,7 +114,7 @@ export function BacktestLeftPanel({
         value="history"
         className="backtest-history-panel"
         flex={1}
-        style={{ minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+        sx={{ minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
       >
         <BacktestHistory active={activeTab === "history"} onLoad={() => setActiveTab("results")} />
       </Tabs.Panel>
@@ -170,13 +174,14 @@ export function BacktestRightPanel({
   const hasTradeHistory = Boolean(tradeHistory && tradeHistorySymbol);
 
   return (
-    <Flex direction="column" gap="sm" h="100%" style={{ minHeight: 0 }}>
+    <Flex direction="column" gap="sm" h="100%" sx={{ minHeight: 0, gap: 1 }}>
       <Box
-        style={{
+        sx={{
           minHeight: 0,
           flex: hasTradeHistory ? "1 1 50%" : "1 1 100%",
           display: "flex",
           flexDirection: "column",
+          alignItems: "stretch",
         }}
       >
         <BacktestChartTabs
@@ -195,12 +200,13 @@ export function BacktestRightPanel({
       </Box>
       {hasTradeHistory && (
         <Box
-          style={{
+          sx={{
             minHeight: 0,
             flex: "1 1 50%",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",
+            alignItems: "stretch",
           }}
         >
           <TradeHistoryTable

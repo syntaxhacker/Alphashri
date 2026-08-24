@@ -112,7 +112,7 @@ export function StrategiesPage({
   return (
     <Container maxWidth="xl" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
       <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ flex: "0 0 auto" }} data-testid="strategies-nav-container">
+        <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} data-testid="strategies-nav-container">
           <StrategiesNav activeView={activeView} onChange={onViewChange} />
         </Box>
 
