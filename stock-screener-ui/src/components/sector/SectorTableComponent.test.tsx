@@ -114,7 +114,7 @@ describe("SectorTable rendering", () => {
 
   it("renders movement bar as Progress component", () => {
     renderWithMantine(<SectorTable sectors={mockSectors} />);
-    const progressBars = document.querySelectorAll(".mantine-Progress-root");
+    const progressBars = screen.getAllByRole("progressbar");
     expect(progressBars.length).toBe(2);
   });
 

@@ -5,7 +5,7 @@ import type { UIProgressProps } from "../types";
 
 function resolveBarColor(color?: string): string | undefined {
   if (!color) return undefined;
-  // Pass hex directly via sx; named Mantine colors map to hex via css fallback
+  // Pass hex directly via sx; named theme colors map to hex via css fallback
   return color as string;
 }
 

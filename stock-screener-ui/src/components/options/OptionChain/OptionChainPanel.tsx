@@ -10,7 +10,7 @@ import {
   Tab,
   TabsPanel,
   Button,
-  Tooltip as MantineTooltip,
+  Tooltip,
 } from "@/ui";
 import {
   IconRefresh,
@@ -91,7 +91,7 @@ export function OptionChainPanel({
           </Text>
           <LiveSpotChart underlying={selectedUnderlying} />
           {timestamp && !loading && (
-            <MantineTooltip
+            <Tooltip
               label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}
             >
               <Badge
@@ -103,7 +103,7 @@ export function OptionChainPanel({
               >
                 {dayjs(timestamp).format("HH:mm:ss")}
               </Badge>
-            </MantineTooltip>
+            </Tooltip>
           )}
         </Group>
         <Group gap="xs">

@@ -6,7 +6,7 @@ const meta: Meta<typeof Tooltip> = {
   title: "Primitives/Overlays/Tooltip",
   component: Tooltip,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Hover tooltip for extra context. Use for explaining icons or truncated text. When not to use: for persistent help use Alert. Uses Mantine Tooltip with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Hover tooltip for extra context. Use for explaining icons or truncated text. When not to use: for persistent help use Alert. Uses MUI Tooltip with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

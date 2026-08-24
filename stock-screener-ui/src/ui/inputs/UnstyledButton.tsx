@@ -1,7 +1,7 @@
 import ButtonBase from "@mui/material/ButtonBase";
 import type { UIUnstyledButtonProps } from "../types";
 
-export function UnstyledButton({ children, className, style, onClick, "data-testid": testId, ...rest }: UIUnstyledButtonProps) {
+export function UnstyledButton({ children, className, style, onClick, "data-testid": testId, sx, ...rest }: UIUnstyledButtonProps & { sx?: any }) {
   return (
     <ButtonBase
       className={className}
@@ -13,6 +13,7 @@ export function UnstyledButton({ children, className, style, onClick, "data-test
         textAlign: "left",
         font: "inherit",
         color: "inherit",
+        ...(sx as object),
       }}
       {...(rest as object)}
     >

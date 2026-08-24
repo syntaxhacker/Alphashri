@@ -7,7 +7,7 @@ import { WatchlistScan2 } from "./WatchlistScan2";
 import { renderWithMantine } from "../../test-utils/renderWithMantine";
 import { CREAM } from "../../config/colors";
 
-// Resolved value of var(--mantine-color-teal-light) under the palette theme.
+// Resolved value of var(--mui-palette-info-light) under the palette theme.
 function withAlpha(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
   const r = parseInt(h.slice(0, 2), 16);
@@ -389,19 +389,19 @@ describe("WatchlistScan2", () => {
     test("signal row has green left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      styleContains("RELIANCE", "var(--mantine-color-green-6)");
+      styleContains("RELIANCE", "var(--mui-palette-success-main)");
     });
 
     test("watching row has yellow left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      styleContains("TCS", "var(--mantine-color-yellow-6)");
+      styleContains("TCS", "var(--mui-palette-warning-main)");
     });
 
     test("rejected row has red left border", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
-      styleContains("INFY", "var(--mantine-color-red-6)");
+      styleContains("INFY", "var(--mui-palette-error-main)");
     });
 
     test("skipped row has gray left border", async () => {
@@ -409,7 +409,7 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       await user.click(screen.getByLabelText(/Skipped/));
-      styleContains("HDFC", "var(--mantine-color-gray-5)");
+      styleContains("HDFC", "var(--mui-palette-divider)");
     });
   });
 
@@ -480,7 +480,7 @@ describe("WatchlistScan2", () => {
       r(
         <WatchlistScan2 snapshot={snap} selectedSymbol="RELIANCE" />,
       );
-      // teal-light is derived by Mantine from the teal scale (cream accent);
+      // teal-light is derived by MUI from the teal scale (cream accent);
       // under the palette theme it resolves to a cream-tinted translucent value.
       expect(row("RELIANCE")).toHaveStyle({
         backgroundColor: "rgba(14, 154, 135, 0.15)",

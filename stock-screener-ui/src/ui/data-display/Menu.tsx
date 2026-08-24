@@ -16,6 +16,7 @@ type MenuContextValue = {
   offset?: number;
   withArrow?: boolean;
   shadow?: string;
+  trigger?: string;
 };
 
 const MenuContext = React.createContext<MenuContextValue | null>(null);
@@ -105,6 +106,7 @@ export function Menu({
     offset,
     withArrow,
     shadow,
+    trigger,
   };
 
   // trigger handling: hover vs click is delegated to MenuTarget; but if hover trigger, we need onMouseEnter logic
@@ -133,8 +135,9 @@ export function Menu({
 }
 
 export function MenuTarget({ children, className, style, "data-testid": testId, ...rest }: UIMenuTargetProps) {
-  const { setAnchorEl, anchorEl, open, onClose } = useMenuContext();
+  const { setAnchorEl, anchorEl, open, onClose, trigger } = useMenuContext();
   const child = React.Children.only(children as React.ReactElement<any>);
+  const isHover = trigger === "hover" || trigger === "click-hover";
   const handleClick = (e: React.MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
     if (open && anchorEl === target) {
@@ -145,8 +148,10 @@ export function MenuTarget({ children, className, style, "data-testid": testId, 
     (child.props as any)?.onClick?.(e);
   };
   const handleMouseEnter = (e: React.MouseEvent) => {
-    const target = e.currentTarget as HTMLElement;
-    if (!open) setAnchorEl(target);
+    if (isHover) {
+      const target = e.currentTarget as HTMLElement;
+      if (!open) setAnchorEl(target);
+    }
     (child.props as any)?.onMouseEnter?.(e);
   };
   // Detect if parent Menu has hover trigger by checking if child wants hover - we always provide both

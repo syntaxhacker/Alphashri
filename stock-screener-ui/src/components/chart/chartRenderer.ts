@@ -66,7 +66,7 @@ export function buildChartOption(options: ChartRenderOptions): any {
     isDark = true,
   } = options;
 
-  const fontSizes = theme.fontSizes;
+  const fontSizes = theme.fontSizes ?? { sm: "12px", md: "14px", lg: "16px", xl: "20px" };
 
   if (!candles || candles.length === 0) {
     return null;
@@ -319,8 +319,8 @@ export function formatTooltip(params: any, candles: PreviewCandle[], isDark: boo
   const c = result.candle;
   const { change, changeColor } = result.change;
   const textColor = isDark ? CHART_TEXT : CHART_LIGHT_TEXT;
-  const fontFamily = theme.fontFamily;
-  const fontSizes = theme.fontSizes;
+  const fontFamily = theme.fontFamily ?? '"IBM Plex Sans", "Roboto", system-ui, sans-serif';
+  const fontSizes = theme.fontSizes ?? { sm: "12px", md: "14px", lg: "16px", xl: "20px" };
 
   return `
     <div style="padding: 4px 6px; font-family: ${fontFamily}; font-size: ${fontSizes.sm}; line-height: 1.3; color: ${textColor};">

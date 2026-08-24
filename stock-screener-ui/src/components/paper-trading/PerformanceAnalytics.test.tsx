@@ -99,7 +99,7 @@ describe("PerformanceAnalytics", () => {
   test("shows loading spinner when analyticsLoading is true", () => {
     paperTradingState.setAnalyticsLoading(true);
     renderWithMantine(<PerformanceAnalytics />);
-    expect(document.querySelector(".mantine-Loader-root")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   test("renders daysBack SegmentedControl (7d/30d/90d) when data available", () => {

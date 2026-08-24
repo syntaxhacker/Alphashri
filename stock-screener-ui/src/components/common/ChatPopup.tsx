@@ -18,7 +18,7 @@ import {
   Divider,
   Tooltip,
   ThemeIcon,
-  Code as MantineCode,
+  Code,
   Timeline,
   Title,
   Anchor,
@@ -104,7 +104,7 @@ const mdComponents = {
       {children}
     </Text>
   ),
-  code: ({ children }: any) => <MantineCode style={{ fontSize: 11 }}>{children}</MantineCode>,
+  code: ({ children }: any) => <Code style={{ fontSize: 11 }}>{children}</Code>,
   a: ({ href, children }: any) => (
     <Anchor href={href} size="sm">
       {children}

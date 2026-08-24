@@ -1,4 +1,4 @@
-import type { MantineTheme } from "@/ui";
+import type { UITheme } from "@/ui";
 import { clamp } from "../../../utils/ui-helpers";
 import {
   SCALE_GREEN,
@@ -6,6 +6,15 @@ import {
   SCALE_ORANGE,
   SCALE_TEAL,
   SCALE_YELLOW,
+  SCALE_LIME,
+  SCALE_BLUE,
+  SCALE_CYAN,
+  SCALE_VIOLET,
+  SCALE_GRAPE,
+  SCALE_INDIGO,
+  SCALE_GRAY,
+  SCALE_DARK,
+  SCALE_PINK,
   TEXT_MUTED,
 } from "../../../config/colors";
 
@@ -51,10 +60,35 @@ export type CellPaletteResult = {
   accent: string;
 };
 
-export type ThemeType = MantineTheme;
+export type ThemeType = UITheme;
+
+function resolveThemeColors(theme: any) {
+  if (theme?.colors) return theme.colors;
+  if (theme?.palette) {
+    // Map MUI palette to legacy colors shape for fallback
+    return {
+      green: SCALE_GREEN,
+      teal: SCALE_TEAL,
+      lime: SCALE_LIME,
+      yellow: SCALE_YELLOW,
+      red: SCALE_RED,
+      orange: SCALE_ORANGE,
+      pink: SCALE_PINK,
+      blue: SCALE_BLUE,
+      cyan: SCALE_CYAN,
+      violet: SCALE_VIOLET,
+      grape: SCALE_GRAPE,
+      indigo: SCALE_INDIGO,
+      gray: SCALE_GRAY,
+      grey: SCALE_GRAY,
+      dark: SCALE_DARK,
+    };
+  }
+  return {};
+}
 
 function getSidePalette(theme: ThemeType, type: "CE" | "PE") {
-  const colors = theme.colors || {};
+  const colors = resolveThemeColors(theme as any);
   const green = colors.green || colors.gray || SCALE_GREEN;
   const teal = colors.teal || colors.cyan || colors.green || SCALE_TEAL;
   const lime = colors.lime || colors.yellow || colors.green || SCALE_YELLOW;
@@ -99,7 +133,7 @@ export function getCellPalette(
   let glow = side.glow;
   let text = side.ink;
 
-  const colors = theme.colors || {};
+  const colors = resolveThemeColors(theme as any);
   const getColor = (name: string, index: number): string => {
     const arr = colors[name] || colors.gray || [];
     return arr[index] || arr[0] || TEXT_MUTED;
@@ -132,12 +166,13 @@ export function getCellPalette(
   const borderAlpha = 0.18 + baseIntensity * 0.24;
   const shadowAlpha = 0.08 + baseIntensity * 0.16;
 
+  const white = (theme as any)?.white ?? (theme as any)?.palette?.common?.white ?? "#FFFFFF";
   return {
-    background: `linear-gradient(135deg, ${hexToRgba(base, baseAlpha)} 0%, ${hexToRgba(alt, altAlpha)} 100%)`,
-    border: hexToRgba(glow, borderAlpha),
-    shadow: `inset 0 1px 0 ${hexToRgba(theme.white, 0.06)}, 0 0 0 1px ${hexToRgba(glow, shadowAlpha)}`,
-    text,
-    accent: glow,
+    background: `linear-gradient(135deg, ${hexToRgba(base ?? TEXT_MUTED, baseAlpha)} 0%, ${hexToRgba(alt ?? TEXT_MUTED, altAlpha)} 100%)`,
+    border: hexToRgba(glow ?? TEXT_MUTED, borderAlpha),
+    shadow: `inset 0 1px 0 ${hexToRgba(white, 0.06)}, 0 0 0 1px ${hexToRgba(glow ?? TEXT_MUTED, shadowAlpha)}`,
+    text: text ?? TEXT_MUTED,
+    accent: glow ?? TEXT_MUTED,
   };
 }
 

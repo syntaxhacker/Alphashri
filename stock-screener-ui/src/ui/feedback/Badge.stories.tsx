@@ -6,7 +6,7 @@ const meta: Meta<typeof Badge> = {
   title: "Primitives/Feedback/Badge",
   component: Badge,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Compact status/value label. Use for counts, statuses, or categories. When not to use: for alerts use Alert. Uses Mantine Badge with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Compact status/value label. Use for counts, statuses, or categories. When not to use: for alerts use Alert. Uses MUI Badge with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

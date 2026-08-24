@@ -69,8 +69,8 @@ describe("AppLayout", () => {
         </AppLayout>
       </TestWrapper>,
     );
-    // AppLayout is MUI-based (MuiAppBar + Box with bgcolor background.paper), not Mantine.
-    // Verify shell elements exist and have theme-aware attributes/classes instead of Mantine vars.
+    // AppLayout is MUI-based (MuiAppBar + Box with bgcolor background.paper), not MUI.
+    // Verify shell elements exist and have theme-aware attributes/classes instead of legacy vars.
     const main = screen.getByTestId("app-main");
     const header = screen.getByTestId("app-header");
     const shell = screen.getByTestId("app-shell");

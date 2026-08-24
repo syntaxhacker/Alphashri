@@ -6,7 +6,7 @@ const meta: Meta<typeof MultiSelect> = {
   title: "Primitives/Inputs/MultiSelect",
   component: MultiSelect,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Searchable multi-value dropdown. Use when picking 2+ symbols, watchlists, or tags. When not to use: single pick use Select. Uses Mantine MultiSelect with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Searchable multi-value dropdown. Use when picking 2+ symbols, watchlists, or tags. When not to use: single pick use Select. Uses MUI MultiSelect with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

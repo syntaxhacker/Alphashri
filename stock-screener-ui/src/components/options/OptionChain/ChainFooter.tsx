@@ -1,10 +1,10 @@
 import { Box, Text, Badge, Group, Flex } from "@/ui";
-import type { MantineTheme } from "@/ui";
+import type { UITheme } from "@/ui";
 import { hexToRgba } from "./cellPalette";
 import { CREAM, BROWN, BROWN_DARK, BLACK, TRADING_GREEN } from "../../../config/colors";
 
 interface ChainFooterProps {
-  theme: MantineTheme;
+  theme: UITheme;
   colorScheme: "light" | "dark";
   spotPrice: number | null;
 }

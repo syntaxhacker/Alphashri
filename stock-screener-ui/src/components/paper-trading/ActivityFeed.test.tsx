@@ -60,10 +60,10 @@ describe("ActivityFeed", () => {
 
   test("shows loading spinner when activityLoading is true and no events", () => {
     paperTradingState.setActivityLoading(true);
-    const { container } = renderWithMantine(<ActivityFeed />);
+    renderWithMantine(<ActivityFeed />);
     expect(screen.queryByText("Activity Feed")).not.toBeInTheDocument();
     expect(screen.queryByText(/No recent activity/i)).not.toBeInTheDocument();
-    expect(container.querySelector(".mantine-Loader-root")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   const entryEvent = {

@@ -275,7 +275,7 @@ describe("BotSelector", () => {
       '[style*="border-radius: 50%"]',
     );
     expect(dot).toBeInTheDocument();
-    expect(dot?.getAttribute("style")).toContain("--mantine-color-gray-4");
+    expect(dot?.getAttribute("style")).toContain("--mui-palette-divider");
   });
 
   test("indicator dot uses green-6 when bot running", () => {
@@ -291,7 +291,7 @@ describe("BotSelector", () => {
     const dot = screen.getByTestId("bot-selector").querySelector(
       '[style*="border-radius: 50%"]',
     );
-    expect(dot?.getAttribute("style")).toContain("--mantine-color-green-6");
+    expect(dot?.getAttribute("style")).toContain("--mui-palette-success-main");
   });
 
   test("getBotLabel formats bot label with name and position count", async () => {

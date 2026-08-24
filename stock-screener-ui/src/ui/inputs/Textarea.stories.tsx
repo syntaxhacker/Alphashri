@@ -6,7 +6,7 @@ const meta: Meta<typeof Textarea> = {
   title: "Primitives/Inputs/Textarea",
   component: Textarea,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Multi-line text field. Use for notes, descriptions, or feedback. When not to use: for single line use TextInput. Uses Mantine Textarea with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Multi-line text field. Use for notes, descriptions, or feedback. When not to use: for single line use TextInput. Uses MUI Textarea with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

@@ -39,7 +39,7 @@ function Overview() {
     <Box p="xl" maw={820}>
       <Title order={1}>Alphashri UI Library</Title>
       <Text c="dimmed" mt="xs" mb="lg">
-        60 Mantine v8 wrapper components in <code>src/ui/</code> across 9 categories.
+        60 MUI wrapper components in <code>src/ui/</code> across 9 categories.
         Every component is theme-aware — toggle dark/light in the toolbar. Browse
         stories under <strong>Design System/UI/&lt;Category&gt;</strong>.
       </Text>
@@ -65,7 +65,7 @@ function Overview() {
       <Title order={3} mt="xl">Usage</Title>
       <Text size="sm" c="dimmed">
         Import from the barrel: <code>{`import { Button, Paper, Text } from "@/ui"`}</code>.
-        Wrappers accept Mantine props (subsetted) plus <code>data-testid</code>.
+        Wrappers accept MUI props (subsetted) plus <code>data-testid</code>.
       </Text>
     </Box>
   );

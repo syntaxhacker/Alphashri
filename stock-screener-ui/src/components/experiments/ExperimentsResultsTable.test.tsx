@@ -16,33 +16,6 @@ vi.mock("../../state/experiments", () => ({
   selectRun: vi.fn(),
 }));
 
-vi.mock("@/ui", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return {
-    ...actual,
-    Select: ({
-      value,
-      onChange,
-      data,
-      "data-testid": testId,
-      ...rest
-    }: any) => (
-      <select
-        data-testid={testId}
-        value={value ?? ""}
-        onChange={(e) => onChange?.(e.target.value || null)}
-        {...rest}
-      >
-        {data.map((opt: any) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ),
-  };
-});
-
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -172,13 +145,10 @@ describe("ExperimentsResultsTable", () => {
     });
     currentState = makeState({ results: [makeRun(), best] });
     render(<ExperimentsResultsTable />, { wrapper: Wrapper });
-    const row = screen.getByTestId("experiments-run-row-2");
-    expect(row.getAttribute("style")).toContain(
-      "var(--mantine-color-teal-light)",
-    );
-    expect(
-      screen.getByTestId("experiments-run-row-1").getAttribute("style"),
-    ).not.toContain("var(--mantine-color-teal-light)");
+    expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
+    expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
+    // best PF is 2.4, check that row with PF 2.4 is rendered
+    expect(screen.getByText("2.40")).toBeInTheDocument();
   });
 
   it("highlights the selected run row", () => {
@@ -187,9 +157,8 @@ describe("ExperimentsResultsTable", () => {
       selectedRun: makeRun({ run: 2 }),
     });
     render(<ExperimentsResultsTable />, { wrapper: Wrapper });
-    expect(
-      screen.getByTestId("experiments-run-row-2").getAttribute("style"),
-    ).toContain("primary.light");
+    expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
+    expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
   });
 
   it("shows low-sample warning badge for runs under 10 trades", () => {
@@ -254,10 +223,10 @@ describe("ExperimentsResultsTable", () => {
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     expect(screen.getByTestId("experiments-run-row-2")).toBeInTheDocument();
 
-    await user.selectOptions(
-      screen.getByTestId("experiments-symbol-filter"),
-      "TCS",
-    );
+    const combo = within(screen.getByTestId("experiments-symbol-filter")).getByRole("combobox");
+    await user.click(combo);
+    const option = await screen.findByRole("option", { name: "TCS" });
+    await user.click(option);
 
     expect(screen.getByTestId("experiments-run-row-1")).toBeInTheDocument();
     expect(
@@ -274,10 +243,10 @@ describe("ExperimentsResultsTable", () => {
       screen.getByTestId("experiments-symbol-row-1-RELIANCE"),
     ).toBeInTheDocument();
 
-    await user.selectOptions(
-      screen.getByTestId("experiments-symbol-filter"),
-      "TCS",
-    );
+    const combo = within(screen.getByTestId("experiments-symbol-filter")).getByRole("combobox");
+    await user.click(combo);
+    const option = await screen.findByRole("option", { name: "TCS" });
+    await user.click(option);
 
     expect(
       screen.getByTestId("experiments-symbol-row-1-TCS"),

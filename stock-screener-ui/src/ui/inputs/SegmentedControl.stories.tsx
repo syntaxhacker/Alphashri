@@ -6,7 +6,7 @@ const meta: Meta<typeof SegmentedControl> = {
   title: "Primitives/Inputs/SegmentedControl",
   component: SegmentedControl,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Segmented switch for 2-5 exclusive options. Use for timeframe, mode, or view toggles. When not to use: for >5 options use Select. Uses Mantine SegmentedControl with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Segmented switch for 2-5 exclusive options. Use for timeframe, mode, or view toggles. When not to use: for >5 options use Select. Uses MUI SegmentedControl with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

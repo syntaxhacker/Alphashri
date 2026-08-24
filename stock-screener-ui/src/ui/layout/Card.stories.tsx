@@ -5,7 +5,7 @@ const meta: Meta<typeof Card> = {
   title: "Primitives/Layout/Card",
   component: Card,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Content container with border and shadow. Use for dashboards, screener rows, or any grouped content that needs visual separation. When not to use: for page-level layout use Paper or Box. Uses Mantine Card with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Content container with border and shadow. Use for dashboards, screener rows, or any grouped content that needs visual separation. When not to use: for page-level layout use Paper or Box. Uses MUI Card with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

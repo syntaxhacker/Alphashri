@@ -5,14 +5,14 @@ const meta: Meta<typeof ScrollArea> = {
   title: "Primitives/Layout/ScrollArea",
   component: ScrollArea,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Custom scroll container with styled scrollbars. Use for constrained-height lists, tables, or sidebars. When not to use: for page-level scroll use native overflow. Uses Mantine ScrollArea with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Custom scroll container with styled scrollbars. Use for constrained-height lists, tables, or sidebars. When not to use: for page-level scroll use native overflow. Uses MUI ScrollArea with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
 type Story = StoryObj<typeof ScrollArea>;
 
 const longContent = Array.from({ length: 40 }, (_, i) => (
-  <div key={i} style={{ padding: "6px 12px", borderBottom: "1px solid var(--mantine-color-default-border)" }}>
+  <div key={i} style={{ padding: "6px 12px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
     Row {i + 1}
   </div>
 ));

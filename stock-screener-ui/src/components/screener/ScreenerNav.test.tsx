@@ -7,19 +7,6 @@ import { ScreenerNav } from "./ScreenerNav";
 import { UIProvider } from "@/ui";
 import type { ScreenerOption } from "../../types";
 
-vi.mock("@/ui", async () => {
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...ui,
-    Tooltip: ({ label, children }: { label: string; children: React.ReactNode }) => (
-      <div data-testid="tooltip-wrapper" data-label={label}>
-        {children}
-        <span data-testid="tooltip-content">{label}</span>
-      </div>
-    ),
-  };
-});
-
 describe("ScreenerNav", () => {
   const mockOptions: ScreenerOption[] = [
     { id: "trending", label: "Trending", description: "Stocks with strong momentum" },
@@ -95,9 +82,10 @@ describe("ScreenerNav", () => {
         <ScreenerNav {...defaultProps} />
       </UIProvider>,
     );
-    expect(screen.getByText("Stocks with strong momentum")).toBeInTheDocument();
-    expect(screen.getByText("Stocks at 52-week highs")).toBeInTheDocument();
-    expect(screen.getByText("Stocks showing RSI reversal signals")).toBeInTheDocument();
+    // Real MUI Tooltip renders description as aria-label on wrapper span, not visible text
+    expect(screen.getByLabelText("Stocks with strong momentum")).toBeInTheDocument();
+    expect(screen.getByLabelText("Stocks at 52-week highs")).toBeInTheDocument();
+    expect(screen.getByLabelText("Stocks showing RSI reversal signals")).toBeInTheDocument();
   });
 
   it("handles options without descriptions", () => {

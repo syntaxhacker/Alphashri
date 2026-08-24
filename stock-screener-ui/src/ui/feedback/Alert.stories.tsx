@@ -7,7 +7,7 @@ const meta: Meta<typeof Alert> = {
   title: "Primitives/Feedback/Alert",
   component: Alert,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Callout for success, warning, error, or info. Use for form errors, system messages, or risk notices. When not to use: for transient feedback use Notification. Uses Mantine Alert with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Callout for success, warning, error, or info. Use for form errors, system messages, or risk notices. When not to use: for transient feedback use Notification. Uses MUI Alert with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

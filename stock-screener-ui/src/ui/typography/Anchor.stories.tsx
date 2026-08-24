@@ -5,7 +5,7 @@ const meta: Meta<typeof Anchor> = {
   title: "Primitives/Typography/Anchor",
   component: Anchor,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Themed hyperlink with underline and hover states. Use for navigation links and external URLs. When not to use: for button actions use Button or UnstyledButton. Uses Mantine Anchor with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Themed hyperlink with underline and hover states. Use for navigation links and external URLs. When not to use: for button actions use Button or UnstyledButton. Uses MUI Anchor with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

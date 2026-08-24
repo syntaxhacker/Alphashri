@@ -6,7 +6,7 @@ const meta: Meta<typeof Skeleton> = {
   title: "Primitives/Feedback/Skeleton",
   component: Skeleton,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Placeholder shimmer for loading content. Use while fetching screener rows or chart data. When not to use: for short waits use Loader. Uses Mantine Skeleton with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Placeholder shimmer for loading content. Use while fetching screener rows or chart data. When not to use: for short waits use Loader. Uses MUI Skeleton with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

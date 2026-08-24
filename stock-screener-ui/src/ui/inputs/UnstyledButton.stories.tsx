@@ -6,7 +6,7 @@ const meta: Meta<typeof UnstyledButton> = {
   title: "Primitives/Inputs/UnstyledButton",
   component: UnstyledButton,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Button with no default styles — fully custom. Use for clickable cards, rows, or custom interactive surfaces. When not to use: for standard actions use Button. Uses Mantine UnstyledButton with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Button with no default styles — fully custom. Use for clickable cards, rows, or custom interactive surfaces. When not to use: for standard actions use Button. Uses MUI UnstyledButton with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -23,10 +23,10 @@ export const Default: Story = {
 export const LinkStyle: Story = {
   render: () => (
     <Group gap="md">
-      <UnstyledButton style={{ color: "var(--mantine-color-blue-6)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--mui-palette-primary-main)", fontSize: 14 }}>
         View details
       </UnstyledButton>
-      <UnstyledButton style={{ color: "var(--mantine-color-red-6)", fontSize: 14 }}>
+      <UnstyledButton style={{ color: "var(--mui-palette-error-main)", fontSize: 14 }}>
         Delete
       </UnstyledButton>
     </Group>
@@ -37,7 +37,7 @@ export const CardStyle: Story = {
   render: () => (
     <UnstyledButton
       style={{
-        border: "1px solid var(--mantine-color-default-border)",
+        border: "1px solid var(--mui-palette-divider)",
         borderRadius: 8,
         textAlign: "left",
         padding: 16,

@@ -55,19 +55,17 @@ describe("SectorAlertsList", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "IT", direction: "SURGING" as const, delta: 1.5 },
     ];
-    const { container } = renderWithMantine(<SectorAlertsList alerts={alerts} />);
-    const badge = container.querySelector(".mantine-Badge-root");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveTextContent("SURGING");
+    renderWithMantine(<SectorAlertsList alerts={alerts} />);
+    expect(screen.getByText("SURGING (1.50%)")).toBeInTheDocument();
+    expect(screen.getByText(/SURGING/)).toBeInTheDocument();
   });
 
   it("shows DROPPING alert with red badge", () => {
     const alerts = [
       { timestamp: "10:30:00", sector: "Banking", direction: "DROPPING" as const, delta: -0.8 },
     ];
-    const { container } = renderWithMantine(<SectorAlertsList alerts={alerts} />);
-    const badge = container.querySelector(".mantine-Badge-root");
-    expect(badge).toBeInTheDocument();
-    expect(badge).toHaveTextContent("DROPPING");
+    renderWithMantine(<SectorAlertsList alerts={alerts} />);
+    expect(screen.getByText("DROPPING (-0.80%)")).toBeInTheDocument();
+    expect(screen.getByText(/DROPPING/)).toBeInTheDocument();
   });
 });

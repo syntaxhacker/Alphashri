@@ -5,7 +5,7 @@ const meta: Meta<typeof SimpleGrid> = {
   title: "Primitives/Layout/SimpleGrid",
   component: SimpleGrid,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Grid with equal-width columns via cols prop. Use for quick card grids without Grid.Col nesting. When not to use: for asymmetric layouts use Grid. Uses Mantine SimpleGrid with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Grid with equal-width columns via cols prop. Use for quick card grids without Grid.Col nesting. When not to use: for asymmetric layouts use Grid. Uses MUI SimpleGrid with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -15,7 +15,7 @@ const cells = Array.from({ length: 6 }, (_, i) => (
   <div
     key={i}
     style={{
-      background: "var(--mantine-color-blue-light)",
+      background: "var(--mui-palette-primary-light)",
       padding: 16,
       borderRadius: 6,
       textAlign: "center",

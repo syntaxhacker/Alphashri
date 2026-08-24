@@ -6,7 +6,7 @@ const meta: Meta<typeof Loader> = {
   title: "Primitives/Feedback/Loader",
   component: Loader,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Animated spinner for loading states. Use inline with buttons or centered on page. When not to use: for progress with known percent use Progress. Uses Mantine Loader with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Animated spinner for loading states. Use inline with buttons or centered on page. When not to use: for progress with known percent use Progress. Uses MUI Loader with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

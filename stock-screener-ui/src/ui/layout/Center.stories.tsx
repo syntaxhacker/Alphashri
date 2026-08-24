@@ -5,7 +5,7 @@ const meta: Meta<typeof Center> = {
   title: "Primitives/Layout/Center",
   component: Center,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Centering utility — flex centers children both axes. Use for empty states, loaders, or single-child centering. When not to use: for multi-item layouts use Group or Stack. Uses Mantine Center with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Centering utility — flex centers children both axes. Use for empty states, loaders, or single-child centering. When not to use: for multi-item layouts use Group or Stack. Uses MUI Center with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -13,8 +13,8 @@ type Story = StoryObj<typeof Center>;
 
 export const BlockChild: Story = {
   render: () => (
-    <Center style={{ minHeight: 150, background: "var(--mantine-color-blue-light)" }}>
-      <div style={{ padding: 16, borderRadius: 8, background: "var(--mantine-color-blue-filled)", color: "white" }}>
+    <Center style={{ minHeight: 150, background: "var(--mui-palette-primary-light)" }}>
+      <div style={{ padding: 16, borderRadius: 8, background: "var(--mui-palette-primary-main)", color: "white" }}>
         Block child, full-width centering
       </div>
     </Center>
@@ -23,7 +23,7 @@ export const BlockChild: Story = {
 
 export const InlineChild: Story = {
   render: () => (
-    <div style={{ border: "1px dashed var(--mantine-color-default-border)" }}>
+    <div style={{ border: "1px dashed var(--mui-palette-divider)" }}>
       <Center inline style={{ padding: 8 }}>
         <span>Inline child</span>
       </Center>

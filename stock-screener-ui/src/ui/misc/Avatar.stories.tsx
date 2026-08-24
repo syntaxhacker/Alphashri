@@ -6,7 +6,7 @@ const meta: Meta<typeof Avatar> = {
   title: "Primitives/Misc/Avatar",
   component: Avatar,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "User or symbol avatar with fallback. Use for user menus or watchlist symbols. When not to use: for generic icons use ThemeIcon. Uses Mantine Avatar with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "User or symbol avatar with fallback. Use for user menus or watchlist symbols. When not to use: for generic icons use ThemeIcon. Uses MUI Avatar with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

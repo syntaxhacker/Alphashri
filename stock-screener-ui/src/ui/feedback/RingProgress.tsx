@@ -14,7 +14,7 @@ export interface UIRingProgressProps extends UIBaseProps {
 
 function resolveColor(c?: string): string {
   if (!c) return "#2563EB";
-  // Map Mantine names to MUI palette hex fallback
+  // Map theme names to MUI palette hex fallback
   const map: Record<string, string> = {
     teal: "#0FAE99",
     green: "#16A34A",

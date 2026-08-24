@@ -6,7 +6,7 @@ const meta: Meta<typeof TextInput> = {
   title: "Primitives/Inputs/TextInput",
   component: TextInput,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Single-line text field with label, error, and description. Use for symbol search, names, or free text. When not to use: for numeric input use NumberInput. Uses Mantine TextInput with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Single-line text field with label, error, and description. Use for symbol search, names, or free text. When not to use: for numeric input use NumberInput. Uses MUI TextInput with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

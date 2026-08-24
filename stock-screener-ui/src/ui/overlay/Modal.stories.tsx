@@ -7,7 +7,7 @@ const meta: Meta<typeof Modal> = {
   title: "Primitives/Overlays/Modal",
   component: Modal,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Focused dialog with overlay and close. Use for confirmations, forms, or detail views. When not to use: for non-blocking info use Popover. Uses Mantine Modal with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Focused dialog with overlay and close. Use for confirmations, forms, or detail views. When not to use: for non-blocking info use Popover. Uses MUI Modal with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

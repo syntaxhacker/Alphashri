@@ -5,7 +5,7 @@ const meta: Meta<typeof Paper> = {
   title: "Primitives/Layout/Paper",
   component: Paper,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Elevated surface with shadow and border. Use for cards, panels, and sections that need depth. When not to use: for flat inline containers use Box. Uses Mantine Paper with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Elevated surface with shadow and border. Use for cards, panels, and sections that need depth. When not to use: for flat inline containers use Box. Uses MUI Paper with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

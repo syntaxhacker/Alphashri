@@ -7,7 +7,7 @@ const meta: Meta<typeof DatePicker> = {
   title: "Primitives/Dates/DatePicker",
   component: DatePicker,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Calendar date picker. Use for selecting trade dates, filter ranges, or backtest windows. When not to use: for simple text dates use TextInput. Uses Mantine DatePicker with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Calendar date picker. Use for selecting trade dates, filter ranges, or backtest windows. When not to use: for simple text dates use TextInput. Uses MUI DatePicker with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

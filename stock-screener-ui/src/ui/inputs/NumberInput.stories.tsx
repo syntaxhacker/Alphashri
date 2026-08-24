@@ -6,7 +6,7 @@ const meta: Meta<typeof NumberInput> = {
   title: "Primitives/Inputs/NumberInput",
   component: NumberInput,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Numeric field with increment/decrement controls. Use for quantities, prices, or thresholds. When not to use: for free text use TextInput. Uses Mantine NumberInput with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Numeric field with increment/decrement controls. Use for quantities, prices, or thresholds. When not to use: for free text use TextInput. Uses MUI NumberInput with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

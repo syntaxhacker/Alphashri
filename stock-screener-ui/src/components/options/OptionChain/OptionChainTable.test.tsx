@@ -239,8 +239,10 @@ describe("OptionChainTable", () => {
       renderWithMantine(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
-      const progressBars = document.querySelectorAll(".mantine-Progress-root");
+      const progressBars = screen.getAllByRole("progressbar");
       expect(progressBars.length).toBeGreaterThan(0);
+      // Also verify aria-valuenow is set (determinate progress)
+      expect(progressBars[0]).toHaveAttribute("aria-valuenow");
     });
   });
 

@@ -9,8 +9,8 @@ import { MOCK_PAPER_POSITIONS, MOCK_PAPER_TRADES, MOCK_SECTOR_STOCKS, MOCK_SPOT_
 
 function DetailChrome({ title, subtitle, children }: { title: string; subtitle?: string; children: React.ReactNode }) {
   return (
-    <Box h={520} style={{ display: "flex", flexDirection: "column", border: "1px solid var(--mantine-color-default-border)", borderRadius: 8, overflow: "hidden" }}>
-      <Group justify="space-between" px="md" py="xs" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
+    <Box h={520} style={{ display: "flex", flexDirection: "column", border: "1px solid var(--mui-palette-divider)", borderRadius: 8, overflow: "hidden" }}>
+      <Group justify="space-between" px="md" py="xs" style={{ borderBottom: "1px solid var(--mui-palette-divider)" }}>
         <div><Text fw={600} size="sm">{title}</Text>{subtitle && <Text size="xs" c="dimmed">{subtitle}</Text>}</div>
       </Group>
       <Box flex={1} p="sm" style={{ overflow: "auto" }}>{children}</Box>

@@ -29,7 +29,7 @@ type PanelComponent = React.ComponentType<PanelProps>;
  *   StrategyParamPanelFactory.createPanel("ORB", initialValues, false)
  *
  * The returned value is a <Tabs.Panel> element that can be placed
- * directly inside a Mantine <Tabs> component.
+ * directly inside a MUI <Tabs> component.
  */
 export class StrategyParamPanelFactory {
   private static registry = new Map<string, PanelComponent>();

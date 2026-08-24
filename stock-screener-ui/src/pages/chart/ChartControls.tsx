@@ -1,5 +1,6 @@
-import { Group, Stack } from "@/ui";
+import { Box, Group, Stack } from "@/ui";
 import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
+import { FIN_INNER_PAD, FIN_OUTER_PAD, FIN_RADIUS } from "@/ui/palette";
 
 interface ChartControlsProps {
   timeframe: number;
@@ -23,52 +24,48 @@ export function ChartControls({
   on52wHighChange,
 }: ChartControlsProps) {
   return (
-    <div className="chart-controls" id="chart-controls" data-testid="chart-controls">
-      <Stack gap="xs" className="controls-container">
+    <Box id="chart-controls" data-testid="chart-controls" sx={{ p: `${FIN_OUTER_PAD}px`, borderRadius: `${FIN_RADIUS}px` }}>
+      <Stack gap="xs" sx={{ gap: `${FIN_INNER_PAD}px` }}>
         <Group gap="xs" wrap="nowrap">
-          <span
-            className="control-label"
-            style={{ fontSize: "12px", color: "text.secondary" }}
-          >
+          <Box component="span" sx={{ fontSize: "12px", color: "text.secondary" }}>
             Timeframe:
-          </span>
-          <select
+          </Box>
+          <Box
+            component="select"
             value={timeframe}
-            onChange={(e) => onTimeframeChange(parseInt(e.target.value))}
+            onChange={(e: any) => onTimeframeChange(parseInt(e.target.value))}
             data-testid="chart-timeframe-select"
-            className="timeframe-select"
+            sx={{ p: `${FIN_INNER_PAD / 2}px`, borderRadius: `${FIN_RADIUS}px`, border: "1px solid", borderColor: "divider" }}
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>
                 {tf.label}
               </option>
             ))}
-          </select>
+          </Box>
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <span
-            className="control-label"
-            style={{ fontSize: "12px", color: "text.secondary" }}
-          >
+          <Box component="span" sx={{ fontSize: "12px", color: "text.secondary" }}>
             OR:
-          </span>
-          <select
+          </Box>
+          <Box
+            component="select"
             value={orMinutes}
-            onChange={(e) => onOrMinutesChange(parseInt(e.target.value))}
+            onChange={(e: any) => onOrMinutesChange(parseInt(e.target.value))}
             data-testid="chart-or-select"
-            className="or-select"
+            sx={{ p: `${FIN_INNER_PAD / 2}px`, borderRadius: `${FIN_RADIUS}px`, border: "1px solid", borderColor: "divider" }}
           >
             {OR_MINUTES_OPTIONS.map((or) => (
               <option key={or.value} value={or.value}>
                 {or.label}
               </option>
             ))}
-          </select>
+          </Box>
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <label className="checkbox-label" data-testid="chart-pivots-checkbox-wrapper">
+          <Box component="label" data-testid="chart-pivots-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: `${FIN_INNER_PAD / 2}px` }}>
             <input
               type="checkbox"
               checked={showPivots}
@@ -76,12 +73,12 @@ export function ChartControls({
               data-testid="chart-pivots-checkbox"
               aria-label="Toggle pivot levels"
             />
-            <span>Pivots</span>
-          </label>
+            <Box component="span" sx={{ fontSize: "12px" }}>Pivots</Box>
+          </Box>
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <label className="checkbox-label" data-testid="chart-52w-checkbox-wrapper">
+          <Box component="label" data-testid="chart-52w-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: `${FIN_INNER_PAD / 2}px` }}>
             <input
               type="checkbox"
               checked={show52wHigh}
@@ -89,10 +86,10 @@ export function ChartControls({
               data-testid="chart-52w-checkbox"
               aria-label="Toggle 52-week high"
             />
-            <span>52W High</span>
-          </label>
+            <Box component="span" sx={{ fontSize: "12px" }}>52W High</Box>
+          </Box>
         </Group>
       </Stack>
-    </div>
+    </Box>
   );
 }

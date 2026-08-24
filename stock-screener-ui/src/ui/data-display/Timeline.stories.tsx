@@ -6,7 +6,7 @@ const meta: Meta<typeof Timeline> = {
   title: "Primitives/Data Display/Timeline",
   component: Timeline,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Vertical timeline with bullets. Use for trade history, audit logs, or step progress. When not to use: for tables use DataTable. Uses Mantine Timeline with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Vertical timeline with bullets. Use for trade history, audit logs, or step progress. When not to use: for tables use DataTable. Uses MUI Timeline with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

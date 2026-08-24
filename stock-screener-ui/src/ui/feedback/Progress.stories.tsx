@@ -6,7 +6,7 @@ const meta: Meta<typeof Progress> = {
   title: "Primitives/Feedback/Progress",
   component: Progress,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Bar showing completion or level. Use for upload, scan, or quota progress. When not to use: for indeterminate loading use Loader. Uses Mantine Progress with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Bar showing completion or level. Use for upload, scan, or quota progress. When not to use: for indeterminate loading use Loader. Uses MUI Progress with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

@@ -33,8 +33,9 @@ describe("ChartBody", () => {
     expect(el).toBeTruthy();
     expect(el.style.width).toBe("100%");
     expect(el.style.height).toBe("100%");
-    // Ensure not wrapped in ScrollArea (Mantine ScrollArea renders with class mantine-ScrollArea)
-    expect(document.querySelector(".mantine-ScrollArea-root")).toBeNull();
+    // Generic: ensure not wrapped in ScrollArea — candlestick is direct child of chart-body
+    expect(screen.getByTestId("candlestick-chart").parentElement?.getAttribute("data-testid")).toBe("chart-body");
+    expect(screen.getByTestId("chart-body").contains(screen.getByTestId("candlestick-chart"))).toBe(true);
   });
 
   it("does not render chart when loading even if hasData", () => {

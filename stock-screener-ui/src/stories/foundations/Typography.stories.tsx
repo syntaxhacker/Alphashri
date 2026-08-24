@@ -9,7 +9,7 @@ const meta: Meta = {
     docs: {
       description: {
         component:
-          "Type scale from theme.tsx — sm/xs for meta, h1-h6 for headings, weights 400-800. App idiom: Text size=xs c=dimmed for labels. Mantine sizes map directly; use `Text`/`Title` from `@/ui`, never raw `<p>`/`<h*>`.",
+          "Type scale from theme.tsx — sm/xs for meta, h1-h6 for headings, weights 400-800. App idiom: Text size=xs c=dimmed for labels. MUI sizes map directly; use `Text`/`Title` from `@/ui`, never raw `<p>`/`<h*>`.",
       },
     },
   },

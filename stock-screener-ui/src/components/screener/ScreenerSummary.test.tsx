@@ -52,20 +52,20 @@ describe("ScreenerSummary", () => {
   });
 
   describe("color tone mapping", () => {
-    test("returns mantine color variable when color is set", () => {
+    test("returns mui palette variable when color is set", () => {
       expect(getTone({ label: "A", value: 1, color: "green" })).toBe(
-        "var(--mantine-color-green-6)",
+        "var(--mui-palette-success-main)",
       );
-      expect(getTone({ label: "B", value: 2, color: "red" })).toBe("var(--mantine-color-red-6)");
-      expect(getTone({ label: "C", value: 3, color: "blue" })).toBe("var(--mantine-color-blue-6)");
+      expect(getTone({ label: "B", value: 2, color: "red" })).toBe("var(--mui-palette-error-main)");
+      expect(getTone({ label: "C", value: 3, color: "blue" })).toBe("var(--mui-palette-primary-main)");
     });
 
     test("returns default text color when color is undefined", () => {
-      expect(getTone({ label: "A", value: 1 })).toBe("var(--mantine-color-text)");
+      expect(getTone({ label: "A", value: 1 })).toBe("var(--mui-palette-text-primary)");
     });
 
     test("returns default text color when color is not set", () => {
-      expect(getTone({ label: "A", value: 1, color: undefined })).toBe("var(--mantine-color-text)");
+      expect(getTone({ label: "A", value: 1, color: undefined })).toBe("var(--mui-palette-text-primary)");
     });
   });
 
@@ -114,11 +114,11 @@ describe("ScreenerSummary", () => {
       );
       expect(screen.getByTestId("summary-card-Green")).toHaveAttribute(
         "data-tone",
-        "var(--mantine-color-green-6)",
+        "var(--mui-palette-success-main)",
       );
       expect(screen.getByTestId("summary-card-No Color")).toHaveAttribute(
         "data-tone",
-        "var(--mantine-color-text)",
+        "var(--mui-palette-text-primary)",
       );
     });
 

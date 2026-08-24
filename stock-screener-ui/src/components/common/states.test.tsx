@@ -16,7 +16,7 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 describe("InlineLoader", () => {
   it("renders", () => {
     render(<InlineLoader />, { wrapper: Wrapper });
-    expect(document.querySelector(".mantine-Loader-root")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("renders data-testid", () => {

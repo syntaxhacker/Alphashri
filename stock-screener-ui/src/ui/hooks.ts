@@ -3,7 +3,7 @@ import { useTheme as useMuiTheme } from "@mui/material/styles";
 import useMuiMediaQuery from "@mui/material/useMediaQuery";
 import type { UIUseColorSchemeResult } from "./types";
 
-// rem: px -> rem (Mantine compat)
+// rem: px -> rem (MUI compat)
 export function rem(value: number | string): string {
   if (typeof value === "string") {
     const n = Number.parseFloat(value);
@@ -88,7 +88,7 @@ export function useDisclosure(
   return [opened, { open, close, toggle }];
 }
 
-// useColorScheme: localStorage + MUI fallback (no Mantine)
+// useColorScheme: localStorage + MUI fallback (no legacy)
 export function useColorScheme(): UIUseColorSchemeResult {
   const muiTheme: any = (() => {
     try {
@@ -156,11 +156,14 @@ export function useTheme() {
   return useMuiTheme();
 }
 
+export function useUICore() {
+  return { useMantineColorScheme: useColorScheme, useMantineTheme: useMuiTheme };
+}
 export function useMantineCore() {
   return { useMantineColorScheme: useColorScheme, useMantineTheme: useMuiTheme };
 }
 
-// Minimal Tree shim for compat (no Mantine Tree)
+// Minimal Tree shim for compat (no legacy Tree)
 export function useTree() {
   return { expanded: [], toggleExpanded: () => {}, setExpanded: () => {} } as any;
 }

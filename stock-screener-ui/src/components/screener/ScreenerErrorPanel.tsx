@@ -11,8 +11,8 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
     <Stack
       gap="sm"
       align="stretch"
-      className="screener-error-container"
       data-testid="screener-error-container"
+      sx={{ p: 1 }}
     >
       <div
         style={{

@@ -72,7 +72,7 @@ export const WithLongLabels: Story = {
   },
   decorators: [
     (Story) => (
-      <div style={{ maxWidth: 180, border: "1px dashed var(--mantine-color-dimmed)" }}>
+      <div style={{ maxWidth: 180, border: "1px dashed var(--mui-palette-text-secondary)" }}>
         <Story />
       </div>
     ),

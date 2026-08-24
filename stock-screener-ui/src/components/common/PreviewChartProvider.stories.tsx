@@ -81,7 +81,7 @@ export const NoData: Story = {
     <Stack gap="sm" align="center" p="md">
       <Title order={6}>NoData empty state</Title>
       <Text size="xs" c="dimmed">When candles is empty, HoverPreview shows “No data” and ExpandedPanel shows “No data available”.</Text>
-      <Box p="sm" style={{ border: "1px dashed var(--mantine-color-default-border)", borderRadius: 8 }}>
+      <Box p="sm" style={{ border: "1px dashed var(--mui-palette-divider)", borderRadius: 8 }}>
         <Text size="xs">Hover or click an unknown symbol (e.g. UNKNOWN123) to hit empty branch.</Text>
         <Group mt="xs">
           <HoverTrigger symbol="UNKNOWN123" />

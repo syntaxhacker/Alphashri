@@ -5,7 +5,7 @@ const meta: Meta<typeof Box> = {
   title: "Primitives/Layout/Box",
   component: Box,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Polymorphic container — the base of every Mantine component. Use for any Box-model layout (p, m, bg) that doesn't need a semantic wrapper. When not to use: prefer Stack/Group/Flex for flex layouts. Uses Mantine Box with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Polymorphic container — the base of every MUI component. Use for any Box-model layout (p, m, bg) that doesn't need a semantic wrapper. When not to use: prefer Stack/Group/Flex for flex layouts. Uses MUI Box with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -21,7 +21,7 @@ export const BackgroundPadding: Story = {
 
 export const InlineStyle: Story = {
   render: () => (
-    <Box style={{ background: "var(--mantine-color-teal-filled)", padding: 16, borderRadius: 8 }}>
+    <Box style={{ background: "var(--mui-palette-info-main)", padding: 16, borderRadius: 8 }}>
       styled via style prop
     </Box>
   ),

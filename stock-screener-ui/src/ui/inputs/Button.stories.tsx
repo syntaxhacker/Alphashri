@@ -6,7 +6,7 @@ const meta: Meta<typeof Button> = {
   title: "Primitives/Inputs/Button",
   component: Button,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Primary action trigger. Use for submit, confirm, or navigation actions. When not to use: for icon-only actions use ActionIcon. Uses Mantine Button with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Primary action trigger. Use for submit, confirm, or navigation actions. When not to use: for icon-only actions use ActionIcon. Uses MUI Button with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

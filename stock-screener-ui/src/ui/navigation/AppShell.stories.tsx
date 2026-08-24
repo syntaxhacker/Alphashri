@@ -24,7 +24,7 @@ export const FullShell: Story = {
           </Text>
           {/* MarketTicker placeholder - real one needs WS */}
           <Box flex={1} style={{ maxWidth: 360 }}>
-            <Text size="xs" c="dimmed" ta="center" style={{ border: "1px dashed var(--mantine-color-default-border)", borderRadius: 6, padding: "4px 8px" }}>
+            <Text size="xs" c="dimmed" ta="center" style={{ border: "1px dashed var(--mui-palette-divider)", borderRadius: 6, padding: "4px 8px" }}>
               Market Ticker
             </Text>
           </Box>

@@ -86,7 +86,7 @@ export function Button({
   const muiSize = mapSize(size);
   const muiColor = mapColor(color);
 
-  // Mantine light/white need softer sx override; keep contained but lower emphasis via sx if needed
+  // MUI light/white need softer sx override; keep contained but lower emphasis via sx if needed
   const sx: Record<string, unknown> = {
     ...(fullWidth ? { width: "100%" } : {}),
     ...(radius != null ? { borderRadius: typeof radius === "number" ? radius : undefined } : {}),

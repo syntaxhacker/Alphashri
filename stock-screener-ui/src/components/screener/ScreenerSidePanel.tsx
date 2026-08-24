@@ -16,7 +16,7 @@ interface Props {
   screenerOptions: ScreenerOption[];
 }
 
-/** Mantine Select expects { value, label }[]; API may send string[] or number[]. */
+/** MUI Select expects { value, label }[]; API may send string[] or number[]. */
 export function normalizeSelectFilterOptions(
   options: ProfileFilter["options"],
 ): { value: string; label: string }[] {

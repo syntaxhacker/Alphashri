@@ -6,7 +6,7 @@ const meta: Meta<typeof Overlay> = {
   title: "Primitives/Overlays/Overlay",
   component: Overlay,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Semi-transparent backdrop over content. Use behind modals or to dim background. When not to use: for modals use Modal. Uses Mantine Overlay with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Semi-transparent backdrop over content. Use behind modals or to dim background. When not to use: for modals use Modal. Uses MUI Overlay with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -16,8 +16,8 @@ const panelStyle = {
   width: "100%",
   height: 160,
   position: "relative" as const,
-  border: "1px solid var(--mantine-color-default-border)",
-  borderRadius: "var(--mantine-radius-md)",
+  border: "1px solid var(--mui-palette-divider)",
+  borderRadius: "8px",
   display: "flex",
   alignItems: "center",
   justifyContent: "center",

@@ -6,7 +6,7 @@ const meta: Meta<typeof Checkbox> = {
   title: "Primitives/Inputs/Checkbox",
   component: Checkbox,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Checkbox with label and indeterminate state. Use for multi-select, terms acceptance, or filter toggles. When not to use: for single on/off use Switch. Uses Mantine Checkbox with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Checkbox with label and indeterminate state. Use for multi-select, terms acceptance, or filter toggles. When not to use: for single on/off use Switch. Uses MUI Checkbox with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

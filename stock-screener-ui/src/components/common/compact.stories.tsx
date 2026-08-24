@@ -12,7 +12,7 @@ const meta: Meta<typeof CompactPanel> = {
     docs: {
       description: {
         component:
-          'Compact layout primitives — `CompactPage` (dense page shell with title/actions), `CompactPanel` (themed card surface for cards and empty states), and `CompactStat`/`CompactStatGrid` (responsive 2-4 column stat tiles). Use for dashboard and dense data pages where vertical space is tight. When not: for spacious marketing or detail pages use standard Mantine `Card`/`Paper` directly.',
+          'Compact layout primitives — `CompactPage` (dense page shell with title/actions), `CompactPanel` (themed card surface for cards and empty states), and `CompactStat`/`CompactStatGrid` (responsive 2-4 column stat tiles). Use for dashboard and dense data pages where vertical space is tight. When not: for spacious marketing or detail pages use standard MUI `Card`/`Paper` directly.',
       },
     },
   },

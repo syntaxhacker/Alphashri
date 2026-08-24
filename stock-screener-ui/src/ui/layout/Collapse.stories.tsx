@@ -13,7 +13,7 @@ function CollapseDemo() {
       <Collapse in={open}>
         <div
           style={{
-            background: "var(--mantine-color-blue-light)",
+            background: "var(--mui-palette-primary-light)",
             padding: 16,
             borderRadius: 8,
           }}
@@ -29,7 +29,7 @@ const meta: Meta<typeof Collapse> = {
   title: "Primitives/Layout/Collapse",
   component: Collapse,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Height-transition collapsible section. Use for expandable filters, accordion-like toggles, or show/hide content. When not to use: for route-level nav use Accordion. Uses Mantine Collapse with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Height-transition collapsible section. Use for expandable filters, accordion-like toggles, or show/hide content. When not to use: for route-level nav use Accordion. Uses MUI Collapse with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;
@@ -43,7 +43,7 @@ export const OpenByDefault: Story = {
   args: {
     in: true,
     children: (
-      <div style={{ background: "var(--mantine-color-teal-light)", padding: 16, borderRadius: 8 }}>
+      <div style={{ background: "var(--mui-palette-info-light)", padding: 16, borderRadius: 8 }}>
         Always-open collapse content.
       </div>
     ),

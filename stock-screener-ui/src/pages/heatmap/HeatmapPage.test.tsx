@@ -15,14 +15,6 @@ vi.mock("../../api/heatmap", () => ({
   fetchHeatmapSectors: vi.fn(),
 }));
 
-vi.mock("@/ui", async (importOriginal) => {
-  const actual = await importOriginal();
-  return {
-    ...actual,
-    useColorScheme: vi.fn(() => ({ colorScheme: "light" })),
-  };
-});
-
 beforeEach(() => {
   vi.clearAllMocks();
 });

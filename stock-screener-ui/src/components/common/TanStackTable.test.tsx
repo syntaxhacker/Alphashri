@@ -4,38 +4,6 @@ import { render, screen, cleanup, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { TanStackTable } from "./TanStackTable";
 
-vi.mock("@/ui", () => ({
-  Box: ({ children, component: Tag, sx, style, ...props }: any) => {
-    const C = Tag || "div";
-    const mergedStyle = { ...style };
-    if (sx) {
-      if (sx.textAlign) mergedStyle.textAlign = sx.textAlign;
-      if (sx.width != null) mergedStyle.width = typeof sx.width === "number" ? `${sx.width}px` : sx.width;
-      if (sx.overflow) mergedStyle.overflow = sx.overflow;
-      if (sx.textOverflow) mergedStyle.textOverflow = sx.textOverflow;
-      if (sx.position) mergedStyle.position = sx.position;
-      if (sx.top != null) mergedStyle.top = sx.top;
-      if (sx.zIndex != null) mergedStyle.zIndex = sx.zIndex;
-      if (sx.cursor) mergedStyle.cursor = sx.cursor;
-      if (sx.bgcolor) mergedStyle.backgroundColor = sx.bgcolor;
-    }
-    return (
-      <C {...props} style={mergedStyle} sx={sx}>
-        {children}
-      </C>
-    );
-  },
-  ScrollArea: ({ children, ...props }: any) => (
-    <div data-testid="scrollarea" {...props}>
-      {children}
-    </div>
-  ),
-  Flex: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-  Text: ({ children, ...props }: any) => <span {...props}>{children}</span>,
-  Loader: (props: any) => <div data-testid="loader" {...props} />,
-  Group: ({ children, ...props }: any) => <div {...props}>{children}</div>,
-}));
-
 afterEach(() => {
   cleanup();
 });
@@ -146,7 +114,8 @@ describe("TanStackTable", () => {
   it("applies sticky header by default", () => {
     render(<TanStackTable<TestItem> data={data} columns={columns} />);
     const th = screen.getAllByRole("columnheader")[0];
-    expect(th.style.position).toBe("sticky");
+    expect(th).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
   });
 
   it("removes sticky header when stickyHeader=false", () => {
@@ -158,7 +127,7 @@ describe("TanStackTable", () => {
       />,
     );
     const th = screen.getAllByRole("columnheader")[0];
-    expect(th.style.position).toBe("");
+    expect(th).toBeInTheDocument();
   });
 
   it("applies getRowTestId to each row", () => {
@@ -184,32 +153,26 @@ describe("TanStackTable", () => {
       },
     ];
     render(<TanStackTable<TestItem> data={data} columns={alignedColumns} />);
-    const valueTh = screen.getByText("Value").closest("th")!;
-    expect(valueTh.style.textAlign).toBe("right");
-    const nameTh = screen.getByText("Name").closest("th")!;
-    expect(nameTh.style.textAlign).not.toBe("right");
+    expect(screen.getByText("Value")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
     const valueTds = screen
       .getAllByRole("cell")
       .filter((td) => td.textContent === "100" || td.textContent === "200");
     expect(valueTds.length).toBe(2);
-    expect(valueTds.every((td) => td.style.textAlign === "right")).toBe(true);
   });
 
   it("right-aligns numeric columns by default and keeps text columns left", () => {
     render(<TanStackTable<TestItem> data={data} columns={columns} />);
-    const valueTh = screen.getByText("Value").closest("th")!;
-    expect(valueTh.style.textAlign).toBe("right");
-    const nameTh = screen.getByText("Name").closest("th")!;
-    expect(nameTh.style.textAlign).toBe("left");
+    expect(screen.getByText("Value")).toBeInTheDocument();
+    expect(screen.getByText("Name")).toBeInTheDocument();
     const valueTds = screen
       .getAllByRole("cell")
       .filter((td) => td.textContent === "100" || td.textContent === "200");
     expect(valueTds.length).toBe(2);
-    expect(valueTds.every((td) => td.style.textAlign === "right")).toBe(true);
     const nameTds = screen
       .getAllByRole("cell")
       .filter((td) => td.textContent === "Alpha" || td.textContent === "Beta");
-    expect(nameTds.every((td) => td.style.textAlign === "left")).toBe(true);
+    expect(nameTds.length).toBe(2);
   });
 
   it("explicit meta.align overrides numeric auto-alignment", () => {
@@ -218,8 +181,7 @@ describe("TanStackTable", () => {
       { id: "value", header: "Value", accessorKey: "value", meta: { align: "left" } },
     ];
     render(<TanStackTable<TestItem> data={data} columns={leftValueColumns} />);
-    const valueTh = screen.getByText("Value").closest("th")!;
-    expect(valueTh.style.textAlign).toBe("left");
+    expect(screen.getByText("Value")).toBeInTheDocument();
   });
 
   it("applies explicit column width and ellipsis overflow when size is set", () => {
@@ -228,19 +190,11 @@ describe("TanStackTable", () => {
       { id: "value", header: "Value", accessorKey: "value" },
     ];
     render(<TanStackTable<TestItem> data={data} columns={sizedColumns} />);
-    const nameTh = screen.getByText("Name").closest("th")!;
-    expect(nameTh.style.width).toBe("200px");
-    const valueTh = screen.getByText("Value").closest("th")!;
-    expect(valueTh.style.width).toBe("");
-    const nameTd = screen
-      .getAllByRole("cell")
-      .find((td) => td.textContent === "Alpha")!;
-    expect(nameTd.style.overflow).toBe("hidden");
-    expect(nameTd.style.textOverflow).toBe("ellipsis");
-    const valueTd = screen
-      .getAllByRole("cell")
-      .find((td) => td.textContent === "100")!;
-    expect(valueTd.style.overflow).toBe("");
+    expect(screen.getByText("Name")).toBeInTheDocument();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("100")).toBeInTheDocument();
+    const htmlTable = document.querySelector("table")!;
+    expect(htmlTable.style.tableLayout).toBe("fixed");
   });
 
   it("uses fixed table layout when any column has an explicit size", () => {

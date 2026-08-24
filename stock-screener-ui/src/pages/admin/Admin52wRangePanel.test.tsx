@@ -13,12 +13,6 @@ vi.mock("../../components/auth/AuthProvider2", () => ({
   useAuth: () => ({ fetchWithAuth: fetchWithAuthMock }),
 }));
 
-vi.mock("@/ui", async (importOriginal) => {
-  const actual: any = await importOriginal();
-  // Mock Mantine components simply but keep Progress behavior
-  return actual;
-});
-
 function makeStatus(overrides: any = {}) {
   return {
     job: { status: "completed", total: 100, processed: 100, ok: 90, failed: 0, skipped: 10, progress_pct: 100, elapsed_sec: 12, finished_at: "2026-01-01T10:00:00Z", message: "done" },
@@ -104,7 +98,7 @@ describe("Admin52wRangePanel", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => makeStatus({ job: { status: "running" } }) });
     renderPanel();
     await waitFor(() => expect(screen.getByTestId("admin-52w-run")).toBeInTheDocument());
-    const checkbox = screen.getByTestId("admin-52w-full-refresh") as HTMLInputElement;
+    const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     await user.click(checkbox);
     expect(checkbox.checked).toBe(true);

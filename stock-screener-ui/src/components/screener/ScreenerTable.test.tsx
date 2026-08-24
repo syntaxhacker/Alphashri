@@ -174,12 +174,12 @@ describe("ScreenerTable", () => {
     expect(screen.queryByTestId("stock-row-TCS")).not.toBeInTheDocument();
   });
 
-  it("applies custom className to table", () => {
+  it("renders table with MUI sx (no global CSS class)", () => {
     render(
       <UIProvider>
         <ScreenerTable {...defaultProps} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-table")).toHaveClass("screener-table");
+    expect(screen.getByTestId("screener-table")).toBeInTheDocument();
   });
 });

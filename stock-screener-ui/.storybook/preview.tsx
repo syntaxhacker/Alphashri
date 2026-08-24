@@ -7,17 +7,7 @@ import "../src/style.css";
 import { AuthContext } from "../src/components/auth/AuthProvider2";
 import { NewsWebSocketProvider } from "../src/state/newsWebSocket";
 
-// The app's style.css sets `body { overflow: hidden }` (app-shell layout).
-// That leaks into Storybook's iframe and kills scrolling on docs/canvas pages.
-// Restore normal scrolling here only — the app bundle is unaffected.
-if (typeof document !== "undefined") {
-  const sbFix = document.createElement("style");
-  sbFix.dataset.storybookScrollFix = "true";
-  sbFix.innerHTML =
-    "body.sb-show-main { overflow: auto !important; height: auto !important; }" +
-    ".docs-story body, .sb-docs-preview-stories body { overflow: auto !important; }";
-  document.head.appendChild(sbFix);
-}
+// Style is now MUI-only via muiTheme + CssBaseline; no global overflow hacks needed.
 
 // ECharts is available as an npm package (echarts) — in the app it is also
 // exposed as window.echarts for useECharts. Provide it synchronously in the

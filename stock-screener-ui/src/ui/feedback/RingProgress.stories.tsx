@@ -6,7 +6,7 @@ const meta: Meta<typeof RingProgress> = {
   title: "Primitives/Feedback/RingProgress",
   component: RingProgress,
   tags: ["autodocs"],
-  parameters: { docs: { description: { component: "Circular progress with sections. Use for portfolio allocation, completion rings, or P&L gauges. When not to use: for linear progress use Progress. Uses Mantine RingProgress with theme tokens (no hardcoded colors)." } } },
+  parameters: { docs: { description: { component: "Circular progress with sections. Use for portfolio allocation, completion rings, or P&L gauges. When not to use: for linear progress use Progress. Uses MUI RingProgress with theme tokens (no hardcoded colors)." } } },
 };
 
 export default meta;

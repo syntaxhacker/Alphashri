@@ -7,7 +7,6 @@ export function ScreenerEmpty({ message = "No results found" }: ScreenerEmptyPro
   return (
     <CompactPanel
       id="screener-empty"
-      className="screener-empty"
       testId="screener-empty"
       title={
         <Group gap="xs" wrap="nowrap">

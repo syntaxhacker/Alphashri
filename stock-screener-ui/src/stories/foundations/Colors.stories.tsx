@@ -17,7 +17,7 @@ import {
 
 const meta: Meta = {
   title: "Foundations/Colors",
-  parameters: { layout: "padded", docs: { description: { component: "Semantic + scale colors from `src/ui/palette.ts` — the single source of truth. Never hardcode hex values in components; import semantic tokens (`POSITIVE`, `NEGATIVE`, `PRIMARY`) or use Mantine color names." } } },
+  parameters: { layout: "padded", docs: { description: { component: "Semantic + scale colors from `src/ui/palette.ts` — the single source of truth. Never hardcode hex values in components; import semantic tokens (`POSITIVE`, `NEGATIVE`, `PRIMARY`) or use MUI color names." } } },
 };
 
 export default meta;
@@ -96,7 +96,7 @@ export const LightDarkPreview: StoryObj = {
   render: () => (
     <Stack gap="md">
       <MText size="xs" c="dimmed">
-        Semantic tokens are defined once in <code>src/ui/palette.ts</code>. Components should use Mantine&apos;s{" "}
+        Semantic tokens are defined once in <code>src/ui/palette.ts</code>. Components should use MUI&apos;s{" "}
         <code>light-dark()</code> or semantic tokens (<code>POSITIVE</code>, <code>NEGATIVE</code>) — never raw hex.
         Below the same swatches are shown on both light and dark surfaces to verify contrast.
       </MText>
