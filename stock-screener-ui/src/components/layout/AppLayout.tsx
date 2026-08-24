@@ -16,7 +16,6 @@ import MenuIcon from "@mui/icons-material/Menu";
 import NotificationsIcon from "@mui/icons-material/Notifications";
 import { useTheme } from "@mui/material/styles";
 import { useState } from "react";
-import { FIN_NAV_W, FIN_NAV_W_COLLAPSED } from "@/ui/palette";
 
 interface AppLayoutProps {
   children: React.ReactNode;
@@ -28,7 +27,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   const [notifOpen, setNotifOpen] = useState(false);
-  const navWidth = desktopCollapsed ? FIN_NAV_W_COLLAPSED : FIN_NAV_W;
+  const navWidth = desktopCollapsed ? 64 : 200;
 
   const drawerContent = (
     <NavbarNested activePath={location.pathname} collapsed={desktopCollapsed} onToggleCollapse={toggleDesktop} onMobileNavigate={closeMobile} />
@@ -66,7 +65,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         open={mobileOpened}
         onClose={closeMobile}
         ModalProps={{ keepMounted: true }}
-        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { width: FIN_NAV_W, boxSizing: "border-box" } }}
+        sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { width: 200, boxSizing: "border-box" } }}
       >
         <Toolbar />
         {drawerContent}
@@ -95,7 +94,7 @@ export function AppLayout({ children }: AppLayoutProps) {
 
       <Box component="main" sx={{ flexGrow: 1, width: { md: `calc(100% - ${navWidth}px)` }, ml: { md: `${navWidth}px` }, minWidth: 0, minHeight: 0, bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
         <Toolbar />
-        <Container maxWidth="xl" sx={{ py: 2, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Container maxWidth="xl" disableGutters sx={{ p: 0, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           {children}
         </Container>
       </Box>
