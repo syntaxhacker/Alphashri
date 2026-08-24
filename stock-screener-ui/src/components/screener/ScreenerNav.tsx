@@ -6,7 +6,7 @@ const RAIL_WIDTH = 152;
 
 function ScreenerNavLabel({ option }: { option: ScreenerOption }) {
   return (
-    <Box component="span" sx={{ display: "flex", alignItems: "center", gap: "4px", minWidth: 0 }}>
+    <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
       <Text component="span" size="xs" truncate>
         {option.label}
       </Text>
@@ -43,8 +43,7 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
         label={<ScreenerNavLabel option={option} />}
         active={active}
         onClick={() => onChange(option.id)}
-        py={4}
-        px={8}
+        sx={{ py: 1, px: 1 }}
         data-testid={`screener-nav-option-${option.id}`}
         data-active={active ? "true" : undefined}
         aria-current={active ? "page" : undefined}
@@ -67,7 +66,7 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
         id="screener-nav"
         data-options-count={0}
         w={RAIL_WIDTH}
-        sx={(theme) => ({ flexShrink: 0, borderRight: `1px solid ${theme.palette.divider}` })}
+        sx={{ flexShrink: 0 }}
       />
     );
   }
@@ -77,16 +76,14 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
       type="auto"
       offsetScrollbars
       w={RAIL_WIDTH}
-      sx={(theme) => ({
+      sx={{
         flexShrink: 0,
-        borderRight: `1px solid ${theme.palette.divider}`,
-        backgroundColor: theme.palette.background.paper,
-      })}
+      }}
       data-testid="screener-nav"
       id="screener-nav"
       data-options-count={optionList.length}
     >
-      <Stack gap={1} p={1} >
+      <Stack gap="sm" p="sm">
         {current.map(renderItem)}
         {legacy.length > 0 && (
           <>

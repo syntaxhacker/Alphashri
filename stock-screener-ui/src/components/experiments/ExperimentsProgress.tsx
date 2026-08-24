@@ -31,7 +31,7 @@ export function ExperimentsProgress() {
 
   if (!exp) {
     return (
-      <Paper p="sm" radius="sm" withBorder data-testid="experiments-progress">
+      <Paper p="sm" radius="sm" elevation={1} data-testid="experiments-progress">
         <Text size="sm" c="dimmed" data-testid="experiments-progress-empty">
           No active experiment
         </Text>
@@ -45,7 +45,7 @@ export function ExperimentsProgress() {
   const lastResult = lastResultDescription(exp.last_result, exp.best_desc);
 
   return (
-    <Paper p="sm" radius="sm" withBorder data-testid="experiments-progress">
+    <Paper p="sm" radius="sm" elevation={1} data-testid="experiments-progress">
       <Stack gap="xs">
         <Group justify="space-between" align="center">
           <Group gap={6} align="center">

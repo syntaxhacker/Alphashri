@@ -34,7 +34,7 @@ export const DefaultTargetBody: Story = {
 export const StringTarget: Story = {
   render: () => (
     <>
-      <div id="portal-demo" style={{ border: "1px dashed var(--mui-palette-divider)", minHeight: 60 }} />
+      <div id="portal-demo" style={{ minHeight: 60 }} />
       <Portal target="portal-demo">
         <div style={{ padding: 8 }}>Portaled into #portal-demo by id</div>
       </Portal>

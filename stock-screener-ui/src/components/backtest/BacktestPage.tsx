@@ -4,7 +4,6 @@ import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Box from "@mui/material/Box";
-import { FIN_OUTER_PAD, FIN_INNER_PAD } from "@/ui/palette";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -250,8 +249,8 @@ function BacktestPanels({
   return (
     <Grid container spacing={2} sx={{ flex: 1, minHeight: 0 }} id="backtest-panels">
       <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: 0, display: "flex", flexDirection: "column" }} id="backtest-left-panel">
-        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ p: FIN_INNER_PAD / 8, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: FIN_INNER_PAD / 8 } }}>
+        <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ p: "8px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: "8px" } }}>
             <BacktestLeftPanel
               activeTab={activeTab}
               setActiveTab={setActiveTab}
@@ -270,8 +269,8 @@ function BacktestPanels({
         </Card>
       </Grid>
       <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: 0, display: "flex", flexDirection: "column" }} id="backtest-right-panel">
-        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-          <CardContent sx={{ p: FIN_INNER_PAD / 8, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: FIN_INNER_PAD / 8 } }}>
+        <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ p: "8px", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: "8px" } }}>
             <BacktestRightPanel
               showCharts={state.showCharts}
               results={state.results}
@@ -313,7 +312,7 @@ export function BacktestPage() {
   const symbols = state.results?.map((r) => r.symbol) ?? [];
 
   return (
-    <Container maxWidth="xl" sx={{ py: `${FIN_OUTER_PAD}px`, display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }} data-testid="backtest-view" id="backtest-main">
+    <Container maxWidth="xl" sx={{ py: "16px", display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }} data-testid="backtest-view" id="backtest-main">
       {state.error && (
         <Alert
           icon={<IconAlertCircle size={16} />}

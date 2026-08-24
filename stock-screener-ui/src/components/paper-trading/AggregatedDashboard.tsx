@@ -401,28 +401,28 @@ export function AggregatedDashboard() {
 
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
             <BotRankingPanel bots={data.bot_rankings} />
-            <Paper withBorder p="xs" radius="xs">
+            <Paper p="xs" radius="xs">
               <Box mb="xs"><SectionHeader title="Equity Curve" color="blue" /></Box>
               <EquityChart data={data} />
             </Paper>
           </SimpleGrid>
 
           <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="xs">
-            <Paper withBorder p="xs" radius="xs">
+            <Paper p="xs" radius="xs">
               <Box mb="xs"><SectionHeader title="Bot Comparison" color="teal" /></Box>
               <BotComparisonChart data={data} />
             </Paper>
-            <Paper withBorder p="xs" radius="xs">
+            <Paper p="xs" radius="xs">
               <Box mb="xs"><SectionHeader title="Daily P&L" color="grape" /></Box>
               <DailyPnlChart data={data} />
             </Paper>
-            <Paper withBorder p="xs" radius="xs">
+            <Paper p="xs" radius="xs">
               <Box mb="xs"><SectionHeader title="Drawdown" color="red" /></Box>
               <DrawdownChart data={data} />
             </Paper>
           </SimpleGrid>
 
-          <Paper withBorder p="xs" radius="xs">
+          <Paper p="xs" radius="xs">
             <Box mb="xs"><SectionHeader title="Strategy Performance" color="cyan" /></Box>
             <StrategyTable rows={data.strategy_rankings} />
           </Paper>
@@ -434,7 +434,7 @@ export function AggregatedDashboard() {
 
           <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
             <SymbolPanel data={data} />
-            <Paper withBorder p="xs" radius="xs">
+            <Paper p="xs" radius="xs">
               <Box mb="xs"><SectionHeader title="Exit Reason Breakdown" color="orange" /></Box>
               <ExitReasonChart data={data} />
             </Paper>

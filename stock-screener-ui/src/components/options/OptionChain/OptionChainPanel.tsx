@@ -13,12 +13,12 @@ import {
   Tooltip,
 } from "@/ui";
 import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import TableContainer from "@mui/material/TableContainer";
 import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
-import { FIN_OUTER_PAD } from "@/ui/palette";
 import {
   IconRefresh,
   IconAlertCircle,

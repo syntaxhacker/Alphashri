@@ -265,7 +265,6 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
   if (history.length === 0) {
     return (
       <Card
-        withBorder
         padding="xl"
         radius="md"
         className="backtest-history-empty"

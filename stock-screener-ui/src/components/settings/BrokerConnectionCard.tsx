@@ -48,7 +48,7 @@ export function BrokerConnectionCard({
       shadow="sm"
       padding="lg"
       radius="md"
-      withBorder
+      elevation={1}
       id="broker-connection-card"
       data-testid="broker-connection-card"
     >

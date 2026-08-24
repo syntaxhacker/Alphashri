@@ -52,12 +52,12 @@ export function ThemeIcon({ variant, color, size, radius, children, className, s
     ...(variant === "filled"
       ? { bgcolor: dark, color: "#fff" }
       : variant === "outline"
-        ? { bgcolor: "transparent", color: dark, border: `1px solid ${main}` }
+        ? { bgcolor: "transparent", color: dark }
         : variant === "white"
-          ? { bgcolor: "background.paper", color: dark, border: 1, borderColor: "divider" }
+          ? { bgcolor: "background.paper", color: dark }
           : variant === "default"
-            ? { bgcolor: "background.paper", color: dark, border: 1, borderColor: "divider" }
-            : { bgcolor: alpha(main, 0.11), color: dark, border: `1px solid ${alpha(main, 0.18)}` }),
+            ? { bgcolor: "background.paper", color: dark }
+            : { bgcolor: alpha(main, 0.11), color: dark }),
   };
 
   return (

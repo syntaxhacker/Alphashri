@@ -1,5 +1,10 @@
 import { useEffect } from "react";
 import { Alert, Badge, Box, Flex, Group, Paper, Stack, Text } from "@/ui";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import CardContent from "@mui/material/CardContent";
+import TableContainer from "@mui/material/TableContainer";
+import Card from "@mui/material/Card";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
@@ -46,16 +51,10 @@ export function ExperimentsPage() {
   }, [state.activeSession]);
 
   return (
-    <Box
+    <Container
+      maxWidth="xl"
       data-testid="experiments-page"
-      h="100%"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        padding: "16px",
-        minHeight: 0,
-        overflow: "auto",
-      }}
+      sx={{ py: 2, display: "flex", flexDirection: "column", minHeight: 0, overflow: "auto", height: "100%" }}
     >
       {state.error && (
         <Alert
@@ -80,80 +79,88 @@ export function ExperimentsPage() {
         <ExperimentsConfig />
       </Box>
 
-      <Flex flex={1} gap="md" style={{ minHeight: 0 }}>
-        <Box
-          data-testid="experiments-session-list"
-          style={{ flex: "0 0 260px", minHeight: 0, overflow: "auto" }}
-        >
-          <Paper withBorder p="sm" radius="sm">
-            <Text
-              fw={600}
-              size="sm"
-              style={{ marginBottom: "8px" }}
-            >
-              Sessions
-            </Text>
-            {state.sessions.length === 0 ? (
-              <Text size="sm" c="dimmed">
-                No sessions yet
+      <Grid container spacing={2} sx={{ flex: 1, minHeight: 0 }}>
+        <Grid size={{ xs: 12, md: 3 }}>
+          <Card elevation={1} sx={{ height: "100%", overflow: "auto" }} data-testid="experiments-session-list">
+            <CardContent>
+              <Text
+                fw={600}
+                size="sm"
+                style={{ marginBottom: "8px" }}
+              >
+                Sessions
               </Text>
-            ) : (
-              <Stack gap="xs">
-                {state.sessions.map((session) => {
-                  const active = session.session === state.activeSession;
-                  return (
-                    <Box
-                      key={session.session}
-                      data-testid={`experiments-session-${session.session}`}
-                      onClick={() => void selectSession(session.session)}
-                      p="xs"
-                      sx={{
-                        cursor: "pointer",
-                        borderRadius: 1,
-                        bgcolor: active ? "primary.light" : undefined,
-                      }}
-                    >
-                      <Text size="sm" fw={500} truncate>
-                        {session.session}
-                      </Text>
-                      <Group gap="xs" mt={2}>
-                        <Badge size="xs" variant="light" color="blue">
-                          {session.strategy}
-                        </Badge>
-                        <Text size="xs" c="dimmed">
-                          {session.tf}m
-                        </Text>
-                        <Text size="xs" c="dimmed">
-                          {session.runs} runs
-                        </Text>
-                      </Group>
-                      <Badge
-                        size="xs"
-                        variant="light"
-                        color={sessionStatusColor(session.status)}
-                      >
-                        {session.status}
-                      </Badge>
-                    </Box>
-                  );
-                })}
-              </Stack>
-            )}
-          </Paper>
-        </Box>
+              <TableContainer>
+                {state.sessions.length === 0 ? (
+                  <Text size="sm" c="dimmed">
+                    No sessions yet
+                  </Text>
+                ) : (
+                  <Stack gap="xs">
+                    {state.sessions.map((session) => {
+                      const active = session.session === state.activeSession;
+                      return (
+                        <Box
+                          key={session.session}
+                          data-testid={`experiments-session-${session.session}`}
+                          onClick={() => void selectSession(session.session)}
+                          p="xs"
+                          sx={{
+                            cursor: "pointer",
+                            borderRadius: 1,
+                            bgcolor: active ? "primary.light" : undefined,
+                          }}
+                        >
+                          <Text size="sm" fw={500} truncate>
+                            {session.session}
+                          </Text>
+                          <Group gap="xs" mt={2}>
+                            <Badge size="xs" variant="light" color="blue">
+                              {session.strategy}
+                            </Badge>
+                            <Text size="xs" c="dimmed">
+                              {session.tf}m
+                            </Text>
+                            <Text size="xs" c="dimmed">
+                              {session.runs} runs
+                            </Text>
+                          </Group>
+                          <Badge
+                            size="xs"
+                            variant="light"
+                            color={sessionStatusColor(session.status)}
+                          >
+                            {session.status}
+                          </Badge>
+                        </Box>
+                      );
+                    })}
+                  </Stack>
+                )}
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <Box style={{ flex: "1 1 55%", minHeight: 0, overflow: "auto" }}>
-          <ExperimentsProgress />
-          <ExperimentsResultsTable />
-        </Box>
+        <Grid size={{ xs: 12, md: 5 }}>
+          <Card elevation={1} sx={{ height: "100%", overflow: "auto" }}>
+            <CardContent>
+              <TableContainer>
+                <ExperimentsProgress />
+                <ExperimentsResultsTable />
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
 
-        <Box
-          style={{ flex: "1 1 40%", minHeight: 0 }}
-          data-testid="experiments-chart-panel"
-        >
-          <ExperimentsChart />
-        </Box>
-      </Flex>
-    </Box>
+        <Grid size={{ xs: 12, md: 4 }}>
+          <Card elevation={1} sx={{ height: "100%", minHeight: 0 }} data-testid="experiments-chart-panel">
+            <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+              <ExperimentsChart />
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
   );
 }

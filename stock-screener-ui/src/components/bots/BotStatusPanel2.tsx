@@ -57,10 +57,8 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
           shadow="sm"
           padding="sm"
           radius="md"
-          withBorder
           id="bot-header-card"
           data-testid="bot-header-card"
-          sx={(theme) => ({ borderLeft: `4px solid ${theme.palette.primary.main}` })}
         >
           <Group justify="space-between">
             <Stack gap={4}>
@@ -135,7 +133,6 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
             shadow="sm"
             padding="sm"
             radius="md"
-            withBorder
             id="portfolio-placeholder"
             data-testid="portfolio-placeholder"
           >

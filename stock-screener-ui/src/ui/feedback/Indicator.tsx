@@ -50,7 +50,6 @@ export function Indicator({
   offset,
   disabled,
   processing,
-  withBorder,
   position,
   children,
   className,
@@ -78,7 +77,6 @@ export function Indicator({
       sx={{
         "& .MuiBadge-badge": {
           ...(size != null ? { minWidth: size, height: size, fontSize: size * 0.5 } : {}),
-          ...(withBorder ? { border: 1, borderColor: "background.paper" } : {}),
           ...(offset != null ? { transform: `translate(${offset}px, -${offset}px)` } : {}),
           ...(processing
             ? {

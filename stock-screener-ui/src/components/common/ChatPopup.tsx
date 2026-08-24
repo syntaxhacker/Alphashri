@@ -142,8 +142,6 @@ const mdComponents = {
     <Box
       component="th"
       sx={{
-        border: 1,
-        borderColor: "divider",
         padding: 2,
         fontWeight: 600,
       }}
@@ -152,10 +150,7 @@ const mdComponents = {
     </Box>
   ),
   td: ({ children }: any) => (
-    <Box
-      component="td"
-      sx={{ border: 1, borderColor: "divider", padding: 2 }}
-    >
+    <Box component="td" sx={{ padding: 2 }}>
       {children}
     </Box>
   ),
@@ -416,14 +411,7 @@ export function ChatPopup() {
           }}
           data-testid="chat-popup-window"
         >
-          <Box
-            p="sm"
-            sx={{
-              borderBottom: 1,
-              borderColor: "divider",
-              bgcolor: "primary.light",
-            }}
-          >
+          <Box p="sm" sx={{ bgcolor: "primary.light" }}>
             <Group justify="space-between">
               <Group gap="xs">
                 <IconRobot size={20} />
@@ -464,14 +452,7 @@ export function ChatPopup() {
           </Box>
 
           <Collapse in={showHistory}>
-            <Box
-              sx={{
-                maxHeight: 180,
-                overflowY: "auto",
-                borderBottom: 1,
-                borderColor: "divider",
-              }}
-            >
+            <Box sx={{ maxHeight: 180, overflowY: "auto" }}>
               <Group p="xs" justify="space-between">
                 <Text size="xs" fw={600}>
                   Conversations
@@ -674,7 +655,7 @@ export function ChatPopup() {
             )}
           </ScrollArea>
 
-          <Box p="sm" sx={{ borderTop: 1, borderColor: "divider" }}>
+          <Box p="sm">
             <Group gap="xs">
               <TextInput
                 size="sm"

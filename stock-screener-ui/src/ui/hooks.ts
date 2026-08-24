@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
-import { useTheme as useMuiTheme } from "@mui/material/styles";
+import { useTheme as useMuiTheme, useColorScheme as useMuiColorScheme } from "@mui/material/styles";
 import useMuiMediaQuery from "@mui/material/useMediaQuery";
 import type { UIUseColorSchemeResult } from "./types";
 
@@ -88,61 +88,66 @@ export function useDisclosure(
   return [opened, { open, close, toggle }];
 }
 
-// useColorScheme: localStorage + MUI fallback (no legacy)
+// useColorScheme: syncs with MUI ThemeProvider cssVariables (useColorScheme)
 export function useColorScheme(): UIUseColorSchemeResult {
-  const muiTheme: any = (() => {
-    try {
-      return useMuiTheme();
-    } catch {
-      return null;
-    }
-  })();
-  const muiColorScheme: string | undefined = muiTheme?.colorScheme;
+  let mui: any = null;
+  try {
+    mui = useMuiColorScheme();
+  } catch {
+    mui = null;
+  }
 
-  const getInitial = (): "light" | "dark" => {
+  const getFallback = (): "light" | "dark" => {
     if (typeof window !== "undefined") {
-      const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
-      if (stored === "light" || stored === "dark") return stored;
-      if (muiColorScheme === "light" || muiColorScheme === "dark") return muiColorScheme;
+      const stored = window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme");
+      if (stored === "light" || stored === "dark") return stored as any;
       if (window.matchMedia?.("(prefers-color-scheme: dark)").matches) return "dark";
     }
-    return "dark";
+    return "light";
   };
 
-  const [colorScheme, setColorSchemeState] = useState<"light" | "dark">(getInitial);
+  const [fallbackScheme, setFallbackScheme] = useState<"light" | "dark">(getFallback);
+
+  // Sync fallback from storage on mount when MUI not available
+  useEffect(() => {
+    if (!mui?.mode) {
+      const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("color-scheme")) : null;
+      if (stored === "light" || stored === "dark") setFallbackScheme(stored as any);
+    }
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Keep document attribute in sync for cssVariables
+  const colorScheme: "light" | "dark" = mui?.mode === "light" || mui?.mode === "dark" ? mui.mode : fallbackScheme;
 
   useEffect(() => {
-    // sync from storage on mount (in case SSR mismatch)
-    const stored = typeof window !== "undefined" ? (window.localStorage.getItem("mui-color-scheme") ?? window.localStorage.getItem("mui-color-scheme")) : null;
-    if (stored === "light" || stored === "dark") setColorSchemeState(stored);
-  }, []);
-
-  const setColorScheme = useCallback((scheme: "light" | "dark") => {
-    setColorSchemeState(scheme);
-    if (typeof window !== "undefined") {
-      try {
-        window.localStorage.setItem("mui-color-scheme", scheme);
-        window.localStorage.setItem("mui-color-scheme", scheme);
-      } catch {}
-      document.documentElement?.setAttribute("data-color-scheme", scheme);
-      document.documentElement?.setAttribute("data-color-scheme", scheme);
+    if (typeof document !== "undefined") {
+      document.documentElement.setAttribute("data-mui-color-scheme", colorScheme);
+      document.documentElement.style.colorScheme = colorScheme;
     }
-  }, []);
+  }, [colorScheme]);
+
+  const setColorScheme = useCallback(
+    (scheme: "light" | "dark") => {
+      if (mui?.setMode) {
+        mui.setMode(scheme);
+      } else {
+        setFallbackScheme(scheme);
+        if (typeof window !== "undefined") {
+          try {
+            window.localStorage.setItem("mui-color-scheme", scheme);
+          } catch {}
+          document.documentElement?.setAttribute("data-mui-color-scheme", scheme);
+          document.documentElement.style.colorScheme = scheme;
+        }
+      }
+    },
+    [mui],
+  );
 
   const toggleColorScheme = useCallback(() => {
-    setColorSchemeState((prev) => {
-      const next = prev === "dark" ? "light" : "dark";
-      if (typeof window !== "undefined") {
-        try {
-          window.localStorage.setItem("mui-color-scheme", next);
-          window.localStorage.setItem("mui-color-scheme", next);
-        } catch {}
-        document.documentElement?.setAttribute("data-color-scheme", next);
-        document.documentElement?.setAttribute("data-color-scheme", next);
-      }
-      return next;
-    });
-  }, []);
+    const next = colorScheme === "dark" ? "light" : "dark";
+    setColorScheme(next);
+  }, [colorScheme, setColorScheme]);
 
   return {
     isDark: colorScheme === "dark",

@@ -24,7 +24,7 @@ export function NavLink({
   style,
   "data-testid": testId,
   ...rest
-}: UINavLinkProps) {
+}: UINavLinkProps & { sx?: unknown }) {
   const resolvedLeftSection = leftSection ?? icon;
   const hasChildren = Boolean(children);
   const [internalOpen, setInternalOpen] = useState(Boolean(defaultOpened));
@@ -36,6 +36,7 @@ export function NavLink({
     onClick?.();
   };
 
+  const { sx: sxProp, ...restWithoutSx } = rest as { sx?: unknown } & Record<string, unknown>;
   return (
     <>
       <ListItemButton
@@ -47,8 +48,20 @@ export function NavLink({
         className={className}
         style={style}
         data-testid={testId}
-        {...(rest as any)}
-        sx={{ borderRadius: 1 }}
+        {...(restWithoutSx as any)}
+        sx={[
+          {
+            borderRadius: 1,
+            "&.Mui-selected": {
+              bgcolor: "primary.main",
+              color: "primary.contrastText",
+              "&:hover": { bgcolor: "primary.dark" },
+            },
+            "&.Mui-selected .MuiListItemText-primary": { color: "primary.contrastText" },
+            "&.Mui-selected .MuiListItemText-secondary": { color: "primary.contrastText" },
+          },
+          sxProp as never,
+        ]}
       >
         {resolvedLeftSection ? <ListItemIcon sx={{ minWidth: 36 }}>{resolvedLeftSection}</ListItemIcon> : null}
         <ListItemText primary={label} secondary={description} />

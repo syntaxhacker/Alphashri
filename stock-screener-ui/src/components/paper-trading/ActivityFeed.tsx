@@ -22,8 +22,7 @@ const EventRow = memo(function EventRow({ event }: { event: ActivityEvent }) {
       gap="xs"
       align="center"
       p="4px 8px"
-      sx={(theme) => ({
-        borderBottom: `1px solid ${theme.palette.divider}`,
+      sx={() => ({
         fontSize: 12,
         fontFamily: "monospace",
         whiteSpace: "nowrap",
@@ -106,7 +105,7 @@ export function ActivityFeed() {
         <Flex
           gap="xs"
           p="4px 8px"
-          sx={(theme) => ({ borderBottom: `2px solid ${theme.palette.divider}`, fontSize: 11, fontWeight: 600, color: theme.palette.text.secondary })}
+          sx={(theme) => ({ fontSize: 11, fontWeight: 600, color: theme.palette.text.secondary })}
         >
           <Text w={60}>Time</Text>
           <Text w={60}>Type</Text>

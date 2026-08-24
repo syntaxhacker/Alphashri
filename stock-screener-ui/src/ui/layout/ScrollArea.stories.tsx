@@ -12,7 +12,7 @@ export default meta;
 type Story = StoryObj<typeof ScrollArea>;
 
 const longContent = Array.from({ length: 40 }, (_, i) => (
-  <div key={i} style={{ padding: "6px 12px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+  <div key={i} style={{ padding: "6px 12px" }}>
     Row {i + 1}
   </div>
 ));

@@ -74,7 +74,7 @@ export function Accordion({
         data-testid={testId}
         sx={{
           ...(variant === "separated" ? { display: "flex", flexDirection: "column", gap: 1 } : {}),
-          ...(variant === "contained" ? { border: "1px solid", borderColor: "divider", borderRadius: 1, overflow: "hidden" } : {}),
+          ...(variant === "contained" ? { borderRadius: 1, overflow: "hidden" } : {}),
         }}
         {...(rest as any)}
       >
@@ -110,7 +110,7 @@ export function AccordionItem({ value: itemValue, children, className, style, "d
         disableGutters
         square={variant === "separated" ? false : undefined}
         sx={{
-          ...(variant === "separated" ? { border: "1px solid", borderColor: "divider", borderRadius: 1, "&:before": { display: "none" } } : {}),
+          ...(variant === "separated" ? { borderRadius: 1, "&:before": { display: "none" } } : {}),
           ...(variant === "filled" ? { bgcolor: "action.hover" } : {}),
         }}
         {...(rest as any)}

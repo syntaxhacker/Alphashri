@@ -21,11 +21,9 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
             key={bot.id}
             p={4}
             data-testid={`bot-card-${bot.id}`}
-            sx={(theme) => ({
+            sx={() => ({
               cursor: bot.is_active ? "pointer" : "default",
               borderRadius: 6,
-              border: isSelected ? `1px solid ${theme.palette.primary.main}` : `1px solid ${theme.palette.divider}`,
-              borderLeft: `4px solid ${isRunning ? theme.palette.success.main : theme.palette.grey[500]}`,
               background: isSelected ? BOT_SELECTED_BG : "transparent",
               opacity: bot.is_active ? 1 : 0.5,
             })}

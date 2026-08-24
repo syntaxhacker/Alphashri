@@ -336,16 +336,8 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           getRowStyle={(row) => {
             const isSelected = row.symbol === selectedSymbol;
             const isNew = isNewSignal(row, snapshot?.timestamp ?? null);
-            const kind = STATUS_BORDER_KIND[row.status] || "muted";
-            const borderMap: Record<string, string> = {
-              success: "#16A34A",
-              warning: "#D97706",
-              error: "#DC2626",
-              muted: "#94A3B8",
-            };
             return {
               cursor: "pointer",
-              borderLeft: `3px solid ${borderMap[kind]}`,
               backgroundColor: isSelected
                 ? alpha("#14B8A6", 0.08)
                 : isNew

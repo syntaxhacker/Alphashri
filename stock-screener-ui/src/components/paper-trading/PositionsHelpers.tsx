@@ -483,14 +483,13 @@ export function PositionsTableBody({
       columns={columns}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box p="xs" sx={(theme) => ({ background: theme.palette.grey[800], borderBottom: `1px solid ${theme.palette.divider}` })}>
+        <Box p="xs" sx={(theme) => ({ background: theme.palette.grey[800] })}>
           <PositionDetail pos={pos} />
         </Box>
       )}
       getRowStyle={(pos) => ({
         cursor: "pointer",
         background: calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit),
-        borderLeft: `3px solid ${getSideColor(pos.side)}`,
         transition: "background 0.5s ease",
       })}
       getRowTestId={(pos) => `position-row-${getCompositeRowId(pos)}`}
@@ -531,7 +530,6 @@ export function StrategySummaryFooter({
       direction="column"
       mt={2}
       pt={2}
-      sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}
       data-testid="strategy-summary-footer"
       className="paper-strategy-summary"
       id="strategy-summary"

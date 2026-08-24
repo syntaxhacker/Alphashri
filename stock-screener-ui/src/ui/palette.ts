@@ -1,39 +1,4 @@
 // ============================================================
-// SINGLE SOURCE OF TRUTH — FINANCIAL THEME (MUI) + LEGACY DARK
-// Financial = simple, intuitive, data-first (light default #F8FAFC)
-// Legacy dark aliases kept for incremental legacy → MUI migration.
-// FIN_* are single source for muiTheme.ts — never duplicate hex there.
-// ============================================================
-
-// ----- Financial theme tokens (MUI) — 8pt grid, data-first -----
-export const FIN_BG_LIGHT = "#F8FAFC";
-export const FIN_BG_DARK = "#0B1220";
-export const FIN_PAPER_LIGHT = "#FFFFFF";
-export const FIN_PAPER_DARK = "#131C2E";
-export const FIN_TEXT_LIGHT = "#0F172A";
-export const FIN_TEXT_DARK = "#F1F5F9";
-export const FIN_TEXT_MUTED_LIGHT = "#64748B";
-export const FIN_TEXT_MUTED_DARK = "#94A3B8";
-export const FIN_BORDER_LIGHT = "#E2E8F0";
-export const FIN_BORDER_DARK = "#1E293B";
-export const FIN_PRIMARY = "#2563EB";
-export const FIN_POSITIVE = "#16A34A";
-export const FIN_NEGATIVE = "#DC2626";
-export const FIN_WARNING = "#D97706";
-export const FIN_INFO = "#0891B2";
-// layout tokens — single source for alignments (8pt grid)
-export const FIN_RADIUS_SM = 4;
-export const FIN_RADIUS = 8;
-export const FIN_RADIUS_LG = 12;
-export const FIN_HEADER_H = 48;
-export const FIN_NAV_W = 200;
-export const FIN_NAV_W_COLLAPSED = 64;
-export const FIN_OUTER_PAD = 16;
-export const FIN_INNER_PAD = 8;
-export const FIN_TABLE_CELL_PY = 8;
-export const FIN_TABLE_CELL_PX = 12;
-
-// ============================================================
 // SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP (LEGACY DARK)
 // ------------------------------------------------------------
 // Style: HIGH-CONTRAST DARK theme (GitHub Dark inspired)

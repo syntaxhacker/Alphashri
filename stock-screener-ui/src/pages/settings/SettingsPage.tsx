@@ -1,4 +1,9 @@
 import { useEffect, useState, useCallback } from "react";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TableContainer from "@mui/material/TableContainer";
 import { Box, Stack, Switch, Text } from "@/ui";
 import { useSearchParams } from "react-router-dom";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
@@ -88,41 +93,51 @@ export function SettingsPage() {
   };
 
   return (
-    <Box
+    <Container
+      maxWidth="xl"
       id="settings-page"
       className="settings-page"
       data-testid="settings-page"
-      h="100%"
-      style={{ overflow: "hidden" }}
+      sx={{ py: 2, height: "100%", overflow: "auto" }}
     >
-      <CompactPage
-        title="Settings"
-        description="Broker connection and account integration controls."
-      >
-        <Stack gap="md">
-          <BrokerConnectionCard
-            status={status}
-            loading={loading}
-            onConnect={handleConnect}
-            onDisconnect={handleDisconnect}
-            onRefresh={fetchStatus}
-          />
+      <Grid container spacing={2}>
+        <Grid size={{ xs: 12 }}>
+          <Card elevation={1}>
+            <CardContent>
+              <TableContainer>
+                <CompactPage
+                  title="Settings"
+                  description="Broker connection and account integration controls."
+                >
+                  <Stack gap="md">
+                    <BrokerConnectionCard
+                      status={status}
+                      loading={loading}
+                      onConnect={handleConnect}
+                      onDisconnect={handleDisconnect}
+                      onRefresh={fetchStatus}
+                    />
 
-          <Box>
-            <Text size="sm" fw={500}>
-              Market Ticker
-            </Text>
-            <Text size="xs" c="dimmed" mb="xs">
-              Show live indices and commodities in the header (Nifty, Gold, USD/INR, etc.)
-            </Text>
-            <Switch
-              size="sm"
-              checked={showMarketTicker}
-              onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
-            />
-          </Box>
-        </Stack>
-      </CompactPage>
-    </Box>
+                    <Box>
+                      <Text size="sm" fw={500}>
+                        Market Ticker
+                      </Text>
+                      <Text size="xs" c="dimmed" mb="xs">
+                        Show live indices and commodities in the header (Nifty, Gold, USD/INR, etc.)
+                      </Text>
+                      <Switch
+                        size="sm"
+                        checked={showMarketTicker}
+                        onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
+                      />
+                    </Box>
+                  </Stack>
+                </CompactPage>
+              </TableContainer>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
   );
 }

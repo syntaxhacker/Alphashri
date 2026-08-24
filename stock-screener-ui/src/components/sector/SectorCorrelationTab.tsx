@@ -1,20 +1,10 @@
 import { useEffect, useMemo } from "react";
-import {
-  Box,
-  Stack,
-  Text,
-  Title,
-  Badge,
-  Group,
-  SegmentedControl,
-  Paper,
-  ScrollArea,
-  Loader,
-  Tooltip,
-  Button,
-  SimpleGrid,
-  useColorScheme,
-} from "@/ui";
+import { Box, Stack, Text, Title, Badge, Group, SegmentedControl, ScrollArea, Loader, Tooltip, Button, SimpleGrid, useColorScheme } from "@/ui";
+import Paper from "@mui/material/Paper";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import TableContainer from "@mui/material/TableContainer";
+import CardContent from "@mui/material/CardContent";
 import { IconRefresh, IconClock } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -95,7 +85,7 @@ function CorrelationHeader({
           </Group>
         )}
         <Tooltip label="Refresh data">
-          <Paper p="xs" withBorder style={{ cursor: "pointer" }} onClick={handleRefresh}>
+          <Paper sx={{ p: 1, cursor: "pointer" }} onClick={handleRefresh}>
             <IconRefresh size={14} />
           </Paper>
         </Tooltip>

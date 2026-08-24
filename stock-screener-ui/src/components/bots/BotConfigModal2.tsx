@@ -305,7 +305,6 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
                 <Card
                   key={strategy.id}
                   padding="sm"
-                  withBorder
                   data-testid="strategy-allocation-row"
                 >
                   <Group align="flex-end" grow>

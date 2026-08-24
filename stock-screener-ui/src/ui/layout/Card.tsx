@@ -18,16 +18,14 @@ const rad = (v: unknown) => {
 export function Card({
   children, className, style, id, "data-testid": testId, onClick,
   p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex,
-  shadow, radius, withBorder, padding, ...rest
+  shadow, radius, padding, ...rest
 }: UICardProps & Record<string, unknown>) {
   void shadow;
   const pad = padding ?? p;
   return (
     <MuiCard
-      elevation={0} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
+      elevation={1} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
       sx={{
-        border: "1px solid",
-        borderColor: "divider",
         ...(radius != null && { borderRadius: rad(radius) }),
         ...(pad != null && { p: sp(pad) }),
         ...(padding == null && px != null && { px: sp(px) }), ...(padding == null && py != null && { py: sp(py) }),

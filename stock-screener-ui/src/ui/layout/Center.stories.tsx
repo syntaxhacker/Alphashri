@@ -23,7 +23,7 @@ export const BlockChild: Story = {
 
 export const InlineChild: Story = {
   render: () => (
-    <div style={{ border: "1px dashed var(--mui-palette-divider)" }}>
+    <div>
       <Center inline style={{ padding: 8 }}>
         <span>Inline child</span>
       </Center>

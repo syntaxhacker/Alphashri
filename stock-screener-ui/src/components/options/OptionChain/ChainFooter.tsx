@@ -17,7 +17,6 @@ export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps)
       justify="space-between"
       align="center"
       style={{
-        borderTop: `1px solid ${hexToRgba((theme as any).palette.grey[colorScheme === "dark" ? 400 : 300], 0.75)}`,
         background: `linear-gradient(90deg, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN_DARK, 0.9)}) 0%, light-dark(${hexToRgba(CREAM, 0.88)}, ${hexToRgba(BLACK, 0.88)}) 50%, light-dark(${hexToRgba(CREAM, 0.9)}, ${hexToRgba(BROWN_DARK, 0.9)}) 100%)`,
       }}
       data-testid="options-chain-table-footer"
@@ -30,7 +29,6 @@ export function ChainFooter({ theme, colorScheme, spotPrice }: ChainFooterProps)
             style={{
               borderRadius: 999,
               background: `linear-gradient(135deg, ${hexToRgba(CREAM, 0.45)} 0%, ${hexToRgba(TRADING_GREEN, 0.28)} 100%)`,
-              border: `1px solid ${hexToRgba(theme.palette.warning.main, 0.4)}`,
             }}
           />
           <Text size="sm" c="dimmed">

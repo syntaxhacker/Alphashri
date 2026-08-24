@@ -16,7 +16,6 @@ const panelStyle = {
   width: "100%",
   height: 160,
   position: "relative" as const,
-  border: "1px solid var(--mui-palette-divider)",
   borderRadius: "8px",
   display: "flex",
   alignItems: "center",

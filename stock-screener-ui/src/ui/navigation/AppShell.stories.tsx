@@ -24,7 +24,7 @@ export const FullShell: Story = {
           </Text>
           {/* MarketTicker placeholder - real one needs WS */}
           <Box flex={1} style={{ maxWidth: 360 }}>
-            <Text size="xs" c="dimmed" ta="center" style={{ border: "1px dashed var(--mui-palette-divider)", borderRadius: 6, padding: "4px 8px" }}>
+            <Text size="xs" c="dimmed" ta="center" style={{ borderRadius: 6, padding: "4px 8px" }}>
               Market Ticker
             </Text>
           </Box>
@@ -56,7 +56,7 @@ export const FullShell: Story = {
         <Stack gap="md">
           <Title order={3}>Dashboard</Title>
           <Group gap="md">
-            <Card withBorder shadow="xs" padding="md" style={{ flex: 1 }}>
+            <Card shadow="xs" padding="md" style={{ flex: 1 }}>
               <Text size="xs" c="dimmed">
                 Positions
               </Text>
@@ -64,7 +64,7 @@ export const FullShell: Story = {
                 3 open
               </Text>
             </Card>
-            <Card withBorder shadow="xs" padding="md" style={{ flex: 1 }}>
+            <Card shadow="xs" padding="md" style={{ flex: 1 }}>
               <Text size="xs" c="dimmed">
                 Unrealized P&L
               </Text>
@@ -72,7 +72,7 @@ export const FullShell: Story = {
                 +₹1,240
               </Text>
             </Card>
-            <Card withBorder shadow="xs" padding="md" style={{ flex: 1 }}>
+            <Card shadow="xs" padding="md" style={{ flex: 1 }}>
               <Text size="xs" c="dimmed">
                 Market Status
               </Text>

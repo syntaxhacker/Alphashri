@@ -323,12 +323,7 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
       style={{ zIndex: 9999, pointerEvents: "none", overflow: "hidden" }}
       data-testid="preview-chart-hover"
     >
-      <Group
-        gap={6}
-        px="xs"
-        py={4}
-        sx={{ borderBottom: 1, borderColor: "divider" }}
-      >
+      <Group gap={6} px="xs" py={4}>
         <Text size="xs" fw={600} c="blue">
           {symbol}
         </Text>
@@ -449,12 +444,7 @@ function ExpandedPanel({
       }}
       data-testid="preview-chart-expanded"
     >
-      <Group
-        gap="md"
-        px="md"
-        py="xs"
-        sx={{ borderBottom: 1, borderColor: "divider", flexShrink: 0 }}
-      >
+      <Group gap="md" px="md" py="xs" sx={{ flexShrink: 0 }}>
         <Text size="lg" fw={600} c="blue">
           {symbol}
           {data?.candles.length ? ` (${data.candles.length} candles)` : ""}
@@ -516,12 +506,7 @@ function ExpandedPanel({
         )}
       </Box>
 
-      <Group
-        justify="flex-end"
-        px="md"
-        py="xs"
-        sx={{ borderTop: 1, borderColor: "divider", flexShrink: 0 }}
-      >
+      <Group justify="flex-end" px="md" py="xs" sx={{ flexShrink: 0 }}>
         <ActionIcon
           variant="subtle"
           color="blue"

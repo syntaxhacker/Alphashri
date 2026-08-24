@@ -1,6 +1,5 @@
 import { Box, Group, Stack } from "@/ui";
 import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
-import { FIN_INNER_PAD, FIN_OUTER_PAD, FIN_RADIUS } from "@/ui/palette";
 
 interface ChartControlsProps {
   timeframe: number;
@@ -24,8 +23,8 @@ export function ChartControls({
   on52wHighChange,
 }: ChartControlsProps) {
   return (
-    <Box id="chart-controls" data-testid="chart-controls" sx={{ p: `${FIN_OUTER_PAD}px`, borderRadius: `${FIN_RADIUS}px` }}>
-      <Stack gap="xs" sx={{ gap: `${FIN_INNER_PAD}px` }}>
+    <Box id="chart-controls" data-testid="chart-controls" sx={{ p: "16px", borderRadius: "8px" }}>
+      <Stack gap="xs" sx={{ gap: "8px" }}>
         <Group gap="xs" wrap="nowrap">
           <Box component="span" sx={{ fontSize: "12px", color: "text.secondary" }}>
             Timeframe:
@@ -35,7 +34,7 @@ export function ChartControls({
             value={timeframe}
             onChange={(e: any) => onTimeframeChange(parseInt(e.target.value))}
             data-testid="chart-timeframe-select"
-            sx={{ p: `${FIN_INNER_PAD / 2}px`, borderRadius: `${FIN_RADIUS}px`, border: "1px solid", borderColor: "divider" }}
+            sx={{ p: "4px", borderRadius: "8px" }}
           >
             {TIMEFRAMES.map((tf) => (
               <option key={tf.value} value={tf.value}>
@@ -54,7 +53,7 @@ export function ChartControls({
             value={orMinutes}
             onChange={(e: any) => onOrMinutesChange(parseInt(e.target.value))}
             data-testid="chart-or-select"
-            sx={{ p: `${FIN_INNER_PAD / 2}px`, borderRadius: `${FIN_RADIUS}px`, border: "1px solid", borderColor: "divider" }}
+            sx={{ p: "4px", borderRadius: "8px" }}
           >
             {OR_MINUTES_OPTIONS.map((or) => (
               <option key={or.value} value={or.value}>
@@ -65,7 +64,7 @@ export function ChartControls({
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <Box component="label" data-testid="chart-pivots-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: `${FIN_INNER_PAD / 2}px` }}>
+          <Box component="label" data-testid="chart-pivots-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <input
               type="checkbox"
               checked={showPivots}
@@ -78,7 +77,7 @@ export function ChartControls({
         </Group>
 
         <Group gap="xs" wrap="nowrap">
-          <Box component="label" data-testid="chart-52w-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: `${FIN_INNER_PAD / 2}px` }}>
+          <Box component="label" data-testid="chart-52w-checkbox-wrapper" sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
             <input
               type="checkbox"
               checked={show52wHigh}

@@ -27,7 +27,7 @@ export const RadiusVariants: Story = {
   render: () => (
     <div style={{ display: "flex", gap: 24, flexWrap: "wrap", alignItems: "center" }}>
       {(["xs", "sm", "md", "lg", "xl"] as const).map((radius) => (
-        <Paper key={radius} radius={radius} p="md" withBorder>
+        <Paper key={radius} radius={radius} p="md">
           radius=&quot;{radius}&quot;
         </Paper>
       ))}
@@ -37,8 +37,8 @@ export const RadiusVariants: Story = {
 
 export const WithBorder: Story = {
   render: () => (
-    <Paper withBorder p="lg" radius="md" w={280}>
-      Bordered paper without shadow
+    <Paper p="lg" radius="md" w={280}>
+      Elevated paper without border
     </Paper>
   ),
 };

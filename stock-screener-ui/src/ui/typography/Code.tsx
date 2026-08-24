@@ -10,8 +10,6 @@ export function Code({ children, block, color, className, style, "data-testid": 
     py: 0.25,
     borderRadius: 1,
     bgcolor: color ? (color as string) : "action.hover",
-    border: 1,
-    borderColor: "divider",
     ...(color ? { color: "common.white" } : {}),
   };
 

@@ -117,7 +117,7 @@ export function StrategyPerformance() {
   const totalWinRate = data.total_trades > 0 ? ((totalWins / data.total_trades) * 100).toFixed(1) : "0.0";
 
   return (
-    <Paper p="md" withBorder radius="md">
+    <Paper p="md" radius="md">
       <Group gap="xs" mb="md">
         <Box w={4} h={24} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
         <Title order={4}>Strategy Performance</Title>
@@ -130,11 +130,9 @@ export function StrategyPerformance() {
       <Paper
         p="sm"
         mt="sm"
-        withBorder
         radius="sm"
         sx={(theme) => ({
           background: alpha(data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.08),
-          borderLeft: `4px solid ${data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main}`,
         })}
       >
         <Group justify="space-between">

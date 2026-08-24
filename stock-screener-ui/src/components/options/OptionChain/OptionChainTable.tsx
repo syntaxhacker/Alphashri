@@ -156,28 +156,14 @@ function OptionColumn({
       <Text size="sm" c={getPnLTextColor(oiChange)}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
-      <Box
-        mt={5}
-        sx={{
-          borderTop: 1,
-          borderColor: "divider",
-        }}
-        pt={5}
-      >
+        <Box mt={5} pt={5}>
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
-      <Box
-        mt={5}
-        sx={{
-          borderTop: 1,
-          borderColor: "divider",
-        }}
-        pt={5}
-      >
+      <Box mt={5} pt={5}>
         <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
@@ -214,8 +200,6 @@ function OptionColumn({
           position: "relative",
           fontWeight: cell.fw,
           background: palette.background,
-          borderRight: i < 4 && type === "CE" ? `1px solid ${palette.border}` : undefined,
-          borderLeft: i > 0 && type === "PE" ? `1px solid ${palette.border}` : undefined,
           boxShadow: palette.shadow,
           color: cell.c ? undefined : palette.text,
         };
@@ -261,7 +245,6 @@ function OptionColumn({
                       sx={{
                         fontSize: "10px",
                         height: 14,
-                        border: `1px solid ${hexToRgba(palette.accent, 0.18)}`,
                       }}
                     >
                       {cell.badge.label}

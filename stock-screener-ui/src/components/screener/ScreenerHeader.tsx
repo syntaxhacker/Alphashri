@@ -43,11 +43,11 @@ export function ScreenerHeader({
     <Box
       id="screener-header"
       data-testid="screener-header"
-      py={1}
-      px={2}
-      sx={(theme) => ({ borderBottom: `1px solid ${theme.palette.divider}`, flexShrink: 0 })}
+      py="sm"
+      px="md"
+      sx={{ flexShrink: 0 }}
     >
-      <Group justify="space-between" align="center" gap={1} wrap="nowrap">
+      <Group justify="space-between" align="center" gap="sm" wrap="nowrap">
         <Text
           size="xs"
           c="dimmed"
@@ -58,7 +58,7 @@ export function ScreenerHeader({
         >
           {status}
         </Text>
-        <Group gap={1} align="center" wrap="nowrap" data-testid="header-controls">
+        <Group gap="sm" align="center" wrap="nowrap" data-testid="header-controls">
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"

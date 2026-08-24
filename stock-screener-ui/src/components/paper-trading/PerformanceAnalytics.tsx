@@ -245,19 +245,19 @@ export function PerformanceAnalytics() {
         />
       </Flex>
 
-      <Paper withBorder p="xs" radius="md">
+      <Paper p="xs" radius="md">
         <SummaryCards summary={summary} />
       </Paper>
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-        <Paper withBorder p="xs" radius="md">
+        <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
             <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
             <Text fw={600} size="xs">Equity Curve</Text>
           </Group>
           <EquityCurveChart data={equity_curve} />
         </Paper>
-        <Paper withBorder p="xs" radius="md">
+        <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
             <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
             <Text fw={600} size="xs">Daily P&L</Text>
@@ -267,14 +267,14 @@ export function PerformanceAnalytics() {
       </SimpleGrid>
 
       <SimpleGrid cols={{ base: 1, md: 2 }} spacing="xs">
-        <Paper withBorder p="xs" radius="md">
+        <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
             <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.error.main })} />
             <Text fw={600} size="xs">Drawdown</Text>
           </Group>
           <DrawdownChart data={drawdown} />
         </Paper>
-        <Paper withBorder p="xs" radius="md">
+        <Paper p="xs" radius="md">
           <Group gap="xs" mb={2}>
             <Box w={4} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.info.main })} />
             <Text fw={600} size="xs">Monthly P&L</Text>

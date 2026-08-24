@@ -157,7 +157,7 @@ describe("CompactStat", () => {
     expect(screen.queryByText("hint")).not.toBeInTheDocument();
   });
 
-  it("renders with Card withBorder and bg via withAlpha", () => {
+  it("renders with Card and bg via withAlpha", () => {
     render(<CompactStat label="A" value="B" hint={null as any} />);
     expect(screen.getByText("A")).toBeInTheDocument();
     expect(screen.getByText("B")).toBeInTheDocument();

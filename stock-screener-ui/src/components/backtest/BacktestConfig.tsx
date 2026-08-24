@@ -110,7 +110,6 @@ export function BacktestConfig({
       id="config-form"
       p="sm"
       radius="sm"
-      withBorder
       data-testid="strategy-config"
     >
       <Stack spacing={1}>

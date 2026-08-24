@@ -37,7 +37,6 @@ export const CardStyle: Story = {
   render: () => (
     <UnstyledButton
       style={{
-        border: "1px solid var(--mui-palette-divider)",
         borderRadius: 8,
         textAlign: "left",
         padding: 16,

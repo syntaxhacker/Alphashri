@@ -48,7 +48,7 @@ export const WithHistory: Story = {
         Conversations would appear in the history drawer (clock icon). Mocked via
         <Code style={{ fontSize: 11 }}> listConversations → getMessages</Code>.
       </Text>
-      <Box style={{ flex: 1, position: "relative", border: "1px dashed var(--mui-palette-divider)", borderRadius: 8 }}>
+      <Box style={{ flex: 1, position: "relative", borderRadius: 8 }}>
         <ChatPopup />
         <Stack gap={4} p="sm">
           <Text size="xs" fw={600}>Mock history (not wired to API in Storybook):</Text>
@@ -70,7 +70,7 @@ export const Streaming: Story = {
         When chat detects a ticker (e.g. “Analyze RELIANCE”), <Code style={{ fontSize: 11 }}>streamStockAnalysis</Code> streams
         <Code style={{ fontSize: 11 }}> progress / tool_call / complete</Code> events. Rendered via react-markdown.
       </Text>
-      <Box style={{ flex: 1, position: "relative", border: "1px dashed var(--mui-palette-divider)", borderRadius: 8 }}>
+      <Box style={{ flex: 1, position: "relative", borderRadius: 8 }}>
         <ChatPopup />
         <Box p="sm">
           <Text size="xs">Send “Analyze RELIANCE” to trigger streaming (mocked in docs).</Text>

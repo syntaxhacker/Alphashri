@@ -63,9 +63,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
       shadow="sm"
       padding="md"
       radius="md"
-      withBorder
       data-testid="portfolio-summary"
-      sx={(theme) => ({ borderLeft: `4px solid ${isGreen ? theme.palette.success.main : theme.palette.error.main}` })}
     >
       <Group justify="space-between" mb="sm">
         <Text fw={600}>Portfolio Summary</Text>
@@ -135,9 +133,7 @@ export function StrategyStatusCard({
       shadow="xs"
       padding="sm"
       radius="md"
-      withBorder
       data-testid="strategy-card"
-      sx={(theme) => ({ borderTop: `3px solid ${(theme.palette as any)[stratColor]?.main || theme.palette.primary.main}` })}
     >
       <Group justify="space-between" mb="xs">
         <Group gap="xs">
@@ -277,7 +273,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
   ];
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-positions">
+    <Card shadow="sm" padding="md" radius="md" data-testid="bot-positions">
       <Group justify="space-between" mb="sm">
         <Text fw={600}>Open Positions</Text>
         <Badge color={positions.some(p => p.unrealized_pnl >= 0) ? "teal" : "red"} variant="light" size="sm">
@@ -297,7 +293,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
 export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () => void }) {
   if (trades.length === 0) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-trades">
+      <Card shadow="sm" padding="md" radius="md" data-testid="bot-trades">
         <Text fw={600} mb="sm">
           Trade History
         </Text>
@@ -399,7 +395,7 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
   ];
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-trades">
+    <Card shadow="sm" padding="md" radius="md" data-testid="bot-trades">
       <Group justify="space-between" mb="sm">
         <Text fw={600}>Trade History ({trades.length})</Text>
         <Group gap="xs">
@@ -535,7 +531,6 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
             size="sm"
             variant="light"
             color={getStrategyColor(s.strategy_type)}
-            sx={!s.enable_shorts ? (theme: any) => ({ borderLeft: `3px solid ${theme.palette.warning.main}` }) : undefined}
           >
             {s.strategy_type}
             {!s.enable_shorts && <span style={{ marginLeft: 2 }}>L</span>}

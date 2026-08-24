@@ -72,13 +72,11 @@ export function ActionIcon({
     ...(style ? { ...style } : {}),
   };
 
-  // variant subtle/transparent -> text-like, light -> contained-like, outline/default -> outlined
+  // variant subtle/transparent -> text-like, light -> contained-like, outline/default -> no border (elevation only)
   if (variant === "filled") {
     Object.assign(sx, { bgcolor: "primary.main", color: "primary.contrastText", "&:hover": { bgcolor: "primary.dark" } });
   } else if (variant === "light") {
     Object.assign(sx, { bgcolor: "action.selected", "&:hover": { bgcolor: "action.hover" } });
-  } else if (variant === "outline" || variant === "default") {
-    Object.assign(sx, { border: 1, borderColor: "divider" });
   }
 
   return (

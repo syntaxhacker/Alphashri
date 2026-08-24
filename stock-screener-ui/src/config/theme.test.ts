@@ -1,27 +1,26 @@
 import { describe, expect, it } from "vitest";
 import { muiTheme } from "@/ui/muiTheme";
-import { FIN_PRIMARY, FIN_POSITIVE, FIN_NEGATIVE } from "@/ui/palette";
 import { fontWeights } from "./theme";
 
-describe("Theme Configuration (MUI Financial)", () => {
+describe("Theme Configuration (MUI default)", () => {
   it("exports muiTheme", () => {
     expect(muiTheme).toBeDefined();
     expect(typeof muiTheme).toBe("object");
   });
-  it("has correct primary color", () => {
-    // @ts-ignore light palette
-    expect(muiTheme.palette?.primary?.main || (muiTheme as any).colorSchemes?.light?.palette?.primary?.main).toBe(FIN_PRIMARY);
+  it("has cssVariables enabled", () => {
+    // default MUI theme uses cssVariables for colorSchemes
+    expect((muiTheme as any).cssVariables).toBe(true);
   });
-  it("has success/error from FIN tokens", () => {
-    const light = (muiTheme as any).colorSchemes?.light?.palette;
-    expect(light.success.main).toBe(FIN_POSITIVE);
-    expect(light.error.main).toBe(FIN_NEGATIVE);
+  it("has colorSchemes light and dark enabled", () => {
+    const cs = (muiTheme as any).colorSchemes;
+    expect(cs).toBeDefined();
+    expect(cs.light).toBe(true);
+    expect(cs.dark).toBe(true);
   });
-  it("has shape radius 8", () => {
-    expect(muiTheme.shape.borderRadius).toBe(8);
-  });
-  it("has typography IBM Plex Sans", () => {
-    expect(muiTheme.typography.fontFamily).toContain("IBM Plex Sans");
+  it("is default MUI theme without custom palette overrides", () => {
+    // Should not have custom primary hardcoded; MUI defaults are used
+    // Just ensure theme object is valid
+    expect(muiTheme.palette).toBeDefined();
   });
 });
 

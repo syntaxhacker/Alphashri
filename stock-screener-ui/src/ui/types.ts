@@ -91,7 +91,6 @@ export interface UICenterProps extends UIBaseProps {
 export interface UIPaperProps extends UIBoxProps {
   shadow?: "xs" | "sm" | "md" | "lg" | "xl" | string;
   radius?: UIRadius;
-  withBorder?: boolean;
   p?: UISize | number | string;
 }
 
@@ -484,7 +483,6 @@ export interface UIAppShellProps extends UIBaseProps {
   footer?: { height: number | string; collapsed?: boolean };
   padding?: UISize | number | string;
   layout?: "default" | "alt";
-  withBorder?: boolean;
   zIndex?: number | string;
   transitionDuration?: number;
   transitionTimingFunction?: string;
@@ -493,13 +491,11 @@ export interface UIAppShellProps extends UIBaseProps {
 }
 
 export interface UIAppShellHeaderProps extends UIBaseProps {
-  withBorder?: boolean;
   zIndex?: number | string;
 }
 
 export interface UIAppShellNavbarProps extends UIBaseProps {
   p?: UISize | number | string;
-  withBorder?: boolean;
   zIndex?: number | string;
 }
 
@@ -670,7 +666,6 @@ export interface UIIndicatorProps extends UIBaseProps {
   offset?: number;
   disabled?: boolean;
   processing?: boolean;
-  withBorder?: boolean;
   position?: "top-start" | "top-end" | "bottom-start" | "bottom-end";
 }
 

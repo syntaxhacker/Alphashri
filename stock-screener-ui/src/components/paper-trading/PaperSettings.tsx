@@ -90,7 +90,6 @@ function SettingsLoadingState() {
     <Card
       padding="sm"
       radius="xs"
-      withBorder
       data-testid="settings-panel"
       className="paper-settings"
       id="paper-settings"
@@ -108,7 +107,6 @@ function SettingsErrorState({ error }: { error: string }) {
     <Card
       padding="sm"
       radius="md"
-      withBorder
       data-testid="settings-panel"
       className="paper-settings paper-settings-error"
       id="paper-settings"
@@ -160,7 +158,6 @@ function SettingsContent({
     <Card
       padding="sm"
       radius="md"
-      withBorder
       data-testid="settings-panel"
       className="paper-settings"
       id="paper-settings"

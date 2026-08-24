@@ -210,16 +210,16 @@ export function ScreenerPage({
                 <CompactAlerts activeScreener={activeScreener} warning={warning} />
                 <Grid container spacing={2} sx={{ flex: 1, minHeight: 0, minWidth: 0, flexWrap: "nowrap", overflow: "hidden" }}>
                   {hasSideFilters && (
-                    <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", minWidth: 0, maxWidth: { md: 220 } }}>
+                    <Grid size="auto" sx={{ display: "flex", minWidth: 0 }}>
                       <ScreenerSidePanel
                         activeScreener={activeScreener}
                         screenerOptions={screenerOptions}
                       />
                     </Grid>
                   )}
-                  <Grid size={{ xs: 12, md: hasSideFilters ? 7 : 12 }} sx={{ display: "flex", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+                  <Grid size="grow" sx={{ display: "flex", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
                     <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-                      <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1, "&:last-child": { pb: 1 } }}>
+                      <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 0, "&:last-child": { pb: 0 } }}>
                         <ScreenerContent
                           approachingStocks={approachingStocks}
                           touchedStocks={touchedStocks}

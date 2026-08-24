@@ -28,7 +28,6 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
         px="xs"
         py={4}
         sx={(theme) => ({
-          borderTop: `1px solid ${theme.palette.divider}`,
           background: theme.palette.background.paper,
         })}
       >
@@ -45,8 +44,7 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
       px="xs"
       py={4}
       justify="space-between"
-      sx={(theme) => ({
-        borderTop: `1px solid ${theme.palette.divider}`,
+      sx={() => ({
         background: bgTint,
       })}
     >

@@ -149,7 +149,6 @@ export function CompactStat({
     <Card
       radius="xs"
       p={0}
-      withBorder
       shadow="none"
       bg={`light-dark(${withAlpha(CREAM, 0.85)}, ${withAlpha(BROWN_DARK, 0.55)})`}
       {...paperProps}

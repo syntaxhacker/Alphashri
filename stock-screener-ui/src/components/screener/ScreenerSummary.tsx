@@ -31,7 +31,6 @@ export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
           label={item.label}
           value={item.value}
           tone={item.color ? COLOR_MAP[item.color] || "text.primary" : "text.primary"}
-          className="summary-card"
           testId={`summary-card-${item.label}`}
         />
       ))}

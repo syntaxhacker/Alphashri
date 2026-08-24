@@ -1,4 +1,9 @@
-import { Modal, Text, Stack, Group, Badge, List, ListItem, ThemeIcon, Divider, Paper } from "@/ui";
+import { Modal, Text, Stack, Group, Badge, List, ListItem, ThemeIcon, Divider } from "@/ui";
+import Paper from "@mui/material/Paper";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import TableContainer from "@mui/material/TableContainer";
+import CardContent from "@mui/material/CardContent";
 import { IconInfoCircle, IconTarget } from "@tabler/icons-react";
 
 interface OptionChainGuideProps {
@@ -27,7 +32,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
         <Divider label="The Basics" labelPosition="center" className="guide-divider" />
 
         <Group grow gap="xs" className="guide-basics" data-testid="options-guide-basics">
-          <Paper p="xs" withBorder radius="sm" className="guide-card guide-card-calls">
+          <Paper sx={{ p: 1 }} className="guide-card guide-card-calls">
             <Text fw={700} size="sm" c="green.7">
               CALLS (CE)
             </Text>
@@ -35,7 +40,7 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
               Right to buy. Traders buy CE if they expect the price to **GO UP**.
             </Text>
           </Paper>
-          <Paper p="xs" withBorder radius="sm" className="guide-card guide-card-puts">
+          <Paper sx={{ p: 1 }} className="guide-card guide-card-puts">
             <Text fw={700} size="sm" c="red.7">
               PUTS (PE)
             </Text>
@@ -126,11 +131,8 @@ export function OptionChainGuide({ opened, onClose }: OptionChainGuideProps) {
         </Stack>
 
         <Paper
-          p="sm"
-          bg="blue.0"
-          radius="md"
+          sx={{ p: 2 }}
           className="guide-pro-tip"
-          sx={{ border: 1, borderColor: "primary.light" }}
           data-testid="options-guide-pro-tip"
         >
           <Group gap="xs" wrap="nowrap">

@@ -312,11 +312,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   return (
     <Box style={{ display: "flex", height: "100%", gap: 8 }}>
       <Box
-        sx={(theme) => ({
+        sx={{
           width: 280,
           flexShrink: 0,
-          borderRight: `1px solid ${theme.palette.divider}`,
-        })}
+        }}
         data-testid="screener-list-panel"
       >
         <ScrollArea h="100%">
@@ -385,16 +384,12 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 p={4}
                 data-testid={`screener-row-${option.id}`}
                 sx={(theme) => ({
-                  borderRadius: 4,
+                  borderRadius: 8,
                   cursor: "pointer",
                   backgroundColor:
                     option.id === activeScreener
                       ? alpha(theme.palette.primary.main, 0.08)
                       : "transparent",
-                  border:
-                    option.id === activeScreener
-                      ? `1px solid ${theme.palette.primary.main}`
-                      : "1px solid transparent",
                 })}
                 onClick={() => onScreenerChange(option.id)}
               >
@@ -653,11 +648,10 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         </Box>
 
         <Box
-          sx={(theme) => ({
+          sx={{
             flex: 1,
-            borderLeft: `1px solid ${theme.palette.divider}`,
-            paddingLeft: 24,
-          })}
+            paddingLeft: 3,
+          }}
         >
           <Stack gap="xs" data-testid="create-modal-preview">
             <Group justify="space-between">

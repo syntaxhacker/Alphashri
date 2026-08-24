@@ -98,7 +98,7 @@ export function HeatmapPage() {
   return (
     <Container maxWidth="xl" sx={{ py: 2 }}>
       <MuiStack spacing={2} data-testid="heatmap-page" sx={{ minHeight: 0 }}>
-        <Box p={2} sx={(theme) => ({ borderBottom: `1px solid ${theme.palette.divider}` })}>
+        <Box p={2} sx={{ flexShrink: 0 }}>
           <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
             <Group gap="xs">
               <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
@@ -220,7 +220,7 @@ export function HeatmapPage() {
           </CardContent>
         </Box>
 
-        <Box data-testid="heatmap-legend" p={1} sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}>
+        <Box data-testid="heatmap-legend" p={1} sx={{ flexShrink: 0 }}>
           <Group gap="md">
             <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
             <Group gap={1}>

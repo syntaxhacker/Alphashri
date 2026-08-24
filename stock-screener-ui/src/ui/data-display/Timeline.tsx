@@ -109,7 +109,7 @@ export function TimelineItem({
             flex: 1,
             width: `${lineW}px`,
             bgcolor: "divider",
-            borderLeft: lineVariant && lineVariant !== "solid" ? `${lineW}px ${borderStyle} var(--mui-palette-divider, #e0e0e0)` : undefined,
+            borderLeft: lineVariant && lineVariant !== "solid" ? `${lineW}px ${borderStyle} #e0e0e0` : undefined,
             backgroundColor: lineVariant === "solid" || !lineVariant ? "divider" : "transparent",
             mt: 0.5,
             minHeight: 16,

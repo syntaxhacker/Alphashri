@@ -1,6 +1,6 @@
 import { IconLogout } from "@tabler/icons-react";
 import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem, rem } from "@/ui";
-import { FIN_INNER_PAD, FIN_RADIUS } from "@/ui/palette";
+
 
 declare global {
   interface Window {
@@ -30,12 +30,12 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
           sx={{
             display: "block",
             width: "100%",
-            p: `${FIN_INNER_PAD}px`,
+            p: "8px",
             color: "text.primary",
-            borderRadius: `${FIN_RADIUS}px`,
+            borderRadius: "8px",
             "&:hover": { bgcolor: "action.hover" },
           }}
-          style={{ padding: collapsed ? `${FIN_INNER_PAD}px` : undefined }}
+          style={{ padding: collapsed ? "8px" : undefined }}
         >
           <Group justify={collapsed ? "center" : "flex-start"} wrap="nowrap" gap="sm">
             <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />

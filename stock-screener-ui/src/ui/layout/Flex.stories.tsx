@@ -35,7 +35,7 @@ export const Column: Story = {
 
 export const SpaceBetween: Story = {
   render: () => (
-    <Flex direction="row" justify="space-between" align="center" w={400} p="xs" style={{ border: "1px dashed var(--mui-palette-divider)" }}>
+    <Flex direction="row" justify="space-between" align="center" w={400} p="xs">
       {items}
     </Flex>
   ),

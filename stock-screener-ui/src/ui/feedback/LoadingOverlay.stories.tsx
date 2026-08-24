@@ -14,7 +14,7 @@ type Story = StoryObj<typeof LoadingOverlay>;
 
 function Panel({ children }: { children: React.ReactNode }) {
   return (
-    <Box pos="relative" h={160} p="md" style={{ border: "1px solid var(--mui-palette-divider)", borderRadius: 8 }}>
+    <Box pos="relative" h={160} p="md" style={{ borderRadius: 8 }}>
       {children}
     </Box>
   );

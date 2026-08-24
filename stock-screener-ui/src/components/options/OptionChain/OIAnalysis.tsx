@@ -208,12 +208,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
           </CompactPanel>
 
           {/* Sentiment Overview */}
-          <CompactPanel
-            className="oi-sentiment-panel"
-            data-testid="options-oi-sentiment-panel"
-            flex={1}
-            sx={{ borderLeft: 4, borderColor: "primary.main" }}
-          >
+          <CompactPanel className="oi-sentiment-panel" data-testid="options-oi-sentiment-panel" flex={1}>
             <Group align="flex-start" wrap="nowrap">
               <Box>
                 <Text fw={800} size="sm">

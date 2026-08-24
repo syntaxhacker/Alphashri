@@ -131,7 +131,7 @@ export function ExperimentsConfig() {
   };
 
   return (
-    <Paper p="sm" radius="sm" withBorder data-testid="experiments-config">
+    <Paper p="sm" radius="sm" elevation={1} data-testid="experiments-config">
       <Stack gap="xs">
         <Group gap="sm" align="flex-start">
           <Box w={90} pt={4}>

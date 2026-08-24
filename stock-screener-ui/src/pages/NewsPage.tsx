@@ -103,7 +103,7 @@ function NewsPageDesktop({
     <Container maxWidth="xl" sx={{ py: 2 }}>
       <Grid container spacing={2} data-testid="news-page" sx={{ minHeight: 0, overflow: "hidden" }}>
         <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", minHeight: 0 }}>
-          <Paper elevation={0} sx={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
+          <Paper elevation={1} sx={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
             <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0 }}>
               <ScrollArea h="100%" offsetScrollbars p={1}>
                 <NewsList {...newsListProps} />
@@ -112,7 +112,7 @@ function NewsPageDesktop({
           </Paper>
         </Grid>
         <Grid size={{ xs: 12, md: 7 }} sx={{ display: "flex", minHeight: 0 }}>
-          <Paper elevation={0} sx={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
+          <Paper elevation={1} sx={{ flex: 1, display: "flex", minHeight: 0, overflow: "hidden" }}>
             <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0 }}>
               <ScrollArea h="100%" offsetScrollbars p={1}>
                 <ArticleDetail {...articleDetailProps} />

@@ -224,7 +224,7 @@ export function HeatmapTreemap({
         <Box
           data-testid={`${testId}-legend`}
           p={6}
-          style={{ borderTop: 1, flexShrink: 0 }}
+          style={{ flexShrink: 0 }}
         >
           <Group gap="md" wrap="wrap">
             <Text size="xs" fw={600}>

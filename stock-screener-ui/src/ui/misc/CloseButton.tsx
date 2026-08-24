@@ -25,9 +25,7 @@ export function CloseButton({ size, variant, disabled, onClick, className, style
       ? { bgcolor: "action.selected", "&:hover": { bgcolor: "action.hover" } }
       : variant === "light"
         ? { bgcolor: "action.hover", "&:hover": { bgcolor: "action.selected" } }
-        : variant === "outline"
-          ? { border: 1, borderColor: "divider" }
-          : variant === "transparent"
+        : variant === "transparent"
             ? { bgcolor: "transparent" }
             : {}),
   };

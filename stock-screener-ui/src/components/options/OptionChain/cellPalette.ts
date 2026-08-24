@@ -54,7 +54,6 @@ export type CellKind = "oi" | "change" | "volume" | "iv" | "ltp";
 
 export type CellPaletteResult = {
   background: string;
-  border: string;
   shadow: string;
   text: string;
   accent: string;
@@ -163,13 +162,11 @@ export function getCellPalette(
 
   const baseAlpha = 0.08 + baseIntensity * 0.26;
   const altAlpha = 0.04 + secondaryScale * 0.18;
-  const borderAlpha = 0.18 + baseIntensity * 0.24;
   const shadowAlpha = 0.08 + baseIntensity * 0.16;
 
   const white = (theme as any)?.white ?? (theme as any)?.palette?.common?.white ?? "#FFFFFF";
   return {
     background: `linear-gradient(135deg, ${hexToRgba(base ?? TEXT_MUTED, baseAlpha)} 0%, ${hexToRgba(alt ?? TEXT_MUTED, altAlpha)} 100%)`,
-    border: hexToRgba(glow ?? TEXT_MUTED, borderAlpha),
     shadow: `inset 0 1px 0 ${hexToRgba(white, 0.06)}, 0 0 0 1px ${hexToRgba(glow ?? TEXT_MUTED, shadowAlpha)}`,
     text: text ?? TEXT_MUTED,
     accent: glow ?? TEXT_MUTED,

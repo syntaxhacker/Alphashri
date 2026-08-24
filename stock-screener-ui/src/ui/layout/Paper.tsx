@@ -18,15 +18,13 @@ const rad = (v: unknown) => {
 export function Paper({
   children, className, style, id, "data-testid": testId, onClick,
   p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex,
-  shadow, radius, withBorder, ...rest
+  shadow, radius, ...rest
 }: UIPaperProps & Record<string, unknown>) {
   void shadow;
   return (
     <MuiPaper
-      elevation={0} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
+      elevation={1} id={id as string} className={className} style={style} data-testid={testId} onClick={onClick as never}
       sx={{
-        border: "1px solid",
-        borderColor: "divider",
         ...(radius != null && { borderRadius: rad(radius) }),
         ...(p != null && { p: sp(p) }), ...(px != null && { px: sp(px) }), ...(py != null && { py: sp(py) }),
         ...(pt != null && { pt: sp(pt) }), ...(pb != null && { pb: sp(pb) }), ...(pl != null && { pl: sp(pl) }), ...(pr != null && { pr: sp(pr) }),

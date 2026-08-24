@@ -133,18 +133,7 @@ export function OptionAlerts({ strikeMatrix, spotPrice }: OptionAlertsProps) {
         </Timeline>
       )}
 
-      <CompactPanel
-        mt="md"
-        p="xs"
-        sx={{
-          border: 1,
-          borderColor: "primary.light",
-          borderStyle: "dashed",
-          bgcolor: "primary.light",
-        }}
-        className="alerts-profit-tip"
-        data-testid="options-alerts-profit-tip"
-      >
+      <CompactPanel mt="md" p="xs" className="alerts-profit-tip" data-testid="options-alerts-profit-tip">
         <Text size="sm" fw={600} c="blue.7">
           💡 HOW TO PROFIT: When a "Squeeze" alert appears near the spot price, consider a quick
           bullish trade. When a "Wall" appears, expect the price to reverse from that strike.

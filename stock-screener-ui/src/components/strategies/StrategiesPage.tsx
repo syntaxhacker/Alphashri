@@ -2,7 +2,6 @@ import { Box, Stack, Button, Group, Text } from "@/ui";
 import Container from "@mui/material/Container";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import { FIN_OUTER_PAD } from "@/ui/palette";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplateTreeView } from "./TemplateTreeView";
@@ -111,7 +110,7 @@ export function StrategiesPage({
   };
 
   return (
-    <Container maxWidth="xl" sx={{ py: `${FIN_OUTER_PAD}px`, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
+    <Container maxWidth="xl" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
       <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
         <Box sx={{ flex: "0 0 auto" }} data-testid="strategies-nav-container">
           <StrategiesNav activeView={activeView} onChange={onViewChange} />

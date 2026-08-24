@@ -19,7 +19,7 @@ const items = ["A", "B", "C", "D"].map((label) => (
 
 export const SpaceBetween: Story = {
   render: () => (
-    <Group justify="space-between" w={400} p="xs" style={{ border: "1px dashed var(--mui-palette-divider)" }}>
+    <Group justify="space-between" w={400} p="xs">
       {items.slice(0, 2)}
     </Group>
   ),

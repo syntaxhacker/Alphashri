@@ -22,7 +22,6 @@ import {
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Toolbar from "@mui/material/Toolbar";
-import { FIN_HEADER_H, FIN_INNER_PAD, FIN_RADIUS } from "@/ui/palette";
 import { IconDots } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import {
@@ -99,7 +98,7 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" id="chart-legend" sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}>
+    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" id="chart-legend">
       {items.map((item, i) => (
         <Flex key={i} align="center" gap={1}>
           <Box w={8} h={8} bg={item.color} sx={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
@@ -120,7 +119,7 @@ function ChartEmptyState({
   children: React.ReactNode;
 }) {
   return (
-    <Card elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+    <Card elevation={1} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <CardContent sx={{ textAlign: "center" }}>
         {icon && (
           <Text size="lg" c="dimmed" mb="xs">
@@ -236,7 +235,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const hasActiveOverlays = OVERLAY_ITEMS.some(({ key }) => state[key]);
 
   return (
-    <Toolbar disableGutters sx={{ minHeight: FIN_HEADER_H, px: 1, gap: 1, flex: "0 0 auto", borderBottom: 1, borderColor: "divider" }} data-testid="paper-chart-header" id="chart-header">
+    <Toolbar disableGutters sx={{ minHeight: 48, px: 1, gap: 1, flex: "0 0 auto" }} data-testid="paper-chart-header" id="chart-header">
       {state.chartData?.symbol && (
         <Text fw={600} size="xs" truncate>
           {state.chartData.symbol}
@@ -408,7 +407,7 @@ export function PaperChart() {
   }
 
   return (
-    <Card elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: 0, overflow: "hidden" }}>
+    <Card elevation={1} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: 0, overflow: "hidden" }}>
       <ChartHeader state={state} />
       <Box sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />

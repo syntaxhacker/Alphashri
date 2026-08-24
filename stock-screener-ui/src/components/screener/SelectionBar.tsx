@@ -17,7 +17,6 @@ export function SelectionBar({ onCompare }: SelectionBarProps) {
       p="sm"
       gap="sm"
       sx={(theme) => ({
-        borderTop: `1px solid ${theme.palette.divider}`,
         background: alpha(theme.palette.grey[900], 0.9),
         flexShrink: 0,
       })}

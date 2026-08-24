@@ -1,5 +1,10 @@
 import { useMemo } from "react";
-import { Text, Stack, Badge, Paper, Alert } from "@/ui";
+import { Text, Stack, Badge, Alert } from "@/ui";
+import Paper from "@mui/material/Paper";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import TableContainer from "@mui/material/TableContainer";
+import CardContent from "@mui/material/CardContent";
 import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { TanStackTable } from "../../common/TanStackTable";
@@ -154,20 +159,17 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
         Option Positions
       </Text>
 
-      <Paper
-        withBorder
-        p="md"
-        className="positions-table-container"
-        data-testid="options-positions-table-container"
-      >
-        <TanStackTable<Position>
-          data={positions}
-          columns={columns}
-          dataTestId="options-positions-table"
-          enableSorting={false}
-          emptyMessage="No open positions"
-          getRowTestId={(_row, index) => `options-position-row-${index}`}
-        />
+      <Paper sx={{ p: 2 }} className="positions-table-container" data-testid="options-positions-table-container">
+        <TableContainer>
+          <TanStackTable<Position>
+            data={positions}
+            columns={columns}
+            dataTestId="options-positions-table"
+            enableSorting={false}
+            emptyMessage="No open positions"
+            getRowTestId={(_row, index) => `options-position-row-${index}`}
+          />
+        </TableContainer>
       </Paper>
     </Stack>
   );

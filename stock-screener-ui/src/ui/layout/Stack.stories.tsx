@@ -27,7 +27,7 @@ export const TightGap: Story = {
 
 export const AlignEnd: Story = {
   render: () => (
-    <Stack gap="sm" align="flex-end" w={300} p="xs" style={{ border: "1px dashed var(--mui-palette-divider)" }}>
+    <Stack gap="sm" align="flex-end" w={300} p="xs">
       {items}
     </Stack>
   ),

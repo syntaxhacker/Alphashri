@@ -6,7 +6,7 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import TableContainer from "@mui/material/TableContainer";
 import Paper from "@mui/material/Paper";
-import { FIN_OUTER_PAD, FIN_INNER_PAD } from "@/ui/palette";
+
 import { IconRobot, IconChartLine, IconPlus, IconPlayerPlay, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
   getBotsState,
@@ -233,15 +233,15 @@ function BotsTable({
   ], [onViewStatus, onStart, onStop, onEdit, onDelete]);
 
   return (
-    <Card elevation={0} id="bots-list-card" data-testid="bots-list-card">
-      <CardContent sx={{ p: FIN_INNER_PAD / 8 }}>
+    <Card elevation={1} id="bots-list-card" data-testid="bots-list-card">
+      <CardContent sx={{ p: "8px" }}>
         <Group gap="xs" mb="xs">
           <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
           <Text size="sm" fw={600}>Configured Bots</Text>
           <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
           <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
         </Group>
-        <TableContainer component={Paper} elevation={0}>
+        <TableContainer component={Paper} elevation={1}>
           <TanStackTable
             data={state.bots}
             columns={columns}
@@ -353,7 +353,7 @@ export function BotsPage() {
   const handleDeleteBot = useDeleteBotHandler();
 
   return (
-    <Container maxWidth="xl" sx={{ py: `${FIN_OUTER_PAD}px`, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="bots-view">
+    <Container maxWidth="xl" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="bots-view">
       <Stack spacing={1} sx={{ mb: 2 }}>
         <Group justify="space-between" align="flex-start">
           <Stack spacing={1}>

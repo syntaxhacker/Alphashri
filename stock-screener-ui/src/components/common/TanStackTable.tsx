@@ -182,7 +182,7 @@ export function TanStackTable<T>({
   const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
 
   return (
-    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 1 }}>
+    <TableContainer component={Paper} elevation={1} sx={{ borderRadius: 1 }}>
       <ScrollArea
         sx={{ height: "100%" }}
         onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
@@ -213,8 +213,6 @@ export function TanStackTable<T>({
                       fontWeight: 700,
                       whiteSpace: "nowrap",
                       userSelect: "none",
-                      borderBottom: 2,
-                      borderColor: "divider",
                       bgcolor: "background.paper",
                       width: width !== undefined ? width : undefined,
                       textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
@@ -299,8 +297,6 @@ export function TanStackTable<T>({
                               padding: "8px 12px",
                               fontSize: 12,
                               whiteSpace: "nowrap",
-                              borderBottom: 1,
-                              borderColor: "divider",
                               width: width !== undefined ? width : undefined,
                               textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
                               ...(width !== undefined
