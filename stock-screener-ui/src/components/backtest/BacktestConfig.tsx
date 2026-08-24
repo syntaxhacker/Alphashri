@@ -108,15 +108,14 @@ export function BacktestConfig({
   return (
     <Paper
       id="config-form"
-      className="backtest-config"
       p="sm"
       radius="sm"
       withBorder
       data-testid="strategy-config"
     >
-      <Stack gap="xs">
+      <Stack spacing={1}>
         <Group gap="sm" align="flex-start">
-          <Text size="sm" fw={500} w={70} pt={4}>
+          <Text size="sm" fw={500} sx={{ width: 70, pt: 0.5 }}>
             Strategy
           </Text>
           <Box flex={1}>
@@ -143,7 +142,7 @@ export function BacktestConfig({
         <Divider />
 
         <Group gap="sm" align="flex-start">
-          <Text size="sm" fw={500} w={70} pt={4}>
+          <Text size="sm" fw={500} sx={{ width: 70, pt: 0.5 }}>
             Symbols
           </Text>
           <Box flex={1}>
@@ -156,13 +155,13 @@ export function BacktestConfig({
         <Box>
           {strategy && strategy.params.length > 0 ? (
             <Group gap="sm" align="flex-start">
-              <Text size="sm" fw={500} w={70} pt={4}>
+              <Text size="sm" fw={500} sx={{ width: 70, pt: 0.5 }}>
                 Params
               </Text>
-              <Box className="config-params-row" flex={1}>
+              <Box flex={1} sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
                 {strategy.params.map((param) => (
                   <Tooltip key={param.key} label={param.label} withArrow>
-                    <Group gap={4} align="center">
+                    <Group gap={1} align="center">
                       <Text size="xs" c="dimmed">
                         {param.label}
                       </Text>
@@ -178,7 +177,7 @@ export function BacktestConfig({
             </Group>
           ) : (
             <Group gap="sm" align="center">
-              <Text size="sm" fw={500} w={70}>
+              <Text size="sm" fw={500} sx={{ width: 70 }}>
                 Params
               </Text>
               <Text size="sm" c="dimmed">
@@ -193,7 +192,7 @@ export function BacktestConfig({
         <Group justify="space-between" align="center" wrap="wrap" gap="sm">
           <Group gap="sm" align="center">
             <Tooltip label="Backtest period in days" withArrow>
-              <Group gap={4} align="center">
+              <Group gap={1} align="center">
                 <Text size="sm" c="dimmed">
                   Days
                 </Text>
@@ -205,7 +204,7 @@ export function BacktestConfig({
                   max={365}
                   step={30}
                   size="sm"
-                  w={65}
+                  w={72}
                 />
               </Group>
             </Tooltip>

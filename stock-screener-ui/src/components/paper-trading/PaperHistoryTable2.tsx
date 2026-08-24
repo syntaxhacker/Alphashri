@@ -11,11 +11,12 @@ import {
   Anchor,
   Badge,
   ActionIcon,
-  Grid,
   Stack,
   Textarea,
   Button,
 } from "@/ui";
+import Grid from "@mui/material/Grid";
+import Box from "@mui/material/Box";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
@@ -98,7 +99,7 @@ function HistoryFilters({
 
   return (
     <>
-      <Flex flex="none" py={1} className="paper-history-filters" id="history-filters">
+      <Box sx={{ flex: "none", py: 1 }} id="history-filters">
         <Group gap="xs" justify="space-between" w="100%">
           <Group gap="xs">
             {bots.length > 1 && (
@@ -110,7 +111,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterBot || ""}
                 onChange={(v) => setFilterBot(v)}
-                style={{ width: 160 }}
+                sx={{ width: 160, borderRadius: 1 }}
                 size="xs"
                 data-testid="bot-filter-select"
               />
@@ -124,7 +125,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterStrategy != null ? String(state.filterStrategy) : ""}
                 onChange={(v) => setFilterStrategy(v ? Number(v) : null)}
-                style={{ width: 160 }}
+                sx={{ width: 160, borderRadius: 1 }}
                 size="xs"
                 data-testid="strategy-filter-select"
               />
@@ -144,28 +145,18 @@ function HistoryFilters({
             data-testid="quick-filter"
           />
         </Group>
-      </Flex>
+      </Box>
 
-      <Flex
-        flex="none"
-        className="paper-history-list-wrapper"
-        data-testid="trades-header"
-        id="trades-header"
-      >
+      <Box sx={{ flex: "none" }} data-testid="trades-header" id="trades-header">
         <Group justify="space-between" px={4} py={2}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">
             Trade History
           </Text>
         </Group>
-      </Flex>
+      </Box>
     </>
   );
 }
-
-/* ─────────────────────────────────────────────────────────────
- * Day summary header row (rendered inside the single table as a
- * full-width group row) + trade detail sub-components.
- * ───────────────────────────────────────────────────────────── */
 
 const DaySummary = memo(function DaySummary({
   date,
@@ -229,9 +220,9 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Grid gutter={2}>
-      <Grid.Col span={{ base: 12, md: 6 }}>
-        <Stack gap={2}>
+    <Grid container spacing={2}>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Stack spacing={1}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
           {entryContext.map((item) => (
             <Group key={item.label} gap="xs" justify="space-between">
@@ -240,9 +231,9 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
             </Group>
           ))}
         </Stack>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, md: 6 }}>
-        <Stack gap={2}>
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Stack spacing={1}>
           <Text size="xs" fw={600} c="dimmed" tt="uppercase">Exit</Text>
           {exitContext.map((item) => (
             <Group key={item.label} gap="xs" justify="space-between">
@@ -255,7 +246,7 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
             <ExitReasonBadge reason={trade.exit_reason} />
           </Group>
         </Stack>
-      </Grid.Col>
+      </Grid>
     </Grid>
   );
 });
@@ -272,17 +263,17 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
   };
 
   return (
-    <Stack gap={2}>
+    <Stack spacing={1}>
       <Group gap="xs" align="flex-start" grow>
-        <Stack gap={1} style={{ flex: 1 }}>
+        <Stack spacing={1} sx={{ flex: 1 }}>
           <Text size="xs" c="dimmed">Reason</Text>
-          <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }} data-testid={`trade-reason-${trade.trade_id}`}>
+          <Text size="xs" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }} data-testid={`trade-reason-${trade.trade_id}`}>
             {trade.reason || "-"}
           </Text>
         </Stack>
       </Group>
       <Group gap="sm" align="flex-start" grow>
-        <Stack gap={1} style={{ flex: 1 }}>
+        <Stack spacing={1} sx={{ flex: 1 }}>
           <Text size="xs" c="dimmed">Notes</Text>
           <Textarea
             size="xs"
@@ -307,18 +298,12 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
 
 const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
-    <Stack gap="xs">
+    <Stack spacing={1}>
       <TradeStats trade={trade} />
       <TradeNotesEditor trade={trade} />
     </Stack>
   );
 });
-
-/* ─────────────────────────────────────────────────────────────
- * Single trade history table: one <table> grouped by exit date.
- * Day summary rows (full-width) collapse/expand each day; trade
- * rows expand to show the TradeDetail sub-component.
- * ───────────────────────────────────────────────────────────── */
 
 function tradeDate(trade: PaperTrade): string {
   return (trade.exit_time || "").split("T")[0];
@@ -340,7 +325,6 @@ function TradeHistoryTable({
     entryTime?: string,
   ) => void;
 }) {
-  // Newest-first so day groups render newest date on top.
   const sortedTrades = useMemo(
     () => [...trades].sort((a, b) => (b.exit_time || "").localeCompare(a.exit_time || "")),
     [trades],
@@ -359,7 +343,6 @@ function TradeHistoryTable({
     return out;
   }, [sortedTrades]);
 
-  // Remount the table whenever the set of days changes so every day starts expanded.
   const datesKey = dates.join("|");
   const initialExpanded = useMemo(
     () => Object.fromEntries(dates.map((d) => [`date:${d}`, true])),
@@ -409,8 +392,6 @@ function TradeHistoryTable({
         ),
       },
       {
-        // Grouping-only column: the full-width day header rows display the
-        // date, so per-row cells are empty to avoid a redundant wide column.
         id: "date",
         header: "",
         accessorFn: tradeDate,
@@ -537,8 +518,6 @@ function TradeHistoryTable({
       enableGrouping
       grouping={["date"]}
       initialState={{
-        // Sort day groups newest-first; trades inside a day keep the
-        // pre-sorted (exit_time desc) order.
         sorting: [{ id: "date", desc: true }],
         expanded: initialExpanded,
       }}
@@ -567,13 +546,13 @@ function HistoryList({
   handleSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => Promise<void>;
 }) {
   return (
-    <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
+    <ScrollArea flex={1} sx={{ flex: 1, minHeight: 0 }} type="scroll" id="history-list">
       {filteredTrades.length === 0 ? (
-        <Flex py="sm" justify="center" align="center" direction="column" gap={4}>
+        <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 1, py: 1 }}>
           <Text size="xs" fw={500} c="dimmed">
             No trades found
           </Text>
-        </Flex>
+        </Box>
       ) : (
         <TradeHistoryTable
           trades={filteredTrades}
@@ -635,37 +614,25 @@ export function PaperHistoryTable() {
 
   if (state.isLoading && state.trades.length === 0) {
     return (
-      <Flex
-        justify="center"
-        py="sm"
-        data-testid="history-panel"
-        className="paper-history-panel"
-        id="history-panel"
-      >
+      <Box sx={{ display: "flex", justifyContent: "center", py: 1 }} data-testid="history-panel" id="history-panel">
         <Group gap="xs">
           <Loader size="sm" />
           <Text size="xs" c="dimmed">
             Loading trade history...
           </Text>
         </Group>
-      </Flex>
+      </Box>
     );
   }
 
   return (
-    <Flex
-      direction="column"
-      h="100%"
-      className="paper-history-container"
-      id="history-container"
-      data-testid="history-panel"
-    >
+    <Box sx={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, minHeight: 0 }} data-testid="history-panel" id="history-container">
       <HistoryFilters bots={bots} strategies={strategies} state={state} />
       <HistoryList
         filteredTrades={filteredTrades}
         state={state}
         handleSelectSymbol={handleSelectSymbol}
       />
-    </Flex>
+    </Box>
   );
 }

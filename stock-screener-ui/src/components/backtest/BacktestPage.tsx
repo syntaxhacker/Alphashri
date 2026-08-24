@@ -1,4 +1,10 @@
-import { Box, Flex, Alert } from "@/ui";
+import { Alert } from "@/ui";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Box from "@mui/material/Box";
+import { FIN_OUTER_PAD, FIN_INNER_PAD } from "@/ui/palette";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -200,7 +206,7 @@ function useBacktestActions(state: any) {
 
 function BacktestPageConfig({ state, actions }: { state: any; actions: any }) {
   return (
-    <Box id="backtest-config-section" className="backtest-config-section" flex="0 0 auto" mb="md">
+    <Box sx={{ flex: "0 0 auto", mb: 2 }} id="backtest-config-section">
       <BacktestConfig
         strategies={state.strategies}
         variations={state.variations}
@@ -242,62 +248,56 @@ function BacktestPanels({
   setActiveTab: (tab: string | null) => void;
 }) {
   return (
-    <Flex
-      id="backtest-panels"
-      className="backtest-panels"
-      flex={1}
-      gap="md"
-      style={{ minHeight: 0 }}
-    >
-      <Box
-        id="backtest-left-panel"
-        className="backtest-left-panel"
-        style={{ flex: "1 1 50%", minHeight: 0 }}
-      >
-        <BacktestLeftPanel
-          activeTab={activeTab}
-          setActiveTab={setActiveTab}
-          isRunning={state.isRunning}
-          progress={state.progress}
-          results={state.results}
-          totals={state.totals}
-          selectedChartSymbol={state.selectedChartSymbol}
-          sortedResults={actions.sortedResults}
-          resultsSortColumn={actions.resultsSort.column}
-          resultsSortDirection={actions.resultsSort.direction}
-          onRowClick={actions.handleViewChartAndTrades}
-          onSort={actions.resultsSort.handleSort}
-        />
-      </Box>
-      <Box
-        id="backtest-right-panel"
-        className="backtest-right-panel"
-        style={{ flex: "1 1 50%", minHeight: 0 }}
-      >
-        <BacktestRightPanel
-          showCharts={state.showCharts}
-          results={state.results}
-          symbols={symbols}
-          selectedChartSymbol={state.selectedChartSymbol}
-          onSymbolSelect={setSelectedChartSymbol}
-          zoomValue={state.chartOptions.date_range}
-          onZoomChange={(value) => setChartOptions({ date_range: value as any })}
-          chartDataMap={state.chartData}
-          chartLoading={state.chartLoading}
-          onTradeClick={actions.handleZoomToTrade}
-          holidays={holidayState.holidays}
-          tradeHistory={state.tradeHistory}
-          tradeHistorySymbol={state.tradeHistorySymbol}
-          tradeSortColumn={actions.tradeSort.column}
-          tradeSortDirection={actions.tradeSort.direction}
-          onTradeSort={actions.tradeSort.handleSort}
-          onTradeRowClick={actions.handleZoomToTrade}
-          onCloseTradeHistory={() => setTradeHistory(null, null)}
-          selectedTf={actions.selectedTf}
-          onTfChange={actions.handleTfChange}
-        />
-      </Box>
-    </Flex>
+    <Grid container spacing={2} sx={{ flex: 1, minHeight: 0 }} id="backtest-panels">
+      <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: 0, display: "flex", flexDirection: "column" }} id="backtest-left-panel">
+        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ p: FIN_INNER_PAD / 8, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: FIN_INNER_PAD / 8 } }}>
+            <BacktestLeftPanel
+              activeTab={activeTab}
+              setActiveTab={setActiveTab}
+              isRunning={state.isRunning}
+              progress={state.progress}
+              results={state.results}
+              totals={state.totals}
+              selectedChartSymbol={state.selectedChartSymbol}
+              sortedResults={actions.sortedResults}
+              resultsSortColumn={actions.resultsSort.column}
+              resultsSortDirection={actions.resultsSort.direction}
+              onRowClick={actions.handleViewChartAndTrades}
+              onSort={actions.resultsSort.handleSort}
+            />
+          </CardContent>
+        </Card>
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }} sx={{ minHeight: 0, display: "flex", flexDirection: "column" }} id="backtest-right-panel">
+        <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <CardContent sx={{ p: FIN_INNER_PAD / 8, flex: 1, minHeight: 0, display: "flex", flexDirection: "column", "&:last-child": { pb: FIN_INNER_PAD / 8 } }}>
+            <BacktestRightPanel
+              showCharts={state.showCharts}
+              results={state.results}
+              symbols={symbols}
+              selectedChartSymbol={state.selectedChartSymbol}
+              onSymbolSelect={setSelectedChartSymbol}
+              zoomValue={state.chartOptions.date_range}
+              onZoomChange={(value) => setChartOptions({ date_range: value as any })}
+              chartDataMap={state.chartData}
+              chartLoading={state.chartLoading}
+              onTradeClick={actions.handleZoomToTrade}
+              holidays={holidayState.holidays}
+              tradeHistory={state.tradeHistory}
+              tradeHistorySymbol={state.tradeHistorySymbol}
+              tradeSortColumn={actions.tradeSort.column}
+              tradeSortDirection={actions.tradeSort.direction}
+              onTradeSort={actions.tradeSort.handleSort}
+              onTradeRowClick={actions.handleZoomToTrade}
+              onCloseTradeHistory={() => setTradeHistory(null, null)}
+              selectedTf={actions.selectedTf}
+              onTfChange={actions.handleTfChange}
+            />
+          </CardContent>
+        </Card>
+      </Grid>
+    </Grid>
   );
 }
 
@@ -313,19 +313,7 @@ export function BacktestPage() {
   const symbols = state.results?.map((r) => r.symbol) ?? [];
 
   return (
-    <Box
-      id="backtest-main"
-      className="backtest-page"
-      h="100%"
-      sx={(theme) => ({
-        display: "flex",
-        flexDirection: "column",
-        padding: theme.spacing(2),
-        minHeight: 0,
-        overflow: "hidden",
-      })}
-      data-testid="backtest-view"
-    >
+    <Container maxWidth="xl" sx={{ py: `${FIN_OUTER_PAD}px`, display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }} data-testid="backtest-view" id="backtest-main">
       {state.error && (
         <Alert
           icon={<IconAlertCircle size={16} />}
@@ -349,6 +337,6 @@ export function BacktestPage() {
         activeTab={activeTab}
         setActiveTab={setActiveTab}
       />
-    </Box>
+    </Container>
   );
 }

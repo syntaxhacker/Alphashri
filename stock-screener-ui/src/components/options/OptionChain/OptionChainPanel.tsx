@@ -12,6 +12,13 @@ import {
   Button,
   Tooltip,
 } from "@/ui";
+import Container from "@mui/material/Container";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TableContainer from "@mui/material/TableContainer";
+import Paper from "@mui/material/Paper";
+import Box from "@mui/material/Box";
+import { FIN_OUTER_PAD } from "@/ui/palette";
 import {
   IconRefresh,
   IconAlertCircle,
@@ -70,9 +77,8 @@ export function OptionChainPanel({
   return (
     <Stack
       id="chain-panel"
-      className="option-chain-panel"
-      gap="sm"
-      h="100%"
+      spacing={1}
+      sx={{ height: "100%" }}
       data-testid="options-chain-panel"
     >
       <OptionChainGuide opened={guideOpened} onClose={close} />
@@ -80,13 +86,13 @@ export function OptionChainPanel({
       {/* Header Row */}
       <Group
         id="chain-header"
-        className="option-chain-header"
+       
         justify="space-between"
         wrap="nowrap"
         data-testid="options-chain-header"
       >
         <Group gap="xs" wrap="nowrap">
-          <Text size="md" fw={600} style={{ whiteSpace: "nowrap" }}>
+          <Text size="md" fw={600} sx={{ whiteSpace: "nowrap" }}>
             Option Chain
           </Text>
           <LiveSpotChart underlying={selectedUnderlying} />
@@ -98,7 +104,7 @@ export function OptionChainPanel({
                 variant="light"
                 color="gray"
                 leftSection={<IconClock size={12} />}
-                className="chain-timestamp-badge"
+               
                 data-testid="options-chain-timestamp"
               >
                 {dayjs(timestamp).format("HH:mm:ss")}
@@ -113,7 +119,7 @@ export function OptionChainPanel({
             size="compact-xs"
             leftSection={<IconHelpCircle size={14} />}
             onClick={open}
-            className="chain-guide-btn"
+           
             data-testid="open-guide-btn"
           >
             Guide
@@ -121,16 +127,16 @@ export function OptionChainPanel({
           <Text
             size="xs"
             c="dimmed"
-            className="chain-selection-label"
+           
             data-testid="options-chain-selection"
           >
             {selectedUnderlying} · {selectedExpiry}
           </Text>
-          <IconRefresh
+          <Box
+            component={IconRefresh}
             size={18}
-            style={{ opacity: loading ? 0.5 : 1 }}
+            sx={{ opacity: loading ? 0.5 : 1, cursor: "pointer" }}
             onClick={() => !loading && refreshChain()}
-            className="chain-refresh-icon"
             data-testid="refresh-chain-btn"
           />
         </Group>
@@ -152,7 +158,7 @@ export function OptionChainPanel({
       {error && (
         <Alert
           id="chain-error"
-          className="chain-error-alert"
+         
           icon={<IconAlertCircle size={16} />}
           color="red"
           variant="light"
@@ -166,7 +172,7 @@ export function OptionChainPanel({
       {loading && strikeMatrix.length === 0 ? (
         <Group
           id="chain-loading"
-          className="chain-loading-state"
+         
           justify="center"
           py="xl"
           data-testid="chain-loading"
@@ -177,7 +183,7 @@ export function OptionChainPanel({
       ) : strikeMatrix.length === 0 ? (
         <Alert
           id="chain-no-data"
-          className="chain-no-data-alert"
+         
           icon={<IconAlertCircle size={16} />}
           color="yellow"
           variant="light"
@@ -188,18 +194,18 @@ export function OptionChainPanel({
       ) : (
         <Tabs
           id="chain-view-tabs"
-          className="chain-view-tabs"
+         
           defaultValue="table"
           data-testid="chain-view-tabs"
         >
           <TabsList
-            className="chain-view-tabs-list"
+           
             mb="sm"
             data-testid="options-chain-view-tabs-list"
           >
             <Tab
               value="table"
-              className="chain-view-tab"
+             
               leftSection={<IconTable size={14} />}
               data-testid="chain-tab-table"
             >
@@ -207,7 +213,7 @@ export function OptionChainPanel({
             </Tab>
             <Tab
               value="analysis"
-              className="chain-view-tab"
+             
               leftSection={<IconChartBar size={14} />}
               data-testid="chain-tab-analysis"
             >
@@ -217,7 +223,7 @@ export function OptionChainPanel({
 
           <TabsPanel
             value="table"
-            className="chain-tab-panel"
+           
             data-testid="options-chain-table-panel"
           >
             <Stack gap="sm">
@@ -238,7 +244,7 @@ export function OptionChainPanel({
 
           <TabsPanel
             value="analysis"
-            className="chain-tab-panel"
+           
             data-testid="options-chain-analysis-panel"
           >
             <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />

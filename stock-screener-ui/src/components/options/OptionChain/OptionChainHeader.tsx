@@ -1,4 +1,5 @@
 import { Group, Select } from "@/ui";
+import Grid from "@mui/material/Grid";
 
 export function OptionChainHeader({
   selectedUnderlying,
@@ -16,28 +17,25 @@ export function OptionChainHeader({
   availableExpiries: string[];
 }) {
   return (
-    <Group
-      id="chain-header-controls"
-      className="chain-header-controls"
-      grow
-      data-testid="options-chain-header-controls"
-    >
-      <Select
-        label="Underlying"
-        value={selectedUnderlying}
-        onChange={(val) => val && setUnderlying(val)}
-        data={availableUnderlyings.map((u) => ({ value: u, label: u }))}
-        className="chain-underlying-select"
-        data-testid="underlying-select"
-      />
-      <Select
-        label="Expiry"
-        value={selectedExpiry}
-        onChange={(val) => val && setExpiry(val)}
-        data={availableExpiries.map((e) => ({ value: e, label: e }))}
-        className="chain-expiry-select"
-        data-testid="expiry-select"
-      />
-    </Group>
+    <Grid container spacing={2} id="chain-header-controls" data-testid="options-chain-header-controls">
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Select
+          label="Underlying"
+          value={selectedUnderlying}
+          onChange={(val) => val && setUnderlying(val)}
+          data={availableUnderlyings.map((u) => ({ value: u, label: u }))}
+          data-testid="underlying-select"
+        />
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }}>
+        <Select
+          label="Expiry"
+          value={selectedExpiry}
+          onChange={(val) => val && setExpiry(val)}
+          data={availableExpiries.map((e) => ({ value: e, label: e }))}
+          data-testid="expiry-select"
+        />
+      </Grid>
+    </Grid>
   );
 }

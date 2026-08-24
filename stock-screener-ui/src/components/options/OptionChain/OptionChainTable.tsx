@@ -51,11 +51,11 @@ function OptionColumn({
   const styles = getStyles(theme, colorScheme === "dark");
   if (!contract) {
     return (
-      <Box style={{ display: "contents" }}>
+      <Box sx={{ display: "contents" }}>
         {Array(5)
           .fill(0)
           .map((_, i) => (
-            <Box key={i} style={styles.cell}>
+            <Box key={i} sx={styles.cell}>
               -
             </Box>
           ))}
@@ -230,10 +230,10 @@ function OptionColumn({
             multiline
             w={220}
           >
-            <Box style={cellStyle} onClick={() => onRowClick(contract)}>
+            <Box sx={cellStyle} onClick={() => onRowClick(contract)}>
               {cell.isOI && (
                 <Box
-                  style={{
+                  sx={{
                     position: "absolute",
                     top: 4,
                     bottom: 4,
@@ -247,7 +247,7 @@ function OptionColumn({
                 />
               )}
 
-              <Stack gap={0} align="center" w="100%" pos="relative" style={{ zIndex: 1 }}>
+              <Stack gap={0} align="center" w="100%" pos="relative" sx={{ zIndex: 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
                   <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
                     {cell.value}
@@ -258,7 +258,7 @@ function OptionColumn({
                       variant="light"
                       color={cell.badge.color}
                       px={4}
-                      style={{
+                      sx={{
                         fontSize: "10px",
                         height: 14,
                         border: `1px solid ${hexToRgba(palette.accent, 0.18)}`,
@@ -341,8 +341,7 @@ function OptionChainTableInner({
   return (
     <Box
       id="option-chain-table"
-      className="option-chain-table"
-      style={{ ...styles.container, position: "relative" }}
+      sx={{ ...styles.container, position: "relative" }}
       data-testid="options-chain-table"
     >
       <ChainScrollActions scrollToATM={scrollToATM} scrollToEdge={scrollToEdge} />
@@ -351,14 +350,14 @@ function OptionChainTableInner({
       <ChainSubHeader styles={styles} />
 
       <ScrollArea
-        className="chain-table-scrollarea"
+       
         flex={1}
         type="hover"
         scrollbars="y"
         viewportRef={viewportRef}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box className="chain-table-body" miw={800} pb={150}>
+        <Box sx={{ minWidth: 800, pb: 19 }}>
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
             const isHovered = hoveredStrike === strike;
@@ -378,8 +377,7 @@ function OptionChainTableInner({
               <Box
                 key={strike}
                 ref={isATM ? atmRowRef : null}
-                className={`chain-row ${isATM ? "chain-row-atm" : ""}`}
-                style={{
+                sx={{
                   ...styles.row,
                   background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.palette.warning.light, 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
                   boxShadow: isHovered
@@ -404,8 +402,7 @@ function OptionChainTableInner({
                 />
 
                 <Box
-                  className={`strike-cell ${isATM ? "strike-cell-atm" : ""}`}
-                  style={{
+                  sx={{
                     ...styles.strikeCell,
                     ...(isATM ? styles.atmHighlight : {}),
                     boxShadow: isHovered

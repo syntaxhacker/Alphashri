@@ -19,6 +19,10 @@ import {
   Stack,
   DatePicker,
 } from "@/ui";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Toolbar from "@mui/material/Toolbar";
+import { FIN_HEADER_H, FIN_INNER_PAD, FIN_RADIUS } from "@/ui/palette";
 import { IconDots } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import {
@@ -32,7 +36,6 @@ import {
   subscribe,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
-import { CompactPanel } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 import { TradingChart } from "../chart/TradingChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
@@ -66,7 +69,6 @@ function PositionInfo({ position }: { position: PaperPosition }) {
     <Group
       gap="xs"
       data-testid="position-info"
-      className={`position-info paper-position-info ${pnlClass}`}
       id={`position-info-${position.symbol}`}
     >
       <Badge size="sm" variant="light" color={position.side === "BUY" ? "green" : "red"}>
@@ -97,10 +99,10 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}>
+    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" id="chart-legend" sx={(theme) => ({ borderTop: `1px solid ${theme.palette.divider}` })}>
       {items.map((item, i) => (
-        <Flex key={i} align="center" gap={2}>
-          <Box className={`legend-marker ${item.label.toLowerCase()}`} w={8} h={8} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
+        <Flex key={i} align="center" gap={1}>
+          <Box w={8} h={8} bg={item.color} sx={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
           <Text size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
@@ -110,7 +112,6 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
 }
 
 function ChartEmptyState({
-  className,
   icon,
   children,
 }: {
@@ -119,21 +120,16 @@ function ChartEmptyState({
   children: React.ReactNode;
 }) {
   return (
-    <CompactPanel
-      data-testid="paper-chart-empty"
-      className={`paper-chart-container ${className}`}
-      id="paper-chart"
-      style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-    >
-      <Box data-testid={icon ? undefined : "chart-placeholder-content"} style={{ textAlign: "center" }}>
+    <Card elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <CardContent sx={{ textAlign: "center" }}>
         {icon && (
           <Text size="lg" c="dimmed" mb="xs">
             {icon}
           </Text>
         )}
         {children}
-      </Box>
-    </CompactPanel>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -240,16 +236,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const hasActiveOverlays = OVERLAY_ITEMS.some(({ key }) => state[key]);
 
   return (
-    <Flex
-      data-testid="paper-chart-header"
-      className="paper-chart-header"
-      id="chart-header"
-      align="center"
-      gap="xs"
-      p={4}
-      pb={2}
-      style={{ flex: "0 0 auto" }}
-    >
+    <Toolbar disableGutters sx={{ minHeight: FIN_HEADER_H, px: 1, gap: 1, flex: "0 0 auto", borderBottom: 1, borderColor: "divider" }} data-testid="paper-chart-header" id="chart-header">
       {state.chartData?.symbol && (
         <Text fw={600} size="xs" truncate>
           {state.chartData.symbol}
@@ -300,12 +287,12 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           </ActionIcon>
         </PopoverTarget>
         <PopoverDropdown p="xs">
-          <Stack gap="xs">
+          <Stack spacing={1}>
             <Group gap="xs">
               <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
-            <Group gap={4}>
+            <Group gap={1}>
               {QUICK_RANGES.map((r) => {
                 const rangeColors = ["blue", "cyan", "teal", "grape", "orange", "pink"];
                 const idx = QUICK_RANGES.indexOf(r);
@@ -329,7 +316,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
               <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
-            <Group gap={4}>
+            <Group gap={1}>
               {OVERLAY_ITEMS.map(({ label, key, setter }) => (
                 <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
                   <Chip
@@ -348,7 +335,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           </Stack>
         </PopoverDropdown>
       </Popover>
-    </Flex>
+    </Toolbar>
   );
 }
 
@@ -421,24 +408,14 @@ export function PaperChart() {
   }
 
   return (
-    <CompactPanel
-      data-testid="paper-chart-container"
-      className="paper-chart-container"
-      id="paper-chart"
-      h="100%"
-      style={{
-        padding: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-      }}
-    >
+    <Card elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, p: 0, overflow: "hidden" }}>
       <ChartHeader state={state} />
-      <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+      <Box sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
-          <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+          <Box sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+            <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+          </Box>
         ) : (
           <ChartEmptyState className="paper-chart-loading" icon="⏳">
             <Text c="dimmed">
@@ -455,6 +432,6 @@ export function PaperChart() {
           position={state.chartData?.current_position}
         />
       )}
-    </CompactPanel>
+    </Card>
   );
 }

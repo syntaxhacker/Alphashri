@@ -1,6 +1,12 @@
 import { useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { Box, Tabs, Button, Stack, Group, Text, Badge } from "@/ui";
+import Container from "@mui/material/Container";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import TableContainer from "@mui/material/TableContainer";
+import Paper from "@mui/material/Paper";
+import { FIN_OUTER_PAD, FIN_INNER_PAD } from "@/ui/palette";
 import { IconRobot, IconChartLine, IconPlus, IconPlayerPlay, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
   getBotsState,
@@ -27,7 +33,6 @@ import {
 import type { BotConfig, BotsView } from "../../types/bots";
 import { BotConfigModal } from "./BotConfigModal2";
 import { BotStatusPanel } from "./BotStatusPanel2";
-import { CompactPage, CompactPanel } from "../common/compact";
 import { InlineLoader, ErrorAlert, EmptyCompact } from "../common/states";
 import { TanStackTable } from "../common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -97,7 +102,7 @@ function BotsPageTabs({
   onViewChange: (view: BotsView) => void;
 }) {
   return (
-    <Box flex="0 0 auto" mb="md" className="bots-header">
+    <Box sx={{ flex: "0 0 auto", mb: 2 }} id="bots-tabs" data-testid="bots-tabs">
       <Tabs
         value={currentView}
         onChange={(v) => v && onViewChange(v)}
@@ -166,10 +171,7 @@ function BotsTable({
           <Box
             w={8}
             h={8}
-            style={{
-              borderRadius: "50%",
-              backgroundColor: getBotIndicatorColor(row.original.running),
-            }}
+            sx={{ borderRadius: "50%", backgroundColor: getBotIndicatorColor(row.original.running) }}
           />
           <Text fw={500}>{row.original.name}</Text>
           {row.original.live_trading && (
@@ -231,24 +233,28 @@ function BotsTable({
   ], [onViewStatus, onStart, onStop, onEdit, onDelete]);
 
   return (
-    <CompactPanel id="bots-list-card" data-testid="bots-list-card">
-      <Group gap="xs" mb="xs">
-        <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
-        <Text size="sm" fw={600}>Configured Bots</Text>
-        <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
-        <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
-      </Group>
-      <TanStackTable
-        data={state.bots}
-        columns={columns}
-        dataTestId="bots-table"
-        getRowTestId={(row) => `bot-row-${row.id}`}
-        getRowClassName={() => "bot-row"}
-        getRowStyle={(row) => ({
-          backgroundColor: state.selectedBot?.id === row.id ? BOT_SELECTED_BG : undefined,
-        })}
-      />
-    </CompactPanel>
+    <Card elevation={0} id="bots-list-card" data-testid="bots-list-card">
+      <CardContent sx={{ p: FIN_INNER_PAD / 8 }}>
+        <Group gap="xs" mb="xs">
+          <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
+          <Text size="sm" fw={600}>Configured Bots</Text>
+          <Badge size="sm" variant="light" color="teal">{state.bots.length}</Badge>
+          <Badge size="sm" variant="dot" color="green">{state.bots.filter(b => b.running).length} running</Badge>
+        </Group>
+        <TableContainer component={Paper} elevation={0}>
+          <TanStackTable
+            data={state.bots}
+            columns={columns}
+            dataTestId="bots-table"
+            getRowTestId={(row) => `bot-row-${row.id}`}
+            getRowClassName={() => "bot-row"}
+            getRowStyle={(row) => ({
+              backgroundColor: state.selectedBot?.id === row.id ? BOT_SELECTED_BG : undefined,
+            })}
+          />
+        </TableContainer>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -279,11 +285,11 @@ function renderPageContent({
   }
 
   return (
-    <Stack id="bots-page" className="bots-page" h="100%">
+    <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }} id="bots-page">
       <BotsPageTabs currentView={currentView} onViewChange={handleViewChange} />
-      <Box flex={1} style={{ minHeight: 0, overflow: "auto" }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
         {isLoading ? (
-          <Stack align="center" justify="center" h="100%" data-testid="bots-loading">
+          <Stack align="center" justify="center" sx={{ height: "100%" }} data-testid="bots-loading">
             <InlineLoader size="lg" />
           </Stack>
         ) : currentView === "performance" ? (
@@ -347,11 +353,13 @@ export function BotsPage() {
   const handleDeleteBot = useDeleteBotHandler();
 
   return (
-    <div data-testid="bots-view">
-      <CompactPage
-        title="Bots"
-        description="Manage bot configurations, live status, and execution controls."
-        actions={
+    <Container maxWidth="xl" sx={{ py: `${FIN_OUTER_PAD}px`, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="bots-view">
+      <Stack spacing={1} sx={{ mb: 2 }}>
+        <Group justify="space-between" align="flex-start">
+          <Stack spacing={1}>
+            <Text size="lg" fw={600}>Bots</Text>
+            <Text size="sm" c="dimmed">Manage bot configurations, live status, and execution controls.</Text>
+          </Stack>
           <Group gap="sm">
             <Button
               variant="light"
@@ -394,20 +402,19 @@ export function BotsPage() {
               New Bot
             </Button>
           </Group>
-        }
-      >
-        {renderPageContent({
-          currentView,
-          handleViewChange,
-          handleStartBot,
-          handleStopBot,
-          handleViewStatus,
-          handleClearError,
-          handleEditBot,
-          handleDeleteBot,
-        })}
-        <BotsConfigModal />
-      </CompactPage>
-    </div>
+        </Group>
+      </Stack>
+      {renderPageContent({
+        currentView,
+        handleViewChange,
+        handleStartBot,
+        handleStopBot,
+        handleViewStatus,
+        handleClearError,
+        handleEditBot,
+        handleDeleteBot,
+      })}
+      <BotsConfigModal />
+    </Container>
   );
 }

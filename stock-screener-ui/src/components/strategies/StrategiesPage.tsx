@@ -1,11 +1,15 @@
-import { Box, Stack, Flex, Button, Group, Text } from "@/ui";
+import { Box, Stack, Button, Group, Text } from "@/ui";
+import Container from "@mui/material/Container";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import { FIN_OUTER_PAD } from "@/ui/palette";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplateTreeView } from "./TemplateTreeView";
 import { PerformanceView } from "./PerformanceView";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategiesPageProps } from "./types";
-import { CompactPage, CompactPanel } from "../common/compact";
+import { CompactPanel } from "../common/compact";
 
 export function StrategiesPage({
   strategies,
@@ -39,7 +43,7 @@ export function StrategiesPage({
   const renderContent = () => {
     if (error) {
       return (
-        <Stack gap="sm" align="stretch" mt="sm" className="strategies-error-container">
+        <Stack spacing={1} alignItems="stretch" sx={{ mt: 1 }}>
           <CompactPanel
             testId="strategies-error"
             title={
@@ -107,31 +111,15 @@ export function StrategiesPage({
   };
 
   return (
-    <CompactPage>
-      <Stack
-        h="100%"
-        className="strategies-page"
-        id="strategies-main"
-        gap="sm"
-        data-testid="strategies-view"
-      >
-        <Box
-          flex="0 0 auto"
-          className="strategies-nav-container"
-          data-testid="strategies-nav-container"
-        >
+    <Container maxWidth="xl" sx={{ py: `${FIN_OUTER_PAD}px`, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
+      <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Box sx={{ flex: "0 0 auto" }} data-testid="strategies-nav-container">
           <StrategiesNav activeView={activeView} onChange={onViewChange} />
         </Box>
 
-        <Flex
-          flex={1}
-          className="strategies-content"
-          id="strategies-content"
-          style={{ minHeight: 0, overflow: "hidden" }}
-          data-testid="strategies-content"
-        >
-          <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
-        </Flex>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
+          <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
+        </Box>
 
         {showCreateModal && (
           <StrategyForm
@@ -160,6 +148,6 @@ export function StrategiesPage({
           />
         )}
       </Stack>
-    </CompactPage>
+    </Container>
   );
 }
