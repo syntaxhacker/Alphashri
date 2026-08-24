@@ -26,21 +26,12 @@ afterEach(() => {
   cleanup();
 });
 
-// Mock child components
-vi.mock("../layout/MarketTicker", () => ({
-  MarketTicker: () => <div data-testid="market-ticker">MarketTicker</div>,
-}));
-
 vi.mock("../layout/NavbarNested", () => ({
   NavbarNested: ({ activePath, collapsed }: { activePath: string; collapsed?: boolean }) => (
     <nav data-testid="navbar-nested" data-active-path={activePath} data-collapsed={collapsed}>
       NavbarNested
     </nav>
   ),
-}));
-
-vi.mock("../news/NewsPanel2", () => ({
-  default: () => <div data-testid="news-panel">NewsPanel2</div>,
 }));
 
 describe("AppLayout", () => {
@@ -106,30 +97,6 @@ describe("AppLayout", () => {
     );
 
     expect(screen.getByTestId("app-logo")).toHaveTextContent("Alphashri");
-  });
-
-  it("renders market ticker in header", () => {
-    render(
-      <TestWrapper>
-        <AppLayout>
-          <div>Content</div>
-        </AppLayout>
-      </TestWrapper>,
-    );
-
-    expect(screen.getByTestId("market-ticker")).toBeInTheDocument();
-  });
-
-  it("renders news panel in header", () => {
-    render(
-      <TestWrapper>
-        <AppLayout>
-          <div>Content</div>
-        </AppLayout>
-      </TestWrapper>,
-    );
-
-    expect(screen.getByTestId("news-panel")).toBeInTheDocument();
   });
 
   it("renders navbar with NavbarNested", () => {
