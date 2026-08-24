@@ -17,6 +17,8 @@ import {
   FIN_BORDER_DARK,
   FIN_RADIUS,
   FIN_RADIUS_SM,
+  FIN_HEADER_H,
+  FIN_NAV_W,
 } from "./palette";
 
 // Financial theme — simple, intuitive, data-first (TradingView/Bloomberg minimal)
@@ -121,12 +123,49 @@ export const muiTheme = createTheme({
       },
     },
     MuiAppBar: {
-      defaultProps: { elevation: 0 },
+      defaultProps: { elevation: 0, color: "default" as const },
       styleOverrides: {
         root: ({ theme }: any) => ({
           borderBottom: `1px solid ${theme.palette.divider}`,
           boxShadow: "none",
+          backgroundColor: theme.palette.background.paper,
         }),
+      },
+    },
+    MuiToolbar: {
+      styleOverrides: {
+        root: {
+          minHeight: FIN_HEADER_H,
+          "@media (min-width:600px)": { minHeight: FIN_HEADER_H },
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          borderRight: `1px solid ${FIN_BORDER_LIGHT}`,
+          borderRadius: 0,
+        },
+      },
+    },
+    MuiContainer: {
+      defaultProps: { maxWidth: "xl" as const, disableGutters: false },
+      styleOverrides: {
+        root: { paddingLeft: 16, paddingRight: 16 },
+      },
+    },
+    MuiTableContainer: {
+      styleOverrides: {
+        root: {
+          borderRadius: FIN_RADIUS,
+          border: `1px solid ${FIN_BORDER_LIGHT}`,
+          boxShadow: "none",
+        },
+      },
+    },
+    MuiCardContent: {
+      styleOverrides: {
+        root: { padding: 16, "&:last-child": { paddingBottom: 16 } },
       },
     },
     MuiDialog: {

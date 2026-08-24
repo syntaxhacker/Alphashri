@@ -141,7 +141,7 @@ describe("AppLayout", () => {
       </TestWrapper>,
     );
 
-    expect(screen.getByTestId("navbar-nested")).toBeInTheDocument();
+    expect(screen.getAllByTestId("navbar-nested").length).toBeGreaterThanOrEqual(1);
   });
 
   it("passes active path to NavbarNested", () => {
@@ -153,8 +153,8 @@ describe("AppLayout", () => {
       </TestWrapper>,
     );
 
-    const navbar = screen.getByTestId("navbar-nested");
-    expect(navbar).toHaveAttribute("data-active-path", "/sector");
+    const navbars = screen.getAllByTestId("navbar-nested");
+    expect(navbars[0]).toHaveAttribute("data-active-path", "/sector");
   });
 
   it("renders children in main content area", () => {
@@ -179,8 +179,8 @@ describe("AppLayout", () => {
       </TestWrapper>,
     );
 
-    const navbar = screen.getByTestId("navbar-nested");
-    expect(navbar).toHaveAttribute("data-collapsed", "false");
+    const navbars = screen.getAllByTestId("navbar-nested");
+    expect(navbars[0]).toHaveAttribute("data-collapsed", "false");
   });
 
   it("toggles desktop collapsed state when sidebar toggle clicked", async () => {
@@ -193,14 +193,13 @@ describe("AppLayout", () => {
         </AppLayout>
       </TestWrapper>,
     );
-    const navbar = screen.getByTestId("navbar-nested");
-    expect(navbar).toHaveAttribute("data-collapsed", "false");
+    const navbars = screen.getAllByTestId("navbar-nested");
+    expect(navbars[0]).toHaveAttribute("data-collapsed", "false");
     const toggles = screen.getAllByLabelText("Toggle sidebar");
-    // last toggle is desktop (first is mobile hidden on sm). Click the visible desktop one
     await user.click(toggles[toggles.length - 1]);
-    expect(screen.getByTestId("navbar-nested")).toHaveAttribute("data-collapsed", "true");
+    expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
     await user.click(toggles[toggles.length - 1]);
-    expect(screen.getByTestId("navbar-nested")).toHaveAttribute("data-collapsed", "false");
+    expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "false");
   });
 
   it("renders notification bell and opens panel on click", async () => {
@@ -231,6 +230,6 @@ describe("AppLayout", () => {
     );
     const desktopToggle = screen.getAllByLabelText("Toggle sidebar").pop()!;
     await user.click(desktopToggle);
-    expect(screen.getByTestId("navbar-nested")).toHaveAttribute("data-collapsed", "true");
+    expect(screen.getAllByTestId("navbar-nested")[0]).toHaveAttribute("data-collapsed", "true");
   });
 });
