@@ -118,7 +118,7 @@ export function ScreenerTable({
 
           if (col.key === "symbol") {
             return (
-              <Group gap={1} wrap="nowrap" className="symbol-cell" data-testid={`symbol-cell-${stock.symbol}`}>
+              <Group gap={1} wrap="nowrap" data-testid={`symbol-cell-${stock.symbol}`}>
                 <Tooltip label="Click for details">
                   <Anchor
                     component="button"
@@ -126,7 +126,6 @@ export function ScreenerTable({
                     onClick={() => { hidePreviewChart(); onSymbolClick(stock.symbol); }}
                     onMouseEnter={(e) => { onSymbolHover(stock.symbol); showPreviewChart(e, stock.symbol); }}
                     onMouseLeave={() => { onSymbolHover(null); hidePreviewChart(); }}
-                    className="symbol-link"
                     data-testid={`symbol-link-${stock.symbol}`}
                   >
                     {stock.symbol}
@@ -139,7 +138,6 @@ export function ScreenerTable({
                       color={copied ? "teal" : "gray"}
                       size="sm"
                       onClick={(e) => { e.stopPropagation(); copy(); }}
-                      className="copy-symbol-btn"
                       data-testid={`copy-symbol-btn-${stock.symbol}`}
                     >
                       {copied ? <IconCheck size={10} /> : <IconCopy size={10} />}
@@ -147,7 +145,7 @@ export function ScreenerTable({
                   )}
                 </CopyButton>
                 {touchedSymbols.has(stock.symbol) && badgeLabel ? (
-                  <Badge size="sm" variant="light" color="blue" className="touched-badge" data-testid={`touched-badge-${stock.symbol}`}>
+                  <Badge size="sm" variant="light" color="blue" data-testid={`touched-badge-${stock.symbol}`}>
                     {badgeLabel}
                   </Badge>
                 ) : null}
@@ -159,7 +157,7 @@ export function ScreenerTable({
             const scoreValue = typeof value === "number" ? value : 0;
             return (
               <Tooltip label={scoreFormula ? `${scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline w={300} withinPortal>
-                <Badge color={getScoreColor(scoreValue)} variant="light" className="score-badge" data-testid={`score-badge-${stock.symbol}`}>
+                <Badge color={getScoreColor(scoreValue)} variant="light" data-testid={`score-badge-${stock.symbol}`}>
                   {scoreValue}
                 </Badge>
               </Tooltip>
@@ -172,7 +170,7 @@ export function ScreenerTable({
             }
             const color = typeof value === "number" ? getValueColor(value) : undefined;
             return (
-              <Text c={color} fw={500} className="number-cell" data-testid={`number-cell-${stock.symbol}-${col.key}`}>
+              <Text c={color} fw={500} data-testid={`number-cell-${stock.symbol}-${col.key}`}>
                 {typeof value === "number" ? formatNumber(value) : String(value ?? "-")}
               </Text>
             );
@@ -187,17 +185,16 @@ export function ScreenerTable({
   }, [columns, stocks, allSymbols, allVisibleSelected, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, showPreviewChart, hidePreviewChart]);
 
     return (
-    <TanStackTable<Stock>
-      data={stocks}
-      columns={tanStackColumns}
-      dataTestId="screener-table"
-      enableSorting
-      stickyHeader
-      style={{ width: "100%", minWidth: 0 } as any}
-      getRowClassName={(row) => `stock-row ${touchedSymbols.has(row.symbol) ? "touched" : "approaching"}`}
-      getRowTestId={(row) => `stock-row-${row.symbol}`}
-      onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
-      rowWindowSize={stocks.length > 120 ? 80 : 0}
-    />
+      <TanStackTable<Stock>
+        data={stocks}
+        columns={tanStackColumns}
+        dataTestId="screener-table"
+        enableSorting
+        stickyHeader
+        style={{ width: "100%", minWidth: 0 } as any}
+        getRowTestId={(row) => `stock-row-${row.symbol}`}
+        onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
+        rowWindowSize={stocks.length > 120 ? 80 : 0}
+      />
   );
 }

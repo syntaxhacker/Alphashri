@@ -79,27 +79,13 @@ export function TabsList({
   ...rest
 }: UITabsProps) {
   const { value, onChange } = useTabsContext();
-  // Collect Tab values to map to index for MUI Tabs
-  const childArray = React.Children.toArray(children) as React.ReactElement[];
-  const values: string[] = childArray.map((c: any) => c.props?.value ?? "");
-  const currentIndex = values.indexOf((value as string) ?? "");
-  const muiValue = currentIndex >= 0 ? currentIndex : 0;
-
-  const handleMuiChange = (_: any, newIdx: number) => {
-    const v = values[newIdx];
-    if (v !== undefined) onChange(v);
+  const handleMuiChange = (_: any, newVal: string) => {
+    onChange(newVal);
   };
-
-  // If no active value, default to first tab but don't force if Tabs had none
-  const effectiveValue = values.length > 0 && value == null ? 0 : muiValue;
 
   return (
     <Box className={className} style={style} data-testid={testId} {...(rest as any)}>
-      <MuiTabs
-        value={values.length === 0 ? false : effectiveValue}
-        onChange={handleMuiChange}
-        sx={{ minHeight: 36 }}
-      >
+      <MuiTabs value={value ?? false} onChange={handleMuiChange} sx={{ minHeight: 36 }}>
         {children}
       </MuiTabs>
     </Box>
@@ -117,11 +103,9 @@ export function Tab({
   "data-testid": testId,
   ...rest
 }: UITabProps) {
-  // Tab is rendered inside MuiTabs; MuiTab will be used
-  // We need to preserve custom content: icon + children + rightSection
   return (
     <MuiTab
-      value={undefined}
+      value={tabValue}
       label={
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
           {icon}
