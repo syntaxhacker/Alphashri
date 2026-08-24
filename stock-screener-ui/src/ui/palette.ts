@@ -1,7 +1,7 @@
 // ============================================================
 // SINGLE SOURCE OF TRUTH — FINANCIAL THEME (MUI) + LEGACY DARK
 // Financial = simple, intuitive, data-first (light default #F8FAFC)
-// Legacy dark aliases kept for incremental Mantine → MUI migration.
+// Legacy dark aliases kept for incremental legacy → MUI migration.
 // FIN_* are single source for muiTheme.ts — never duplicate hex there.
 // ============================================================
 
@@ -54,7 +54,7 @@ export const BG_COLOR = "#0D1117";       // body (near-black navy)
 export const SURFACE_COLOR = "#161B22";  // cards
 export const BORDER_COLOR = "#30363D";   // visible borders
 
-// ----- Mantine scales (high-contrast dark ramps) -----
+// ----- MUI scales (high-contrast dark ramps) -----
 export const SCALE_DARK = ["#F0F6FC","#C9D1D9","#8B949E","#6E7681","#484F58","#30363D","#21262D","#0D1117","#0A0E14","#010409"];
 export const SCALE_GRAY = ["#F0F6FC","#C9D1D9","#8B949E","#6E7681","#484F58","#30363D","#21262D","#161B22","#0D1117","#010409"];
 export const SCALE_BLUE = ["#F0F7FF","#D9E8FF","#B3D1FF","#80B5FF","#4D99FF","#1F7FFF","#1F6FEB","#1A5CD6","#1449B8","#0F3A94"];

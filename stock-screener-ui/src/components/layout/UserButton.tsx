@@ -1,6 +1,6 @@
 import { IconLogout } from "@tabler/icons-react";
 import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem, rem } from "@/ui";
-import classes from "./UserButton.module.css";
+import { FIN_INNER_PAD, FIN_RADIUS } from "@/ui/palette";
 
 declare global {
   interface Window {
@@ -25,16 +25,23 @@ export function UserButton({ collapsed }: { collapsed?: boolean }) {
     <Menu position="right-start" offset={8} shadow="md">
       <MenuTarget>
         <UnstyledButton
-          className={classes.user}
           data-testid="user-menu-trigger"
           id="user-button"
-          style={{ padding: collapsed ? "8px" : undefined }}
+          sx={{
+            display: "block",
+            width: "100%",
+            p: `${FIN_INNER_PAD}px`,
+            color: "text.primary",
+            borderRadius: `${FIN_RADIUS}px`,
+            "&:hover": { bgcolor: "action.hover" },
+          }}
+          style={{ padding: collapsed ? `${FIN_INNER_PAD}px` : undefined }}
         >
           <Group justify={collapsed ? "center" : "flex-start"} wrap="nowrap" gap="sm">
             <Avatar radius="xl" alt={user.displayName} data-testid="user-avatar" />
 
             {!collapsed && (
-              <Box flex={1} className="user-info" style={{ minWidth: 0 }}>
+              <Box flex={1} data-testid="user-info" style={{ minWidth: 0 }}>
                 <Text size="xs" fw={500} truncate data-testid="user-display-name">
                   {user.displayName}
                 </Text>
