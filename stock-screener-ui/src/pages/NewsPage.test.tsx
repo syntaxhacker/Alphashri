@@ -36,10 +36,6 @@ vi.mock("react-router-dom", () => ({
   useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
-vi.mock("@mantine/hooks", () => ({
-  useMediaQuery: vi.fn(() => false), // not mobile by default
-}));
-
 vi.mock("../components/news/NewsList", () => ({
   NewsList: ({ onArticleClick, error }: any) => (
     <div data-testid="news-list">

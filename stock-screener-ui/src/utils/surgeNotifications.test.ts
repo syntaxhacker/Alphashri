@@ -2,12 +2,16 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import type { ScreenerData } from "../types";
 
-const { mockShow } = vi.hoisted(() => ({
-  mockShow: vi.fn(),
+const { mockEnqueueSnackbar } = vi.hoisted(() => ({
+  mockEnqueueSnackbar: vi.fn(),
 }));
 
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: mockShow },
+vi.mock("notistack", () => ({
+  enqueueSnackbar: mockEnqueueSnackbar,
+}));
+
+vi.mock("../api/notifications", () => ({
+  recordSurge: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { checkPriceSurges, clearSurgeCache } from "./surgeNotifications";
@@ -49,8 +53,8 @@ describe("checkPriceSurges", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "RELIANCE", move_5m: 4.2, upstox_price: 2850 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockShow).toHaveBeenCalledTimes(1);
-    const call = mockShow.mock.calls[0][0];
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
+    const call = mockEnqueueSnackbar.mock.calls[0][0];
     expect(call.title).toContain("RELIANCE");
     expect(call.title).toContain("+4.2%");
     expect(call.color).toBe("green");
@@ -61,41 +65,41 @@ describe("checkPriceSurges", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "RELIANCE", move_5m: 2.1 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockShow).not.toHaveBeenCalled();
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
   });
 
   it("uses day_change for unknown screener profile", () => {
     const data = makeSurgeData("trending", [{ symbol: "TCS", day_change: 6.0 }]);
     checkPriceSurges(data, "trending", "Trending");
 
-    expect(mockShow).toHaveBeenCalledTimes(1);
-    expect(mockShow.mock.calls[0][0].title).toContain("TCS");
-    expect(mockShow.mock.calls[0][0].title).toContain("+6.0%");
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueSnackbar.mock.calls[0][0].title).toContain("TCS");
+    expect(mockEnqueueSnackbar.mock.calls[0][0].title).toContain("+6.0%");
   });
 
   it("uses default threshold of 5 for unknown profiless", () => {
     const data = makeSurgeData("trending", [{ symbol: "TCS", day_change: 4.9 }]);
     checkPriceSurges(data, "trending", "Trending");
 
-    expect(mockShow).not.toHaveBeenCalled();
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
   });
 
   it("respects cooldown per symbol", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "INFY", move_5m: 5.0 }]);
 
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
-    expect(mockShow).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
 
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
-    expect(mockShow).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
   });
 
   it("shows red notification for negative surges", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "WIPRO", move_5m: -4.1 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockShow).toHaveBeenCalledTimes(1);
-    const call = mockShow.mock.calls[0][0];
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
+    const call = mockEnqueueSnackbar.mock.calls[0][0];
     expect(call.title).toContain("-4.1%");
     expect(call.color).toBe("red");
   });
@@ -107,7 +111,7 @@ describe("checkPriceSurges", () => {
     ]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockShow).toHaveBeenCalledTimes(2);
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(2);
   });
 
   it("checks stocks in both sections", () => {
@@ -116,27 +120,27 @@ describe("checkPriceSurges", () => {
     );
     checkPriceSurges(data, "intraday_10m", "10-Min Movers");
 
-    expect(mockShow).toHaveBeenCalledTimes(1);
-    expect(mockShow.mock.calls[0][0].title).toContain("HDFC");
+    expect(mockEnqueueSnackbar).toHaveBeenCalledTimes(1);
+    expect(mockEnqueueSnackbar.mock.calls[0][0].title).toContain("HDFC");
   });
 
   it("does nothing with empty data", () => {
     const data = makeSurgeData("trending");
     checkPriceSurges(data, "trending", "Trending");
-    expect(mockShow).not.toHaveBeenCalled();
+    expect(mockEnqueueSnackbar).not.toHaveBeenCalled();
   });
 
   it("includes price in message when available", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "SBIN", move_5m: 5.0, upstox_price: 750 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockShow.mock.calls[0][0].message).toContain("₹750");
+    expect(mockEnqueueSnackbar.mock.calls[0][0].message).toContain("₹750");
   });
 
   it("includes screener label in message", () => {
     const data = makeSurgeData("intraday_5m", [{ symbol: "AXIS", move_5m: 4.0 }]);
     checkPriceSurges(data, "intraday_5m", "5-Min Movers");
 
-    expect(mockShow.mock.calls[0][0].message).toContain("5-Min Movers");
+    expect(mockEnqueueSnackbar.mock.calls[0][0].message).toContain("5-Min Movers");
   });
 });

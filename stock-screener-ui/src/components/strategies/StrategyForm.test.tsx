@@ -8,27 +8,7 @@ import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...core,
-    UIProvider: ui.UIProvider,
-    useDebouncedValue: ui.useDebouncedValue,
-    Select: ({ onChange, data, "data-testid": testId, ...rest }: any) => (
-      <select
-        data-testid={testId}
-        onChange={(e) => onChange?.(e.target.value)}
-        {...rest}
-      >
-        {data?.map((opt: any) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ) };
-});
+// mui migrated
 
 beforeEach(() => {
   window.alert = vi.fn();

@@ -11,10 +11,6 @@ vi.mock("../../api/fetchWithAuth", () => ({
   fetchWithAuth: () => mockFetchWithAuth(),
 }));
 
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
-}));
-
 describe("AdminPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();

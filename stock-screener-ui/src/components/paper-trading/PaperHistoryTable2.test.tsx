@@ -88,40 +88,7 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
-vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...core,
-    UIProvider: ui.UIProvider,
-    Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
-      <select
-        data-testid={testId}
-        value={value || ""}
-        onChange={(e: any) => {
-          const val = e.target.value;
-          onChange(val === "" ? null : val);
-        }}
-        {...rest}
-      >
-        {data?.map((opt: any) => (
-          <option key={opt.value} value={opt.value ?? ""}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ),
-    SegmentedControl: ({ data, value, onChange, ...props }: any) => (
-      <div data-testid={props["data-testid"]}>
-        {data?.map((item: any) => (
-          <button key={item.value} data-active={value === item.value} onClick={() => onChange(item.value)}>
-            {item.label}
-          </button>
-        ))}
-      </div>
-    ),
-  };
-});
+// mui migrated
 
 import { PaperHistoryTable } from "./PaperHistoryTable2";
 import { mockTrade } from "./testFixtures";

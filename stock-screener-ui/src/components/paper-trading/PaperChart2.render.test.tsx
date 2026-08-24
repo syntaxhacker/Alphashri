@@ -102,64 +102,8 @@ vi.mock("../chart/TradingChart", () => ({
   TradingChart: vi.fn(() => <div data-testid="mock-trading-chart">TradingChart</div>),
 }));
 
-// Mock Mantine UI components for deterministic DOM interaction
-vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...core,
-    UIProvider: ui.UIProvider,
-    useColorScheme: () => ({ colorScheme: "light", toggleColorScheme: vi.fn() }),
-    Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
-      <select
-        data-testid={testId}
-        value={value || ""}
-        onChange={(e: any) => onChange(e.target.value || null)}
-        {...rest}
-      >
-        {data?.map((opt: any) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ),
-    DatePicker: ({ value, onChange, "data-testid": testId, ...rest }: any) => {
-      return (
-        <div data-testid={testId || "chart-date-picker"}>
-          <input
-            data-testid="chart-date-picker-input"
-            value={value?.[0] ? new Date(value[0]).toISOString().slice(0,10) : ""}
-            onChange={(e) => {
-              const v = e.target.value ? new Date(e.target.value) : null;
-              // simulate range change: keep second date as today if only one
-              if (v) onChange([v, new Date()]);
-              else onChange([null, null]);
-            }}
-            placeholder="Range"
-          />
-          <button data-testid="chart-date-clear" onClick={() => onChange([null, null])}>clear</button>
-          <button data-testid="chart-date-set-range" onClick={() => onChange([new Date("2026-04-20"), new Date("2026-04-24")])}>set-range</button>
-          <button data-testid="chart-date-invalid-range" onClick={() => onChange([new Date("2026-04-25"), new Date("2026-04-20")])}>invalid</button>
-        </div>
-      );
-    },
-    Chip: ({ children, checked, onChange, ...rest }: any) => (
-      <label data-testid={rest["data-chip"] || undefined}>
-        <input
-          type="checkbox"
-          checked={!!checked}
-          onChange={(e) => onChange(e.target.checked)}
-          data-testid={`chip-${String(children).toLowerCase()}`}
-        />
-        {children}
-      </label>
-    ),
-    Popover: ({ children }: any) => <div>{children}</div>,
-    PopoverTarget: ({ children }: any) => <div>{children}</div>,
-    PopoverDropdown: ({ children }: any) => <div data-testid="popover-dropdown">{children}</div>,
-  };
-});
+// Mock MUI UI components for deterministic DOM interaction
+// mui migrated
 
 function setState(overrides: Partial<PaperTradingState>) {
   currentState = createMockState(overrides);
