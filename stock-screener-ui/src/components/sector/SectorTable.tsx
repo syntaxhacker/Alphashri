@@ -1,6 +1,9 @@
 import { useMemo } from "react";
 import { Text, Badge, Progress, Box, Stack } from "@/ui";
 import TableContainer from "@mui/material/TableContainer";
+import Paper from "@mui/material/Paper";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { SectorItem } from "../../types/sector";
@@ -115,18 +118,24 @@ export function SectorTable({ sectors }: SectorTableProps) {
   );
 
   return (
-    <TableContainer sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 1 }}>
-      <Stack gap={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-        <CardContent sx={{ p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-          <TanStackTable<SectorItem>
-            data={sectors}
-            columns={columns}
-            enableSorting={false}
-            emptyMessage="No sector data available"
-            dataTestId="sector-table"
-            getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
-          />
-        </CardContent>
+    <TableContainer component={Paper} elevation={1} sx={{ display: "flex", flexDirection: "column", alignItems: "center", p: 1 }}>
+      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+          <CardContent sx={{ p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+            <Grid container spacing={2} justifyContent="center" sx={{ width: "100%" }}>
+              <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
+                <TanStackTable<SectorItem>
+                  data={sectors}
+                  columns={columns}
+                  enableSorting={false}
+                  emptyMessage="No sector data available"
+                  dataTestId="sector-table"
+                  getRowTestId={(sector) => `sector-row-${sector.sector.toLowerCase()}`}
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
       </Stack>
     </TableContainer>
   );

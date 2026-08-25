@@ -1,5 +1,8 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
 import { ScrollArea } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
@@ -55,9 +58,15 @@ export function OptionsPage({
       spacing={1}
       sx={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-        <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
-      </Box>
+      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
+            <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
+              <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
         <Box sx={{ width: "100%", maxWidth: 1400, display: "flex", flexDirection: "column", alignItems: "center" }}>

@@ -41,7 +41,6 @@ export const ChartBody = forwardRef<HTMLDivElement, ChartBodyProps>(
             data-testid="candlestick-chart"
             id="candlestick-chart"
             sx={{ bgcolor: "background.paper", borderRadius: 1, width: "100%", maxWidth: 1200, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}
-            style={{ width: "100%", height: "100%" }}
           />
         )}
       </Box>

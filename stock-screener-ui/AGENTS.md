@@ -5,13 +5,13 @@
 - **NEVER commit secrets, API keys, or tokens** to the repo.
 
 ## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
-**Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash clear/drop`, or any `HEAD`-moving command.
+**Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash` (push/pop/apply/clear/drop), `rebase`, `merge`, `cherry-pick`, `revert`, or any `HEAD`-moving command.
 
 **Before any multi-file/subagent work:**
 1. `git status --porcelain` — if dirty, create checkpoint BEFORE work.
 2. Subagents are git-forbidden (read-only `status/log/diff` only); main agent is sole git actor.
 
-**Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but no `bash` git destructive. If a subagent proposes `reset/clean`, main agent must reject and surface to user.
+**Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but **STRICTLY FORBIDDEN** from any `bash` git command that can disturb other agents in same env p — including `stash` (push/pop/apply/clear/drop), `reset`, `checkout`, `restore`, `clean`, `rebase`, `merge`, `cherry-pick`, `revert`, `branch -D`, `push --force`. Allowed subagent git: `status`, `log --oneline`, `diff --stat` (read-only). If a subagent proposes `stash/reset/clean/checkout/rebase`, main agent must reject and surface to user.
 
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 

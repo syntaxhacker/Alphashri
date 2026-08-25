@@ -1,4 +1,9 @@
 import { useMemo } from "react";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import Paper from "@mui/material/Paper";
+import CardContent from "@mui/material/CardContent";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Anchor, Badge, Group, Text } from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { ColumnDef as TanStackColumnDef } from "@tanstack/react-table";
@@ -187,16 +192,27 @@ export function ScreenerTable({
   }, [columns, stocks, allSymbols, allVisibleSelected, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, showPreviewChart, hidePreviewChart]);
 
     return (
-      <TanStackTable<Stock>
-        data={stocks}
-        columns={tanStackColumns}
-        dataTestId="screener-table"
-        enableSorting
-        stickyHeader
-        sx={{ width: "100%", minWidth: 0 } as any}
-        getRowTestId={(row) => `stock-row-${row.symbol}`}
-        onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
-        rowWindowSize={stocks.length > 120 ? 80 : 0}
-      />
+      <Paper elevation={1} sx={{ width: "100%", overflow: "hidden", borderRadius: 1 }}>
+        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+          <Stack spacing={1} sx={{ width: "100%" }}>
+            <Grid container spacing={1} alignItems="center" justifyContent="center" sx={{ width: "100%", display: "none" }}>
+              <Grid size="auto" sx={{ display: "flex", alignItems: "center" }} />
+            </Grid>
+            <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+              <TanStackTable<Stock>
+                data={stocks}
+                columns={tanStackColumns}
+                dataTestId="screener-table"
+                enableSorting
+                stickyHeader
+                sx={{ width: "100%", minWidth: 0 } as any}
+                getRowTestId={(row) => `stock-row-${row.symbol}`}
+                onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
+                rowWindowSize={stocks.length > 120 ? 80 : 0}
+              />
+            </Box>
+          </Stack>
+        </CardContent>
+      </Paper>
   );
 }

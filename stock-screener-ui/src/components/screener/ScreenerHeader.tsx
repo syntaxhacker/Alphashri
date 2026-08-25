@@ -1,14 +1,8 @@
-import {
-  Group,
-  Stack,
-  Text,
-  ActionIcon,
-  NumberInput,
-  Select,
-  Tooltip,
-  SegmentedControl,
-  Box,
-} from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import Paper from "@mui/material/Paper";
+import { Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 
 type ScreenerViewMode = "table" | "heatmap";
@@ -41,25 +35,20 @@ export function ScreenerHeader({
   onViewModeChange,
 }: ScreenerHeaderProps) {
   return (
-    <Box
-      id="screener-header"
-      data-testid="screener-header"
-      py="sm"
-      px="md"
-      sx={{ flexShrink: 0, minHeight: 48, display: "flex", alignItems: "center" }}
-    >
-      <Stack direction="row" align="center" justify="space-between" gap="sm" sx={{ width: "100%", flexWrap: "nowrap" }}>
-        <Text
-          size="xs"
-          c="dimmed"
-          truncate
-          sx={{ flex: 1, minWidth: 0 }}
-          title={status}
-          data-testid="status"
-        >
-          {status}
-        </Text>
-        <Stack direction="row" align="center" gap="sm" data-testid="header-controls" sx={{ flexWrap: "nowrap" }}>
+    <Paper elevation={1} sx={{ borderRadius: 0, borderBottom: 1, borderColor: "grey.200", flexShrink: 0 }}>
+      <Box
+        id="screener-header"
+        data-testid="screener-header"
+        sx={{ flexShrink: 0, minHeight: 48, display: "flex", alignItems: "center", px: 2, py: 1 }}
+      >
+        <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ width: "100%" }}>
+          <Grid size="auto" sx={{ display: "flex", alignItems: "center", flex: 1, minWidth: 120 }}>
+            <Text size="xs" c="dimmed" truncate sx={{ flex: 1, minWidth: 120 }} title={status} data-testid="status">
+              {status}
+            </Text>
+          </Grid>
+          <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
+            <Stack direction="row" alignItems="center" spacing={1} data-testid="header-controls" sx={{ flexWrap: "wrap", alignItems: "center" }}>
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
@@ -121,7 +110,9 @@ export function ScreenerHeader({
             data-testid="screener-view-toggle"
           />
         </Stack>
-      </Stack>
-    </Box>
+          </Grid>
+        </Grid>
+      </Box>
+    </Paper>
   );
 }
