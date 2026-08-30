@@ -51,24 +51,31 @@ export function ScreenerTable({
       {
         id: "selection",
         header: () => (
-          <Checkbox
-            size="xs"
-            checked={stocks.length > 0 && allVisibleSelected}
-            indeterminate={selectedSymbols.length > 0 && !allVisibleSelected}
-            onChange={handleSelectAll}
-            data-testid="select-all-checkbox"
-          />
+          <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", justifyContent: "center" }}>
+            <Checkbox
+              size="xs"
+              checked={stocks.length > 0 && allVisibleSelected}
+              indeterminate={selectedSymbols.length > 0 && !allVisibleSelected}
+              onChange={(e: any) => { e?.stopPropagation?.(); handleSelectAll(); }}
+              onClick={(e: any) => e.stopPropagation()}
+              data-testid="select-all-checkbox"
+            />
+          </Box>
         ),
         enableSorting: false,
         meta: { align: "center" } as never,
         cell: ({ row }) => (
-          <Checkbox
-            size="xs"
-            checked={selectedSymbols.includes(row.original.symbol)}
-            onChange={() => toggleSymbolSelection(row.original.symbol)}
-            data-testid={`sel-checkbox-${row.original.symbol}`}
-          />
+          <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", justifyContent: "center" }}>
+            <Checkbox
+              size="xs"
+              checked={selectedSymbols.includes(row.original.symbol)}
+              onChange={(e: any) => { e?.stopPropagation?.(); toggleSymbolSelection(row.original.symbol); }}
+              onClick={(e: any) => e.stopPropagation()}
+              data-testid={`sel-checkbox-${row.original.symbol}`}
+            />
+          </Box>
         ),
+        // checkbox fix: stop row navigation on click (was navigating to /chart/:symbol)
       },
     ];
 
@@ -192,13 +199,9 @@ export function ScreenerTable({
   }, [columns, stocks, allSymbols, allVisibleSelected, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, showPreviewChart, hidePreviewChart]);
 
     return (
-      <Paper elevation={1} sx={{ width: "100%", overflow: "hidden", borderRadius: 1 }}>
-        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-          <Stack spacing={1} sx={{ width: "100%" }}>
-            <Grid container spacing={1} alignItems="center" justifyContent="center" sx={{ width: "100%", display: "none" }}>
-              <Grid size="auto" sx={{ display: "flex", alignItems: "center" }} />
-            </Grid>
-            <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+      <Box sx={{ width: "100%", overflow: "hidden", borderRadius: 1 }}>
+        <Stack spacing={0} sx={{ width: "100%" }}>
+          <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
               <TanStackTable<Stock>
                 data={stocks}
                 columns={tanStackColumns}
@@ -212,7 +215,6 @@ export function ScreenerTable({
               />
             </Box>
           </Stack>
-        </CardContent>
-      </Paper>
+      </Box>
   );
 }

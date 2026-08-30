@@ -354,20 +354,23 @@ describe("ScreenerPage", () => {
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    const nav = screen.getByTestId("screener-nav");
-    expect(nav).toBeInTheDocument();
-    expect(nav).toHaveAttribute("data-active", "trending");
-    expect(nav).toHaveAttribute("data-options-count", "2");
+    // unified toolbar replaces left rail nav with dropdown — no screener-nav
+    expect(screen.queryByTestId("screener-nav")).not.toBeInTheDocument();
+    expect(screen.getByTestId("screener-select")).toBeInTheDocument();
   });
 
-  it("calls onScreenerChange when navigation option clicked", async () => {
+  it("calls onScreenerChange when screener select changes", async () => {
       const user = userEvent.setup();
     render(
       <UIProvider>
         <ScreenerPage {...defaultProps} />
       </UIProvider>,
     );
-    await user.click(screen.getByTestId("nav-new-highs"));
+    const outer = screen.getByTestId("screener-select");
+    const combo = outer.querySelector('[role="combobox"]') || outer;
+    await user.click(combo as Element);
+    const option = await screen.findByRole("option", { name: /New Highs/i });
+    await user.click(option);
     expect(defaultProps.onScreenerChange).toHaveBeenCalledWith("new-highs");
   });
 

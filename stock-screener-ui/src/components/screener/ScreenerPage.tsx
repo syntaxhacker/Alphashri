@@ -1,19 +1,19 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, lazy, Suspense, useTransition } from "react";
 import { useSearchParams } from "react-router-dom";
 import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import CardContent from "@mui/material/CardContent";
-import Divider from "@mui/material/Divider";
-import { Stack, Box, Tabs, Text } from "@/ui";
+import { Box, Tabs, Text, Select, Skeleton } from "@/ui";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
-import { ScreenerNav } from "./ScreenerNav";
 import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
-import { CorrelationTab } from "./CorrelationTab";
 import { SelectionBar } from "./SelectionBar";
-import { ScreenerSidePanel, screenerHasSideFilters } from "./ScreenerSidePanel";
-import { ScreenerConfigView } from "./ScreenerConfigView";
+import { screenerHasSideFilters } from "./ScreenerSidePanel";
+import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
+
+const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
+const ScreenerConfigView = lazy(() => import("./ScreenerConfigView").then((m) => ({ default: m.ScreenerConfigView })));
 import {
   setSymbols,
   setTimeframe,
@@ -103,19 +103,22 @@ export function ScreenerPage({
   const [viewMode, setViewMode] = useState<"table" | "heatmap">("table");
   const [searchParams, setSearchParams] = useSearchParams();
   const activeTab = searchParams.get("tab") || "screener";
+  const [isPending, startTransition] = useTransition();
 
   const setActiveTab = (tab: string) => {
-    setSearchParams(
-      (prev) => {
-        if (tab === "screener") {
-          prev.delete("tab");
-        } else {
-          prev.set("tab", tab);
-        }
-        return prev;
-      },
-      { replace: true },
-    );
+    startTransition(() => {
+      setSearchParams(
+        (prev) => {
+          if (tab === "screener") {
+            prev.delete("tab");
+          } else {
+            prev.set("tab", tab);
+          }
+          return prev;
+        },
+        { replace: true },
+      );
+    });
   };
 
   const handleCompare = useCallback(() => {
@@ -141,100 +144,136 @@ export function ScreenerPage({
         spacing={0}
         id="screener-main"
         data-testid="screener-page"
-        sx={{ minHeight: 0, width: "100%" }}
+        sx={{ minHeight: 0, width: "100%", gap: 1 }}
       >
-        <Paper elevation={1} sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }} data-testid="screener-controls">
-          <Tabs
-            value={activeTab}
-            onChange={(v) => {
-              if (v && v !== "screener") {
-                state.setSelectedSymbols([]);
-              }
-              if (v) setActiveTab(v);
-            }}
-          >
-            <Tabs.List sx={{ minHeight: 36, display: "flex", alignItems: "center" }}>
-              <Tabs.Tab value="screener" leftSection={<IconTable size={16} />} data-testid="tab-screener">
-                Screener
-              </Tabs.Tab>
-              <Tabs.Tab value="correlation" leftSection={<IconChartDots size={16} />} data-testid="tab-correlation">
-                Correlation
-              </Tabs.Tab>
-              <Tabs.Tab value="config" leftSection={<IconSettings size={16} />} data-testid="tab-config">
-                Config
-              </Tabs.Tab>
-            </Tabs.List>
-          </Tabs>
+        {/* Unified 48px toolbar — POC Option A promoted to live */}
+        <Paper
+          elevation={0}
+          data-testid="screener-controls"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 2,
+            px: 1.5,
+            height: 48,
+            minHeight: 48,
+            maxHeight: 48,
+            border: 1,
+            borderColor: "#30363D",
+            borderRadius: 2,
+            bgcolor: "#161B22",
+            flexShrink: 0,
+            overflow: "hidden",
+            flexWrap: "nowrap",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexShrink: 0 }}>
+            <Select
+              value={activeScreener}
+              onChange={(v) => v && onScreenerChange(v)}
+              data={screenerOptions.map((o) => ({ value: o.id, label: o.label }))}
+              size="xs"
+              w={148}
+              data-testid="screener-select"
+              comboboxProps={{ withinPortal: true }}
+              aria-label="Screener"
+            />
+            <Tabs
+              value={activeTab}
+              onChange={(v) => {
+                if (v && v !== "screener") state.setSelectedSymbols([]);
+                if (v) setActiveTab(v);
+              }}
+            >
+              <Tabs.List sx={{ minHeight: 32, display: "flex", alignItems: "center", gap: 0.5 }}>
+                <Tabs.Tab value="screener" leftSection={<IconTable size={14} />} data-testid="tab-screener" style={{ minHeight: 32 }}>
+                  Screener
+                </Tabs.Tab>
+                <Tabs.Tab value="correlation" leftSection={<IconChartDots size={14} />} data-testid="tab-correlation" style={{ minHeight: 32 }}>
+                  Correlation
+                </Tabs.Tab>
+                <Tabs.Tab value="config" leftSection={<IconSettings size={14} />} data-testid="tab-config" style={{ minHeight: 32 }}>
+                  Config
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
+          </Box>
+          <Box sx={{ flex: 1, minWidth: 0, px: 1, display: "flex", justifyContent: "center", overflow: "hidden" }}>
+            <Text size="xs" c="dimmed" truncate sx={{ fontSize: 11 }} title={status} data-testid="screener-status">
+              {status}
+            </Text>
+          </Box>
+          <Box sx={{ flexShrink: 0, display: "flex", alignItems: "center", flexWrap: "nowrap" }}>
+            <ScreenerHeader
+              status={status}
+              isLoading={isLoading}
+              autoRefreshSeconds={autoRefreshSeconds}
+              provider={provider}
+              mode={mode}
+              onRefresh={onRefresh}
+              onAutoRefreshChange={onAutoRefreshChange}
+              onProviderChange={onProviderChange}
+              onModeChange={onModeChange}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              hideStatus
+            />
+          </Box>
         </Paper>
         <Box
           id="screener-content"
           data-testid="screener-content"
           sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
         >
-          {activeTab === "screener" ? (
-            <Box sx={{ display: "flex", flex: 1, minWidth: 0, minHeight: 0 }}>
-              <ScreenerNav
-                options={screenerOptions}
-                activeScreener={activeScreener}
-                onChange={onScreenerChange}
-              />
-              <MuiStack sx={{ flex: 1, minWidth: 0, minHeight: 0, gap: 0 }}>
-                <ScreenerHeader
-                  status={status}
+          <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0 }}>
+            <Paper
+              elevation={0}
+              sx={{
+                flex: 1,
+                minWidth: 0,
+                minHeight: 0,
+                display: "flex",
+                flexDirection: "column",
+                overflow: "hidden",
+                border: 1,
+                borderColor: "#30363D",
+                borderRadius: 2,
+                bgcolor: "#161B22",
+                opacity: isPending ? 0.6 : 1,
+              }}
+            >
+              <CompactAlerts activeScreener={activeScreener} warning={warning} />
+              {hasSideFilters && <ScreenerInlineFilters activeScreener={activeScreener} embedded />}
+              <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.5, gap: 0.5 }}>
+                <ScreenerContent
+                  approachingStocks={approachingStocks}
+                  touchedStocks={touchedStocks}
                   isLoading={isLoading}
-                  autoRefreshSeconds={autoRefreshSeconds}
-                  provider={provider}
-                  mode={mode}
+                  error={error}
                   onRefresh={onRefresh}
-                  onAutoRefreshChange={onAutoRefreshChange}
-                  onProviderChange={onProviderChange}
-                  onModeChange={onModeChange}
+                  onSymbolClick={onSymbolClick}
+                  onSymbolHover={onSymbolHover}
+                  activeScreener={activeScreener}
                   viewMode={viewMode}
-                  onViewModeChange={setViewMode}
                 />
-                <Divider />
-                <CompactAlerts activeScreener={activeScreener} warning={warning} />
-                <Divider />
-                <Box sx={{ display: "flex", gap: 1, flex: 1, minHeight: 0, overflow: "hidden" }}>
-                  {hasSideFilters && (
-                    <Box sx={{ width: 164, flexShrink: 0, display: "flex" }}>
-                      <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", p: 1 }}>
-                        <ScreenerSidePanel activeScreener={activeScreener} screenerOptions={screenerOptions} />
-                      </Paper>
-                    </Box>
-                  )}
-                  <Paper elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", minWidth: 0 }}>
-                    <CardContent sx={{ flex: 1, overflow: "auto", minHeight: 0, p: 1, "&:last-child": { pb: 1 } }}>
-                      <ScreenerContent
-                        approachingStocks={approachingStocks}
-                        touchedStocks={touchedStocks}
-                        isLoading={isLoading}
-                        error={error}
-                        onRefresh={onRefresh}
-                        onSymbolClick={onSymbolClick}
-                        onSymbolHover={onSymbolHover}
-                        activeScreener={activeScreener}
-                        viewMode={viewMode}
-                      />
-                    </CardContent>
-                    <SelectionBar onCompare={handleCompare} />
-                  </Paper>
-                </Box>
-              </MuiStack>
-            </Box>
-          ) : (
-            <Box sx={{ flex: 1, overflow: "auto", minHeight: 0, width: "100%" }}>
+                <SelectionBar onCompare={handleCompare} />
+              </Box>
+            </Paper>
+          </Box>
+          <Box sx={{ display: activeTab !== "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+            <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
               {activeTab === "config" ? (
                 <ScreenerConfigView
                   screenerOptions={screenerOptions}
                   activeScreener={activeScreener}
                   onScreenerChange={onConfigScreenerSelect}
                 />
-              ) : (
+              ) : activeTab === "correlation" ? (
                 <CorrelationTab />
-              )}
-            </Box>
-          )}
+              ) : null}
+            </Suspense>
+          </Box>
         </Box>
       </MuiStack>
     </Box>
