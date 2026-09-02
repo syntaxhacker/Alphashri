@@ -156,39 +156,39 @@ class SMCSignalGenerator(BaseSignalGenerator):
             if rr >= 2.2:
                 candidates.append((rr, "SHORT", sl, tp, f"SMC BOS short: break {swing_low:.1f} → SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | HTF bear+support"))
 
-        # 2. Liquidity sweep long — very pivot low reversion, HTF support + bullish engulfing only, huge RR
+        # 2. Liquidity sweep long — very pivot low reversion, huge RR 4.0
         if len(candles) >= 3:
             recent_lows = [c["low"] for c in candles[-3:]]
             recent_closes = [c["close"] for c in candles[-3:]]
-            if min(recent_lows) < swing_low * (1 - self.sweep_buffer_pct/100) and recent_closes[-1] > swing_low and self._is_bullish_engulfing(candles) and support_ok and htf_bull and session_bull:
+            if min(recent_lows) < swing_low * (1 - self.sweep_buffer_pct/100) and recent_closes[-1] > swing_low and self._is_bullish_engulfing(candles) and support_ok and session_bull:
                 entry = current_price
                 sl = swing_low - 8
                 risk = abs(entry - sl)
-                tp = entry + risk * 2.2
+                tp = entry + risk * 4.0
                 rr = abs(tp - entry) / risk if risk else 0
-                if rr >= 2.2:
-                    candidates.append((rr, "LONG", sl, tp, f"SMC sweep long: wick below {swing_low:.0f} → engulf → SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | sweep+support"))
+                if rr >= 4.0:
+                    candidates.append((rr, "LONG", sl, tp, f"SMC sweep long: wick below {swing_low:.0f} → engulf → SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | sweep+support 4R"))
 
-        # 3. Demand double-bottom long — very pivot low support + bullish engulfing, RR>=3.0, support+session bull gated
+        # 3. Demand double-bottom long — very pivot low support + bullish engulfing, RR>=4.0, support+session bull gated
         if self._is_double_bottom(lows) and dist_to_low_pct < 0.7 and support_ok and session_bull and self._is_bullish_engulfing(candles):
             entry = current_price
             sl = swing_low - 8
             risk = abs(entry - sl)
-            tp = entry + risk * 3.0
+            tp = entry + risk * 4.0
             rr = abs(tp - entry)/risk if risk else 0
-            if rr >= 3.0:
+            if rr >= 4.0:
                 candidates.append((rr, "LONG", sl, tp, f"SMC demand DB long: {swing_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | support+session"))
 
-        # 4. Bullish OB long — highest RR at very pivot low support, support+session bull gated, RR 3.5 for biggest RR
+        # 4. Bullish OB long — highest RR at very pivot low support, support+session bull gated, RR 4.0 biggest RR
         if len(candles) >= 4:
             last_low = min(lows[-5:])
             if abs(current_price - last_low) < last_low * 0.0015 and self._is_bullish_engulfing(candles) and support_ok and session_bull:
                 entry = current_price
                 sl = last_low - 6
                 risk = abs(entry - sl)
-                tp = entry + risk * 3.5
+                tp = entry + risk * 4.0
                 rr = abs(tp - entry)/risk if risk else 0
-                if rr >= 3.5:
+                if rr >= 4.0:
                     candidates.append((rr, "LONG", sl, tp, f"SMC OB long: {last_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | OB+support+session"))
 
         if not candidates:
