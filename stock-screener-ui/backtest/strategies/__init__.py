@@ -41,6 +41,7 @@ STRATEGIES = {
     '52w_chaser': _LazyStrategy('week52_chaser', 'Week52ChaserStrategy'),
     '52w_target': _LazyStrategy('week52_target', 'Week52TargetStrategy'),
     'ema_cross': _LazyStrategy('ema_cross', 'EMACrossStrategy'),
+    'smc': _LazyStrategy('smc', 'SMCStrategy'),
 }
 
 
