@@ -200,7 +200,9 @@ export default function SmcPoc() {
       timeScale: { borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: false, rightOffset: 4, barSpacing: 5 },
       rightPriceScale: { borderColor: palette.NT_GRID },
       crosshair: { mode: 1 },
-    });
+      // hide TradingView attribution logo (lightweight-charts licence note - keep if required by your licence)
+      attributionLogo: false,
+    } as any);
     chartRef.current = chart;
     const cs = chart.addSeries(CandlestickSeries, {
       upColor: palette.NT_CANDLE_BULL,
