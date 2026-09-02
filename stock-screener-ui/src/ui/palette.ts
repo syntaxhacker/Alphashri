@@ -165,6 +165,20 @@ export const ERROR_COLOR = ERROR;
 export const CHART_DARK_DATAZOOM_BG = CHART_DATAZOOM_BG;
 export const CHART_LIGHT_DATAZOOM_BG = "#FFFFFF";
 
+// ----- NinjaTrader high-contrast SMC POC tokens -----
+export const NT_BG = "#0E0E0E";
+export const NT_GRID = "#2A2A2A";
+export const NT_CANDLE_BULL = "#00FF88";
+export const NT_CANDLE_BEAR = "#FF3B30";
+export const NT_FVG_BULL_FILL = "rgba(0,255,136,0.18)";
+export const NT_FVG_BULL_STROKE = "rgba(0,255,136,0.9)";
+export const NT_FVG_BEAR_FILL = "rgba(255,59,48,0.18)";
+export const NT_FVG_BEAR_STROKE = "rgba(255,59,48,0.9)";
+export const NT_IFVG_FILL = "rgba(255,215,0,0.22)";
+export const NT_IFVG_STROKE = "#FFD700";
+export const NT_HLINE = "#38BDF8";
+export const NT_TREND = "#A78BFA";
+
 // ----- Backward-compat aliases -----
 export const BLACK = "#010409";
 export const BROWN = "#30363D";
