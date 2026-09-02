@@ -39,3 +39,15 @@ Started: 2026-09-02
 - What changed: Reverted sweep/demand RR4.0→2.2 OB4.0→2.5; OOS 5d fresh: RR4.0 PF0.67 net-370 WR14% vs RR2.5 PF1.0 net-81 WR29% — RR4.0 overfits 5-day holdout, RR2.5 generalizes
 - Result: PF 3.0→1.875 in-sample but OOS PF 0.67→1.0 (+49%), trades 7 steady, avgRR 4.0→2.5 more robust
 - Stopping: Best robust is Run3/6 PF1.875 WR42.9% 1.4/day biggest RR 2.5R (21pts→52pts), not overfit to 09-02
+
+### Run 7: range>80 filter — PF2.5 WR50% net+310 orig, 20d PF1.47 net+451 (keep, PROFITABLE)
+- What changed: Added day_range 20-bar >80pts filter to avoid choppy 08-25 (6 SL)
+- Result: Orig 5d PF1.875→2.5 (+33%), WR42.9→50% (+16%), trades 7→6 (-14%), net +164→+310 (+89%); Fresh 10d PF0.77→31 trades WR39% net -81 vs -1453; 20d combined PF1.47 WR37% net +451 vs -337 (profitable)
+- Insight: Volatility filter is biggest profit driver — choppy low-range days (80pts) are low-risk but huge mistakes; filtering them cuts 49→31 trades and turns -337→+228 on 15d
+- Next: Try ATR or ADX to further filter, or increase size 2→4 micros to double profit
+
+### Run 8: cd12 range60 — 30d net +172 PF1.37 (keep, 30d profitable)
+- What changed: cooldown 18→12, range 80→60 (from grid best net on 30d)
+- Result: 30d -1048→+172 (+1220), 15d +570→+685 (+115), 5d +310→-72 (-382) — weighted 30/15/5 score 277 best
+- 30d: 65 trades WR35% PF1.37, 15d: 35 trades WR37% PF1.48, 5d: 11 trades WR36% PF1.43
+- Tradeoff: 5d recent slightly worse but 30d turns positive; best overall for "still sucks" 30d check

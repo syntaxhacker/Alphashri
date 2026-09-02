@@ -5,3 +5,5 @@
 {"run":4,"commit":"191992a","metric":2.625,"metrics":{"win_rate":42.9,"net_pnl":454,"total_trades":7,"avg_RR":3.5},"status":"keep","description":"RR sweep3.0 OB3.5 session-bull","timestamp":1788354495,"segment":0}
 {"run":5,"commit":"261ef97","metric":3.000,"metrics":{"win_rate":42.9,"net_pnl":453,"total_trades":7,"avg_RR":4.0},"status":"keep","description":"RR 4.0 all longs biggest RR","timestamp":1788354527,"segment":0}
 {"run":6,"commit":"9712d09","metric":1.875,"metrics":{"win_rate":42.9,"net_pnl":164,"total_trades":7,"avg_RR":2.5},"status":"keep","description":"revert RR2.5 robust OOS PF1.0","timestamp":1788354586,"segment":0}
+{"run":7,"commit":"769e39e","metric":2.500,"metrics":{"win_rate":50.0,"net_pnl":310,"total_trades":6,"avg_RR":2.5},"status":"keep","description":"range>80 filter WR50% 20d PF1.47","timestamp":1788356007,"segment":0}
+{"run":8,"commit":"9bf16fe","metric":1.37,"metrics":{"win_rate":35.0,"net_pnl":172,"total_trades":65,"avg_RR":2.5},"status":"keep","description":"cd12 range60 30d +172 15d +685","timestamp":1788357702,"segment":0}
