@@ -877,6 +877,13 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load TradingAgents API: {e}")
 
+try:
+    from api.poc_nq import router as poc_nq_router
+    app.include_router(poc_nq_router)
+    print("✅ POC NQ API loaded at /api/poc/nq")
+except Exception as e:
+    print(f"⚠️ Could not load POC NQ API: {e}")
+
 if __name__ == '__main__':
     port = config.PORT
     print(f'🚀 Alphashri FastAPI running on http://localhost:{port}')

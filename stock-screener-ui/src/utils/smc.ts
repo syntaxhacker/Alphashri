@@ -36,9 +36,10 @@ export type IfvgZone = {
   origFvg: FvgZone;
 };
 
-export function detectFVG(bars: Bar[] | null | undefined, opts?: { minGap?: number }): FvgZone[] {
+export function detectFVG(bars: Bar[] | null | undefined, opts?: { minGap?: number; minGapPct?: number }): FvgZone[] {
   if (!Array.isArray(bars) || bars.length < 3) return [];
-  const minGap = opts?.minGap ?? 0.5; // filter micro gaps (Ninja high-contrast: only meaningful imbalance)
+  const minGapAbs = opts?.minGap ?? 0.5;
+  const minGapPct = opts?.minGapPct ?? 0.0008; // 0.08% adaptive — 0.5 floor for mock 100, ~24 for NQ 30k (5d 15m => ~15 FVGs)
   const out: FvgZone[] = [];
   for (let i = 2; i < bars.length; i++) {
     const a = bars[i - 2];
@@ -49,7 +50,10 @@ export function detectFVG(bars: Bar[] | null | undefined, opts?: { minGap?: numb
     if (!isBull && !isBear) continue;
     const top = isBull ? c.low : a.low;
     const bottom = isBull ? a.high : c.high;
-    if (top - bottom < minGap) continue;
+    const gap = top - bottom;
+    const mid = (top + bottom) / 2 || 1;
+    const adaptiveMin = Math.max(minGapAbs, mid * minGapPct);
+    if (gap < adaptiveMin) continue;
     // mitigation: any close after formation inside [bottom, top]
     let mitigated = false;
     for (let j = i + 1; j < bars.length; j++) {
