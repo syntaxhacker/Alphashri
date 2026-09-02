@@ -23,6 +23,10 @@ export const TIMEFRAMES = [
   { value: 1440, label: "1d" },
 ];
 
+// Timezone — single source for IST (also in root config.py IST, stock-screener-ui/config.py IST)
+export const TZ_IST = "Asia/Kolkata" as const;
+export const TZ_IST_LABEL = "IST" as const;
+
 // Opening range options
 export const OR_MINUTES_OPTIONS = [
   { value: 30, label: "OR 30m" },
