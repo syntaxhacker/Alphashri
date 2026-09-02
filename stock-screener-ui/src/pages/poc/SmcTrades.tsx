@@ -54,7 +54,7 @@ export default function SmcTrades() {
         Lightweight Charts (like SmcPoc.tsx not disturbed) · 5 sessions · 1m · 60+60=120 lookback · Entry yellow + Exit red/green + SL red dashed TP green dashed · Same trades/charts as reports/SMC_1MIN_RANDOM5/report.html (25 trades)
       </Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }}>
-        <Chip size="small" label={`${sessions.reduce((a,s)=>a+s.trades.length,0)} trades 5 sessions`} sx={{ bgcolor: "#1F2937", color: "#00FF00" }} />
+        <Chip size="small" label={`${sessions.reduce((a,s)=>a+s.trades.length,0)} trades 5 sessions`} sx={{ bgcolor: "#1F2937", color: "#2EA043" }} />
         <Chip size="small" label="lightweight-charts" sx={{ bgcolor: "#1F2937", color: "#9CA3AF" }} />
       </Stack>
       {sessions.map(({ sess, bars, trades }) => (
@@ -132,8 +132,8 @@ function SingleChart({ bars, trade }: { bars: Bar[]; trade: Trade }) {
     ]);
     // Price lines for SL/TP/Entry
     (cs as any).createPriceLine({ price: trade.entry, color: "#FFFF00", lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "ENTRY" });
-    (cs as any).createPriceLine({ price: trade.sl, color: "#FF0000", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "SL" });
-    (cs as any).createPriceLine({ price: trade.tp, color: "#00FF00", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
+    (cs as any).createPriceLine({ price: trade.sl, color: "#DA3633", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "SL" });
+    (cs as any).createPriceLine({ price: trade.tp, color: "#2EA043", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
     chart.timeScale().fitContent();
     const ro = new ResizeObserver(() => chart.applyOptions({ width: ref.current!.clientWidth }));
     ro.observe(ref.current);
