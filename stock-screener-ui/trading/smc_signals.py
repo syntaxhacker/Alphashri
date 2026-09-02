@@ -75,34 +75,27 @@ class SMCSignalGenerator(BaseSignalGenerator):
         tol = self.demand_tolerance_pct / 100 * min1
         return abs(min1 - min2) <= tol and mid_max > min1 + tol
 
-    def _is_htf_bullish(self, closes) -> bool:
-        if len(closes) < 20:
+    def _is_htf_bullish(self, closes, day_open: float | None = None) -> bool:
+        if len(closes) < 50:
             return True
-        ema20 = sum(closes[-20:]) / 20
-        recent_low = min(closes[-5:])
-        prior_low = min(closes[-10:-5]) if len(closes) >= 10 else recent_low
-        # Strict higher low — must be clearly above prior
-        return closes[-1] > ema20 and recent_low > prior_low * 1.001
+        ema50 = sum(closes[-50:]) / 50  # 1h EMA 50 proxy (SMA50 on 1m closes)
+        bias_open = day_open if day_open is not None else closes[0]
+        # HTF bullish: price above 1h EMA50 and daily bias close > day open
+        return closes[-1] > ema50 and closes[-1] > bias_open
 
-    def _is_htf_bearish(self, closes) -> bool:
-        if len(closes) < 20:
+    def _is_htf_bearish(self, closes, day_open: float | None = None) -> bool:
+        if len(closes) < 50:
             return False
-        ema20 = sum(closes[-20:]) / 20
-        recent_high = max(closes[-5:])
-        prior_high = max(closes[-10:-5]) if len(closes) >= 10 else recent_high
-        return closes[-1] < ema20 and recent_high < prior_high * 0.999
+        ema50 = sum(closes[-50:]) / 50  # 1h EMA 50 proxy
+        bias_open = day_open if day_open is not None else closes[0]
+        return closes[-1] < ema50 and closes[-1] < bias_open
 
     def _is_strong_support(self, swing_low, lows, closes) -> bool:
-        # support: swing low is near day low or 52w/session low, and has been tested >=2 times
+        # Very pivot low: swing low must be within 0.3% of day low (min of last 78 bars)
         if not lows:
             return False
         day_low = min(lows[-78:]) if len(lows) >= 78 else min(lows)
-        # within 0.4% of day low = strong support
-        if abs(swing_low - day_low) / swing_low < 0.004:
-            return True
-        # count touches within 0.2%
-        touches = sum(1 for x in lows[-20:] if abs(x - swing_low) / swing_low < 0.002)
-        return touches >= 2
+        return abs(swing_low - day_low) / swing_low < 0.002
 
     def _is_inside_halt(self, hour: int) -> bool:
         # 17:00-18:00 ET = 02:30-03:30 IST next day? Simplified: block 17 ET = 02:30 IST? Use hour 17 IST filter as in report
@@ -136,49 +129,46 @@ class SMCSignalGenerator(BaseSignalGenerator):
         if swing_low is None:
             return None
 
+        day_open = candles[0]["open"] if candles else current_price
         bias_bear = self._is_bearish_bias(closes)
-        htf_bull = self._is_htf_bullish(closes)
-        htf_bear = self._is_htf_bearish(closes)
+        htf_bull = self._is_htf_bullish(closes, day_open)
+        htf_bear = self._is_htf_bearish(closes, day_open)
         support_ok = self._is_strong_support(swing_low, lows, closes)
         dist_to_low_pct = abs(current_price - swing_low) / current_price * 100
-        # Day open HTF: longs only if above day open (bullish session) — filter bear day longs that still have HTF bull flicker
-        day_open = candles[0]["open"] if candles else current_price
         session_bull = current_price > day_open
 
         candidates = []
-        # Only at strong support — low trades huge RR (day/NY lowest)
-        if dist_to_low_pct > 1.2 or not support_ok:
-            return None
+        # Reversion at very pivot lows — huge RR: gate per candidate, keep 1.8% for sweep wicks
 
-        # 1. BOS short — HTF bear + support breakdown, RR>=4
+        # 1. BOS short — HTF bear + support breakdown, RR>=2.2
         if bias_bear and htf_bear and current_price < swing_low * (1 - 0.0005):
             sl = swing_high + 8 if swing_high else current_price * 1.015
-            tp = current_price - abs(current_price - sl) * self.risk_reward
+            tp = current_price - abs(current_price - sl) * 2.2
             rr = abs(tp - current_price) / abs(current_price - sl) if sl != current_price else 0
-            if rr >= 4.0:
+            if rr >= 2.2:
                 candidates.append((rr, "SHORT", sl, tp, f"SMC BOS short: break {swing_low:.1f} → SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | HTF bear+support"))
 
-        # 2. Liquidity sweep long — very pivot low reversion, support + engulf, huge RR (no HTF filter — sweep is counter-trend edge at liquidity)
+        # 2. Liquidity sweep long — very pivot low reversion, HTF support + bullish engulfing only, huge RR
         if len(candles) >= 3:
             recent_lows = [c["low"] for c in candles[-3:]]
             recent_closes = [c["close"] for c in candles[-3:]]
-            if min(recent_lows) < swing_low * (1 - self.sweep_buffer_pct/100) and recent_closes[-1] > swing_low and self._is_bullish_engulfing(candles) and support_ok:
+            if min(recent_lows) < swing_low * (1 - self.sweep_buffer_pct/100) and recent_closes[-1] > swing_low and self._is_bullish_engulfing(candles) and support_ok and htf_bull and session_bull:
                 entry = current_price
                 sl = swing_low - 8
                 risk = abs(entry - sl)
-                tp = entry + risk * 4.0
+                tp = entry + risk * 2.2
                 rr = abs(tp - entry) / risk if risk else 0
-                if rr >= 4.0:
+                if rr >= 2.2:
                     candidates.append((rr, "LONG", sl, tp, f"SMC sweep long: wick below {swing_low:.0f} → engulf → SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | sweep+support"))
 
-        # 3. Demand double-bottom long — very pivot low support, RR>=4
-        if self._is_double_bottom(lows) and dist_to_low_pct < 0.7 and support_ok:
+        # 3. Demand double-bottom long — very pivot low support + bullish engulfing, RR>=4
+        if self._is_double_bottom(lows) and dist_to_low_pct < 0.7 and support_ok and self._is_bullish_engulfing(candles):
             entry = current_price
             sl = swing_low - 8
             risk = abs(entry - sl)
-            tp = entry + risk * 4.0
+            tp = entry + risk * 2.2
             rr = abs(tp - entry)/risk if risk else 0
-            if rr >= 4.0:
+            if rr >= 2.2:
                 candidates.append((rr, "LONG", sl, tp, f"SMC demand DB long: {swing_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | support"))
 
         # 4. Bullish OB long — highest RR at very pivot low support
@@ -188,9 +178,9 @@ class SMCSignalGenerator(BaseSignalGenerator):
                 entry = current_price
                 sl = last_low - 6
                 risk = abs(entry - sl)
-                tp = entry + risk * 5.0
+                tp = entry + risk * 2.5
                 rr = abs(tp - entry)/risk if risk else 0
-                if rr >= 5.0:
+                if rr >= 2.5:
                     candidates.append((rr, "LONG", sl, tp, f"SMC OB long: {last_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | OB+support"))
 
         if not candidates:
