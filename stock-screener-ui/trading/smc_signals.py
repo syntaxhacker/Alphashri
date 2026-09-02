@@ -27,11 +27,12 @@ class SMCSignalGenerator(BaseSignalGenerator):
         self.swing_lookback = int(config.get("swing_lookback", 12))
         self.sweep_buffer_pct = float(config.get("sweep_buffer_pct", 0.15))
         self.demand_tolerance_pct = float(config.get("demand_tolerance_pct", 0.35))
-        self.min_rr = float(config.get("min_rr", 2.8))
+        self.min_rr = float(config.get("min_rr", 2.2))
         self.coefficient = float(config.get("coefficient", 1.5))
         self._last_signal_idx = -999
         self._bar_counter = 0
-        self.cooldown_bars = int(config.get("cooldown_bars", 12))
+        self.cooldown_bars = int(config.get("cooldown_bars", 18))
+        self.sweep_buffer_pct = float(config.get("sweep_buffer_pct", 0.05))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 30))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
@@ -76,26 +77,28 @@ class SMCSignalGenerator(BaseSignalGenerator):
         return abs(min1 - min2) <= tol and mid_max > min1 + tol
 
     def _is_htf_bullish(self, closes, day_open: float | None = None) -> bool:
-        if len(closes) < 50:
+        if len(closes) < 20:
             return True
-        ema50 = sum(closes[-50:]) / 50  # 1h EMA 50 proxy (SMA50 on 1m closes)
-        bias_open = day_open if day_open is not None else closes[0]
-        # HTF bullish: price above 1h EMA50 and daily bias close > day open
-        return closes[-1] > ema50 and closes[-1] > bias_open
+        ema20 = sum(closes[-20:]) / 20
+        recent_low = min(closes[-5:])
+        prior_low = min(closes[-10:-5]) if len(closes) >= 10 else recent_low
+        # HTF bullish: price above 20EMA and higher low (responsive, not 50 which is too slow for reversion)
+        return closes[-1] > ema20 and recent_low > prior_low * 1.005
 
     def _is_htf_bearish(self, closes, day_open: float | None = None) -> bool:
-        if len(closes) < 50:
+        if len(closes) < 20:
             return False
-        ema50 = sum(closes[-50:]) / 50  # 1h EMA 50 proxy
-        bias_open = day_open if day_open is not None else closes[0]
-        return closes[-1] < ema50 and closes[-1] < bias_open
+        ema20 = sum(closes[-20:]) / 20
+        recent_high = max(closes[-5:])
+        prior_high = max(closes[-10:-5]) if len(closes) >= 10 else recent_high
+        return closes[-1] < ema20 and recent_high < prior_high * 0.995
 
     def _is_strong_support(self, swing_low, lows, closes) -> bool:
-        # Very pivot low: swing low must be within 0.3% of day low (min of last 78 bars)
+        # Very pivot low: swing low must be within 0.5% of day low (min of last 78 bars) — 5m sweep needs looser
         if not lows:
             return False
         day_low = min(lows[-78:]) if len(lows) >= 78 else min(lows)
-        return abs(swing_low - day_low) / swing_low < 0.002
+        return abs(swing_low - day_low) / swing_low < 0.005
 
     def _is_inside_halt(self, hour: int) -> bool:
         # 17:00-18:00 ET = 02:30-03:30 IST next day? Simplified: block 17 ET = 02:30 IST? Use hour 17 IST filter as in report
@@ -139,6 +142,11 @@ class SMCSignalGenerator(BaseSignalGenerator):
 
         candidates = []
         # Reversion at very pivot lows — huge RR: gate per candidate, keep 1.8% for sweep wicks
+        # Daily bull filter: only longs when session bull (cur > day_open) — blocks bear trend longs like 09-01
+        session_bull = current_price > day_open
+        if not session_bull:
+            # still allow shorts below
+            pass
 
         # 1. BOS short — HTF bear + support breakdown, RR>=2.2
         if bias_bear and htf_bear and current_price < swing_low * (1 - 0.0005):
@@ -161,27 +169,27 @@ class SMCSignalGenerator(BaseSignalGenerator):
                 if rr >= 2.2:
                     candidates.append((rr, "LONG", sl, tp, f"SMC sweep long: wick below {swing_low:.0f} → engulf → SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | sweep+support"))
 
-        # 3. Demand double-bottom long — very pivot low support + bullish engulfing, RR>=4
-        if self._is_double_bottom(lows) and dist_to_low_pct < 0.7 and support_ok and self._is_bullish_engulfing(candles):
+        # 3. Demand double-bottom long — very pivot low support + bullish engulfing, RR>=2.2, support+session bull gated
+        if self._is_double_bottom(lows) and dist_to_low_pct < 0.7 and support_ok and session_bull and self._is_bullish_engulfing(candles):
             entry = current_price
             sl = swing_low - 8
             risk = abs(entry - sl)
             tp = entry + risk * 2.2
             rr = abs(tp - entry)/risk if risk else 0
             if rr >= 2.2:
-                candidates.append((rr, "LONG", sl, tp, f"SMC demand DB long: {swing_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | support"))
+                candidates.append((rr, "LONG", sl, tp, f"SMC demand DB long: {swing_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | support+session"))
 
-        # 4. Bullish OB long — highest RR at very pivot low support
+        # 4. Bullish OB long — highest RR at very pivot low support, support+session bull gated
         if len(candles) >= 4:
             last_low = min(lows[-5:])
-            if abs(current_price - last_low) < last_low * 0.0015 and self._is_bullish_engulfing(candles) and support_ok:
+            if abs(current_price - last_low) < last_low * 0.0015 and self._is_bullish_engulfing(candles) and support_ok and session_bull:
                 entry = current_price
                 sl = last_low - 6
                 risk = abs(entry - sl)
                 tp = entry + risk * 2.5
                 rr = abs(tp - entry)/risk if risk else 0
                 if rr >= 2.5:
-                    candidates.append((rr, "LONG", sl, tp, f"SMC OB long: {last_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | OB+support"))
+                    candidates.append((rr, "LONG", sl, tp, f"SMC OB long: {last_low:.0f} SL {sl:.0f} TP {tp:.0f} RR {rr:.1f} | OB+support+session"))
 
         if not candidates:
             return None
