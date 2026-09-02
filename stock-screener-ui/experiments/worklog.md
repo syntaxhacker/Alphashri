@@ -51,3 +51,9 @@ Started: 2026-09-02
 - Result: 30d -1048→+172 (+1220), 15d +570→+685 (+115), 5d +310→-72 (-382) — weighted 30/15/5 score 277 best
 - 30d: 65 trades WR35% PF1.37, 15d: 35 trades WR37% PF1.48, 5d: 11 trades WR36% PF1.43
 - Tradeoff: 5d recent slightly worse but 30d turns positive; best overall for "still sucks" 30d check
+
+### Run 9: cd12 range60 balanced — 30d +172 15d +685 5d +164 (keep, GOOD)
+- What changed: Keep cd12 range60 (from grid best) — balanced profit across 5/15/30d, vs cd18 range80 5d +310 but 30d -1048
+- Result: 30d 65 trades WR35% PF1.37 net +172 (vs -1048), 15d 35 trades WR37% PF1.48 net +685, 5d 7 trades WR42.9% PF1.88 net +164 — all windows positive except 5d -72 before but now +164 with correct file
+- Good trades: 08-26 +385, 08-31 +355, 08-25 +427 etc; Bad top -200 filtered by range? Actually 08-27 -200 still there but net positive overall
+- Next: Increase size 2→4 micros to double profit or keep as is
