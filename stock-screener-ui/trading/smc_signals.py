@@ -58,6 +58,23 @@ class SMCSignalGenerator(BaseSignalGenerator):
         cur = candles[-1]
         return cur["close"] > cur["open"] and cur["close"] > prev["open"] and cur["open"] < prev["close"]
 
+    def _is_bearish_engulfing(self, candles) -> bool:
+        if len(candles) < 2:
+            return False
+        prev = candles[-2]
+        cur = candles[-1]
+        return cur["close"] < cur["open"] and cur["close"] < prev["open"] and cur["open"] > prev["close"]
+
+    def _is_double_top(self, highs) -> bool:
+        if len(highs) < 6:
+            return False
+        recent = highs[-6:]
+        max1 = max(recent[:3])
+        max2 = max(recent[3:])
+        mid_min = min(recent[2:4])
+        tol = self.demand_tolerance_pct / 100 * max1
+        return abs(max1 - max2) <= tol and mid_min < max1 - tol
+
     def _is_inside_bar(self, candles) -> bool:
         if len(candles) < 2:
             return False
@@ -100,6 +117,12 @@ class SMCSignalGenerator(BaseSignalGenerator):
         day_low = min(lows[-78:]) if len(lows) >= 78 else min(lows)
         return abs(swing_low - day_low) / swing_low < 0.005
 
+    def _is_strong_resistance(self, swing_high, highs) -> bool:
+        if not highs:
+            return False
+        day_high = max(highs[-78:]) if len(highs) >= 78 else max(highs)
+        return abs(swing_high - day_high) / swing_high < 0.005
+
     def _is_inside_halt(self, hour: int) -> bool:
         # 17:00-18:00 ET = 02:30-03:30 IST next day? Simplified: block 17 ET = 02:30 IST? Use hour 17 IST filter as in report
         # Original halt 17:00 ET = 02:30 IST; we block 17 ET as proxy (as in Performance report)
@@ -137,8 +160,15 @@ class SMCSignalGenerator(BaseSignalGenerator):
         htf_bull = self._is_htf_bullish(closes, day_open)
         htf_bear = self._is_htf_bearish(closes, day_open)
         support_ok = self._is_strong_support(swing_low, lows, closes)
+        resistance_ok = self._is_strong_resistance(swing_high, highs)
         dist_to_low_pct = abs(current_price - swing_low) / current_price * 100
+        dist_to_high_pct = abs(current_price - swing_high) / current_price * 100
         session_bull = current_price > day_open
+        session_bear = current_price < day_open
+        # volatility filter: day range must be >80pts at signal time to avoid choppy 08-25 (range 329 but early 80 filter keeps trending)
+        day_range = max(highs[-20:]) - min(lows[-20:]) if len(highs) >= 20 else max(highs) - min(lows)
+        if day_range < 80:
+            return None
 
         candidates = []
         # Reversion at very pivot lows — huge RR: gate per candidate, keep 1.8% for sweep wicks
