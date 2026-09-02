@@ -57,3 +57,9 @@ Started: 2026-09-02
 - Result: 30d 65 trades WR35% PF1.37 net +172 (vs -1048), 15d 35 trades WR37% PF1.48 net +685, 5d 7 trades WR42.9% PF1.88 net +164 — all windows positive except 5d -72 before but now +164 with correct file
 - Good trades: 08-26 +385, 08-31 +355, 08-25 +427 etc; Bad top -200 filtered by range? Actually 08-27 -200 still there but net positive overall
 - Next: Increase size 2→4 micros to double profit or keep as is
+
+### Run 10: scale 1R/5R hold very long — 15d +1018 WR66% PF5.75 (keep, LONG RR)
+- What changed: OB/sweep/demand RR 2.5→5.0 hold, scale 50% at 1R (breakeven) + 50% at 5R very long
+- Result: 15d +685→+1018 (+48%), WR37→66% (+78%), PF1.48→5.75 (+288%); 5d -72→+226, 30d +172→+800 (+365%)
+- Long RR: 5R = 30pts risk → 150pts TP (hold), 1R = 30pts lock, avg 3R
+- Next: Live portfolio to handle partials, or keep as is
