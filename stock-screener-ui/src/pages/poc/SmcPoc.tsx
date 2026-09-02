@@ -135,13 +135,14 @@ export default function SmcPoc() {
     if (!ctx) return 0;
     const dpr = window.devicePixelRatio || 1;
     const rect = container.getBoundingClientRect();
-    if (rect.width === 0) return 0;
+    if (rect.width === 0 || rect.height === 0) return 0;
+    const h = rect.height;
     canvas.width = rect.width * dpr;
-    canvas.height = 420 * dpr;
+    canvas.height = h * dpr;
     canvas.style.width = `${rect.width}px`;
-    canvas.style.height = `420px`;
+    canvas.style.height = `${h}px`;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, rect.width, 420);
+    ctx.clearRect(0, 0, rect.width, h);
 
     const timeToX = (t: Time) => chart.timeScale().timeToCoordinate(t);
     const priceToY = (p: number) => (series as unknown as { priceToCoordinate: (pr: number) => number | null }).priceToCoordinate(p);
@@ -189,11 +190,13 @@ export default function SmcPoc() {
 
   useEffect(() => {
     if (!containerRef.current) return;
+    const rect = containerRef.current.getBoundingClientRect();
+    const h = rect.height || 600;
     const chart = createChart(containerRef.current, {
       layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: "#E5E7EB" },
       grid: { vertLines: { color: palette.NT_GRID }, horzLines: { color: palette.NT_GRID } },
       width: containerRef.current.clientWidth,
-      height: 420,
+      height: h,
       timeScale: { borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: false, rightOffset: 4, barSpacing: 5 },
       rightPriceScale: { borderColor: palette.NT_GRID },
       crosshair: { mode: 1 },
@@ -216,7 +219,8 @@ export default function SmcPoc() {
     chart.timeScale().fitContent();
     const ro = new ResizeObserver(() => {
       if (!containerRef.current || !chartRef.current) return;
-      chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+      const r = containerRef.current.getBoundingClientRect();
+      chartRef.current.applyOptions({ width: r.width, height: r.height });
       requestAnimationFrame(() => drawOverlay());
     });
     ro.observe(containerRef.current);
@@ -249,27 +253,25 @@ export default function SmcPoc() {
   useEffect(() => { drawOverlay(); }, [drawOverlay]);
 
   return (
-    <Box sx={{ p: 2, maxWidth: 1200, mx: "auto" }} data-testid="smc-poc">
-      <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>POC — Trendline + Rectangle (programmatic)</Typography>
-      <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
-        {source === "nq" ? "NQ=F yfinance 15m (5d)" : "Clean mock 1m (no gaps)"} · <Box component="span" sx={{ color: "#A78BFA" }}>purple = rectangle</Box> · <Box component="span" sx={{ color: palette.NT_TREND }}>purple trend</Box> · ultra-simple, no FVG
-      </Typography>
-      <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap" }} alignItems="center">
-        <Chip size="small" label={`${bars.length} bars ${source}${loading ? " loading…" : ""}`} sx={{ bgcolor: "#1F2937", color: "#9CA3AF" }} />
+    <Box sx={{ height: 'calc(100vh - 48px)', display: 'flex', flexDirection: 'column', p: 1, gap: 1, maxWidth: 'none', m: 0, bgcolor: palette.NT_BG }} data-testid="smc-poc">
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap', alignItems: 'center', px: 1 }} >
+        <Typography variant="subtitle2" sx={{ color: "#E5E7EB" }}>POC — Trendline + Rectangle</Typography>
+        <Typography variant="caption" sx={{ color: "#9CA3AF" }}>
+          {source === "nq" ? "NQ=F 15m" : "Mock 1m"} · <Box component="span" sx={{ color: "#A78BFA" }}>rect</Box> <Box component="span" sx={{ color: palette.NT_TREND }}>trend</Box>
+        </Typography>
+        <Chip size="small" label={`${bars.length} bars`} sx={{ bgcolor: "#1F2937", color: "#9CA3AF", height: 20 }} />
+        {loading && <Chip size="small" label="loading…" sx={{ bgcolor: "#1F2937", color: "#58A6FF", height: 20 }} />}
         <Box sx={{ flex: 1 }} />
-        <FormControlLabel control={<Switch size="small" checked={source === "nq"} onChange={(_, v) => setSource(v ? "nq" : "mock")} />} label="Real NQ" sx={{ color: "#E5E7EB" }} />
-        <FormControlLabel control={<Switch size="small" checked={showRect} onChange={(_, v) => setShowRect(v)} />} label="Rect" sx={{ color: "#A78BFA" }} />
-        <FormControlLabel control={<Switch size="small" checked={showTrend} onChange={(_, v) => setShowTrend(v)} />} label="Trend" sx={{ color: palette.NT_TREND }} />
+        <FormControlLabel control={<Switch size="small" checked={source === "nq"} onChange={(_, v) => setSource(v ? "nq" : "mock")} sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#58A6FF' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#58A6FF' } }} />} label="Real NQ" sx={{ color: "#E5E7EB", m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} />
+        <FormControlLabel control={<Switch size="small" checked={showRect} onChange={(_, v) => setShowRect(v)} sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: '#A78BFA' }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: '#A78BFA' } }} />} label="Rect" sx={{ color: "#A78BFA", m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} />
+        <FormControlLabel control={<Switch size="small" checked={showTrend} onChange={(_, v) => setShowTrend(v)} sx={{ '& .MuiSwitch-switchBase.Mui-checked': { color: palette.NT_TREND }, '& .MuiSwitch-switchBase.Mui-checked + .MuiSwitch-track': { backgroundColor: palette.NT_TREND } }} />} label="Trend" sx={{ color: palette.NT_TREND, m: 0, '& .MuiFormControlLabel-label': { fontSize: 12 } }} />
       </Stack>
-      <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
-        <CardContent sx={{ p: 0, position: "relative", height: 420, "&:last-child": { pb: 0 } }}>
-          <Box ref={containerRef} sx={{ position: "absolute", inset: 0, width: "100%", height: 420, zIndex: 1 }} data-testid="smc-chart" />
-          <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: 420, pointerEvents: "none", zIndex: 2 }} data-testid="smc-overlay" />
+      <Card elevation={0} sx={{ flex: 1, minHeight: 0, display: 'flex', flexDirection: 'column', bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden" }}>
+        <CardContent sx={{ flex: 1, minHeight: 0, p: 0, position: "relative", display: 'flex', "&:last-child": { pb: 0 } }}>
+          <Box ref={containerRef} sx={{ position: "absolute", inset: 0, width: "100%", height: '100%', zIndex: 1 }} data-testid="smc-chart" />
+          <canvas ref={canvasRef} style={{ position: "absolute", inset: 0, width: "100%", height: '100%', pointerEvents: "none", zIndex: 2 }} data-testid="smc-overlay" />
         </CardContent>
       </Card>
-      <Typography variant="caption" sx={{ color: "#6B7280", mt: 1, display: "block" }}>
-        Programmatic API demo: <Box component="code" sx={{ bgcolor: "#1F2937", px: 0.5 }}>drawRect(t1,pTop,t2,pBottom)</Box> + <Box component="code" sx={{ bgcolor: "#1F2937", px: 0.5 }}>drawTrendline(t1,p1,t2,p2)</Box> via overlay canvas. Extend to automate strategies.
-      </Typography>
     </Box>
   );
 }
