@@ -86,8 +86,8 @@ export default function SmcTrades() {
                   </Box>
                   <Box sx={{ mt: 1, display: "flex", gap: 0.5, flexWrap: "wrap" }}>
                     <Chip size="small" label={tr.result} color={tr.pnl>0?"success":tr.result==="TIME"?"warning":"error"} sx={{ fontSize: 10 }} />
-                    <Chip size="small" label={`${tr.pnl>0?"+":""}${tr.pnl} (2m)`} sx={{ bgcolor: tr.pnl>0?palette.POSITIVE:palette.NEGATIVE, color: tr.pnl>0?palette.BG:palette.TEXT, fontSize: 10 }} />
-                    <Chip size="small" label={`RR ${(Math.abs(tr.tp-tr.entry)/Math.abs(tr.entry-tr.sl)).toFixed(1)}`} sx={{ bgcolor: palette.SURFACE_ALT, color: palette.WARNING, fontSize: 10 }} />
+                    <Chip size="small" label={`${tr.pnl>0?"+":""}${tr.pnl} (2m)`} sx={{ bgcolor: "transparent", color: tr.pnl>0?palette.POSITIVE:palette.TEXT_MUTED, border: `1px solid ${tr.pnl>0?palette.POSITIVE:palette.BORDER}`, fontSize: 10, fontWeight: 600 }} />
+                    <Chip size="small" label={`RR ${(Math.abs(tr.tp-tr.entry)/Math.abs(tr.entry-tr.sl)).toFixed(1)}`} sx={{ bgcolor: palette.SURFACE_ALT, color: palette.TEXT_MUTED, border: `1px solid ${palette.BORDER}`, fontSize: 10 }} />
                   </Box>
                   <Typography variant="caption" sx={{ color: "#6B7280", display: "block", mt: 1, fontSize: 9 }}>Bias: session BULL HTF BULL support OK range 62 → LONG at day low reversion</Typography>
                 </Box>
