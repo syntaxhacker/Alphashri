@@ -36,8 +36,9 @@ export type IfvgZone = {
   origFvg: FvgZone;
 };
 
-export function detectFVG(bars: Bar[] | null | undefined): FvgZone[] {
+export function detectFVG(bars: Bar[] | null | undefined, opts?: { minGap?: number }): FvgZone[] {
   if (!Array.isArray(bars) || bars.length < 3) return [];
+  const minGap = opts?.minGap ?? 0.5; // filter micro gaps (Ninja high-contrast: only meaningful imbalance)
   const out: FvgZone[] = [];
   for (let i = 2; i < bars.length; i++) {
     const a = bars[i - 2];
@@ -48,6 +49,7 @@ export function detectFVG(bars: Bar[] | null | undefined): FvgZone[] {
     if (!isBull && !isBear) continue;
     const top = isBull ? c.low : a.low;
     const bottom = isBull ? a.high : c.high;
+    if (top - bottom < minGap) continue;
     // mitigation: any close after formation inside [bottom, top]
     let mitigated = false;
     for (let j = i + 1; j < bars.length; j++) {
