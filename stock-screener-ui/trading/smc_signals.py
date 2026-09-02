@@ -31,7 +31,7 @@ class SMCSignalGenerator(BaseSignalGenerator):
         self.coefficient = float(config.get("coefficient", 1.5))
         self._last_signal_idx = -999
         self._bar_counter = 0
-        self.cooldown_bars = int(config.get("cooldown_bars", 12))
+        self.cooldown_bars = int(config.get("cooldown_bars", 18))
         self.sweep_buffer_pct = float(config.get("sweep_buffer_pct", 0.05))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 30))
@@ -167,7 +167,7 @@ class SMCSignalGenerator(BaseSignalGenerator):
         session_bear = current_price < day_open
         # volatility filter: day range must be >80pts at signal time to avoid choppy 08-25 (range 329 but early 80 filter keeps trending)
         day_range = max(highs[-20:]) - min(lows[-20:]) if len(highs) >= 20 else max(highs) - min(lows)
-        if day_range < 60:
+        if day_range < 80:
             return None
 
         candidates = []
