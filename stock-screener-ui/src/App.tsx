@@ -26,6 +26,7 @@ const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
 const SmcPoc = lazy(() => import("./pages/poc/SmcPoc"));
+const SmcTrades = lazy(() => import("./pages/poc/SmcTrades"));
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);
@@ -88,6 +89,7 @@ function AppContent() {
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/heatmap" element={<HeatmapPage />} />
             <Route path="/poc/smc" element={<SmcPoc />} />
+            <Route path="/poc/smc-trades" element={<SmcTrades />} />
             <Route path="/chart/:symbol?" element={<ChartView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
