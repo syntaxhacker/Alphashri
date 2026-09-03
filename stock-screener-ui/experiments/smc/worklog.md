@@ -44,3 +44,57 @@
 - Daystop 7.5 (=$150 @1 NQ contract): kills everything (2-6 trades, PF ~0). A literal $150/day
   cap is untradeable with 15-40pt stops ($300-800/SL). Viable path: MES micros ($5/pt) make
   30pts = $150 — size down, don't tighten the stop.
+
+### Run 7: 15m HTF trend gate (Agent B spec) — pf_test=0.231 (DISCARD, reverted)
+- Gate 1m entries on 15m bull/bear states (BOS+expansion+displacement, history-only).
+- Result: test PF 0.928 -> 0.231, trades collapse 97 -> 49. Classifier labels 41-79% of
+  bars sideways and trend labels lag entries past the move. Chop description is accurate;
+  trend-timing is unusable for 1m entries. Reverted. Lesson: HTF *description* != HTF *timing*.
+- Next: tp-near default (validated +1104 divided) under current best config; then full-month exam.
+
+### Run 8: tp-near under session+ATR — pf_test=0.543 (DISCARD)
+- tp-near won on divided stacks (+1104) but loses under session+ATR (0.928 -> 0.543).
+  Nearer targets get faded more in the filtered regime. Config-dependent: no default change.
+- Best stands: run 5 (session 12-23 + ATR>=8, pf_test=0.928).
+- Next: full-July month exam (800/month goal needs contiguous month, not scattered sessions).
+
+### Month exam (July, best config session+ATR): +560.53 PF 1.06 — 800 goal FAIL, $150/day FAIL
+- 460 trades, win 25%. 6 trend days (+2650) carry 6 chop days (-2235). Worst day -549pts.
+- Morning-range day filter: NO separation (loser median 203 vs winner 199). Logged, not pursued.
+- MNQ adopted ($5/pt): July = +$2,802/contract; 800pts = $4,000/mo; $150/day = 30pts/day.
+
+### Run 9: daystop 30pts on July — PF 0.99, net -13.56 (DISCARD)
+- Kills the month: trend days dip >30 intraday before printing +500 (07-02 +658->-32, 07-08 +673->-55).
+- Worse: entry-block doesn't cap — open positions run past it (worst day still -116).
+  A flatten-at-breach would cap properly but sacrifices the same trend days.
+- Lesson: $150/day hard cap conflicts with 800pts/month on 15-40pt risk profile. The cap
+  needs win-rate (shorter loss strings), not tighter stops. Sizing (MNQ) handles dollars.
+
+### Month exam #2 (July, divided stacks + session/ATR): +1446.20 PF 1.09 — 800pts PASS, quality+DD FAIL
+- 1095 trades (47/day), win 22%, nets +$7,231 MNQ. Worst day -839pts (-$4,197 MNQ).
+- Passes points on VOLUME (+1.32/trade), not quality. Retest stack is the churn engine
+  (up to 80 trades/day on chop days like 07-13). Violates "high-quality only" + "$150/day".
+- Scorecard vs user goals: points PASS / quality FAIL / drawdown FAIL.
+- Next: cut trades 3-4x while keeping net — gate the retest stack harder (RR5? longer
+  cooldown? chop-day skip for retest only), then re-run July.
+
+### Forensics: July losers deep-dive (856 losers, -16321 vs +17767 winners = +1446 net)
+- MFE clusters: never-went-anywhere 312 (-6465), faded 0.3-1.5R 352 (-6547), round-trips 192 (-3310).
+- Retest losers spread ALL hours 12-22 (25-72/hr) — no hour filter helps. Tiny-risk stops negligible.
+- No ex-ante separator found at trade level; direction is day-regime + HTF bias work (open).
+
+### Run 10: yfinance daily-bias direction gate — pf_test=0.384 (DISCARD)
+- Bear days -> shorts only, bull -> longs only, neutral -> both. Test 0.928 -> 0.384.
+- Daily swings (2-day confirmation lag) miss the days that matter; 07-10's winning longs
+  were cut. Kept as opt-in params (default off). Seventh failed gate: the pattern holds —
+  HTF direction filters cost more than they save on this engine.
+
+### 3-month validation (best config session+ATR): June -1971 / July +561 / August -2327 — TOTAL -3737 PF 0.87
+- The 6-session loop results were small-sample luck. Out-of-sample the engine fails badly.
+- Regime explains everything (yfinance daily): June = violent chop (range 803, drift +43,
+  efficiency 0.00) -> dies. July = directional (drift +1690, eff 0.22) -> works. August =
+  small-range chop (440) -> dies worst (-2327).
+- Consequence: a trend-continuation engine CANNOT make 800/month every month. Either gate by
+  regime (abandons every-month) or build a chop-mode (mean-reversion) complement system.
+- The loop's train/test split (4+2 sessions) was too small to catch this. All future keeps
+  require month-level validation.

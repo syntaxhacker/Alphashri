@@ -5,3 +5,7 @@
 {"run":4,"commit":"3f277bb","metric":0.838,"metrics":{"pf_train":1.724,"net_test":-123.09,"net_train":882.2},"status":"discard","description":"session 12:00-23:00 IST only","timestamp":1788422979,"segment":0}
 {"run":5,"commit":"3f277bb","metric":0.928,"metrics":{"pf_train":1.713,"net_test":-52.93,"net_train":863.62},"status":"keep","description":"session 12-23 + ATR>=8","timestamp":1788422979,"segment":0}
 {"run":6,"commit":"3f277bb","metric":0.0,"metrics":{"pf_train":1.864,"net_test":-106.42,"net_train":484.8},"status":"discard","description":"daystop 40 + session + ATR","timestamp":1788422979,"segment":0}
+{"run":7,"commit":"aab2d22","metric":0.231,"metrics":{"pf_train":1.478,"net_test":-305.32,"net_train":220.51},"status":"discard","description":"15m HTF trend gate (Agent B spec)","timestamp":1788423128,"segment":0}
+{"run":8,"commit":"aab2d22","metric":0.543,"metrics":{"pf_train":1.545,"net_test":-467.39,"net_train":753.62},"status":"discard","description":"tp-near under session+ATR","timestamp":1788423164,"segment":0}
+{"run":9,"commit":"aab2d22","metric":0.0,"metrics":{"note":"july-daystop30 PF 0.99 net -13.56, worst-day -116 (open trades run past entry-block)"},"status":"discard","description":"daystop 30pts (=50 MNQ) on July month","timestamp":1788423549,"segment":0}
+{"run":10,"commit":"aab2d22","metric":0.384,"metrics":{"pf_train":1.744,"net_test":-478.39,"net_train":816.03},"status":"discard","description":"yfinance daily-bias direction gate","timestamp":1788424429,"segment":0}
