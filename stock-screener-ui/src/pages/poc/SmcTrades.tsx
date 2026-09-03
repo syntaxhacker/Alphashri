@@ -48,15 +48,17 @@ const stackColor = (stack: Stack) => (stack === "inv" ? "#2563EB" : "#A855F7");
 export default function SmcTrades() {
   const [date, setDate] = useState(DUKA_DATES[0]);
   const [windowOnly, setWindowOnly] = useState(true);
+  const [earlyInv, setEarlyInv] = useState(false);
   const [data, setData] = useState<{ bars: Bar[]; trades: SmcTrade[]; error?: string } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     setLoading(true);
     const q = windowOnly ? `&from_ist=${WINDOW.from}&to_ist=${WINDOW.to}` : "";
+    const f = earlyInv ? `&flip=3` : "";
     Promise.all([
-      fetch(`/api/poc/smc-ifvg?date=${date}${q}&entries=inv`).then(r => r.json()),
-      fetch(`/api/poc/smc-ifvg?date=${date}${q}&entries=retest`).then(r => r.json()),
+      fetch(`/api/poc/smc-ifvg?date=${date}${q}&entries=inv${f}`).then(r => r.json()),
+      fetch(`/api/poc/smc-ifvg?date=${date}${q}&entries=retest${f}`).then(r => r.json()),
     ])
       .then(([mi, mr]) => {
         const bars = (mi.bars || mr.bars || []) as Bar[];
@@ -67,7 +69,7 @@ export default function SmcTrades() {
       })
       .catch(() => setData({ bars: [], trades: [], error: "fetch failed" }))
       .finally(() => setLoading(false));
-  }, [date, windowOnly]);
+  }, [date, windowOnly, earlyInv]);
 
   const net = (data?.trades || []).reduce((a, t) => a + t.pnl, 0);
   const wins = (data?.trades || []).filter(t => t.pnl > 0).length;
@@ -94,6 +96,11 @@ export default function SmcTrades() {
             }}
           />
         ))}
+        <FormControlLabel
+          control={<Switch size="small" checked={earlyInv} onChange={(_, v) => setEarlyInv(v)} />}
+          label="early-inversion catch (experimental)"
+          sx={{ color: "#9CA3AF", '& .MuiFormControlLabel-label': { fontSize: 12 } }}
+        />
         <FormControlLabel
           size="small"
           control={<Switch size="small" checked={windowOnly} onChange={(_, v) => setWindowOnly(v)} />}
