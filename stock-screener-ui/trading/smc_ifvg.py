@@ -41,6 +41,7 @@ class SMCIFVGEngine:
         atr_min: float | None = None,        # arm only if 1m ATR(14) >= this (volatility gate)
         day_stop_pts: float | None = None,   # arm blocked rest of IST day once day P&L <= -this
         day_flatten_pts: float | None = None,  # close ALL at breach tick + block rest of day (true DD cap)
+        max_trades_day: int | None = None,     # A++ discipline: max fills per IST day
         session_date: str | None = None,       # YYYY-MM-DD for daily-bias gating
         daily_bias: dict | None = None,        # {date: +1/-1/0} from scripts/htf_bias.py (history-only)
     ):
@@ -64,6 +65,9 @@ class SMCIFVGEngine:
         self.atr_min = atr_min
         self.day_stop_pts = day_stop_pts
         self.day_flatten_pts = day_flatten_pts
+        self.max_trades_day = max_trades_day
+        self._day_fills = 0
+        self._fill_day = None
         self._flat_day = None
         self.session_date = session_date
         self.daily_bias = daily_bias
@@ -263,9 +267,18 @@ class SMCIFVGEngine:
         risk = abs(fill - sl)
         if risk < self.min_risk:
             return False
+        if self.max_trades_day is not None:
+            day = (ts_ms // 1000 + 19800) // 86400
+            if day != self._fill_day:
+                self._fill_day = day
+                self._day_fills = 0
+            if self._day_fills >= self.max_trades_day:
+                return False
         tp = self.find_tp(bars, i, side, fill, risk)
         self.pos = {"side": side, "entry": fill, "sl": sl, "tp": tp, "i": i, "kind": kind, "ts": ts_ms,
                     "risk": risk, "partial": False}
+        if self.max_trades_day is not None:
+            self._day_fills += 1
         if self.shared is not None:
             self.shared.setdefault("fills", []).append((ts_ms, side))
         return True

@@ -379,3 +379,14 @@ class TestFlatten:
         eng.trail_hi = 101.0
         eng.on_close(bars, 2)
         assert eng.pending is None
+
+
+class TestTradeCap:
+    def test_max_trades_day_blocks_fourth(self):
+        eng = SMCIFVGEngine(min_risk=0.1, max_trades_day=2)
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100), bar(120, 100, 100.5, 99.5, 100)]
+        assert eng.open_pos("LONG", 100, 95, 0, "inv", 0, bars) is True
+        eng.pos = None
+        assert eng.open_pos("LONG", 100, 95, 1, "inv", 60_000, bars) is True
+        eng.pos = None
+        assert eng.open_pos("LONG", 100, 95, 2, "inv", 120_000, bars) is False   # cap reached
