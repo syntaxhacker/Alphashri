@@ -155,3 +155,10 @@
 - DD control without net cost (worst -468 -> -153). Flat150 validated on allocator too.
 - Remaining gap to goals: ~400pts/mo net (need 800), worst -153pts (-$764 MNQ vs $150 goal),
   August small-range regime unsolved.
+
+### TRUE out-of-sample exam (May 2026, never touched in dev): -710.8 PF 0.69 — GOAL FAIL
+- Locked system (allocator + flat150): 150 trades, win 32/150, worst -176.9.
+- Regime called 15/21 chop correctly, but BOTH engines lost on May (trend days -562, chop days ~-150).
+- Flat150 caps visible working as designed (four days pinned ~-150).
+- Verdict: curve-fit confirmed as the central problem. The family is regime-fit to July-like
+  conditions. No further single-lever tuning; needs new alpha or accepts trend-regime-only trading.
