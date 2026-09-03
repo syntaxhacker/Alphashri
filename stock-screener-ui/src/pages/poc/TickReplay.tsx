@@ -220,7 +220,8 @@ export default function TickReplay() {
         const p2y = (p: number) => (cs as unknown as { priceToCoordinate: (v: number) => number | null }).priceToCoordinate(p);
         ctx.font = "600 10px monospace";
         for (const t of shown) {
-          const endT = Math.min(t.exit_time <= now ? t.exit_time : now, now);
+          // endT must be an exact bar time (exchange-style: forming bar while open)
+          const endT = Math.floor(Math.min(t.exit_time <= now ? t.exit_time : now, now) / 60) * 60;
           const x1 = t2x(t.time);
           const x2 = t2x(endT);
           const yE = p2y(t.entry);
@@ -267,7 +268,7 @@ export default function TickReplay() {
   }, [bundle]);
   paintRef.current = paint;
 
-  // playback loop: advance clock, paint at most 10fps
+  // playback loop: canvas paints at 10fps, React text/table renders at 4fps
   useEffect(() => {
     if (!playing || !bundle || !tEnd) return;
     if (clockRef.current <= 0 && t0 > 0) {
@@ -276,14 +277,19 @@ export default function TickReplay() {
       paint(t0);
     }
     let last = performance.now();
+    let lastUi = 0;
     const step = (t: number) => {
       const dt = (t - last) / 1000;
       last = t;
       const next = Math.min(tEnd, clockRef.current + dt * speed);
       if (t - lastPaintRef.current > 100 || next >= tEnd) {
         lastPaintRef.current = t;
-        setClock(next);
+        clockRef.current = next;
         paint(next);
+        if (t - lastUi > 250 || next >= tEnd) {
+          lastUi = t;
+          setClock(next);
+        }
       } else {
         clockRef.current = next;
       }
