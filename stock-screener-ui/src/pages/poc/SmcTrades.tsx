@@ -120,6 +120,7 @@ export default function SmcTrades() {
               <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between">
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <Chip size="small" label={tr.side} color={tr.side === "LONG" ? "success" : "error"} sx={{ height: 18, fontSize: 10, fontWeight: 700 }} />
+                  <Chip size="small" label={stackLabel(tr.stack)} sx={{ height: 18, fontSize: 9, bgcolor: "#1F2937", color: stackColor(tr.stack), border: `1px solid ${stackColor(tr.stack)}` }} />
                   <Typography variant="caption" sx={{ color: palette.TEXT, fontWeight: 600, fontSize: 10 }}>#{i + 1} {kindLabel(tr.kind)}</Typography>
                 </Stack>
                 <Chip size="small" label={tr.result} color={resultColor(tr.result)} sx={{ height: 18, fontSize: 9 }} />
