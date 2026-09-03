@@ -56,6 +56,8 @@ class SMCIFVGEngine:
     # ---------------- bar-close state machine ----------------
     def on_close(self, bars, i):
         b = bars[i]
+        # 3-bar fractals -> trail refs + BOS pivots (validated optimum; 5-bar swing BOS tested
+        # system-negative: +425 vs +875 — slow bias blocks good entries like the 14:13 short)
         if i >= 4:
             j = i - 2
             w = bars[j - 2:j + 3]
