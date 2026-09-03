@@ -8,6 +8,7 @@ import Chip from "@mui/material/Chip";
 import Switch from "@mui/material/Switch";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import * as palette from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 import type { Bar } from "@/utils/smc";
 
@@ -214,9 +215,80 @@ function SingleChart({ bars, trade }: { bars: Bar[]; trade: SmcTrade }) {
     } else {
       chart.timeScale().fitContent();
     }
-    const ro = new ResizeObserver(() => chart.applyOptions({ width: ref.current!.clientWidth }));
+    const ro = new ResizeObserver(() => { chart.applyOptions({ width: ref.current!.clientWidth }); requestAnimationFrame(drawRR); });
     ro.observe(ref.current);
-    return () => { ro.disconnect(); chart.remove(); };
+    // TV-style R:R box: red risk zone (entry->SL), green reward zone (entry->TP), entry line
+    const box = document.createElement("canvas");
+    box.style.position = "absolute";
+    box.style.inset = "0";
+    box.style.pointerEvents = "none";
+    box.style.zIndex = "10";
+    ref.current.style.position = "relative";
+    ref.current.appendChild(box);
+    const drawRR = () => {
+      const container = ref.current;
+      if (!container) return;
+      const rect = container.getBoundingClientRect();
+      if (rect.width === 0) return;
+      const H = 300;
+      const dpr = window.devicePixelRatio || 1;
+      box.width = rect.width * dpr;
+      box.height = H * dpr;
+      box.style.width = `${rect.width}px`;
+      box.style.height = `${H}px`;
+      const ctx = box.getContext("2d");
+      if (!ctx) return;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, rect.width, H);
+      const t2x = (t: number) => chart.timeScale().timeToCoordinate(t as Time);
+      const p2y = (p: number) => (cs as unknown as { priceToCoordinate: (v: number) => number | null }).priceToCoordinate(p);
+      const x1 = t2x(trade.time);
+      const x2 = t2x(trade.exit_time);
+      const yE = p2y(trade.entry);
+      const yS = p2y(trade.sl);
+      if (x1 == null || x2 == null || yE == null || yS == null) return;
+      const yT = trade.tp != null ? p2y(trade.tp) : null;
+      const left = Math.min(x1, x2);
+      const w = Math.max(Math.abs(x2 - x1), 3);
+      const zone = (yA: number, yB: number, fill: string, edge: string) => {
+        const top = Math.min(yA, yB);
+        const h = Math.abs(yB - yA);
+        if (h < 2) return 0;
+        ctx.fillStyle = fill;
+        ctx.fillRect(left, top, w, h);
+        ctx.strokeStyle = edge;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(left + 0.5, top + 0.5, w - 1, Math.max(h - 1, 1));
+        return h;
+      };
+      zone(yE, yS, withAlpha(palette.NEGATIVE, 0.13), withAlpha(palette.NEGATIVE, 0.55));
+      if (yT != null) zone(yE, yT, withAlpha(palette.POSITIVE, 0.13), withAlpha(palette.POSITIVE, 0.55));
+      // entry line
+      ctx.strokeStyle = palette.MARKER_ENTRY;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(left, yE);
+      ctx.lineTo(left + w, yE);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // labels: risk in red zone, reward + R in green zone
+      ctx.font = "600 10px monospace";
+      const risk = Math.abs(trade.entry - trade.sl).toFixed(1);
+      const lx = Math.min(left + w + 4, rect.width - 76);
+      ctx.fillStyle = palette.NEGATIVE;
+      ctx.fillText(`-${risk}`, lx, Math.min(yE, yS) + 12);
+      if (yT != null && trade.tp != null) {
+        const rwd = Math.abs(trade.tp - trade.entry).toFixed(1);
+        ctx.fillStyle = palette.POSITIVE;
+        ctx.fillText(`+${rwd} (${trade.rr >= 0 ? "+" : ""}${trade.rr.toFixed(1)}R)`, lx, Math.min(yE, yT) + 12);
+      }
+    };
+    drawRR();
+    requestAnimationFrame(drawRR);
+    const onVis = () => requestAnimationFrame(drawRR);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onVis);
+    return () => { ro.disconnect(); chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVis); box.remove(); chart.remove(); };
   }, [bars, trade]);
   return <Box ref={ref} sx={{ width: "100%", height: 300 }} />;
 }
