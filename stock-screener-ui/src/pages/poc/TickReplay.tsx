@@ -106,7 +106,7 @@ export default function TickReplay() {
     if (!cs || !bundle || now <= 0) return;
     const done = bundle.candles.filter(c => c.time + 60 <= now);
     const rows = done.map(c => ({ time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close }));
-    const live = bundle.subs.filter(s => s.time >= Math.floor(now / 60) * 60 && s.time < now);
+    const live = bundle.subs.filter(s => s.time >= Math.floor(now / 60) * 60 && s.time <= now);
     if (live.length) {
       rows.push({
         time: Math.floor(now / 60) * 60 as Time,
