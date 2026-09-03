@@ -143,3 +143,15 @@
 - Verdict: top-decile signature cannot be isolated ex-ante — every filter that removes the
   500+ small trades also removes the conditions producing the 20 best. A++ as "few trades,
   all high-RR" does not exist in this engine family at 1m. Closest: retest-RR5 (PF 1.27).
+
+### All-months validation (single configs, sess+ATR10)
+- retest-RR5: Jun -173 / Jul +1669 / Aug -1401 = +96 total PF 1.01. July-only star, fails elsewhere.
+- divided-ATR10: Jun -1698 / Jul +2706 / Aug -3957 = -2948 PF 0.93. Volume without edge.
+
+### Allocator (trend->single, chop->chop engine): Jun +82 / Jul +1772 / Aug -662 = +1192 PF 1.08
+- First config positive on 2/3 months. August (-662, small-range 440) still bleeds — neither
+  engine fits dead-small tape.
+### Allocator + flat150: Jun -280 / Jul +1799 / Aug -298 = +1221 PF 1.12, worst -153
+- DD control without net cost (worst -468 -> -153). Flat150 validated on allocator too.
+- Remaining gap to goals: ~400pts/mo net (need 800), worst -153pts (-$764 MNQ vs $150 goal),
+  August small-range regime unsolved.
