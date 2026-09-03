@@ -39,6 +39,8 @@ class SMCIFVGEngine:
         # structure state
         self.trail_hi = None
         self.trail_lo = None
+        self.micro_hi = None   # nearest untouched 1-bar fractal high (tight SL anchor)
+        self.micro_lo = None
         self.piv_high = None
         self.piv_low = None
         self.piv_high_broken = False
@@ -63,6 +65,17 @@ class SMCIFVGEngine:
             if all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
                 self.trail_lo = self.piv_low = w[2]["low"]
                 self.piv_low_broken = False
+        # micro pivots (1 bar each side, confirmed at i) + invalidation
+        if i >= 2:
+            m = i - 1
+            if bars[m]["high"] > bars[m - 1]["high"] and bars[m]["high"] > bars[m + 1]["high"]:
+                self.micro_hi = bars[m]["high"]
+            if bars[m]["low"] < bars[m - 1]["low"] and bars[m]["low"] < bars[m + 1]["low"]:
+                self.micro_lo = bars[m]["low"]
+        if self.micro_hi is not None and b["close"] > self.micro_hi:
+            self.micro_hi = None   # traded through -> no longer above price
+        if self.micro_lo is not None and b["close"] < self.micro_lo:
+            self.micro_lo = None
         if self.piv_high is not None and not self.piv_high_broken and b["close"] > self.piv_high:
             self.bos_dir = 1
             self.piv_high_broken = True
