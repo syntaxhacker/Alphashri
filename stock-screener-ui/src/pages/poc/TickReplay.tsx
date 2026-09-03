@@ -10,6 +10,7 @@ import Slider from "@mui/material/Slider";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import * as palette from "@/ui/palette";
+import { orRangeLabel } from "@/utils/replayTime";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 
 type Candle = { time: number; open: number; high: number; low: number; close: number };
@@ -28,15 +29,17 @@ const fmtT = (ts: number) =>
 
 export default function TickReplay() {
   const [date, setDate] = useState(DATES[0]);
-  const [bundle, setBundle] = useState<{ candles: Candle[]; subs: Candle[]; vwap: VwapPt[]; or_high: number; or_low: number; trades: RTrade[]; basis?: number } | null>(null);
+  const [bundle, setBundle] = useState<{ candles: Candle[]; subs: Candle[]; vwap: VwapPt[]; or_high: number; or_low: number; or_minutes: number; or_end: number; trades: RTrade[]; basis?: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
+  const [orTf, setOrTf] = useState(15);
   const [clock, setClock] = useState(0);   // replay clock, epoch seconds
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
   const vwapRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
+  const orLinesRef = useRef(false);
   const rafRef = useRef(0);
   const clockRef = useRef(0);
   const lastPaintRef = useRef(0);
@@ -50,15 +53,16 @@ export default function TickReplay() {
     setPlaying(false);
     setClock(0);
     clockRef.current = 0;
-    fetch(`/api/poc/tick-replay?date=${date}&secs=2`)
+    fetch(`/api/poc/tick-replay?date=${date}&secs=2&orb=${orTf}`)
       .then(r => r.json())
       .then(j => setBundle({
         candles: j.candles || [], subs: j.subs || [], vwap: j.vwap || [],
-        or_high: j.or_high, or_low: j.or_low, trades: j.trades || [], basis: j.basis,
+        or_high: j.or_high, or_low: j.or_low, or_minutes: j.or_minutes || orTf, or_end: j.or_end || 0,
+        trades: j.trades || [], basis: j.basis,
       }))
-      .catch(() => setBundle({ candles: [], subs: [], vwap: [], or_high: 0, or_low: 0, trades: [] }))
+      .catch(() => setBundle({ candles: [], subs: [], vwap: [], or_high: 0, or_low: 0, or_minutes: orTf, or_end: 0, trades: [] }))
       .finally(() => setLoading(false));
-  }, [date]);
+  }, [date, orTf]);
 
   // chart setup (once per bundle)
   useEffect(() => {
@@ -93,8 +97,7 @@ export default function TickReplay() {
     vwapRef.current = vs;
     cs.setData([]);
     vs.setData([]);
-    (cs as any).createPriceLine({ price: bundle.or_high, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
-    (cs as any).createPriceLine({ price: bundle.or_low, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
+    orLinesRef.current = false;
     const ro = new ResizeObserver(() => chart.applyOptions({ width: boxRef.current!.clientWidth }));
     ro.observe(boxRef.current);
     return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
@@ -104,6 +107,12 @@ export default function TickReplay() {
   const paint = useCallback((now: number) => {
     const cs = seriesRef.current, vs = vwapRef.current, chart = chartRef.current;
     if (!cs || !bundle || now <= 0) return;
+    // OR levels appear only once the opening-range window has completed (no future leak)
+    if (!orLinesRef.current && bundle.or_end > 0 && now >= bundle.or_end) {
+      (cs as any).createPriceLine({ price: bundle.or_high, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
+      (cs as any).createPriceLine({ price: bundle.or_low, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
+      orLinesRef.current = true;
+    }
     const done = bundle.candles.filter(c => c.time + 60 <= now);
     const rows = done.map(c => ({ time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close }));
     const live = bundle.subs.filter(s => s.time >= Math.floor(now / 60) * 60 && s.time <= now);
@@ -195,7 +204,7 @@ export default function TickReplay() {
     <Box sx={{ p: 2, width: "100%" }} data-testid="tick-replay">
       <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>Tick Replay — VWAP + ORB on real NQ ticks</Typography>
       <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
-        1m NQ=F candles, forming bar ticks live from 5s subs{bundle?.basis != null ? ` · basis +${bundle.basis.toFixed(1)}` : ""} · OR = first 15m · LONG above OR-H + VWAP / SHORT below OR-L + VWAP · SL opposite edge, TP 2R · {TZ_IST_LABEL}
+        1m NQ=F candles, forming bar ticks live from 5s subs{bundle?.basis != null ? ` · basis +${bundle.basis.toFixed(1)}` : ""} · OR {bundle?.or_minutes ?? orTf}m{bundle && bundle.candles.length ? ` (${orRangeLabel(bundle.candles[0].time, bundle.or_minutes)})` : ""} · LONG above OR-H + VWAP / SHORT below OR-L + VWAP · SL opposite edge, TP 2R · {TZ_IST_LABEL}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
         {DATES.map(d => (
@@ -209,6 +218,9 @@ export default function TickReplay() {
         </Button>
         <TextField size="small" select value={speed} onChange={e => setSpeed(Number(e.target.value))} sx={{ width: 110 }} label="Speed">
           {SPEEDS.map(s => <MenuItem key={s} value={s}>{s}x</MenuItem>)}
+        </TextField>
+        <TextField size="small" select value={orTf} onChange={e => setOrTf(Number(e.target.value))} sx={{ width: 110 }} label="OR TF">
+          {[5, 15, 30].map(m => <MenuItem key={m} value={m}>{m}m</MenuItem>)}
         </TextField>
         <Box sx={{ flex: 1, minWidth: 200, px: 1 }}>
           <Slider size="small" min={t0} max={tEnd} step={1} value={clock}

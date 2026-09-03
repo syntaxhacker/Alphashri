@@ -2,7 +2,7 @@
 import sys, os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from trading.vwap_orb import VWAPORBEngine
+from trading.vwap_orb import VWAPORBEngine, compute_or_window
 
 
 def bar(t, o, h, l, c):
@@ -44,3 +44,15 @@ def test_no_signal_inside_range():
     bars = [bar(i * 60, 100, 101, 99, 100) for i in range(8)]  # chop inside OR
     ticks = [tick(60_000 + i * 1000, 100.0) for i in range(60)]
     assert eng.run(bars, ticks) == []
+
+
+def test_compute_or_window_levels_and_end():
+    bars = [bar(0, 100, 102, 99, 101), bar(60, 101, 103, 100, 102), bar(120, 102, 102.5, 98, 99)]
+    hi, lo, end = compute_or_window(bars, 3)
+    assert hi == 103
+    assert lo == 98
+    assert end == 180   # first second AFTER the 3rd 1m bar — levels unknown before this
+
+
+def test_compute_or_window_short_session():
+    assert compute_or_window([bar(0, 100, 101, 99, 100)], 15) == (0.0, 0.0, 0)

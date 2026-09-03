@@ -15,6 +15,20 @@ RR = 2.0
 COOLDOWN = 5
 
 
+def compute_or_window(bars, orb_minutes: int):
+    """OR high/low/end from the first orb_minutes 1m bars. Pure, history-only.
+
+    Returns (or_high, or_low, or_end_time) where or_end_time is the first second
+    AFTER the window completes (levels unknown before then). (0.0, 0.0, 0) if
+    fewer than orb_minutes bars exist.
+    """
+    if not bars or len(bars) < orb_minutes:
+        return 0.0, 0.0, 0
+    window = bars[:orb_minutes]
+    return (max(b["high"] for b in window), min(b["low"] for b in window),
+            window[-1]["time"] + 60)
+
+
 class VWAPORBEngine:
     def __init__(self, or_bars: int = OR_BARS, rr: float = RR, cooldown: int = COOLDOWN):
         self.or_bars = or_bars

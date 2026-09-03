@@ -143,14 +143,15 @@ def get_smc_trades(date: str = Query(..., description="YYYY-MM-DD")):
 def get_tick_replay(
     date: str = Query(...),
     secs: int = Query(default=2, description="candle seconds for tick chart"),
+    orb: int = Query(default=15, description="opening-range minutes (1m bars)"),
 ):
     """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
-    key = f"tick-replay:{date}:{secs}"
+    key = f"tick-replay:{date}:{secs}:{orb}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
     try:
-        from trading.vwap_orb import VWAPORBEngine, OR_BARS
+        from trading.vwap_orb import VWAPORBEngine, compute_or_window
         from scripts.smc_tick_eval import build_1m_bars
         from scripts.nq_ticks import fetch_nq_ticks
     except Exception as e:
@@ -160,8 +161,10 @@ def get_tick_replay(
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"tick fetch failed: {e}"}
     bars = build_1m_bars(ticks)
-    eng = VWAPORBEngine()
+    orb = max(1, min(int(orb), 120))
+    eng = VWAPORBEngine(or_bars=orb)
     trades = eng.run(bars, ticks)
+    or_high, or_low, or_end = compute_or_window(bars, orb)
     # 1m candles (chart timeframe) + 5s sub-candles (live forming-bar ticks) + per-1m VWAP
     sub_s = 5
     buckets: dict = {}
@@ -201,8 +204,8 @@ def get_tick_replay(
             "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
         })
     data = {"date": date, "count": len(out), "candles": candles, "subs": subs, "vwap": vwap,
-            "or_high": round(max((b["high"] for b in bars[:OR_BARS]), default=0), 2),
-            "or_low": round(min((b["low"] for b in bars[:OR_BARS]), default=0), 2),
+            "or_high": round(or_high, 2), "or_low": round(or_low, 2),
+            "or_minutes": orb, "or_end": or_end,
             "trades": out, "basis": basis["median"], "basis_method": basis["method"], "symbol": "NQ=F"}
     _cache[key] = {"ts": now, "data": data}
     return data
