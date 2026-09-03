@@ -10,6 +10,7 @@ import Slider from "@mui/material/Slider";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
 import * as palette from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import { orRangeLabel } from "@/utils/replayTime";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
 
@@ -40,6 +41,8 @@ export default function TickReplay() {
   const vwapRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
   const orLinesRef = useRef(false);
+  const rrBoxRef = useRef<HTMLCanvasElement | null>(null);
+  const paintRef = useRef<(now: number) => void>(() => {});
   const rafRef = useRef(0);
   const clockRef = useRef(0);
   const lastPaintRef = useRef(0);
@@ -98,9 +101,30 @@ export default function TickReplay() {
     cs.setData([]);
     vs.setData([]);
     orLinesRef.current = false;
-    const ro = new ResizeObserver(() => chart.applyOptions({ width: boxRef.current!.clientWidth }));
+    // TV-style R:R overlay (zIndex above LWC panes)
+    const rr = document.createElement("canvas");
+    rr.style.position = "absolute";
+    rr.style.inset = "0";
+    rr.style.pointerEvents = "none";
+    rr.style.zIndex = "10";
+    boxRef.current.style.position = "relative";
+    boxRef.current.appendChild(rr);
+    rrBoxRef.current = rr;
+    const ro = new ResizeObserver(() => {
+      chart.applyOptions({ width: boxRef.current!.clientWidth });
+      requestAnimationFrame(() => paintRef.current?.(clockRef.current));
+    });
     ro.observe(boxRef.current);
-    return () => { ro.disconnect(); chart.remove(); chartRef.current = null; };
+    const onVis = () => requestAnimationFrame(() => paintRef.current?.(clockRef.current));
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onVis);
+    return () => {
+      ro.disconnect();
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVis);
+      rr.remove();
+      rrBoxRef.current = null;
+      chart.remove();
+      chartRef.current = null;
+    };
   }, [bundle]);
 
   // paint: completed 1m bars + live-forming bar built from 5s subs
@@ -143,8 +167,71 @@ export default function TickReplay() {
       }
       return m;
     }));
+    // R:R boxes for revealed trades (exit edge grows live until the trade closes)
+    const rrBox = rrBoxRef.current;
+    const container = boxRef.current;
+    if (rrBox && container) {
+      const rect = container.getBoundingClientRect();
+      const H = 420;
+      const dpr = window.devicePixelRatio || 1;
+      rrBox.width = Math.max(rect.width * dpr, 1);
+      rrBox.height = H * dpr;
+      rrBox.style.width = `${rect.width}px`;
+      rrBox.style.height = `${H}px`;
+      const ctx = rrBox.getContext("2d");
+      if (ctx && rect.width > 0) {
+        ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+        ctx.clearRect(0, 0, rect.width, H);
+        const t2x = (t: number) => chart.timeScale().timeToCoordinate(t as Time);
+        const p2y = (p: number) => (cs as unknown as { priceToCoordinate: (v: number) => number | null }).priceToCoordinate(p);
+        ctx.font = "600 10px monospace";
+        for (const t of shown) {
+          const endT = Math.min(t.exit_time <= now ? t.exit_time : now, now);
+          const x1 = t2x(t.time);
+          const x2 = t2x(endT);
+          const yE = p2y(t.entry);
+          const yS = p2y(t.sl);
+          if (x1 == null || x2 == null || yE == null || yS == null) continue;
+          const left = Math.min(x1, x2);
+          const w = Math.max(Math.abs(x2 - x1), 3);
+          const top = Math.min(yE, yS);
+          const h = Math.abs(yS - yE);
+          if (h >= 2) {
+            ctx.fillStyle = withAlpha(palette.NEGATIVE, 0.13);
+            ctx.fillRect(left, top, w, h);
+            ctx.strokeStyle = withAlpha(palette.NEGATIVE, 0.55);
+            ctx.lineWidth = 1;
+            ctx.strokeRect(left + 0.5, top + 0.5, w - 1, Math.max(h - 1, 1));
+            ctx.fillStyle = palette.NEGATIVE;
+            ctx.fillText(`-${Math.abs(t.entry - t.sl).toFixed(1)}`, Math.min(left + w + 4, rect.width - 60), top + 12);
+          }
+          const yT = t.tp != null ? p2y(t.tp) : null;
+          if (yT != null) {
+            const ttop = Math.min(yE, yT);
+            const th = Math.abs(yT - yE);
+            if (th >= 2) {
+              ctx.fillStyle = withAlpha(palette.POSITIVE, 0.13);
+              ctx.fillRect(left, ttop, w, th);
+              ctx.strokeStyle = withAlpha(palette.POSITIVE, 0.55);
+              ctx.strokeRect(left + 0.5, ttop + 0.5, w - 1, Math.max(th - 1, 1));
+              ctx.fillStyle = palette.POSITIVE;
+              ctx.fillText(`+${Math.abs(t.tp - t.entry).toFixed(1)} (${t.rr >= 0 ? "+" : ""}${t.rr.toFixed(1)}R)`, Math.min(left + w + 4, rect.width - 110), ttop + 12);
+            }
+          }
+          ctx.strokeStyle = palette.MARKER_ENTRY;
+          ctx.lineWidth = 1.5;
+          ctx.setLineDash([5, 4]);
+          ctx.beginPath();
+          ctx.moveTo(left, yE);
+          ctx.lineTo(left + w, yE);
+          ctx.stroke();
+          ctx.setLineDash([]);
+        }
+      }
+    }
     chart.timeScale().scrollToPosition(6, false);
   }, [bundle]);
+  paintRef.current = paint;
 
   // playback loop: advance clock, paint at most 10fps
   useEffect(() => {
