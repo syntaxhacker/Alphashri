@@ -12,3 +12,4 @@
 {"run":11,"commit":"436a57d","metric":0.557,"metrics":{"pf_train":1.624},"status":"discard","description":"forensics zone-age>30","timestamp":1788429801,"segment":0}
 {"run":12,"commit":"436a57d","metric":0.744,"metrics":{"pf_train":1.925},"status":"discard","description":"forensics displacement<0.25ATR skip","timestamp":1788429801,"segment":0}
 {"run":13,"commit":"436a57d","metric":0.979,"metrics":{"pf_train":1.59},"status":"keep","description":"ATR gate 8->10 (forensics)","timestamp":1788429801,"segment":0}
+{"run":14,"commit":"646bd3d","metric":0.979,"metrics":{"pf_train":1.457,"net_test":-13.67,"net_train":515.31},"status":"keep","description":"day-flatten-150 DD cap (PF-neutral, worst-day -67pct on July)","timestamp":1788430921,"segment":0}

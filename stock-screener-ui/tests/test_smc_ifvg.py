@@ -360,3 +360,22 @@ class TestForensicsGates:
         bars[19] = bar(19 * 60, 99.5, 99.6, 98.5, 98.9)  # slow grind under bot; 3-bar move 0.7 < 1.0
         eng.on_close(bars, 19)
         assert eng.pending is None
+
+
+class TestFlatten:
+    def test_flatten_closes_and_blocks_day(self):
+        eng = SMCIFVGEngine(min_risk=0.1, day_flatten_pts=10.0)
+        eng._day_idx = (120 + 19800) // 86400
+        eng._day_pnl = -8.0
+        eng.pos = {"side": "LONG", "entry": 100, "sl": 95, "tp": 130, "i": 0, "kind": "inv", "ts": 0,
+                   "risk": 5, "partial": False}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100), bar(120, 100, 100.5, 99.5, 100)]
+        trades = eng.run(bars, [tick(120_000, 97.5, 98.0)])   # unreal -2.5 -> day -10.5 <= -10
+        assert len(trades) == 1 and trades[0]["result"] == "FLAT"
+        assert eng._flat_day == (120 + 19800) // 86400
+        # rest of day blocked: valid signal arms nothing
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 96.5, "bot": 95.8, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 101.0
+        eng.on_close(bars, 2)
+        assert eng.pending is None

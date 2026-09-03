@@ -58,6 +58,8 @@ def engine_kwargs():
         kw["atr_min"] = envf("SMC_ATR_MIN")
     if envf("SMC_DAY_STOP") is not None:
         kw["day_stop_pts"] = envf("SMC_DAY_STOP")
+    if envf("SMC_DAY_FLATTEN") is not None:
+        kw["day_flatten_pts"] = envf("SMC_DAY_FLATTEN")
     if envi("SMC_ZONE_AGE") is not None:
         kw["max_zone_age"] = envi("SMC_ZONE_AGE")
     if envf("SMC_DISP_R") is not None:

@@ -1,8 +1,8 @@
 # Autoresearch Dashboard: smc-trend-break-pf
 
-**Runs:** 13 | **Kept:** 3 | **Discarded:** 10 | **Crashed:** 0
+**Runs:** 14 | **Kept:** 4 | **Discarded:** 10 | **Crashed:** 0
 **Baseline:** pf_test: 0.841 (#1)
-**Best:** pf_test: 0.979 (#13, +16.4%) — session 12-23 + ATR>=10
+**Best:** pf_test: 0.979 (#13, +16.4%) — session 12-23 + ATR>=10 (+ flatten-150 DD cap #14)
 
 | # | commit | pf_test | status | description |
 |---|--------|---------|--------|-------------|
@@ -19,3 +19,4 @@
 | 11 | aab2d22 | 0.557 | discard | forensics zone-age>30 |
 | 12 | aab2d22 | 0.744 | discard | forensics displacement skip |
 | 13 | aab2d22 | 0.979 | keep | ATR gate 8->10 (forensics) |
+| 14 | aab2d22 | 0.979 | keep | day-flatten-150 DD cap (PF-neutral) |

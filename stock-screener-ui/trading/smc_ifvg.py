@@ -40,6 +40,7 @@ class SMCIFVGEngine:
         sess_end: int | None = None,
         atr_min: float | None = None,        # arm only if 1m ATR(14) >= this (volatility gate)
         day_stop_pts: float | None = None,   # arm blocked rest of IST day once day P&L <= -this
+        day_flatten_pts: float | None = None,  # close ALL at breach tick + block rest of day (true DD cap)
         session_date: str | None = None,       # YYYY-MM-DD for daily-bias gating
         daily_bias: dict | None = None,        # {date: +1/-1/0} from scripts/htf_bias.py (history-only)
     ):
@@ -62,6 +63,8 @@ class SMCIFVGEngine:
         self.sess_end = sess_end
         self.atr_min = atr_min
         self.day_stop_pts = day_stop_pts
+        self.day_flatten_pts = day_flatten_pts
+        self._flat_day = None
         self.session_date = session_date
         self.daily_bias = daily_bias
         self._day_idx = None
@@ -139,6 +142,8 @@ class SMCIFVGEngine:
             if atr < self.atr_min:
                 return
         if self.day_stop_pts is not None and self._day_idx is not None and self._day_pnl <= -self.day_stop_pts:
+            return
+        if self.day_flatten_pts is not None and self._flat_day == (b["time"] + 19800) // 86400:
             return
         if self.daily_bias is not None and self.session_date is not None:
             # neutral (0) days allow both directions; decisive bias blocks counter-trades only
@@ -317,6 +322,9 @@ class SMCIFVGEngine:
                     if p["side"] == "SHORT":
                         if ask >= p["sl"]:
                             self.close_pos(i, p["sl"], "SL", t["timestamp"]); break
+                        if self.day_flatten_pts is not None and self._day_pnl + (p["entry"] - ask) <= -self.day_flatten_pts:
+                            self._flat_day = (t["timestamp"] // 1000 + 19800) // 86400
+                            self.close_pos(i, ask, "FLAT", t["timestamp"]); break
                         if self.partials and not p.get("partial") and ask <= p["entry"] - p["risk"]:
                             p["partial"] = True
                             p["sl"] = p["entry"]   # half banked at +1R, rest rides risk-free
@@ -325,6 +333,9 @@ class SMCIFVGEngine:
                     else:
                         if bid <= p["sl"]:
                             self.close_pos(i, p["sl"], "SL", t["timestamp"]); break
+                        if self.day_flatten_pts is not None and self._day_pnl + (bid - p["entry"]) <= -self.day_flatten_pts:
+                            self._flat_day = (t["timestamp"] // 1000 + 19800) // 86400
+                            self.close_pos(i, bid, "FLAT", t["timestamp"]); break
                         if self.partials and not p.get("partial") and bid >= p["entry"] + p["risk"]:
                             p["partial"] = True
                             p["sl"] = p["entry"]

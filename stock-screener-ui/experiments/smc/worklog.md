@@ -119,3 +119,10 @@
 - Run 12 displacement skip: test 0.744 (DISCARD). Train improved (1.93) but test pays.
 - Run 13 ATR 8->10: test 0.928 -> 0.979 (KEEP). Convergent with forensics (+0.902 on 3mo).
 - New best config: SMC_SESS=12:00-23:00 + SMC_ATR_MIN=10.
+
+### Run 14: day-flatten-150 (tick-level DD cap) — pf_test=0.979 (KEEP as DD infra)
+- Test PF equal (0.979), test net -53 -> -14, train PF 1.71 -> 1.46 (train pays).
+- July month: net keeps 97% (+1230 vs +1264), worst day -461 -> -151 (-67%), PF 1.15 -> 1.19.
+- 3-month still negative (regime problem untouched) — flatten is loss-control, not edge.
+- Best config now: session 12-23 + ATR>=10 + flatten-150 (DD) — validated stack for the
+  regime allocator + chop engine integration next.
