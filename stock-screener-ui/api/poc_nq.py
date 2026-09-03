@@ -137,3 +137,44 @@ def get_smc_trades(date: str = Query(..., description="YYYY-MM-DD")):
     data = {"date": date, "count": len(trades), "bars": bars, "trades": trades}
     _cache[key] = {"ts": now, "data": data}
     return data
+
+
+@router.get("/smc-ifvg")
+def get_smc_ifvg(
+    date: str = Query(..., description="YYYY-MM-DD"),
+    from_ist: str | None = Query(default=None, description="filter trades entered at/after HH:MM IST"),
+    to_ist: str | None = Query(default=None, description="filter trades entered at/before HH:MM IST"),
+):
+    """SMCIFVGEngine (trading/smc_ifvg.py) on Dukascopy ticks — tick-accurate fills, no lookahead."""
+    key = f"smc-ifvg:{date}:{from_ist or ''}:{to_ist or ''}"
+    now = time.time()
+    if key in _cache and now - _cache[key]["ts"] < 3600:
+        return _cache[key]["data"]
+    try:
+        from datetime import datetime
+        from config import IST
+        from trading.smc_ifvg import SMCIFVGEngine
+        from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
+    except Exception as e:
+        return {"date": date, "bars": [], "trades": [], "error": f"import failed: {e}"}
+    try:
+        ticks = fetch_ticks(date)
+    except Exception as e:
+        return {"date": date, "bars": [], "trades": [], "error": f"tick fetch failed: {e}"}
+    bars = build_1m_bars(ticks)
+    trades = SMCIFVGEngine().run(bars, ticks)
+    out = []
+    for t in trades:
+        tin = datetime.fromtimestamp(t["t_in"] / 1000, tz=IST).strftime("%H:%M")
+        if from_ist and tin < from_ist:
+            continue
+        if to_ist and tin > to_ist:
+            continue
+        out.append({
+            "time": int(t["t_in"] // 1000), "exit_time": int(t["t_out"] // 1000),
+            "side": t["side"], "kind": t["kind"], "entry": t["entry"], "sl": t["sl"],
+            "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
+        })
+    data = {"date": date, "count": len(out), "bars": bars, "trades": out}
+    _cache[key] = {"ts": now, "data": data}
+    return data
