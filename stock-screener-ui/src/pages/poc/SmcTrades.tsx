@@ -30,15 +30,12 @@ type SmcTrade = {
 const DUKA_DATES = ["2026-09-02", "2026-08-26", "2026-07-24", "2026-07-22", "2026-07-10", "2026-07-02"];
 const WINDOW = { from: "14:10", to: "19:00" };
 
-const formatTradeTime = (timestamp: number) =>
-  new Date(timestamp * 1000).toLocaleString("en-IN", {
-    timeZone: TZ_IST,
-    month: "short",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+const formatTradeTime = (timestamp: number) => {
+  const d = new Date(timestamp * 1000);
+  const t = d.toLocaleString("en-IN", { timeZone: TZ_IST, hour: "2-digit", minute: "2-digit", hour12: false });
+  const day = d.toLocaleString("en-IN", { timeZone: TZ_IST, day: "2-digit", month: "short" });
+  return `${t} ${day}`;
+};
 
 const resultColor = (result: string) => (result === "TP" ? "success" : result === "TRAIL" ? "warning" : "error");
 const kindLabel = (kind: string) => (kind === "inv" ? "iFVG inversion" : "FVG retest");
@@ -184,7 +181,15 @@ function SingleChart({ bars, trade }: { bars: Bar[]; trade: SmcTrade }) {
     if (trade.tp != null) {
       cs.createPriceLine({ price: trade.tp, color: palette.MARKER_TP, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
     }
-    chart.timeScale().fitContent();
+    // zoom to trade context: 2h before entry -> 1h after exit (falls back to fitContent if out of range)
+    const from = trade.time - 120 * 60;
+    const to = trade.exit_time + 60 * 60;
+    const first = bars[0].time, last = bars[bars.length - 1].time;
+    if (from >= first && to <= last) {
+      chart.timeScale().setVisibleRange({ from: from as Time, to: to as Time });
+    } else {
+      chart.timeScale().fitContent();
+    }
     const ro = new ResizeObserver(() => chart.applyOptions({ width: ref.current!.clientWidth }));
     ro.observe(ref.current);
     return () => { ro.disconnect(); chart.remove(); };
