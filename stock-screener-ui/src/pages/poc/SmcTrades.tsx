@@ -189,11 +189,11 @@ function SingleChart({ bars, trade }: { bars: Bar[]; trade: SmcTrade }) {
     });
     cs.setData(bars.map(b => ({ time: b.time as Time, open: b.open, high: b.high, low: b.low, close: b.close })));
     const isLong = trade.side === "LONG";
+    const exitEmoji = trade.result === "TP" ? "🎯" : trade.result === "SL" ? "🛑" : "🏁";
     createSeriesMarkers(cs as any, [
-      { time: trade.time as Time, position: isLong ? "belowBar" : "aboveBar" as any, color: isLong ? palette.MARKER_ENTRY : palette.MARKER_SL, shape: isLong ? "arrowUp" as any : "arrowDown" as any, text: isLong ? "▲ BUY" : "▼ SELL" },
-      { time: trade.exit_time as Time, position: isLong ? "aboveBar" : "belowBar" as any, color: trade.result === "TP" ? palette.MARKER_TP : palette.MARKER_SL, shape: "circle" as any, text: trade.result },
+      { time: trade.time as Time, position: isLong ? "belowBar" : "aboveBar" as any, color: isLong ? palette.MARKER_ENTRY : palette.MARKER_SL, shape: isLong ? "arrowUp" as any : "arrowDown" as any, text: `${isLong ? "🟢" : "🔴"} ${trade.entry.toFixed(2)}` },
+      { time: trade.exit_time as Time, position: isLong ? "aboveBar" : "belowBar" as any, color: trade.result === "TP" ? palette.MARKER_TP : palette.MARKER_SL, shape: "circle" as any, text: `${exitEmoji} ${trade.result} ${trade.exit.toFixed(2)}` },
     ]);
-    cs.createPriceLine({ price: trade.entry, color: palette.MARKER_ENTRY, lineWidth: 2, lineStyle: 2, axisLabelVisible: true, title: "ENTRY" });
     cs.createPriceLine({ price: trade.sl, color: palette.MARKER_SL, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "SL" });
     if (trade.tp != null) {
       cs.createPriceLine({ price: trade.tp, color: palette.MARKER_TP, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" });
