@@ -43,6 +43,8 @@ export default function TickReplay() {
   const orLinesRef = useRef(false);
   const rrBoxRef = useRef<HTMLCanvasElement | null>(null);
   const paintRef = useRef<(now: number) => void>(() => {});
+  // incremental paint cursors (reset per bundle / on scrub-back)
+  const progRef = useRef({ n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 });
   const rafRef = useRef(0);
   const clockRef = useRef(0);
   const lastPaintRef = useRef(0);
@@ -101,6 +103,7 @@ export default function TickReplay() {
     cs.setData([]);
     vs.setData([]);
     orLinesRef.current = false;
+    progRef.current = { n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 };
     // TV-style R:R overlay (zIndex above LWC panes)
     const rr = document.createElement("canvas");
     rr.style.position = "absolute";
@@ -137,20 +140,50 @@ export default function TickReplay() {
       (cs as any).createPriceLine({ price: bundle.or_low, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
       orLinesRef.current = true;
     }
-    const done = bundle.candles.filter(c => c.time + 60 <= now);
-    const rows = done.map(c => ({ time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close }));
-    const live = bundle.subs.filter(s => s.time >= Math.floor(now / 60) * 60 && s.time <= now);
+    const pg = progRef.current;
+    const C = bundle.candles;
+    const V = bundle.vwap;
+    if (now < pg.lastNow) {
+      pg.n = 0; pg.v = 0; pg.mkey = ""; pg.subPtr = 0;   // scrubbed back: rebuild
+    }
+    pg.lastNow = now;
+    const nBefore = pg.n;
+    while (pg.n < C.length && C[pg.n].time + 60 <= now) pg.n++;
+    const vBefore = pg.v;
+    while (pg.v < V.length && V[pg.v].time <= now) pg.v++;
+    // forming bar: aggregate subs of the current minute up to now (≤12 subs, pointer-skipped)
+    const mStart = Math.floor(now / 60) * 60;
+    while (pg.subPtr < bundle.subs.length && bundle.subs[pg.subPtr].time < mStart) pg.subPtr++;
+    const live: Candle[] = [];
+    for (let k = pg.subPtr; k < bundle.subs.length; k++) {
+      const s = bundle.subs[k];
+      if (s.time < mStart) continue;
+      if (s.time > now) break;
+      live.push(s);
+    }
+    let forming: { time: Time; open: number; high: number; low: number; close: number } | null = null;
     if (live.length) {
-      rows.push({
-        time: Math.floor(now / 60) * 60 as Time,
+      forming = {
+        time: mStart as Time,
         open: live[0].open, high: Math.max(...live.map(s => s.high)),
         low: Math.min(...live.map(s => s.low)), close: live[live.length - 1].close,
-      });
+      };
     }
-    cs.setData(rows);
-    vs.setData(bundle.vwap.filter(v => v.time <= now).map(v => ({ time: v.time as Time, value: v.value })));
+    if (pg.n !== nBefore || nBefore === 0) {
+      // completed-bar set changed (or first paint): full slice once, then update() only
+      cs.setData(C.slice(0, pg.n).map(c => ({ time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close })));
+    }
+    if (forming) {
+      try { cs.update(forming); } catch { /* out-of-order tick: ignore */ }
+    }
+    if (pg.v !== vBefore || vBefore === 0) {
+      vs.setData(V.slice(0, pg.v).map(v => ({ time: v.time as Time, value: v.value })));
+    }
     const shown = bundle.trades.filter(t => t.time <= now);
-    createSeriesMarkers(cs as any, shown.flatMap(t => {
+    const mkey = shown.map(t => `${t.time}:${t.exit_time <= now ? t.exit_time : ""}`).join("|");
+    if (mkey !== pg.mkey) {
+      pg.mkey = mkey;
+      createSeriesMarkers(cs as any, shown.flatMap(t => {
       const isLong = t.side === "LONG";
       const m: any[] = [{
         time: t.time as Time, position: isLong ? "belowBar" : "aboveBar",
@@ -167,6 +200,7 @@ export default function TickReplay() {
       }
       return m;
     }));
+    }
     // R:R boxes for revealed trades (exit edge grows live until the trade closes)
     const rrBox = rrBoxRef.current;
     const container = boxRef.current;
