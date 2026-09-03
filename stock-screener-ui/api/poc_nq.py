@@ -171,8 +171,9 @@ def get_smc_ifvg(
             continue
         if to_ist and tin > to_ist:
             continue
+        # floor to containing 1m bar — lightweight-charts markers reject non-bar times
         out.append({
-            "time": int(t["t_in"] // 1000), "exit_time": int(t["t_out"] // 1000),
+            "time": int(t["t_in"] // 60000) * 60, "exit_time": int(t["t_out"] // 60000) * 60,
             "side": t["side"], "kind": t["kind"], "entry": t["entry"], "sl": t["sl"],
             "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
         })
