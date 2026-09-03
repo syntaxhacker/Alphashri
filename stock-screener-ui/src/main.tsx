@@ -29,7 +29,7 @@ if (!root) {
 
   createRoot(root).render(
   <Provider store={store}>
-    <ThemeProvider theme={muiTheme} defaultMode="light" modeStorageKey="mui-color-scheme" colorSchemeStorageKey="mui-color-scheme">
+    <ThemeProvider theme={muiTheme} defaultMode="dark" modeStorageKey="mui-color-scheme" colorSchemeStorageKey="mui-color-scheme">
       <CssBaseline />
       <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} autoHideDuration={4000}>
         <BrowserRouter>
