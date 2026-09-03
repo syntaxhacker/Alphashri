@@ -289,3 +289,74 @@ class TestQualityGates:
         eng._day_pnl = -10.0
         eng.on_close(bars, 7)
         assert eng.pending is None
+
+
+class TestDailyBias:
+    def test_bear_day_blocks_longs(self):
+        eng = SMCIFVGEngine(session_date="2026-07-15", daily_bias={"2026-07-15": -1})
+        eng.bos_dir = 1
+        eng.fvgs.append({"type": "bear", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng.trail_lo = 96.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 99, 107, 99, 106.5)   # bull inversion, but day is bear
+        eng.on_close(bars, 7)
+        assert eng.pending is None
+
+    def test_bear_day_allows_shorts(self):
+        eng = SMCIFVGEngine(session_date="2026-07-15", daily_bias={"2026-07-15": -1})
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 110.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 99, 99.5, 96, 96.5)   # bear inversion under bear day
+        eng.on_close(bars, 7)
+        assert eng.pending is not None and eng.pending["side"] == "SHORT"
+
+    def test_neutral_day_allows_both(self):
+        eng = SMCIFVGEngine(session_date="2026-07-15", daily_bias={"2026-07-15": 0})
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 110.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 99, 99.5, 96, 96.5)
+        eng.on_close(bars, 7)
+        assert eng.pending is not None and eng.pending["side"] == "SHORT"
+
+    def test_bear_day_still_blocks_longs(self):
+        eng = SMCIFVGEngine(session_date="2026-07-15", daily_bias={"2026-07-15": -1})
+        eng.bos_dir = 1
+        eng.fvgs.append({"type": "bear", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng.trail_lo = 96.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 99, 107, 99, 106.5)
+        eng.on_close(bars, 7)
+        assert eng.pending is None
+
+
+class TestForensicsGates:
+    def test_zone_age_blocks_stale(self):
+        eng = SMCIFVGEngine(max_zone_age=30)
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 110.0
+        bars = flat_bars(40)
+        bars[39] = bar(39 * 60, 94, 94.5, 93, 93.5)   # zone age 34 > 30
+        eng.on_close(bars, 39)
+        assert eng.pending is None or eng.pending["kind"] != "inv"  # stale inv blocked
+        assert eng.fvgs[0]["inv"] is True   # ...but the inversion is still marked
+        eng2 = SMCIFVGEngine(max_zone_age=40)
+        eng2.bos_dir = -1
+        eng2.fvgs.append({"type": "bull", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng2.trail_hi = 110.0
+        eng2.on_close(bars, 39)
+        assert eng2.pending is not None   # age 34 <= 40 -> arms
+
+    def test_displacement_blocks_dead_tape(self):
+        eng = SMCIFVGEngine(min_displacement_r=0.25)
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 99.5, "bot": 99.0, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 110.0
+        bars = [bar(i * 60, 99.6, 101.6, 97.6, 99.6) for i in range(20)]  # ATR 4.0
+        bars[19] = bar(19 * 60, 99.5, 99.6, 98.5, 98.9)  # slow grind under bot; 3-bar move 0.7 < 1.0
+        eng.on_close(bars, 19)
+        assert eng.pending is None

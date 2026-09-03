@@ -9,3 +9,6 @@
 {"run":8,"commit":"aab2d22","metric":0.543,"metrics":{"pf_train":1.545,"net_test":-467.39,"net_train":753.62},"status":"discard","description":"tp-near under session+ATR","timestamp":1788423164,"segment":0}
 {"run":9,"commit":"aab2d22","metric":0.0,"metrics":{"note":"july-daystop30 PF 0.99 net -13.56, worst-day -116 (open trades run past entry-block)"},"status":"discard","description":"daystop 30pts (=50 MNQ) on July month","timestamp":1788423549,"segment":0}
 {"run":10,"commit":"aab2d22","metric":0.384,"metrics":{"pf_train":1.744,"net_test":-478.39,"net_train":816.03},"status":"discard","description":"yfinance daily-bias direction gate","timestamp":1788424429,"segment":0}
+{"run":11,"commit":"436a57d","metric":0.557,"metrics":{"pf_train":1.624},"status":"discard","description":"forensics zone-age>30","timestamp":1788429801,"segment":0}
+{"run":12,"commit":"436a57d","metric":0.744,"metrics":{"pf_train":1.925},"status":"discard","description":"forensics displacement<0.25ATR skip","timestamp":1788429801,"segment":0}
+{"run":13,"commit":"436a57d","metric":0.979,"metrics":{"pf_train":1.59},"status":"keep","description":"ATR gate 8->10 (forensics)","timestamp":1788429801,"segment":0}

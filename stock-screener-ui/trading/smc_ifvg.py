@@ -27,6 +27,8 @@ class SMCIFVGEngine:
         cooldown: int = 3,
         retest_ttl: int = 30,
         max_zone_dist: float | None = None,  # disabled: per-trade sound but system-negative (path dependence), see docs
+        max_zone_age: int | None = None,      # skip arms on zones older than this many bars (forensics: PF 0.87->0.94)
+        min_displacement_r: float | None = None,  # skip arms when |close-close[3]| < this * ATR(14) (dead tape)
         inv_flip_margin: float | None = None,  # strong inversion (close clears zone edge by >= margin)
                                                # flips bos_dir immediately instead of dying unaligned
         entries: str = "both",               # "both" | "inv" | "retest" — enables stacked/divided deployment
@@ -38,6 +40,8 @@ class SMCIFVGEngine:
         sess_end: int | None = None,
         atr_min: float | None = None,        # arm only if 1m ATR(14) >= this (volatility gate)
         day_stop_pts: float | None = None,   # arm blocked rest of IST day once day P&L <= -this
+        session_date: str | None = None,       # YYYY-MM-DD for daily-bias gating
+        daily_bias: dict | None = None,        # {date: +1/-1/0} from scripts/htf_bias.py (history-only)
     ):
         self.gap_min = gap_min
         self.sl_buf = sl_buf
@@ -47,6 +51,8 @@ class SMCIFVGEngine:
         self.cooldown = cooldown
         self.retest_ttl = retest_ttl
         self.max_zone_dist = max_zone_dist
+        self.max_zone_age = max_zone_age
+        self.min_displacement_r = min_displacement_r
         self.inv_flip_margin = inv_flip_margin
         self.entries = entries
         self.tp_mode = tp_mode
@@ -56,6 +62,8 @@ class SMCIFVGEngine:
         self.sess_end = sess_end
         self.atr_min = atr_min
         self.day_stop_pts = day_stop_pts
+        self.session_date = session_date
+        self.daily_bias = daily_bias
         self._day_idx = None
         self._day_pnl = 0.0
         self.rev_exit = rev_exit
@@ -132,6 +140,16 @@ class SMCIFVGEngine:
                 return
         if self.day_stop_pts is not None and self._day_idx is not None and self._day_pnl <= -self.day_stop_pts:
             return
+        if self.daily_bias is not None and self.session_date is not None:
+            # neutral (0) days allow both directions; decisive bias blocks counter-trades only
+            self._day_dir = self.daily_bias.get(self.session_date, 0)
+        self._gate_ok = True
+        if self.min_displacement_r is not None:
+            if i < 14:
+                return
+            atr = sum(bars[k]["high"] - bars[k]["low"] for k in range(i - 13, i + 1)) / 14.0
+            if abs(b["close"] - bars[i - 3]["close"]) < self.min_displacement_r * atr:
+                self._gate_ok = False
         armed = None
         if self.entries == "retest":
             armed = self._arm_retest(bars, i, b)
@@ -145,14 +163,14 @@ class SMCIFVGEngine:
                 f["inv"] = True
                 if self.inv_flip_margin is not None and self.bos_dir == -1 and b["close"] - f["top"] >= self.inv_flip_margin:
                     self.bos_dir = 1   # strong inversion = the structure break itself
-                if self.bos_dir == 1 and (self.max_zone_dist is None or b["close"] - f["top"] <= self.max_zone_dist):
+                if self.bos_dir == 1 and (self.daily_bias is None or self._day_dir >= 0) and self._gate_ok and self._zone_fresh(f, i) and (self.max_zone_dist is None or b["close"] - f["top"] <= self.max_zone_dist):
                     refs = [x for x in (self.trail_lo, f["bot"]) if x is not None]
                     armed = ("inv", "LONG", max(refs), f)
             elif f["type"] == "bull" and b["close"] < f["bot"]:
                 f["inv"] = True
                 if self.inv_flip_margin is not None and self.bos_dir == 1 and f["bot"] - b["close"] >= self.inv_flip_margin:
                     self.bos_dir = -1
-                if self.bos_dir == -1 and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist):
+                if self.bos_dir == -1 and (self.daily_bias is None or self._day_dir <= 0) and self._gate_ok and self._zone_fresh(f, i) and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist):
                     refs = [x for x in (self.trail_hi, f["top"]) if x is not None]
                     armed = ("inv", "SHORT", min(refs), f)
         if armed is None:
@@ -161,6 +179,11 @@ class SMCIFVGEngine:
                 armed = r
         if armed:
             self._set_pending(armed, i)
+
+    def _zone_fresh(self, f, i):
+        if self.max_zone_age is None:
+            return True
+        return i - f["form"] <= self.max_zone_age
 
     def _dup_recent(self, side, ts_ms, window_min=5):
         """True if a same-side fill (this or the sibling stack) exists within the window."""
@@ -181,15 +204,15 @@ class SMCIFVGEngine:
         """Zone-fade arming (retest stack): pullback into nearest active opposing zone."""
         if self.bos_dir == 0:
             return None
-        if self.bos_dir == -1:
-            zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bear"
+        if self.bos_dir == -1 and (self.daily_bias is None or self._day_dir <= 0):
+            zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bear" and self._zone_fresh(f, i)
                      and f["bot"] > b["close"]
                      and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist)]
             if zones:
                 f = min(zones, key=lambda z: z["bot"])
                 return ("retest", "SHORT", f["top"], f)
         else:
-            zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bull"
+            zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bull" and self._zone_fresh(f, i)
                      and f["top"] < b["close"]
                      and (self.max_zone_dist is None or b["close"] - f["top"] <= self.max_zone_dist)]
             if zones:

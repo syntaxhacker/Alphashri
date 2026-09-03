@@ -112,3 +112,10 @@
 - Combined allocator (trend-engine on trend days + chop-engine on chop days): ~+1050/3mo.
   Still short of 800/mo. Next: integrate allocator + forensics top fixes + flatten into the
   loop as measured runs; then 30-session confirmation.
+
+### Runs 11-13: forensics gates under session+ATR — only ATR->10 keeps
+- Run 11 zone-age>30: test 0.557 (DISCARD). Forensics' +0.07 came from unfiltered regime;
+  under session+ATR it cuts winners. Small-sample disagreement noted.
+- Run 12 displacement skip: test 0.744 (DISCARD). Train improved (1.93) but test pays.
+- Run 13 ATR 8->10: test 0.928 -> 0.979 (KEEP). Convergent with forensics (+0.902 on 3mo).
+- New best config: SMC_SESS=12:00-23:00 + SMC_ATR_MIN=10.

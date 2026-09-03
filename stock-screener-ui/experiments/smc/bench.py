@@ -58,20 +58,33 @@ def engine_kwargs():
         kw["atr_min"] = envf("SMC_ATR_MIN")
     if envf("SMC_DAY_STOP") is not None:
         kw["day_stop_pts"] = envf("SMC_DAY_STOP")
+    if envi("SMC_ZONE_AGE") is not None:
+        kw["max_zone_age"] = envi("SMC_ZONE_AGE")
+    if envf("SMC_DISP_R") is not None:
+        kw["min_displacement_r"] = envf("SMC_DISP_R")
+    if os.environ.get("SMC_DAILY_BIAS") == "1":
+        from scripts.htf_bias import bias_map
+        kw["_bias_map"] = bias_map(TRAIN + TEST)
     return kw
 
 
 def run_dates(dates, kw, divided, dedupe):
     trades = []
+    bias_map = kw.get("_bias_map", None)
+    base = {k: v for k, v in kw.items() if k != "_bias_map"}
     for d in dates:
         ticks = fetch_ticks(d)
         bars = build_1m_bars(ticks)
+        dk = dict(base)
+        if bias_map is not None:
+            dk["session_date"] = d
+            dk["daily_bias"] = bias_map
         if divided:
             shared = {"fills": []} if dedupe else None
             for mode in ("inv", "retest"):
-                trades.extend(SMCIFVGEngine(entries=mode, shared=shared, **kw).run(bars, ticks))
+                trades.extend(SMCIFVGEngine(entries=mode, shared=shared, **dk).run(bars, ticks))
         else:
-            trades.extend(SMCIFVGEngine(**kw).run(bars, ticks))
+            trades.extend(SMCIFVGEngine(**dk).run(bars, ticks))
     return trades
 
 
