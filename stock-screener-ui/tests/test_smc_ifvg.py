@@ -209,3 +209,41 @@ class TestInvFlip:
         eng.on_close(bars, 7)
         assert eng.bos_dir == -1
         assert eng.pending is None
+
+
+class TestRevExit:
+    def test_opposite_fill_closes_position_without_flip(self):
+        eng = SMCIFVGEngine(rev_exit=True, min_risk=0.1)
+        eng.pos = {"side": "SHORT", "entry": 100, "sl": 104, "tp": 90, "i": 0, "kind": "inv", "ts": 0,
+                   "risk": 4, "partial": False}
+        eng.pending = {"kind": "inv", "side": "LONG", "sl_ref": 96, "sig_i": 0,
+                       "zone": {"top": 103, "bot": 101}, "trigger": None}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100), bar(120, 100, 100.5, 99.5, 100)]
+        trades = eng.run(bars, [tick(120_000, 97.0, 98.0)])    # LONG fill at ask 98 -> short leg +2
+        assert len(trades) == 1
+        assert trades[0]["result"] == "REV"
+        assert trades[0]["exit"] == 98
+        assert trades[0]["pnl"] == 2.0
+        assert eng.pos is None          # exit only — no reversal position opened
+        assert eng.pending is None
+
+    def test_opposite_fill_at_loss_holds_position(self):
+        eng = SMCIFVGEngine(rev_exit=True, min_risk=0.1)
+        eng.pos = {"side": "SHORT", "entry": 100, "sl": 104, "tp": 90, "i": 0, "kind": "inv", "ts": 0,
+                   "risk": 4, "partial": False}
+        eng.pending = {"kind": "inv", "side": "LONG", "sl_ref": 96, "sig_i": 0,
+                       "zone": {"top": 103, "bot": 101}, "trigger": None}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100), bar(120, 100, 100.5, 99.5, 100)]
+        trades = eng.run(bars, [tick(120_000, 99.0, 101.0)])   # LONG fill at ask 101 -> short leg -1
+        assert trades == []             # no profit to take -> hold to SL/TP
+        assert eng.pos is not None
+        assert eng.pending is None      # signal consumed
+
+    def test_same_side_add_blocked_with_rev_exit(self):
+        eng = SMCIFVGEngine(rev_exit=True)
+        eng.pos = {"side": "LONG", "entry": 100, "sl": 95, "tp": 110, "i": 0, "kind": "inv", "ts": 0,
+                   "risk": 5, "partial": False}
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 100, 112, 109, 111)   # would arm LONG (bull zone... no FVG -> no arm anyway)
+        eng.on_close(bars, 7)
+        assert eng.pending is None

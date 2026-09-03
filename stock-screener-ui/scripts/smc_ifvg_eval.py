@@ -64,6 +64,7 @@ def main():
     ap.add_argument("--dedupe", action="store_true", help="skip same-side entries within 5 min across stacks")
     ap.add_argument("--tp-mode", default="far", choices=["far", "near"])
     ap.add_argument("--partials", action="store_true")
+    ap.add_argument("--rev-exit", action="store_true")
     ap.add_argument("--matrix", action="store_true")
     args = ap.parse_args()
 
@@ -71,7 +72,7 @@ def main():
     base = {"min_rr": args.min_rr} if args.min_rr is not None else {}
     if args.cooldown is not None:
         base["cooldown"] = args.cooldown
-    base.update({"tp_mode": args.tp_mode, "partials": args.partials})
+    base.update({"tp_mode": args.tp_mode, "partials": args.partials, "rev_exit": args.rev_exit})
     def make_engines():
         sh = {"fills": []} if args.dedupe else None
         if args.divided:
