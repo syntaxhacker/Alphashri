@@ -63,7 +63,7 @@ export default function SmcTrades() {
   const wins = (data?.trades || []).filter(t => t.pnl > 0).length;
 
   return (
-    <Box sx={{ p: 2, maxWidth: 1400, mx: "auto" }} data-testid="smc-trades">
+    <Box sx={{ p: 2, width: "100%" }} data-testid="smc-trades">
       <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>SMC iFVG — validated engine on Dukascopy ticks</Typography>
       <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
         trading/smc_ifvg.py · history-only signals · tick fills (ask/bid, SL-first) · structure TP (RR≥3) or trail · {TZ_IST_LABEL}
@@ -103,7 +103,7 @@ export default function SmcTrades() {
       {data?.trades.map((tr, i) => (
         <Card key={i} elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, mb: 2, overflow: "hidden" }}>
           <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, alignItems: "stretch" }}>
-            <Stack sx={{ flex: "0 0 300px", p: 1.5, bgcolor: palette.SURFACE, borderRight: { md: `1px solid ${palette.BORDER}` }, borderBottom: { xs: `1px solid ${palette.BORDER}`, md: 0 }, gap: 1 }}>
+            <Stack sx={{ flex: "0 0 280px", p: 1.5, bgcolor: palette.SURFACE, borderRight: { md: `1px solid ${palette.BORDER}` }, borderBottom: { xs: `1px solid ${palette.BORDER}`, md: 0 }, gap: 1 }}>
               <Stack direction="row" spacing={0.5} alignItems="center" justifyContent="space-between">
                 <Stack direction="row" spacing={0.5} alignItems="center">
                   <Chip size="small" label={tr.side} color={tr.side === "LONG" ? "success" : "error"} sx={{ height: 18, fontSize: 10, fontWeight: 700 }} />
@@ -133,7 +133,7 @@ export default function SmcTrades() {
                 </Typography>
               </Box>
             </Stack>
-            <Box sx={{ flex: 1, minHeight: 260, display: "flex", alignItems: "stretch" }}>
+            <Box sx={{ flex: 1, minHeight: 300, display: "flex", alignItems: "stretch" }}>
               <SingleChart bars={data.bars} trade={tr} />
             </Box>
           </Box>
@@ -148,12 +148,24 @@ function SingleChart({ bars, trade }: { bars: Bar[]; trade: SmcTrade }) {
   const chartRef = useRef<IChartApi | null>(null);
   useEffect(() => {
     if (!ref.current || !bars.length) return;
+    const tickState: { lastDay: string } = { lastDay: "" };
     const chart = createChart(ref.current, {
       layout: { background: { type: ColorType.Solid, color: palette.NT_BG }, textColor: "#E5E7EB" },
       grid: { vertLines: { color: palette.NT_GRID }, horzLines: { color: palette.NT_GRID } },
       width: ref.current.clientWidth,
       height: 300,
-      timeScale: { borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: false, rightOffset: 4, barSpacing: 4, tickMarkFormatter: (time: Time) => typeof time === "number" ? formatTradeTime(time) : "" },
+      timeScale: {
+        borderColor: palette.NT_GRID, timeVisible: true, secondsVisible: false, rightOffset: 4,
+        tickMarkFormatter: (time: Time) => {
+          if (typeof time !== "number") return "";
+          const d = new Date(time * 1000);
+          const day = d.toLocaleString("en-IN", { timeZone: TZ_IST, day: "2-digit", month: "short" });
+          const t = d.toLocaleString("en-IN", { timeZone: TZ_IST, hour: "2-digit", minute: "2-digit", hour12: false });
+          tickState.lastDay ||= "";
+          if (day !== tickState.lastDay) { tickState.lastDay = day; return `${day} ${t}`; }
+          return t;
+        },
+      },
       rightPriceScale: { borderColor: palette.NT_GRID },
       localization: { timeFormatter: (time: Time) => typeof time === "number" ? formatTradeTime(time) : "" },
     });
@@ -177,5 +189,5 @@ function SingleChart({ bars, trade }: { bars: Bar[]; trade: SmcTrade }) {
     ro.observe(ref.current);
     return () => { ro.disconnect(); chart.remove(); };
   }, [bars, trade]);
-  return <Box ref={ref} sx={{ width: "100%", height: 260 }} />;
+  return <Box ref={ref} sx={{ width: "100%", height: 300 }} />;
 }
