@@ -34,6 +34,10 @@ class SMCIFVGEngine:
         partials: bool = False,              # take half at +1R, move stop to breakeven
         rev_exit: bool = False,              # opposite-side fill closes the open position (REV) instead of waiting for SL
         shared: dict | None = None,          # cross-stack registry {"fills": [(ts_ms, side)]} for dedupe
+        sess_start: int | None = None,       # IST minutes: arm only inside [start, end] (wrap-aware)
+        sess_end: int | None = None,
+        atr_min: float | None = None,        # arm only if 1m ATR(14) >= this (volatility gate)
+        day_stop_pts: float | None = None,   # arm blocked rest of IST day once day P&L <= -this
     ):
         self.gap_min = gap_min
         self.sl_buf = sl_buf
@@ -48,6 +52,12 @@ class SMCIFVGEngine:
         self.tp_mode = tp_mode
         self.partials = partials
         self.shared = shared
+        self.sess_start = sess_start
+        self.sess_end = sess_end
+        self.atr_min = atr_min
+        self.day_stop_pts = day_stop_pts
+        self._day_idx = None
+        self._day_pnl = 0.0
         self.rev_exit = rev_exit
         # structure state
         self.trail_hi = None
@@ -106,6 +116,21 @@ class SMCIFVGEngine:
         if self.pending is not None or i - self.last_exit < self.cooldown:
             return
         if self.pos is not None and not self.rev_exit:
+            return
+        if self.sess_start is not None and self.sess_end is not None:
+            m = ((b["time"] // 60) + 330) % 1440   # IST minute, no tz lib needed
+            if self.sess_start <= self.sess_end:
+                if not (self.sess_start <= m <= self.sess_end):
+                    return
+            elif not (m >= self.sess_start or m <= self.sess_end):
+                return
+        if self.atr_min is not None:
+            if i < 14:
+                return
+            atr = sum(bars[k]["high"] - bars[k]["low"] for k in range(i - 13, i + 1)) / 14.0
+            if atr < self.atr_min:
+                return
+        if self.day_stop_pts is not None and self._day_idx is not None and self._day_pnl <= -self.day_stop_pts:
             return
         armed = None
         if self.entries == "retest":
@@ -227,6 +252,11 @@ class SMCIFVGEngine:
                             "rr": round(pnl / (abs(p.get("risk", 0)) or abs(p["entry"] - p["sl"]) or 1), 2)})
         self.pos = None
         self.last_exit = i
+        day = (ts_ms // 1000 + 19800) // 86400   # IST day index
+        if self._day_idx != day:
+            self._day_idx = day
+            self._day_pnl = 0.0
+        self._day_pnl += pnl
 
     # ---------------- main loop ----------------
     def run(self, bars, ticks):

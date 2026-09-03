@@ -50,6 +50,14 @@ def engine_kwargs():
         kw["max_zone_dist"] = envf("SMC_MAX_ZONE_DIST")
     if os.environ.get("SMC_REV_EXIT") == "1":
         kw["rev_exit"] = True
+    if os.environ.get("SMC_SESS"):
+        a, z = os.environ["SMC_SESS"].split("-")
+        ah, am = map(int, a.split(":")); zh, zm = map(int, z.split(":"))
+        kw["sess_start"] = ah * 60 + am; kw["sess_end"] = zh * 60 + zm
+    if envf("SMC_ATR_MIN") is not None:
+        kw["atr_min"] = envf("SMC_ATR_MIN")
+    if envf("SMC_DAY_STOP") is not None:
+        kw["day_stop_pts"] = envf("SMC_DAY_STOP")
     return kw
 
 

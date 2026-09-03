@@ -247,3 +247,45 @@ class TestRevExit:
         bars[7] = bar(7 * 60, 100, 112, 109, 111)   # would arm LONG (bull zone... no FVG -> no arm anyway)
         eng.on_close(bars, 7)
         assert eng.pending is None
+
+
+class TestQualityGates:
+    def _ist_bar(self, hh, mm, o=100.0, h=100.5, l=99.5, c=100.0):
+        # unix time whose IST wall clock is hh:mm (IST = UTC+330min)
+        return bar((((hh * 60 + mm - 330) % 1440) * 60), o, h, l, c)
+
+    def test_session_gate_blocks_asia(self):
+        eng = SMCIFVGEngine(sess_start=12 * 60, sess_end=23 * 60)
+        bars = [self._ist_bar(10, i) for i in range(8)]   # 10:00-10:07 IST (Asia)
+        bars[7] = self._ist_bar(10, 7, o=100, h=96, l=95, c=95.5)
+        eng.on_close(bars, 7)
+        assert eng.pending is None
+        bars2 = [self._ist_bar(14, i) for i in range(8)]  # 14:00 IST inside window
+        bars2[7] = self._ist_bar(14, 7, o=100, h=96, l=95, c=95.5)
+        eng2 = SMCIFVGEngine(sess_start=12 * 60, sess_end=23 * 60)
+        eng2.bos_dir = -1
+        eng2.fvgs.append({"type": "bull", "top": 96.5, "bot": 95.8, "form": 5, "inv": False, "used": False})
+        eng2.trail_hi = 101.0
+        eng2.on_close(bars2, 7)
+        assert eng2.pending is not None and eng2.pending["side"] == "SHORT"
+
+    def test_atr_gate_blocks_dead_tape(self):
+        eng = SMCIFVGEngine(atr_min=8.0)
+        bars = [bar(i * 60, 100, 100.5, 99.5, 100) for i in range(20)]  # 1pt ranges
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 96.5, "bot": 95.8, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 101.0
+        eng.on_close(bars, 19)
+        assert eng.pending is None
+
+    def test_day_stop_benches_loser_day(self):
+        eng = SMCIFVGEngine(day_stop_pts=10.0)
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 96.5, "bot": 95.8, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 101.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 100, 96, 95, 95.5)
+        eng._day_idx = (7 * 60 + 19800) // 86400
+        eng._day_pnl = -10.0
+        eng.on_close(bars, 7)
+        assert eng.pending is None
