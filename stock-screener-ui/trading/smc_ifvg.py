@@ -28,6 +28,9 @@ class SMCIFVGEngine:
         retest_ttl: int = 30,
         max_zone_dist: float | None = None,  # disabled: per-trade sound but system-negative (path dependence), see docs
         entries: str = "both",               # "both" | "inv" | "retest" — enables stacked/divided deployment
+        tp_mode: str = "far",                # "far": farthest RR>=min_rr target (LONG); "near": nearest — fixes LONG/SHORT asymmetry
+        partials: bool = False,              # take half at +1R, move stop to breakeven
+        shared: dict | None = None,          # cross-stack registry {"fills": [(ts_ms, side)]} for dedupe
     ):
         self.gap_min = gap_min
         self.sl_buf = sl_buf
@@ -38,6 +41,9 @@ class SMCIFVGEngine:
         self.retest_ttl = retest_ttl
         self.max_zone_dist = max_zone_dist
         self.entries = entries
+        self.tp_mode = tp_mode
+        self.partials = partials
+        self.shared = shared
         # structure state
         self.trail_hi = None
         self.trail_lo = None
@@ -120,6 +126,15 @@ class SMCIFVGEngine:
         if armed:
             self._set_pending(armed, i)
 
+    def _dup_recent(self, side, ts_ms, window_min=5):
+        """True if a same-side fill (this or the sibling stack) exists within the window."""
+        if self.shared is None:
+            return False
+        for fts, fside in self.shared.get("fills", []):
+            if fside == side and abs(ts_ms - fts) <= window_min * 60 * 1000:
+                return True
+        return False
+
     def _set_pending(self, armed, i):
         kind, side, sl_ref, f = armed
         self.pending = {"kind": kind, "side": side, "sl_ref": sl_ref, "sig_i": i, "zone": f,
@@ -175,7 +190,9 @@ class SMCIFVGEngine:
         ok = [c for c in cands if abs(entry - c) / risk >= self.min_rr]
         if not ok:
             return None
-        return min(ok, key=lambda c: abs(entry - c)) if side == "SHORT" else max(ok, key=lambda c: abs(entry - c))
+        if side == "SHORT" or self.tp_mode == "near":
+            return min(ok, key=lambda c: abs(entry - c))
+        return max(ok, key=lambda c: abs(entry - c))
 
     # ---------------- position helpers ----------------
     def open_pos(self, side, fill, sl, i, kind, ts_ms, bars):
@@ -183,15 +200,20 @@ class SMCIFVGEngine:
         if risk < self.min_risk:
             return False
         tp = self.find_tp(bars, i, side, fill, risk)
-        self.pos = {"side": side, "entry": fill, "sl": sl, "tp": tp, "i": i, "kind": kind, "ts": ts_ms}
+        self.pos = {"side": side, "entry": fill, "sl": sl, "tp": tp, "i": i, "kind": kind, "ts": ts_ms,
+                    "risk": risk, "partial": False}
+        if self.shared is not None:
+            self.shared.setdefault("fills", []).append((ts_ms, side))
         return True
 
     def close_pos(self, i, px, why, ts_ms):
         p = self.pos
-        pnl = (px - p["entry"]) if p["side"] == "LONG" else (p["entry"] - px)
+        leg = (px - p["entry"]) if p["side"] == "LONG" else (p["entry"] - px)
+        pnl = 0.5 * p["risk"] + 0.5 * leg if p.get("partial") else leg
         self.trades.append({"t_in": p["ts"], "t_out": ts_ms, "side": p["side"], "kind": p["kind"],
                             "entry": p["entry"], "sl": p["sl"], "tp": p["tp"], "exit": px, "result": why,
-                            "pnl": round(pnl, 2), "rr": round(pnl / abs(p["entry"] - p["sl"]), 2)})
+                            "pnl": round(pnl, 2),
+                            "rr": round(pnl / (abs(p.get("risk", 0)) or abs(p["entry"] - p["sl"]) or 1), 2)})
         self.pos = None
         self.last_exit = i
 
@@ -213,6 +235,8 @@ class SMCIFVGEngine:
                     px = t["bidPrice"] if pd["side"] == "SHORT" else t["askPrice"]
                     if (pd["side"] == "SHORT" and px > sl) or (pd["side"] == "LONG" and px < sl):
                         self.pending = None
+                    elif self._dup_recent(pd["side"], t["timestamp"]):
+                        self.pending = None   # sibling stack already holds this thesis
                     elif self.open_pos(pd["side"], px, sl, i, "inv", t["timestamp"], bars):
                         self.pending = None
             # position management: SL first, then TP
@@ -223,11 +247,17 @@ class SMCIFVGEngine:
                     if p["side"] == "SHORT":
                         if ask >= p["sl"]:
                             self.close_pos(i, p["sl"], "SL", t["timestamp"]); break
+                        if self.partials and not p.get("partial") and ask <= p["entry"] - p["risk"]:
+                            p["partial"] = True
+                            p["sl"] = p["entry"]   # half banked at +1R, rest rides risk-free
                         if p["tp"] and bid <= p["tp"]:
                             self.close_pos(i, p["tp"], "TP", t["timestamp"]); break
                     else:
                         if bid <= p["sl"]:
                             self.close_pos(i, p["sl"], "SL", t["timestamp"]); break
+                        if self.partials and not p.get("partial") and bid >= p["entry"] + p["risk"]:
+                            p["partial"] = True
+                            p["sl"] = p["entry"]
                         if p["tp"] and ask >= p["tp"]:
                             self.close_pos(i, p["tp"], "TP", t["timestamp"]); break
             # pending retest fill: touch of zone near edge within tolerance
@@ -235,11 +265,15 @@ class SMCIFVGEngine:
                 pd = self.pending
                 for t in bt:
                     if pd["side"] == "SHORT" and t["bidPrice"] >= pd["trigger"] - self.retest_tol:
-                        if self.open_pos("SHORT", t["bidPrice"], pd["sl_ref"] + self.sl_buf, i, "retest", t["timestamp"], bars):
+                        if self._dup_recent("SHORT", t["timestamp"]):
+                            self.pending = None
+                        elif self.open_pos("SHORT", t["bidPrice"], pd["sl_ref"] + self.sl_buf, i, "retest", t["timestamp"], bars):
                             self.pending = None
                         break
                     if pd["side"] == "LONG" and t["askPrice"] <= pd["trigger"] + self.retest_tol:
-                        if self.open_pos("LONG", t["askPrice"], pd["sl_ref"] - self.sl_buf, i, "retest", t["timestamp"], bars):
+                        if self._dup_recent("LONG", t["timestamp"]):
+                            self.pending = None
+                        elif self.open_pos("LONG", t["askPrice"], pd["sl_ref"] - self.sl_buf, i, "retest", t["timestamp"], bars):
                             self.pending = None
                         break
             # bar-close state update + signal arming

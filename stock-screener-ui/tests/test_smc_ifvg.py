@@ -147,3 +147,40 @@ class TestTickFills:
         trades = eng.run(bars, ticks)
         assert trades[0]["result"] == "TP"
         assert trades[0]["exit"] == 105
+
+
+class TestDivideAndTPFixes:
+    def test_dedupe_skips_sibling_entry(self):
+        shared = {"fills": [(120_000, "LONG")]}        # sibling stack filled LONG at t=120s
+        eng = SMCIFVGEngine(min_risk=0.1, shared=shared)
+        eng.pending = {"kind": "inv", "side": "LONG", "sl_ref": 95, "sig_i": 0,
+                       "zone": {"top": 106, "bot": 100}, "trigger": None}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100), bar(120, 100, 100.5, 99.5, 100)]
+        trades = eng.run(bars, [tick(120_000, 99.0, 100.0)])   # fill tick inside dup window
+        assert trades == [] and eng.pos is None
+
+    def test_no_dedupe_after_window(self):
+        shared = {"fills": [(0, "LONG")]}              # 10 min old -> outside 5-min window
+        eng = SMCIFVGEngine(min_risk=0.1, shared=shared)
+        eng.pending = {"kind": "inv", "side": "LONG", "sl_ref": 95, "sig_i": 0,
+                       "zone": {"top": 106, "bot": 100}, "trigger": None}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(600, 100, 100.5, 99.5, 100)]
+        trades = eng.run(bars, [tick(600_000, 99.0, 100.0)])
+        assert len(trades) == 0 and eng.pos is not None   # fills (pending converted to open position)
+
+    def test_tp_near_vs_far(self):
+        bars = flat_bars(20)
+        bars[5] = bar(5 * 60, 100, 130, 100, 100)      # wide target first
+        bars[8] = bar(8 * 60, 100, 118, 100, 100)      # nearer target, untouched -> RR 3.6
+        assert SMCIFVGEngine(min_rr=2.0, tp_mode="near").find_tp(bars, 15, "LONG", 100, 5) == 118
+        assert SMCIFVGEngine(min_rr=2.0, tp_mode="far").find_tp(bars, 15, "LONG", 100, 5) == 130
+
+    def test_partials_bank_1r_and_breakeven(self):
+        eng = SMCIFVGEngine(min_risk=0.1, partials=True)
+        eng.pos = {"side": "LONG", "entry": 100, "sl": 95, "tp": 115, "i": 0, "kind": "inv", "ts": 0,
+                   "risk": 5, "partial": False}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100)]
+        trades = eng.run(bars, [tick(60_000, 105.5, 106.0),   # +1R -> bank half, stop to BE
+                                tick(90_000, 99.8, 100.2)])   # back to entry -> BE exit
+        assert len(trades) == 1
+        assert trades[0]["pnl"] == 2.5                    # 0.5*5 + 0.5*0

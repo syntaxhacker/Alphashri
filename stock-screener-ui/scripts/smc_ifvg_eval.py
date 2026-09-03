@@ -23,11 +23,13 @@ def ist(ms):
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone(IST).strftime("%H:%M:%S")
 
 
-def run_session(date, eng_kwargs=None, from_ist=None, to_ist=None, verbose=True):
+def run_session(date, engines=None, from_ist=None, to_ist=None, verbose=True):
+    from trading.smc_ifvg import SMCIFVGEngine
     ticks = fetch_ticks(date)
     bars = build_1m_bars(ticks)
-    eng = SMCIFVGEngine(**(eng_kwargs or {}))
-    trades = eng.run(bars, ticks)
+    trades = []
+    for _name, eng in (engines or [("both", SMCIFVGEngine())]):
+        trades.extend(eng.run(bars, ticks))
     win = [t for t in trades
            if (not from_ist or ist(t["t_in"])[:5] >= from_ist)
            and (not to_ist or ist(t["t_in"])[:5] <= to_ist)]
@@ -58,20 +60,30 @@ def main():
     ap.add_argument("--to-ist")
     ap.add_argument("--min-rr", type=float)
     ap.add_argument("--cooldown", type=int)
+    ap.add_argument("--divided", action="store_true", help="run inv + retest stacks independently")
+    ap.add_argument("--dedupe", action="store_true", help="skip same-side entries within 5 min across stacks")
+    ap.add_argument("--tp-mode", default="far", choices=["far", "near"])
+    ap.add_argument("--partials", action="store_true")
     ap.add_argument("--matrix", action="store_true")
     args = ap.parse_args()
 
-    kw = {}
-    if args.min_rr is not None:
-        kw["min_rr"] = args.min_rr
+    shared = {"fills": []} if args.dedupe else None
+    base = {"min_rr": args.min_rr} if args.min_rr is not None else {}
     if args.cooldown is not None:
-        kw["cooldown"] = args.cooldown
+        base["cooldown"] = args.cooldown
+    base.update({"tp_mode": args.tp_mode, "partials": args.partials})
+    def make_engines():
+        sh = {"fills": []} if args.dedupe else None
+        if args.divided:
+            return [("inv", SMCIFVGEngine(entries="inv", shared=sh, **base)),
+                    ("retest", SMCIFVGEngine(entries="retest", shared=sh, **base))]
+        return [("both", SMCIFVGEngine(shared=sh, **base))]
 
     if args.matrix:
         grand_n = grand_w = 0
         grand_net = 0.0
         for d in DATES:
-            trades = run_session(d, kw, verbose=False)
+            trades = run_session(d, make_engines(), verbose=False)
             n, net, w, pf = summary_line(trades)
             grand_n += n; grand_net += net; grand_w += w
             print(f"{d}  {n:>3} trades  net {net:>+9.2f}  win {w}/{n}  PF {pf}")
@@ -79,7 +91,7 @@ def main():
               f"({100 * grand_w / max(1, grand_n):.0f}%)  avg {grand_net / max(1, grand_n):+.2f}/trade")
     else:
         date = args.date or "2026-09-02"
-        trades = run_session(date, kw, from_ist=args.from_ist, to_ist=args.to_ist)
+        trades = run_session(date, make_engines(), from_ist=args.from_ist, to_ist=args.to_ist)
         n, net, w, pf = summary_line(trades)
         print(f"\n  window: {n} trades · net {net:+.2f} pts · win {w}/{n} · PF {pf}")
 
