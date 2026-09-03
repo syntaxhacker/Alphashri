@@ -98,3 +98,17 @@
   regime (abandons every-month) or build a chop-mode (mean-reversion) complement system.
 - The loop's train/test split (4+2 sessions) was too small to catch this. All future keeps
   require month-level validation.
+
+### Parallel research wave (4 agents): forensics-3m + chop engine + regime + risk — all landed
+- Forensics-3m: top entry fixes = zone-age>30 (PF 0.87->0.94), displacement<0.25ATR skip (->0.90),
+  ATR 8->10 (->0.90). Negatives: no loss-cooldowns, no day-drift filter, chase is not the enemy.
+- Chop engine (trading/smc_chop.py): Jun+Aug +936.6, worst -161.6 vs trend -458/-414. July flat.
+  Verdict: complement-only. My re-run confirms direction (chop-days +481).
+- Regime (scripts/regime.py): locked pre-12:00 rule, Aug OOS 76% chop-correct. Allocator
+  (trend->engine, chop->0): +573.5 vs -3737.2. August trend days still -930.
+- Risk (trading/risk.py): flatten-35 turns Jul+Aug -1766 -> +130 worst -35; flatten-20 -> +52
+  worst -20. Entry-block-only proven broken. $150/day = 30pts MNQ; literal cap untradeable
+  at 1x — needs MES sizing, not tighter stops.
+- Combined allocator (trend-engine on trend days + chop-engine on chop days): ~+1050/3mo.
+  Still short of 800/mo. Next: integrate allocator + forensics top fixes + flatten into the
+  loop as measured runs; then 30-session confirmation.
