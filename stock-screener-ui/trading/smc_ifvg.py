@@ -27,6 +27,7 @@ class SMCIFVGEngine:
         cooldown: int = 3,
         retest_ttl: int = 30,
         max_zone_dist: float | None = None,  # disabled: per-trade sound but system-negative (path dependence), see docs
+        entries: str = "both",               # "both" | "inv" | "retest" — enables stacked/divided deployment
     ):
         self.gap_min = gap_min
         self.sl_buf = sl_buf
@@ -36,6 +37,7 @@ class SMCIFVGEngine:
         self.cooldown = cooldown
         self.retest_ttl = retest_ttl
         self.max_zone_dist = max_zone_dist
+        self.entries = entries
         # structure state
         self.trail_hi = None
         self.trail_lo = None
@@ -93,6 +95,11 @@ class SMCIFVGEngine:
         if self.pos is not None or self.pending is not None or i - self.last_exit < self.cooldown:
             return
         armed = None
+        if self.entries == "retest":
+            armed = self._arm_retest(bars, i, b)
+            if armed:
+                self._set_pending(armed, i)
+            return
         for f in self.fvgs:
             if f["inv"]:
                 continue
@@ -106,26 +113,38 @@ class SMCIFVGEngine:
                 if self.bos_dir == -1 and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist):
                     refs = [x for x in (self.trail_hi, f["top"]) if x is not None]
                     armed = ("inv", "SHORT", min(refs), f)
-        if armed is None and self.bos_dir != 0:
-            if self.bos_dir == -1:
-                zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bear"
-                         and f["bot"] > b["close"]
-                         and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist)]
-                if zones:
-                    f = min(zones, key=lambda z: z["bot"])
-                    armed = ("retest", "SHORT", f["top"], f)
-            else:
-                zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bull"
-                         and f["top"] < b["close"]
-                         and (self.max_zone_dist is None or b["close"] - f["top"] <= self.max_zone_dist)]
-                if zones:
-                    f = max(zones, key=lambda z: z["top"])
-                    armed = ("retest", "LONG", f["bot"], f)
+        if armed is None:
+            r = self._arm_retest(bars, i, b)
+            if r:
+                armed = r
         if armed:
-            kind, side, sl_ref, f = armed
-            self.pending = {"kind": kind, "side": side, "sl_ref": sl_ref, "sig_i": i, "zone": f,
-                            "trigger": f["bot"] if (kind == "retest" and side == "SHORT") else
-                                       (f["top"] if kind == "retest" else None)}
+            self._set_pending(armed, i)
+
+    def _set_pending(self, armed, i):
+        kind, side, sl_ref, f = armed
+        self.pending = {"kind": kind, "side": side, "sl_ref": sl_ref, "sig_i": i, "zone": f,
+                        "trigger": f["bot"] if (kind == "retest" and side == "SHORT") else
+                                   (f["top"] if kind == "retest" else None)}
+
+    def _arm_retest(self, bars, i, b):
+        """Zone-fade arming (retest stack): pullback into nearest active opposing zone."""
+        if self.bos_dir == 0:
+            return None
+        if self.bos_dir == -1:
+            zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bear"
+                     and f["bot"] > b["close"]
+                     and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist)]
+            if zones:
+                f = min(zones, key=lambda z: z["bot"])
+                return ("retest", "SHORT", f["top"], f)
+        else:
+            zones = [f for f in self.fvgs if not f["inv"] and f["type"] == "bull"
+                     and f["top"] < b["close"]
+                     and (self.max_zone_dist is None or b["close"] - f["top"] <= self.max_zone_dist)]
+            if zones:
+                f = max(zones, key=lambda z: z["top"])
+                return ("retest", "LONG", f["bot"], f)
+        return None
 
     # ---------------- target selection (full history, never forward) ----------------
     def find_tp(self, bars, i, side, entry, risk):
