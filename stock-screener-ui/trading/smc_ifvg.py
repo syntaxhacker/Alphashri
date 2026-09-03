@@ -42,6 +42,7 @@ class SMCIFVGEngine:
         day_stop_pts: float | None = None,   # arm blocked rest of IST day once day P&L <= -this
         day_flatten_pts: float | None = None,  # close ALL at breach tick + block rest of day (true DD cap)
         max_trades_day: int | None = None,     # A++ discipline: max fills per IST day
+        max_risk_atr: float | None = None,     # skip arms with est. risk > this x ATR(14) (winners: 0.88)
         session_date: str | None = None,       # YYYY-MM-DD for daily-bias gating
         daily_bias: dict | None = None,        # {date: +1/-1/0} from scripts/htf_bias.py (history-only)
     ):
@@ -66,6 +67,7 @@ class SMCIFVGEngine:
         self.day_stop_pts = day_stop_pts
         self.day_flatten_pts = day_flatten_pts
         self.max_trades_day = max_trades_day
+        self.max_risk_atr = max_risk_atr
         self._day_fills = 0
         self._fill_day = None
         self._flat_day = None
@@ -267,6 +269,10 @@ class SMCIFVGEngine:
         risk = abs(fill - sl)
         if risk < self.min_risk:
             return False
+        if self.max_risk_atr is not None and i >= 14:
+            atr = sum(bars[k]["high"] - bars[k]["low"] for k in range(i - 13, i + 1)) / 14.0
+            if atr > 0 and risk / atr > self.max_risk_atr:
+                return False
         if self.max_trades_day is not None:
             day = (ts_ms // 1000 + 19800) // 86400
             if day != self._fill_day:

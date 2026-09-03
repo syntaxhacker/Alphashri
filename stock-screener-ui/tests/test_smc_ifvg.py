@@ -390,3 +390,11 @@ class TestTradeCap:
         assert eng.open_pos("LONG", 100, 95, 1, "inv", 60_000, bars) is True
         eng.pos = None
         assert eng.open_pos("LONG", 100, 95, 2, "inv", 120_000, bars) is False   # cap reached
+
+
+class TestRiskCap:
+    def test_wide_risk_rejected(self):
+        eng = SMCIFVGEngine(min_risk=0.1, max_risk_atr=1.0)
+        bars = [bar(i * 60, 100, 102, 98, 100) for i in range(20)]  # ATR 4.0
+        assert eng.open_pos("LONG", 100, 90, 19, "inv", 0, bars) is False   # risk 10 > 4.0
+        assert eng.open_pos("LONG", 100, 97, 19, "inv", 0, bars) is True    # risk 3 <= 4.0
