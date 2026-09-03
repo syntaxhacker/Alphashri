@@ -184,3 +184,28 @@ class TestDivideAndTPFixes:
                                 tick(90_000, 99.8, 100.2)])   # back to entry -> BE exit
         assert len(trades) == 1
         assert trades[0]["pnl"] == 2.5                    # 0.5*5 + 0.5*0
+
+
+class TestInvFlip:
+    def test_strong_inversion_flips_bias_and_arms(self):
+        eng = SMCIFVGEngine(inv_flip_margin=3.0)
+        eng.bos_dir = -1  # trend short...
+        eng.fvgs.append({"type": "bear", "top": 100.0, "bot": 98.0, "form": 5, "inv": False, "used": False})
+        eng.trail_lo = 96.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 99, 105, 99, 104)   # close 104 clears zone top 100 by 4 >= 3
+        eng.on_close(bars, 7)
+        assert eng.bos_dir == 1                    # bias flipped by the inversion itself
+        assert eng.pending is not None             # ...and armed, not consumed
+        assert eng.pending["side"] == "LONG"
+
+    def test_weak_inversion_does_not_flip(self):
+        eng = SMCIFVGEngine(inv_flip_margin=3.0)
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bear", "top": 100.0, "bot": 98.0, "form": 5, "inv": False, "used": False})
+        eng.trail_lo = 96.0
+        bars = flat_bars(8)
+        bars[7] = bar(7 * 60, 99, 101.5, 99, 101)  # clears by only 1 < 3
+        eng.on_close(bars, 7)
+        assert eng.bos_dir == -1
+        assert eng.pending is None

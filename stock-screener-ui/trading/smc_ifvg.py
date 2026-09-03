@@ -27,6 +27,8 @@ class SMCIFVGEngine:
         cooldown: int = 3,
         retest_ttl: int = 30,
         max_zone_dist: float | None = None,  # disabled: per-trade sound but system-negative (path dependence), see docs
+        inv_flip_margin: float | None = None,  # strong inversion (close clears zone edge by >= margin)
+                                               # flips bos_dir immediately instead of dying unaligned
         entries: str = "both",               # "both" | "inv" | "retest" — enables stacked/divided deployment
         tp_mode: str = "far",                # "far": farthest RR>=min_rr target (LONG); "near": nearest — fixes LONG/SHORT asymmetry
         partials: bool = False,              # take half at +1R, move stop to breakeven
@@ -40,6 +42,7 @@ class SMCIFVGEngine:
         self.cooldown = cooldown
         self.retest_ttl = retest_ttl
         self.max_zone_dist = max_zone_dist
+        self.inv_flip_margin = inv_flip_margin
         self.entries = entries
         self.tp_mode = tp_mode
         self.partials = partials
@@ -111,11 +114,15 @@ class SMCIFVGEngine:
                 continue
             if f["type"] == "bear" and b["close"] > f["top"]:
                 f["inv"] = True
+                if self.inv_flip_margin is not None and self.bos_dir == -1 and b["close"] - f["top"] >= self.inv_flip_margin:
+                    self.bos_dir = 1   # strong inversion = the structure break itself
                 if self.bos_dir == 1 and (self.max_zone_dist is None or b["close"] - f["top"] <= self.max_zone_dist):
                     refs = [x for x in (self.trail_lo, f["bot"]) if x is not None]
                     armed = ("inv", "LONG", max(refs), f)
             elif f["type"] == "bull" and b["close"] < f["bot"]:
                 f["inv"] = True
+                if self.inv_flip_margin is not None and self.bos_dir == 1 and f["bot"] - b["close"] >= self.inv_flip_margin:
+                    self.bos_dir = -1
                 if self.bos_dir == -1 and (self.max_zone_dist is None or f["bot"] - b["close"] <= self.max_zone_dist):
                     refs = [x for x in (self.trail_hi, f["top"]) if x is not None]
                     armed = ("inv", "SHORT", min(refs), f)
