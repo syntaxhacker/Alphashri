@@ -135,3 +135,11 @@
 - Standing conclusion: this engine's edge is volume of +EV structured shots (+4.6/trade),
   not a few perfect setups. "A++ only" by restriction is exhausted; selectivity must come
   from better setup GRADING (unbuilt), not throttling.
+
+### A++ investigation closed: selectivity by restriction is exhausted
+- Winner profile (July top-20 by R): retest 16/20, planned RR med 8.0, risk/ATR med 0.88.
+- Operationalizations tested on July: retest+RR5 +1669/538 (best); +riskcap1.2 +732/504
+  (winners need wide stops); RR6 +1338; RR8 +606; count caps (kill month); cooldowns (kill).
+- Verdict: top-decile signature cannot be isolated ex-ante — every filter that removes the
+  500+ small trades also removes the conditions producing the 20 best. A++ as "few trades,
+  all high-RR" does not exist in this engine family at 1m. Closest: retest-RR5 (PF 1.27).
