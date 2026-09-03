@@ -126,3 +126,12 @@
 - 3-month still negative (regime problem untouched) — flatten is loss-control, not edge.
 - Best config now: session 12-23 + ATR>=10 + flatten-150 (DD) — validated stack for the
   regime allocator + chop engine integration next.
+
+### A++ pursuit: count caps FAIL (July)
+- cap3/day: 69 trades, net -5.7, PF 0.99. cap5/day: 115 trades, +140.5, PF 1.09.
+- Base (uncapped): 332 trades, +1230, PF 1.19. First-N signals are morning chop;
+  the big winners arrive later in the day. Selectivity by count/RR-gate/cooldown all fail
+  the same way: restrictions cut winners faster than losers.
+- Standing conclusion: this engine's edge is volume of +EV structured shots (+4.6/trade),
+  not a few perfect setups. "A++ only" by restriction is exhausted; selectivity must come
+  from better setup GRADING (unbuilt), not throttling.
