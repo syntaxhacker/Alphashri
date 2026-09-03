@@ -144,9 +144,10 @@ def get_smc_ifvg(
     date: str = Query(..., description="YYYY-MM-DD"),
     from_ist: str | None = Query(default=None, description="filter trades entered at/after HH:MM IST"),
     to_ist: str | None = Query(default=None, description="filter trades entered at/before HH:MM IST"),
+    entries: str = Query(default="both", description="inv | retest | both — divided stacks or legacy coupled"),
 ):
     """SMCIFVGEngine (trading/smc_ifvg.py) on Dukascopy ticks — tick-accurate fills, no lookahead."""
-    key = f"smc-ifvg:{date}:{from_ist or ''}:{to_ist or ''}"
+    key = f"smc-ifvg:{date}:{from_ist or ''}:{to_ist or ''}:{entries}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
@@ -162,7 +163,7 @@ def get_smc_ifvg(
     except Exception as e:
         return {"date": date, "bars": [], "trades": [], "error": f"tick fetch failed: {e}"}
     bars = build_1m_bars(ticks)
-    trades = SMCIFVGEngine().run(bars, ticks)
+    trades = SMCIFVGEngine(entries=entries).run(bars, ticks)
     out = []
     for t in trades:
         tin = datetime.fromtimestamp(t["t_in"] / 1000, tz=IST).strftime("%H:%M")

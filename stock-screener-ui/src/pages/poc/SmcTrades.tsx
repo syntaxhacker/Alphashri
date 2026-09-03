@@ -13,7 +13,10 @@ import type { Bar } from "@/utils/smc";
 
 // Real trades from /api/poc/smc-ifvg — SMCIFVGEngine (trading/smc_ifvg.py) run bar-by-bar
 // on Dukascopy ticks: history-only signals, tick-accurate fills (ask/bid), SL-first exits.
+type Stack = "inv" | "retest";
+
 type SmcTrade = {
+  stack: Stack;
   time: number;
   exit_time: number;
   side: "LONG" | "SHORT";
@@ -39,6 +42,8 @@ const formatTradeTime = (timestamp: number) => {
 
 const resultColor = (result: string) => (result === "TP" ? "success" : result === "TRAIL" ? "warning" : "error");
 const kindLabel = (kind: string) => (kind === "inv" ? "iFVG inversion" : "FVG retest");
+const stackLabel = (stack: Stack): string => (stack === "inv" ? "MOMENTUM" : "REVERSION");
+const stackColor = (stack: Stack) => (stack === "inv" ? "#2563EB" : "#A855F7");
 
 export default function SmcTrades() {
   const [date, setDate] = useState(DUKA_DATES[0]);
@@ -49,15 +54,24 @@ export default function SmcTrades() {
   useEffect(() => {
     setLoading(true);
     const q = windowOnly ? `&from_ist=${WINDOW.from}&to_ist=${WINDOW.to}` : "";
-    fetch(`/api/poc/smc-ifvg?date=${date}${q}`)
-      .then(r => r.json())
-      .then(j => setData({ bars: j.bars || [], trades: (j.trades || []) as SmcTrade[], error: j.error }))
+    Promise.all([
+      fetch(`/api/poc/smc-ifvg?date=${date}${q}&entries=inv`).then(r => r.json()),
+      fetch(`/api/poc/smc-ifvg?date=${date}${q}&entries=retest`).then(r => r.json()),
+    ])
+      .then(([mi, mr]) => {
+        const bars = (mi.bars || mr.bars || []) as Bar[];
+        const ti = ((mi.trades || []) as Omit<SmcTrade, "stack">[]).map(t => ({ ...t, stack: "inv" as Stack }));
+        const tr = ((mr.trades || []) as Omit<SmcTrade, "stack">[]).map(t => ({ ...t, stack: "retest" as Stack }));
+        const trades = [...ti, ...tr].sort((a, b) => a.time - b.time);
+        setData({ bars, trades, error: mi.error && mr.error ? mi.error : undefined });
+      })
       .catch(() => setData({ bars: [], trades: [], error: "fetch failed" }))
       .finally(() => setLoading(false));
   }, [date, windowOnly]);
 
   const net = (data?.trades || []).reduce((a, t) => a + t.pnl, 0);
   const wins = (data?.trades || []).filter(t => t.pnl > 0).length;
+  const netStack = (st: Stack) => (data?.trades || []).filter(t => t.stack === st).reduce((a, t) => a + t.pnl, 0);
 
   return (
     <Box sx={{ p: 2, width: "100%" }} data-testid="smc-trades">
@@ -91,6 +105,8 @@ export default function SmcTrades() {
         <Chip size="small" label={`${data?.trades.length ?? 0} trades`} sx={{ bgcolor: "#1F2937", color: "#00FF00" }} />
         <Chip size="small" label={`win ${wins}/${data?.trades.length ?? 0}`} sx={{ bgcolor: "#1F2937", color: "#9CA3AF" }} />
         <Chip size="small" label={`net ${net > 0 ? "+" : ""}${net.toFixed(1)} pts`} color={net > 0 ? "success" : "error"} />
+        <Chip size="small" label={`MOMENTUM ${netStack("inv") > 0 ? "+" : ""}${netStack("inv").toFixed(1)}`} sx={{ bgcolor: "#1F2937", color: "#58A6FF", border: `1px solid ${stackColor("inv")}` }} />
+        <Chip size="small" label={`REVERSION ${netStack("retest") > 0 ? "+" : ""}${netStack("retest").toFixed(1)}`} sx={{ bgcolor: "#1F2937", color: "#CE9BFC", border: `1px solid ${stackColor("retest")}` }} />
         {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: "#58A6FF" }} />}
         {data?.error && <Chip size="small" label={data.error} color="error" />}
       </Stack>
