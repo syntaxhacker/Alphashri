@@ -146,7 +146,7 @@ def get_tick_replay(
     orb: int = Query(default=15, description="opening-range minutes (1m bars)"),
 ):
     """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
-    key = f"tick-replay:{date}:{secs}:{orb}"
+    key = f"tick-replay:v2:{date}:{secs}:{orb}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
