@@ -140,6 +140,11 @@ export default function TickReplay() {
   // playback loop: advance clock, paint at most 10fps
   useEffect(() => {
     if (!playing || !bundle || !tEnd) return;
+    if (clockRef.current <= 0 && t0 > 0) {
+      clockRef.current = t0;
+      setClock(t0);
+      paint(t0);
+    }
     let last = performance.now();
     const step = (t: number) => {
       const dt = (t - last) / 1000;
@@ -178,6 +183,13 @@ export default function TickReplay() {
     setClock(v);
     paint(v);
   }, [paint]);
+
+  // initialize clock at first candle so the chart/time/slider are correct before play
+  useEffect(() => {
+    if (bundle && bundle.candles.length && clockRef.current <= 0) {
+      jump(bundle.candles[0].time);
+    }
+  }, [bundle, jump]);
 
   return (
     <Box sx={{ p: 2, width: "100%" }} data-testid="tick-replay">
