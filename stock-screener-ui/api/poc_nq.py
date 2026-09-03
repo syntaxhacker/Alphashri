@@ -151,11 +151,12 @@ def get_tick_replay(
         return _cache[key]["data"]
     try:
         from trading.vwap_orb import VWAPORBEngine, OR_BARS
-        from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
+        from scripts.smc_tick_eval import build_1m_bars
+        from scripts.nq_ticks import fetch_nq_ticks
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"import failed: {e}"}
     try:
-        ticks = fetch_ticks(date)
+        ticks, basis = fetch_nq_ticks(date)
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"tick fetch failed: {e}"}
     bars = build_1m_bars(ticks)
@@ -201,7 +202,7 @@ def get_tick_replay(
     data = {"date": date, "count": len(out), "candles": candles, "vwap": vwap,
             "or_high": round(max((b["high"] for b in bars[:OR_BARS]), default=0), 2),
             "or_low": round(min((b["low"] for b in bars[:OR_BARS]), default=0), 2),
-            "trades": out}
+            "trades": out, "basis": basis["median"], "basis_method": basis["method"], "symbol": "NQ=F"}
     _cache[key] = {"ts": now, "data": data}
     return data
 
@@ -214,7 +215,7 @@ def get_smc_ifvg(
     entries: str = Query(default="both", description="inv | retest | both — divided stacks or legacy coupled"),
     flip: float | None = Query(default=None, description="inv_flip_margin: strong inversions flip bias (experimental)"),
 ):
-    """SMCIFVGEngine (trading/smc_ifvg.py) on Dukascopy ticks — tick-accurate fills, no lookahead."""
+    """SMCIFVGEngine (trading/smc_ifvg.py) on real NQ ticks — tick-accurate fills, no lookahead."""
     key = f"smc-ifvg:{date}:{from_ist or ''}:{to_ist or ''}:{entries}:{flip}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
@@ -223,11 +224,12 @@ def get_smc_ifvg(
         from datetime import datetime
         from config import IST
         from trading.smc_ifvg import SMCIFVGEngine
-        from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
+        from scripts.smc_tick_eval import build_1m_bars
+        from scripts.nq_ticks import fetch_nq_ticks
     except Exception as e:
         return {"date": date, "bars": [], "trades": [], "error": f"import failed: {e}"}
     try:
-        ticks = fetch_ticks(date)
+        ticks, basis = fetch_nq_ticks(date)
     except Exception as e:
         return {"date": date, "bars": [], "trades": [], "error": f"tick fetch failed: {e}"}
     bars = build_1m_bars(ticks)
@@ -245,6 +247,7 @@ def get_smc_ifvg(
             "side": t["side"], "kind": t["kind"], "entry": t["entry"], "sl": t["sl"],
             "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
         })
-    data = {"date": date, "count": len(out), "bars": bars, "trades": out}
+    data = {"date": date, "count": len(out), "bars": bars, "trades": out,
+            "basis": basis["median"], "basis_method": basis["method"], "symbol": "NQ=F"}
     _cache[key] = {"ts": now, "data": data}
     return data

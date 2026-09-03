@@ -49,7 +49,7 @@ export default function SmcTrades() {
   const [date, setDate] = useState(DUKA_DATES[0]);
   const [windowOnly, setWindowOnly] = useState(true);
   const [earlyInv, setEarlyInv] = useState(false);
-  const [data, setData] = useState<{ bars: Bar[]; trades: SmcTrade[]; error?: string } | null>(null);
+  const [data, setData] = useState<{ bars: Bar[]; trades: SmcTrade[]; error?: string; basis?: number } | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,7 +65,7 @@ export default function SmcTrades() {
         const ti = ((mi.trades || []) as Omit<SmcTrade, "stack">[]).map(t => ({ ...t, stack: "inv" as Stack }));
         const tr = ((mr.trades || []) as Omit<SmcTrade, "stack">[]).map(t => ({ ...t, stack: "retest" as Stack }));
         const trades = [...ti, ...tr].sort((a, b) => a.time - b.time);
-        setData({ bars, trades, error: mi.error && mr.error ? mi.error : undefined });
+        setData({ bars, trades, basis: mi.basis ?? mr.basis, error: mi.error && mr.error ? mi.error : undefined });
       })
       .catch(() => setData({ bars: [], trades: [], error: "fetch failed" }))
       .finally(() => setLoading(false));
@@ -77,9 +77,9 @@ export default function SmcTrades() {
 
   return (
     <Box sx={{ p: 2, width: "100%" }} data-testid="smc-trades">
-      <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>SMC iFVG — validated engine on Dukascopy ticks</Typography>
+      <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>SMC iFVG — validated engine on real NQ ticks</Typography>
       <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
-        trading/smc_ifvg.py · history-only signals · tick fills (ask/bid, SL-first) · structure TP (RR≥3) or trail · {TZ_IST_LABEL}
+        trading/smc_ifvg.py · history-only signals · tick fills (ask/bid, SL-first) · structure TP (RR≥3) or trail · NQ=F {data?.basis != null ? `(basis +${data.basis.toFixed(1)})` : ""} · {TZ_IST_LABEL}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
         {DUKA_DATES.map(d => (

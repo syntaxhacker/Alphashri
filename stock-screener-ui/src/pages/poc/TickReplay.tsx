@@ -28,7 +28,7 @@ const fmtT = (ts: number) =>
 
 export default function TickReplay() {
   const [date, setDate] = useState(DATES[0]);
-  const [bundle, setBundle] = useState<{ candles: Candle[]; vwap: VwapPt[]; or_high: number; or_low: number; trades: RTrade[] } | null>(null);
+  const [bundle, setBundle] = useState<{ candles: Candle[]; vwap: VwapPt[]; or_high: number; or_low: number; trades: RTrade[]; basis?: number } | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(60);
@@ -48,7 +48,7 @@ export default function TickReplay() {
     setPos(0);
     fetch(`/api/poc/tick-replay?date=${date}&secs=2`)
       .then(r => r.json())
-      .then(j => setBundle({ candles: j.candles || [], vwap: j.vwap || [], or_high: j.or_high, or_low: j.or_low, trades: j.trades || [] }))
+      .then(j => setBundle({ candles: j.candles || [], vwap: j.vwap || [], or_high: j.or_high, or_low: j.or_low, trades: j.trades || [], basis: j.basis }))
       .catch(() => setBundle({ candles: [], vwap: [], or_high: 0, or_low: 0, trades: [] }))
       .finally(() => setLoading(false));
   }, [date]);
@@ -150,9 +150,9 @@ export default function TickReplay() {
 
   return (
     <Box sx={{ p: 2, width: "100%" }} data-testid="tick-replay">
-      <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>Tick Replay — VWAP + ORB on live NQ ticks</Typography>
+      <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>Tick Replay — VWAP + ORB on real NQ ticks</Typography>
       <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
-        2s candles from Dukascopy ticks · OR = first 15m · LONG above OR-H + VWAP / SHORT below OR-L + VWAP · SL opposite edge, TP 2R · {TZ_IST_LABEL}
+        2s NQ=F candles (basis-adjusted ticks){bundle?.basis != null ? ` · basis +${bundle.basis.toFixed(1)}` : ""} · OR = first 15m · LONG above OR-H + VWAP / SHORT below OR-L + VWAP · SL opposite edge, TP 2R · {TZ_IST_LABEL}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
         {DATES.map(d => (
