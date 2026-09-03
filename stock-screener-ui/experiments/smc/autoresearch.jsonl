@@ -1,1 +1,7 @@
 {"type":"config","name":"smc-trend-break-pf","metricName":"pf_test","metricUnit":"ratio","bestDirection":"higher"}
+{"run":1,"commit":"c5c52aa","metric":0.841,"metrics":{"pf_train":1.569,"net_test":-143.92,"net_train":1019.27,"trades_test":52,"trades_train":102},"status":"keep","description":"baseline RR3 coupled engine","timestamp":1788422420,"segment":0}
+{"run":2,"commit":"c5c52aa","metric":0.498,"metrics":{"pf_train":1.571,"net_test":-579.57,"net_train":1003.6},"status":"discard","description":"BE stop at +1.5R","timestamp":1788422503,"segment":0}
+{"run":3,"commit":"c5c52aa","metric":0.841,"metrics":{"pf_train":1.723,"net_test":-143.92,"net_train":1267.87},"status":"discard","description":"relative chase filter max_chase_r=1.0","timestamp":1788422736,"segment":0}
+{"run":4,"commit":"3f277bb","metric":0.838,"metrics":{"pf_train":1.724,"net_test":-123.09,"net_train":882.2},"status":"discard","description":"session 12:00-23:00 IST only","timestamp":1788422979,"segment":0}
+{"run":5,"commit":"3f277bb","metric":0.928,"metrics":{"pf_train":1.713,"net_test":-52.93,"net_train":863.62},"status":"keep","description":"session 12-23 + ATR>=8","timestamp":1788422979,"segment":0}
+{"run":6,"commit":"3f277bb","metric":0.0,"metrics":{"pf_train":1.864,"net_test":-106.42,"net_train":484.8},"status":"discard","description":"daystop 40 + session + ATR","timestamp":1788422979,"segment":0}
