@@ -139,6 +139,73 @@ def get_smc_trades(date: str = Query(..., description="YYYY-MM-DD")):
     return data
 
 
+@router.get("/tick-replay")
+def get_tick_replay(
+    date: str = Query(...),
+    secs: int = Query(default=2, description="candle seconds for tick chart"),
+):
+    """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
+    key = f"tick-replay:{date}:{secs}"
+    now = time.time()
+    if key in _cache and now - _cache[key]["ts"] < 3600:
+        return _cache[key]["data"]
+    try:
+        from trading.vwap_orb import VWAPORBEngine, OR_BARS
+        from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
+    except Exception as e:
+        return {"date": date, "candles": [], "trades": [], "error": f"import failed: {e}"}
+    try:
+        ticks = fetch_ticks(date)
+    except Exception as e:
+        return {"date": date, "candles": [], "trades": [], "error": f"tick fetch failed: {e}"}
+    bars = build_1m_bars(ticks)
+    eng = VWAPORBEngine()
+    trades = eng.run(bars, ticks)
+    # N-second candles + session VWAP series
+    seconds = max(1, min(secs, 60))
+    buckets: dict = {}
+    for t in ticks:
+        k = int(t["timestamp"] // 1000 // seconds) * seconds
+        bid = t["bidPrice"]
+        b = buckets.get(k)
+        if b is None:
+            buckets[k] = {"time": k, "open": bid, "high": bid, "low": bid, "close": bid}
+        else:
+            b["high"] = max(b["high"], bid)
+            b["low"] = min(b["low"], bid)
+            b["close"] = bid
+    candles = [buckets[k] for k in sorted(buckets)]
+    # progressive session VWAP: value at each candle uses only ticks up to that candle
+    vwap = []
+    pv = vv = 0.0
+    ti = 0
+    ticks_sorted = sorted(ticks, key=lambda t: t["timestamp"])
+    for c in candles:
+        end_ms = (c["time"] + seconds) * 1000
+        while ti < len(ticks_sorted) and ticks_sorted[ti]["timestamp"] < end_ms:
+            t = ticks_sorted[ti]
+            v = (t.get("askVolume") or 0) + (t.get("bidVolume") or 0)
+            if v > 0:
+                pv += ((t["askPrice"] + t["bidPrice"]) / 2.0) * v
+                vv += v
+            ti += 1
+        vwap.append({"time": c["time"], "value": round(pv / vv, 2) if vv else c["close"]})
+    out = []
+    for t in trades:
+        out.append({
+            "time": int(t["t_in"] // (1000 * seconds)) * seconds,
+            "exit_time": int(t["t_out"] // (1000 * seconds)) * seconds,
+            "side": t["side"], "kind": "vwap-orb", "entry": t["entry"], "sl": t["sl"],
+            "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
+        })
+    data = {"date": date, "count": len(out), "candles": candles, "vwap": vwap,
+            "or_high": round(max((b["high"] for b in bars[:OR_BARS]), default=0), 2),
+            "or_low": round(min((b["low"] for b in bars[:OR_BARS]), default=0), 2),
+            "trades": out}
+    _cache[key] = {"ts": now, "data": data}
+    return data
+
+
 @router.get("/smc-ifvg")
 def get_smc_ifvg(
     date: str = Query(..., description="YYYY-MM-DD"),
