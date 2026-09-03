@@ -162,11 +162,11 @@ def get_tick_replay(
     bars = build_1m_bars(ticks)
     eng = VWAPORBEngine()
     trades = eng.run(bars, ticks)
-    # N-second candles + session VWAP series
-    seconds = max(1, min(secs, 60))
+    # 1m candles (chart timeframe) + 5s sub-candles (live forming-bar ticks) + per-1m VWAP
+    sub_s = 5
     buckets: dict = {}
     for t in ticks:
-        k = int(t["timestamp"] // 1000 // seconds) * seconds
+        k = int(t["timestamp"] // 1000 // sub_s) * sub_s
         bid = t["bidPrice"]
         b = buckets.get(k)
         if b is None:
@@ -175,14 +175,15 @@ def get_tick_replay(
             b["high"] = max(b["high"], bid)
             b["low"] = min(b["low"], bid)
             b["close"] = bid
-    candles = [buckets[k] for k in sorted(buckets)]
-    # progressive session VWAP: value at each candle uses only ticks up to that candle
+    subs = [buckets[k] for k in sorted(buckets)]
+    candles = [{"time": b["time"], "open": b["open"], "high": b["high"], "low": b["low"], "close": b["close"]} for b in bars]
+    # progressive session VWAP: value at each 1m candle uses only ticks up to that candle
     vwap = []
     pv = vv = 0.0
     ti = 0
     ticks_sorted = sorted(ticks, key=lambda t: t["timestamp"])
     for c in candles:
-        end_ms = (c["time"] + seconds) * 1000
+        end_ms = (c["time"] + 60) * 1000
         while ti < len(ticks_sorted) and ticks_sorted[ti]["timestamp"] < end_ms:
             t = ticks_sorted[ti]
             v = (t.get("askVolume") or 0) + (t.get("bidVolume") or 0)
@@ -194,12 +195,12 @@ def get_tick_replay(
     out = []
     for t in trades:
         out.append({
-            "time": int(t["t_in"] // (1000 * seconds)) * seconds,
-            "exit_time": int(t["t_out"] // (1000 * seconds)) * seconds,
+            "time": int(t["t_in"] // 60000) * 60,
+            "exit_time": int(t["t_out"] // 60000) * 60,
             "side": t["side"], "kind": "vwap-orb", "entry": t["entry"], "sl": t["sl"],
             "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
         })
-    data = {"date": date, "count": len(out), "candles": candles, "vwap": vwap,
+    data = {"date": date, "count": len(out), "candles": candles, "subs": subs, "vwap": vwap,
             "or_high": round(max((b["high"] for b in bars[:OR_BARS]), default=0), 2),
             "or_low": round(min((b["low"] for b in bars[:OR_BARS]), default=0), 2),
             "trades": out, "basis": basis["median"], "basis_method": basis["method"], "symbol": "NQ=F"}
