@@ -58,27 +58,13 @@ def test_compute_or_window_short_session():
     assert compute_or_window([bar(0, 100, 101, 99, 100)], 15) == (0.0, 0.0, 0)
 
 
-def test_rej_exit_on_double_rejection():
-    eng = VWAPORBEngine(rej_exit=True, rej_depth_pts=2.0)
-    eng.pos = {"side": "LONG", "entry": 100, "sl": 90, "tp": 130, "i": 0, "ts": 0,
-               "rej": {"edge": 110.0, "touched": False, "rej": 0}}
-    bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 113, 100, 108),
-            bar(120, 108, 113, 100, 107)]
-    ticks = [tick(60_000, 100.0), tick(120_000, 105.0)]
-    trades = eng.run(bars, ticks)
-    assert len(trades) == 1
-    assert trades[0]["result"] == "REJ"
-
-
-def test_rej_ignores_shallow_tags():
-    eng = VWAPORBEngine(rej_exit=True, rej_depth_pts=4.0)
-    eng.pos = {"side": "LONG", "entry": 100, "sl": 90, "tp": 130, "i": 0, "ts": 0,
-               "rej": {"edge": 110.0, "touched": False, "rej": 0}}
-    bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 111, 100, 108),
-            bar(120, 108, 111.5, 100, 107)]
-    ticks = [tick(60_000, 100.0), tick(120_000, 105.0)]
-    trades = eng.run(bars, ticks)
-    assert trades == []   # 1-1.5pt tags never reach 4pt depth -> no exit
+def test_struct_tp_uses_overnight_history():
+    eng = VWAPORBEngine()
+    hist = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 100.5, 99.5, 100),
+            bar(120, 100, 100.5, 99.5, 100), bar(180, 100, 101, 99.5, 100),
+            bar(240, 100, 100.5, 99.5, 100)]     # pivot high 101 overnight
+    bars = [bar(i * 60 + 300, 100, 100.5, 99.5, 100) for i in range(6)]
+    assert eng._struct_tp(hist + bars, 8, "LONG", 100.5) == 101
 
 
 def test_struct_tp_nearest_untouched():

@@ -144,11 +144,10 @@ def get_tick_replay(
     date: str = Query(...),
     secs: int = Query(default=2, description="candle seconds for tick chart"),
     orb: int = Query(default=15, description="opening-range minutes (1m bars)"),
-    hist: int = Query(default=0, description="overnight history hours for structure only"),
-    rej: int = Query(default=0, description="1 = enable double-rejection exits"),
+    hist: int = Query(default=8, description="overnight history hours for structure"),
 ):
     """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
-    key = f"tick-replay:v3:{date}:{secs}:{orb}:{hist}:{rej}"
+    key = f"tick-replay:v4:{date}:{secs}:{orb}:{hist}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
@@ -174,7 +173,7 @@ def get_tick_replay(
         except Exception:
             hist_bars = []
     orb = max(1, min(int(orb), 120))
-    eng = VWAPORBEngine(or_bars=orb, rej_exit=bool(rej))
+    eng = VWAPORBEngine(or_bars=orb)
     trades = eng.run(bars, ticks, hist=hist_bars if hist_bars else None)
     or_high, or_low, or_end = compute_or_window(bars, orb)
     # 1m candles (chart timeframe) + 5s sub-candles (live forming-bar ticks) + per-1m VWAP

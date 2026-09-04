@@ -6,8 +6,7 @@ Rules (history-only):
   LONG: 1m close breaks above OR high AND close > VWAP -> buy next tick (ask).
   SHORT: 1m close breaks below OR low AND close < VWAP -> sell next tick (bid).
   SL: opposite OR edge.
-  TP: nearest of (untouched structural pivot, fixed RR multiple).
-  REJ exit (opt-in): 2nd deep rejection at nearest opposing FVG/pivot zone.
+  TP: nearest untouched structural pivot (incl. overnight history), else fixed RR.
   One position at a time, cooldown after exit.
   Exits evaluated per tick (SL-first), same conventions as SMCIFVGEngine.
 """
@@ -33,13 +32,10 @@ def compute_or_window(bars, orb_minutes: int):
 
 
 class VWAPORBEngine:
-    def __init__(self, or_bars: int = OR_BARS, rr: float = RR, cooldown: int = COOLDOWN,
-                 rej_exit: bool = False, rej_depth_pts: float = 4.0):
+    def __init__(self, or_bars: int = OR_BARS, rr: float = RR, cooldown: int = COOLDOWN):
         self.or_bars = or_bars
         self.rr = rr
         self.cooldown = cooldown
-        self.rej_exit = rej_exit
-        self.rej_depth_pts = rej_depth_pts
         self.pos = None
         self.pending = None
         self.last_exit = -999
@@ -73,27 +69,6 @@ class VWAPORBEngine:
                 if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
                     best = lvl if best is None else max(best, lvl)
         return best
-
-    def _rej_zone(self, bars, i, side, entry):
-        """Nearest opposing zone edge above (LONG) / below (SHORT) entry. None if absent."""
-        best = None
-        for j in range(2, i - 2):
-            w = bars[j - 2:j + 3]
-            if side == "LONG":
-                if not all(w[2]["high"] > w[k]["high"] for k in (0, 1, 3, 4)):
-                    continue
-                lvl = w[2]["high"]
-                if lvl > entry and all(bars[k]["high"] < lvl for k in range(j + 3, i)):
-                    best = lvl if best is None else min(best, lvl)
-            else:
-                if not all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
-                    continue
-                lvl = w[2]["low"]
-                if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
-                    best = lvl if best is None else max(best, lvl)
-        if best is None:
-            return None
-        return {"edge": best, "touched": False, "rej": 0}
 
     def run(self, bars, ticks, hist=None):
         """hist: optional overnight bars used for STRUCTURE ONLY (zones/TP). Session logic
@@ -141,9 +116,7 @@ class VWAPORBEngine:
                         else:
                             tp = max(x for x in [tp_fixed] + ([tp_struct] if tp_struct else []) if x < px)
                         self.pos = {"side": self.pending["side"], "entry": px, "sl": sl,
-                                    "tp": tp, "i": i, "ts": t["timestamp"],
-                                    "rej": self._rej_zone(ALL, i + OFF, self.pending["side"], px)
-                                    if self.rej_exit else None}
+                                    "tp": tp, "i": i, "ts": t["timestamp"]}
                         self.pending = None
             # manage open position: SL first, then TP
             if self.pos:
@@ -160,27 +133,6 @@ class VWAPORBEngine:
                             self._close(i, p["sl"], "SL", t["timestamp"]); break
                         if ask >= p["tp"]:
                             self._close(i, p["tp"], "TP", t["timestamp"]); break
-            # double-rejection exit on bar close (after SL/TP for the bar)
-            if self.pos and self.pos.get("rej") and bt:
-                p = self.pos
-                z = p["rej"]
-                last = bt[-1]
-                if p["side"] == "LONG":
-                    if b["high"] >= z["edge"] + self.rej_depth_pts:
-                        z["touched"] = True
-                    if z["touched"] and b["close"] < z["edge"]:
-                        z["rej"] += 1
-                        z["touched"] = False
-                        if z["rej"] >= 2:
-                            self._close(i, last["bidPrice"], "REJ", last["timestamp"])
-                else:
-                    if b["low"] <= z["edge"] - self.rej_depth_pts:
-                        z["touched"] = True
-                    if z["touched"] and b["close"] > z["edge"]:
-                        z["rej"] += 1
-                        z["touched"] = False
-                        if z["rej"] >= 2:
-                            self._close(i, last["askPrice"], "REJ", last["timestamp"])
             # signal on bar close
             if or_high is None or vwap is None:
                 continue
