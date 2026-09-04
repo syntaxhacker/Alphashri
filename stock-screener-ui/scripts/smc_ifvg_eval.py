@@ -23,13 +23,30 @@ def ist(ms):
     return datetime.fromtimestamp(ms / 1000, tz=timezone.utc).astimezone(IST).strftime("%H:%M:%S")
 
 
-def run_session(date, engines=None, from_ist=None, to_ist=None, verbose=True):
+def run_session(date, engines=None, from_ist=None, to_ist=None, verbose=True, back_hours=0):
     from trading.smc_ifvg import SMCIFVGEngine
+    from datetime import timedelta as _td
     ticks = fetch_ticks(date)
     bars = build_1m_bars(ticks)
+    start_idx = 0
+    if back_hours > 0:
+        # prepend overnight history for structure (no signals/fills before session start)
+        prev = (datetime.fromisoformat(date) - _td(days=1)).date().isoformat()
+        try:
+            pticks = fetch_ticks(prev)
+            cut = bars[0]["time"] - back_hours * 3600 if bars else 0
+            pticks = [t for t in pticks if t["timestamp"] / 1000 >= cut]
+            pbars = build_1m_bars(pticks)
+            # drop any overlap with session bars
+            pbars = [b for b in pbars if not bars or b["time"] < bars[0]["time"]]
+            start_idx = len(pbars)
+            bars = pbars + bars
+            ticks = pticks + ticks
+        except Exception as e:
+            print(f"  history unavailable for {date}: {e}")
     trades = []
     for _name, eng in (engines or [("both", SMCIFVGEngine())]):
-        trades.extend(eng.run(bars, ticks))
+        trades.extend(eng.run(bars, ticks, start_idx=start_idx))
     win = [t for t in trades
            if (not from_ist or ist(t["t_in"])[:5] >= from_ist)
            and (not to_ist or ist(t["t_in"])[:5] <= to_ist)]
@@ -65,6 +82,8 @@ def main():
     ap.add_argument("--tp-mode", default="far", choices=["far", "near"])
     ap.add_argument("--partials", action="store_true")
     ap.add_argument("--rev-exit", action="store_true")
+    ap.add_argument("--rej-exit", action="store_true", help="exit on 2nd rejection at opposing zone")
+    ap.add_argument("--back-hours", type=float, default=0, help="prepend overnight history for structure")
     ap.add_argument("--matrix", action="store_true")
     args = ap.parse_args()
 
@@ -72,7 +91,8 @@ def main():
     base = {"min_rr": args.min_rr} if args.min_rr is not None else {}
     if args.cooldown is not None:
         base["cooldown"] = args.cooldown
-    base.update({"tp_mode": args.tp_mode, "partials": args.partials, "rev_exit": args.rev_exit})
+    base.update({"tp_mode": args.tp_mode, "partials": args.partials, "rev_exit": args.rev_exit,
+                   "rej_exit": args.rej_exit})
     def make_engines():
         sh = {"fills": []} if args.dedupe else None
         if args.divided:
@@ -84,7 +104,7 @@ def main():
         grand_n = grand_w = 0
         grand_net = 0.0
         for d in DATES:
-            trades = run_session(d, make_engines(), verbose=False)
+            trades = run_session(d, make_engines(), verbose=False, back_hours=args.back_hours)
             n, net, w, pf = summary_line(trades)
             grand_n += n; grand_net += net; grand_w += w
             print(f"{d}  {n:>3} trades  net {net:>+9.2f}  win {w}/{n}  PF {pf}")
@@ -92,7 +112,8 @@ def main():
               f"({100 * grand_w / max(1, grand_n):.0f}%)  avg {grand_net / max(1, grand_n):+.2f}/trade")
     else:
         date = args.date or "2026-09-02"
-        trades = run_session(date, make_engines(), from_ist=args.from_ist, to_ist=args.to_ist)
+        trades = run_session(date, make_engines(), from_ist=args.from_ist, to_ist=args.to_ist,
+                             back_hours=args.back_hours)
         n, net, w, pf = summary_line(trades)
         print(f"\n  window: {n} trades · net {net:+.2f} pts · win {w}/{n} · PF {pf}")
 

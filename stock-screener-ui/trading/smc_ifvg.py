@@ -35,6 +35,8 @@ class SMCIFVGEngine:
         tp_mode: str = "far",                # "far": farthest RR>=min_rr target (LONG); "near": nearest — fixes LONG/SHORT asymmetry
         partials: bool = False,              # take half at +1R, move stop to breakeven
         rev_exit: bool = False,              # opposite-side fill closes the open position (REV) instead of waiting for SL
+        rej_exit: bool = False,                # exit on 2nd rejection at opposing zone (REJ)
+        rej_depth_pts: float = 4.0,            # a touch only counts if it penetrates this far past the edge
         shared: dict | None = None,          # cross-stack registry {"fills": [(ts_ms, side)]} for dedupe
         sess_start: int | None = None,       # IST minutes: arm only inside [start, end] (wrap-aware)
         sess_end: int | None = None,
@@ -42,6 +44,7 @@ class SMCIFVGEngine:
         day_stop_pts: float | None = None,   # arm blocked rest of IST day once day P&L <= -this
         day_flatten_pts: float | None = None,  # close ALL at breach tick + block rest of day (true DD cap)
         max_trades_day: int | None = None,     # A++ discipline: max fills per IST day
+        trail_room_mult: float | None = None,  # trail-mode entries need risk <= mult * session-range-so-far
         max_risk_atr: float | None = None,     # skip arms with est. risk > this x ATR(14) (winners: 0.88)
         session_date: str | None = None,       # YYYY-MM-DD for daily-bias gating
         daily_bias: dict | None = None,        # {date: +1/-1/0} from scripts/htf_bias.py (history-only)
@@ -67,6 +70,7 @@ class SMCIFVGEngine:
         self.day_stop_pts = day_stop_pts
         self.day_flatten_pts = day_flatten_pts
         self.max_trades_day = max_trades_day
+        self.trail_room_mult = trail_room_mult
         self.max_risk_atr = max_risk_atr
         self._day_fills = 0
         self._fill_day = None
@@ -75,7 +79,11 @@ class SMCIFVGEngine:
         self.daily_bias = daily_bias
         self._day_idx = None
         self._day_pnl = 0.0
+        self._start_idx = 0
         self.rev_exit = rev_exit
+        self.rej_exit = rej_exit
+        self.rej_depth_pts = rej_depth_pts
+        self.rej_exit = rej_exit
         # structure state
         self.trail_hi = None
         self.trail_lo = None
@@ -134,6 +142,8 @@ class SMCIFVGEngine:
             return
         if self.pos is not None and not self.rev_exit:
             return
+        if i < self._start_idx:
+            return   # history bars: structure only, no arming before session start
         if self.sess_start is not None and self.sess_end is not None:
             m = ((b["time"] // 60) + 330) % 1440   # IST minute, no tz lib needed
             if self.sess_start <= self.sess_end:
@@ -281,8 +291,26 @@ class SMCIFVGEngine:
             if self._day_fills >= self.max_trades_day:
                 return False
         tp = self.find_tp(bars, i, side, fill, risk)
+        if tp is None and self.trail_room_mult is not None:
+            day = (bars[i]["time"] + 19800) // 86400
+            same = [x for x in bars[:i + 1] if (x["time"] + 19800) // 86400 == day]
+            room = max(x["high"] for x in same) - min(x["low"] for x in same) if same else 0
+            if room <= 0 or risk > self.trail_room_mult * room:
+                return False
+        rej_zone = None
+        if self.rej_exit:
+            if side == "LONG":
+                zs = [f for f in self.fvgs if not f["inv"] and f["type"] == "bear" and f["bot"] > fill]
+                if zs:
+                    z = min(zs, key=lambda z: z["bot"])
+                    rej_zone = {"bot": z["bot"], "top": z["top"], "touched": False, "rej": 0}
+            else:
+                zs = [f for f in self.fvgs if not f["inv"] and f["type"] == "bull" and f["top"] < fill]
+                if zs:
+                    z = max(zs, key=lambda z: z["top"])
+                    rej_zone = {"bot": z["bot"], "top": z["top"], "touched": False, "rej": 0}
         self.pos = {"side": side, "entry": fill, "sl": sl, "tp": tp, "i": i, "kind": kind, "ts": ts_ms,
-                    "risk": risk, "partial": False}
+                    "risk": risk, "partial": False, "rej_zone": rej_zone}
         if self.max_trades_day is not None:
             self._day_fills += 1
         if self.shared is not None:
@@ -306,7 +334,8 @@ class SMCIFVGEngine:
         self._day_pnl += pnl
 
     # ---------------- main loop ----------------
-    def run(self, bars, ticks):
+    def run(self, bars, ticks, start_idx: int = 0):
+        self._start_idx = start_idx
         by_min = defaultdict(list)
         for t in ticks:
             by_min[int(t["timestamp"] // 1000 // 60) * 60].append(t)
@@ -360,6 +389,27 @@ class SMCIFVGEngine:
                             p["sl"] = p["entry"]
                         if p["tp"] and ask >= p["tp"]:
                             self.close_pos(i, p["tp"], "TP", t["timestamp"]); break
+            # double-rejection exit: 2nd touch-and-closeback at the opposing zone -> out
+            if self.pos and self.pos.get("rej_zone") and bt:
+                p = self.pos
+                z = p["rej_zone"]
+                last = bt[-1]
+                if p["side"] == "LONG":
+                    if b["high"] >= z["bot"] + self.rej_depth_pts:
+                        z["touched"] = True
+                    if z["touched"] and b["close"] < z["bot"]:
+                        z["rej"] += 1
+                        z["touched"] = False
+                        if z["rej"] >= 2:
+                            self.close_pos(i, last["bidPrice"], "REJ", last["timestamp"])
+                else:
+                    if b["low"] <= z["top"] - self.rej_depth_pts:
+                        z["touched"] = True
+                    if z["touched"] and b["close"] > z["top"]:
+                        z["rej"] += 1
+                        z["touched"] = False
+                        if z["rej"] >= 2:
+                            self.close_pos(i, last["askPrice"], "REJ", last["timestamp"])
             # pending retest fill: touch of zone near edge within tolerance
             if self.pending and self.pending["kind"] == "retest" and \
                (self.pos is None or (self.rev_exit and self.pos["side"] != self.pending["side"])):

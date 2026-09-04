@@ -162,3 +162,12 @@
 - Flat150 caps visible working as designed (four days pinned ~-150).
 - Verdict: curve-fit confirmed as the central problem. The family is regime-fit to July-like
   conditions. No further single-lever tuning; needs new alpha or accepts trend-regime-only trading.
+
+### Run 15: overnight history (8h) + double-rejection exit — DISCARDED (+704 vs +875)
+- Built exactly as designed: structure sees overnight zones (TPs now target them, e.g. 29123),
+  REJ exits fire on 2nd deep rejection. Mechanics verified working.
+- But: REJ scalps rides everywhere (-0.60 to +9.84 dust exits displace TPs/trails),
+  history reshuffles morning signals. 07-24 collapses +194 -> -30.
+- Sep 2 improves (-220 -> -175) but that's the tuned session. System-negative overall.
+- Kept as opt-in params (default off). Lesson reinforced: exit-layer additions that look
+  surgical per-trade redistribute P&L system-wide, usually downward.

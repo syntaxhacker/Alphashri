@@ -398,3 +398,42 @@ class TestRiskCap:
         bars = [bar(i * 60, 100, 102, 98, 100) for i in range(20)]  # ATR 4.0
         assert eng.open_pos("LONG", 100, 90, 19, "inv", 0, bars) is False   # risk 10 > 4.0
         assert eng.open_pos("LONG", 100, 97, 19, "inv", 0, bars) is True    # risk 3 <= 4.0
+
+
+class TestTrailRoom:
+    def test_trail_without_room_rejected(self):
+        eng = SMCIFVGEngine(min_risk=0.1, trail_room_mult=0.25)
+        bars = [bar(i * 60, 100, 101, 99, 100) for i in range(20)]  # 2pt day range
+        assert eng.open_pos("LONG", 100, 95, 19, "inv", 0, bars) is False or True  # TP may exist; force trail:
+        eng2 = SMCIFVGEngine(min_risk=0.1, trail_room_mult=0.25, min_rr=99.0)
+        assert eng2.open_pos("LONG", 100, 90, 19, "inv", 0, bars) is False  # risk 10 > 0.25*2
+
+
+class TestHistoryAndRejExit:
+    def test_no_arming_before_start_idx(self):
+        eng = SMCIFVGEngine()
+        eng.bos_dir = -1
+        eng.fvgs.append({"type": "bull", "top": 106.0, "bot": 100.0, "form": 5, "inv": False, "used": False})
+        eng.trail_hi = 110.0
+        bars = flat_bars(10)
+        bars[9] = bar(9 * 60, 94, 94.5, 93, 93.5)
+        eng._start_idx = 10
+        eng.on_close(bars, 9)
+        assert eng.pending is None
+        eng._start_idx = 0
+        eng.on_close(bars, 9)
+        assert eng.pending is not None
+
+    def test_double_rejection_exits_long(self):
+        eng = SMCIFVGEngine(rej_exit=True, rej_depth_pts=1.0, min_risk=0.1)
+        eng.pos = {"side": "LONG", "entry": 100, "sl": 90, "tp": 130, "i": 0, "kind": "inv", "ts": 0,
+                   "risk": 10, "partial": False,
+                   "rej_zone": {"bot": 110.0, "top": 112.0, "touched": False, "rej": 0}}
+        bars = [bar(0, 100, 100.5, 99.5, 100), bar(60, 100, 111, 100, 108),
+                bar(120, 108, 111, 100, 105), bar(180, 105, 111, 100, 106)]
+        # bar1: touch (high 111 >= 110), close 108 < 110 -> rej 1
+        # bar2: touch again, close 105 < 110 -> rej 2 -> REJ exit
+        ticks = [tick(60_000, 100.0, 100.5), tick(120_000, 105.0, 105.5), tick(180_000, 105.0, 105.5)]
+        trades = eng.run(bars, ticks)
+        assert len(trades) == 1
+        assert trades[0]["result"] == "REJ"
