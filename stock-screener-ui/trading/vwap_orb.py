@@ -5,7 +5,10 @@ Rules (history-only):
   VWAP = cumulative tick-VWAP (mid price weighted by ask+bid volume).
   LONG: 1m close breaks above OR high AND close > VWAP -> buy next tick (ask).
   SHORT: 1m close breaks below OR low AND close < VWAP -> sell next tick (bid).
-  SL: opposite OR edge. TP: 2R. One position at a time, cooldown after exit.
+  SL: opposite OR edge.
+  TP: nearest of (untouched structural pivot, fixed RR multiple).
+  REJ exit (opt-in): 2nd deep rejection at nearest opposing FVG/pivot zone.
+  One position at a time, cooldown after exit.
   Exits evaluated per tick (SL-first), same conventions as SMCIFVGEngine.
 """
 from collections import defaultdict
@@ -30,10 +33,13 @@ def compute_or_window(bars, orb_minutes: int):
 
 
 class VWAPORBEngine:
-    def __init__(self, or_bars: int = OR_BARS, rr: float = RR, cooldown: int = COOLDOWN):
+    def __init__(self, or_bars: int = OR_BARS, rr: float = RR, cooldown: int = COOLDOWN,
+                 rej_exit: bool = False, rej_depth_pts: float = 4.0):
         self.or_bars = or_bars
         self.rr = rr
         self.cooldown = cooldown
+        self.rej_exit = rej_exit
+        self.rej_depth_pts = rej_depth_pts
         self.pos = None
         self.pending = None
         self.last_exit = -999
@@ -49,7 +55,52 @@ class VWAPORBEngine:
     def _tick_vol(t):
         return (t.get("askVolume") or 0) + (t.get("bidVolume") or 0)
 
-    def run(self, bars, ticks):
+    def _struct_tp(self, bars, i, side, entry):
+        """Nearest untouched opposing fractal pivot (3-bar, 2 each side). None if absent."""
+        best = None
+        for j in range(2, i - 2):
+            w = bars[j - 2:j + 3]
+            if side == "LONG":
+                if not all(w[2]["high"] > w[k]["high"] for k in (0, 1, 3, 4)):
+                    continue
+                lvl = w[2]["high"]
+                if lvl > entry and all(bars[k]["high"] < lvl for k in range(j + 3, i)):
+                    best = lvl if best is None else min(best, lvl)
+            else:
+                if not all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
+                    continue
+                lvl = w[2]["low"]
+                if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
+                    best = lvl if best is None else max(best, lvl)
+        return best
+
+    def _rej_zone(self, bars, i, side, entry):
+        """Nearest opposing zone edge above (LONG) / below (SHORT) entry. None if absent."""
+        best = None
+        for j in range(2, i - 2):
+            w = bars[j - 2:j + 3]
+            if side == "LONG":
+                if not all(w[2]["high"] > w[k]["high"] for k in (0, 1, 3, 4)):
+                    continue
+                lvl = w[2]["high"]
+                if lvl > entry and all(bars[k]["high"] < lvl for k in range(j + 3, i)):
+                    best = lvl if best is None else min(best, lvl)
+            else:
+                if not all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
+                    continue
+                lvl = w[2]["low"]
+                if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
+                    best = lvl if best is None else max(best, lvl)
+        if best is None:
+            return None
+        return {"edge": best, "touched": False, "rej": 0}
+
+    def run(self, bars, ticks, hist=None):
+        """hist: optional overnight bars used for STRUCTURE ONLY (zones/TP). Session logic
+        (OR, signals, fills) still runs on bars alone. No lookahead: hist must predate bars."""
+        HB = list(hist or [])
+        OFF = len(HB)
+        ALL = HB + list(bars)
         by_min = defaultdict(list)
         for t in ticks:
             by_min[int(t["timestamp"] // 1000 // 60) * 60].append(t)
@@ -83,14 +134,16 @@ class VWAPORBEngine:
                         risk = abs(px - sl)
                         tp_fixed = px + risk * self.rr if self.pending["side"] == "LONG" \
                             else px - risk * self.rr
-                        tp_struct = self._struct_tp(bars, i, self.pending["side"], px)
+                        tp_struct = self._struct_tp(ALL, i + OFF, self.pending["side"], px)
                         # take profit at whichever comes first: structure or fixed multiple
                         if self.pending["side"] == "LONG":
                             tp = min(x for x in [tp_fixed] + ([tp_struct] if tp_struct else []) if x > px)
                         else:
                             tp = max(x for x in [tp_fixed] + ([tp_struct] if tp_struct else []) if x < px)
                         self.pos = {"side": self.pending["side"], "entry": px, "sl": sl,
-                                    "tp": tp, "i": i, "ts": t["timestamp"]}
+                                    "tp": tp, "i": i, "ts": t["timestamp"],
+                                    "rej": self._rej_zone(ALL, i + OFF, self.pending["side"], px)
+                                    if self.rej_exit else None}
                         self.pending = None
             # manage open position: SL first, then TP
             if self.pos:
@@ -107,6 +160,27 @@ class VWAPORBEngine:
                             self._close(i, p["sl"], "SL", t["timestamp"]); break
                         if ask >= p["tp"]:
                             self._close(i, p["tp"], "TP", t["timestamp"]); break
+            # double-rejection exit on bar close (after SL/TP for the bar)
+            if self.pos and self.pos.get("rej") and bt:
+                p = self.pos
+                z = p["rej"]
+                last = bt[-1]
+                if p["side"] == "LONG":
+                    if b["high"] >= z["edge"] + self.rej_depth_pts:
+                        z["touched"] = True
+                    if z["touched"] and b["close"] < z["edge"]:
+                        z["rej"] += 1
+                        z["touched"] = False
+                        if z["rej"] >= 2:
+                            self._close(i, last["bidPrice"], "REJ", last["timestamp"])
+                else:
+                    if b["low"] <= z["edge"] - self.rej_depth_pts:
+                        z["touched"] = True
+                    if z["touched"] and b["close"] > z["edge"]:
+                        z["rej"] += 1
+                        z["touched"] = False
+                        if z["rej"] >= 2:
+                            self._close(i, last["askPrice"], "REJ", last["timestamp"])
             # signal on bar close
             if or_high is None or vwap is None:
                 continue
@@ -117,25 +191,6 @@ class VWAPORBEngine:
             elif b["close"] < or_low and b["close"] < vwap:
                 self.pending = {"side": "SHORT", "sl": or_high, "sig_i": i}
         return self.trades
-
-    def _struct_tp(self, bars, i, side, entry):
-        """Nearest untouched opposing fractal pivot (3-bar, 2 each side). None if absent."""
-        best = None
-        for j in range(2, i - 2):
-            w = bars[j - 2:j + 3]
-            if side == "LONG":
-                if not all(w[2]["high"] > w[k]["high"] for k in (0, 1, 3, 4)):
-                    continue
-                lvl = w[2]["high"]
-                if lvl > entry and all(bars[k]["high"] < lvl for k in range(j + 3, i)):
-                    best = lvl if best is None else min(best, lvl)
-            else:
-                if not all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
-                    continue
-                lvl = w[2]["low"]
-                if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
-                    best = lvl if best is None else max(best, lvl)
-        return best
 
     def _close(self, i, px, why, ts_ms):
         p = self.pos

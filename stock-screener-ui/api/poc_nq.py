@@ -144,15 +144,18 @@ def get_tick_replay(
     date: str = Query(...),
     secs: int = Query(default=2, description="candle seconds for tick chart"),
     orb: int = Query(default=15, description="opening-range minutes (1m bars)"),
+    hist: int = Query(default=0, description="overnight history hours for structure only"),
+    rej: int = Query(default=0, description="1 = enable double-rejection exits"),
 ):
     """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
-    key = f"tick-replay:v2:{date}:{secs}:{orb}"
+    key = f"tick-replay:v3:{date}:{secs}:{orb}:{hist}:{rej}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
     try:
+        from datetime import datetime, timedelta
         from trading.vwap_orb import VWAPORBEngine, compute_or_window
-        from scripts.smc_tick_eval import build_1m_bars
+        from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
         from scripts.nq_ticks import fetch_nq_ticks
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"import failed: {e}"}
@@ -161,9 +164,18 @@ def get_tick_replay(
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"tick fetch failed: {e}"}
     bars = build_1m_bars(ticks)
+    hist_bars = []
+    if hist > 0 and bars:
+        prev = (datetime.fromisoformat(date) - timedelta(days=1)).date().isoformat()
+        try:
+            pticks = fetch_ticks(prev)
+            cut = bars[0]["time"] - hist * 3600
+            hist_bars = [b for b in build_1m_bars(pticks) if b["time"] >= cut and b["time"] < bars[0]["time"]]
+        except Exception:
+            hist_bars = []
     orb = max(1, min(int(orb), 120))
-    eng = VWAPORBEngine(or_bars=orb)
-    trades = eng.run(bars, ticks)
+    eng = VWAPORBEngine(or_bars=orb, rej_exit=bool(rej))
+    trades = eng.run(bars, ticks, hist=hist_bars if hist_bars else None)
     or_high, or_low, or_end = compute_or_window(bars, orb)
     # 1m candles (chart timeframe) + 5s sub-candles (live forming-bar ticks) + per-1m VWAP
     sub_s = 5

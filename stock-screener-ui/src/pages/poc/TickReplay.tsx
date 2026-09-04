@@ -9,6 +9,8 @@ import Button from "@mui/material/Button";
 import Slider from "@mui/material/Slider";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import Switch from "@mui/material/Switch";
+import FormControlLabel from "@mui/material/FormControlLabel";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { orRangeLabel } from "@/utils/replayTime";
@@ -35,6 +37,8 @@ export default function TickReplay() {
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const [orTf, setOrTf] = useState(15);
+  const [histOn, setHistOn] = useState(false);
+  const [rejOn, setRejOn] = useState(false);
   const [clock, setClock] = useState(0);   // replay clock, epoch seconds
   const chartRef = useRef<IChartApi | null>(null);
   const seriesRef = useRef<any>(null);
@@ -58,7 +62,7 @@ export default function TickReplay() {
     setPlaying(false);
     setClock(0);
     clockRef.current = 0;
-    fetch(`/api/poc/tick-replay?date=${date}&secs=2&orb=${orTf}`)
+    fetch(`/api/poc/tick-replay?date=${date}&secs=2&orb=${orTf}&hist=${histOn ? 8 : 0}&rej=${rejOn ? 1 : 0}`)
       .then(r => r.json())
       .then(j => setBundle({
         candles: j.candles || [], subs: j.subs || [], vwap: j.vwap || [],
@@ -67,7 +71,7 @@ export default function TickReplay() {
       }))
       .catch(() => setBundle({ candles: [], subs: [], vwap: [], or_high: 0, or_low: 0, or_minutes: orTf, or_end: 0, trades: [] }))
       .finally(() => setLoading(false));
-  }, [date, orTf]);
+  }, [date, orTf, histOn, rejOn]);
 
   // chart setup (once per bundle)
   useEffect(() => {
@@ -349,6 +353,16 @@ export default function TickReplay() {
         <TextField size="small" select value={orTf} onChange={e => setOrTf(Number(e.target.value))} sx={{ width: 110 }} label="OR TF">
           {[5, 15, 30].map(m => <MenuItem key={m} value={m}>{m}m</MenuItem>)}
         </TextField>
+        <FormControlLabel
+          control={<Switch size="small" checked={histOn} onChange={(_, v) => setHistOn(v)} />}
+          label="overnight structure (8h)"
+          sx={{ color: "#9CA3AF", '& .MuiFormControlLabel-label': { fontSize: 12 } }}
+        />
+        <FormControlLabel
+          control={<Switch size="small" checked={rejOn} onChange={(_, v) => setRejOn(v)} />}
+          label="rejection exits"
+          sx={{ color: "#9CA3AF", '& .MuiFormControlLabel-label': { fontSize: 12 } }}
+        />
         <Box sx={{ flex: 1, minWidth: 200, px: 1 }}>
           <Slider size="small" min={t0} max={tEnd} step={1} value={clock}
             onChange={(_, v) => jump(v as number)} aria-label="replay position" />
