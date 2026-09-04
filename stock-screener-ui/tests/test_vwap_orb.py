@@ -56,3 +56,20 @@ def test_compute_or_window_levels_and_end():
 
 def test_compute_or_window_short_session():
     assert compute_or_window([bar(0, 100, 101, 99, 100)], 15) == (0.0, 0.0, 0)
+
+
+def test_struct_tp_nearest_untouched():
+    eng = VWAPORBEngine()
+    bars = [bar(i * 60, 100, 100.5, 99.5, 100) for i in range(20)]
+    bars[5] = bar(5 * 60, 100, 104, 100, 100)    # pivot high 104
+    bars[9] = bar(9 * 60, 100, 102, 100, 100)    # nearer pivot high 102, untouched
+    assert eng._struct_tp(bars, 15, "LONG", 100) == 102
+
+
+def test_struct_tp_skips_touched():
+    eng = VWAPORBEngine()
+    bars = [bar(i * 60, 100, 100.5, 99.5, 100) for i in range(20)]
+    bars[5] = bar(5 * 60, 100, 104, 100, 100)
+    bars[9] = bar(9 * 60, 100, 102, 100, 100)
+    bars[12] = bar(12 * 60, 100, 105, 100, 100)  # trades through 102 -> touched
+    assert eng._struct_tp(bars, 15, "LONG", 100) == 105

@@ -80,8 +80,15 @@ class VWAPORBEngine:
                        (self.pending["side"] == "LONG" and px < sl):
                         self.pending = None
                     else:
-                        tp = px + (px - sl) * self.rr if self.pending["side"] == "LONG" \
-                            else px - (sl - px) * self.rr
+                        risk = abs(px - sl)
+                        tp_fixed = px + risk * self.rr if self.pending["side"] == "LONG" \
+                            else px - risk * self.rr
+                        tp_struct = self._struct_tp(bars, i, self.pending["side"], px)
+                        # take profit at whichever comes first: structure or fixed multiple
+                        if self.pending["side"] == "LONG":
+                            tp = min(x for x in [tp_fixed] + ([tp_struct] if tp_struct else []) if x > px)
+                        else:
+                            tp = max(x for x in [tp_fixed] + ([tp_struct] if tp_struct else []) if x < px)
                         self.pos = {"side": self.pending["side"], "entry": px, "sl": sl,
                                     "tp": tp, "i": i, "ts": t["timestamp"]}
                         self.pending = None
@@ -110,6 +117,25 @@ class VWAPORBEngine:
             elif b["close"] < or_low and b["close"] < vwap:
                 self.pending = {"side": "SHORT", "sl": or_high, "sig_i": i}
         return self.trades
+
+    def _struct_tp(self, bars, i, side, entry):
+        """Nearest untouched opposing fractal pivot (3-bar, 2 each side). None if absent."""
+        best = None
+        for j in range(2, i - 2):
+            w = bars[j - 2:j + 3]
+            if side == "LONG":
+                if not all(w[2]["high"] > w[k]["high"] for k in (0, 1, 3, 4)):
+                    continue
+                lvl = w[2]["high"]
+                if lvl > entry and all(bars[k]["high"] < lvl for k in range(j + 3, i)):
+                    best = lvl if best is None else min(best, lvl)
+            else:
+                if not all(w[2]["low"] < w[k]["low"] for k in (0, 1, 3, 4)):
+                    continue
+                lvl = w[2]["low"]
+                if lvl < entry and all(bars[k]["low"] > lvl for k in range(j + 3, i)):
+                    best = lvl if best is None else max(best, lvl)
+        return best
 
     def _close(self, i, px, why, ts_ms):
         p = self.pos
