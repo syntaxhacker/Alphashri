@@ -215,7 +215,9 @@ describe("TickReplay", () => {
     expect(
       await screen.findByText(/1 closed · net \+10\.5 pts/),
     ).toBeInTheDocument();
-    expect(screen.getByText("TP +10.5")).toBeInTheDocument();
+    const row = screen.getByTestId(/replay-trade-row-.*-LONG/);
+    expect(row.textContent).toContain("TP");      // exit badge
+    expect(row.textContent).toContain("+10.5");   // P&L points cell
   });
 });
 

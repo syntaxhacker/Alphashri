@@ -13,14 +13,10 @@ import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { orRangeLabel } from "@/utils/replayTime";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
+import { ReplayTradeTable, type RTrade } from "./ReplayTradeTable";
 
 type Candle = { time: number; open: number; high: number; low: number; close: number };
 type VwapPt = { time: number; value: number };
-type RTrade = {
-  time: number; exit_time: number; side: "LONG" | "SHORT"; kind: string;
-  entry: number; sl: number; tp: number; exit: number;
-  result: "TP" | "SL" | "EOD"; pnl: number; rr: number;
-};
 type Bundle = {
   candles: Candle[]; subs: Candle[]; vwap: VwapPt[];
   or_high: number; or_low: number; or_minutes: number; or_end: number;
@@ -425,27 +421,7 @@ export default function TickReplay() {
           </Typography>
           <Chip size="small" label={`${revealed.length - closed.length} open`} sx={{ bgcolor: "#1F2937", color: "#9CA3AF" }} />
         </Box>
-        {revealed.length === 0 ? (
-          <Box sx={{ p: 2, color: "#9CA3AF", fontSize: 12 }}>Press Play — entries print as ticks cross their signals.</Box>
-        ) : (
-          revealed.map((t, i) => (
-            <Box key={`${t.time}-${t.side}-${t.entry}`} sx={{ px: 1.5, py: 1, borderTop: i ? `1px solid ${palette.NT_GRID}` : 0, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
-              <Chip size="small" label={t.side} color={t.side === "LONG" ? "success" : "error"} sx={{ height: 18, fontSize: 10, fontWeight: 700 }} />
-              <Typography variant="caption" sx={{ color: palette.TEXT, fontFamily: "monospace", fontSize: 11 }}>
-                {fmtT(t.time)}{t.exit_time <= clock ? ` → ${fmtT(t.exit_time)}` : " → …"}
-              </Typography>
-              <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, fontSize: 10 }}>
-                {t.entry.toFixed(1)} → {t.exit_time <= clock ? t.exit.toFixed(1) : "…"}
-              </Typography>
-              {t.exit_time <= clock ? (
-                <Chip size="small" label={`${t.result} ${t.pnl > 0 ? "+" : ""}${t.pnl.toFixed(1)}`}
-                  color={t.pnl > 0 ? "success" : t.result === "EOD" ? "default" : "error"} sx={{ height: 18, fontSize: 9 }} />
-              ) : (
-                <Chip size="small" label="OPEN" color="warning" sx={{ height: 18, fontSize: 9 }} />
-              )}
-            </Box>
-          ))
-        )}
+        <ReplayTradeTable trades={revealed} clock={clock} onSelectTime={(t) => jump(t)} />
       </Card>
     </Box>
   );
