@@ -13,8 +13,5 @@ export function orRangeLabel(startSec: number, minutes: number, timeZone: string
   return `${fmtHM(startSec, timeZone)}–${fmtHM(startSec + minutes * 60, timeZone)} IST`;
 }
 
-/** True once the opening-range window has completed at the given replay clock. */
-export function isOrComplete(clockSec: number, orStartSec: number, minutes: number): boolean {
-  if (!clockSec || !orStartSec || minutes <= 0) return false;
-  return clockSec >= orStartSec + minutes * 60;
-}
+// NOTE: OR completion is driven by the backend-supplied `or_end` (window[-1].time + 60),
+// never recomputed client-side — gappy sessions would drift a local orStart + minutes*60.

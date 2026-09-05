@@ -186,6 +186,7 @@ describe("TickReplay", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("date=2026-08-26"),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
   });
@@ -202,6 +203,7 @@ describe("TickReplay", () => {
     await waitFor(() => {
       expect(fetchMock).toHaveBeenCalledWith(
         expect.stringContaining("orb=30"),
+        expect.objectContaining({ signal: expect.any(AbortSignal) }),
       );
     });
   });

@@ -169,6 +169,34 @@ class TestGetTickReplay:
         assert "error" in res
         assert "boom" in res["error"]
 
+    def test_bad_date_returns_error_envelope(self):
+        res = get_tick_replay(date="not-a-date", secs=2, orb=15, hist=0)
+        assert res["trades"] == [] and res["candles"] == []
+        assert "error" in res
+
+    def test_basis_none_shape_survives(self):
+        ticks = _make_ticks(20)
+        with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, None)):
+            res = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
+        assert res["basis"] is None
+        assert "error" in res  # flagged, not a 500
+
+    def test_secs_param_controls_sub_buckets(self):
+        ticks = _make_ticks(20)
+        with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, BASIS)):
+            r2 = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
+            r30 = get_tick_replay(date="2026-01-05", secs=30, orb=15, hist=0)
+        assert r2["sub_secs"] == 2
+        assert r30["sub_secs"] == 30
+        assert all(s["time"] % 30 == 0 for s in r30["subs"])
+        assert len(r30["subs"]) <= len(r2["subs"])
+
+    def test_hist_bars_surfaced(self):
+        ticks = _make_ticks(20)
+        with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, BASIS)):
+            res = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
+        assert res["hist_bars"] == 0
+
 
 # ---------------- get_smc_ifvg ----------------
 

@@ -5,6 +5,14 @@ router = APIRouter(prefix="/api/poc", tags=["poc"])
 
 _cache: dict = {}
 _TTL = 300
+_CACHE_MAX = 200
+
+
+def _cache_put(key, data):
+    if len(_cache) >= _CACHE_MAX:  # evict oldest entries first
+        for k in sorted(_cache, key=lambda k: _cache[k]["ts"])[: len(_cache) - _CACHE_MAX + 1]:
+            del _cache[k]
+    _cache[key] = {"ts": time.time(), "data": data}
 
 @router.get("/nq")
 def get_nq(
@@ -147,12 +155,18 @@ def get_tick_replay(
     hist: int = Query(default=8, description="overnight history hours for structure"),
 ):
     """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
-    key = f"tick-replay:v4:{date}:{secs}:{orb}:{hist}"
+    try:
+        from datetime import datetime, timedelta
+        datetime.fromisoformat(date)  # validate early: malformed date -> error envelope, not 500
+    except Exception:
+        return {"date": date, "candles": [], "trades": [], "error": f"bad date: {date!r}, want YYYY-MM-DD"}
+    orb = max(1, min(int(orb), 120))
+    sub_s = max(1, min(int(secs), 60))
+    key = f"tick-replay:v5:{date}:{sub_s}:{orb}:{hist}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
     try:
-        from datetime import datetime, timedelta
         from trading.vwap_orb import VWAPORBEngine, compute_or_window
         from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
         from scripts.nq_ticks import fetch_nq_ticks
@@ -162,6 +176,7 @@ def get_tick_replay(
         ticks, basis = fetch_nq_ticks(date)
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"tick fetch failed: {e}"}
+    ticks = sorted(ticks, key=lambda t: t["timestamp"])  # single order for fills, subs, VWAP
     bars = build_1m_bars(ticks)
     hist_bars = []
     if hist > 0 and bars:
@@ -172,12 +187,10 @@ def get_tick_replay(
             hist_bars = [b for b in build_1m_bars(pticks) if b["time"] >= cut and b["time"] < bars[0]["time"]]
         except Exception:
             hist_bars = []
-    orb = max(1, min(int(orb), 120))
     eng = VWAPORBEngine(or_bars=orb)
     trades = eng.run(bars, ticks, hist=hist_bars if hist_bars else None)
     or_high, or_low, or_end = compute_or_window(bars, orb)
-    # 1m candles (chart timeframe) + 5s sub-candles (live forming-bar ticks) + per-1m VWAP
-    sub_s = 5
+    # sub-candles (live forming-bar ticks) at the requested resolution + per-1m VWAP
     buckets: dict = {}
     for t in ticks:
         k = int(t["timestamp"] // 1000 // sub_s) * sub_s
@@ -214,11 +227,15 @@ def get_tick_replay(
             "side": t["side"], "kind": "vwap-orb", "entry": t["entry"], "sl": t["sl"],
             "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
         })
+    basis_med = basis.get("median") if isinstance(basis, dict) else None
+    basis_method = basis.get("method") if isinstance(basis, dict) else None
     data = {"date": date, "count": len(out), "candles": candles, "subs": subs, "vwap": vwap,
             "or_high": round(or_high, 2), "or_low": round(or_low, 2),
             "or_minutes": orb, "or_end": or_end,
-            "trades": out, "basis": basis["median"], "basis_method": basis["method"], "symbol": "NQ=F"}
-    _cache[key] = {"ts": now, "data": data}
+            "trades": out, "basis": basis_med, "basis_method": basis_method, "symbol": "NQ=F",
+            "hist_bars": len(hist_bars), "sub_secs": sub_s,
+            **({"error": "no NQ basis available"} if basis_med is None else {})}
+    _cache_put(key, data)
     return data
 
 

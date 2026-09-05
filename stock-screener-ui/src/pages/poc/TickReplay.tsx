@@ -19,7 +19,12 @@ type VwapPt = { time: number; value: number };
 type RTrade = {
   time: number; exit_time: number; side: "LONG" | "SHORT"; kind: string;
   entry: number; sl: number; tp: number; exit: number;
-  result: "TP" | "SL"; pnl: number; rr: number;
+  result: "TP" | "SL" | "EOD"; pnl: number; rr: number;
+};
+type Bundle = {
+  candles: Candle[]; subs: Candle[]; vwap: VwapPt[];
+  or_high: number; or_low: number; or_minutes: number; or_end: number;
+  trades: RTrade[]; basis?: number; sub_secs?: number; hist_bars?: number; error?: string;
 };
 
 const DATES = ["2026-09-02", "2026-08-26", "2026-07-24", "2026-08-27", "2026-07-22", "2026-07-02"];
@@ -30,7 +35,7 @@ const fmtT = (ts: number) =>
 
 export default function TickReplay() {
   const [date, setDate] = useState(DATES[0]);
-  const [bundle, setBundle] = useState<{ candles: Candle[]; subs: Candle[]; vwap: VwapPt[]; or_high: number; or_low: number; or_minutes: number; or_end: number; trades: RTrade[]; basis?: number } | null>(null);
+  const [bundle, setBundle] = useState<Bundle | null>(null);
   const [loading, setLoading] = useState(true);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -40,33 +45,54 @@ export default function TickReplay() {
   const seriesRef = useRef<any>(null);
   const vwapRef = useRef<any>(null);
   const boxRef = useRef<HTMLDivElement>(null);
-  const orLinesRef = useRef(false);
+  const orLinesRef = useRef<{ h: unknown; l: unknown } | null>(null);
+  const markersRef = useRef<{ setMarkers: (m: unknown[]) => void } | null>(null);
   const rrBoxRef = useRef<HTMLCanvasElement | null>(null);
+  const rrWRef = useRef(0);   // last canvas css width (resize only on change)
   const paintRef = useRef<(now: number) => void>(() => {});
+  const speedRef = useRef(speed);
   // incremental paint cursors (reset per bundle / on scrub-back)
   const progRef = useRef({ n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 });
   const rafRef = useRef(0);
   const clockRef = useRef(0);
   const lastPaintRef = useRef(0);
-  clockRef.current = clock;
+
+  useEffect(() => { clockRef.current = clock; }, [clock]);
+  useEffect(() => { speedRef.current = speed; }, [speed]);
 
   const t0 = bundle && bundle.candles.length ? bundle.candles[0].time : 0;
   const tEnd = bundle && bundle.candles.length ? bundle.candles[bundle.candles.length - 1].time + 60 : 0;
 
   useEffect(() => {
+    const ac = new AbortController();
     setLoading(true);
     setPlaying(false);
     setClock(0);
     clockRef.current = 0;
-    fetch(`/api/poc/tick-replay?date=${date}&secs=2&orb=${orTf}&hist=8`)
-      .then(r => r.json())
-      .then(j => setBundle({
-        candles: j.candles || [], subs: j.subs || [], vwap: j.vwap || [],
-        or_high: j.or_high, or_low: j.or_low, or_minutes: j.or_minutes || orTf, or_end: j.or_end || 0,
-        trades: j.trades || [], basis: j.basis,
-      }))
-      .catch(() => setBundle({ candles: [], subs: [], vwap: [], or_high: 0, or_low: 0, or_minutes: orTf, or_end: 0, trades: [] }))
-      .finally(() => setLoading(false));
+    fetch(`/api/poc/tick-replay?date=${date}&secs=2&orb=${orTf}&hist=8`, { signal: ac.signal })
+      .then(r => {
+        if (r.ok === false) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
+      .then(j => {
+        if (ac.signal.aborted) return;
+        setBundle({
+          candles: j.candles || [], subs: j.subs || [], vwap: j.vwap || [],
+          or_high: j.or_high, or_low: j.or_low, or_minutes: j.or_minutes || orTf, or_end: j.or_end || 0,
+          trades: j.trades || [], basis: j.basis, sub_secs: j.sub_secs, hist_bars: j.hist_bars,
+          ...(j.error ? { error: j.error } : {}),
+        });
+      })
+      .catch((e) => {
+        if (ac.signal.aborted || (e && e.name === "AbortError")) return;
+        setBundle({
+          candles: [], subs: [], vwap: [], or_high: 0, or_low: 0,
+          or_minutes: orTf, or_end: 0, trades: [],
+          error: `load failed: ${e && e.message ? e.message : e}`,
+        });
+      })
+      .finally(() => { if (!ac.signal.aborted) setLoading(false); });
+    return () => ac.abort();
   }, [date, orTf]);
 
   // chart setup (once per bundle)
@@ -102,7 +128,13 @@ export default function TickReplay() {
     vwapRef.current = vs;
     cs.setData([]);
     vs.setData([]);
-    orLinesRef.current = false;
+    try {
+      markersRef.current = createSeriesMarkers(cs as any, []);
+    } catch {
+      markersRef.current = null;   // test env without full chart impl
+    }
+    orLinesRef.current = null;
+    rrWRef.current = 0;
     progRef.current = { n: 0, v: 0, mkey: "", subPtr: 0, lastNow: 0 };
     // TV-style R:R overlay (zIndex above LWC panes)
     const rr = document.createElement("canvas");
@@ -123,6 +155,8 @@ export default function TickReplay() {
     return () => {
       ro.disconnect();
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onVis);
+      try { (cs as any).detachPrimitive?.(markersRef.current); } catch { /* already gone */ }
+      markersRef.current = null;
       rr.remove();
       rrBoxRef.current = null;
       chart.remove();
@@ -134,11 +168,17 @@ export default function TickReplay() {
   const paint = useCallback((now: number) => {
     const cs = seriesRef.current, vs = vwapRef.current, chart = chartRef.current;
     if (!cs || !bundle || now <= 0) return;
-    // OR levels appear only once the opening-range window has completed (no future leak)
-    if (!orLinesRef.current && bundle.or_end > 0 && now >= bundle.or_end) {
-      (cs as any).createPriceLine({ price: bundle.or_high, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
-      (cs as any).createPriceLine({ price: bundle.or_low, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
-      orLinesRef.current = true;
+    // OR levels appear only once the opening-range window has completed (no future leak);
+    // scrubbing back before or_end removes them again.
+    const orLines = orLinesRef.current;
+    if (!orLines && bundle.or_end > 0 && now >= bundle.or_end) {
+      const h = (cs as any).createPriceLine({ price: bundle.or_high, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-H" });
+      const l = (cs as any).createPriceLine({ price: bundle.or_low, color: "#A78BFA", lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "OR-L" });
+      orLinesRef.current = { h, l };
+    } else if (orLines && bundle.or_end > 0 && now < bundle.or_end) {
+      try { (cs as any).removePriceLine?.(orLines.h); } catch { /* already gone */ }
+      try { (cs as any).removePriceLine?.(orLines.l); } catch { /* already gone */ }
+      orLinesRef.current = null;
     }
     const pg = progRef.current;
     const C = bundle.candles;
@@ -150,7 +190,8 @@ export default function TickReplay() {
     const nBefore = pg.n;
     while (pg.n < C.length && C[pg.n].time + 60 <= now) pg.n++;
     const vBefore = pg.v;
-    while (pg.v < V.length && V[pg.v].time <= now) pg.v++;
+    // VWAP uses the same completion rule as candles: a minute's value is known only after it ends
+    while (pg.v < V.length && V[pg.v].time + 60 <= now) pg.v++;
     // forming bar: aggregate subs of the current minute up to now (≤12 subs, pointer-skipped)
     const mStart = Math.floor(now / 60) * 60;
     while (pg.subPtr < bundle.subs.length && bundle.subs[pg.subPtr].time < mStart) pg.subPtr++;
@@ -174,7 +215,7 @@ export default function TickReplay() {
       cs.setData(C.slice(0, pg.n).map(c => ({ time: c.time as Time, open: c.open, high: c.high, low: c.low, close: c.close })));
     }
     if (forming) {
-      try { cs.update(forming); } catch { /* out-of-order tick: ignore */ }
+      try { cs.update(forming); } catch (e) { console.debug("replay forming-bar update skipped", e); }
     }
     if (pg.v !== vBefore || vBefore === 0) {
       vs.setData(V.slice(0, pg.v).map(v => ({ time: v.time as Time, value: v.value })));
@@ -183,19 +224,20 @@ export default function TickReplay() {
     const mkey = shown.map(t => `${t.time}:${t.exit_time <= now ? t.exit_time : ""}`).join("|");
     if (mkey !== pg.mkey) {
       pg.mkey = mkey;
-      createSeriesMarkers(cs as any, shown.flatMap(t => {
+      const exitColor = (r: string) => r === "TP" ? palette.MARKER_TP : r === "EOD" ? "#9CA3AF" : palette.MARKER_SL;
+      markersRef.current?.setMarkers(shown.flatMap(t => {
       const isLong = t.side === "LONG";
       const m: any[] = [{
         time: t.time as Time, position: isLong ? "belowBar" : "aboveBar",
         color: isLong ? palette.MARKER_ENTRY : palette.MARKER_SL,
         shape: isLong ? "arrowUp" : "arrowDown",
-        text: `${isLong ? "🟢" : "🔴"} ${t.entry.toFixed(1)}`,
+        text: `${isLong ? "L" : "S"} ${t.entry.toFixed(1)}`,
       }];
       if (t.exit_time <= now) {
         m.push({
           time: t.exit_time as Time, position: isLong ? "aboveBar" : "belowBar",
-          color: t.result === "TP" ? palette.MARKER_TP : palette.MARKER_SL,
-          shape: "circle", text: `${t.result === "TP" ? "🎯" : "🛑"} ${t.exit.toFixed(1)}`,
+          color: exitColor(t.result),
+          shape: "circle", text: `${t.result} ${t.exit.toFixed(1)}`,
         });
       }
       return m;
@@ -208,10 +250,14 @@ export default function TickReplay() {
       const rect = container.getBoundingClientRect();
       const H = 420;
       const dpr = window.devicePixelRatio || 1;
-      rrBox.width = Math.max(rect.width * dpr, 1);
-      rrBox.height = H * dpr;
-      rrBox.style.width = `${rect.width}px`;
-      rrBox.style.height = `${H}px`;
+      const wpx = Math.max(Math.round(rect.width), 1);
+      if (rrWRef.current !== wpx) {   // resize canvas only when the container changes
+        rrWRef.current = wpx;
+        rrBox.width = wpx * dpr;
+        rrBox.height = H * dpr;
+        rrBox.style.width = `${rect.width}px`;
+        rrBox.style.height = `${H}px`;
+      }
       const ctx = rrBox.getContext("2d");
       if (ctx && rect.width > 0) {
         ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
@@ -221,7 +267,8 @@ export default function TickReplay() {
         ctx.font = "600 10px monospace";
         for (const t of shown) {
           // endT must be an exact bar time (exchange-style: forming bar while open)
-          const endT = Math.floor(Math.min(t.exit_time <= now ? t.exit_time : now, now) / 60) * 60;
+          const liveEnd = t.exit_time <= now ? t.exit_time : now;
+          const endT = Math.floor(liveEnd / 60) * 60;
           const x1 = t2x(t.time);
           const x2 = t2x(endT);
           const yE = p2y(t.entry);
@@ -264,7 +311,11 @@ export default function TickReplay() {
         }
       }
     }
-    chart.timeScale().scrollToPosition(6, false);
+    // auto-follow only while the user is near the right edge (never yank a manual pan)
+    const visRange = chart.timeScale().getVisibleLogicalRange?.();
+    if (!visRange || visRange.to == null || visRange.to > pg.n - 12) {
+      chart.timeScale().scrollToPosition(6, false);
+    }
   }, [bundle]);
   paintRef.current = paint;
 
@@ -274,18 +325,23 @@ export default function TickReplay() {
     if (clockRef.current <= 0 && t0 > 0) {
       clockRef.current = t0;
       setClock(t0);
-      paint(t0);
+      paintRef.current?.(t0);
     }
-    let last = performance.now();
+    let last: number | null = null;   // lazy: first frame only arms, never jumps
     let lastUi = 0;
     const step = (t: number) => {
+      if (last == null) {
+        last = t;
+        rafRef.current = requestAnimationFrame(step);
+        return;
+      }
       const dt = (t - last) / 1000;
       last = t;
-      const next = Math.min(tEnd, clockRef.current + dt * speed);
+      const next = Math.min(tEnd, clockRef.current + dt * speedRef.current);
       if (t - lastPaintRef.current > 100 || next >= tEnd) {
         lastPaintRef.current = t;
         clockRef.current = next;
-        paint(next);
+        paintRef.current?.(next);
         if (t - lastUi > 250 || next >= tEnd) {
           lastUi = t;
           setClock(next);
@@ -301,7 +357,7 @@ export default function TickReplay() {
     };
     rafRef.current = requestAnimationFrame(step);
     return () => cancelAnimationFrame(rafRef.current);
-  }, [playing, speed, bundle, tEnd, paint]);
+  }, [playing, bundle, tEnd]);
 
   const revealed = useMemo(
     () => (bundle ? bundle.trades.filter(t => t.time <= clock) : []),
@@ -331,7 +387,7 @@ export default function TickReplay() {
     <Box sx={{ p: 2, width: "100%" }} data-testid="tick-replay">
       <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>Tick Replay — VWAP + ORB on real NQ ticks</Typography>
       <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
-        1m NQ=F candles, forming bar ticks live from 5s subs{bundle?.basis != null ? ` · basis +${bundle.basis.toFixed(1)}` : ""} · OR {bundle?.or_minutes ?? orTf}m{bundle && bundle.candles.length ? ` (${orRangeLabel(bundle.candles[0].time, bundle.or_minutes)})` : ""} · LONG above OR-H + VWAP / SHORT below OR-L + VWAP · SL opposite edge, TP 2R · {TZ_IST_LABEL}
+        1m NQ=F candles, forming bar ticks live from {bundle?.sub_secs ?? 2}s subs{bundle?.basis != null ? ` · basis +${bundle.basis.toFixed(1)}` : ""}{bundle?.hist_bars ? ` · +${bundle.hist_bars} overnight bars` : ""} · OR {bundle?.or_minutes ?? orTf}m{bundle && bundle.candles.length ? ` (${orRangeLabel(bundle.candles[0].time, bundle.or_minutes)})` : ""} · LONG above OR-H + VWAP / SHORT below OR-L + VWAP · SL opposite edge, TP nearest structure · {TZ_IST_LABEL}
       </Typography>
       <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
         {DATES.map(d => (
@@ -350,13 +406,14 @@ export default function TickReplay() {
           {[5, 15, 30].map(m => <MenuItem key={m} value={m}>{m}m</MenuItem>)}
         </TextField>
         <Box sx={{ flex: 1, minWidth: 200, px: 1 }}>
-          <Slider size="small" min={t0} max={tEnd} step={1} value={clock}
+          <Slider size="small" min={t0} max={tEnd} step={1} value={Math.round(clock)}
             onChange={(_, v) => jump(v as number)} aria-label="replay position" />
         </Box>
         <Typography variant="caption" sx={{ color: "#E5E7EB", fontFamily: "monospace" }}>
           {clock > 0 ? fmtT(clock) : "--:--:--"} · {closed.length}/{revealed.length} closed · net {net > 0 ? "+" : ""}{net.toFixed(1)}
         </Typography>
         {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: "#58A6FF" }} />}
+        {bundle?.error && <Chip size="small" label={bundle.error} sx={{ bgcolor: "#3B1D1D", color: "#F87171" }} />}
       </Stack>
       <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", mb: 2 }}>
         <Box ref={boxRef} sx={{ width: "100%", height: 420 }} />
@@ -372,7 +429,7 @@ export default function TickReplay() {
           <Box sx={{ p: 2, color: "#9CA3AF", fontSize: 12 }}>Press Play — entries print as ticks cross their signals.</Box>
         ) : (
           revealed.map((t, i) => (
-            <Box key={i} sx={{ px: 1.5, py: 1, borderTop: i ? `1px solid ${palette.NT_GRID}` : 0, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
+            <Box key={`${t.time}-${t.side}-${t.entry}`} sx={{ px: 1.5, py: 1, borderTop: i ? `1px solid ${palette.NT_GRID}` : 0, display: "flex", gap: 1, alignItems: "center", flexWrap: "wrap" }}>
               <Chip size="small" label={t.side} color={t.side === "LONG" ? "success" : "error"} sx={{ height: 18, fontSize: 10, fontWeight: 700 }} />
               <Typography variant="caption" sx={{ color: palette.TEXT, fontFamily: "monospace", fontSize: 11 }}>
                 {fmtT(t.time)}{t.exit_time <= clock ? ` → ${fmtT(t.exit_time)}` : " → …"}
@@ -382,7 +439,7 @@ export default function TickReplay() {
               </Typography>
               {t.exit_time <= clock ? (
                 <Chip size="small" label={`${t.result} ${t.pnl > 0 ? "+" : ""}${t.pnl.toFixed(1)}`}
-                  color={t.pnl > 0 ? "success" : "error"} sx={{ height: 18, fontSize: 9 }} />
+                  color={t.pnl > 0 ? "success" : t.result === "EOD" ? "default" : "error"} sx={{ height: 18, fontSize: 9 }} />
               ) : (
                 <Chip size="small" label="OPEN" color="warning" sx={{ height: 18, fontSize: 9 }} />
               )}

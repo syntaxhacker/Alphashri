@@ -7,8 +7,10 @@ Rules (history-only):
   SHORT: 1m close breaks below OR low AND close < VWAP -> sell next tick (bid).
   SL: opposite OR edge.
   TP: nearest untouched structural pivot (incl. overnight history), else fixed RR.
+  Open position at session end is force-closed at the last tick (result "EOD").
   One position at a time, cooldown after exit.
   Exits evaluated per tick (SL-first), same conventions as SMCIFVGEngine.
+  The fill tick itself is never tested for exits (no same-tick entry/exit).
 """
 from collections import defaultdict
 
@@ -72,7 +74,14 @@ class VWAPORBEngine:
 
     def run(self, bars, ticks, hist=None):
         """hist: optional overnight bars used for STRUCTURE ONLY (zones/TP). Session logic
-        (OR, signals, fills) still runs on bars alone. No lookahead: hist must predate bars."""
+        (OR, signals, fills) still runs on bars alone. No lookahead: hist must predate bars.
+        Idempotent: all mutable state is reset on entry, safe to call twice."""
+        self.pos = None
+        self.pending = None
+        self.last_exit = -999
+        self.trades = []
+        self._cum_pv = 0.0
+        self._cum_v = 0.0
         HB = list(hist or [])
         OFF = len(HB)
         ALL = HB + list(bars)
@@ -84,9 +93,12 @@ class VWAPORBEngine:
             or_high = max(b["high"] for b in bars[:self.or_bars])
             or_low = min(b["low"] for b in bars[:self.or_bars])
         vwap = None
+        filled_i = -1
+        last_t = None
         for i, b in enumerate(bars):
             bt = by_min.get(b["time"], [])
             for t in bt:  # session VWAP through this bar's ticks
+                last_t = t
                 v = self._tick_vol(t)
                 if v > 0:
                     self._cum_pv += self._tick_mid(t) * v
@@ -118,10 +130,11 @@ class VWAPORBEngine:
                         self.pos = {"side": self.pending["side"], "entry": px, "sl": sl,
                                     "tp": tp, "i": i, "ts": t["timestamp"]}
                         self.pending = None
-            # manage open position: SL first, then TP
+                        filled_i = i
+            # manage open position: SL first, then TP (skip the fill tick itself)
             if self.pos:
                 p = self.pos
-                for t in bt:
+                for t in (bt[1:] if i == filled_i else bt):
                     bid, ask = t["bidPrice"], t["askPrice"]
                     if p["side"] == "SHORT":
                         if ask >= p["sl"]:
@@ -142,6 +155,10 @@ class VWAPORBEngine:
                 self.pending = {"side": "LONG", "sl": or_low, "sig_i": i}
             elif b["close"] < or_low and b["close"] < vwap:
                 self.pending = {"side": "SHORT", "sl": or_high, "sig_i": i}
+        if self.pos and last_t is not None:  # force-close open position at session end
+            p = self.pos
+            px = last_t["bidPrice"] if p["side"] == "LONG" else last_t["askPrice"]
+            self._close(len(bars) - 1, px, "EOD", last_t["timestamp"])
         return self.trades
 
     def _close(self, i, px, why, ts_ms):
