@@ -96,7 +96,7 @@ class TestGetTickReplay:
     def test_bundle_shape(self):
         ticks = _make_ticks(20)
         with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, BASIS)):
-            res = get_tick_replay(date="2026-01-05", secs=2, orb=15)
+            res = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
         assert "error" not in res
         for key in ("candles", "subs", "vwap", "or_high", "or_low",
                     "or_minutes", "or_end", "trades", "basis", "symbol"):
@@ -112,7 +112,7 @@ class TestGetTickReplay:
     def test_or_levels_from_first_n_bars(self):
         ticks = _make_ticks(20)
         with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, BASIS)):
-            res = get_tick_replay(date="2026-01-05", secs=2, orb=15)
+            res = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
         bars = real_build_1m_bars(ticks)
         exp_high, exp_low, exp_end = compute_or_window(bars, 15)
         assert res["or_high"] == round(exp_high, 2)
@@ -125,8 +125,8 @@ class TestGetTickReplay:
     def test_orb_param_changes_or_end(self):
         ticks = _make_ticks(20)
         with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, BASIS)):
-            r5 = get_tick_replay(date="2026-01-05", secs=2, orb=5)
-            r15 = get_tick_replay(date="2026-01-05", secs=2, orb=15)
+            r5 = get_tick_replay(date="2026-01-05", secs=2, orb=5, hist=0)
+            r15 = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
         assert r5["or_minutes"] == 5
         assert r15["or_minutes"] == 15
         assert r5["or_end"] != r15["or_end"]
@@ -147,12 +147,12 @@ class TestGetTickReplay:
             def __init__(self, or_bars=15):
                 pass
 
-            def run(self, bars, ticks):
+            def run(self, bars, ticks, hist=None):
                 return list(canned)
 
         with patch("scripts.nq_ticks.fetch_nq_ticks", return_value=(ticks, BASIS)), \
                 patch("trading.vwap_orb.VWAPORBEngine", _FakeOrb):
-            res = get_tick_replay(date="2026-01-05", secs=2, orb=15)
+            res = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
         assert len(res["trades"]) == 1
         tr = res["trades"][0]
         assert tr["time"] == t_in // 60000 * 60 == base
@@ -163,7 +163,7 @@ class TestGetTickReplay:
     def test_error_path_fetch_raises(self):
         with patch("scripts.nq_ticks.fetch_nq_ticks",
                    side_effect=RuntimeError("boom")):
-            res = get_tick_replay(date="2026-01-05", secs=2, orb=15)
+            res = get_tick_replay(date="2026-01-05", secs=2, orb=15, hist=0)
         assert res["trades"] == []
         assert res["candles"] == []
         assert "error" in res
