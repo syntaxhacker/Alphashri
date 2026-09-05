@@ -52,9 +52,12 @@ export default function TickReplay() {
   const rafRef = useRef(0);
   const clockRef = useRef(0);
   const lastPaintRef = useRef(0);
+  const playingRef = useRef(false);
+  const paintScheduledRef = useRef(false);
 
   useEffect(() => { clockRef.current = clock; }, [clock]);
   useEffect(() => { speedRef.current = speed; }, [speed]);
+  useEffect(() => { playingRef.current = playing; }, [playing]);
 
   const t0 = bundle && bundle.candles.length ? bundle.candles[0].time : 0;
   const tEnd = bundle && bundle.candles.length ? bundle.candles[bundle.candles.length - 1].time + 60 : 0;
@@ -146,7 +149,18 @@ export default function TickReplay() {
       requestAnimationFrame(() => paintRef.current?.(clockRef.current));
     });
     ro.observe(boxRef.current);
-    const onVis = () => requestAnimationFrame(() => paintRef.current?.(clockRef.current));
+    const onVis = () => {
+      // Break the onVis -> paint -> scroll -> onVis feedback loop: while playing the
+      // RAF loop already paints at 10fps, so a range-change repaint is only needed
+      // when paused (keeps the R:R overlay aligned after a manual pan/zoom).
+      if (playingRef.current) return;
+      if (paintScheduledRef.current) return;
+      paintScheduledRef.current = true;
+      requestAnimationFrame(() => {
+        paintScheduledRef.current = false;
+        paintRef.current?.(clockRef.current);
+      });
+    };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onVis);
     return () => {
       ro.disconnect();
@@ -307,9 +321,9 @@ export default function TickReplay() {
         }
       }
     }
-    // auto-follow only while the user is near the right edge (never yank a manual pan)
+    // auto-follow only while playing AND the user is near the right edge (never yank a manual pan)
     const visRange = chart.timeScale().getVisibleLogicalRange?.();
-    if (!visRange || visRange.to == null || visRange.to > pg.n - 12) {
+    if (playingRef.current && (!visRange || visRange.to == null || visRange.to > pg.n - 12)) {
       chart.timeScale().scrollToPosition(6, false);
     }
   }, [bundle]);
