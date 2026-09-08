@@ -1,7 +1,7 @@
-import { Box, Card, Text, Button, Group, Stack, Grid, Badge, Tooltip } from "@/ui";
+import { Box, Card, Text, Button, Group, Stack, SimpleGrid, Badge, Tooltip } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
-import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
+import { loadBotStatus, loadBotTrades } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
@@ -32,12 +32,10 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
     await onStart(bot.id);
     await loadBotStatus(bot.id);
     await loadBotTrades(bot.id);
-    startAutoRefresh(bot.id, 5000);
   };
 
   const handleStop = async () => {
     await onStop(bot.id);
-    stopAutoRefresh();
     await loadBotStatus(bot.id);
   };
 
@@ -88,8 +86,8 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               {status?.running ? (
                 <Button
                   leftSection={<IconPlayerStop size={16} />}
-                  variant="light"
-                  color="warning"
+                  variant="filled"
+                  color="error"
                   onClick={handleStop}
                   data-testid="stop-bot-btn"
                 >
@@ -103,7 +101,7 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                   <span>
                     <Button
                       leftSection={<IconPlayerPlay size={16} />}
-                      variant="light"
+                      variant="filled"
                       color="success"
                       onClick={handleStart}
                       disabled={marketClosed}
@@ -157,13 +155,11 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                 {Object.keys(status.strategies).length}
               </Badge>
             </Group>
-            <Grid>
+            <SimpleGrid cols={3} spacing={16}>
               {Object.values(status.strategies).map((s) => (
-                <Grid.Col key={s.strategy_id} span={{ base: 12, sm: 6, md: 4 }}>
-                  <StrategyStatusCard strategy={s} isRunning={status?.running ?? false} />
-                </Grid.Col>
+                <StrategyStatusCard key={s.strategy_id} strategy={s} isRunning={status?.running ?? false} />
               ))}
-            </Grid>
+            </SimpleGrid>
           </Stack>
         )}
 

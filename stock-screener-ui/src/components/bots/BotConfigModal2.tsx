@@ -9,6 +9,7 @@ import {
   Stack,
   Group,
   Text,
+  Box,
   Card,
   ActionIcon,
   Divider,
@@ -124,7 +125,7 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
       setIsActive(bot.is_active);
       setMaxPositions(bot.max_total_positions);
       setMaxCapital(bot.max_total_capital_pct * 100);
-      setMaxDailyLoss(bot.max_daily_loss_pct ?? 3);
+      setMaxDailyLoss((bot.max_daily_loss_pct ?? 0.03) * 100);
       setLiveTrading(bot.live_trading ?? false);
       setStrategies(
         bot.strategies.map((s, i) => ({

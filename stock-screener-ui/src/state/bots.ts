@@ -62,9 +62,6 @@ let state: BotsState = { ...initialState };
 // Current view
 let currentViewValue: BotsView = "list";
 
-// Auto-refresh interval
-let autoRefreshInterval: ReturnType<typeof setInterval> | null = null;
-
 const { subscribe, notify } = createSubscriber();
 export { subscribe };
 
@@ -418,22 +415,6 @@ export function selectBot(bot: BotConfig | null): void {
   notify();
   if (bot && bot.running) {
     loadBotStatus(bot.id);
-  }
-}
-
-// Start auto-refresh for bot status
-export function startAutoRefresh(botId: string, intervalMs: number = 5000): void {
-  stopAutoRefresh();
-  autoRefreshInterval = setInterval(() => {
-    loadBotStatus(botId);
-  }, intervalMs);
-}
-
-// Stop auto-refresh
-export function stopAutoRefresh(): void {
-  if (autoRefreshInterval) {
-    clearInterval(autoRefreshInterval);
-    autoRefreshInterval = null;
   }
 }
 
