@@ -5,7 +5,6 @@ import {
   Badge,
   Group,
   Stack,
-  Grid,
   Progress,
   ActionIcon,
   Tooltip,
@@ -41,19 +40,6 @@ import {
   TINT_NEGATIVE,
 } from "../../config/colors";
 
-const STRATEGY_COLORS: Record<string, string> = {
-  ORB: "primary",
-  SR_BREAKOUT: "secondary",
-  EMA_CROSS: "info",
-  WEEK_52_CHASER: "warning",
-  WEEK_52_TARGET: "info",
-  BLIND_52W: "secondary",
-};
-
-function getStrategyColor(type: string): string {
-  return STRATEGY_COLORS[type] || "secondary";
-}
-
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);
   const pnlBg = portfolio.total_pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE;
@@ -70,7 +56,7 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={isGreen ? "info" : "error"} variant="light" size="sm">
+          <Badge color={isGreen ? "success" : "error"} variant="light" size="sm">
             {isGreen ? "PROFIT" : "LOSS"}
           </Badge>
         </Box>
@@ -114,8 +100,6 @@ export function StrategyStatusCard({
 }) {
   const usedPct = (strategy.capital_used / strategy.allocated_capital) * 100;
   const pnlColor = getPnLTextColor(strategy.total_pnl);
-  const stratColor = getStrategyColor(strategy.strategy_name);
-  const progColor = usedPct > 80 ? "error" : usedPct > 50 ? "warning" : stratColor;
   const isGreen = strategy.total_pnl >= 0;
 
   return (
@@ -128,9 +112,7 @@ export function StrategyStatusCard({
     >
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb={1}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={stratColor} variant="filled" size="sm">
-            {strategy.strategy_name}
-          </Badge>
+          <Text fw={600} size="sm" ta="center">{strategy.strategy_name}</Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Badge color={strategy.status === "running" ? "success" : "secondary"} variant="light" size="sm">
@@ -153,7 +135,7 @@ export function StrategyStatusCard({
             ₹{formatNumberShared(strategy.capital_used)} / ₹{formatNumberShared(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
           </Text>
         </Box>
-        <Progress value={Math.min(usedPct, 100)} size="sm" color={progColor} />
+        <Progress value={Math.min(usedPct, 100)} size="sm" color="primary" />
 
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
           <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>P&L</Text>
@@ -185,12 +167,10 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       id: "strategy_name",
       header: "Strategy",
       accessorKey: "strategy_name",
-      meta: { align: "center" } as any,
+      meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
-            {row.original.strategy_name}
-          </Badge>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+          <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
         </Box>
       ),
     },
@@ -198,8 +178,8 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       id: "symbol",
       header: "Symbol",
       accessorKey: "symbol",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">{row.original.symbol}</Text></Box>,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
     },
     {
       id: "side",
@@ -212,34 +192,34 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       id: "quantity",
       header: "Qty",
       accessorKey: "quantity",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} ta="center">{row.original.quantity}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{row.original.quantity}</Text></Box>,
     },
     {
       id: "entry_price",
       header: "Entry",
       accessorKey: "entry_price",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c="dimmed" ta="center">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" c="dimmed" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "current_price",
       header: "Current",
       accessorKey: "current_price",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={500} ta="center">₹{row.original.current_price.toFixed(2)}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" fw={500} ta="right">₹{row.original.current_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "unrealized_pnl",
       header: "P&L",
       accessorKey: "unrealized_pnl",
-      meta: { align: "center" } as any,
+      meta: { align: "right" } as any,
       cell: ({ row }) => {
         const p = row.original;
         const pnlColor = getPnLTextColor(p.unrealized_pnl);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Text c={pnlColor} fw={600} ta="center">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text c={pnlColor} fw={600} ta="right">
               {formatSignedPnl(p.unrealized_pnl)}
               <Text span size="sm" ml={4}>
                 ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
@@ -258,9 +238,9 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Group gap="xs" wrap="nowrap" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
             <Badge color="error" variant="dot" size="sm" />
-            <Text size="sm" c="dimmed">₹{row.original.stop_loss.toFixed(2)}</Text>
+            <Text size="sm">₹{row.original.stop_loss.toFixed(2)}</Text>
             <Badge color="success" variant="dot" size="sm" />
-            <Text size="sm" c="dimmed">₹{row.original.take_profit.toFixed(2)}</Text>
+            <Text size="sm">₹{row.original.take_profit.toFixed(2)}</Text>
           </Group>
         </Box>
       ),
@@ -273,7 +253,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Open Positions</Text></Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={positions.some(p => p.unrealized_pnl >= 0) ? "info" : "error"} variant="light" size="sm">
+          <Badge color="primary" variant="light" size="sm">
             {positions.length} active
           </Badge>
         </Box>
@@ -311,13 +291,11 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "strategy_name",
       header: "Strategy",
       accessorKey: "strategy_name",
-      meta: { align: "center" } as any,
+      meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Group gap="xs" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-            <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
-              {row.original.strategy_name}
-            </Badge>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+            <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
             {row.original.is_test && (
               <Badge color="warning" size="sm" variant="light">
                 TEST
@@ -331,8 +309,8 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "symbol",
       header: "Symbol",
       accessorKey: "symbol",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">{row.original.symbol}</Text></Box>,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
     },
     {
       id: "side",
@@ -345,36 +323,36 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "quantity",
       header: "Qty",
       accessorKey: "quantity",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} ta="center">{row.original.quantity}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{row.original.quantity}</Text></Box>,
     },
     {
       id: "entry_price",
       header: "Entry",
       accessorKey: "entry_price",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c="dimmed" ta="center">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" c="dimmed" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "exit_price",
       header: "Exit",
       accessorKey: "exit_price",
-      meta: { align: "center" } as any,
+      meta: { align: "right" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={500} ta="center">₹{row.original.exit_price?.toFixed(2) || "-"}</Text></Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" fw={500} ta="right">₹{row.original.exit_price?.toFixed(2) || "-"}</Text></Box>
       ),
     },
     {
       id: "pnl",
       header: "P&L",
       accessorKey: "pnl",
-      meta: { align: "center" } as any,
+      meta: { align: "right" } as any,
       cell: ({ row }) => {
         const t = row.original;
         const pnlColor = getPnLTextColor(t.pnl);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Text c={pnlColor} fw={600} ta="center">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text c={pnlColor} fw={600} ta="right">
               {formatSignedPnl(t.pnl)}
               <Text span size="sm" ml={4}>
                 ({t.pnl_pct >= 0 ? "+" : ""}
@@ -389,12 +367,12 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "net_pnl",
       header: "Net P&L",
       accessorKey: "net_pnl",
-      meta: { align: "center" } as any,
+      meta: { align: "right" } as any,
       cell: ({ row }) => {
         const netPnlColor = getPnLTextColor(row.original.net_pnl);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Text c={netPnlColor} fw={600} ta="center">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text c={netPnlColor} fw={600} ta="right">
               {formatSignedPnl(row.original.net_pnl)}
             </Text>
           </Box>
@@ -405,8 +383,8 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "exit_reason",
       header: "Exit Reason",
       accessorKey: "exit_reason",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><ExitReasonBadge reason={row.original.exit_reason} /></Box>,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><ExitReasonBadge reason={row.original.exit_reason} /></Box>,
       enableSorting: false,
     },
   ];
@@ -418,14 +396,14 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Badge
             color="success"
-            variant="light"
+            variant="filled"
             size="sm"
           >
             {trades.filter(t => t.pnl >= 0).length} W
           </Badge>
           <Badge
             color="error"
-            variant="light"
+            variant="filled"
             size="sm"
           >
             {trades.filter(t => t.pnl < 0).length} L
@@ -541,17 +519,11 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
   return (
     <Stack gap={4}>
       <Text size="sm">{bot.strategies.length} strategies</Text>
-      <Group gap="xs" wrap="wrap">
+      <Group gap={4} wrap="wrap">
         {bot.strategies.map((s) => (
-          <Badge
-            key={s.id}
-            size="sm"
-            variant="light"
-            color={getStrategyColor(s.strategy_type)}
-          >
-            {s.strategy_type}
-            {!s.enable_shorts && <span style={{ marginLeft: 2 }}>L</span>}
-          </Badge>
+          <Text key={s.id} size="xs" c="dimmed">
+            {s.strategy_type}{!s.enable_shorts && " (long-only)"}
+          </Text>
         ))}
       </Group>
       {bot.strategies.map((s) => (

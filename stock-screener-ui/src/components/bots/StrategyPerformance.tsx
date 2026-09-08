@@ -5,22 +5,6 @@ import { type ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../common/TanStackTable";
 import { apiGet } from "../../api/utils";
 
-const STRATEGY_COLORS: Record<string, string> = {
-  ORB: "primary",
-  SR_BREAKOUT: "secondary",
-  EMA_CROSS: "info",
-  WEEK_52_CHASER: "warning",
-  WEEK_52_TARGET: "info",
-  BLIND_52W: "secondary",
-};
-
-function getStrategyColor(name: string): string {
-  for (const [key, color] of Object.entries(STRATEGY_COLORS)) {
-    if (name.toUpperCase().includes(key)) return color;
-  }
-  return "secondary";
-}
-
 interface StrategyPerf {
   strategy_id: number;
   strategy_name: string;
@@ -43,31 +27,29 @@ const columns: ColumnDef<StrategyPerf>[] = [
     accessorKey: "strategy_name",
     header: "Strategy",
     enableSorting: true,
-    meta: { align: "center" } as any,
-    cell: ({ row }) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
-          {row.original.strategy_name}
-        </Badge>
-      </Box>
-    ),
+    meta: { align: "left" } as any,
+      cell: ({ row }) => (
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+          <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
+        </Box>
+      ),
   },
   {
     accessorKey: "trades",
     header: "Trades",
     enableSorting: true,
-    meta: { align: "center" } as any,
-    cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} ta="center">{getValue<number>()}</Text></Box>,
+    meta: { align: "right" } as any,
+    cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{getValue<number>()}</Text></Box>,
   },
   {
     accessorKey: "wins",
     header: "Wins",
     enableSorting: true,
-    meta: { align: "center" } as any,
+    meta: { align: "right" } as any,
     cell: ({ getValue }) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
         <Badge color="success" variant="dot" size="sm" />
-        <Text span ml={4} ta="center">{getValue<number>()}</Text>
+        <Text span ml={4} ta="right">{getValue<number>()}</Text>
       </Box>
     ),
   },
@@ -75,11 +57,11 @@ const columns: ColumnDef<StrategyPerf>[] = [
     accessorKey: "losses",
     header: "Losses",
     enableSorting: true,
-    meta: { align: "center" } as any,
+    meta: { align: "right" } as any,
     cell: ({ getValue }) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
         <Badge color="error" variant="dot" size="sm" />
-        <Text span ml={4} ta="center">{getValue<number>()}</Text>
+        <Text span ml={4} ta="right">{getValue<number>()}</Text>
       </Box>
     ),
   },
@@ -87,21 +69,21 @@ const columns: ColumnDef<StrategyPerf>[] = [
     accessorKey: "win_rate",
     header: "Win Rate",
     enableSorting: true,
-    meta: { align: "center" } as any,
+    meta: { align: "right" } as any,
     cell: ({ getValue }) => {
       const v = getValue<number>();
-      return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} c={v >= 50 ? "info" : "warning"} ta="center">{v}%</Text></Box>;
+      return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{v}%</Text></Box>;
     },
   },
   {
     accessorKey: "net_pnl",
     header: "Net P&L",
     enableSorting: true,
-    meta: { align: "center" } as any,
+    meta: { align: "right" } as any,
     cell: ({ getValue }) => {
       const v = getValue<number>();
       return (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} c={v >= 0 ? "info" : "error"} ta="center">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={600} c={v >= 0 ? "success" : "error"} ta="right">
           {v >= 0 ? "+" : ""}₹{v.toLocaleString()}
         </Text></Box>
       );
@@ -144,27 +126,28 @@ export function StrategyPerformance() {
         radius="sm"
         sx={(theme) => ({
           p: 1,
-          background: alpha(data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.08),
+          background: alpha(data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.16),
+          borderLeft: `4px solid ${data.total_net_pnl >= 0 ? theme.palette.success.main : theme.palette.error.main}`,
         })}
       >
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-start" }}>
-              <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total Trades</Text>
-              <Text fw={700} size="lg" sx={{ flex: 1, textAlign: "right" }}>{data.total_trades}</Text>
+          <Group gap={8} align="flex-start" sx={{ display: "flex", alignItems: "flex-start", gap: 2 }}>
+            <Box sx={{ display: "flex", gap: 1, flexDirection: "column", alignItems: "flex-start" }}>
+              <Text size="xs" c="dimmed">Total Trades</Text>
+              <Text fw={700} size="lg">{data.total_trades}</Text>
             </Box>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-start" }}>
-              <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Win / Loss</Text>
-              <Group gap={1} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-                <Badge color="success" variant="light" size="sm">{totalWins} W</Badge>
-                <Badge color="error" variant="light" size="sm">{totalLosses} L</Badge>
-                <Text size="sm" c="dimmed">({totalWinRate}%)</Text>
+            <Box sx={{ display: "flex", gap: 1, flexDirection: "column", alignItems: "flex-start" }}>
+              <Text size="xs" c="dimmed">Win / Loss</Text>
+              <Group gap={8} sx={{ display: "flex", alignItems: "center", gap: 2 }}>
+                <Badge color="success" variant="filled" size="sm">{totalWins} W</Badge>
+                <Badge color="error" variant="filled" size="sm">{totalLosses} L</Badge>
+                <Text size="sm" fw={700}>({totalWinRate}%)</Text>
               </Group>
             </Box>
           </Group>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, flexDirection: "column", alignItems: "flex-end" }}>
-            <Text size="xs" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Total Net P&L</Text>
-            <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "info" : "error"} sx={{ flex: 1, textAlign: "right" }}>
+          <Box sx={{ display: "flex", gap: 1, flexDirection: "column", alignItems: "flex-start" }}>
+            <Text size="xs" c="dimmed">Total Net P&L</Text>
+            <Text fw={700} size="lg" c={data.total_net_pnl >= 0 ? "success" : "error"}>
               {data.total_net_pnl >= 0 ? "+" : ""}₹{data.total_net_pnl.toLocaleString()}
             </Text>
           </Box>

@@ -1,5 +1,7 @@
 import { useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
+import * as palette from "@/ui/palette";
 import { Box, Tabs, Button, Stack, Group, Text, Badge } from "@/ui";
 import Container from "@mui/material/Container";
 import Card from "@mui/material/Card";
@@ -21,8 +23,6 @@ import {
   startAllBotsAction,
   deleteBotAction,
   clearError,
-  startAutoRefresh,
-  stopAutoRefresh,
   initBotsState,
   setCurrentView,
   openCreateModal,
@@ -44,7 +44,6 @@ function useViewChangeHandler() {
   return useCallback((view: string | null) => {
     if (!view) return;
     setCurrentView(view as BotsView);
-    stopAutoRefresh();
   }, []);
 }
 
@@ -57,7 +56,6 @@ function useStartBotHandler() {
 function useStopBotHandler() {
   return useCallback(async (botId: string) => {
     await stopBotAction(botId);
-    stopAutoRefresh();
   }, []);
 }
 
@@ -76,7 +74,6 @@ function useViewStatusHandler() {
     loadBotTrades(bot.id);
     if (bot.running) {
       loadBotStatus(bot.id);
-      startAutoRefresh(bot.id, 5000);
     }
   }, []);
 }
@@ -100,6 +97,11 @@ function BotsPageTabs({
   currentView: BotsView;
   onViewChange: (view: BotsView) => void;
 }) {
+  const TAB_META: Record<BotsView, { color: string }> = {
+    list: { color: palette.PRIMARY },
+    status: { color: palette.POSITIVE },
+    performance: { color: palette.NT_TREND },
+  };
   return (
     <Box sx={{ flex: "0 0 auto", mb: 2, display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} id="bots-tabs" data-testid="bots-tabs">
       <Tabs
@@ -110,21 +112,23 @@ function BotsPageTabs({
         sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
       >
         <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-          <Tabs.Tab value="list" leftSection={<IconRobot size={16} />} data-testid="bots-tab-list">
+          <Tabs.Tab value="list" icon={<IconRobot size={16} color={TAB_META.list.color} />} data-testid="bots-tab-list" id="bots-tab-list">
             Bots
           </Tabs.Tab>
           <Tabs.Tab
             value="status"
-            leftSection={<IconChartLine size={16} />}
+            icon={<IconChartLine size={16} color={TAB_META.status.color} />}
             disabled={!getBotsState().selectedBot}
             data-testid="bots-tab-status"
+            id="bots-tab-status"
           >
             Status
           </Tabs.Tab>
           <Tabs.Tab
             value="performance"
-            leftSection={<IconChartBar size={16} />}
+            icon={<IconChartBar size={16} color={TAB_META.performance.color} />}
             data-testid="bots-tab-performance"
+            id="bots-tab-performance"
           >
             Performance
           </Tabs.Tab>
@@ -166,16 +170,16 @@ function BotsTable({
       id: "name",
       header: "Name",
       accessorKey: "name",
-      meta: { align: "center" } as any,
+      meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Group gap="xs" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
             <Box
               w={8}
               h={8}
               sx={{ borderRadius: "50%", backgroundColor: getBotIndicatorColor(row.original.running) }}
             />
-            <Text fw={500} ta="center">{row.original.name}</Text>
+            <Text fw={500} ta="left">{row.original.name}</Text>
             {row.original.live_trading && (
               <Badge color="error" size="sm" variant="filled">LIVE</Badge>
             )}
@@ -207,23 +211,23 @@ function BotsTable({
     {
       id: "strategies",
       header: "Strategies",
-      meta: { align: "center" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><BotSummaryCell bot={row.original} /></Box>,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><BotSummaryCell bot={row.original} /></Box>,
       enableSorting: false,
     },
     {
       id: "max_total_positions",
       header: "Max Positions",
       accessorKey: "max_total_positions",
-      meta: { align: "center" } as any,
-      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text ta="center">{String(getValue() as number)}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text ta="right">{String(getValue() as number)}</Text></Box>,
     },
     {
       id: "max_total_capital_pct",
       header: "Max Capital",
       accessorKey: "max_total_capital_pct",
-      meta: { align: "center" } as any,
-      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text ta="center">{`${((getValue() as number) * 100).toFixed(0)}%`}</Text></Box>,
+      meta: { align: "right" } as any,
+      cell: ({ getValue }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text ta="right">{`${((getValue() as number) * 100).toFixed(0)}%`}</Text></Box>,
     },
     {
       id: "actions",
@@ -308,15 +312,19 @@ function renderPageContent({
             <InlineLoader size="lg" />
           </Stack>
         ) : currentView === "performance" ? (
-          <StrategyPerformance />
+          <Box sx={{ width: "100%", maxWidth: 1120, mx: "auto" }}>
+            <StrategyPerformance />
+          </Box>
         ) : currentView === "status" && state.selectedBot ? (
-          <BotStatusPanel
-            bot={state.selectedBot}
-            status={state.botStatus}
-            trades={state.botTrades}
-            onStart={handleStartBot}
-            onStop={handleStopBot}
-          />
+          <Box sx={{ width: "100%", maxWidth: 1120, mx: "auto" }}>
+            <BotStatusPanel
+              bot={state.selectedBot}
+              status={state.botStatus}
+              trades={state.botTrades}
+              onStart={handleStartBot}
+              onStop={handleStopBot}
+            />
+          </Box>
         ) : (
           <BotsTable
             onViewStatus={handleViewStatus}
@@ -353,11 +361,40 @@ function BotsConfigModal() {
 export function BotsPage() {
   useStoreSubscription(subscribe);
   const currentView = getCurrentView();
+  const [searchParams, setSearchParams] = useSearchParams();
 
   useEffect(() => {
     initBotsState();
-    return () => stopAutoRefresh();
   }, []);
+
+  // Sync URL ?tab= -> state on mount and on browser nav (mirrors /paper?view=)
+  useEffect(() => {
+    const tabParam = searchParams.get("tab") as BotsView | null;
+    const valid: BotsView[] = ["list", "status", "performance"];
+    if (tabParam && valid.includes(tabParam) && tabParam !== getCurrentView()) {
+      if (tabParam === "status" && !getBotsState().selectedBot) {
+        setCurrentView("list");
+      } else {
+        setCurrentView(tabParam);
+      }
+    } else if (!tabParam) {
+      // No param -> push current view to URL for deep-link consistency
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", getCurrentView());
+      setSearchParams(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // Sync state -> URL when tab changes (via actions)
+  useEffect(() => {
+    const currentParam = searchParams.get("tab");
+    if (currentParam !== currentView) {
+      const next = new URLSearchParams(searchParams);
+      next.set("tab", currentView);
+      setSearchParams(next, { replace: false });
+    }
+  }, [currentView, searchParams, setSearchParams]);
 
   const handleViewChange = useViewChangeHandler();
   const handleStartBot = useStartBotHandler();
@@ -377,7 +414,7 @@ export function BotsPage() {
           </Stack>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
             <Button
-              variant="light"
+              variant="filled"
               color="success"
               size="sm"
               leftSection={<IconPlayerPlay size={16} />}
@@ -394,8 +431,8 @@ export function BotsPage() {
               Start All ({getBotsState().bots.filter(b => !b.running).length})
             </Button>
             <Button
-              variant="light"
-              color="warning"
+              variant="filled"
+              color="error"
               size="sm"
               leftSection={<IconPlayerStop size={16} />}
               onClick={async () => {
