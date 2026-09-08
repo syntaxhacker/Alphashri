@@ -63,7 +63,6 @@ export function AppLayout({ children }: AppLayoutProps) {
         variant="temporary"
         open={mobileOpened}
         onClose={closeMobile}
-        ModalProps={{ keepMounted: true }}
         sx={{ display: { xs: "block", md: "none" }, "& .MuiDrawer-paper": { width: 200, boxSizing: "border-box" } }}
       >
         <Toolbar />
