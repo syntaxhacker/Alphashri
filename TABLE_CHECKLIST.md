@@ -2,6 +2,14 @@
 
 Branch: fix/table-alignment  |  Shared component: `src/components/common/TanStackTable.tsx`
 
+## Column alignment rules (fin-app standard — MANDATORY for every table)
+1. **Text/date columns: left.** Header + cells left. No exceptions.
+2. **Numeric columns: right.** Counts, prices, %, P&L, PF — header + cells right.
+3. **Badge/action-only columns: center.** Status badges, buttons, dot clusters stay centered.
+4. **Always set explicit `meta: { align }` per column** — never rely on auto-detect, never `align: "center"` as a default.
+5. **Cell wrapper must match the meta**: `justifyContent flex-start` + `ta="left"` for text, `flex-end` + `ta="right"` for numbers. A centered wrapper div inside a left/right cell re-breaks alignment — check both.
+6. **No invented colors in cells.** P&L: success/error. Status: success/secondary. Names/ids: plain text, no badge. Strategy names: plain text (the per-strategy rainbow is banned).
+
 ## Behavior (implemented in shared TanStackTable)
 1. **Header aligns with cell text** — `th` defaults to left (browser default is center, which misaligned headers over left-aligned cells).
 2. **Numeric columns right-align automatically** — columns whose sample values are all numbers get `right` on both header and cells; text columns stay `left`.

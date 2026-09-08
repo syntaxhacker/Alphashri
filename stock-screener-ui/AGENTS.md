@@ -65,6 +65,7 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backen
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
 - Reference MUI docs — never guess APIs; use `sx` prop, not global CSS; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
+- Tables — fin-app alignment is mandatory (text left, numbers right, badges/actions center; explicit `meta.align` per column, wrapper must match): rules + placement map in [TABLE_CHECKLIST.md](../TABLE_CHECKLIST.md)
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
