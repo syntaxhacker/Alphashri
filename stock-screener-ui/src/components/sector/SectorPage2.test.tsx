@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { SectorPage } from "./SectorPage2";
 import type { SectorItem } from "../../types/sector";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const { mockFetchSectorPerformance } = vi.hoisted(() => ({
   mockFetchSectorPerformance: vi.fn(),
@@ -58,7 +58,7 @@ describe("SectorPage", () => {
 
   it("shows loading state during initial fetch", async () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       expect(screen.getByText("Fetching sector performance")).toBeInTheDocument();
     });
@@ -66,7 +66,7 @@ describe("SectorPage", () => {
 
   it("shows error state on fetch failure with Retry button", async () => {
     mockFetchSectorPerformance.mockRejectedValue(new Error("API Error"));
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       expect(screen.getByText("API Error")).toBeInTheDocument();
     });
@@ -79,7 +79,7 @@ describe("SectorPage", () => {
       top_stock_movers: [],
       last_updated: null,
     });
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       expect(screen.getByText("No sector data available for this market.")).toBeInTheDocument();
     });
@@ -87,7 +87,7 @@ describe("SectorPage", () => {
 
   it("renders Top Sector card with sector name", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       expect(screen.getByText("Top Sector")).toBeInTheDocument();
     });
@@ -96,7 +96,7 @@ describe("SectorPage", () => {
 
   it("renders Top Sector card with avg change value", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       const hints = screen.getAllByText(/Avg Change:/);
       expect(hints.length).toBeGreaterThanOrEqual(1);
@@ -107,7 +107,7 @@ describe("SectorPage", () => {
 
   it("renders Weakest Sector card with sector name", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       expect(screen.getByText("Weakest Sector")).toBeInTheDocument();
     });
@@ -116,7 +116,7 @@ describe("SectorPage", () => {
 
   it("renders Weakest Sector card with avg change value", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       const hints = screen.getAllByText(/Avg Change:/);
       const lastHint = hints[hints.length - 1];
@@ -126,7 +126,7 @@ describe("SectorPage", () => {
 
   it("renders Market Breadth with UP and DOWN badges", async () => {
     mockFetchSectorPerformance.mockResolvedValue(mockResponse);
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     await waitFor(() => {
       expect(screen.getByText("55 UP")).toBeInTheDocument();
     });
@@ -135,26 +135,26 @@ describe("SectorPage", () => {
 
   it("renders page title and description", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     expect(screen.getByText("Sector Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Real-time sector performance and technical strength.")).toBeInTheDocument();
   });
 
   it("renders market selector segmented control", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     expect(screen.getByTestId("sector-market-selector")).toBeInTheDocument();
   });
 
   it("renders refresh button", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     expect(screen.getByTestId("sector-refresh-btn")).toBeInTheDocument();
   });
 
   it("renders tabs: Live Dashboard, Sector Correlation, Historical Cycles", () => {
     mockFetchSectorPerformance.mockReturnValue(new Promise(() => {}));
-    renderWithMantine(<SectorPage />);
+    renderWithProviders(<SectorPage />);
     expect(screen.getByText("Live Dashboard")).toBeInTheDocument();
     expect(screen.getByText("Sector Correlation")).toBeInTheDocument();
     expect(screen.getByText("Historical Cycles")).toBeInTheDocument();

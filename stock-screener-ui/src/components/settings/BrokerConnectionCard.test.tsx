@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { BrokerConnectionCard, formatExpiresIn, getStatusBadge } from "./BrokerConnectionCard";
 import type { BrokerStatus } from "../../api/brokers";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
@@ -35,25 +35,25 @@ describe("BrokerConnectionCard helpers", () => {
   describe("getStatusBadge", () => {
     test("returns Unknown badge for null status", () => {
       const badge = getStatusBadge(null);
-      renderWithMantine(badge);
+      renderWithProviders(badge);
       expect(screen.getByText("Unknown")).toBeInTheDocument();
     });
 
     test("returns Disconnected badge when not connected", () => {
       const badge = getStatusBadge({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
-      renderWithMantine(badge);
+      renderWithProviders(badge);
       expect(screen.getByText("Disconnected")).toBeInTheDocument();
     });
 
     test("returns Connected badge when connected and not expired", () => {
       const badge = getStatusBadge({ connected: true, broker: "upstox", expires_in_hours: 24, expires_at: new Date().toISOString() });
-      renderWithMantine(badge);
+      renderWithProviders(badge);
       expect(screen.getByText("Connected")).toBeInTheDocument();
     });
 
     test("returns Expired badge when connected but expires_in_hours is negative", () => {
       const badge = getStatusBadge({ connected: true, broker: "upstox", expires_in_hours: -1, expires_at: new Date().toISOString() });
-      renderWithMantine(badge);
+      renderWithProviders(badge);
       expect(screen.getByText("Expired")).toBeInTheDocument();
     });
   });
@@ -69,12 +69,12 @@ describe("BrokerConnectionCard component", () => {
   };
 
   test("renders card with Upstox Connection title", () => {
-    renderWithMantine(<BrokerConnectionCard {...baseProps} />);
+    renderWithProviders(<BrokerConnectionCard {...baseProps} />);
     expect(screen.getByText("Upstox Connection")).toBeInTheDocument();
   });
 
   test("shows connect button when disconnected", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null }}
@@ -84,7 +84,7 @@ describe("BrokerConnectionCard component", () => {
   });
 
   test("shows disconnect button when connected", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: true, broker: "upstox", expires_in_hours: 24, expires_at: new Date().toISOString() }}
@@ -94,7 +94,7 @@ describe("BrokerConnectionCard component", () => {
   });
 
   test("shows expires text when connected with expires_in_hours", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: true, broker: "upstox", expires_in_hours: 12.5, expires_at: new Date().toISOString() }}
@@ -105,12 +105,12 @@ describe("BrokerConnectionCard component", () => {
   });
 
   test("shows refresh button", () => {
-    renderWithMantine(<BrokerConnectionCard {...baseProps} />);
+    renderWithProviders(<BrokerConnectionCard {...baseProps} />);
     expect(screen.getByTestId("refresh-broker-status-btn")).toBeInTheDocument();
   });
 
   test("renders helper text when disconnected", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BrokerConnectionCard
         {...baseProps}
         status={{ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null }}
@@ -120,7 +120,7 @@ describe("BrokerConnectionCard component", () => {
   });
 
   test("shows data-loading attribute on buttons when loading", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BrokerConnectionCard
         {...baseProps}
         loading={true}

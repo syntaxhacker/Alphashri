@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, test } from "vitest";
 import { cleanup, screen } from "@testing-library/react";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { ActivityFeed } from "./ActivityFeed";
 import * as paperTradingState from "../../state/paperTrading";
 
@@ -22,13 +22,13 @@ describe("ActivityFeed", () => {
   });
 
   it("renders the activity feed panel", () => {
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getAllByText("Activity Feed").length).toBeGreaterThan(0);
   });
 
   it("shows empty state when no events", () => {
     paperTradingState.setActivityEvents([]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getAllByText(/No recent activity/i).length).toBeGreaterThan(0);
   });
 
@@ -53,14 +53,14 @@ describe("ActivityFeed", () => {
       },
     ];
     paperTradingState.setActivityEvents(events as any);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getAllByText("GESHIP").length).toBeGreaterThan(0);
     expect(screen.getAllByText(/52W Target Swing/i).length).toBeGreaterThan(0);
   });
 
   test("shows loading spinner when activityLoading is true and no events", () => {
     paperTradingState.setActivityLoading(true);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.queryByText("Activity Feed")).not.toBeInTheDocument();
     expect(screen.queryByText(/No recent activity/i)).not.toBeInTheDocument();
     expect(screen.getByRole("progressbar")).toBeInTheDocument();
@@ -79,7 +79,7 @@ describe("ActivityFeed", () => {
 
   test("entry event renders ENTRY badge", () => {
     paperTradingState.setActivityEvents([entryEvent as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("ENTRY")).toBeInTheDocument();
   });
 
@@ -112,13 +112,13 @@ describe("ActivityFeed", () => {
 
   test("exit event with profit renders EXIT badge", () => {
     paperTradingState.setActivityEvents([exitEventProfit as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("EXIT")).toBeInTheDocument();
   });
 
   test("exit event with loss renders EXIT badge", () => {
     paperTradingState.setActivityEvents([exitEventLoss as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("EXIT")).toBeInTheDocument();
   });
 
@@ -135,67 +135,67 @@ describe("ActivityFeed", () => {
 
   test("unknown event type renders uppercase badge", () => {
     paperTradingState.setActivityEvents([signalEvent as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("SIGNAL")).toBeInTheDocument();
   });
 
   test("positive P&L shows plus prefix", () => {
     paperTradingState.setActivityEvents([exitEventProfit as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText(/\+₹4950/)).toBeInTheDocument();
   });
 
   test("negative P&L shows without plus prefix", () => {
     paperTradingState.setActivityEvents([exitEventLoss as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText(/₹-2550/)).toBeInTheDocument();
   });
 
   test("renders direction or side column", () => {
     paperTradingState.setActivityEvents([entryEvent as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("LONG")).toBeInTheDocument();
   });
 
   test("renders quantity and entry price", () => {
     paperTradingState.setActivityEvents([entryEvent as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText(/50 @ ₹2500\.0/)).toBeInTheDocument();
   });
 
   test("exit price shown for exit events", () => {
     paperTradingState.setActivityEvents([exitEventProfit as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText(/→ ₹2600\.0/)).toBeInTheDocument();
   });
 
   test("exit price not shown for entry events", () => {
     paperTradingState.setActivityEvents([entryEvent as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.queryByText(/→/)).not.toBeInTheDocument();
   });
 
   test("renders strategy name badge", () => {
     paperTradingState.setActivityEvents([exitEventProfit as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
   });
 
   test("renders exit reason text", () => {
     paperTradingState.setActivityEvents([exitEventProfit as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("TAKE_PROFIT")).toBeInTheDocument();
   });
 
   test("event with entry_price and no exit_price shows as ENTRY regardless of type", () => {
     paperTradingState.setActivityEvents([{ ...entryEvent, type: "order_fill" } as any]);
-    renderWithMantine(<ActivityFeed />);
+    renderWithProviders(<ActivityFeed />);
     expect(screen.getByText("ENTRY")).toBeInTheDocument();
   });
 
   test("multiple events render in order", () => {
     paperTradingState.setActivityEvents([entryEvent as any, exitEventProfit as any]);
-    const { container } = renderWithMantine(<ActivityFeed />);
+    const { container } = renderWithProviders(<ActivityFeed />);
     const text = container.textContent || "";
     const entryPos = text.indexOf("ENTRY");
     const exitPos = text.indexOf("EXIT");

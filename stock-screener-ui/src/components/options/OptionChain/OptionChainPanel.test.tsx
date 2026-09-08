@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
@@ -61,22 +61,22 @@ const defaultProps = {
 
 describe("OptionChainPanel", () => {
   it("renders panel container", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
   });
 
   it("displays Option Chain title", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
   });
 
   it("renders LiveSpotChart with underlying prop", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} selectedUnderlying="BANKNIFTY" />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} selectedUnderlying="BANKNIFTY" />);
     expect(screen.getByTestId("options-live-spot-chart")).toHaveTextContent("Chart for BANKNIFTY");
   });
 
   it("renders timestamp badge showing HH:mm:ss", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     const badge = screen.getByTestId("options-chain-timestamp");
     expect(badge).toBeInTheDocument();
     expect(badge).toHaveTextContent(/^\d{2}:\d{2}:\d{2}$/);
@@ -84,7 +84,7 @@ describe("OptionChainPanel", () => {
 
   // MUI Tooltip content renders in a Portal only on hover — needs browser interaction
   it.skip("renders timestamp badge with tooltip containing full date", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     const badge = screen.getByTestId("options-chain-timestamp");
     expect(badge).toBeInTheDocument();
     const tooltip = screen.getByText(/Data as of/);
@@ -93,17 +93,17 @@ describe("OptionChainPanel", () => {
   });
 
   it("does not render timestamp badge when loading", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} loading={true} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} loading={true} />);
     expect(screen.queryByTestId("options-chain-timestamp")).not.toBeInTheDocument();
   });
 
   it("does not render timestamp badge when timestamp is undefined", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} timestamp={undefined} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} timestamp={undefined} />);
     expect(screen.queryByTestId("options-chain-timestamp")).not.toBeInTheDocument();
   });
 
   it("shows underlying-expiry selection label", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainPanel {...defaultProps} selectedUnderlying="BANKNIFTY" selectedExpiry="01JUN" />,
     );
     expect(screen.getByTestId("options-chain-selection")).toHaveTextContent("BANKNIFTY · 01JUN");
@@ -112,26 +112,26 @@ describe("OptionChainPanel", () => {
   it("calls refreshChain when refresh icon is clicked", async () => {
       const user = userEvent.setup();
     const refreshChain = vi.fn();
-    renderWithMantine(<OptionChainPanel {...defaultProps} refreshChain={refreshChain} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} refreshChain={refreshChain} />);
     await user.click(screen.getByTestId("refresh-chain-btn"));
     expect(refreshChain).toHaveBeenCalledTimes(1);
   });
 
   it("disables refresh icon (dimmed) while loading", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} loading={true} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} loading={true} />);
     const refreshBtn = screen.getByTestId("refresh-chain-btn");
     expect(refreshBtn.style.opacity).toBe("0.5");
   });
 
   it("enables refresh icon when not loading", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} loading={false} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} loading={false} />);
     const refreshBtn = screen.getByTestId("refresh-chain-btn");
     expect(refreshBtn.style.opacity).toBe("1");
   });
 
   it("renders Guide button and opens guide modal on click", async () => {
       const user = userEvent.setup();
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     const guideBtn = screen.getByTestId("open-guide-btn");
     expect(guideBtn).toBeInTheDocument();
     expect(screen.queryByTestId("options-chain-guide-modal")).not.toBeInTheDocument();
@@ -140,24 +140,24 @@ describe("OptionChainPanel", () => {
   });
 
   it("renders header controls", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     expect(screen.getByTestId("options-chain-header-controls")).toBeInTheDocument();
   });
 
   it("renders filters", () => {
-    renderWithMantine(<OptionChainPanel {...defaultProps} />);
+    renderWithProviders(<OptionChainPanel {...defaultProps} />);
     expect(screen.getByTestId("options-chain-filters")).toBeInTheDocument();
   });
 
   describe("loading state", () => {
     it("shows loading spinner with text when loading and no data", () => {
-      renderWithMantine(<OptionChainPanel {...defaultProps} loading={true} strikeMatrix={[]} />);
+      renderWithProviders(<OptionChainPanel {...defaultProps} loading={true} strikeMatrix={[]} />);
       expect(screen.getByTestId("chain-loading")).toBeInTheDocument();
       expect(screen.getByText("Loading option chain...")).toBeInTheDocument();
     });
 
     it("does not show alert or table when loading", () => {
-      renderWithMantine(<OptionChainPanel {...defaultProps} loading={true} strikeMatrix={[]} />);
+      renderWithProviders(<OptionChainPanel {...defaultProps} loading={true} strikeMatrix={[]} />);
       expect(screen.queryByTestId("chain-error-alert")).not.toBeInTheDocument();
       expect(screen.queryByTestId("no-data-alert")).not.toBeInTheDocument();
     });
@@ -165,7 +165,7 @@ describe("OptionChainPanel", () => {
 
   describe("error state", () => {
     it("shows red alert with error message", () => {
-      renderWithMantine(<OptionChainPanel {...defaultProps} error="Failed to fetch chain data" />);
+      renderWithProviders(<OptionChainPanel {...defaultProps} error="Failed to fetch chain data" />);
       expect(screen.getByTestId("chain-error-alert")).toBeInTheDocument();
       expect(screen.getByText("Failed to fetch chain data")).toBeInTheDocument();
     });
@@ -173,7 +173,7 @@ describe("OptionChainPanel", () => {
 
   describe("empty state", () => {
     it("shows yellow alert when strikeMatrix is empty and not loading", () => {
-      renderWithMantine(<OptionChainPanel {...defaultProps} strikeMatrix={[]} />);
+      renderWithProviders(<OptionChainPanel {...defaultProps} strikeMatrix={[]} />);
       expect(screen.getByTestId("no-data-alert")).toBeInTheDocument();
       expect(
         screen.getByText("No options data available. Select an underlying and expiry to view the chain."),
@@ -184,7 +184,7 @@ describe("OptionChainPanel", () => {
   describe("data state", () => {
     it("renders chain summary and table when data is available", () => {
       const strikeMatrix = [{ strike: 24500, ce: null, pe: null }];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainPanel {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByTestId("chain-summary")).toBeInTheDocument();
@@ -193,7 +193,7 @@ describe("OptionChainPanel", () => {
 
     it("renders chain view tabs (Option Chain Table and Deep OI Analysis)", () => {
       const strikeMatrix = [{ strike: 24500, ce: null, pe: null }];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainPanel {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByTestId("options-chain-view-tabs-list")).toBeInTheDocument();

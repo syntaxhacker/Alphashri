@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainTable } from "./OptionChainTable";
@@ -48,14 +48,14 @@ describe("OptionChainTable", () => {
   };
 
   it("renders chain table container", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
     );
     expect(screen.getByTestId("options-chain-table")).toBeInTheDocument();
   });
 
   it("renders table header with CALLS, STRIKE, PUTS labels", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
     );
     expect(screen.getByTestId("options-chain-table-header")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("OptionChainTable", () => {
   });
 
   it("renders subheader with column labels OI, OI CHG, VOL, IV, LTP", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
     );
     const subheader = screen.getByTestId("options-chain-table-subheader");
@@ -78,7 +78,7 @@ describe("OptionChainTable", () => {
   });
 
   it("renders scroll actions (Scroll to Top, Jump to ATM, Scroll to Bottom)", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
     );
     expect(screen.getByTestId("options-chain-scroll-actions")).toBeInTheDocument();
@@ -88,7 +88,7 @@ describe("OptionChainTable", () => {
   });
 
   it("renders footer with ITM, ATM legend and sentiment badges", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
     );
     expect(screen.getByTestId("options-chain-table-footer")).toBeInTheDocument();
@@ -98,14 +98,14 @@ describe("OptionChainTable", () => {
   });
 
   it("displays current spot price in footer", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} spotPrice={24500} />,
     );
     expect(screen.getByTestId("options-chain-spot-price")).toHaveTextContent("24500.00");
   });
 
   it("does not display spot price when null", () => {
-    renderWithMantine(
+    renderWithProviders(
       <OptionChainTable {...defaultProps} strikeMatrix={[]} spotPrice={null} />,
     );
     expect(screen.queryByTestId("options-chain-spot-price")).not.toBeInTheDocument();
@@ -117,7 +117,7 @@ describe("OptionChainTable", () => {
         { strike: 23900, ce: makeContract({ strike: 23900 }), pe: makeContract({ strike: 23900, type: "PE" }) },
         { strike: 24000, ce: makeContract({ strike: 24000 }), pe: makeContract({ strike: 24000, type: "PE" }) },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByTestId("options-chain-row-23900")).toBeInTheDocument();
@@ -129,7 +129,7 @@ describe("OptionChainTable", () => {
         { strike: 23900, ce: makeContract({ strike: 23900 }), pe: makeContract({ strike: 23900, type: "PE" }) },
         { strike: 24000, ce: makeContract({ strike: 24000 }), pe: makeContract({ strike: 24000, type: "PE" }) },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       const strikeCells = screen.getAllByTestId("strike-cell");
@@ -141,7 +141,7 @@ describe("OptionChainTable", () => {
       const strikeMatrix = [
         { strike: 24500, ce: makeContract({ strike: 24500 }), pe: makeContract({ strike: 24500, type: "PE" }) },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getAllByTestId("strike-cell").length).toBeGreaterThan(0);
@@ -155,7 +155,7 @@ describe("OptionChainTable", () => {
         { strike: 24500, ce: makeContract({ strike: 24500 }), pe: makeContract({ strike: 24500, type: "PE" }) },
         { strike: 25000, ce: makeContract({ strike: 25000 }), pe: makeContract({ strike: 25000, type: "PE" }) },
       ];
-      const { container } = renderWithMantine(
+      const { container } = renderWithProviders(
         <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={strikeMatrix} />,
       );
       const atmRow = container.querySelector(".chain-row-atm");
@@ -169,7 +169,7 @@ describe("OptionChainTable", () => {
       const strikeMatrix = [
         { strike: 24500, ce: makeContract({ strike: 24500 }), pe: null },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByText("CALLS (CE)")).toBeInTheDocument();
@@ -179,7 +179,7 @@ describe("OptionChainTable", () => {
       const strikeMatrix = [
         { strike: 24500, ce: null, pe: makeContract({ strike: 24500, type: "PE" }) },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       const subheader = screen.getByTestId("options-chain-table-subheader");
@@ -197,7 +197,7 @@ describe("OptionChainTable", () => {
           pe: null,
         },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByText("15.0L")).toBeInTheDocument();
@@ -217,7 +217,7 @@ describe("OptionChainTable", () => {
           pe: null,
         },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByText("LB")).toBeInTheDocument();
@@ -236,7 +236,7 @@ describe("OptionChainTable", () => {
           pe: null,
         },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
       );
       const progressBars = screen.getAllByRole("progressbar");
@@ -255,7 +255,7 @@ describe("OptionChainTable", () => {
           pe: null,
         },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByTestId("options-chain-row-24000")).toBeInTheDocument();
@@ -269,7 +269,7 @@ describe("OptionChainTable", () => {
           pe: makeContract({ strike: 25000, type: "PE", market_data: { oi: 100, prev_oi: 100, volume: 100, ltp: 200, bid_price: 199, ask_price: 201 } }),
         },
       ];
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={strikeMatrix} />,
       );
       expect(screen.getByTestId("options-chain-row-25000")).toBeInTheDocument();
@@ -278,7 +278,7 @@ describe("OptionChainTable", () => {
 
   describe("Jump to ATM button scroll behavior", () => {
     it("renders Jump to ATM button", () => {
-      renderWithMantine(
+      renderWithProviders(
         <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
       );
       expect(screen.getByTestId("options-scroll-atm-btn")).toBeInTheDocument();

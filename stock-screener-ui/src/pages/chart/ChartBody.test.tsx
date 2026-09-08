@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect } from "vitest";
 import { render, screen } from "@testing-library/react";
-import { renderWithMantine } from "../../test/test-utils";
+import { renderWithProviders } from "../../test/test-utils";
 import { ChartBody } from "./ChartBody";
 import { ChartControls } from "./ChartControls";
 import { ChartHeader } from "./ChartHeader";
@@ -49,7 +49,7 @@ describe("ChartBody", () => {
 
 describe("ChartControls", () => {
   it("renders timeframe and OR selects and checkboxes", () => {
-    const { container } = renderWithMantine(
+    const { container } = renderWithProviders(
       <ChartControls timeframe={15} orMinutes={45} showPivots={true} show52wHigh={false} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />,
     );
     expect(container.querySelector('[data-testid="chart-timeframe-select"]')).toBeTruthy();
@@ -59,7 +59,7 @@ describe("ChartControls", () => {
   });
 
   it("reflects checked state", () => {
-    renderWithMantine(<ChartControls timeframe={5} orMinutes={15} showPivots={false} show52wHigh={true} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />);
+    renderWithProviders(<ChartControls timeframe={5} orMinutes={15} showPivots={false} show52wHigh={true} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />);
     expect((screen.getByTestId("chart-pivots-checkbox") as HTMLInputElement).checked).toBe(false);
     expect((screen.getByTestId("chart-52w-checkbox") as HTMLInputElement).checked).toBe(true);
   });
@@ -67,7 +67,7 @@ describe("ChartControls", () => {
 
 describe("ChartHeader", () => {
   it("renders symbol and back button", () => {
-    renderWithMantine(<ChartHeader symbol="INFY" timeframe={15} orMinutes={45} showPivots={true} show52wHigh={true} onBack={() => {}} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />);
+    renderWithProviders(<ChartHeader symbol="INFY" timeframe={15} orMinutes={45} showPivots={true} show52wHigh={true} onBack={() => {}} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />);
     expect(screen.getByTestId("chart-title").textContent).toBe("INFY");
     expect(screen.getByTestId("chart-back-btn")).toBeTruthy();
     expect(screen.getByTestId("chart-controls")).toBeTruthy();

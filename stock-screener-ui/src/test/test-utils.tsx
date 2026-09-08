@@ -15,7 +15,7 @@ export function TestWrapper({ children }: { children: React.ReactNode }) {
 /**
  * Render helper that automatically wraps with UIProvider
  */
-export function renderWithMantine(
+export function renderWithProviders(
   ui: React.ReactElement,
   options?: Parameters<typeof render>[1],
 ): RenderResult {

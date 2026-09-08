@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChainTableHeader } from "./ChainTableHeader";
@@ -33,28 +33,28 @@ const mockStyles = {
 
 describe("ChainTableHeader", () => {
   it("renders header container", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
     );
     expect(screen.getByTestId("options-chain-table-header")).toBeInTheDocument();
   });
 
   it("renders CALLS (CE) header", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
     );
     expect(screen.getByText("CALLS (CE)")).toBeInTheDocument();
   });
 
   it("renders STRIKE header", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
     );
     expect(screen.getByText("STRIKE")).toBeInTheDocument();
   });
 
   it("renders PUTS (PE) header", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainTableHeader theme={mockTheme as any} styles={mockStyles as any} />,
     );
     expect(screen.getByText("PUTS (PE)")).toBeInTheDocument();

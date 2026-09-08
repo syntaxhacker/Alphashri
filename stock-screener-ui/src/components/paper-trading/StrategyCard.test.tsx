@@ -5,7 +5,7 @@ import { screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { StrategyCard } from "./StrategyCard";
 import { mockPosition } from "./testFixtures";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperPosition } from "../../types/paperTrading";
 
 afterEach(() => {
@@ -46,7 +46,7 @@ describe("StrategyCard", () => {
   describe("Basic rendering", () => {
     test("renders strategy name and position count", () => {
       const positions = createPositions(3);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       const card = screen.getByTestId("strategy-card-ORB Strategy");
@@ -57,7 +57,7 @@ describe("StrategyCard", () => {
 
     test("shows total P&L positive", () => {
       const positions = createPositions(2, { pnl: 5000 });
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("StrategyCard", () => {
 
     test("shows total P&L negative", () => {
       const positions = createPositions(1, { pnl: -500 });
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeInTheDocument();
@@ -73,7 +73,7 @@ describe("StrategyCard", () => {
 
     test("renders close all button", () => {
       const positions = createPositions(2);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByTestId("close-strategy-ORB Strategy")).toBeInTheDocument();
@@ -83,7 +83,7 @@ describe("StrategyCard", () => {
       const user = userEvent.setup();
       const onCloseAll = vi.fn();
       const positions = createPositions(2);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} onCloseAll={onCloseAll} />,
       );
       await user.click(screen.getByTestId("close-strategy-ORB Strategy"));
@@ -93,7 +93,7 @@ describe("StrategyCard", () => {
 
   describe("Capacity bar", () => {
     test("capacity bar at 0% when no positions", () => {
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={[]} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -103,7 +103,7 @@ describe("StrategyCard", () => {
 
     test("capacity bar at 50% when half full", () => {
       const positions = createPositions(5);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} maxCapacity={10} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -112,7 +112,7 @@ describe("StrategyCard", () => {
 
     test("capacity bar at 100% (red color)", () => {
       const positions = createPositions(10);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} maxCapacity={10} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -121,7 +121,7 @@ describe("StrategyCard", () => {
 
     test("capacity bar at >100% (clamped to 100, red)", () => {
       const positions = createPositions(15);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} maxCapacity={10} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -132,14 +132,14 @@ describe("StrategyCard", () => {
   describe("Expand/collapse", () => {
     test("always renders PositionsTableBody", () => {
       const positions = createPositions(2);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByTestId("positions-body")).toBeInTheDocument();
     });
 
     test("testId prop is passed to CompactPanel", () => {
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} strategyName="Test Strat" />,
       );
       expect(screen.getByTestId("strategy-card-Test Strat")).toBeInTheDocument();
@@ -149,7 +149,7 @@ describe("StrategyCard", () => {
   describe("data integrity edge cases", () => {
     test("renders strategy with single position", () => {
       const positions = createPositions(1);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       const card = screen.getByTestId("strategy-card-ORB Strategy");
@@ -157,7 +157,7 @@ describe("StrategyCard", () => {
     });
 
     test("capacity bar at 0% when maxCapacity > 0 and no positions", () => {
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={[]} maxCapacity={5} />,
       );
       const progress = screen.getByRole("progressbar");
@@ -166,7 +166,7 @@ describe("StrategyCard", () => {
 
     test("formatSignedPnl renders positive P&L with + sign", () => {
       const positions = createPositions(1, { pnl: 2500 });
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText((c) => c.includes("+") && c.includes("₹"))).toBeInTheDocument();
@@ -174,7 +174,7 @@ describe("StrategyCard", () => {
 
     test("formatSignedPnl renders negative P&L with - sign", () => {
       const positions = createPositions(1, { pnl: -2500 });
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText((c) => c.includes("-") && c.includes("₹"))).toBeInTheDocument();
@@ -182,7 +182,7 @@ describe("StrategyCard", () => {
 
     test("does not crash when positions contain NaN P&L", () => {
       const positions = createPositions(2, { pnl: NaN, pnl_pct: NaN });
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       expect(screen.getByText("ORB Strategy")).toBeInTheDocument();
@@ -190,7 +190,7 @@ describe("StrategyCard", () => {
 
     test("renders multiple positions across same strategy", () => {
       const positions = createPositions(5);
-      renderWithMantine(
+      renderWithProviders(
         <StrategyCard {...defaultProps} positions={positions} />,
       );
       const card = screen.getByTestId("strategy-card-ORB Strategy");

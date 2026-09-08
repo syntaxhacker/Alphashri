@@ -3,9 +3,9 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithMantine } from "../../test/test-utils";
+import { renderWithProviders } from "../../test/test-utils";
 import { Admin52wRangePanel } from "./Admin52wRangePanel";
-const renderPanel = () => renderWithMantine(<Admin52wRangePanel />);
+const renderPanel = () => renderWithProviders(<Admin52wRangePanel />);
 
 const fetchWithAuthMock = vi.fn();
 

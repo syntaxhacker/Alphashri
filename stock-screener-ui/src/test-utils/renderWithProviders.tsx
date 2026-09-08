@@ -7,7 +7,7 @@ function TestWrapper({ children }: { children: ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
-export function renderWithMantine(ui: ReactElement): RenderResult {
+export function renderWithProviders(ui: ReactElement): RenderResult {
   return render(ui, { wrapper: TestWrapper });
 }
 

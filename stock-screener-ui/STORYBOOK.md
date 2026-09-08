@@ -8,7 +8,7 @@ Five layers. Dependencies point downward only — a Pattern may use Primitives; 
 
 ```
 src/
-├── ui/                    # L1+L2: primitives (Mantine v8 wrappers) — barrel @/ui
+├── ui/                    # L1+L2: primitives (MUI wrappers) — barrel @/ui
 │   ├── palette.ts         #   design tokens (colors) — SINGLE SOURCE OF TRUTH
 │   ├── theme.tsx          #   theme assembly (scales, semantic virtualColors)
 │   ├── types.ts           #   UI*Props contracts
@@ -61,8 +61,8 @@ Storybook is the SSOT for UI usage. Each component documents inline (JSDoc above
 
 ## 5. Design Token Strategy
 
-- Colors: `src/ui/palette.ts` — raw anchors + Mantine scales + semantic aliases (`POSITIVE`, `NEGATIVE`, `PRIMARY`). Hardcoded hex in components = review-blocking.
-- Spacing/radius/shadows: Mantine scale names only (`xs…xl`); arbitrary px only inside chart internals.
+- Colors: `src/ui/palette.ts` — raw anchors + MUI theme tokens + semantic aliases (`POSITIVE`, `NEGATIVE`, `PRIMARY`). Hardcoded hex in components = review-blocking.
+- Spacing/radius/shadows: scale names only (`xs…xl`); arbitrary px only inside chart internals.
 - White-label future: scales are plain arrays — swap tuples per theme; `virtualColor`s handle light/dark automatically. Zero component changes needed.
 
 ## 6. Theme Strategy

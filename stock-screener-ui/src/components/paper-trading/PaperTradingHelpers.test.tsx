@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import React from "react";
 
 // --- Mock external modules ---
@@ -195,7 +195,7 @@ import { mockTrade } from "./testFixtures";
 
 // --- Helper ---
 function r<T>(jsx: T) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 // --- Mock data factories ---

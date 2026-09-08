@@ -4,7 +4,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { screen, within, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { WatchlistScan2 } from "./WatchlistScan2";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { CREAM } from "../../config/colors";
 
 // Resolved value of var(--mui-palette-info-light) under the palette theme.
@@ -23,7 +23,7 @@ afterEach(() => {
 });
 
 function r(jsx: React.ReactElement) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 vi.mock("../../state/paperTrading", () => ({

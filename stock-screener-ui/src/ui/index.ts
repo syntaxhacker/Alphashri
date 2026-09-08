@@ -108,5 +108,4 @@ export type {
   UIAvatarProps, UIThemeIconProps, UICloseButtonProps,
   UIDatePickerProps, UIIndicatorProps, UIPortalProps,
   UIThemeProviderProps, UIThemeNotifyProps, UIUseColorSchemeResult,
-  MantineTheme,
 } from "./types";

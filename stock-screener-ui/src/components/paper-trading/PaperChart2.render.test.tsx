@@ -5,7 +5,7 @@ import { screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaperChart } from "./PaperChart2";
 import { mockPosition } from "./testFixtures";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperChartData, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
@@ -127,7 +127,7 @@ function mockChartData(overrides: Partial<PaperChartData> = {}): PaperChartData 
 }
 
 function r(jsx: React.ReactElement) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 describe("PaperChart2 component rendering - empty states via DOM", () => {

@@ -5,7 +5,7 @@ import { screen, within, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaperPositionsTable } from "./PaperPositionsTable2";
 import { mockPosition } from "./testFixtures";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperBotSnapshot, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
@@ -164,7 +164,7 @@ function resetState() {
 }
 
 function r(jsx: React.ReactElement) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 function rWithPosition(

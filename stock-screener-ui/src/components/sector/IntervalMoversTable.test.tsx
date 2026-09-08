@@ -4,7 +4,7 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { IntervalMoversTable } from "./IntervalMoversTable";
 import type { InternalStockMover } from "./sectorUtils";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -13,7 +13,7 @@ afterEach(() => {
 
 describe("IntervalMoversTable", () => {
   it("shows empty state when no movers", () => {
-    renderWithMantine(<IntervalMoversTable movers={[]} />);
+    renderWithProviders(<IntervalMoversTable movers={[]} />);
     expect(screen.getByText("Collecting baseline for interval moves...")).toBeInTheDocument();
   });
 
@@ -22,7 +22,7 @@ describe("IntervalMoversTable", () => {
       { symbol: "TCS", change: 3.0, prev_change: 2.0, delta: 1.0 },
       { symbol: "INFY", change: 1.5, prev_change: 1.0, delta: 0.5 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     expect(screen.getByText("TCS")).toBeInTheDocument();
     expect(screen.getByText("INFY")).toBeInTheDocument();
     expect(screen.getByText("2.00%")).toBeInTheDocument();
@@ -33,7 +33,7 @@ describe("IntervalMoversTable", () => {
     const movers: InternalStockMover[] = [
       { symbol: "TCS", change: 3.0, prev_change: 2.0, delta: 1.0 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     expect(screen.getByText("+1.00%")).toBeInTheDocument();
   });
 
@@ -41,7 +41,7 @@ describe("IntervalMoversTable", () => {
     const movers: InternalStockMover[] = [
       { symbol: "TCS", change: 1.0, prev_change: 2.0, delta: -1.0 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     expect(screen.getByText("-1.00%")).toBeInTheDocument();
   });
 
@@ -49,7 +49,7 @@ describe("IntervalMoversTable", () => {
     const movers: InternalStockMover[] = [
       { symbol: "TCS", change: 3.0, prev_change: 2.0, delta: 1.0 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     expect(screen.getByText("Stock")).toBeInTheDocument();
     expect(screen.getByText("Prev")).toBeInTheDocument();
     expect(screen.getByText("Now")).toBeInTheDocument();
@@ -59,7 +59,7 @@ describe("IntervalMoversTable", () => {
     const movers: InternalStockMover[] = [
       { symbol: "TCS", change: 3.0, prev_change: 2.0, delta: 1.0 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     const deltaText = screen.getByText("+1.00%");
     expect(deltaText).toBeInTheDocument();
   });
@@ -68,7 +68,7 @@ describe("IntervalMoversTable", () => {
     const movers: InternalStockMover[] = [
       { symbol: "TCS", change: 1.0, prev_change: 2.0, delta: -1.0 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     const deltaText = screen.getByText("-1.00%");
     expect(deltaText).toBeInTheDocument();
   });
@@ -77,7 +77,7 @@ describe("IntervalMoversTable", () => {
     const movers: InternalStockMover[] = [
       { symbol: "TCS", change: 3.0, prev_change: 2.0, delta: 1.0 },
     ];
-    renderWithMantine(<IntervalMoversTable movers={movers} />);
+    renderWithProviders(<IntervalMoversTable movers={movers} />);
     expect(screen.getByText("\u0394")).toBeInTheDocument();
   });
 });

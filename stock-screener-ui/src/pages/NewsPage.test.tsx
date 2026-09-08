@@ -4,7 +4,7 @@ import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import NewsPage from "./NewsPage";
-import { renderWithMantine } from "../test-utils/renderWithMantine";
+import { renderWithProviders } from "../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
 import { useNavigate } from "react-router-dom";
 
@@ -110,17 +110,17 @@ describe("NewsPage", () => {
   });
 
   it("renders news page on desktop", () => {
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
     expect(screen.getByTestId("news-page")).toBeInTheDocument();
   });
 
   it("renders news list component", () => {
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
     expect(screen.getByText("Test News Article")).toBeInTheDocument();
   });
 
   it("renders article detail panel on desktop", () => {
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
     expect(screen.getByTestId("news-page")).toBeInTheDocument();
   });
 
@@ -135,7 +135,7 @@ describe("NewsPage", () => {
       loadNews: vi.fn(),
     });
 
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
     expect(screen.getByTestId("news-page")).toBeInTheDocument();
   });
 
@@ -150,12 +150,12 @@ describe("NewsPage", () => {
       loadNews: vi.fn(),
     });
 
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
     expect(screen.getByText("Failed to load news")).toBeInTheDocument();
   });
 
   it("clicking article calls fetchArticle", async () => {
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Test News Article")).toBeInTheDocument();
@@ -170,7 +170,7 @@ describe("NewsPage", () => {
   it("navigates to chart when symbol is clicked", async () => {
     const mockNavFn = vi.fn();
     vi.mocked(useNavigate).mockReturnValue(mockNavFn);
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
 
     await waitFor(() => {
       expect(screen.getByText("Test News Article")).toBeInTheDocument();
@@ -180,7 +180,7 @@ describe("NewsPage", () => {
   });
 
   it("renders source selector", () => {
-    renderWithMantine(<NewsPage />);
+    renderWithProviders(<NewsPage />);
     expect(screen.getByText("Test News Article")).toBeInTheDocument();
   });
 });

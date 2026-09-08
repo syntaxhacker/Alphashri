@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const mockStateStore: any = {
   currentView: "history",
@@ -103,7 +103,7 @@ afterEach(() => {
 });
 
 function r() {
-  return renderWithMantine(<PaperHistoryTable />);
+  return renderWithProviders(<PaperHistoryTable />);
 }
 
 describe("PaperHistoryTable", () => {

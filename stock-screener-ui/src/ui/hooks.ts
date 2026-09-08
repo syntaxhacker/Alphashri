@@ -164,10 +164,7 @@ export function useTheme() {
 }
 
 export function useUICore() {
-  return { useMantineColorScheme: useColorScheme, useMantineTheme: useMuiTheme };
-}
-export function useMantineCore() {
-  return { useMantineColorScheme: useColorScheme, useMantineTheme: useMuiTheme };
+  return { useColorScheme, useMuiTheme };
 }
 
 // Minimal Tree shim for compat (no legacy Tree)
