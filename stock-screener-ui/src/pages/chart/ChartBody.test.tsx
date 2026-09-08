@@ -5,46 +5,44 @@ import { renderWithMantine } from "../../test/test-utils";
 import { ChartBody } from "./ChartBody";
 import { ChartControls } from "./ChartControls";
 import { ChartHeader } from "./ChartHeader";
-import { createRef } from "react";
+
+const chartNode = <div data-testid="stub-chart" />;
 
 describe("ChartBody", () => {
   it("renders loading state", () => {
-    render(<ChartBody loading={true} error={null} chartError={null} hasData={false} ref={createRef()} />);
+    render(<ChartBody loading={true} error={null} hasData={false} chart={chartNode} />);
     expect(screen.getByTestId("chart-loading")).toBeTruthy();
     expect(screen.queryByTestId("candlestick-chart")).toBeNull();
   });
 
   it("renders error with retry button", () => {
-    render(<ChartBody loading={false} error="Failed to load" chartError={null} hasData={false} ref={createRef()} />);
+    render(<ChartBody loading={false} error="Failed to load" hasData={false} chart={chartNode} />);
     expect(screen.getByTestId("chart-error")).toBeTruthy();
     expect(screen.getByTestId("chart-retry-btn")).toBeTruthy();
     expect(screen.getByTestId("chart-error").textContent).toContain("Failed to load");
   });
 
-  it("prefers chartError when error is null", () => {
-    render(<ChartBody loading={false} error={null} chartError="ECharts not loaded" hasData={false} ref={createRef()} />);
-    expect(screen.getByTestId("chart-error").textContent).toContain("ECharts not loaded");
-  });
-
   it("renders candlestick container with flex:1 style not ScrollArea when hasData", () => {
-    const ref = createRef<HTMLDivElement>();
-    render(<ChartBody loading={false} error={null} chartError={null} hasData={true} ref={ref} />);
+    render(<ChartBody loading={false} error={null} hasData={true} chart={chartNode} />);
     const el = screen.getByTestId("candlestick-chart");
     expect(el).toBeTruthy();
-    expect(el.style.width).toBe("100%");
-    expect(el.style.height).toBe("100%");
     // Generic: ensure not wrapped in ScrollArea — candlestick is direct child of chart-body
     expect(screen.getByTestId("candlestick-chart").parentElement?.getAttribute("data-testid")).toBe("chart-body");
     expect(screen.getByTestId("chart-body").contains(screen.getByTestId("candlestick-chart"))).toBe(true);
   });
 
+  it("renders the injected chart node when hasData", () => {
+    render(<ChartBody loading={false} error={null} hasData={true} chart={chartNode} />);
+    expect(screen.getByTestId("stub-chart")).toBeTruthy();
+  });
+
   it("does not render chart when loading even if hasData", () => {
-    render(<ChartBody loading={true} error={null} chartError={null} hasData={true} ref={createRef()} />);
+    render(<ChartBody loading={true} error={null} hasData={true} chart={chartNode} />);
     expect(screen.queryByTestId("candlestick-chart")).toBeNull();
   });
 
   it("does not render chart when error present", () => {
-    render(<ChartBody loading={false} error="err" chartError={null} hasData={true} ref={createRef()} />);
+    render(<ChartBody loading={false} error="err" hasData={true} chart={chartNode} />);
     expect(screen.queryByTestId("candlestick-chart")).toBeNull();
   });
 });

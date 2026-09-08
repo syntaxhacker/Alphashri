@@ -1,12 +1,12 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import Container from "@mui/material/Container";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
-import { useColorScheme } from "@/ui";
 import { useChartData } from "../../hooks/useChartData";
-import { useChartInstance } from "../../hooks/useChartInstance";
+import { TradingViewChart } from "../../components/chart/TradingViewChart";
+import type { ReplayCandle } from "../../types/replay";
 import { ChartHeader } from "./ChartHeader";
 import { ChartBody } from "./ChartBody";
 import { ChartFooter } from "./ChartFooter";
@@ -15,8 +15,6 @@ import { ChartError } from "./ChartError";
 function useChartViewModel() {
   const { symbol } = useParams<{ symbol: string }>();
   const navigate = useNavigate();
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
 
   const [timeframe, setTimeframe] = useState(15);
   const [orMinutes, setOrMinutes] = useState(45);
@@ -29,18 +27,22 @@ function useChartViewModel() {
     orMinutes,
   });
 
-  const { chartRef, error: chartError } = useChartInstance({
-    data,
-    showPivots,
-    show52wHigh,
-    isDark,
-    loading,
-  });
+  const candles: ReplayCandle[] = useMemo(
+    () =>
+      (data?.candles ?? []).map((c) => ({
+        time: `${c.date} ${c.time_str}`,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      })),
+    [data],
+  );
 
   return {
     symbol,
     navigate,
-    isDark,
     timeframe,
     setTimeframe,
     orMinutes,
@@ -52,8 +54,7 @@ function useChartViewModel() {
     data,
     loading,
     error,
-    chartRef,
-    chartError,
+    candles,
   };
 }
 
@@ -97,11 +98,10 @@ const ChartView: React.FC = () => {
           <Card elevation={1} sx={{ flex: 1, width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center", minHeight: 0, overflow: "hidden" }}>
             <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0, overflow: "hidden" }}>
               <ChartBody
-                ref={vm.chartRef}
                 loading={vm.loading}
                 error={vm.error}
-                chartError={vm.chartError}
                 hasData={!!vm.data}
+                chart={<TradingViewChart candles={vm.candles} height={560} />}
               />
             </CardContent>
           </Card>

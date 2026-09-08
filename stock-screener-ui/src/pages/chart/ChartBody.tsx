@@ -1,16 +1,17 @@
-import { forwardRef } from "react";
+import type { ReactNode } from "react";
 import { Box, Button, Typography } from "@mui/material";
 
 interface ChartBodyProps {
   loading: boolean;
   error: string | null;
-  chartError: string | null;
   hasData: boolean;
+  chart: ReactNode;
 }
 
-export const ChartBody = forwardRef<HTMLDivElement, ChartBodyProps>(
-  ({ loading, error, chartError, hasData }, ref) => {
-    const displayError = error || chartError;
+export function ChartBody(
+  { loading, error, hasData, chart }: ChartBodyProps,
+) {
+  const displayError = error;
 
     return (
       <Box
@@ -37,15 +38,13 @@ export const ChartBody = forwardRef<HTMLDivElement, ChartBodyProps>(
 
         {!loading && !displayError && hasData && (
           <Box
-            ref={ref}
             data-testid="candlestick-chart"
             id="candlestick-chart"
             sx={{ bgcolor: "background.paper", borderRadius: 1, width: "100%", maxWidth: 1200, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}
-          />
+          >
+            {chart}
+          </Box>
         )}
       </Box>
     );
-  },
-);
-
-ChartBody.displayName = "ChartBody";
+}
