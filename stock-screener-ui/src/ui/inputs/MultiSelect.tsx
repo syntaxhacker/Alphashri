@@ -24,6 +24,8 @@ export function MultiSelect({
   onChange,
   data,
   searchable: _searchable,
+  searchValue,
+  onSearchChange,
   clearable,
   placeholder,
   nothingFoundMessage,
@@ -67,6 +69,8 @@ export function MultiSelect({
       options={options}
       value={controlledValue}
       defaultValue={defaultVal as Option[] | undefined}
+      inputValue={searchValue}
+      onInputChange={(_e, v) => onSearchChange?.(v)}
       onChange={(_e, newVal) => {
         let vals = (newVal as Option[]).map((o) => o.value);
         if (maxValues !== undefined && vals.length > maxValues) {

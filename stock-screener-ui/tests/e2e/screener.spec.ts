@@ -62,10 +62,12 @@ test.describe("Screener - Screener Navigation", () => {
   });
   test("@smoke should display screener navigation tabs", async ({ page }) => {
     await page.goto("/");
-    await page.waitForSelector('[data-testid="screener-nav"]', {
+    await page.waitForSelector('[data-testid="tab-screener"]', {
       timeout: 10000,
     });
-    await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
+    await expect(page.locator('[data-testid="tab-screener"]')).toBeVisible();
+    await expect(page.locator('[data-testid="tab-correlation"]')).toBeVisible();
+    await expect(page.locator('[data-testid="tab-config"]')).toBeVisible();
   });
   test("should switch between screeners", async ({ page }) => {
     await page.goto("/");
@@ -76,25 +78,7 @@ test.describe("Screener - Screener Navigation", () => {
       timeout: 15000,
     });
 
-    // Check if screener nav exists (may not show if only one screener option)
-    const screenerNav = page.locator('[data-testid="screener-nav"]');
-    const navCount = await screenerNav.count();
-    if (navCount === 0) {
-      // Screener nav not present, skip test
-
-      return;
-    }
-
-    // Get all tabs within the screener nav
-    const screenerOptions = page.locator('[data-testid^="screener-nav-option-"]');
-    const count = await screenerOptions.count();
-    if (count < 2) {
-      return;
-    }
-
-    await screenerOptions.nth(1).click({
-      force: true,
-    });
+    await page.locator('[data-testid="tab-correlation"]').click();
 
     // After switching, wait for table rows to be visible again
     await expect(page.locator('[data-testid="screener-table"] tbody tr').first()).toBeVisible({
@@ -106,8 +90,8 @@ test.describe("Screener - Screener Navigation", () => {
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
-    await expect(page.locator('[data-testid="screener-nav"]')).toBeVisible();
-    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
+    await expect(page.locator('[data-testid="tab-screener"]')).toBeVisible();
+    await expect(page.locator('[data-testid="tab-correlation"]')).toBeVisible();
   });
 });
 test.describe.configure({
