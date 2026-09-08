@@ -103,7 +103,7 @@ function ErrorPanel({ error, onRetry }: { error: string; onRetry: () => void }) 
       title="Error"
       description={error}
       action={
-        <Button variant="light" color="error" size="sm" onClick={onRetry}>
+        <Button variant="filled" color="error" size="sm" onClick={onRetry}>
           Retry
         </Button>
       }
@@ -165,10 +165,10 @@ function DashboardContent({
           label="Market Breadth"
           value={
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-              <Badge color="success" variant="light">
+              <Badge color="success" variant="filled">
                 {totalAdvances} UP
               </Badge>
-              <Badge color="error" variant="light">
+              <Badge color="error" variant="filled">
                 {totalDeclines} DOWN
               </Badge>
             </Box>
@@ -462,7 +462,7 @@ function SectorPageHeader({
             />
             <Button
               variant="light"
-              color="error"
+              color="secondary"
               size="sm"
               leftSection={<IconRefresh size={14} />}
               onClick={onRefresh}

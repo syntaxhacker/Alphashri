@@ -58,7 +58,7 @@ export function StrategiesPage({
               <Group gap="xs">
                 <Button
                   onClick={onRefresh}
-                  variant="light"
+                  variant="filled"
                   color="error"
                   size="sm"
                   leftSection={<IconRefresh size={14} />}

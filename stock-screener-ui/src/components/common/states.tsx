@@ -81,7 +81,7 @@ export function ErrorAlert({
       {message}
       {withRetry && onRetry && (
         <Button
-          variant="light"
+          variant="filled"
           color="error"
           size="sm"
           onClick={onRetry}

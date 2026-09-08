@@ -85,8 +85,8 @@ export function ScreenerTable({
         header: () => {
           const isSymbolColumn = col.key === "symbol";
           return (
-            <Group gap={1} wrap="nowrap" sx={{ justifyContent: "center" }}>
-              <Text fw={700} sx={{ textAlign: "center" }}>{col.label}</Text>
+            <Group gap={1} wrap="nowrap">
+              <Text fw={700}>{col.label}</Text>
               {isSymbolColumn && stocks.length > 0 && (
                 <CopyButton value={allSymbols}>
                   {({ copied, copy }) => (
@@ -109,7 +109,7 @@ export function ScreenerTable({
         },
         accessorKey: col.key as keyof Stock,
         enableSorting: col.sortable ?? true,
-        meta: { align: "center" } as never,
+        meta: { align: col.key === "symbol" ? "left" : "right" } as never,
         cell: ({ row }) => {
           const stock = row.original;
           const value = stock[col.key as keyof Stock];
@@ -171,7 +171,7 @@ export function ScreenerTable({
             const scoreValue = typeof value === "number" ? value : 0;
             return (
               <Tooltip label={scoreFormula ? `${scoreFormula} = ${scoreValue}` : `Score: ${scoreValue}`} multiline w={300} withinPortal>
-                <Badge color={getScoreColor(scoreValue)} variant="light" data-testid={`score-badge-${stock.symbol}`}>
+                <Badge color={getScoreColor(scoreValue)} variant="filled" data-testid={`score-badge-${stock.symbol}`}>
                   {scoreValue}
                 </Badge>
               </Tooltip>

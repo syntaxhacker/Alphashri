@@ -94,7 +94,7 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         header: "Status",
         accessorKey: "status",
         cell: (info) => (
-          <Badge color={getStatusColor(info.getValue<string>())} variant="light" size="sm">
+          <Badge color={getStatusColor(info.getValue<string>())} variant="filled" size="sm">
             {info.getValue<string>()}
           </Badge>
         ),
@@ -208,7 +208,7 @@ export function LLMStatsPanel() {
         <Text size="sm" fw={500}>Recent Runs</Text>
         <Group gap="xs">
           <Button size="compact-xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStats} loading={loading}>Refresh</Button>
-          <Button size="compact-xs" variant="light" color="error" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
+          <Button size="compact-xs" variant="filled" color="error" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
         </Group>
       </Group>
 

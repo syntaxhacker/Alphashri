@@ -200,7 +200,7 @@ export function ReplayTradeLog({
         header: "Reason",
         enableSorting: false,
         cell: ({ row }) => (
-          <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="light">
+          <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="filled">
             {row.original.exit_reason}
           </Badge>
         ),

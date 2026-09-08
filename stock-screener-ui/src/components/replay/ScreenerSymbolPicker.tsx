@@ -29,10 +29,8 @@ const SCREENER_OPTIONS = [
   { value: "intraday_15m", label: "15-Min Movers" },
 ];
 
-function getScoreColor(score: number): string {
-  if (score >= 70) return "success";
-  if (score >= 40) return "warning";
-  return "error";
+function getScoreColor(_score: number): string {
+  return "default";
 }
 
 function pctColor(pct: number): string {
@@ -262,7 +260,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                             -
                           </Text>
                         )}
-                        <Badge size="sm" color={getScoreColor(stock.score)} variant="light" w={36}>
+                        <Badge size="sm" color={getScoreColor(stock.score)} variant="filled" w={36}>
                           {stock.score}
                         </Badge>
                       </Group>

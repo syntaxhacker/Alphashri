@@ -26,7 +26,7 @@ function RunStatusBadge({ run }: { run: ExperimentRun }) {
     return (
       <Badge
         color="success"
-        variant="light"
+        variant="filled"
         size="sm"
         data-testid={`experiments-status-${run.run}`}
       >
@@ -37,7 +37,7 @@ function RunStatusBadge({ run }: { run: ExperimentRun }) {
   return (
     <Badge
       color="error"
-      variant="light"
+      variant="filled"
       size="sm"
       data-testid={`experiments-status-${run.run}`}
     >

@@ -78,11 +78,11 @@ export function BrokerConnectionCard({
 
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
             {isConnected ? (
-              <Button leftSection={<IconPlugX size={16} />} variant="light" color="error" onClick={onDisconnect} loading={loading} data-testid="disconnect-upstox-btn">
+              <Button leftSection={<IconPlugX size={16} />} variant="filled" color="error" onClick={onDisconnect} loading={loading} data-testid="disconnect-upstox-btn">
                 Disconnect
               </Button>
             ) : (
-              <Button leftSection={<IconPlugConnected size={16} />} variant="light" color="success" onClick={onConnect} loading={loading} data-testid="connect-upstox-btn">
+              <Button leftSection={<IconPlugConnected size={16} />} variant="filled" color="success" onClick={onConnect} loading={loading} data-testid="connect-upstox-btn">
                 Connect
               </Button>
             )}

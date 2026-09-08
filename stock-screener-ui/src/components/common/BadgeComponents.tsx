@@ -10,7 +10,7 @@ export function SideBadge({ side, size = "sm", "data-testid": testId }: SideBadg
   const isBuy = side.toUpperCase() === "BUY" || side.toUpperCase() === "LONG";
   const arrow = side.toUpperCase() === "BUY" ? "▲" : side.toUpperCase() === "SELL" ? "▼" : "";
   return (
-    <Badge color={isBuy ? "success" : "error"} variant="light" size={size} data-testid={testId}>
+    <Badge color={isBuy ? "success" : "error"} variant="filled" size="sm" data-testid={testId}>
       {arrow} {side.toUpperCase()}
     </Badge>
   );
@@ -58,7 +58,7 @@ export function ExitReasonBadge({
                     : reason;
 
   return (
-    <Badge color={color} variant="light" size={size} data-testid={testId}>
+    <Badge color={color} variant="filled" size={size} data-testid={testId}>
       {label}
     </Badge>
   );
@@ -89,7 +89,7 @@ export function StatusBadge({
 }: StatusBadgeProps) {
   if (statusUnknown) {
     return (
-      <Badge color="warning" variant="light" size={size} data-testid={testId}>
+      <Badge color="warning" variant="filled" size={size} data-testid={testId}>
         Unknown (Redis unavailable)
       </Badge>
     );

@@ -23,7 +23,7 @@ export function ScreenerErrorPanel({ error, onRefresh }: ScreenerErrorPanelProps
         </Box>
         <Button
           onClick={onRefresh}
-          variant="light"
+          variant="filled"
           color="error"
           size="sm"
           data-testid="screener-retry-btn"

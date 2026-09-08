@@ -269,7 +269,7 @@ export function TradeHistoryTable({
           const reason = row.original.exit_reason ?? "EOD";
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Badge size="sm" color={reason === "TP" ? "success" : reason === "SL" ? "error" : reason === "TRAILING_STOP" ? "warning" : "secondary"}>
+              <Badge size="sm" variant="filled" color={reason === "TP" ? "success" : reason === "SL" ? "error" : reason === "TRAILING_STOP" ? "warning" : "secondary"}>
                 {reason}
               </Badge>
             </Box>

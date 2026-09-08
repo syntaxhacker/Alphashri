@@ -104,7 +104,7 @@ export function PerformanceView({
           const winRate = info.getValue<number>();
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <Badge size="sm" color={winRate >= 50 ? "info" : "error"} variant="light">
+            <Badge size="sm" color={winRate >= 50 ? "success" : "error"} variant="filled">
               {winRate.toFixed(1)}%
             </Badge>
             </Box>

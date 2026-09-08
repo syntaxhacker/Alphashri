@@ -93,7 +93,7 @@ export function SectorTable({ sectors }: SectorTableProps) {
           const { label, color } = getStrengthInfo(info.getValue<number>());
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Badge color={color} variant="light" size="sm">
+              <Badge color={color} variant="filled" size="sm">
                 {label}
               </Badge>
             </Box>

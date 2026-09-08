@@ -267,7 +267,7 @@ export function ReplayConfigBar({
           <Button
             size="sm"
             color="error"
-            variant="light"
+            variant="filled"
             leftSection={<IconPlayerStop size={16} />}
             onClick={stopReplay}
             data-testid="replay-stop-btn"

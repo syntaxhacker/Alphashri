@@ -214,7 +214,7 @@ export function StrategyRunnerConfig({
               <Button
                 size="sm"
                 color="error"
-                variant="light"
+                variant="filled"
                 leftSection={<IconPlayerStop size={16} />}
                 onClick={stopRunner}
                 data-testid="sr-stop-btn"

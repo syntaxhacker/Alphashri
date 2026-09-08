@@ -161,10 +161,10 @@ export function Admin52wRangePanel() {
         <Button size="sm" leftSection={<IconPlayerPlay size={14} />} onClick={startBatch} loading={starting} disabled={running} data-testid="admin-52w-run">
           Run batch
         </Button>
-        <Button size="sm" variant="light" color="warning" leftSection={<IconTrash size={14} />} onClick={() => clearAction(false)} loading={clearing} disabled={running}>
+        <Button size="sm" variant="filled" color="warning" leftSection={<IconTrash size={14} />} onClick={() => clearAction(false)} loading={clearing} disabled={running}>
           Clear cache
         </Button>
-        <Button size="sm" variant="light" color="error" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
+        <Button size="sm" variant="filled" color="error" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
           Clear cache + DB
         </Button>
         <Button size="compact-sm" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStatus} loading={loading}>
