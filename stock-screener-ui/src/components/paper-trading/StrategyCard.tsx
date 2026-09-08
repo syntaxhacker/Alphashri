@@ -61,7 +61,7 @@ export const StrategyCard = memo(function StrategyCard({
         <Tooltip label="Close all in this strategy">
           <Button
             size="compact-xs"
-            variant="light"
+            variant="filled"
             color="error"
             leftSection={<IconX size={12} />}
             onClick={(e) => {

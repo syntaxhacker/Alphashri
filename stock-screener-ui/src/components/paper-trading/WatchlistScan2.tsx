@@ -167,6 +167,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "side",
         header: "Side",
         accessorKey: "side",
+        meta: { align: "center" } as any,
         cell: (info) => {
           const side = info.getValue<string | null>();
           return side ? <SideBadge side={side} /> : <Text size="xs">-</Text>;
@@ -185,6 +186,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         id: "near",
         header: "Near",
         accessorKey: "symbol",
+        meta: { align: "right" } as any,
         cell: (info) => {
           const row = info.row.original;
           const near = nearBreakoutPct(row);
@@ -239,8 +241,8 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
 
   if (!snapshot || allItems.length === 0) {
     return (
-      <Stack gap={2} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
-        <Group justify="space-between" px={4} py={1}>
+      <Stack gap={1} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+        <Group justify="space-between" px={1} py={0.5}>
           <Group gap="xs">
             <Text fw={600} size="xs" c="dimmed" tt="uppercase">
               Watchlist Scan
@@ -268,8 +270,8 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
   }
 
   return (
-    <Stack gap={2} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
-      <Group justify="space-between" px={4} py={1} wrap="nowrap">
+    <Stack gap={1} data-testid="watchlist-scan-card" className="paper-watchlist-scan" id="watchlist-scan">
+      <Group justify="space-between" px={1} py={0.5} wrap="nowrap">
         <Group gap="xs">
           <Text fw={600} size="xs" c="dimmed" tt="uppercase">
             Watchlist Scan
@@ -290,7 +292,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         </Group>
       </Group>
 
-      <Group gap="xs" px={4} wrap="wrap">
+      <Group gap="xs" style={{ paddingLeft: 8, paddingRight: 8 }} wrap="wrap">
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -350,7 +352,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         />
       </ScrollArea>
 
-      <Group justify="space-between" px={4} py={1}>
+      <Group justify="space-between" px={1} py={0.5}>
         <Group gap="xs">
           <Text size="xs" c="dimmed">
             Showing {visibleItems.length} of {allItems.length}

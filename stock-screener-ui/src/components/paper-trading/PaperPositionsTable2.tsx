@@ -24,8 +24,8 @@ function usePositionsData(): PaperPosition[] {
 
 function EmptyPositions() {
   return (
-    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 160, textAlign: "center" }} data-testid="positions-empty">
-      <Text size="sm" fw={500} c="dimmed">
+    <Box className="paper-positions-empty" id="paper-positions-empty" sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 160, textAlign: "center" }} data-testid="positions-empty">
+      <Text className="paper-positions-empty-text" size="sm" fw={500} c="dimmed">
         No open positions
       </Text>
     </Box>
@@ -34,8 +34,8 @@ function EmptyPositions() {
 
 function LoadingState() {
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
-      <Text size="xs" c="dimmed">
+    <Box className="paper-positions-loading" id="paper-positions-loading" sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
+      <Text className="paper-positions-loading-text" size="xs" c="dimmed">
         Loading positions...
       </Text>
     </Box>
@@ -44,7 +44,7 @@ function LoadingState() {
 
 function EmptyOrLoadingState() {
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
+    <Box className="paper-positions-empty-loading" id="paper-positions-empty-loading" sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
       <EmptyPositions />
     </Box>
   );
@@ -91,7 +91,7 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
     <Tooltip label="Close all positions at current prices">
       <Button
         size="compact-xs"
-        variant="light"
+        variant="filled"
         color="error"
         loading={closing}
         onClick={handleCloseAll}
@@ -161,23 +161,23 @@ export function PaperPositionsTable() {
   const isLive = state.availableBots.find(b => b.id === state.filterBot)?.live_trading ?? false;
 
   return (
-    <Stack spacing={1} data-testid="positions-table-container">
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1, gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-          <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+    <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={1} data-testid="positions-table-container">
+      <Box className="paper-positions-header" id="paper-positions-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1, gap: 1 }}>
+        <Box className="paper-positions-header-left" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Text className="paper-positions-title" size="xs" c="dimmed" tt="uppercase" fw={600}>
             Positions ({sortedPositions.length})
           </Text>
-          <Badge color={isLive ? "error" : "success"} variant="light" size="xs">
+          <Badge className="paper-positions-mode-badge" color={isLive ? "error" : "success"} variant="filled" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+        <Box className="paper-positions-header-right" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CloseAllButton positions={sortedPositions} />
         </Box>
       </Box>
 
       {sortedPositions.length > 0 && (
-        <Stack spacing={1}>
+        <Stack className="paper-positions-groups" id="paper-positions-groups" spacing={1}>
           {Array.from(strategyGroups.entries()).map(([strategyId, group]) => {
             const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
             return (

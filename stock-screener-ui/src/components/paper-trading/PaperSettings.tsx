@@ -186,7 +186,7 @@ function SettingsContent({
           </Text>
         </div>
         {configDirty && (
-          <Badge color="warning" variant="light">
+          <Badge color="warning" variant="filled">
             Unsaved Changes
           </Badge>
         )}

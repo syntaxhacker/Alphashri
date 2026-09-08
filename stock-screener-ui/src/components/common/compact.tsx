@@ -6,6 +6,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import SimpleGrid from "@mui/material/Grid";
 import { Text, Title } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
@@ -74,14 +75,14 @@ export function CompactPanel({
 }: CompactPanelProps) {
   const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
 
-  return (
-    <MuiPaper elevation={1} sx={{ bgcolor: "background.paper", borderRadius: 1 }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
-      <MuiCardContent sx={{ p: padded ? 1 : 0, "&:last-child": { pb: padded ? 1 : 0 } }}>
+    return (
+      <MuiPaper elevation={0} sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
+        <MuiCardContent sx={{ p: padded ? 1 : 0, "&:last-child": { pb: padded ? 1 : 0 }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
         {(title || description || action) && (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, mb: 1, width: "100%" }}>
-            <Stack spacing={1} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-              {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{title}</Box>) : null}
-              {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, mb: 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
+            <Stack spacing={1} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+              {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
+              {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
             </Stack>
             {action ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{action}</Box> : null}
           </Box>
@@ -111,7 +112,7 @@ export function CompactStat({
   ...paperProps
 }: CompactStatProps) {
   return (
-    <Card elevation={1} sx={{ bgcolor: "background.paper" }} {...(paperProps as any)}>
+    <Card elevation={0} sx={{ bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }} {...(paperProps as any)}>
       <MuiCardContent sx={{ p: 1, "&:last-child": { pb: 1 }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, textAlign: "center" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
           <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1} ta="center">

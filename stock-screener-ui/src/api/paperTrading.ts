@@ -292,10 +292,10 @@ function getLimitFromDateRange(fromDate?: string | null, toDate?: string | null)
   const from = new Date(fromDate);
   const to = toDate ? new Date(toDate) : new Date();
   const diffDays = Math.ceil((to.getTime() - from.getTime()) / (1000 * 60 * 60 * 24));
-  if (diffDays <= 1) return 50;
-  if (diffDays <= 7) return 200;
-  if (diffDays <= 30) return 500;
-  return 1000;
+  if (diffDays <= 1) return 100;
+  if (diffDays <= 7) return 500;
+  if (diffDays <= 30) return 1000;
+  return 2000;
 }
 
 // Refresh history data with optional bot and date filtering

@@ -40,6 +40,7 @@ import { TradingChart } from "../chart/TradingChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
+import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH } from "@/ui/palette";
 
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
@@ -70,7 +71,7 @@ function PositionInfo({ position }: { position: PaperPosition }) {
       data-testid="position-info"
       id={`position-info-${position.symbol}`}
     >
-      <Badge size="sm" variant="light" color={position.side === "BUY" ? "success" : "error"}>
+      <Badge size="sm" variant="filled" color={position.side === "BUY" ? "success" : "error"}>
         {sideIcon} {position.side}
       </Badge>
       <Text size="sm" fw={500}>
@@ -87,22 +88,22 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
   if (hasTrades) {
     items.push(
-      { color: "var(--mui-palette-info-main)", label: "Entry", shape: "square" },
-      { color: "var(--mui-palette-success-main)", label: "TP", shape: "circle" },
-      { color: "var(--mui-palette-error-main)", label: "SL", shape: "circle" },
+      { color: PRIMARY, label: "Entry", shape: "square" },
+      { color: POSITIVE, label: "TP", shape: "circle" },
+      { color: NEGATIVE, label: "SL", shape: "circle" },
     );
   }
-  if (orbLabel) items.push({ color: "var(--mui-palette-primary-main)", label: orbLabel, shape: "square" });
-  if (hasWeek52) items.push({ color: "var(--mui-palette-secondary-main)", label: "52W High", shape: "square" });
+  if (orbLabel) items.push({ color: PIVOT_OR_HIGH, label: orbLabel, shape: "square" });
+  if (hasWeek52) items.push({ color: PIVOT_52W_HIGH, label: "52W High", shape: "square" });
 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" id="chart-legend">
+    <Flex className="paper-chart-legend" gap="xs" justify="center" align="center" wrap="wrap" py={1} px={1} data-testid="chart-legend" id="chart-legend">
       {items.map((item, i) => (
-        <Flex key={i} align="center" gap={1}>
-          <Box w={8} h={8} bg={item.color} sx={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
-          <Text size="xs" c="dimmed">{item.label}</Text>
+        <Flex key={i} className="paper-chart-legend-item" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center" gap={1}>
+          <Box className="paper-chart-legend-swatch" w={8} h={8} bg={item.color} sx={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
+          <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
       {position && <PositionInfo position={position} />}
@@ -111,6 +112,7 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
 }
 
 function ChartEmptyState({
+  className,
   icon,
   children,
 }: {
@@ -119,10 +121,10 @@ function ChartEmptyState({
   children: React.ReactNode;
 }) {
   return (
-    <Card elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-      <CardContent sx={{ textAlign: "center" }}>
+    <Card className={`paper-chart-empty ${className}`} elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <CardContent className="paper-chart-empty-content" sx={{ textAlign: "center" }}>
         {icon && (
-          <Text size="lg" c="dimmed" mb="xs">
+          <Text className="paper-chart-empty-icon" size="lg" c="dimmed" mb="xs">
             {icon}
           </Text>
         )}
@@ -407,17 +409,17 @@ export function PaperChart() {
   }
 
   return (
-    <Card elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
+    <Card className="paper-chart-container" elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
       <ChartHeader state={state} />
-      <Box sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+      <Box className="paper-chart-body" id="paper-chart-body" sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
-          <Box sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+          <Box className="paper-chart-canvas-wrap" id="paper-chart-canvas-wrap" sx={{ flex: 1, minHeight: 0, display: "flex" }}>
             <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
           </Box>
         ) : (
           <ChartEmptyState className="paper-chart-loading" icon="⏳">
-            <Text c="dimmed">
+            <Text className="paper-chart-loading-text" c="dimmed">
               {state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : "No data"}
             </Text>
           </ChartEmptyState>
