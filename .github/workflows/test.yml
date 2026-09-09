@@ -142,6 +142,9 @@ jobs:
           uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 &
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+          DATABASE_URL: sqlite:///./test.db
+          SKIP_ALEMBIC: "1"
+          JWT_SECRET_KEY: test-secret
       - name: Start frontend dev server
         run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
         env:
@@ -204,6 +207,9 @@ jobs:
           uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 &
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+          DATABASE_URL: sqlite:///./test.db
+          SKIP_ALEMBIC: "1"
+          JWT_SECRET_KEY: test-secret
       - name: Start frontend dev server
         run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
         env:
