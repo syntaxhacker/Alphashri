@@ -197,6 +197,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
 
   const handleRangeChange = useCallback(
     (r: [Date | null, Date | null]) => {
+      if (!r) return;
       setRange(r);
       if (r[0] && r[1] && r[0] > r[1]) return;
       const fd = r[0] ? dayjs(r[0]).format("YYYY-MM-DD") : undefined;
@@ -265,6 +266,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         value={range}
         onChange={handleRangeChange}
         presets={todayPresets}
+        data-testid="chart-date-range"
         styles={{ input: { width: fromDate ? 160 : 90, minHeight: 26 } }}
       />
 
@@ -326,6 +328,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
                     radius="sm"
                     color={OVERLAY_COLORS[key] || "primary"}
                     checked={state[key]}
+                    data-testid={`chip-${label.toLowerCase()}`}
                     onChange={(checked) => setter(checked)}
                   >
                     {label}

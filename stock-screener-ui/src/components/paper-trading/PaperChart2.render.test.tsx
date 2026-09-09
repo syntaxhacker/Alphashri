@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
-import { screen, cleanup, waitFor, within } from "@testing-library/react";
+import { screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaperChart } from "./PaperChart2";
 import { mockPosition } from "./testFixtures";
@@ -96,6 +96,22 @@ vi.mock("../../api/paperTrading", () => ({
 
 vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
+}));
+
+// The real ui DatePicker (MUI section-based field) drops inputProps testids
+// and can't be driven by fireEvent; mock as a native input like
+// PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
+// Date like the real picker (empty -> null).
+vi.mock("@/ui/dates/DatePicker", () => ({
+  DatePicker: ({ value, onChange, "data-testid": testId, placeholder }: any) => (
+    <input
+      type="text"
+      data-testid={testId}
+      defaultValue={Array.isArray(value) ? "" : (value ?? "")}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value ? new Date(e.target.value) : null)}
+    />
+  ),
 }));
 
 vi.mock("../chart/TradingChart", () => ({
@@ -231,8 +247,9 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       selectedStrategyId: 1,
     });
     r(<PaperChart />);
-    const select = screen.getByTestId("chart-timeframe-select") as HTMLSelectElement;
-    await user.selectOptions(select, "1hour");
+    // MUI Select: options render in a Menu portal once opened ("1h" -> "1hour")
+    await user.click(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "1h" }));
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
     // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true
@@ -247,19 +264,19 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
   });
 
   test("DatePicker range change triggers fetchPaperChart", async () => {
-    const user = userEvent.setup();
     setState({
       selectedSymbol: "RELIANCE",
       chartData: mockChartData(),
       chartLoading: false,
     });
     r(<PaperChart />);
-    await user.click(screen.getByTestId("chart-date-set-range"));
+    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "04/20/2026" } });
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
   });
 
-  test("DatePicker invalid range (from > to) does not call fetchPaperChart", async () => {
-    const user = userEvent.setup();
+  test("DatePicker clear (null date) does not call fetchPaperChart", async () => {
+    // The range UI is single-date; an emptied field yields null and must be
+    // ignored (previously crashed reading r[0] of null).
     setState({
       selectedSymbol: "RELIANCE",
       chartData: mockChartData(),
@@ -267,8 +284,9 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
     });
     r(<PaperChart />);
     mockFetchPaperChart.mockClear();
-    await user.click(screen.getByTestId("chart-date-invalid-range"));
-    // should return early, not call fetch
+    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "" } });
+    // let any async handling settle, then assert silence
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockFetchPaperChart).not.toHaveBeenCalled();
   });
 
@@ -282,12 +300,13 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       showAllTrades: false,
     });
     r(<PaperChart />);
-    // Chips rendered inside PopoverDropdown
-    const orbChip = screen.getByTestId("chip-orb");
+    // Chips rendered inside PopoverDropdown — open it first
+    await user.click(screen.getByTestId("chart-more-button"));
+    const orbChip = await screen.findByTestId("chip-orb");
     await user.click(orbChip);
     expect(mockSetShowOrbLines).toHaveBeenCalledWith(true);
 
-    const allChip = screen.getByTestId("chip-all");
+    const allChip = await screen.findByTestId("chip-all");
     await user.click(allChip);
     expect(mockSetShowAllTrades).toHaveBeenCalledWith(true);
   });

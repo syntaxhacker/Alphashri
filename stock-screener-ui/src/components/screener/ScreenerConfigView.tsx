@@ -144,10 +144,11 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
     refresh: loadPreview,
   } = useScreenerPreview(activeScreener, columns, filterArr);
 
-  // Config preview: load once per screener selection, NOT on every filter keystroke (too many loaders).
-  // User explicitly wants reload only for screener tables, not config preview — manual via ↻ button.
+  // Config preview: load once per screener selection (debounced, NOT on
+  // every filter keystroke — too many loaders). Manual reload via ↻ button.
   useEffect(() => {
-    loadPreview();
+    const t = setTimeout(() => loadPreview(), 500);
+    return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeScreener]);
 
@@ -411,7 +412,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         data-testid="screener-preview-panel"
         sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
+        <Box data-testid="preview-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
           <Group gap={1} wrap="wrap" data-testid="screener-filters" align="center">
             {activeOption ? (
               <>
@@ -493,7 +494,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         )}
         {deleteConfirmOpen && (
           <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: withAlpha(palette.NEGATIVE, 0.08), display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <Text size="xs" style={{ color: palette.NEGATIVE }}>Delete {deletingId}?</Text>
+            <Text size="xs" style={{ color: palette.NEGATIVE }}>Are you sure you want to delete {deletingId}?</Text>
             <Group gap={1}>
               <Button size="xs" variant="outline" color="inherit" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
               <Button size="xs" color="error" onClick={handleDelete} loading={saving}>Delete</Button>
@@ -503,6 +504,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         <Box sx={{ flex: 1, overflow: "auto", p: 1, minHeight: 0 }}>
           {previewLoading ? (
             <Stack gap={1} data-testid="preview-loading">
+              <Text size="xs" c="dimmed" ta="center">Loading...</Text>
               <Skeleton h={28} radius={1} />
               <Skeleton h={20} />
               <Skeleton h={20} />
