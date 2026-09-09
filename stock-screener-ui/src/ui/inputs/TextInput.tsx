@@ -51,7 +51,7 @@ export function TextInput({
       fullWidth
       className={className}
       style={style as React.CSSProperties}
-      data-testid={testId}
+      data-testid={testId ? `${testId}-field` : undefined}
       slotProps={{
         input: {
           readOnly: readOnly,
@@ -62,6 +62,9 @@ export function TextInput({
             <InputAdornment position="end">{rightSection}</InputAdornment>
           ) : undefined,
         },
+        // testid belongs on the native input so getByTestId returns an
+        // editable element (typing, fill, clear all work on it)
+        htmlInput: testId ? ({ "data-testid": testId } as any) : undefined,
       }}
       sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" } }}
     />

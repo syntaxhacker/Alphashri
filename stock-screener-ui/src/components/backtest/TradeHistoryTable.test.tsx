@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { formatDateTimeHuman, formatDuration } from "../../utils/ui-helpers";
 import { sortTrades, TradeHistoryTable } from "./TradeHistoryTable";
@@ -336,18 +336,20 @@ describe("TradeHistoryTable rendering", () => {
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    expect(screen.getAllByText("Entry Time")).toHaveLength(1);
-    expect(screen.getAllByText("Exit Time")).toHaveLength(1);
-    expect(screen.getAllByText("Entry Price")).toHaveLength(1);
-    expect(screen.getAllByText("Exit Price")).toHaveLength(1);
-    expect(screen.queryByText("Entry")).not.toBeInTheDocument();
-    expect(screen.queryByText("Exit")).not.toBeInTheDocument();
-    expect(screen.getByText("Side")).toBeInTheDocument();
-    expect(screen.getByText("Qty")).toBeInTheDocument();
-    expect(screen.getByText("Level Hi")).toBeInTheDocument();
-    expect(screen.getByText("P&L")).toBeInTheDocument();
-    expect(screen.getByText("Hold")).toBeInTheDocument();
-    expect(screen.getByText("Type")).toBeInTheDocument();
+    // scope to the table: the summary row also renders a "P&L" label
+    const table = within(screen.getByTestId("trade-history-table"));
+    expect(table.getAllByText("Entry Time")).toHaveLength(1);
+    expect(table.getAllByText("Exit Time")).toHaveLength(1);
+    expect(table.getAllByText("Entry Price")).toHaveLength(1);
+    expect(table.getAllByText("Exit Price")).toHaveLength(1);
+    expect(table.queryByText("Entry")).not.toBeInTheDocument();
+    expect(table.queryByText("Exit")).not.toBeInTheDocument();
+    expect(table.getByText("Side")).toBeInTheDocument();
+    expect(table.getByText("Qty")).toBeInTheDocument();
+    expect(table.getByText("Level Hi")).toBeInTheDocument();
+    expect(table.getByText("P&L")).toBeInTheDocument();
+    expect(table.getByText("Hold")).toBeInTheDocument();
+    expect(table.getByText("Type")).toBeInTheDocument();
   });
 
   test("Level Hi column adapts to 52W data", () => {
@@ -400,10 +402,12 @@ describe("TradeHistoryTable rendering", () => {
     render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
       wrapper: Wrapper,
     });
-    const cells = screen.getAllByText(/^₹/);
-    const greenCell = cells.find((c) => c.getAttribute("style")?.includes("green"));
-    const redCell = cells.find((c) => c.getAttribute("style")?.includes("red"));
-    expect(greenCell || redCell).toBeInTheDocument();
+    // P&L cells carry a semantic data-pnl-sign (emotion classes are hashed,
+    // so inline-style substring checks can't see the tone)
+    const table = screen.getByTestId("trade-history-table");
+    const cells = within(table).getAllByText(/^₹/);
+    expect(cells.find((c) => c.getAttribute("data-pnl-sign") === "pos")).toBeInTheDocument();
+    expect(cells.find((c) => c.getAttribute("data-pnl-sign") === "neg")).toBeInTheDocument();
   });
 
   test("% column shows sign (+/-)", () => {

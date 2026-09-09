@@ -54,7 +54,12 @@ export function Textarea({
       maxRows={effectiveMaxRows}
       className={className}
       style={style as React.CSSProperties}
-      data-testid={testId}
+      data-testid={testId ? `${testId}-field` : undefined}
+      slotProps={{
+        // testid belongs on the native textarea so getByTestId returns an
+        // editable element (typing, fill, clear all work on it)
+        htmlInput: testId ? ({ "data-testid": testId } as any) : undefined,
+      }}
       sx={{
         "& .MuiInputBase-inputMultiline": {
           resize: resize ?? (autosize ? "none" : undefined),

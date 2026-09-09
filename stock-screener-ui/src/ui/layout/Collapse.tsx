@@ -6,7 +6,8 @@ export function Collapse({ children, className, style, id, "data-testid": testId
     <MuiCollapse
       in={open} timeout={transitionDuration} easing={transitionTimingFunction as never}
       onEntered={onTransitionEnd as never} onExited={onTransitionEnd as never}
-      className={className} style={style} id={id as string} data-testid={testId} {...rest}
+      className={className} style={style} id={id as string} data-testid={testId}
+      aria-hidden={!open} {...rest}
     >{children}</MuiCollapse>
   );
 }

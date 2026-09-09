@@ -5,6 +5,7 @@ import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
+import { TINT_LOSS_ROW } from "../../config/colors";
 import { TanStackTable } from "../common/TanStackTable";
 
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
@@ -240,7 +241,7 @@ export function TradeHistoryTable({
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.net_pnl ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={600} c={getPnLTextColor(val)} ta="center">₹{val.toFixed(0)}</Text></Box>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={600} c={getPnLTextColor(val)} ta="center" data-pnl-sign={val >= 0 ? "pos" : "neg"}>₹{val.toFixed(0)}</Text></Box>;
         },
       },
       {
@@ -303,15 +304,14 @@ export function TradeHistoryTable({
       <Group gap={1} align="center" p="xs" data-testid="trade-history-summary" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
           <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>P&L</Text>
-          <Text size="sm" fw={600} c={getPnLTextColor(totalPnl)} sx={{ flex: 1, textAlign: "right" }}>₹{totalPnl.toFixed(0)}</Text>
+          <Text size="sm" fw={600} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" sx={{ flex: 1, textAlign: "right" }}>₹{totalPnl.toFixed(0)}</Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
           <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>WR</Text>
-          <Text size="sm" sx={{ flex: 1, textAlign: "right" }}>{winRate}%</Text>
+          <Text size="sm" data-testid="trade-summary-wr" sx={{ flex: 1, textAlign: "right" }}>{winRate}%</Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Wins</Text>
-          <Text size="sm" sx={{ flex: 1, textAlign: "right" }}>{wins}/{trades.length}</Text>
+          <Text size="sm" data-testid="trade-summary-wins" sx={{ flex: 1, textAlign: "right" }}>Wins: {wins}/{trades.length}</Text>
         </Box>
       </Group>
 
@@ -322,7 +322,7 @@ export function TradeHistoryTable({
           dataTestId="trade-history-table"
           enableSorting={false}
           getRowStyle={(row) => ({
-            backgroundColor: row.net_pnl >= 0 ? undefined : "rgba(var(--mui-palette-error-mainChannel) / 0.12)",
+            backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
           })}
           getRowTestId={(_row, index) => `trade-history-row-${index}`}
           onRowClick={(row) => onRowClick(safeTrades.indexOf(row))}
