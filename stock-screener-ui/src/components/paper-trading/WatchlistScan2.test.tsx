@@ -480,10 +480,10 @@ describe("WatchlistScan2", () => {
       r(
         <WatchlistScan2 snapshot={snap} selectedSymbol="RELIANCE" />,
       );
-      // teal-light is derived by MUI from the teal scale (cream accent);
-      // under the palette theme it resolves to a cream-tinted translucent value.
+      // selected rows use an info-tint background
+      // (theme.palette.info.main #0288d2 at 8% via MUI alpha())
       expect(row("RELIANCE")).toHaveStyle({
-        backgroundColor: "rgba(14, 154, 135, 0.15)",
+        backgroundColor: "rgba(2, 136, 209, 0.08)",
       });
     });
   });

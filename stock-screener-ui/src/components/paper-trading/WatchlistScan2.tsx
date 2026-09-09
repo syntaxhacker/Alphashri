@@ -37,11 +37,11 @@ const STATUS_ORDER: Record<string, number> = {
   skipped: 3,
 };
 
-const STATUS_BORDER_KIND: Record<string, "success" | "warning" | "error" | "muted"> = {
-  signal: "success",
-  watching: "warning",
-  rejected: "error",
-  skipped: "muted",
+const STATUS_BORDER_VAR: Record<string, string> = {
+  signal: "var(--mui-palette-success-main)",
+  watching: "var(--mui-palette-warning-main)",
+  rejected: "var(--mui-palette-error-main)",
+  skipped: "var(--mui-palette-divider)",
 };
 
 function isNewSignal(item: PaperScanItem, snapshotTs: string | null) {
@@ -346,6 +346,9 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
                 : isNew
                   ? alpha(theme.palette.success.main, 0.08)
                   : undefined,
+              borderLeftWidth: 3,
+              borderLeftStyle: "solid",
+              borderLeftColor: STATUS_BORDER_VAR[row.status] ?? STATUS_BORDER_VAR.skipped,
             };
           }}
           getRowTestId={(row) => `scan-row-${row.symbol}`}
