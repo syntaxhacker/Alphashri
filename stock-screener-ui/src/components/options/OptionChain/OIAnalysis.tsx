@@ -66,12 +66,12 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
       backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
       textStyle: {
         color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
-        fontSize: theme.fontSizes.sm,
+        fontSize: 12,
       },
     },
     legend: {
       data: ["Call OI Chg", "Put OI Chg"],
-      textStyle: { color: "var(--mui-palette-text-secondary)", fontSize: theme.fontSizes.sm },
+      textStyle: { color: "var(--mui-palette-text-secondary)", fontSize: 12 },
       bottom: 0,
     },
     grid: {
@@ -88,7 +88,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     yAxis: {
       type: "category",
       data: analysisData.chartData.map((d) => d.strike),
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: theme.fontSizes.sm, fontWeight: fontWeights.semibold },
+      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12, fontWeight: fontWeights.semibold },
       axisLine: { show: false },
       axisTick: { show: false },
     },

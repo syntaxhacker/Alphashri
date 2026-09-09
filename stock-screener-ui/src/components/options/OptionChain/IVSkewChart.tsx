@@ -34,7 +34,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
       backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
       textStyle: {
         color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
-        fontSize: theme.fontSizes.sm,
+        fontSize: 12,
       },
     },
     grid: {
@@ -46,12 +46,12 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
     xAxis: {
       type: "category",
       data: chartData.map((d) => d.strike),
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: theme.fontSizes.sm },
+      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12 },
       axisLine: { lineStyle: { color: isDark ? "var(--mui-palette-divider)" : "var(--mui-palette-divider)" } },
     },
     yAxis: {
       type: "value",
-      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: theme.fontSizes.sm, formatter: "{value}%" },
+      axisLabel: { color: "var(--mui-palette-text-secondary)", fontSize: 12, formatter: "{value}%" },
       splitLine: {
         lineStyle: { color: isDark ? "var(--mui-palette-divider)" : "var(--mui-palette-divider)", type: "dashed" },
       },
