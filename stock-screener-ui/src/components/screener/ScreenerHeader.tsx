@@ -1,13 +1,8 @@
-import {
-  Group,
-  Text,
-  ActionIcon,
-  NumberInput,
-  Select,
-  Tooltip,
-  SegmentedControl,
-  Box,
-} from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Grid from "@mui/material/Grid";
+import Paper from "@mui/material/Paper";
+import { Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 
 type ScreenerViewMode = "table" | "heatmap";
@@ -40,26 +35,20 @@ export function ScreenerHeader({
   onViewModeChange,
 }: ScreenerHeaderProps) {
   return (
-    <Box
-      id="screener-header"
-      className="screener-header"
-      data-testid="screener-header"
-      py={4}
-      px={8}
-      style={{ borderBottom: "1px solid var(--mantine-color-default-border)", flexShrink: 0 }}
-    >
-      <Group justify="space-between" align="center" gap={6} wrap="nowrap">
-        <Text
-          size="xs"
-          c="dimmed"
-          truncate
-          style={{ flex: 1, minWidth: 0 }}
-          title={status}
-          data-testid="status"
-        >
-          {status}
-        </Text>
-        <Group gap={6} align="center" wrap="nowrap" className="header-controls" data-testid="header-controls">
+    <Paper elevation={1} sx={{ borderRadius: 0, borderBottom: 1, borderColor: "grey.200", flexShrink: 0 }}>
+      <Box
+        id="screener-header"
+        data-testid="screener-header"
+        sx={{ flexShrink: 0, minHeight: 48, display: "flex", alignItems: "center", px: 2, py: 1 }}
+      >
+        <Grid container spacing={2} alignItems="center" justifyContent="space-between" sx={{ width: "100%" }}>
+          <Grid size="auto" sx={{ display: "flex", alignItems: "center", flex: 1, minWidth: 120 }}>
+            <Text size="xs" c="dimmed" truncate sx={{ flex: 1, minWidth: 120 }} title={status} data-testid="status">
+              {status}
+            </Text>
+          </Grid>
+          <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
+            <Stack direction="row" alignItems="center" spacing={1} data-testid="header-controls" sx={{ flexWrap: "wrap", alignItems: "center" }}>
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
@@ -68,7 +57,6 @@ export function ScreenerHeader({
               loading={isLoading}
               data-testid="refresh-btn"
               id="refresh-btn"
-              className="refresh-btn"
             >
               <IconRefresh size={14} />
             </ActionIcon>
@@ -79,7 +67,7 @@ export function ScreenerHeader({
             min={0}
             max={3600}
             step={10}
-            w={52}
+            w={64}
             size="xs"
             disabled={isLoading}
             data-testid="auto-refresh-input"
@@ -93,7 +81,7 @@ export function ScreenerHeader({
               { value: "indmoney", label: "IND" },
             ]}
             size="xs"
-            w={88}
+            w={96}
             disabled={isLoading}
             data-testid="provider-select"
             comboboxProps={{ withinPortal: true }}
@@ -106,7 +94,7 @@ export function ScreenerHeader({
               { value: "historical", label: "5D" },
             ]}
             size="xs"
-            w={72}
+            w={96}
             disabled={isLoading}
             data-testid="mode-select"
             comboboxProps={{ withinPortal: true }}
@@ -121,8 +109,10 @@ export function ScreenerHeader({
             ]}
             data-testid="screener-view-toggle"
           />
-        </Group>
-      </Group>
-    </Box>
+        </Stack>
+          </Grid>
+        </Grid>
+      </Box>
+    </Paper>
   );
 }

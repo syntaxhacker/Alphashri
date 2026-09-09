@@ -51,11 +51,11 @@ function OptionColumn({
   const styles = getStyles(theme, colorScheme === "dark");
   if (!contract) {
     return (
-      <Box style={{ display: "contents" }}>
+      <Box sx={{ display: "contents" }}>
         {Array(5)
           .fill(0)
           .map((_, i) => (
-            <Box key={i} style={styles.cell}>
+            <Box key={i} sx={styles.cell}>
               -
             </Box>
           ))}
@@ -156,28 +156,14 @@ function OptionColumn({
       <Text size="sm" c={getPnLTextColor(oiChange)}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
-      <Box
-        mt={5}
-        style={{
-          borderTop:
-            "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-        }}
-        pt={5}
-      >
+        <Box mt={5} pt={5}>
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
       </Box>
-      <Box
-        mt={5}
-        style={{
-          borderTop:
-            "1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4))",
-        }}
-        pt={5}
-      >
+      <Box mt={5} pt={5}>
         <Text size="sm">
           Bid: {m?.bid_price} | Ask: {m?.ask_price}
         </Text>
@@ -214,8 +200,6 @@ function OptionColumn({
           position: "relative",
           fontWeight: cell.fw,
           background: palette.background,
-          borderRight: i < 4 && type === "CE" ? `1px solid ${palette.border}` : undefined,
-          borderLeft: i > 0 && type === "PE" ? `1px solid ${palette.border}` : undefined,
           boxShadow: palette.shadow,
           color: cell.c ? undefined : palette.text,
         };
@@ -230,10 +214,10 @@ function OptionColumn({
             multiline
             w={220}
           >
-            <Box style={cellStyle} onClick={() => onRowClick(contract)}>
+            <Box sx={cellStyle} onClick={() => onRowClick(contract)}>
               {cell.isOI && (
                 <Box
-                  style={{
+                  sx={{
                     position: "absolute",
                     top: 4,
                     bottom: 4,
@@ -247,7 +231,7 @@ function OptionColumn({
                 />
               )}
 
-              <Stack gap={0} align="center" w="100%" pos="relative" style={{ zIndex: 1 }}>
+              <Stack gap={0} align="center" w="100%" pos="relative" sx={{ zIndex: 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
                   <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
                     {cell.value}
@@ -258,10 +242,9 @@ function OptionColumn({
                       variant="light"
                       color={cell.badge.color}
                       px={4}
-                      style={{
+                      sx={{
                         fontSize: "10px",
                         height: 14,
-                        border: `1px solid ${hexToRgba(palette.accent, 0.18)}`,
                       }}
                     >
                       {cell.badge.label}
@@ -341,8 +324,7 @@ function OptionChainTableInner({
   return (
     <Box
       id="option-chain-table"
-      className="option-chain-table"
-      style={{ ...styles.container, position: "relative" }}
+      sx={{ ...styles.container, position: "relative" }}
       data-testid="options-chain-table"
     >
       <ChainScrollActions scrollToATM={scrollToATM} scrollToEdge={scrollToEdge} />
@@ -351,14 +333,14 @@ function OptionChainTableInner({
       <ChainSubHeader styles={styles} />
 
       <ScrollArea
-        className="chain-table-scrollarea"
+       
         flex={1}
         type="hover"
         scrollbars="y"
         viewportRef={viewportRef}
         data-testid="options-chain-table-scrollarea"
       >
-        <Box className="chain-table-body" miw={800} pb={150}>
+        <Box sx={{ minWidth: 800, pb: 19 }}>
           {strikeMatrix.map(({ strike, ce, pe }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
             const isHovered = hoveredStrike === strike;
@@ -366,11 +348,11 @@ function OptionChainTableInner({
               ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
               : 0;
             const rowCallBg = hexToRgba(
-              theme.colors.green[6],
+              theme.palette.success.main,
               0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
             );
             const rowPutBg = hexToRgba(
-              theme.colors.red[6],
+              theme.palette.error.main,
               0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
             );
 
@@ -378,12 +360,11 @@ function OptionChainTableInner({
               <Box
                 key={strike}
                 ref={isATM ? atmRowRef : null}
-                className={`chain-row ${isATM ? "chain-row-atm" : ""}`}
-                style={{
+                sx={{
                   ...styles.row,
-                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.colors.yellow[4], 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
+                  background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.palette.warning.light, 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
                   boxShadow: isHovered
-                    ? `inset 0 0 0 1px ${hexToRgba(theme.colors.yellow[4], 0.5)}, 0 6px 16px ${hexToRgba(theme.black, 0.08)}`
+                    ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.light, 0.5)}, 0 6px 16px ${hexToRgba(theme.palette.common.black, 0.08)}`
                     : undefined,
                 }}
                 data-testid={`options-chain-row-${strike}`}
@@ -404,12 +385,11 @@ function OptionChainTableInner({
                 />
 
                 <Box
-                  className={`strike-cell ${isATM ? "strike-cell-atm" : ""}`}
-                  style={{
+                  sx={{
                     ...styles.strikeCell,
                     ...(isATM ? styles.atmHighlight : {}),
                     boxShadow: isHovered
-                      ? `inset 0 0 0 1px ${hexToRgba(theme.colors.yellow[5], 0.45)}, 0 8px 22px ${hexToRgba(theme.black, 0.08)}`
+                      ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.main, 0.45)}, 0 8px 22px ${hexToRgba(theme.palette.common.black, 0.08)}`
                       : undefined,
                   }}
                   data-testid="strike-cell"

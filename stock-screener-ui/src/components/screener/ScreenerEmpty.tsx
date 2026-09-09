@@ -7,10 +7,9 @@ export function ScreenerEmpty({ message = "No results found" }: ScreenerEmptyPro
   return (
     <CompactPanel
       id="screener-empty"
-      className="screener-empty"
       testId="screener-empty"
       title={
-        <Group gap="xs" wrap="nowrap">
+        <Group gap="sm" wrap="nowrap">
           <IconDatabaseOff size={18} stroke={1.7} />
           <Text fw={600} size="sm">
             No results found

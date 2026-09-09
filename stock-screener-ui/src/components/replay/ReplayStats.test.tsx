@@ -115,7 +115,8 @@ describe("ReplayStats", () => {
         <ReplayStats trades={[]} summary={null} progress={progress} totalCandles={200} isRunning={true} />
       </UIProvider>,
     );
-    expect(document.querySelector(".mantine-Progress-root")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "25");
   });
 
   it("calculates win rate from trades when summary is null", () => {

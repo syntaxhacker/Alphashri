@@ -19,11 +19,11 @@ describe("near52wBreakout columns", () => {
   describe("to_52w_high gap %", () => {
     const f = () => fmt("to_52w_high");
     it.each([
-      [-2, "-2.00%", "green"],
+      [-2, "-2.00%", "success"],
       [0, "0.00%", ""],
       [1.5, "+1.50%", ""],
-      [2.01, "+2.01%", "red"],
-      [5, "+5.00%", "red"],
+      [2.01, "+2.01%", "error"],
+      [5, "+5.00%", "error"],
     ])("val %s -> %s %s", (v, ev, ec) => {
       const r: any = f()(v);
       expect(r.value).toBe(ev);
@@ -50,8 +50,8 @@ describe("near52wBreakout columns", () => {
 
   describe("day_change", () => {
     it.each([
-      [2.5, "+2.50%", "green"],
-      [-1, "-1.00%", "red"],
+      [2.5, "+2.50%", "success"],
+      [-1, "-1.00%", "error"],
     ])("day_change %s", (v, ev, ec) => {
       const r: any = fmt("day_change")(v);
       expect(r.value).toBe(ev);
@@ -65,8 +65,8 @@ describe("near52wBreakout columns", () => {
       expect(r.value).toContain("🚀");
     });
     it("perf_w green/red", () => {
-      expect((fmt("perf_w")(2) as any).className).toBe("green");
-      expect((fmt("perf_w")(-1) as any).className).toBe("red");
+      expect((fmt("perf_w")(2) as any).className).toBe("success");
+      expect((fmt("perf_w")(-1) as any).className).toBe("error");
     });
   });
 

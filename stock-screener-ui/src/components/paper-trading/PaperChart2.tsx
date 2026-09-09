@@ -19,6 +19,9 @@ import {
   Stack,
   DatePicker,
 } from "@/ui";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Toolbar from "@mui/material/Toolbar";
 import { IconDots } from "@tabler/icons-react";
 import dayjs from "dayjs";
 import {
@@ -32,12 +35,12 @@ import {
   subscribe,
 } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
-import { CompactPanel } from "../common/compact";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 import { TradingChart } from "../chart/TradingChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
+import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH } from "@/ui/palette";
 
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
@@ -66,10 +69,9 @@ function PositionInfo({ position }: { position: PaperPosition }) {
     <Group
       gap="xs"
       data-testid="position-info"
-      className={`position-info paper-position-info ${pnlClass}`}
       id={`position-info-${position.symbol}`}
     >
-      <Badge size="sm" variant="light" color={position.side === "BUY" ? "green" : "red"}>
+      <Badge size="sm" variant="filled" color={position.side === "BUY" ? "success" : "error"}>
         {sideIcon} {position.side}
       </Badge>
       <Text size="sm" fw={500}>
@@ -86,22 +88,22 @@ function ChartLegend({ orbLabel, hasWeek52, hasTrades, position }: { orbLabel?: 
   const items: { color: string; label: string; shape: "square" | "circle" }[] = [];
   if (hasTrades) {
     items.push(
-      { color: "var(--mantine-color-cyan-5)", label: "Entry", shape: "square" },
-      { color: "var(--mantine-color-lime-5)", label: "TP", shape: "circle" },
-      { color: "var(--mantine-color-pink-5)", label: "SL", shape: "circle" },
+      { color: PRIMARY, label: "Entry", shape: "square" },
+      { color: POSITIVE, label: "TP", shape: "circle" },
+      { color: NEGATIVE, label: "SL", shape: "circle" },
     );
   }
-  if (orbLabel) items.push({ color: "var(--mantine-color-blue-6)", label: orbLabel, shape: "square" });
-  if (hasWeek52) items.push({ color: "var(--mantine-color-pink-6)", label: "52W High", shape: "square" });
+  if (orbLabel) items.push({ color: PIVOT_OR_HIGH, label: orbLabel, shape: "square" });
+  if (hasWeek52) items.push({ color: PIVOT_52W_HIGH, label: "52W High", shape: "square" });
 
   if (items.length === 0 && !position) return null;
 
   return (
-    <Flex gap="xs" justify="center" align="center" wrap="wrap" py={2} px="xs" data-testid="chart-legend" className="paper-chart-legend" id="chart-legend" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
+    <Flex className="paper-chart-legend" gap="xs" justify="center" align="center" wrap="wrap" py={1} px={1} data-testid="chart-legend" id="chart-legend">
       {items.map((item, i) => (
-        <Flex key={i} align="center" gap={2}>
-          <Box className={`legend-marker ${item.label.toLowerCase()}`} w={8} h={8} bg={item.color} style={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
-          <Text size="xs" c="dimmed">{item.label}</Text>
+        <Flex key={i} className="paper-chart-legend-item" id={`paper-chart-legend-${item.label.toLowerCase().replace(/\s+/g, "-")}`} align="center" gap={1}>
+          <Box className="paper-chart-legend-swatch" w={8} h={8} bg={item.color} sx={{ borderRadius: item.shape === "circle" ? "50%" : 2 }} />
+          <Text className="paper-chart-legend-label" size="xs" c="dimmed">{item.label}</Text>
         </Flex>
       ))}
       {position && <PositionInfo position={position} />}
@@ -119,21 +121,16 @@ function ChartEmptyState({
   children: React.ReactNode;
 }) {
   return (
-    <CompactPanel
-      data-testid="paper-chart-empty"
-      className={`paper-chart-container ${className}`}
-      id="paper-chart"
-      style={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}
-    >
-      <Box data-testid={icon ? undefined : "chart-placeholder-content"} style={{ textAlign: "center" }}>
+    <Card className={`paper-chart-empty ${className}`} elevation={0} data-testid="paper-chart-empty" id="paper-chart" sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <CardContent className="paper-chart-empty-content" sx={{ textAlign: "center" }}>
         {icon && (
-          <Text size="lg" c="dimmed" mb="xs">
+          <Text className="paper-chart-empty-icon" size="lg" c="dimmed" mb="xs">
             {icon}
           </Text>
         )}
         {children}
-      </Box>
-    </CompactPanel>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -156,11 +153,11 @@ const OVERLAY_ITEMS = [
 ] as const;
 
 const OVERLAY_COLORS: Record<string, string> = {
-  showAllTrades: "blue",
-  showOrbLines: "grape",
-  showPivotLines: "cyan",
-  show52wLines: "pink",
-  showEmaLines: "lime",
+  showAllTrades: "primary",
+  showOrbLines: "secondary",
+  showPivotLines: "info",
+  show52wLines: "secondary",
+  showEmaLines: "success",
 };
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
@@ -240,16 +237,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const hasActiveOverlays = OVERLAY_ITEMS.some(({ key }) => state[key]);
 
   return (
-    <Flex
-      data-testid="paper-chart-header"
-      className="paper-chart-header"
-      id="chart-header"
-      align="center"
-      gap="xs"
-      p={4}
-      pb={2}
-      style={{ flex: "0 0 auto" }}
-    >
+    <Toolbar disableGutters sx={{ minHeight: 48, px: 1, gap: 1, flex: "0 0 auto" }} data-testid="paper-chart-header" id="chart-header">
       {state.chartData?.symbol && (
         <Text fw={600} size="xs" truncate>
           {state.chartData.symbol}
@@ -292,7 +280,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           <ActionIcon
             size="sm"
             variant={hasActiveOverlays ? "filled" : "subtle"}
-            color={hasActiveOverlays ? "blue" : "gray"}
+            color={hasActiveOverlays ? "primary" : "secondary"}
             data-testid="chart-more-button"
             onClick={() => setPopoverOpened((o) => !o)}
           >
@@ -300,14 +288,14 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           </ActionIcon>
         </PopoverTarget>
         <PopoverDropdown p="xs">
-          <Stack gap="xs">
+          <Stack spacing={1}>
             <Group gap="xs">
-              <Box w={3} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
+              <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.primary.main })} />
               <Text size="xs" fw={600}>Range</Text>
             </Group>
-            <Group gap={4}>
+            <Group gap={1}>
               {QUICK_RANGES.map((r) => {
-                const rangeColors = ["blue", "cyan", "teal", "grape", "orange", "pink"];
+                const rangeColors = ["primary", "info", "info", "secondary", "warning", "secondary"] as const;
                 const idx = QUICK_RANGES.indexOf(r);
                 return (
                   <Button
@@ -326,17 +314,17 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             <Divider my={1} />
 
             <Group gap="xs">
-              <Box w={3} h={14} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
+              <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
-            <Group gap={4}>
+            <Group gap={1}>
               {OVERLAY_ITEMS.map(({ label, key, setter }) => (
                 <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
                   <Chip
                     size="xs"
                     variant="light"
                     radius="sm"
-                    color={OVERLAY_COLORS[key] || "blue"}
+                    color={OVERLAY_COLORS[key] || "primary"}
                     checked={state[key]}
                     onChange={(checked) => setter(checked)}
                   >
@@ -348,7 +336,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
           </Stack>
         </PopoverDropdown>
       </Popover>
-    </Flex>
+    </Toolbar>
   );
 }
 
@@ -421,27 +409,17 @@ export function PaperChart() {
   }
 
   return (
-    <CompactPanel
-      data-testid="paper-chart-container"
-      className="paper-chart-container"
-      id="paper-chart"
-      h="100%"
-      style={{
-        padding: 0,
-        overflow: "hidden",
-        display: "flex",
-        flexDirection: "column",
-        minHeight: 0,
-      }}
-    >
+    <Card className="paper-chart-container" elevation={0} data-testid="paper-chart-container" id="paper-chart" sx={{ height: "100%", display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}>
       <ChartHeader state={state} />
-      <Box style={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
+      <Box className="paper-chart-body" id="paper-chart-body" sx={{ flex: 1, minHeight: 0, position: "relative", display: "flex", flexDirection: "column" }}>
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
-          <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+          <Box className="paper-chart-canvas-wrap" id="paper-chart-canvas-wrap" sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+            <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+          </Box>
         ) : (
           <ChartEmptyState className="paper-chart-loading" icon="⏳">
-            <Text c="dimmed">
+            <Text className="paper-chart-loading-text" c="dimmed">
               {state.chartLoading ? `Loading ${state.selectedSymbol} chart...` : "No data"}
             </Text>
           </ChartEmptyState>
@@ -455,6 +433,6 @@ export function PaperChart() {
           position={state.chartData?.current_position}
         />
       )}
-    </CompactPanel>
+    </Card>
   );
 }

@@ -24,7 +24,7 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
       <Tooltip label="Scroll to Top" position="left">
         <ActionIcon
           variant="light"
-          color="gray"
+          color="secondary"
           size="lg"
           radius="xl"
           onClick={() => scrollToEdge("top")}
@@ -37,11 +37,11 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
       <Tooltip label="Jump to ATM" position="left">
         <ActionIcon
           variant="filled"
-          color="yellow"
+          color="warning"
           size="xl"
           radius="xl"
           onClick={() => scrollToATM("smooth")}
-          style={{ boxShadow: "var(--mantine-shadow-md)" }}
+          style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
           className="scroll-action-btn scroll-atm-btn"
           data-testid="options-scroll-atm-btn"
         >
@@ -51,7 +51,7 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
       <Tooltip label="Scroll to Bottom" position="left">
         <ActionIcon
           variant="light"
-          color="gray"
+          color="secondary"
           size="lg"
           radius="xl"
           onClick={() => scrollToEdge("bottom")}

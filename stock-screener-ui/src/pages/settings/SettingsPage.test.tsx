@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { SettingsPage } from "./SettingsPage";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
-import { renderWithMantine, renderWithRouter } from "../../test-utils/renderWithMantine";
+import { renderWithProviders, renderWithRouter } from "../../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 // Mock modules using vi.hoisted
@@ -73,7 +73,7 @@ describe("SettingsPage", () => {
   it("loads settings page when accessed via /settings URL", () => {
     mockGetBrokerStatus.mockResolvedValue(null);
 
-    renderWithMantine(
+    renderWithProviders(
       <MemoryRouter initialEntries={["/settings"]}>
         <Routes>
           <Route path="/settings" element={<SettingsPage />} />

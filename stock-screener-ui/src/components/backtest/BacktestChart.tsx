@@ -149,14 +149,14 @@ export function BacktestChart({
       <Box
         className="backtest-chart-loading"
         data-testid="backtest-chart-loading"
-        style={{
+        sx={(theme) => ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           height: "100%",
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
+          backgroundColor: theme.palette.background.paper,
+          borderRadius: 2,
+        })}
       >
         <Text c="dimmed">Loading {symbol}...</Text>
       </Box>
@@ -168,14 +168,14 @@ export function BacktestChart({
       <Box
         className="backtest-chart-empty"
         data-testid="backtest-chart-empty"
-        style={{
+        sx={(theme) => ({
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
           height: "100%",
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
-        }}
+          backgroundColor: theme.palette.background.paper,
+          borderRadius: 2,
+        })}
       >
         <Text c="dimmed">No chart data for {symbol}</Text>
       </Box>

@@ -39,6 +39,7 @@ export function ScreenerSection({
       description={viewMode === "heatmap" ? undefined : description}
       testId={testId}
       scrollable={viewMode !== "heatmap"}
+      padded={false}
     >
       <ScreenerStockView
         stocks={stocks}

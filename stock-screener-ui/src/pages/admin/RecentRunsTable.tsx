@@ -69,7 +69,7 @@ export function RecentRunsTable({ runs }: { runs: LLMRun[] }) {
         header: "Status",
         accessorKey: "status",
         cell: (info) => (
-          <Badge color={getStatusColor(info.getValue<string>())} variant="light" size="sm">
+          <Badge color={getStatusColor(info.getValue<string>())} variant="filled" size="sm">
             {info.getValue<string>()}
           </Badge>
         ),

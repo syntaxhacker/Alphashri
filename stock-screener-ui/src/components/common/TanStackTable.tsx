@@ -1,5 +1,8 @@
 import { useState, Fragment, useMemo, type ReactNode, type CSSProperties } from "react";
+import TableContainer from "@mui/material/TableContainer";
+import Paper from "@mui/material/Paper";
 import { Box, ScrollArea } from "@/ui";
+import * as palette from "@/ui/palette";
 import {
   flexRender,
   getCoreRowModel,
@@ -69,22 +72,7 @@ interface Props<T> {
   rowWindowSize?: number;
 }
 
-const cellStyle: CSSProperties = {
-  padding: "2px 6px",
-  fontSize: 11,
-  whiteSpace: "nowrap",
-  borderBottom: "1px solid var(--mantine-color-default-border)",
-};
-
-const baseHeaderStyle: CSSProperties = {
-  padding: "4px 6px",
-  fontSize: 11,
-  fontWeight: 700,
-  whiteSpace: "nowrap",
-  userSelect: "none",
-  borderBottom: "2px solid var(--mantine-color-default-border)",
-  background: "var(--mantine-color-body)",
-};
+const ROW_ESTIMATED = 20;
 
 /** Returns the explicit column width, or undefined when the column has no size set. */
 function getColumnWidth<T>(column: Column<T, unknown>): number | undefined {
@@ -182,7 +170,7 @@ export function TanStackTable<T>({
   // row selection keep working over every row.
   const allRows = table.getRowModel().rows;
   const useRowWindow = rowWindowSize > 0 && !enableGrouping && allRows.length > rowWindowSize;
-  const ROW_ESTIMATED_HEIGHT = 32;
+  const ROW_ESTIMATED_HEIGHT = ROW_ESTIMATED;
   const rowWindowStart = useRowWindow
     ? Math.min(
         Math.max(0, Math.floor(scrollTop / ROW_ESTIMATED_HEIGHT) - 8),
@@ -195,21 +183,23 @@ export function TanStackTable<T>({
   const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
 
   return (
-    <ScrollArea
-      style={{ height: "100%" }}
-      onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
-    >
-      <Box
-        component="table"
-        data-testid={dataTestId}
-        style={{
-          width: "100%",
-          borderCollapse: "collapse",
-          tableLayout: hasSizedColumns ? "fixed" : "auto",
-          ...style,
-        }}
-        className={className}
+    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "65vh", minHeight: 200, border: 0, bgcolor: palette.SURFACE }}>
+      <ScrollArea
+        sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
+        onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >
+        <Box
+          component="table"
+          data-testid={dataTestId}
+          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: Math.max(640, columns.length * 96), ...(style || {}) } as React.CSSProperties}
+          sx={{
+            width: "100%",
+            minWidth: Math.max(640, columns.length * 96),
+            borderCollapse: "collapse",
+            bgcolor: palette.SURFACE,
+          }}
+          className={className}
+        >
         <thead>
           {table.getHeaderGroups().map((hg) => (
             <tr key={hg.id}>
@@ -217,14 +207,20 @@ export function TanStackTable<T>({
                 const width = getColumnWidth(h.column);
                 const { align } = getColumnMeta(h.column);
                 return (
-                  <th
+                  <Box
+                    component="th"
                     key={h.id}
-                    style={{
-                      ...baseHeaderStyle,
+                    sx={{
+                      padding: "3px 8px",
+                      fontSize: 11,
+                      fontWeight: 600,
+                      whiteSpace: "nowrap",
+                      userSelect: "none",
+                      bgcolor: palette.SURFACE_ALT,
+                      color: palette.TEXT_MUTED,
+                      borderBottom: 1,
+                      borderColor: palette.BORDER,
                       width: width !== undefined ? width : undefined,
-                      // Default: left for text, right for numeric columns, so
-                      // headers line up with cell values (browsers default th
-                      // to center, which misaligns headers); meta.align overrides.
                       textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
                       cursor: h.column.getCanSort() ? "pointer" : "default",
                       position: stickyHeader ? "sticky" : undefined,
@@ -241,7 +237,7 @@ export function TanStackTable<T>({
                         {h.column.getIsSorted() === "desc" && " ▼"}
                       </>
                     )}
-                  </th>
+                  </Box>
                 );
               })}
             </tr>
@@ -270,21 +266,22 @@ export function TanStackTable<T>({
               {renderedRows.map((row, index) => (
               <Fragment key={`row-group-${row.id}`}>
                 {row.getIsGrouped() ? (
-                  <tr
+                  <Box
+                    component="tr"
                     key={row.id}
                     data-testid={getGroupRowTestId?.(row.groupingValue)}
                     onClick={row.getToggleExpandedHandler()}
-                    style={{ cursor: "pointer", background: "var(--mantine-color-body)" }}
+                    sx={{ cursor: "pointer", bgcolor: palette.SURFACE_ALT }}
                   >
-                    <td colSpan={colCount} style={{ padding: 0, border: "none", background: "var(--mantine-color-body)" }}>
+                    <Box component="td" colSpan={colCount} sx={{ padding: 0, border: "none", bgcolor: palette.SURFACE_ALT }}>
                       {renderGroupHeader?.({
                         value: row.groupingValue,
                         rows: row.subRows.map((r) => r.original),
                         isExpanded: row.getIsExpanded(),
                         toggle: row.toggleExpanded,
                       })}
-                    </td>
-                  </tr>
+                    </Box>
+                  </Box>
                 ) : (
                   <>
                     <tr
@@ -293,24 +290,33 @@ export function TanStackTable<T>({
                       onClick={() => onRowClick?.(row.original)}
                       className={getRowClassName?.(row.original)}
                       data-testid={getRowTestId?.(row.original, index)}
+                      data-row="stock"
                     >
                       {row.getVisibleCells().map((cell) => {
                         const width = getColumnWidth(cell.column);
                         const { align } = getColumnMeta(cell.column);
                         return (
-                          <td
+                          <Box
+                            component="td"
                             key={cell.id}
-                            style={{
-                              ...cellStyle,
+                            sx={{
+                              padding: "3px 8px",
+                              fontSize: 11,
+                              lineHeight: 1.2,
+                              whiteSpace: "nowrap",
+                              height: 20,
+                              borderBottom: 1,
+                              borderColor: palette.BORDER,
+                              bgcolor: palette.SURFACE,
                               width: width !== undefined ? width : undefined,
                               textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
                               ...(width !== undefined
                                 ? { overflow: "hidden", textOverflow: "ellipsis" }
-                                : null),
+                                : {}),
                             }}
                           >
                             {flexRender(cell.column.columnDef.cell, cell.getContext())}
-                          </td>
+                          </Box>
                         );
                       })}
                     </tr>
@@ -333,7 +339,8 @@ export function TanStackTable<T>({
             </>
           )}
         </tbody>
-      </Box>
-    </ScrollArea>
+        </Box>
+      </ScrollArea>
+    </TableContainer>
   );
 }

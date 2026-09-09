@@ -411,8 +411,9 @@ describe("PaperSettings", () => {
         createMockState({ strategyConfig: mockConfig, configError: "Some error occurred" }),
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
-      const alert = screen.getByText("Some error occurred").closest(".mantine-Alert-root");
+      const alert = screen.getByText("Some error occurred").closest('[role="alert"]');
       expect(alert).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Some error occurred");
     });
   });
 

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { AggregatedDashboard } from "./AggregatedDashboard";
 import * as paperTradingState from "../../state/paperTrading";
 import type { PaperDashboardAnalyticsData } from "../../types/paperTrading";
@@ -147,7 +147,7 @@ describe("AggregatedDashboard", () => {
 });
 
   it("loads all bots 30D analytics by default", async () => {
-    renderWithMantine(<AggregatedDashboard />);
+    renderWithProviders(<AggregatedDashboard />);
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenCalledWith({
         preset: "30D",
@@ -159,13 +159,13 @@ describe("AggregatedDashboard", () => {
   });
 
   it("shows empty state when no dashboard data is available", () => {
-    renderWithMantine(<AggregatedDashboard />);
+    renderWithProviders(<AggregatedDashboard />);
     expect(screen.getByText("No closed trades found for this period.")).toBeInTheDocument();
   });
 
   it("renders summary, bot rankings, strategy rows, winners, and losers", () => {
     paperTradingState.setDashboardAnalyticsData(mockDashboardData());
-    renderWithMantine(<AggregatedDashboard />);
+    renderWithProviders(<AggregatedDashboard />);
 
     expect(screen.getByText("Dashboard")).toBeInTheDocument();
     expect(screen.getAllByText("Net P&L").length).toBeGreaterThan(0);
@@ -183,7 +183,7 @@ describe("AggregatedDashboard", () => {
     paperTradingState.setAvailableBots([
       { id: "bot-1", name: "ORB Bot", strategies: [], is_active: true, live_trading: false },
     ]);
-    renderWithMantine(<AggregatedDashboard />);
+    renderWithProviders(<AggregatedDashboard />);
 
     await user.click(screen.getByTestId("dashboard-bot-filter"));
     await user.click(screen.getByText("ORB Bot"));

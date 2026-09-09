@@ -323,13 +323,8 @@ function HoverPreview({ symbol, x, y, data, loading, chartRef }: HoverPreviewPro
       style={{ zIndex: 9999, pointerEvents: "none", overflow: "hidden" }}
       data-testid="preview-chart-hover"
     >
-      <Group
-        gap={6}
-        px="xs"
-        py={4}
-        style={{ borderBottom: "1px solid var(--mantine-color-dark-4)" }}
-      >
-        <Text size="xs" fw={600} c="blue">
+      <Group gap={6} px="xs" py={4}>
+        <Text size="xs" fw={600} c="primary">
           {symbol}
         </Text>
         <Text size="xs" c="dimmed">
@@ -449,13 +444,8 @@ function ExpandedPanel({
       }}
       data-testid="preview-chart-expanded"
     >
-      <Group
-        gap="md"
-        px="md"
-        py="xs"
-        style={{ borderBottom: "1px solid var(--mantine-color-dark-4)", flexShrink: 0 }}
-      >
-        <Text size="lg" fw={600} c="blue">
+      <Group gap="md" px="md" py="xs" sx={{ flexShrink: 0 }}>
+        <Text size="lg" fw={600} c="primary">
           {symbol}
           {data?.candles.length ? ` (${data.candles.length} candles)` : ""}
         </Text>
@@ -516,15 +506,10 @@ function ExpandedPanel({
         )}
       </Box>
 
-      <Group
-        justify="flex-end"
-        px="md"
-        py="xs"
-        style={{ borderTop: "1px solid var(--mantine-color-dark-4)", flexShrink: 0 }}
-      >
+      <Group justify="flex-end" px="md" py="xs" sx={{ flexShrink: 0 }}>
         <ActionIcon
           variant="subtle"
-          color="blue"
+          color="primary"
           onClick={() => onOpenFull(symbol)}
           data-testid="preview-open-full-btn"
         >
@@ -532,7 +517,7 @@ function ExpandedPanel({
         </ActionIcon>
         <Text
           size="xs"
-          c="blue"
+          c="primary"
           style={{ cursor: "pointer" }}
           onClick={() => onOpenFull(symbol)}
           data-testid="preview-open-full-link"

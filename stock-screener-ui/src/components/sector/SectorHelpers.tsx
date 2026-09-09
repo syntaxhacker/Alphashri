@@ -12,14 +12,7 @@ import {
   CREAM,
   BLACK,
 } from "../../config/colors";
-
-function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+import { withAlpha } from "../../utils/color";
 
 export interface SectorAlert {
   timestamp: string;
@@ -133,7 +126,7 @@ function TreemapTile({
         gridRow: span.row,
         minHeight: span.minHeight,
         background: sector.itemStyle.color,
-        color: "var(--mantine-color-gray-0)",
+        color: "var(--mui-palette-common-white)",
         padding: index === 0 ? "16px" : "12px",
         display: "flex",
         flexDirection: "column",
@@ -164,11 +157,11 @@ function TreemapTile({
           <Badge
             size="xs"
             variant="filled"
-            color="dark"
+            color="secondary"
             styles={{
               root: {
                 backgroundColor: withAlpha(BLACK, 0.28),
-                color: "var(--mantine-color-gray-0)",
+                color: "var(--mui-palette-common-white)",
               },
             }}
           >

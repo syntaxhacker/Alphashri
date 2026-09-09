@@ -41,13 +41,13 @@ export function ReplayPositions({ positions }: ReplayPositionsProps) {
       id: "sl",
       header: "SL",
       accessorKey: "sl",
-      cell: ({ row }) => <Text size="xs" ta="right" c="red">{row.original.sl.toFixed(2)}</Text>,
+      cell: ({ row }) => <Text size="xs" ta="right" c="error">{row.original.sl.toFixed(2)}</Text>,
     },
     {
       id: "tp",
       header: "TP",
       accessorKey: "tp",
-      cell: ({ row }) => <Text size="xs" ta="right" c="green">{row.original.tp.toFixed(2)}</Text>,
+      cell: ({ row }) => <Text size="xs" ta="right" c="success">{row.original.tp.toFixed(2)}</Text>,
     },
     {
       id: "strategy",
@@ -67,7 +67,7 @@ export function ReplayPositions({ positions }: ReplayPositionsProps) {
     <Box data-testid="replay-positions">
       <Group gap="sm" mb={2}>
         <Text size="xs" fw={500}>Open Positions</Text>
-        <Badge variant="light" color="blue" size="xs">{positions.length}</Badge>
+        <Badge variant="light" color="primary" size="xs">{positions.length}</Badge>
       </Group>
       <TanStackTable<ReplayOpenPosition>
         data={positions}

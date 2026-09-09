@@ -1,22 +1,27 @@
 import { useCallback } from "react";
-import { Badge, Box, NavLink, ScrollArea, Stack, Text, Tooltip } from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Paper from "@mui/material/Paper";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import { Badge, Text, Tooltip } from "@/ui";
 import type { ScreenerOption } from "../../types";
 
 const RAIL_WIDTH = 152;
 
 function ScreenerNavLabel({ option }: { option: ScreenerOption }) {
   return (
-    <Box component="span" style={{ display: "flex", alignItems: "center", gap: 4, minWidth: 0 }}>
+    <Box component="span" sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
       <Text component="span" size="xs" truncate>
         {option.label}
       </Text>
       {option.status === "legacy" && (
-        <Badge size="xs" color="gray" variant="light" style={{ flexShrink: 0 }}>
+        <Badge size="xs" color="secondary" variant="light" sx={{ flexShrink: 0 }}>
           L
         </Badge>
       )}
       {option.status === "current" && (
-        <Badge size="xs" color="teal" variant="light" style={{ flexShrink: 0 }}>
+        <Badge size="xs" color="info" variant="light" sx={{ flexShrink: 0 }}>
           N
         </Badge>
       )}
@@ -35,70 +40,66 @@ export function ScreenerNav({ options, activeScreener, onChange }: ScreenerNavPr
   const current = optionList.filter((o) => o.status !== "legacy");
   const legacy = optionList.filter((o) => o.status === "legacy");
 
-  const renderItem = useCallback((option: ScreenerOption) => {
-    const active = option.id === activeScreener;
-    const link = (
-      <NavLink
-        key={option.id}
-        label={<ScreenerNavLabel option={option} />}
-        active={active}
-        onClick={() => onChange(option.id)}
-        py={4}
-        px={8}
-        data-testid={`screener-nav-option-${option.id}`}
-        data-active={active ? "true" : undefined}
-        aria-current={active ? "page" : undefined}
-      />
-    );
-    if (option.description) {
-      return (
-        <Tooltip key={option.id} label={option.description} withArrow position="right">
-          {link}
-        </Tooltip>
+  const renderItem = useCallback(
+    (option: ScreenerOption) => {
+      const active = option.id === activeScreener;
+      const button = (
+        <ListItemButton
+          key={option.id}
+          selected={active}
+          onClick={() => onChange(option.id)}
+          sx={{ borderRadius: 1, py: 1, px: 1 }}
+          data-testid={`screener-nav-option-${option.id}`}
+          data-active={active ? "true" : undefined}
+          aria-current={active ? "page" : undefined}
+        >
+          <ScreenerNavLabel option={option} />
+        </ListItemButton>
       );
-    }
-    return link;
-  }, [activeScreener, onChange]);
+      if (option.description) {
+        return (
+          <Tooltip key={option.id} label={option.description} withArrow position="right">
+            {button}
+          </Tooltip>
+        );
+      }
+      return button;
+    },
+    [activeScreener, onChange],
+  );
 
   if (optionList.length === 0) {
     return (
       <Box
         data-testid="screener-nav"
         id="screener-nav"
-        className="screener-nav screener-profile-rail"
         data-options-count={0}
-        w={RAIL_WIDTH}
-        style={{ flexShrink: 0, borderRight: "1px solid var(--mantine-color-default-border)" }}
+        sx={{ width: RAIL_WIDTH, flexShrink: 0 }}
       />
     );
   }
 
   return (
-    <ScrollArea
-      type="auto"
-      offsetScrollbars
-      w={RAIL_WIDTH}
-      style={{
-        flexShrink: 0,
-        borderRight: "1px solid var(--mantine-color-default-border)",
-        backgroundColor: "var(--mantine-color-body)",
-      }}
+    <Paper
+      elevation={1}
+      sx={{ width: RAIL_WIDTH, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
       data-testid="screener-nav"
       id="screener-nav"
-      className="screener-nav screener-profile-rail"
       data-options-count={optionList.length}
     >
-      <Stack gap={2} p={6} pb={8}>
-        {current.map(renderItem)}
-        {legacy.length > 0 && (
-          <>
-            <Text size="10px" c="dimmed" tt="uppercase" fw={600} px={8} pt={6} pb={2}>
-              Legacy
-            </Text>
-            {legacy.map(renderItem)}
-          </>
-        )}
-      </Stack>
-    </ScrollArea>
+      <Box sx={{ flex: 1, overflow: "auto", p: 1 }}>
+        <List sx={{ display: "flex", flexDirection: "column", gap: 1, p: 0, width: "100%" }}>
+          {current.map(renderItem)}
+          {legacy.length > 0 && (
+            <Stack spacing={1} sx={{ width: "100%", gap: 1, pt: 1 }}>
+              <Text size="11px" c="dimmed" tt="uppercase" fw={600} sx={{ px: 1, pt: 0.75, pb: 0.25 }}>
+                Legacy
+              </Text>
+              <List sx={{ display: "flex", flexDirection: "column", gap: 1, p: 0 }}>{legacy.map(renderItem)}</List>
+            </Stack>
+          )}
+        </List>
+      </Box>
+    </Paper>
   );
 }

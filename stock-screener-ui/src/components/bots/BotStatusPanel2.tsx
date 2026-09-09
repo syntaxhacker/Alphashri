@@ -1,7 +1,7 @@
-import { Box, Card, Text, Button, Group, Stack, Grid, Badge, Tooltip } from "@/ui";
+import { Box, Card, Text, Button, Group, Stack, SimpleGrid, Badge, Tooltip } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
-import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
+import { loadBotStatus, loadBotTrades } from "../../state/bots";
 import { StatusBadge } from "../common/BadgeComponents";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
@@ -32,12 +32,10 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
     await onStart(bot.id);
     await loadBotStatus(bot.id);
     await loadBotTrades(bot.id);
-    startAutoRefresh(bot.id, 5000);
   };
 
   const handleStop = async () => {
     await onStop(bot.id);
-    stopAutoRefresh();
     await loadBotStatus(bot.id);
   };
 
@@ -52,22 +50,21 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
       id="bot-status-panel"
       className="bot-status-panel"
     >
-      <Stack gap="sm">
+      <Stack spacing={1} gap="sm" sx={{ gap: 1, p: 1 }}>
         <Card
-          shadow="sm"
+          elevation={1}
           padding="sm"
-          radius="md"
-          withBorder
+          radius="sm"
           id="bot-header-card"
           data-testid="bot-header-card"
-          style={{ borderLeft: "4px solid var(--mantine-color-blue-6)" }}
+          sx={{ p: 1 }}
         >
-          <Group justify="space-between">
-            <Stack gap={4}>
-              <Text fw={700} size="lg" c="var(--mantine-color-blue-4)" data-testid="bot-name">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+            <Stack gap={1} sx={{ gap: 1 }}>
+              <Text fw={700} size="lg" c="primary.main" data-testid="bot-name">
                 {bot.name}
               </Text>
-              <Group gap="xs">
+              <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
                 <StatusBadge
                   running={status?.running ?? false}
                   pid={status?.pid ?? undefined}
@@ -75,22 +72,22 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                   data-testid="bot-running-badge"
                 />
                 {bot.live_trading ? (
-                  <Badge color="red" variant="filled" size="sm" data-testid="live-trading-badge">
+                  <Badge color="error" variant="filled" size="sm" data-testid="live-trading-badge">
                     LIVE
                   </Badge>
                 ) : (
-                  <Badge color="green" variant="filled" size="sm" data-testid="paper-trading-badge">
+                  <Badge color="success" variant="filled" size="sm" data-testid="paper-trading-badge">
                     PAPER
                   </Badge>
                 )}
               </Group>
             </Stack>
-            <Group gap="xs">
+            <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
               {status?.running ? (
                 <Button
                   leftSection={<IconPlayerStop size={16} />}
-                  variant="light"
-                  color="orange"
+                  variant="filled"
+                  color="error"
                   onClick={handleStop}
                   data-testid="stop-bot-btn"
                 >
@@ -104,8 +101,8 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
                   <span>
                     <Button
                       leftSection={<IconPlayerPlay size={16} />}
-                      variant="light"
-                      color="green"
+                      variant="filled"
+                      color="success"
                       onClick={handleStart}
                       disabled={marketClosed}
                       data-testid="start-bot-btn"
@@ -118,51 +115,51 @@ export function BotStatusPanel({ bot, status, trades, onStart, onStop }: BotStat
               <Button
                 leftSection={<IconRefresh size={16} />}
                 variant="light"
-                color="gray"
+                color="secondary"
                 onClick={handleRefresh}
                 data-testid="refresh-bot-status-btn"
               >
                 Refresh
               </Button>
             </Group>
-          </Group>
+          </Box>
         </Card>
 
         {status?.portfolio ? (
           <PortfolioSummaryCard portfolio={status.portfolio} />
         ) : (
           <Card
-            shadow="sm"
+            elevation={1}
             padding="sm"
             radius="md"
-            withBorder
             id="portfolio-placeholder"
             data-testid="portfolio-placeholder"
+            sx={{ p: 1 }}
           >
-            <Text c="dimmed" ta="center">
-              Start the bot to see live portfolio data
-            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+              <Text c="dimmed" ta="center">
+                Start the bot to see live portfolio data
+              </Text>
+            </Box>
           </Card>
         )}
 
         {status?.strategies && (
-          <Stack gap={0} data-testid="strategies-status">
-            <Group gap="xs" mb="sm">
-              <Box w={4} h={20} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-violet-6)" }} />
-              <Text fw={600}>
+          <Stack spacing={1} gap={0} data-testid="strategies-status" sx={{ gap: 1, p: 1 }}>
+            <Group gap={1} align="center" mb="sm" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
+              <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
+              <Text fw={600} size="sm">
                 Strategy Status
               </Text>
-              <Badge size="sm" variant="light" color="violet">
+              <Badge size="sm" variant="light" color="secondary">
                 {Object.keys(status.strategies).length}
               </Badge>
             </Group>
-            <Grid>
+            <SimpleGrid cols={3} spacing={16}>
               {Object.values(status.strategies).map((s) => (
-                <Grid.Col key={s.strategy_id} span={{ base: 12, sm: 6, md: 4 }}>
-                  <StrategyStatusCard strategy={s} isRunning={status?.running ?? false} />
-                </Grid.Col>
+                <StrategyStatusCard key={s.strategy_id} strategy={s} isRunning={status?.running ?? false} />
               ))}
-            </Grid>
+            </SimpleGrid>
           </Stack>
         )}
 

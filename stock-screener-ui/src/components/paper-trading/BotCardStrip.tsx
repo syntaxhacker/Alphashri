@@ -16,28 +16,17 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
       {bots.map((bot) => {
         const isSelected = bot.id === selectedBotId;
         const isRunning = bot.running;
-        const borderColor = isSelected
-          ? "1px solid var(--mantine-color-blue-6)"
-          : "1px solid var(--mantine-color-default-border)";
-        const bgColor = isSelected ? BOT_SELECTED_BG : "transparent";
-        const leftBarColor = isRunning
-          ? "var(--mantine-color-green-6)"
-          : "var(--mantine-color-gray-6)";
-        const dotColor = isRunning ? "var(--mantine-color-green-6)" : "var(--mantine-color-gray-6)";
-
         return (
           <Box
             key={bot.id}
             p={4}
             data-testid={`bot-card-${bot.id}`}
-            style={{
+            sx={() => ({
               cursor: bot.is_active ? "pointer" : "default",
               borderRadius: 6,
-              border: borderColor,
-              borderLeft: `4px solid ${leftBarColor}`,
-              background: bgColor,
+              background: isSelected ? BOT_SELECTED_BG : "transparent",
               opacity: bot.is_active ? 1 : 0.5,
-            }}
+            })}
             onClick={() => {
               if (bot.is_active && !isSelected) onSelect(bot.id);
             }}
@@ -45,12 +34,12 @@ export function BotCardStrip({ bots, selectedBotId, onSelect }: BotCardStripProp
             <Stack gap={1}>
               <Group gap={4}>
                 <Box
-                  style={{
+                  sx={(theme) => ({
                     width: 8,
                     height: 8,
                     borderRadius: "50%",
-                    background: dotColor,
-                  }}
+                    background: isRunning ? theme.palette.success.main : theme.palette.grey[500],
+                  })}
                 />
                 <Text size="sm" fw={500}>
                   {bot.name}

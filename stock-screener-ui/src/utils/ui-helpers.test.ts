@@ -359,15 +359,15 @@ describe("formatDateHeader", () => {
 
 describe("getPnLTextColor", () => {
   test("returns green for positive values", () => {
-    expect(getPnLTextColor(100)).toBe("green");
+    expect(getPnLTextColor(100)).toBe("success");
   });
 
   test("returns red for negative values", () => {
-    expect(getPnLTextColor(-100)).toBe("red");
+    expect(getPnLTextColor(-100)).toBe("error");
   });
 
   test("returns green for zero", () => {
-    expect(getPnLTextColor(0)).toBe("green");
+    expect(getPnLTextColor(0)).toBe("success");
   });
 });
 
@@ -379,11 +379,11 @@ describe("getValueColor", () => {
   });
 
   test("returns green for positive values", () => {
-    expect(getValueColor(10)).toBe("green");
+    expect(getValueColor(10)).toBe("success");
   });
 
   test("returns red for negative values", () => {
-    expect(getValueColor(-10)).toBe("red");
+    expect(getValueColor(-10)).toBe("error");
   });
 
   test("returns undefined for zero", () => {
@@ -393,8 +393,8 @@ describe("getValueColor", () => {
 
 describe("getWinRateColor", () => {
   test("returns green for >= 50", () => {
-    expect(getWinRateColor(50)).toBe("green");
-    expect(getWinRateColor(75)).toBe("green");
+    expect(getWinRateColor(50)).toBe("success");
+    expect(getWinRateColor(75)).toBe("success");
   });
 
   test("returns dimmed for >= 40", () => {
@@ -403,35 +403,35 @@ describe("getWinRateColor", () => {
   });
 
   test("returns red for < 40", () => {
-    expect(getWinRateColor(39)).toBe("red");
-    expect(getWinRateColor(0)).toBe("red");
+    expect(getWinRateColor(39)).toBe("error");
+    expect(getWinRateColor(0)).toBe("error");
   });
 });
 
 describe("getScoreColor", () => {
   test("returns teal for >= 80", () => {
-    expect(getScoreColor(80)).toBe("teal");
-    expect(getScoreColor(100)).toBe("teal");
+    expect(getScoreColor(80)).toBe("info");
+    expect(getScoreColor(100)).toBe("info");
   });
 
   test("returns green for >= 60", () => {
-    expect(getScoreColor(60)).toBe("green");
-    expect(getScoreColor(75)).toBe("green");
+    expect(getScoreColor(60)).toBe("success");
+    expect(getScoreColor(75)).toBe("success");
   });
 
   test("returns yellow for >= 40", () => {
-    expect(getScoreColor(40)).toBe("yellow");
-    expect(getScoreColor(55)).toBe("yellow");
+    expect(getScoreColor(40)).toBe("warning");
+    expect(getScoreColor(55)).toBe("warning");
   });
 
   test("returns orange for >= 20", () => {
-    expect(getScoreColor(20)).toBe("orange");
-    expect(getScoreColor(35)).toBe("orange");
+    expect(getScoreColor(20)).toBe("warning");
+    expect(getScoreColor(35)).toBe("warning");
   });
 
   test("returns gray for < 20", () => {
-    expect(getScoreColor(19)).toBe("gray");
-    expect(getScoreColor(0)).toBe("gray");
+    expect(getScoreColor(19)).toBe("secondary");
+    expect(getScoreColor(0)).toBe("secondary");
   });
 });
 
@@ -451,20 +451,20 @@ describe("formatExitReason", () => {
 
 describe("getStatusColor", () => {
   test("returns green for success (case-insensitive)", () => {
-    expect(getStatusColor("success")).toBe("green");
-    expect(getStatusColor("SUCCESS")).toBe("green");
+    expect(getStatusColor("success")).toBe("success");
+    expect(getStatusColor("SUCCESS")).toBe("success");
   });
 
   test("returns red for error", () => {
-    expect(getStatusColor("error")).toBe("red");
+    expect(getStatusColor("error")).toBe("error");
   });
 
   test("returns yellow for pending", () => {
-    expect(getStatusColor("pending")).toBe("yellow");
+    expect(getStatusColor("pending")).toBe("warning");
   });
 
   test("returns gray for unknown status", () => {
-    expect(getStatusColor("something")).toBe("gray");
+    expect(getStatusColor("something")).toBe("secondary");
   });
 });
 

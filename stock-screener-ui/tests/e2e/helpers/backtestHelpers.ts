@@ -156,8 +156,8 @@ export async function selectSymbolFromMultiselect(
   const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
   await symbolSelect.click({ force: true });
   await page.keyboard.type(symbol, { delay });
-  await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({ timeout: 5000 });
-  const option = page.locator(".mantine-MultiSelect-option").first();
+  await expect(page.locator('[role="option"]').first()).toBeVisible({ timeout: 5000 });
+  const option = page.locator('[role="option"]').first();
   if (await option.isVisible()) {
     await option.click();
   }
@@ -189,7 +189,7 @@ export async function gotoBacktest(page: Page) {
 export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE") {
   await page.waitForLoadState("networkidle");
 
-  const searchInput = page.locator(".mantine-MultiSelect-input input");
+  const searchInput = page.locator('[data-testid="symbol-multiselect"] input');
   await searchInput.click();
   await page.waitForTimeout(500);
 
@@ -222,8 +222,8 @@ export async function selectSymbolAndRun(page: Page, symbol: string = "RELIANCE"
 
   await searchInput.focus();
   await page.keyboard.type(symbol, { delay: 50 });
-  await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
-  const option = page.locator(".mantine-MultiSelect-option").first();
+  await page.waitForSelector('[role="option"]', { timeout: 5000 });
+  const option = page.locator('[role="option"]').first();
   await option.waitFor({ state: "visible", timeout: 5000 });
   await option.click();
   const runBtn = page.locator('[data-testid="run-backtest-btn"]');

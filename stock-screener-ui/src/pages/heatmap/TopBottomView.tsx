@@ -1,5 +1,11 @@
 import { useMemo } from "react";
-import { Flex, Text, Group, Badge } from "@/ui";
+import { Box, Stack } from "@/ui";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import TableContainer from "@mui/material/TableContainer";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../../components/common/TanStackTable";
 
@@ -30,61 +36,62 @@ export function TopBottomView({ stocks, metric, getMetricValue, getMetricColor, 
 
   const columns = useMemo<ColumnDef<any>[]>(
     () => [
-      { id: "rank", header: "#", accessorKey: "rank" },
+      { id: "rank", header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>#</Box>, accessorKey: "rank", meta: { align: "center" }, cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>()}</Typography></Box> },
       {
         id: "symbol",
-        header: "Symbol",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Symbol</Box>,
         accessorKey: "symbol",
-        cell: (info) => <span style={{ fontWeight: 500, fontSize: 11 }}>{info.getValue<string>()}</span>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 500, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
       },
       {
         id: "name",
-        header: "Name",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Name</Box>,
         accessorKey: "name",
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<string>();
           return (
-            <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160, display: "inline-block" }}>
-              {val}
-            </span>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 160 }}>{val}</Typography></Box>
           );
         },
       },
       {
         id: "metric",
-        header: metricConfig?.label ?? metric,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>{metricConfig?.label ?? metric}</Box>,
         accessorFn: (row: any) => getMetricValue(row, metric),
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<number>();
           const bg = getMetricColor(val, minAll, maxAll);
           const tc = getMetricTextColor(val, minAll, maxAll);
           return (
-            <span style={{ backgroundColor: bg, color: tc, fontWeight: 700, padding: "1px 4px", borderRadius: 2, textAlign: "right", display: "block", fontSize: 11 }}>
-              {fmt(val)}
-            </span>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+              <Box sx={{ backgroundColor: bg, color: tc, fontWeight: 700, p: 1, borderRadius: 1, fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                {fmt(val)}
+              </Box>
+            </Box>
           );
         },
       },
       {
         id: "pe",
-        header: "P/E",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>P/E</Box>,
         accessorKey: "pe_ratio",
+        meta: { align: "center" },
         cell: (info) => (
-          <span style={{ fontSize: 11, textAlign: "right", display: "block" }}>
-            {formatPe(info.getValue<number | null>())}
-          </span>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center" }}>{formatPe(info.getValue<number | null>())}</Typography></Box>
         ),
       },
       {
         id: "sector",
-        header: "Sector",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Sector</Box>,
         accessorKey: "sector",
+        meta: { align: "center" },
         cell: (info) => {
           const val = info.getValue<string>();
           return (
-            <span style={{ fontSize: 11, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120, display: "inline-block" }}>
-              {val}
-            </span>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 11, display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", maxWidth: 120 }}>{val}</Typography></Box>
           );
         },
       },
@@ -96,25 +103,32 @@ export function TopBottomView({ stocks, metric, getMetricValue, getMetricColor, 
     const tableData = data.map((s, i) => ({ ...s, rank: startRank + i }));
 
     return (
-      <Flex direction="column" style={{ flex: 1 }}>
-        <Group gap="xs" mb="xs">
-          <Text size="sm" fw={600}>{title}</Text>
-          <Badge color={badgeColor} size="sm" variant="light">{data.length}</Badge>
-        </Group>
-        <TanStackTable
-          data={tableData}
-          columns={columns}
-          enableSorting={false}
-          stickyHeader={false}
-        />
-      </Flex>
+      <Card elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", gap: 1, p: 1, alignItems: "center", width: "100%" }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", gap: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+            <Typography variant="subtitle2" sx={{ fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{title}</Typography>
+            <Chip size="small" label={String(data.length)} color={badgeColor as any} variant="outlined" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
+          </Box>
+          <TableContainer sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%" }}>
+            <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+              <Box sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+                <TanStackTable data={tableData} columns={columns} enableSorting={false} stickyHeader={false} />
+              </Box>
+            </Stack>
+          </TableContainer>
+        </CardContent>
+      </Card>
     );
   }
 
   return (
-    <Flex gap="md" p="sm" style={{ flex: 1 }}>
-      {renderTable("Top 10", "green", top10, 1)}
-      {renderTable("Bottom 10", "red", bottom10, stocks.length - bottom10.length + 1)}
-    </Flex>
+    <Grid container spacing={1} sx={{ display: "flex", gap: 1, p: 1, flex: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
+      <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+        {renderTable("Top 10", "success", top10, 1)}
+      </Grid>
+      <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+        {renderTable("Bottom 10", "error", bottom10, stocks.length - bottom10.length + 1)}
+      </Grid>
+    </Grid>
   );
 }

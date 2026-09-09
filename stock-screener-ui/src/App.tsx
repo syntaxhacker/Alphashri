@@ -13,18 +13,21 @@ import { loadHolidays } from "./state/holidays";
 const ScreenerContainer = lazy(() => import("./pages/screener/ScreenerContainer").then(m => ({ default: m.ScreenerContainer })));
 const SectorPage = lazy(() => import("./components/sector/SectorPage2").then(m => ({ default: m.SectorPage })));
 const StrategiesContainer = lazy(() => import("./pages/strategies/StrategiesContainer").then(m => ({ default: m.StrategiesContainer })));
-const BacktestPage = lazy(() => import("./components/backtest/mantine").then(m => ({ default: m.BacktestPage })));
+const BacktestPage = lazy(() => import("./components/backtest").then(m => ({ default: m.BacktestPage })));
 const ExperimentsPage = lazy(() => import("./components/experiments/ExperimentsPage").then(m => ({ default: m.ExperimentsPage })));
-const PaperTradingView = lazy(() => import("./components/paper-trading/mantine").then(m => ({ default: m.PaperTradingView })));
-const ReplayPage = lazy(() => import("./components/replay/mantine").then(m => ({ default: m.ReplayPage })));
-const StrategyRunnerPage = lazy(() => import("./components/strategy-runner/mantine").then(m => ({ default: m.StrategyRunnerPage })));
-const BotsPage = lazy(() => import("./components/bots/mantine").then(m => ({ default: m.BotsPage })));
+const PaperTradingView = lazy(() => import("./components/paper-trading").then(m => ({ default: m.PaperTradingView })));
+const ReplayPage = lazy(() => import("./components/replay").then(m => ({ default: m.ReplayPage })));
+const StrategyRunnerPage = lazy(() => import("./components/strategy-runner").then(m => ({ default: m.StrategyRunnerPage })));
+const BotsPage = lazy(() => import("./components/bots/components").then(m => ({ default: m.BotsPage })));
 const OptionsContainer = lazy(() => import("./pages/options/OptionsContainer").then(m => ({ default: m.OptionsContainer })));
 const SettingsPage = lazy(() => import("./pages/settings/SettingsPage").then(m => ({ default: m.SettingsPage })));
 const ChartView = lazy(() => import("./pages/chart/ChartView"));
 const NewsPage = lazy(() => import("./pages/NewsPage"));
 const AdminPage = lazy(() => import("./pages/AdminPage"));
 const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
+const SmcPoc = lazy(() => import("./pages/poc/SmcPoc"));
+const SmcTrades = lazy(() => import("./pages/poc/SmcTrades"));
+const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);
@@ -86,6 +89,9 @@ function AppContent() {
             <Route path="/news" element={<NewsPage />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/heatmap" element={<HeatmapPage />} />
+            <Route path="/poc/smc" element={<SmcPoc />} />
+            <Route path="/poc/smc-trades" element={<SmcTrades />} />
+            <Route path="/poc/tick-replay" element={<TickReplay />} />
             <Route path="/chart/:symbol?" element={<ChartView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>

@@ -1,6 +1,8 @@
-import { Box, Flex, Group, ThemeIcon, UnstyledButton, Text, Tooltip } from "@/ui";
+import { Tooltip } from "@/ui";
 import { useNavigate } from "react-router-dom";
-import classes from "./NavbarLinksGroup.module.css";
+import ListItemButton from "@mui/material/ListItemButton";
+import ListItemIcon from "@mui/material/ListItemIcon";
+import ListItemText from "@mui/material/ListItemText";
 
 interface NavbarLinksGroupProps {
   icon: React.FC<any>;
@@ -21,47 +23,38 @@ export function NavbarLinksGroup({
 }: NavbarLinksGroupProps) {
   const navigate = useNavigate();
 
-  const content = (
-    <UnstyledButton
+  const testId = `nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`;
+  const navLink = (
+    <ListItemButton
+      selected={active}
       onClick={() => {
         navigate(link);
         onNavigate?.();
       }}
-      className={classes.control}
-      data-testid={`nav-${label.toLowerCase().replace(/\s+/g, "-").replace("paper-trading", "paper").replace("sector-analysis", "sector")}`}
+      data-testid={testId}
       data-active={active || undefined}
       id={`nav-link-${label.toLowerCase().replace(/\s+/g, "-")}`}
-      style={{
-        backgroundColor: active ? "var(--mantine-color-blue-light)" : undefined,
-        color: active ? "var(--mantine-color-blue-filled)" : undefined,
+      sx={{
+        borderRadius: 1,
         justifyContent: collapsed ? "center" : "flex-start",
-        padding: collapsed
-          ? "var(--mantine-spacing-xs)"
-          : "var(--mantine-spacing-xs) var(--mantine-spacing-sm)",
+        py: 0.75,
+        ...(active ? { bgcolor: "primary.light", color: "primary.dark", "& .MuiListItemIcon-root": { color: "primary.dark" } } : {}),
       }}
     >
-      <Group justify={collapsed ? "center" : "space-between"} gap={4}>
-        <Flex align="center">
-          <ThemeIcon variant="light" size={26}>
-            <Icon size={16} />
-          </ThemeIcon>
-          {!collapsed && (
-            <Box ml="md">
-              <Text fw={active ? 600 : 500}>{label}</Text>
-            </Box>
-          )}
-        </Flex>
-      </Group>
-    </UnstyledButton>
+      <ListItemIcon sx={{ minWidth: 36, justifyContent: collapsed ? "center" : "flex-start", color: active ? "primary.dark" : "text.secondary" }}>
+        <Icon size={16} />
+      </ListItemIcon>
+      {!collapsed && <ListItemText primary={label} primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: active ? 600 : 400 }} />}
+    </ListItemButton>
   );
 
   if (collapsed) {
     return (
       <Tooltip label={label} position="right" transitionProps={{ duration: 0 }}>
-        {content}
+        {navLink}
       </Tooltip>
     );
   }
 
-  return content;
+  return navLink;
 }

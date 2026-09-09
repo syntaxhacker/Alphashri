@@ -1,4 +1,4 @@
-import { Paper, Stack, Group, Badge, Button, Text, Progress, Divider } from "@/ui";
+import { Paper, Stack, Box, Badge, Button, Text, Progress, Divider } from "@/ui";
 import { IconPlayerPause, IconPlayerPlay, IconX } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
@@ -10,11 +10,11 @@ import {
 } from "../../state/experiments";
 
 const STATUS_COLOR: Record<string, string> = {
-  running: "blue",
-  paused: "yellow",
-  completed: "green",
-  cancelled: "gray",
-  error: "red",
+  running: "primary",
+  paused: "warning",
+  completed: "success",
+  cancelled: "secondary",
+  error: "error",
 };
 
 function lastResultDescription(lastResult: any, bestDesc: string): string | null {
@@ -31,7 +31,7 @@ export function ExperimentsProgress() {
 
   if (!exp) {
     return (
-      <Paper p="sm" radius="sm" withBorder data-testid="experiments-progress">
+      <Paper elevation={0} sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center" }} data-testid="experiments-progress">
         <Text size="sm" c="dimmed" data-testid="experiments-progress-empty">
           No active experiment
         </Text>
@@ -45,11 +45,11 @@ export function ExperimentsProgress() {
   const lastResult = lastResultDescription(exp.last_result, exp.best_desc);
 
   return (
-    <Paper p="sm" radius="sm" withBorder data-testid="experiments-progress">
-      <Stack gap="xs">
-        <Group justify="space-between" align="center">
-          <Group gap={6} align="center">
-            <Badge color={STATUS_COLOR[status] ?? "gray"} size="sm" data-testid="experiments-progress-status">
+    <Paper elevation={0} sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1, alignItems: "center" }} data-testid="experiments-progress">
+      <Stack gap={1} sx={{ width: "100%", alignItems: "stretch" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+            <Badge color={STATUS_COLOR[status] ?? "secondary"} size="sm" data-testid="experiments-progress-status">
               {status}
             </Badge>
             {s.activeSession && (
@@ -57,11 +57,11 @@ export function ExperimentsProgress() {
                 {s.activeSession}
               </Text>
             )}
-          </Group>
+          </Box>
           <Text size="sm" fw={500} data-testid="experiments-progress-counter">
             {exp.current}/{exp.total}
           </Text>
-        </Group>
+        </Box>
 
         <Progress
           value={percent}
@@ -70,7 +70,7 @@ export function ExperimentsProgress() {
           data-testid="experiments-progress-bar"
         />
 
-        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexWrap: "wrap" }}>
           <Text size="sm" data-testid="experiments-progress-best-pf">
             best PF {exp.best_pf != null ? exp.best_pf.toFixed(2) : "—"}
           </Text>
@@ -79,12 +79,12 @@ export function ExperimentsProgress() {
               {lastResult}
             </Text>
           )}
-        </Group>
+        </Box>
 
         {canControl && (
           <>
             <Divider />
-            <Group gap="xs" align="center">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
               {status === "running" && (
                 <Button
                   size="sm"
@@ -110,14 +110,14 @@ export function ExperimentsProgress() {
               <Button
                 size="sm"
                 variant="subtle"
-                color="red"
+                color="error"
                 data-testid="experiments-cancel-btn"
                 leftSection={<IconX size={12} />}
                 onClick={() => void cancelExperiment()}
               >
                 Cancel
               </Button>
-            </Group>
+            </Box>
           </>
         )}
       </Stack>

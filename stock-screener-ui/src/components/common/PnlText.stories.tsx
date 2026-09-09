@@ -3,9 +3,17 @@ import { Stack, Group, Title } from "@/ui";
 import { PnlText, PnlBadge } from "./PnlText";
 
 const meta: Meta<typeof PnlText> = {
-  title: "Design System/Common/PnL",
+  title: "Composites/PnL",
   component: PnlText,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Color-coded P&L primitives — `PnlText` (inline text, green/red/dimmed) and `PnlBadge` (filled badge). Use wherever a numeric profit/loss or percent must convey polarity at a glance (tables, stat tiles, trade rows). When not: for non-P&L status use `SideBadge`/`ExitReasonBadge` instead.',
+      },
+    },
+  },
 };
 
 export default meta;

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, beforeEach, afterEach, vi } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChainSummary } from "./ChainSummary";
@@ -14,14 +14,14 @@ afterEach(() => {
 
 describe("ChainSummary component rendering", () => {
   it("renders chain summary container", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary strikeMatrix={[]} spotPrice={24500} selectedExpiry="25MAY" />,
     );
     expect(screen.getByTestId("chain-summary")).toBeInTheDocument();
   });
 
   it("renders PCR value", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
@@ -33,7 +33,7 @@ describe("ChainSummary component rendering", () => {
   });
 
   it("renders PCR bias bullish when pcr > 1", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
@@ -45,7 +45,7 @@ describe("ChainSummary component rendering", () => {
   });
 
   it("renders PCR bias bearish when pcr < 1", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
@@ -57,7 +57,7 @@ describe("ChainSummary component rendering", () => {
   });
 
   it("renders Max Pain value", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
@@ -69,7 +69,7 @@ describe("ChainSummary component rendering", () => {
   });
 
   it("renders market range when expected move is available", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={[]}
         spotPrice={24500}
@@ -92,7 +92,7 @@ describe("ChainSummary component rendering", () => {
       { strike: 24500, ce: { market_data: { oi: 5000 } }, pe: { market_data: { oi: 200 } } },
       { strike: 25000, ce: { market_data: { oi: 3000 } }, pe: { market_data: { oi: 800 } } },
     ];
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={strikeMatrix}
         spotPrice={24500}
@@ -105,7 +105,7 @@ describe("ChainSummary component rendering", () => {
   });
 
   it("renders data pending when no expected move", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary strikeMatrix={[]} spotPrice={24500} selectedExpiry="25MAY" />,
     );
     expect(screen.getByText("Data pending")).toBeInTheDocument();
@@ -116,7 +116,7 @@ describe("ChainSummary component rendering", () => {
       { strike: 24000, ce: { market_data: { oi: 1000 } }, pe: { market_data: { oi: 500 } } },
       { strike: 24500, ce: { market_data: { oi: 5000 } }, pe: { market_data: { oi: 200 } } },
     ];
-    renderWithMantine(
+    renderWithProviders(
       <ChainSummary
         strikeMatrix={strikeMatrix}
         spotPrice={24500}

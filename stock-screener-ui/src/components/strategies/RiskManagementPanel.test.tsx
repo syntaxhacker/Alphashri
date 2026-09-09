@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
-import { Tabs } from "@mantine/core";
+import { Tabs } from "@/ui";
 import { RiskManagementPanel } from "./RiskManagementPanel";
 import { DEFAULT_VALUES } from "./strategyDefaults";
 

@@ -116,7 +116,7 @@ describe("BacktestResultsTable", () => {
     });
     const rowINFY = screen.getByTestId("result-row-INFY");
     const style = rowINFY.getAttribute("style");
-    expect(style).toContain("var(--mantine-color-blue-light)");
+    expect(style).toContain("var(--mui-palette-primary-light)");
   });
 
   it("handles undefined win_rate gracefully", () => {

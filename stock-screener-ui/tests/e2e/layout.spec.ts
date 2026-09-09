@@ -26,6 +26,13 @@ test.describe("Layout - App Structure", () => {
     await expect(page.locator('[data-testid="app-navbar"]')).toBeVisible();
   });
 
+  test("desktop navbar visual", async ({ page }) => {
+    await page.goto("/");
+    await page.waitForSelector('[data-testid="app-navbar"]', { timeout: 10000 });
+    await expect(page.locator('[data-testid="app-navbar"]')).toBeInViewport();
+    await expect(page.locator('[data-testid="app-navbar"]')).toHaveScreenshot("navbar-desktop.png", { maxDiffPixelRatio: 0.01 });
+  });
+
   test("app-main is visible", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
@@ -49,14 +56,14 @@ test.describe("Layout - Theme Toggle", () => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
-    const initialScheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-mantine-color-scheme"),
+    const initialScheme = await page.evaluate(
+      () => document.documentElement.getAttribute("data-color-scheme") ?? document.documentElement.getAttribute("data-mantine-color-scheme"),
     );
 
     await page.locator('[data-testid="theme-toggle-btn"]').click();
 
-    const newScheme = await page.evaluate(() =>
-      document.documentElement.getAttribute("data-mantine-color-scheme"),
+    const newScheme = await page.evaluate(
+      () => document.documentElement.getAttribute("data-color-scheme") ?? document.documentElement.getAttribute("data-mantine-color-scheme"),
     );
 
     expect(newScheme).not.toBe(initialScheme);

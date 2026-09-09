@@ -199,7 +199,7 @@ function NewsPanelToggle({
 }) {
   return (
     <Indicator
-      color={hasNewArticles ? "green" : "red"}
+      color={hasNewArticles ? "success" : "error"}
       size={16}
       label={unreadCount > 99 ? "99+" : unreadCount}
       disabled={unreadCount === 0 || isOpen}
@@ -208,7 +208,7 @@ function NewsPanelToggle({
     >
       <Button
         variant="filled"
-        color="blue"
+        color="primary"
         size="sm"
         onClick={onToggle}
         data-testid="news-toggle-btn"
@@ -224,7 +224,7 @@ function NewsPanelToggle({
 function NewsPanelOverlay({ onClose }: { onClose: () => void }) {
   return (
     <Overlay
-      color="dark"
+      color="secondary"
       backgroundOpacity={0.5}
       onClick={onClose}
       zIndex={100}
@@ -303,7 +303,7 @@ function NewsPanelBody({
     <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
       <NewsListHeader wsConnected={wsConnected} isRefreshing={isRefreshing} onClose={handleClose} />
 
-      <Paper withBorder p="sm" id="news-panel-controls" data-testid="news-panel-controls">
+      <Paper p="sm" id="news-panel-controls" data-testid="news-panel-controls">
         <NewsFilterControls
           sourceData={sourceData}
           selectedSource={selectedSource}
@@ -344,13 +344,12 @@ function NewsPanelContainer({ isOpen, children }: { isOpen: boolean; children: R
       right={isOpen ? 0 : -400}
       w={400}
       h="100vh"
-      bg="var(--mantine-color-body)"
+      sx={{ bgcolor: "background.paper", borderLeft: 1, borderColor: "divider" }}
       className={`news-panel ${isOpen ? "open" : ""}`}
       id="news-panel"
       style={{
         zIndex: 200,
         transition: "right 0.3s ease",
-        borderLeft: "1px solid var(--mantine-color-default-border)",
         display: "flex",
         flexDirection: "column",
       }}

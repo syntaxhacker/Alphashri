@@ -28,22 +28,28 @@ export function BacktestResultsTable({
         id: "symbol",
         header: "Symbol",
         accessorKey: "symbol",
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Text fw={500} data-testid={`symbol-${info.getValue<string>()}`}>
-            {info.getValue<string>()}
-          </Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Text fw={500} data-testid={`symbol-${info.getValue<string>()}`} ta="center">
+              {info.getValue<string>()}
+            </Text>
+          </Box>
         ),
       },
       {
         id: "net_pnl",
         header: "Net PnL",
         accessorKey: "net_pnl",
+        meta: { align: "center" } as any,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Text c={getPnLTextColor(val)} fw={500} data-testid={`net-pnl-${info.row.original.symbol}`}>
-              {formatPnl(val)}
-            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Text c={getPnLTextColor(val)} fw={500} data-testid={`net-pnl-${info.row.original.symbol}`} ta="center">
+                {formatPnl(val)}
+              </Text>
+            </Box>
           );
         },
       },
@@ -51,22 +57,28 @@ export function BacktestResultsTable({
         id: "trades",
         header: "Trades",
         accessorKey: "trades",
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Text data-testid={`trades-${info.row.original.symbol}`}>
-            {info.getValue<number>()}
-          </Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Text data-testid={`trades-${info.row.original.symbol}`} ta="center">
+              {info.getValue<number>()}
+            </Text>
+          </Box>
         ),
       },
       {
         id: "win_rate",
         header: "WR%",
         accessorKey: "win_rate",
+        meta: { align: "center" } as any,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Text c={getWinRateColor(val)} data-testid={`wr-${info.row.original.symbol}`}>
-              {(val ?? 0).toFixed(0)}%
-            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Text c={getWinRateColor(val)} data-testid={`wr-${info.row.original.symbol}`} ta="center">
+                {(val ?? 0).toFixed(0)}%
+              </Text>
+            </Box>
           );
         },
       },
@@ -74,29 +86,35 @@ export function BacktestResultsTable({
         id: "pf",
         header: "PF",
         accessorKey: "pf",
+        meta: { align: "center" } as any,
         cell: (info) => (
-          <Text data-testid={`pf-${info.row.original.symbol}`}>
-            {(info.getValue<number>() ?? 0).toFixed(1)}
-          </Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Text data-testid={`pf-${info.row.original.symbol}`} ta="center">
+              {(info.getValue<number>() ?? 0).toFixed(1)}
+            </Text>
+          </Box>
         ),
       },
       {
         id: "tp_sl",
         header: "TP/SL",
         enableSorting: false,
+        meta: { align: "center" } as any,
         accessorFn: (row) => `${row.tp_exits}/${row.sl_exits}`,
         cell: (info) => {
           const row = info.row.original;
           return (
-            <Group gap={2} data-testid={`tpsl-${row.symbol}`}>
-              <Text c="green" size="sm">
-                {row.tp_exits}
-              </Text>
-              <Text size="sm">/</Text>
-              <Text c="red" size="sm">
-                {row.sl_exits}
-              </Text>
-            </Group>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Group gap={2} data-testid={`tpsl-${row.symbol}`} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                <Text c="success" size="sm">
+                  {row.tp_exits}
+                </Text>
+                <Text size="sm">/</Text>
+                <Text c="error" size="sm">
+                  {row.sl_exits}
+                </Text>
+              </Group>
+            </Box>
           );
         },
       },
@@ -125,7 +143,7 @@ export function BacktestResultsTable({
         getRowTestId={(row) => `result-row-${row.symbol}`}
         getRowStyle={(row) => ({
           backgroundColor:
-            selectedSymbol === row.symbol ? "var(--mantine-color-blue-light)" : undefined,
+            selectedSymbol === row.symbol ? "rgba(var(--mui-palette-primary-mainChannel) / 0.08)" : undefined,
         })}
         onRowClick={(row) => onRowClick(row.symbol)}
       />

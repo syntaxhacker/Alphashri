@@ -4,7 +4,7 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { PositionsPanel } from "./PositionsPanel";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
@@ -14,24 +14,24 @@ afterEach(() => {
 
 describe("PositionsPanel", () => {
   it("shows loading state", () => {
-    renderWithMantine(<PositionsPanel positions={[]} loading={true} />);
+    renderWithProviders(<PositionsPanel positions={[]} loading={true} />);
     expect(screen.getByTestId("options-positions-loading")).toBeInTheDocument();
     expect(screen.getByText("Loading positions...")).toBeInTheDocument();
   });
 
   it("shows error state", () => {
-    renderWithMantine(<PositionsPanel positions={[]} error="API error" />);
+    renderWithProviders(<PositionsPanel positions={[]} error="API error" />);
     expect(screen.getByTestId("options-positions-error")).toBeInTheDocument();
     expect(screen.getByText("API error")).toBeInTheDocument();
   });
 
   it("shows empty state", () => {
-    renderWithMantine(<PositionsPanel positions={[]} />);
+    renderWithProviders(<PositionsPanel positions={[]} />);
     expect(screen.getByText("No open positions")).toBeInTheDocument();
   });
 
   it("shows Option Positions title", () => {
-    renderWithMantine(<PositionsPanel positions={[]} />);
+    renderWithProviders(<PositionsPanel positions={[]} />);
     expect(screen.getByText("Option Positions")).toBeInTheDocument();
   });
 
@@ -58,7 +58,7 @@ describe("PositionsPanel", () => {
         pnl: -500,
       },
     ];
-    renderWithMantine(<PositionsPanel positions={positions} />);
+    renderWithProviders(<PositionsPanel positions={positions} />);
     expect(screen.getByTestId("options-position-row-0")).toBeInTheDocument();
     expect(screen.getByTestId("options-position-row-1")).toBeInTheDocument();
     expect(screen.getByText("CE")).toBeInTheDocument();
@@ -92,7 +92,7 @@ describe("PositionsPanel", () => {
         pnl: -500,
       },
     ];
-    renderWithMantine(<PositionsPanel positions={positions} />);
+    renderWithProviders(<PositionsPanel positions={positions} />);
     expect(screen.getByText("+₹1.2K")).toBeInTheDocument();
     expect(screen.getByText("₹-500")).toBeInTheDocument();
   });
@@ -108,7 +108,7 @@ describe("PositionsPanel", () => {
         average_price: 150.5,
       },
     ];
-    renderWithMantine(<PositionsPanel positions={positions} />);
+    renderWithProviders(<PositionsPanel positions={positions} />);
     expect(screen.getByText("-")).toBeInTheDocument();
   });
 });

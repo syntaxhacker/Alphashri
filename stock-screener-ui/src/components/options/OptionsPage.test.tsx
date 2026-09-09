@@ -4,7 +4,7 @@ import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { OptionsPage } from "./OptionsPage";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 vi.mock("./OptionChain/OptionChainPanel", () => ({
   OptionChainPanel: () => <div data-testid="options-chain-panel">Chain Panel</div>,
@@ -47,32 +47,32 @@ const defaultProps = {
 
 describe("OptionsPage", () => {
   it("renders options nav", () => {
-    renderWithMantine(<OptionsPage {...defaultProps} />);
+    renderWithProviders(<OptionsPage {...defaultProps} />);
     expect(screen.getByTestId("options-nav")).toBeInTheDocument();
   });
 
   it("shows chain panel by default", () => {
-    renderWithMantine(<OptionsPage {...defaultProps} />);
+    renderWithProviders(<OptionsPage {...defaultProps} />);
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
   });
 
   it("shows positions panel when activeTab is positions", () => {
-    renderWithMantine(<OptionsPage {...defaultProps} activeTab="positions" />);
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="positions" />);
     expect(screen.getByTestId("options-positions-panel")).toBeInTheDocument();
   });
 
   it("shows greeks panel when activeTab is greeks", () => {
-    renderWithMantine(<OptionsPage {...defaultProps} activeTab="greeks" />);
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="greeks" />);
     expect(screen.getByTestId("options-greeks-panel")).toBeInTheDocument();
   });
 
   it("hides chain panel when positions tab is active", () => {
-    renderWithMantine(<OptionsPage {...defaultProps} activeTab="positions" />);
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="positions" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
   });
 
   it("hides chain panel when greeks tab is active", () => {
-    renderWithMantine(<OptionsPage {...defaultProps} activeTab="greeks" />);
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="greeks" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
   });
 });

@@ -1,6 +1,6 @@
 import type { ReactNode, CSSProperties, MouseEvent, KeyboardEvent } from "react";
 
-export type { MantineTheme, MantineColor, MantineColorsTuple } from "@mantine/core";
+export type UITheme = import("./muiTheme").MuiTheme;
 
 export interface UIBaseProps {
   children?: ReactNode;
@@ -15,9 +15,13 @@ export interface UIBaseProps {
 
 export type UISize = "xs" | "sm" | "md" | "lg" | "xl";
 export type UIColor =
-  | "teal" | "green" | "red" | "orange" | "dark"
-  | "blue" | "gray" | "yellow" | "violet" | "pink" | "cyan"
-  | "success" | "danger" | "warning"
+  | "primary"
+  | "secondary"
+  | "success"
+  | "error"
+  | "warning"
+  | "info"
+  | "danger"
   | string;
 export type UITone = UIColor;
 export type UIFontWeight = "normal" | "medium" | "semibold" | "bold" | number;
@@ -88,7 +92,6 @@ export interface UICenterProps extends UIBaseProps {
 export interface UIPaperProps extends UIBoxProps {
   shadow?: "xs" | "sm" | "md" | "lg" | "xl" | string;
   radius?: UIRadius;
-  withBorder?: boolean;
   p?: UISize | number | string;
 }
 
@@ -103,6 +106,7 @@ export interface UIScrollAreaProps extends UIBaseProps {
   offsetScrollbars?: boolean;
   scrollbarSize?: number;
   scrollHideDelay?: number;
+  onScrollPositionChange?: (pos: { x: number; y: number }) => void;
 }
 
 export interface UIDividerProps extends UIBaseProps {
@@ -456,6 +460,7 @@ export interface UINavLinkProps extends UIBaseProps {
   label: ReactNode;
   description?: ReactNode;
   icon?: ReactNode;
+  leftSection?: ReactNode;
   rightSection?: ReactNode;
   href?: string;
   active?: boolean;
@@ -469,19 +474,38 @@ export interface UINavLinkProps extends UIBaseProps {
 }
 
 export interface UIAppShellProps extends UIBaseProps {
-  header?: { height: number | string; collapsed?: boolean };
-  navbar?: { width: number | string; collapsed?: boolean; breakpoint?: UISize };
+  header?: { height: number | string; collapsed?: boolean; offset?: boolean };
+  navbar?: {
+    width: number | string | Record<string, number | string>;
+    breakpoint?: UISize | number | string;
+    collapsed?: boolean | { mobile?: boolean; desktop?: boolean };
+  };
+  aside?: { width: number | string; breakpoint?: UISize | number | string; collapsed?: boolean | { mobile?: boolean; desktop?: boolean } };
+  footer?: { height: number | string; collapsed?: boolean };
   padding?: UISize | number | string;
   layout?: "default" | "alt";
+  zIndex?: number | string;
+  transitionDuration?: number;
+  transitionTimingFunction?: string;
+  disabled?: boolean;
+  offsetScrollbars?: boolean;
 }
 
-export interface UIAppShellHeaderProps extends UIBaseProps {}
+export interface UIAppShellHeaderProps extends UIBaseProps {
+  zIndex?: number | string;
+}
 
 export interface UIAppShellNavbarProps extends UIBaseProps {
   p?: UISize | number | string;
+  zIndex?: number | string;
 }
 
 export interface UIAppShellMainProps extends UIBaseProps {}
+
+export interface UIAppShellSectionProps extends UIBaseProps {
+  grow?: boolean;
+  component?: any;
+}
 
 export interface UITabsProps extends UIBaseProps {
   value?: string | null;
@@ -643,7 +667,6 @@ export interface UIIndicatorProps extends UIBaseProps {
   offset?: number;
   disabled?: boolean;
   processing?: boolean;
-  withBorder?: boolean;
   position?: "top-start" | "top-end" | "bottom-start" | "bottom-end";
 }
 

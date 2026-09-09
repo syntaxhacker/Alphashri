@@ -23,7 +23,7 @@ export function getNear52wBreakoutColumns(): ColumnDef[] {
       type: "number",
       sortable: true,
       format: (value: number) => {
-        const cls = value < 0 ? "green" : value > 2 ? "red" : "";
+        const cls = value < 0 ? "success" : value > 2 ? "error" : "";
         return { value: `${value > 0 ? "+" : ""}${value.toFixed(2)}%`, className: cls };
       },
     },

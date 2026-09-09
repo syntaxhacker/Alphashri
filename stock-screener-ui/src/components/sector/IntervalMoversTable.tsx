@@ -1,5 +1,10 @@
 import { useMemo } from "react";
-import { Text } from "@/ui";
+import { Text, Box, Stack } from "@/ui";
+import TableContainer from "@mui/material/TableContainer";
+import Paper from "@mui/material/Paper";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { InternalStockMover } from "./sectorUtils";
 import { getPnLTextColor } from "../../utils/ui-helpers";
@@ -10,36 +15,39 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
     () => [
       {
         id: "symbol",
-        header: "Stock",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Stock</Box>,
         accessorKey: "symbol",
-        cell: (info) => <Text fw={600}>{info.getValue<string>()}</Text>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600}>{info.getValue<string>()}</Text></Box>,
       },
       {
         id: "prev",
-        header: "Prev",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Prev</Box>,
         accessorKey: "prev_change",
-        meta: { align: "right" },
-        cell: (info) => <>{info.getValue<number>().toFixed(2)}%</>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>().toFixed(2)}%</Box>,
       },
       {
         id: "change",
-        header: "Now",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Now</Box>,
         accessorKey: "change",
-        meta: { align: "right" },
-        cell: (info) => <>{info.getValue<number>().toFixed(2)}%</>,
+        meta: { align: "center" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>().toFixed(2)}%</Box>,
       },
       {
         id: "delta",
-        header: "Δ",
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Δ</Box>,
         accessorKey: "delta",
-        meta: { align: "right" },
+        meta: { align: "center" },
         cell: (info) => {
           const delta = info.getValue<number>();
           return (
-            <Text c={getPnLTextColor(delta)} fw={700}>
-              {delta > 0 ? "+" : ""}
-              {delta.toFixed(2)}%
-            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Text c={getPnLTextColor(delta)} fw={700}>
+                {delta > 0 ? "+" : ""}
+                {delta.toFixed(2)}%
+              </Text>
+            </Box>
           );
         },
       },
@@ -49,18 +57,32 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
 
   if (movers.length === 0) {
     return (
-      <Text size="sm" c="dimmed" ta="center" py="xl">
-        Collecting baseline for interval moves...
-      </Text>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Text size="sm" c="dimmed" ta="center" py="xl">
+          Collecting baseline for interval moves...
+        </Text>
+      </Box>
     );
   }
 
   return (
-    <TanStackTable<InternalStockMover>
-      data={movers}
-      columns={columns}
-      enableSorting={false}
-      dataTestId="interval-movers-table"
-    />
+    <TableContainer component={Paper} elevation={1} sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Stack spacing={1} sx={{ width: "100%", alignItems: "center" }}>
+        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+          <CardContent sx={{ p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+            <Grid container spacing={2} justifyContent="center" sx={{ width: "100%" }}>
+              <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
+                <TanStackTable<InternalStockMover>
+                  data={movers}
+                  columns={columns}
+                  enableSorting={false}
+                  dataTestId="interval-movers-table"
+                />
+              </Grid>
+            </Grid>
+          </CardContent>
+        </Card>
+      </Stack>
+    </TableContainer>
   );
 }

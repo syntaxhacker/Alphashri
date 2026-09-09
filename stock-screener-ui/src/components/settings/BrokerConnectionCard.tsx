@@ -1,4 +1,8 @@
-import { Card, Text, Badge, Button, Group, Stack } from "@/ui";
+import { Text, Badge, Button } from "@/ui";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
 import { IconPlugConnected, IconPlugX, IconRefresh } from "@tabler/icons-react";
 import type { BrokerStatus } from "../../api/brokers";
 
@@ -22,15 +26,15 @@ export function formatExpiresIn(hours: number | null): string {
 
 export function getStatusBadge(status: BrokerStatus | null) {
   if (!status) {
-    return <Badge color="gray">Unknown</Badge>;
+    return <Badge color="secondary">Unknown</Badge>;
   }
   if (!status.connected) {
-    return <Badge color="red">Disconnected</Badge>;
+    return <Badge color="error">Disconnected</Badge>;
   }
   if (status.expires_in_hours !== null && status.expires_in_hours < 0) {
-    return <Badge color="yellow">Expired</Badge>;
+    return <Badge color="warning">Expired</Badge>;
   }
-  return <Badge color="green">Connected</Badge>;
+  return <Badge color="success">Connected</Badge>;
 }
 
 export function BrokerConnectionCard({
@@ -44,69 +48,50 @@ export function BrokerConnectionCard({
     status?.connected && (status.expires_in_hours === null || status.expires_in_hours >= 0);
 
   return (
-    <Card
-      shadow="sm"
-      padding="lg"
-      radius="md"
-      withBorder
-      id="broker-connection-card"
-      data-testid="broker-connection-card"
-    >
-      <Stack gap="sm">
-        <Group justify="space-between">
-          <Text fw={600} size="lg">
-            Upstox Connection
-          </Text>
-          <span data-testid="broker-status-badge">{getStatusBadge(status)}</span>
-        </Group>
+    <Card elevation={1} id="broker-connection-card" data-testid="broker-connection-card" sx={{ width: "100%", maxWidth: 560 }}>
+      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+        <Stack spacing={1} sx={{ alignItems: "center", width: "100%" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+            <Text fw={600} size="lg" sx={{ textAlign: "center" }}>
+              Upstox Connection
+            </Text>
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+            <span data-testid="broker-status-badge">{getStatusBadge(status)}</span>
+          </Box>
 
-        {isConnected && status?.expires_in_hours !== null && (
-          <Text size="sm" c="dimmed" data-testid="broker-expires-text">
-            Expires in {formatExpiresIn(status.expires_in_hours)}
-          </Text>
-        )}
-
-        {!isConnected && (
-          <Text size="sm" c="dimmed">
-            Connect your Upstox account to enable live trading
-          </Text>
-        )}
-
-        <Group gap="xs">
-          {isConnected ? (
-            <Button
-              leftSection={<IconPlugX size={16} />}
-              variant="light"
-              color="red"
-              onClick={onDisconnect}
-              loading={loading}
-              data-testid="disconnect-upstox-btn"
-            >
-              Disconnect
-            </Button>
-          ) : (
-            <Button
-              leftSection={<IconPlugConnected size={16} />}
-              variant="light"
-              color="green"
-              onClick={onConnect}
-              loading={loading}
-              data-testid="connect-upstox-btn"
-            >
-              Connect
-            </Button>
+          {isConnected && status?.expires_in_hours !== null && (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+              <Text size="sm" c="dimmed" data-testid="broker-expires-text" sx={{ textAlign: "center" }}>
+                Expires in {formatExpiresIn(status.expires_in_hours)}
+              </Text>
+            </Box>
           )}
-          <Button
-            leftSection={<IconRefresh size={16} />}
-            variant="subtle"
-            onClick={onRefresh}
-            loading={loading}
-            data-testid="refresh-broker-status-btn"
-          >
-            Refresh
-          </Button>
-        </Group>
-      </Stack>
+
+          {!isConnected && (
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+              <Text size="sm" c="dimmed" sx={{ textAlign: "center" }}>
+                Connect your Upstox account to enable live trading
+              </Text>
+            </Box>
+          )}
+
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
+            {isConnected ? (
+              <Button leftSection={<IconPlugX size={16} />} variant="filled" color="error" onClick={onDisconnect} loading={loading} data-testid="disconnect-upstox-btn">
+                Disconnect
+              </Button>
+            ) : (
+              <Button leftSection={<IconPlugConnected size={16} />} variant="filled" color="success" onClick={onConnect} loading={loading} data-testid="connect-upstox-btn">
+                Connect
+              </Button>
+            )}
+            <Button leftSection={<IconRefresh size={16} />} variant="subtle" onClick={onRefresh} loading={loading} data-testid="refresh-broker-status-btn">
+              Refresh
+            </Button>
+          </Box>
+        </Stack>
+      </CardContent>
     </Card>
   );
 }

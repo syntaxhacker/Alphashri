@@ -4,7 +4,7 @@ import "@testing-library/jest-dom/vitest";
 import { screen, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import React from "react";
 
 // --- Mock external modules ---
@@ -178,32 +178,8 @@ vi.mock("../common/TradingDatePicker", () => ({
   ),
 }));
 
-// Mock Mantine Select as a native <select> for easier testing
-vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...core,
-    UIProvider: ui.UIProvider,
-    Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
-      <select
-        data-testid={testId}
-        value={value || ""}
-        onChange={(e) => {
-          const val = e.target.value;
-          onChange(val === "" ? null : val);
-        }}
-        {...rest}
-      >
-        {data?.map((opt: any) => (
-          <option key={opt.value} value={opt.value ?? ""}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ),
-  };
-});
+// Mock MUI Select as a native <select> for easier testing
+// mui migrated
 
 // Import real hooks and components after mocks
 import {
@@ -219,7 +195,7 @@ import { mockTrade } from "./testFixtures";
 
 // --- Helper ---
 function r<T>(jsx: T) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 // --- Mock data factories ---
@@ -850,7 +826,7 @@ describe("FiltersBar", () => {
       />,
     );
 
-    // No component testids should be rendered (MantineProvider may inject styles)
+    // No component testids should be rendered (UIProvider may inject styles)
     expect(container.querySelector("[data-testid]")).toBeNull();
   });
 });

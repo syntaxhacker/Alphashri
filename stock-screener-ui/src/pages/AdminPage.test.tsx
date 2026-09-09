@@ -5,7 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import React from "react";
 import AdminPage from "./AdminPage";
-import { renderWithMantine } from "../test-utils/renderWithMantine";
+import { renderWithProviders } from "../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../test-utils/setupBrowser";
 
 vi.mock("../components/auth/AuthProvider2", () => ({
@@ -36,7 +36,7 @@ describe("AdminPage", () => {
   });
 
   it("renders the admin page with tabs", () => {
-    renderWithMantine(<AdminPage />);
+    renderWithProviders(<AdminPage />);
     expect(screen.getByText("Admin")).toBeInTheDocument();
     expect(screen.getByText("LLM stats")).toBeInTheDocument();
     expect(screen.getByText("52W range batch")).toBeInTheDocument();
@@ -44,26 +44,26 @@ describe("AdminPage", () => {
   });
 
   it("shows LLM stats tab by default", () => {
-    renderWithMantine(<AdminPage />);
+    renderWithProviders(<AdminPage />);
     expect(screen.getByTestId("llm-stats-panel")).toBeInTheDocument();
   });
 
   it("switches to 52W tab", async () => {
       const user = userEvent.setup();
-    renderWithMantine(<AdminPage />);
+    renderWithProviders(<AdminPage />);
     await user.click(screen.getByTestId("admin-tab-52w"));
     expect(screen.getByTestId("admin-52w-range-panel-mock")).toBeInTheDocument();
   });
 
   it("switches to News Queue tab", async () => {
       const user = userEvent.setup();
-    renderWithMantine(<AdminPage />);
+    renderWithProviders(<AdminPage />);
     await user.click(screen.getByTestId("admin-tab-news-queue"));
     expect(screen.getByTestId("news-queue-panel-mock")).toBeInTheDocument();
   });
 
   it("renders admin description", () => {
-    renderWithMantine(<AdminPage />);
+    renderWithProviders(<AdminPage />);
     expect(screen.getByText("LLM telemetry, 52W range batch, and news analysis queue.")).toBeInTheDocument();
   });
 });

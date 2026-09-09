@@ -1,20 +1,11 @@
 import { memo } from "react";
-import { Text, Group, Button, Tooltip, Box } from "@/ui";
+import { Text, Button, Tooltip } from "@/ui";
+import MuiBox from "@mui/material/Box";
+import { alpha } from "@mui/material/styles";
+import { useTheme } from "@mui/material/styles";
 import { IconX } from "@tabler/icons-react";
 import type { PaperPosition } from "../../types/paperTrading";
 import { formatNumber, getPnLTextColor } from "../../utils/ui-helpers";
-import { POSITIVE, NEGATIVE } from "../../config/colors";
-
-function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
-const TINT_POSITIVE = withAlpha(POSITIVE, 0.06);
-const TINT_NEGATIVE = withAlpha(NEGATIVE, 0.06);
 
 interface SelectedPositionBarProps {
   position: PaperPosition | null;
@@ -22,76 +13,91 @@ interface SelectedPositionBarProps {
 }
 
 export const SelectedPositionBar = memo(function SelectedPositionBar({ position, onClose }: SelectedPositionBarProps) {
+  const theme = useTheme();
   if (!position) {
     return (
-      <Group
-        px="xs"
-        py={4}
-        style={{
-          borderTop: "1px solid var(--mantine-color-default-border)",
-          background: "var(--mantine-color-body)",
+      <MuiBox
+        className="paper-selected-bar paper-selected-bar-empty"
+        id="paper-selected-bar-empty"
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          px: 1,
+          py: 0.5,
+          background: theme.palette.background.paper,
+          border: 0,
+          borderTop: `1px solid ${theme.palette.divider}`,
+          borderBottomLeftRadius: Number(theme.shape.borderRadius),
+          borderBottomRightRadius: Number(theme.shape.borderRadius),
         }}
       >
-        <Text size="xs" c="dimmed">No position selected — click a row to view details</Text>
-      </Group>
+        <Text className="paper-selected-bar-empty-text" size="xs" c="dimmed">No position selected — click a row to view details</Text>
+      </MuiBox>
     );
   }
 
-  const sideColor = position.side === "BUY" ? "teal" : "red";
-  const bgTint = position.pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE;
+  const sideColor = position.side === "BUY" ? "success" : "error";
+  const bgTint = position.pnl >= 0 ? alpha(theme.palette.success.main, 0.06) : alpha(theme.palette.error.main, 0.06);
 
   return (
-    <Group
-      px="xs"
-      py={4}
-      justify="space-between"
-      style={{
-        borderTop: "1px solid var(--mantine-color-default-border)",
+    <MuiBox
+      className="paper-selected-bar"
+      id={`paper-selected-bar-${position.symbol}`}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "space-between",
+        flexWrap: "wrap",
+        gap: 1,
+        px: 1,
+        py: 0.5,
         background: bgTint,
+        borderTop: `1px solid ${theme.palette.divider}`,
+        borderBottomLeftRadius: Number(theme.shape.borderRadius),
+        borderBottomRightRadius: Number(theme.shape.borderRadius),
       }}
     >
-      <Group gap="md">
-        <Text size="sm" fw={600}>{position.symbol}</Text>
-        <Box
-          px={6}
-          py={2}
-          style={{ borderRadius: 4, backgroundColor: `var(--mantine-color-${sideColor}-1)` }}
+      <MuiBox className="paper-selected-bar-main" sx={{ display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap" }}>
+        <Text className="paper-selected-bar-symbol" id={`paper-selected-bar-symbol-${position.symbol}`} size="sm" fw={600}>{position.symbol}</Text>
+        <MuiBox
+          className="paper-selected-bar-side"
+          sx={{ display: "flex", alignItems: "center", px: 1, py: 0.5, borderRadius: 1, backgroundColor: alpha(position.side === "BUY" ? theme.palette.success.main : theme.palette.error.main, 0.08) }}
         >
-          <Text size="xs" fw={600} c={`${sideColor}.8`}>{position.side}</Text>
-        </Box>
-        <Text size="xs" c="dimmed">Qty <Text span fw={500}>{position.quantity}</Text></Text>
-        <Group gap={4}>
-          <Text size="xs" c="dimmed">Entry</Text>
-          <Text size="xs" fw={500}>₹{position.entry_price.toFixed(2)}</Text>
-        </Group>
-        <Group gap={4}>
-          <Text size="xs" c="dimmed">Curr</Text>
-          <Text size="xs" fw={500}>₹{position.current_price.toFixed(2)}</Text>
-        </Group>
-        <Box
-          px={6}
-          py={2}
-          style={{ borderRadius: 4, backgroundColor: withAlpha(position.pnl >= 0 ? POSITIVE : NEGATIVE, 0.1) }}
+          <Text className="paper-selected-bar-side-text" size="xs" fw={600} c={`${sideColor}.8`}>{position.side}</Text>
+        </MuiBox>
+        <Text className="paper-selected-bar-qty" size="xs" c="dimmed">Qty <Text span fw={500}>{position.quantity}</Text></Text>
+        <MuiBox className="paper-selected-bar-entry" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Text className="paper-selected-bar-label" size="xs" c="dimmed">Entry</Text>
+          <Text className="paper-selected-bar-value" size="xs" fw={500}>₹{position.entry_price.toFixed(2)}</Text>
+        </MuiBox>
+        <MuiBox className="paper-selected-bar-curr" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Text className="paper-selected-bar-label" size="xs" c="dimmed">Curr</Text>
+          <Text className="paper-selected-bar-value" size="xs" fw={500}>₹{position.current_price.toFixed(2)}</Text>
+        </MuiBox>
+        <MuiBox
+          className="paper-selected-bar-pnl"
+          sx={{ display: "flex", alignItems: "center", px: 1, py: 0.5, borderRadius: 1, backgroundColor: alpha(position.pnl >= 0 ? theme.palette.success.main : theme.palette.error.main, 0.1) }}
         >
-          <Text size="xs" c={getPnLTextColor(position.pnl)} fw={700}>
+          <Text className="paper-selected-bar-pnl-text" size="xs" c={getPnLTextColor(position.pnl)} fw={700}>
             {position.pnl >= 0 ? "+" : ""}₹{formatNumber(position.pnl)} ({position.pnl_pct.toFixed(2)}%)
           </Text>
-        </Box>
-        <Group gap={4}>
-          <Text size="xs" c="dimmed">TP</Text>
-          <Text size="xs" c="teal" fw={500}>{position.take_profit > 0 ? `₹${position.take_profit.toFixed(2)}` : "—"}</Text>
-        </Group>
-        <Group gap={4}>
-          <Text size="xs" c="dimmed">SL</Text>
-          <Text size="xs" c="red" fw={500}>{position.stop_loss > 0 ? `₹${position.stop_loss.toFixed(2)}` : "—"}</Text>
-        </Group>
-      </Group>
+        </MuiBox>
+        <MuiBox className="paper-selected-bar-tp" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Text className="paper-selected-bar-label" size="xs" c="dimmed">TP</Text>
+          <Text className="paper-selected-bar-value" size="xs" c="success" fw={500}>{position.take_profit > 0 ? `₹${position.take_profit.toFixed(2)}` : "—"}</Text>
+        </MuiBox>
+        <MuiBox className="paper-selected-bar-sl" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Text className="paper-selected-bar-label" size="xs" c="dimmed">SL</Text>
+          <Text className="paper-selected-bar-value" size="xs" c="error" fw={500}>{position.stop_loss > 0 ? `₹${position.stop_loss.toFixed(2)}` : "—"}</Text>
+        </MuiBox>
+      </MuiBox>
       {onClose && (
         <Tooltip label="Close position">
           <Button
+            className="paper-selected-bar-close"
             size="compact-xs"
-            variant="light"
-            color="red"
+            variant="filled"
+            color="error"
             leftSection={<IconX size={12} />}
             onClick={() => onClose(position.symbol, position.current_price)}
             data-testid="close-selected-position"
@@ -100,19 +106,8 @@ export const SelectedPositionBar = memo(function SelectedPositionBar({ position,
           </Button>
         </Tooltip>
       )}
-    </Group>
+    </MuiBox>
   );
 });
 
-function Badge({ color, children }: { color: string; children: React.ReactNode }) {
-  return (
-    <Text
-      component="span"
-      size="xs"
-      fw={600}
-      style={{ color: `var(--mantine-color-${color}-6)` }}
-    >
-      {children}
-    </Text>
-  );
-}
+

@@ -10,8 +10,6 @@ import type { BotConfig, BotStatus, BotTrade } from "../../types/bots";
 vi.mock("../../state/bots", () => ({
   loadBotStatus: vi.fn(),
   loadBotTrades: vi.fn(),
-  startAutoRefresh: vi.fn(),
-  stopAutoRefresh: vi.fn(),
 }));
 
 vi.mock("../../state/holidays", () => ({
@@ -19,7 +17,7 @@ vi.mock("../../state/holidays", () => ({
   isMarketClosedToday: vi.fn().mockReturnValue(false),
 }));
 
-import { loadBotStatus, loadBotTrades, startAutoRefresh, stopAutoRefresh } from "../../state/bots";
+import { loadBotStatus, loadBotTrades } from "../../state/bots";
 
 const mockBot: BotConfig = {
   id: "bot-1",
@@ -162,7 +160,7 @@ describe("BotStatusPanel", () => {
     expect(loadBotTrades).toHaveBeenCalledWith("bot-1");
   });
 
-  it("start handler calls onStart, loads status/trades, starts auto-refresh", async () => {
+  it("start handler calls onStart and loads status/trades once (no polling)", async () => {
     const user = userEvent.setup();
     const onStart = vi.fn().mockResolvedValue(undefined);
     vi.mocked(loadBotStatus).mockResolvedValue(undefined);
@@ -171,13 +169,12 @@ describe("BotStatusPanel", () => {
     await user.click(screen.getByTestId("start-bot-btn"));
     expect(onStart).toHaveBeenCalledWith("bot-1");
     await waitFor(() => {
-      expect(loadBotStatus).toHaveBeenCalled();
-      expect(loadBotTrades).toHaveBeenCalled();
-      expect(startAutoRefresh).toHaveBeenCalledWith("bot-1", 5000);
+      expect(loadBotStatus).toHaveBeenCalledTimes(1);
+      expect(loadBotTrades).toHaveBeenCalledTimes(1);
     });
   });
 
-  it("stop handler calls onStop, stops auto-refresh, loads status", async () => {
+  it("stop handler calls onStop and loads status once (no polling)", async () => {
     const user = userEvent.setup();
     const onStop = vi.fn().mockResolvedValue(undefined);
     const status: BotStatus = {
@@ -193,8 +190,7 @@ describe("BotStatusPanel", () => {
     await user.click(screen.getByTestId("stop-bot-btn"));
     expect(onStop).toHaveBeenCalledWith("bot-1");
     await waitFor(() => {
-      expect(stopAutoRefresh).toHaveBeenCalled();
-      expect(loadBotStatus).toHaveBeenCalled();
+      expect(loadBotStatus).toHaveBeenCalledTimes(1);
     });
   });
 

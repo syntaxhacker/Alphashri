@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { alpha } from "@mui/material/styles";
 import {
   Stack,
   Text,
@@ -281,46 +282,47 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   const renderFilterInput = (filter: ProfileFilter) => {
     if (filter.type === "number") {
       return (
-        <NumberInput
-          key={filter.key}
-          label={filter.label}
-          value={filter.default as number}
-          onChange={(val) => updateFilterValue(filter.key, val || 0)}
-          min={filter.min}
-          max={filter.max}
-          step={filter.step}
-          style={{ width: 120 }}
-        />
+        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+          <NumberInput
+            label={filter.label}
+            value={filter.default as number}
+            onChange={(val) => updateFilterValue(filter.key, val || 0)}
+            min={filter.min}
+            max={filter.max}
+            step={filter.step}
+            sx={{ width: 120 }}
+          />
+        </Box>
       );
     }
     if (filter.type === "select" && filter.options) {
       return (
-        <Select
-          key={filter.key}
-          label={filter.label}
-          data={filter.options}
-          value={filter.default as string}
-          onChange={(val) => updateFilterValue(filter.key, val || "")}
-          style={{ width: 120 }}
-        />
+        <Box key={filter.key} sx={{ display: "flex", alignItems: "center", width: 120 }}>
+          <Select
+            label={filter.label}
+            data={filter.options}
+            value={filter.default as string}
+            onChange={(val) => updateFilterValue(filter.key, val || "")}
+            sx={{ width: 120 }}
+          />
+        </Box>
       );
     }
     return null;
   };
 
   return (
-    <Box style={{ display: "flex", height: "100%", gap: 8 }}>
+    <Box sx={{ display: "flex", height: "100%", gap: 1 }}>
       <Box
-        style={{
+        sx={{
           width: 280,
           flexShrink: 0,
-          borderRight: "1px solid var(--mantine-color-default-border)",
         }}
         data-testid="screener-list-panel"
       >
         <ScrollArea h="100%">
-          <Stack gap={4} p="xs">
-            <Group justify="space-between" data-testid="screener-list-header">
+          <Stack gap="sm" p="sm">
+            <Stack direction="row" align="center" justify="space-between" data-testid="screener-list-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
               <Text fw={600} size="xs" data-testid="screener-configs-title">
                 CONFIGS
               </Text>
@@ -375,40 +377,36 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               >
                 + Create
               </Button>
-            </Group>
+            </Stack>
             <Divider />
 
             {screenerOptions.map((option) => (
               <Box
                 key={option.id}
-                p={4}
+                p="sm"
                 data-testid={`screener-row-${option.id}`}
-                style={{
-                  borderRadius: 4,
+                sx={(theme) => ({
+                  borderRadius: 1,
                   cursor: "pointer",
                   backgroundColor:
                     option.id === activeScreener
-                      ? "var(--mantine-color-blue-light)"
+                      ? alpha(theme.palette.primary.main, 0.08)
                       : "transparent",
-                  border:
-                    option.id === activeScreener
-                      ? "1px solid var(--mantine-color-blue)"
-                      : "1px solid transparent",
-                }}
+                })}
                 onClick={() => onScreenerChange(option.id)}
               >
-                <Group justify="space-between" mb={4}>
-                  <Group gap={4}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 1 }}>
+                  <Group gap="sm" align="center">
                     <Text size="sm" fw={500}>
                       {option.label}
                     </Text>
                     {option.id === activeScreener && (
-                      <Badge size="xs" color="blue" data-testid="screener-active-badge">
+                      <Badge size="xs" color="primary" data-testid="screener-active-badge">
                         Active
                       </Badge>
                     )}
                   </Group>
-                  <Group gap={4}>
+                  <Group gap="sm" align="center">
                     <ActionIcon
                       size="sm"
                       variant="subtle"
@@ -423,7 +421,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                     <ActionIcon
                       size="sm"
                       variant="subtle"
-                      color="red"
+                      color="error"
                       onClick={(e) => {
                         e.stopPropagation();
                         openDeleteConfirm(option.id);
@@ -433,7 +431,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                       <Text size="xs">Del</Text>
                     </ActionIcon>
                   </Group>
-                </Group>
+                </Box>
                 <Text size="xs" c="dimmed" lineClamp={1}>
                   {option.id}
                 </Text>
@@ -444,48 +442,52 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       </Box>
 
       <Box
-        style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
+        sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}
         data-testid="screener-preview-panel"
       >
-        <Box p="xs" style={{ overflow: "auto" }} data-testid="screener-details-bar">
+        <Box p="sm" sx={{ overflow: "auto" }} data-testid="screener-details-bar">
           {activeOption && (
-            <Group gap={8} wrap="wrap" data-testid="screener-filters">
-              <Badge size="xs" color="blue" data-testid="screener-name-badge">
-                {activeOption.label}
-              </Badge>
-              {(() => {
-                let filterObj: Record<string, any> = {};
-                if (Array.isArray(activeOption.filters)) {
-                  activeOption.filters.forEach((f: any) => {
-                    if (f.key && f.default !== undefined) filterObj[f.key] = f.default;
-                  });
-                } else if (activeOption.filters && typeof activeOption.filters === "object") {
-                  filterObj = activeOption.filters as Record<string, any>;
-                }
-                return Object.entries(filterObj).map(([key, value]) => (
-                  <Badge key={key} size="xs" color="red" variant="light">
-                    {key.replace(/_/g, " ")}: {String(value)}
-                  </Badge>
-                ));
-              })()}
-            </Group>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
+              <Group gap="sm" wrap="wrap" data-testid="screener-filters" align="center">
+                <Badge size="xs" color="primary" data-testid="screener-name-badge">
+                  {activeOption.label}
+                </Badge>
+                {(() => {
+                  let filterObj: Record<string, any> = {};
+                  if (Array.isArray(activeOption.filters)) {
+                    activeOption.filters.forEach((f: any) => {
+                      if (f.key && f.default !== undefined) filterObj[f.key] = f.default;
+                    });
+                  } else if (activeOption.filters && typeof activeOption.filters === "object") {
+                    filterObj = activeOption.filters as Record<string, any>;
+                  }
+                  return Object.entries(filterObj).map(([key, value]) => (
+                    <Badge key={key} size="xs" color="error" variant="light">
+                      {key.replace(/_/g, " ")}: {String(value)}
+                    </Badge>
+                  ));
+                })()}
+              </Group>
+            </Box>
           )}
         </Box>
-        <Group justify="space-between" px="xs" data-testid="preview-header">
-          <Text fw={600} size="xs" data-testid="preview-count">
-            PREVIEW ({stocks.length})
-          </Text>
-          <Button
-            size="xs"
-            variant="light"
-            onClick={() => loadPreview()}
-            loading={previewLoading}
-            data-testid="preview-refresh-btn"
-          >
-            ↻
-          </Button>
-        </Group>
-        <Box style={{ flex: 1, overflow: "auto" }} p="xs">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1 }}>
+          <Group justify="space-between" px="xs" align="center" data-testid="preview-header" sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <Text fw={600} size="xs" data-testid="preview-count">
+              PREVIEW ({stocks.length})
+            </Text>
+            <Button
+              size="xs"
+              variant="light"
+              onClick={() => loadPreview()}
+              loading={previewLoading}
+              data-testid="preview-refresh-btn"
+            >
+              ↻
+            </Button>
+          </Group>
+        </Box>
+        <Box sx={{ flex: 1, overflow: "auto" }} p="sm">
           {previewLoading ? (
             <Text size="sm" c="dimmed" ta="center" py="xl" data-testid="preview-loading">
               Loading...
@@ -556,7 +558,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           >
             Cancel
           </Button>
-          <Button color="red" onClick={handleDelete} loading={saving}>
+          <Button color="error" onClick={handleDelete} loading={saving}>
             Delete
           </Button>
         </Group>
@@ -566,8 +568,8 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
 
   function renderFormModal(isEdit: boolean, onSubmit: () => void, isSaving: boolean) {
     return (
-      <Box style={{ display: "flex", gap: 24 }}>
-        <Box style={{ flex: 1 }}>
+      <Box sx={{ display: "flex", gap: 3 }}>
+        <Box sx={{ flex: 1 }}>
           <Stack gap="md" data-testid="create-screener-form">
             <TextInput
               label="Name"
@@ -586,7 +588,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
             <Text size="sm" fw={600}>
               Indicators
             </Text>
-            <Group gap="md">
+            <Group gap="md" align="center">
               {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map(
                 (ind) => (
                   <Checkbox
@@ -604,7 +606,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 <Text size="sm" fw={600}>
                   Filter Values
                 </Text>
-                <Group gap="md">{form.filters.map(renderFilterInput)}</Group>
+                <Group gap="md" align="center">{form.filters.map(renderFilterInput)}</Group>
               </>
             )}
 
@@ -627,7 +629,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               }
             />
 
-            <Group justify="flex-end" mt="md">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, mt: 2 }}>
               <Button
                 variant="light"
                 onClick={() => {
@@ -647,32 +649,31 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               >
                 {isEdit ? "Update" : "Create"}
               </Button>
-            </Group>
+            </Box>
           </Stack>
         </Box>
 
         <Box
-          style={{
+          sx={{
             flex: 1,
-            borderLeft: "1px solid var(--mantine-color-default-border)",
-            paddingLeft: 24,
+            paddingLeft: 3,
           }}
         >
-          <Stack gap="xs" data-testid="create-modal-preview">
-            <Group justify="space-between">
+            <Stack gap="sm" data-testid="create-modal-preview">
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%" }}>
               <Text fw={600} size="sm" data-testid="modal-live-preview-title">
                 LIVE PREVIEW
               </Text>
-              <Badge size="sm" color="blue">
+              <Badge size="sm" color="primary">
                 {stocks.length} stocks
               </Badge>
-            </Group>
+            </Box>
             {form.columns.length === 0 ? (
               <Text size="sm" c="dimmed" ta="center" py="xl">
                 Select columns to preview
               </Text>
             ) : stocks.length > 0 ? (
-              <Box style={{ height: 300, overflow: "auto" }}>
+              <Box sx={{ height: 300, overflow: "auto" }}>
                 <ScreenerTable
                   stocks={stocks.slice(0, 10)}
                   columns={form.columns.slice(0, 5).map((key) => ({

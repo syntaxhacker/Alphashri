@@ -1,197 +1,26 @@
 import { describe, expect, it } from "vitest";
-import { theme, fontWeights } from "./theme";
+import { muiTheme } from "@/ui/muiTheme";
+import { fontWeights } from "./theme";
 
-const APP_FONT_FAMILY = theme.fontFamily || "'Inter Variable', -apple-system, BlinkMacSystemFont, sans-serif";
-
-describe("Theme Configuration", () => {
-  it("exports a Mantine theme object", () => {
-    expect(theme).toBeDefined();
-    expect(typeof theme).toBe("object");
+describe("Theme Configuration (MUI default)", () => {
+  it("exports muiTheme", () => {
+    expect(muiTheme).toBeDefined();
+    expect(typeof muiTheme).toBe("object");
   });
-
-  it("has correct primary color", () => {
-    expect(theme.primaryColor).toBe("blue");
-    expect(theme.primaryShade).toEqual({ light: 6, dark: 8 });
+  it("has cssVariables enabled", () => {
+    // default MUI theme uses cssVariables for colorSchemes
+    expect((muiTheme as any).cssVariables).toBe(true);
   });
-
-  it("has colors object", () => {
-    expect(theme.colors).toBeDefined();
-    expect(theme.colors.teal).toBeDefined();
-    expect(theme.colors.green).toBeDefined();
-    expect(theme.colors.red).toBeDefined();
-    expect(theme.colors.orange).toBeDefined();
-    expect(theme.colors.dark).toBeDefined();
-    expect(theme.colors.success).toBeDefined();
-    expect(theme.colors.danger).toBeDefined();
-    expect(theme.colors.warning).toBeDefined();
+  it("has colorSchemes light and dark enabled", () => {
+    const cs = (muiTheme as any).colorSchemes;
+    expect(cs).toBeDefined();
+    expect(cs.light).toBe(true);
+    expect(cs.dark).toBe(true);
   });
-
-  it("has default radius", () => {
-    expect(theme.defaultRadius).toBe("xs");
-  });
-
-  it("has font family settings", () => {
-    expect(theme.fontFamily).toBe(APP_FONT_FAMILY);
-    expect(theme.fontFamilyMonospace).toBeDefined();
-  });
-
-  describe("fontSizes", () => {
-    it("has sm, md, lg, xl sizes", () => {
-      expect(theme.fontSizes.sm).toBe("12px");
-      expect(theme.fontSizes.md).toBe("14px");
-      expect(theme.fontSizes.lg).toBe("16px");
-      expect(theme.fontSizes.xl).toBe("20px");
-    });
-  });
-
-  describe("headings", () => {
-    it("has heading font family", () => {
-      expect(theme.headings.fontFamily).toBe(APP_FONT_FAMILY);
-    });
-
-    it("has heading font weight", () => {
-      expect(theme.headings.fontWeight).toBe("600");
-    });
-
-    it("has h1 through h6 sizes", () => {
-      expect(theme.headings.sizes.h1).toHaveProperty("fontSize");
-      expect(theme.headings.sizes.h2).toHaveProperty("fontSize");
-      expect(theme.headings.sizes.h3).toHaveProperty("fontSize");
-      expect(theme.headings.sizes.h4).toHaveProperty("fontSize");
-      expect(theme.headings.sizes.h5).toHaveProperty("fontSize");
-      expect(theme.headings.sizes.h6).toHaveProperty("fontSize");
-    });
-  });
-
-  describe("component styles", () => {
-    it("has Card defaultProps", () => {
-      expect(theme.components.Card).toBeDefined();
-    });
-
-    it("has Paper defaultProps with xs radius", () => {
-      expect(theme.components.Paper.defaultProps.radius).toBe("xs");
-    });
-
-    it("has Card defaultProps", () => {
-      expect(theme.components.Card.defaultProps.radius).toBe("xs");
-      expect(theme.components.Card.defaultProps.padding).toBe("sm");
-      expect(theme.components.Card.defaultProps.withBorder).toBe(false);
-    });
-
-    it("has Tabs styles", () => {
-      expect(theme.components.Tabs).toBeDefined();
-      expect(theme.components.Tabs.styles.tab).toBeDefined();
-    });
-
-    it("has Button defaultProps", () => {
-      expect(theme.components.Button.defaultProps.size).toBe("sm");
-      expect(theme.components.Button.defaultProps.radius).toBe("xs");
-    });
-
-    it("has Input defaultProps with sm size", () => {
-      expect(theme.components.Input.defaultProps.size).toBe("sm");
-    });
-
-    it("has NumberInput defaultProps", () => {
-      expect(theme.components.NumberInput.defaultProps.size).toBe("sm");
-    });
-
-    it("has Select defaultProps", () => {
-      expect(theme.components.Select.defaultProps.size).toBe("sm");
-    });
-
-    it("has TextInput defaultProps", () => {
-      expect(theme.components.TextInput.defaultProps.size).toBe("sm");
-    });
-
-    it("has Textarea defaultProps", () => {
-      expect(theme.components.Textarea.defaultProps.size).toBe("sm");
-    });
-
-    it("has Tabs default variant", () => {
-      expect(theme.components.Tabs.defaultProps.variant).toBe("default");
-    });
-
-    it("has Tabs styles with bold tab weight", () => {
-      expect(theme.components.Tabs.styles.tab.fontWeight).toBe(600);
-    });
-
-    it("has Badge defaultProps", () => {
-      expect(theme.components.Badge.defaultProps.radius).toBe("xs");
-    });
-  });
-
-  describe("other theme config", () => {
-    it("has fontWeights", () => {
-      expect(theme.other.fontWeights.normal).toBe(400);
-      expect(theme.other.fontWeights.medium).toBe(500);
-      expect(theme.other.fontWeights.semibold).toBe(600);
-      expect(theme.other.fontWeights.bold).toBe(700);
-    });
-
-    it("has fontWeights", () => {
-      expect(theme.other.fontWeights.normal).toBe(400);
-      expect(theme.other.fontWeights.medium).toBe(500);
-      expect(theme.other.fontWeights.semibold).toBe(600);
-      expect(theme.other.fontWeights.bold).toBe(700);
-    });
-  });
-});
-
-describe("Color Palette", () => {
-  const colors = theme.colors || {};
-
-  describe("teal", () => {
-    it("has 10 shades", () => {
-      expect(colors.teal).toHaveLength(10);
-    });
-
-    it("starts light and gets darker", () => {
-      expect(colors.teal[0]).toMatch(/^#[0-9A-Fa-f]{6}$/);
-      expect(colors.teal[9]).toMatch(/^#[0-9A-Fa-f]{6}$/);
-    });
-  });
-
-  describe("green", () => {
-    it("has 10 shades", () => {
-      expect(colors.green).toHaveLength(10);
-    });
-  });
-
-  describe("red", () => {
-    it("has 10 shades", () => {
-      expect(colors.red).toHaveLength(10);
-    });
-  });
-
-  describe("orange", () => {
-    it("has 10 shades", () => {
-      expect(colors.orange).toHaveLength(10);
-    });
-  });
-
-  describe("dark", () => {
-    it("has 10 shades", () => {
-      expect(colors.dark).toHaveLength(10);
-    });
-
-    it("darkest shade is very dark", () => {
-      expect(colors.dark[9]).toBe("#010409");
-    });
-  });
-
-  describe("virtual colors", () => {
-    it("success uses green theme color", () => {
-      expect(colors.success).toBeDefined();
-    });
-
-    it("danger uses red theme color", () => {
-      expect(colors.danger).toBeDefined();
-    });
-
-    it("warning uses orange theme color", () => {
-      expect(colors.warning).toBeDefined();
-    });
+  it("is default MUI theme without custom palette overrides", () => {
+    // Should not have custom primary hardcoded; MUI defaults are used
+    // Just ensure theme object is valid
+    expect(muiTheme.palette).toBeDefined();
   });
 });
 
@@ -201,12 +30,5 @@ describe("fontWeights", () => {
     expect(fontWeights.medium).toBe(500);
     expect(fontWeights.semibold).toBe(600);
     expect(fontWeights.bold).toBe(700);
-  });
-});
-
-describe("AppTheme type", () => {
-  it("can be used as type (compile-time check)", () => {
-    const themeTyped: typeof theme = theme;
-    expect(themeTyped).toBe(theme);
   });
 });

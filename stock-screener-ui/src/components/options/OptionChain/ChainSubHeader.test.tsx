@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChainSubHeader } from "./ChainSubHeader";
@@ -17,12 +17,12 @@ const mockStyles = {
 
 describe("ChainSubHeader", () => {
   it("renders subheader container", () => {
-    renderWithMantine(<ChainSubHeader styles={mockStyles as any} />);
+    renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
     expect(screen.getByTestId("options-chain-table-subheader")).toBeInTheDocument();
   });
 
   it("renders column labels", () => {
-    renderWithMantine(<ChainSubHeader styles={mockStyles as any} />);
+    renderWithProviders(<ChainSubHeader styles={mockStyles as any} />);
     const subheader = screen.getByTestId("options-chain-table-subheader");
     expect(subheader.textContent).toContain("OI");
     expect(subheader.textContent).toContain("OI CHG");

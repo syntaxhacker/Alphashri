@@ -5,10 +5,10 @@ import {
   Badge,
   Group,
   Stack,
-  Grid,
   Progress,
   ActionIcon,
   Tooltip,
+  Box,
 } from "@/ui";
 import {
   IconRefresh,
@@ -40,19 +40,6 @@ import {
   TINT_NEGATIVE,
 } from "../../config/colors";
 
-const STRATEGY_COLORS: Record<string, string> = {
-  ORB: "blue",
-  SR_BREAKOUT: "violet",
-  EMA_CROSS: "cyan",
-  WEEK_52_CHASER: "orange",
-  WEEK_52_TARGET: "teal",
-  BLIND_52W: "pink",
-};
-
-function getStrategyColor(type: string): string {
-  return STRATEGY_COLORS[type] || "gray";
-}
-
 export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummary }) {
   const pnlColor = getPnLTextColor(portfolio.total_pnl);
   const pnlBg = portfolio.total_pnl >= 0 ? TINT_POSITIVE : TINT_NEGATIVE;
@@ -60,59 +47,46 @@ export function PortfolioSummaryCard({ portfolio }: { portfolio: PortfolioSummar
 
   return (
     <Card
-      shadow="sm"
+      elevation={1}
       padding="md"
       radius="md"
-      withBorder
       data-testid="portfolio-summary"
-      style={{ borderLeft: `4px solid var(--mantine-color-${isGreen ? "teal" : "red"}-6)` }}
+      sx={{ p: 1 }}
     >
-      <Group justify="space-between" mb="sm">
-        <Text fw={600}>Portfolio Summary</Text>
-        <Badge color={isGreen ? "teal" : "red"} variant="light" size="sm">
-          {isGreen ? "PROFIT" : "LOSS"}
-        </Badge>
-      </Group>
-      <Grid>
-        <Grid.Col span={6}>
-          <Stack gap="xs">
-            <Stack gap={0}>
-              <Text size="sm" c="dimmed">
-                Capital
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} size="sm" ta="center">Portfolio Summary</Text></Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Badge color={isGreen ? "success" : "error"} variant="light" size="sm">
+            {isGreen ? "PROFIT" : "LOSS"}
+          </Badge>
+        </Box>
+      </Box>
+      <Stack spacing={1} sx={{ gap: 1, p: 1, alignItems: "center" }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, width: "100%" }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Capital</Text>
+          <Text fw={600} sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>₹{formatNumberShared(portfolio.initial_capital)}</Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, width: "100%" }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Cash</Text>
+          <Text fw={600} sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>₹{formatNumberShared(portfolio.cash)}</Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, width: "100%" }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Positions</Text>
+          <Text fw={600} sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>{portfolio.total_positions}</Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, borderRadius: 1, backgroundColor: pnlBg, width: "100%" }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Total P&L</Text>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text fw={600} c={pnlColor} ta="center">
+              {formatSignedPnl(portfolio.total_pnl)}
+              <Text span size="sm" ml={4}>
+                ({portfolio.total_pnl_pct >= 0 ? "+" : ""}
+                {portfolio.total_pnl_pct.toFixed(2)}%)
               </Text>
-              <Text fw={600}>₹{formatNumberShared(portfolio.initial_capital)}</Text>
-            </Stack>
-            <Stack gap={0}>
-              <Text size="sm" c="dimmed">
-                Cash
-              </Text>
-              <Text fw={600}>₹{formatNumberShared(portfolio.cash)}</Text>
-            </Stack>
-          </Stack>
-        </Grid.Col>
-        <Grid.Col span={6}>
-          <Stack gap="xs">
-            <Stack gap={0}>
-              <Text size="sm" c="dimmed">
-                Positions
-              </Text>
-              <Text fw={600}>{portfolio.total_positions}</Text>
-            </Stack>
-            <Stack gap={0} p="xs" style={{ borderRadius: 4, backgroundColor: pnlBg }}>
-              <Text size="sm" c="dimmed">
-                Total P&L
-              </Text>
-              <Text fw={600} c={pnlColor}>
-                {formatSignedPnl(portfolio.total_pnl)}
-                <Text span size="sm" ml={4}>
-                  ({portfolio.total_pnl_pct >= 0 ? "+" : ""}
-                  {portfolio.total_pnl_pct.toFixed(2)}%)
-                </Text>
-              </Text>
-            </Stack>
-          </Stack>
-        </Grid.Col>
-      </Grid>
+            </Text>
+          </Box>
+        </Box>
+      </Stack>
     </Card>
   );
 }
@@ -126,74 +100,60 @@ export function StrategyStatusCard({
 }) {
   const usedPct = (strategy.capital_used / strategy.allocated_capital) * 100;
   const pnlColor = getPnLTextColor(strategy.total_pnl);
-  const stratColor = getStrategyColor(strategy.strategy_name);
-  const progColor = usedPct > 80 ? "red" : usedPct > 50 ? "orange" : stratColor;
   const isGreen = strategy.total_pnl >= 0;
 
   return (
     <Card
-      shadow="xs"
+      elevation={1}
       padding="sm"
       radius="md"
-      withBorder
       data-testid="strategy-card"
-      style={{ borderTop: `3px solid var(--mantine-color-${stratColor}-6)` }}
+      sx={{ p: 1 }}
     >
-      <Group justify="space-between" mb="xs">
-        <Group gap="xs">
-          <Badge color={stratColor} variant="filled" size="sm">
-            {strategy.strategy_name}
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb={1}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Text fw={600} size="sm" ta="center">{strategy.strategy_name}</Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Badge color={strategy.status === "running" ? "success" : "secondary"} variant="light" size="sm">
+            {strategy.status}
           </Badge>
-        </Group>
-        <Badge color={strategy.status === "running" ? "green" : "gray"} variant="light" size="sm">
-          {strategy.status}
-        </Badge>
-      </Group>
+        </Box>
+      </Box>
 
-      <Stack gap="xs">
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">
-            Positions
-          </Text>
-          <Text size="sm" fw={500}>
+      <Stack spacing={1} sx={{ gap: 1, p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Positions</Text>
+          <Text size="sm" fw={500} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             {strategy.positions_count}/{strategy.max_positions}
           </Text>
-        </Group>
+        </Box>
 
-        <Stack gap={0}>
-          <Group justify="space-between" mb={4}>
-            <Text size="sm" c="dimmed">
-              Capital Used
-            </Text>
-            <Text size="sm" fw={500}>
-              ₹{formatNumberShared(strategy.capital_used)} / ₹
-              {formatNumberShared(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
-            </Text>
-          </Group>
-          <Progress value={Math.min(usedPct, 100)} size="sm" color={progColor} />
-        </Stack>
-
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">
-            P&L
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Capital Used</Text>
+          <Text size="sm" fw={500} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            ₹{formatNumberShared(strategy.capital_used)} / ₹{formatNumberShared(strategy.allocated_capital)} ({usedPct.toFixed(0)}%)
           </Text>
-          <Text size="sm" fw={600} c={pnlColor}>
+        </Box>
+        <Progress value={Math.min(usedPct, 100)} size="sm" color="primary" />
+
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>P&L</Text>
+          <Text size="sm" fw={600} c={pnlColor} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             {formatSignedPnl(strategy.total_pnl)}
             <Text span size="xs" ml={4}>
               ({isGreen ? "+" : ""}
               {((strategy.total_pnl / Math.max(strategy.allocated_capital, 1)) * 100).toFixed(2)}%)
             </Text>
           </Text>
-        </Group>
+        </Box>
 
-        <Group justify="space-between">
-          <Text size="sm" c="dimmed">
-            Trades
-          </Text>
-          <Text size="sm" fw={500}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Trades</Text>
+          <Text size="sm" fw={500} sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             {strategy.trades_count}
           </Text>
-        </Group>
+        </Box>
       </Stack>
     </Card>
   );
@@ -207,83 +167,97 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       id: "strategy_name",
       header: "Strategy",
       accessorKey: "strategy_name",
+      meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
-          {row.original.strategy_name}
-        </Badge>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+          <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
+        </Box>
       ),
     },
     {
       id: "symbol",
       header: "Symbol",
       accessorKey: "symbol",
-      cell: ({ row }) => <Text fw={600}>{row.original.symbol}</Text>,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
     },
     {
       id: "side",
       header: "Side",
       accessorKey: "side",
-      cell: ({ row }) => <SideBadge side={row.original.side} />,
+      meta: { align: "center" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><SideBadge side={row.original.side} /></Box>,
     },
     {
       id: "quantity",
       header: "Qty",
       accessorKey: "quantity",
-      cell: ({ row }) => <Text fw={500}>{row.original.quantity}</Text>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{row.original.quantity}</Text></Box>,
     },
     {
       id: "entry_price",
       header: "Entry",
       accessorKey: "entry_price",
-      cell: ({ row }) => <Text size="sm" c="dimmed">₹{row.original.entry_price.toFixed(2)}</Text>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" c="dimmed" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "current_price",
       header: "Current",
       accessorKey: "current_price",
-      cell: ({ row }) => <Text size="sm" fw={500}>₹{row.original.current_price.toFixed(2)}</Text>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" fw={500} ta="right">₹{row.original.current_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "unrealized_pnl",
       header: "P&L",
       accessorKey: "unrealized_pnl",
+      meta: { align: "right" } as any,
       cell: ({ row }) => {
         const p = row.original;
         const pnlColor = getPnLTextColor(p.unrealized_pnl);
         return (
-          <Text c={pnlColor} fw={600}>
-            {formatSignedPnl(p.unrealized_pnl)}
-            <Text span size="sm" ml={4}>
-              ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
-              {p.unrealized_pnl_pct.toFixed(2)}%)
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text c={pnlColor} fw={600} ta="right">
+              {formatSignedPnl(p.unrealized_pnl)}
+              <Text span size="sm" ml={4}>
+                ({p.unrealized_pnl_pct >= 0 ? "+" : ""}
+                {p.unrealized_pnl_pct.toFixed(2)}%)
+              </Text>
             </Text>
-          </Text>
+          </Box>
         );
       },
     },
     {
       id: "sl_tp",
       header: "SL/TP",
+      meta: { align: "center" } as any,
       cell: ({ row }) => (
-        <Group gap="xs" wrap="nowrap">
-          <Badge color="red" variant="dot" size="sm" />
-          <Text size="sm" c="dimmed">₹{row.original.stop_loss.toFixed(2)}</Text>
-          <Badge color="green" variant="dot" size="sm" />
-          <Text size="sm" c="dimmed">₹{row.original.take_profit.toFixed(2)}</Text>
-        </Group>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Group gap="xs" wrap="nowrap" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+            <Badge color="error" variant="dot" size="sm" />
+            <Text size="sm">₹{row.original.stop_loss.toFixed(2)}</Text>
+            <Badge color="success" variant="dot" size="sm" />
+            <Text size="sm">₹{row.original.take_profit.toFixed(2)}</Text>
+          </Group>
+        </Box>
       ),
       enableSorting: false,
     },
   ];
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-positions">
-      <Group justify="space-between" mb="sm">
-        <Text fw={600}>Open Positions</Text>
-        <Badge color={positions.some(p => p.unrealized_pnl >= 0) ? "teal" : "red"} variant="light" size="sm">
-          {positions.length} active
-        </Badge>
-      </Group>
+    <Card elevation={1} padding="md" radius="md" data-testid="bot-positions" sx={{ p: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Open Positions</Text></Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Badge color="primary" variant="light" size="sm">
+            {positions.length} active
+          </Badge>
+        </Box>
+      </Box>
       <TanStackTable
         data={positions}
         columns={columns}
@@ -297,13 +271,17 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
 export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefresh: () => void }) {
   if (trades.length === 0) {
     return (
-      <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-trades">
-        <Text fw={600} mb="sm">
-          Trade History
-        </Text>
-        <Text c="dimmed" ta="center">
-          No trades yet
-        </Text>
+      <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" sx={{ p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} mb="sm">
+          <Text fw={600} ta="center">
+            Trade History
+          </Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+          <Text c="dimmed" ta="center">
+            No trades yet
+          </Text>
+        </Box>
       </Card>
     );
   }
@@ -313,66 +291,75 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "strategy_name",
       header: "Strategy",
       accessorKey: "strategy_name",
+      meta: { align: "left" } as any,
       cell: ({ row }) => (
-        <Group gap="xs">
-          <Badge color={getStrategyColor(row.original.strategy_name)} variant="light" size="sm">
-            {row.original.strategy_name}
-          </Badge>
-          {row.original.is_test && (
-            <Badge color="yellow" size="sm" variant="light">
-              TEST
-            </Badge>
-          )}
-        </Group>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
+          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+            <Text fw={600} size="sm" ta="left">{row.original.strategy_name}</Text>
+            {row.original.is_test && (
+              <Badge color="warning" size="sm" variant="light">
+                TEST
+              </Badge>
+            )}
+          </Group>
+        </Box>
       ),
     },
     {
       id: "symbol",
       header: "Symbol",
       accessorKey: "symbol",
-      cell: ({ row }) => <Text fw={600}>{row.original.symbol}</Text>,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600} ta="left">{row.original.symbol}</Text></Box>,
     },
     {
       id: "side",
       header: "Side",
       accessorKey: "side",
-      cell: ({ row }) => <SideBadge side={row.original.side} />,
+      meta: { align: "center" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><SideBadge side={row.original.side} /></Box>,
     },
     {
       id: "quantity",
       header: "Qty",
       accessorKey: "quantity",
-      cell: ({ row }) => <Text fw={500}>{row.original.quantity}</Text>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text fw={500} ta="right">{row.original.quantity}</Text></Box>,
     },
     {
       id: "entry_price",
       header: "Entry",
       accessorKey: "entry_price",
-      cell: ({ row }) => <Text size="sm" c="dimmed">₹{row.original.entry_price.toFixed(2)}</Text>,
+      meta: { align: "right" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" c="dimmed" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "exit_price",
       header: "Exit",
       accessorKey: "exit_price",
+      meta: { align: "right" } as any,
       cell: ({ row }) => (
-        <Text size="sm" fw={500}>₹{row.original.exit_price?.toFixed(2) || "-"}</Text>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" fw={500} ta="right">₹{row.original.exit_price?.toFixed(2) || "-"}</Text></Box>
       ),
     },
     {
       id: "pnl",
       header: "P&L",
       accessorKey: "pnl",
+      meta: { align: "right" } as any,
       cell: ({ row }) => {
         const t = row.original;
         const pnlColor = getPnLTextColor(t.pnl);
         return (
-          <Text c={pnlColor} fw={600}>
-            {formatSignedPnl(t.pnl)}
-            <Text span size="sm" ml={4}>
-              ({t.pnl_pct >= 0 ? "+" : ""}
-              {t.pnl_pct.toFixed(2)}%)
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text c={pnlColor} fw={600} ta="right">
+              {formatSignedPnl(t.pnl)}
+              <Text span size="sm" ml={4}>
+                ({t.pnl_pct >= 0 ? "+" : ""}
+                {t.pnl_pct.toFixed(2)}%)
+              </Text>
             </Text>
-          </Text>
+          </Box>
         );
       },
     },
@@ -380,12 +367,15 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "net_pnl",
       header: "Net P&L",
       accessorKey: "net_pnl",
+      meta: { align: "right" } as any,
       cell: ({ row }) => {
         const netPnlColor = getPnLTextColor(row.original.net_pnl);
         return (
-          <Text c={netPnlColor} fw={600}>
-            {formatSignedPnl(row.original.net_pnl)}
-          </Text>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+            <Text c={netPnlColor} fw={600} ta="right">
+              {formatSignedPnl(row.original.net_pnl)}
+            </Text>
+          </Box>
         );
       },
     },
@@ -393,26 +383,27 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       id: "exit_reason",
       header: "Exit Reason",
       accessorKey: "exit_reason",
-      cell: ({ row }) => <ExitReasonBadge reason={row.original.exit_reason} />,
+      meta: { align: "left" } as any,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><ExitReasonBadge reason={row.original.exit_reason} /></Box>,
       enableSorting: false,
     },
   ];
 
   return (
-    <Card shadow="sm" padding="md" radius="md" withBorder data-testid="bot-trades">
-      <Group justify="space-between" mb="sm">
-        <Text fw={600}>Trade History ({trades.length})</Text>
-        <Group gap="xs">
+    <Card elevation={1} padding="md" radius="md" data-testid="bot-trades" sx={{ p: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="sm">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600} ta="center">Trade History ({trades.length})</Text></Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
           <Badge
-            color="green"
-            variant="light"
+            color="success"
+            variant="filled"
             size="sm"
           >
             {trades.filter(t => t.pnl >= 0).length} W
           </Badge>
           <Badge
-            color="red"
-            variant="light"
+            color="error"
+            variant="filled"
             size="sm"
           >
             {trades.filter(t => t.pnl < 0).length} L
@@ -425,8 +416,8 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
           >
             <IconRefresh size={16} />
           </ActionIcon>
-        </Group>
-      </Group>
+        </Box>
+      </Box>
       <TanStackTable
         data={trades}
         columns={columns}
@@ -461,7 +452,7 @@ export const BotActionButtons = memo(function BotActionButtons({
     <Group gap="xs">
       <ActionIcon
         variant="subtle"
-        color="blue"
+        color="primary"
         onClick={() => onView(bot)}
         title="View Status"
         data-testid={`view-bot-status-btn-${bot.id}`}
@@ -471,7 +462,7 @@ export const BotActionButtons = memo(function BotActionButtons({
       {bot.running ? (
         <ActionIcon
           variant="subtle"
-          color="orange"
+          color="warning"
           onClick={() => onStop(bot.id)}
           title="Stop Bot"
           data-testid={`stop-bot-btn-${bot.id}`}
@@ -486,7 +477,7 @@ export const BotActionButtons = memo(function BotActionButtons({
           <span>
             <ActionIcon
               variant="subtle"
-              color="green"
+              color="success"
               onClick={() => onStart(bot.id)}
               disabled={!bot.is_active || marketClosed}
               title={marketClosed ? "Market closed" : "Start Bot"}
@@ -499,7 +490,7 @@ export const BotActionButtons = memo(function BotActionButtons({
       )}
       <ActionIcon
         variant="subtle"
-        color="blue"
+        color="primary"
         onClick={() => onEdit(bot)}
         title="Edit Bot"
         data-testid={`edit-bot-btn-${bot.id}`}
@@ -508,7 +499,7 @@ export const BotActionButtons = memo(function BotActionButtons({
       </ActionIcon>
       <ActionIcon
         variant="subtle"
-        color="red"
+        color="error"
         onClick={() => onDelete(bot.id)}
         disabled={bot.running}
         title="Delete Bot"
@@ -528,18 +519,11 @@ export function BotSummaryCell({ bot }: BotSummaryCellProps) {
   return (
     <Stack gap={4}>
       <Text size="sm">{bot.strategies.length} strategies</Text>
-      <Group gap="xs" wrap="wrap">
+      <Group gap={4} wrap="wrap">
         {bot.strategies.map((s) => (
-          <Badge
-            key={s.id}
-            size="sm"
-            variant="light"
-            color={getStrategyColor(s.strategy_type)}
-            style={!s.enable_shorts ? { borderLeft: "3px solid var(--mantine-color-orange-6)" } : undefined}
-          >
-            {s.strategy_type}
-            {!s.enable_shorts && <span style={{ marginLeft: 2 }}>L</span>}
-          </Badge>
+          <Text key={s.id} size="xs" c="dimmed">
+            {s.strategy_type}{!s.enable_shorts && " (long-only)"}
+          </Text>
         ))}
       </Group>
       {bot.strategies.map((s) => (

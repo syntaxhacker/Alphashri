@@ -3,8 +3,10 @@ import * as Sentry from "@sentry/react";
 import { createRoot } from "react-dom/client";
 import { BrowserRouter } from "react-router-dom";
 import { Provider } from "react-redux";
-import { UIProvider } from "@/ui";
-import { Notifications } from "@/ui";
+import { ThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { SnackbarProvider } from "notistack";
+import { muiTheme } from "@/ui/muiTheme";
 import App from "./App";
 import { store } from "./state/store";
 import "@/ui/styles.css";
@@ -25,13 +27,15 @@ if (!root) {
   throw new Error("Missing #app root element");
 }
 
-createRoot(root).render(
+  createRoot(root).render(
   <Provider store={store}>
-    <UIProvider defaultColorScheme="dark">
-      <Notifications position="bottom-right" />
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
-    </UIProvider>
+    <ThemeProvider theme={muiTheme} defaultMode="dark" modeStorageKey="mui-color-scheme" colorSchemeStorageKey="mui-color-scheme">
+      <CssBaseline />
+      <SnackbarProvider maxSnack={3} anchorOrigin={{ vertical: "bottom", horizontal: "right" }} autoHideDuration={4000}>
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </SnackbarProvider>
+    </ThemeProvider>
   </Provider>,
 );

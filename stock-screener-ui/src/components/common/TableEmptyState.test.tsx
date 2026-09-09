@@ -10,13 +10,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-vi.mock("@/ui", () => ({
-  Box: ({ children, ...props }: any) => <div data-testid="box" {...props}>{children}</div>,
-  Flex: ({ children, ...props }: any) => <div data-testid="flex" {...props}>{children}</div>,
-  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
-  Group: ({ children }: any) => <div data-testid="group">{children}</div>,
-}));
-
 describe("TableEmptyState", () => {
   it("renders message text", () => {
     render(<TableEmptyState message="No data found" />);

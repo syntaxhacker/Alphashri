@@ -133,7 +133,7 @@ export function StrategyRunnerPage() {
 
       {error && (
         <Box flex="0 0 auto" data-testid="sr-error">
-          <Text size="sm" c="red">{error}</Text>
+          <Text size="sm" c="error">{error}</Text>
         </Box>
       )}
 

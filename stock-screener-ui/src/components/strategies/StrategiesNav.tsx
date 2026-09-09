@@ -16,7 +16,7 @@ export function StrategiesNav({ activeView, onChange }: StrategiesNavProps) {
       title="Strategies"
       description="Manage templates, variations, and performance in one place"
     >
-      <Group justify="space-between" align="center" gap="sm" wrap="wrap">
+      <Group justify="center" align="center" gap={1} wrap="wrap" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
         <SegmentedControl
           value={activeView}
           onChange={onChange}

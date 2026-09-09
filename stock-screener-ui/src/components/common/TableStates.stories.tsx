@@ -5,9 +5,17 @@ import { TableEmptyState } from "./TableEmptyState";
 import { IconDatabaseOff } from "@tabler/icons-react";
 
 const meta: Meta<typeof TableLoadingState> = {
-  title: "Design System/Common/Table States",
+  title: "Composites/Table States",
   component: TableLoadingState,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Table state placeholders — `TableLoadingState` (spinner + message) and `TableEmptyState` (message + optional icon/action). Use as `emptyMessage`/`loading` slots inside `TanStackTable` or any standalone table while data loads or when no rows match. When not: for page-level empty states use `CompactPanel` instead.',
+      },
+    },
+  },
 };
 
 export default meta;

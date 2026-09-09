@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup, screen } from "@testing-library/react";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { PaperPortfolioCard, type Portfolio } from "./PaperPortfolioCard";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -13,7 +13,7 @@ afterEach(() => {
 
 const renderWithPortfolio = (overrides: Partial<Portfolio> = {}) => {
   const portfolio = mockPortfolio(overrides);
-  return renderWithMantine(<PaperPortfolioCard portfolio={portfolio} />);
+  return renderWithProviders(<PaperPortfolioCard portfolio={portfolio} />);
 };
 
 const mockPortfolio = (overrides: Partial<Portfolio> = {}): Portfolio => ({
@@ -28,14 +28,14 @@ const mockPortfolio = (overrides: Partial<Portfolio> = {}): Portfolio => ({
 describe("PaperPortfolioCard", () => {
   describe("null/loading state", () => {
     test("shows Loading... text when portfolio is null", () => {
-      const { container } = renderWithMantine(
+      const { container } = renderWithProviders(
         <PaperPortfolioCard portfolio={null} />,
       );
       expect(container.textContent).toContain("Loading...");
     });
 
     test("renders with data-testid for null portfolio", () => {
-      const { getByTestId } = renderWithMantine(
+      const { getByTestId } = renderWithProviders(
         <PaperPortfolioCard portfolio={null} />,
       );
       expect(getByTestId("portfolio-card")).toBeInTheDocument();
@@ -65,14 +65,14 @@ describe("PaperPortfolioCard", () => {
   describe("compact value formatting", () => {
     test("formats values in K/L/Cr", () => {
       const portfolio = mockPortfolio({ total_value: 100000, cash: 50000, margin_used: 50000 });
-      renderWithMantine(<PaperPortfolioCard portfolio={portfolio} />);
+      renderWithProviders(<PaperPortfolioCard portfolio={portfolio} />);
       expect(screen.getByText(/1\.0L/)).toBeInTheDocument();
       expect(screen.getAllByText(/50\.0K/)).toHaveLength(2);
     });
 
     test("formats large P&L in L format", () => {
       const portfolio = mockPortfolio({ day_pnl: 100000 });
-      renderWithMantine(<PaperPortfolioCard portfolio={portfolio} />);
+      renderWithProviders(<PaperPortfolioCard portfolio={portfolio} />);
       expect(screen.getByText(/\+₹1\.0L/)).toBeInTheDocument();
     });
   });

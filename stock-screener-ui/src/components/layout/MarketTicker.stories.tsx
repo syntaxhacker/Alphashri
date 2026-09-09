@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Box } from "@mantine/core";
+import { Box } from "@/ui";
 import { MarketTicker } from "./MarketTicker";
 import type { MarketTickerData } from "./MarketTicker";
 
@@ -74,9 +74,10 @@ const mockErrorData: MarketTickerData = {
 };
 
 const meta: Meta<typeof MarketTicker> = {
-  title: "Design System/Layout/MarketTicker",
+  title: "Examples/App Layout/MarketTicker",
   component: MarketTicker,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Live market ticker — polling NSE indices in the AppShell header. Use in AppLayout header only. When not: for static status use Badge." } } },
   decorators: [
     (Story, context) => {
       const data = context.parameters.marketData || mockMarketData;

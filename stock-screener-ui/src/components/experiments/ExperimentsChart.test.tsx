@@ -23,34 +23,6 @@ vi.mock("../chart/TradingChart", () => ({
   TradingChart: () => <div data-testid="trading-chart-mock">TradingChart</div>,
 }));
 
-vi.mock("@/ui", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/ui")>();
-  return {
-    ...actual,
-    useColorScheme: () => ({ colorScheme: "dark", toggleColorScheme: vi.fn() }),
-    Select: ({
-      value,
-      onChange,
-      data,
-      "data-testid": testId,
-      ...rest
-    }: any) => (
-      <select
-        data-testid={testId}
-        value={value ?? ""}
-        onChange={(e) => onChange?.(e.target.value || null)}
-        {...rest}
-      >
-        {data.map((opt: any) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ),
-  };
-});
-
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
@@ -217,10 +189,12 @@ describe("ExperimentsChart", () => {
     });
     render(<ExperimentsChart />, { wrapper: Wrapper });
 
-    await user.selectOptions(
-      screen.getByTestId("experiments-chart-symbol-select"),
-      "RELIANCE",
-    );
+    const outer = screen.getByTestId("experiments-chart-symbol-select");
+    const { within } = await import("@testing-library/react");
+    const combo = within(outer).getByRole("combobox");
+    await user.click(combo);
+    const option = await screen.findByRole("option", { name: "RELIANCE" });
+    await user.click(option);
 
     const { fetchRunChart } = await import("../../state/experiments");
     expect(fetchRunChart).toHaveBeenCalledWith(3, "RELIANCE");

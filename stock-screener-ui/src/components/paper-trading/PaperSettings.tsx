@@ -90,13 +90,12 @@ function SettingsLoadingState() {
     <Card
       padding="sm"
       radius="xs"
-      withBorder
       data-testid="settings-panel"
       className="paper-settings"
       id="paper-settings"
       style={{ width: "100%" }}
     >
-      <Group justify="center" gap="sm">
+      <Group justify="center" align="center" gap="sm">
         <Loader size="sm" />
         <Text c="dimmed">Loading configuration...</Text>
       </Group>
@@ -108,7 +107,6 @@ function SettingsErrorState({ error }: { error: string }) {
     <Card
       padding="sm"
       radius="md"
-      withBorder
       data-testid="settings-panel"
       className="paper-settings paper-settings-error"
       id="paper-settings"
@@ -117,7 +115,7 @@ function SettingsErrorState({ error }: { error: string }) {
       <Alert
         icon={<IconAlertCircle size={16} />}
         title="Error"
-        color="red"
+        color="error"
         variant="light"
         data-testid="settings-error"
       >
@@ -160,7 +158,6 @@ function SettingsContent({
     <Card
       padding="sm"
       radius="md"
-      withBorder
       data-testid="settings-panel"
       className="paper-settings"
       id="paper-settings"
@@ -169,7 +166,7 @@ function SettingsContent({
       {configError && (
         <Alert
           icon={<IconAlertCircle size={16} />}
-          color="red"
+          color="error"
           variant="light"
           mb="sm"
           onClose={() => {}}
@@ -179,7 +176,7 @@ function SettingsContent({
         </Alert>
       )}
 
-      <Group justify="space-between" mb="xs" className="paper-settings-header" id="settings-header">
+      <Group justify="space-between" align="center" mb="xs" className="paper-settings-header" id="settings-header">
         <div>
           <Text fw={600} size="md">
             Strategy Configuration
@@ -189,7 +186,7 @@ function SettingsContent({
           </Text>
         </div>
         {configDirty && (
-          <Badge color="yellow" variant="light">
+          <Badge color="warning" variant="filled">
             Unsaved Changes
           </Badge>
         )}
@@ -200,7 +197,7 @@ function SettingsContent({
           <Text fw={600} size="xs" tt="uppercase">
             Active Strategy
           </Text>
-          <Group gap="xs" align="flex-end">
+          <Group gap="xs" align="center">
             <Select
               data-testid="strategy-selector"
               placeholder="Select strategy"
@@ -217,7 +214,7 @@ function SettingsContent({
                 label: s.is_default ? `${s.name} (Default)` : s.name,
               }))}
               disabled={strategiesLoading || configLoading}
-              style={{
+                      style={{
                 width: 240,
                 flex: "0 0 auto",
               }}

@@ -5,9 +5,17 @@ import { MemoryRouter } from "react-router-dom";
 import { PreviewChartProvider } from "./PreviewChartProvider";
 
 const meta: Meta<typeof ClickableSymbol> = {
-  title: "Design System/Common/ClickableSymbol",
+  title: "Composites/ClickableSymbol",
   component: ClickableSymbol,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Navigable ticker symbol with optional hover preview chart — renders as a link to the symbol page and shows a 320×200 preview on hover when `showPreview` is set (via `PreviewChartProvider`). Use in any table or list where symbols should be interactive. When not: for plain non-interactive labels use `Text` directly.',
+      },
+    },
+  },
   decorators: [
     (Story) => (
       <MemoryRouter>

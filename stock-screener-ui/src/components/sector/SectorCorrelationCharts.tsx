@@ -1,5 +1,9 @@
 import { useEffect } from "react";
-import { Box } from "@/ui";
+import { Box, Stack } from "@/ui";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import Grid from "@mui/material/Grid";
 import { useECharts } from "../../hooks/useECharts";
 import type { SectorCorrelationResponse } from "../../types/sector";
 import {
@@ -91,15 +95,14 @@ export function SectorBetaChart({
   }, [sectors, setChartOption]);
 
   return (
-    <Box pos="relative" style={{ width: "100%", height: "100%" }}>
-      <Box
-        ref={chartRef}
-        style={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0 }}
-      />
-      <Box pos="absolute" top={8} left={8} style={{ fontSize: 11, color: CHART_MUTED }}>
-        Benchmark: {benchmark} | Beta = 1.0 line
+    <Stack spacing={1} sx={{ width: "100%", height: "100%", p: 1, alignItems: "center", justifyContent: "center" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Benchmark: {benchmark} | Beta = 1.0 line</Typography>
       </Box>
-    </Box>
+      <Box sx={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Box ref={chartRef} sx={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }} />
+      </Box>
+    </Stack>
   );
 }
 
@@ -158,14 +161,13 @@ export function RotationTimeline({
   }, [sectors, setChartOption]);
 
   return (
-    <Box pos="relative" style={{ width: "100%", height: "100%" }}>
-      <Box
-        ref={chartRef}
-        style={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0 }}
-      />
-      <Box pos="absolute" top={8} left={8} style={{ fontSize: 11, color: CHART_MUTED }}>
-        Positive = rank improved (sector gaining strength)
+    <Stack spacing={1} sx={{ width: "100%", height: "100%", p: 1, alignItems: "center", justifyContent: "center" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+        <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Positive = rank improved (sector gaining strength)</Typography>
       </Box>
-    </Box>
+      <Box sx={{ position: "relative", width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+        <Box ref={chartRef} sx={{ width: "100%", height: "100%", opacity: sectors.length ? 1 : 0, display: "flex", alignItems: "center", justifyContent: "center" }} />
+      </Box>
+    </Stack>
   );
 }

@@ -33,10 +33,6 @@ vi.mock("../../api/chartPreview", () => ({
   clearPreviewCache: vi.fn(),
 }));
 
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
-}));
-
 beforeEach(() => {
   vi.clearAllMocks();
   cleanup();

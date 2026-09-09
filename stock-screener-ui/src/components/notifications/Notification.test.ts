@@ -4,32 +4,32 @@ import { typeConfig } from "./Notification";
 describe("typeConfig", () => {
   test("has config for success type", () => {
     expect(typeConfig.success.icon).toBe("✓");
-    expect(typeConfig.success.className).toBe("toast-success");
+    expect(typeConfig.success.color).toBe("success.main");
   });
 
   test("has config for error type", () => {
     expect(typeConfig.error.icon).toBe("✕");
-    expect(typeConfig.error.className).toBe("toast-error");
+    expect(typeConfig.error.color).toBe("error.main");
   });
 
   test("has config for warning type", () => {
     expect(typeConfig.warning.icon).toBe("⚠");
-    expect(typeConfig.warning.className).toBe("toast-warning");
+    expect(typeConfig.warning.color).toBe("warning.main");
   });
 
   test("has config for info type", () => {
     expect(typeConfig.info.icon).toBe("ℹ");
-    expect(typeConfig.info.className).toBe("toast-info");
+    expect(typeConfig.info.color).toBe("info.main");
   });
 
   test("has exactly four notification types", () => {
     expect(Object.keys(typeConfig)).toHaveLength(4);
   });
 
-  test("all class names follow toast- prefix convention", () => {
+  test("all configs have semantic MUI colors and icons", () => {
     for (const key of Object.keys(typeConfig)) {
       const config = typeConfig[key as keyof typeof typeConfig];
-      expect(config.className).toMatch(/^toast-/);
+      expect(config.borderColor).toMatch(/\.main$/);
       expect(config.icon.length).toBeGreaterThan(0);
     }
   });

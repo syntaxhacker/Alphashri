@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState, useCallback } from "react";
-import { Badge, Text, Group, Flex, Tooltip, Button } from "@/ui";
+import { useMemo, useState, useCallback } from "react";
+import { Badge, Text, Tooltip, Button } from "@/ui";
+import Stack from "@mui/material/Stack";
+import Box from "@mui/material/Box";
 import { getPaperTradingState, subscribe, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import type { PaperPosition } from "../../types/paperTrading";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -22,36 +24,29 @@ function usePositionsData(): PaperPosition[] {
 
 function EmptyPositions() {
   return (
-    <Flex
-      py="sm"
-      justify="center"
-      align="center"
-      direction="column"
-      gap={4}
-      data-testid="positions-empty"
-    >
-      <Text size="sm" fw={500} c="dimmed">
+    <Box className="paper-positions-empty" id="paper-positions-empty" sx={{ display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 160, textAlign: "center" }} data-testid="positions-empty">
+      <Text className="paper-positions-empty-text" size="sm" fw={500} c="dimmed">
         No open positions
       </Text>
-    </Flex>
+    </Box>
   );
 }
 
 function LoadingState() {
   return (
-    <Flex justify="center" py="sm" data-testid="positions-panel">
-      <Text size="xs" c="dimmed">
+    <Box className="paper-positions-loading" id="paper-positions-loading" sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
+      <Text className="paper-positions-loading-text" size="xs" c="dimmed">
         Loading positions...
       </Text>
-    </Flex>
+    </Box>
   );
 }
 
 function EmptyOrLoadingState() {
   return (
-    <Flex justify="center" py="sm" data-testid="positions-panel">
+    <Box className="paper-positions-empty-loading" id="paper-positions-empty-loading" sx={{ display: "flex", justifyContent: "center", alignItems: "center", py: 4, flex: 1, minHeight: 160 }} data-testid="positions-panel">
       <EmptyPositions />
-    </Flex>
+    </Box>
   );
 }
 
@@ -96,8 +91,8 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
     <Tooltip label="Close all positions at current prices">
       <Button
         size="compact-xs"
-        variant="light"
-        color="red"
+        variant="filled"
+        color="error"
         loading={closing}
         onClick={handleCloseAll}
         data-testid="close-all-positions"
@@ -166,23 +161,23 @@ export function PaperPositionsTable() {
   const isLive = state.availableBots.find(b => b.id === state.filterBot)?.live_trading ?? false;
 
   return (
-    <Flex direction="column" gap="xs" data-testid="positions-table-container">
-      <Group justify="space-between" py={2}>
-        <Group gap="xs">
-          <Text size="xs" c="dimmed" tt="uppercase" fw={600}>
+    <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={1} data-testid="positions-table-container">
+      <Box className="paper-positions-header" id="paper-positions-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1, gap: 1 }}>
+        <Box className="paper-positions-header-left" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Text className="paper-positions-title" size="xs" c="dimmed" tt="uppercase" fw={600}>
             Positions ({sortedPositions.length})
           </Text>
-          <Badge color={isLive ? "red" : "green"} variant="light" size="xs">
+          <Badge className="paper-positions-mode-badge" color={isLive ? "error" : "success"} variant="filled" size="xs">
             {isLive ? "LIVE" : "PAPER"}
           </Badge>
-        </Group>
-        <Group gap={4}>
+        </Box>
+        <Box className="paper-positions-header-right" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <CloseAllButton positions={sortedPositions} />
-        </Group>
-      </Group>
+        </Box>
+      </Box>
 
       {sortedPositions.length > 0 && (
-        <Flex direction="column" gap="xs">
+        <Stack className="paper-positions-groups" id="paper-positions-groups" spacing={1}>
           {Array.from(strategyGroups.entries()).map(([strategyId, group]) => {
             const displayName = group[0]?.strategy_name || `Strategy ${strategyId}`;
             return (
@@ -197,10 +192,10 @@ export function PaperPositionsTable() {
               />
             );
           })}
-        </Flex>
+        </Stack>
       )}
 
       {sortedPositions.length === 0 && <EmptyPositions />}
-    </Flex>
+    </Stack>
   );
 }

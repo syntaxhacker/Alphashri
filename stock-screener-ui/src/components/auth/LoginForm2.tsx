@@ -37,7 +37,7 @@ function AuthHeader({ subtitle }: { subtitle: string }) {
 
 function AuthError({ message, id }: { message: string; id?: string }) {
   return (
-    <Alert color="red" variant="light" data-testid="auth-error" id={id}>
+    <Alert color="error" variant="light" data-testid="auth-error" id={id}>
       {message}
     </Alert>
   );

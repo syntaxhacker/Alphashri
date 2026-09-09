@@ -80,7 +80,7 @@ export { useColorScheme, useTheme, useDebouncedValue, useMediaQuery, useTree, ge
 // Notifications
 export { showNotification, showSuccess, showError, Notifications } from "./notifications";
 
-// Mantine re-exports (for transitional use)
+// UI re-exports (for transitional use)
 export { rem } from "./hooks";
 
 
@@ -108,5 +108,4 @@ export type {
   UIAvatarProps, UIThemeIconProps, UICloseButtonProps,
   UIDatePickerProps, UIIndicatorProps, UIPortalProps,
   UIThemeProviderProps, UIThemeNotifyProps, UIUseColorSchemeResult,
-  MantineTheme,
 } from "./types";

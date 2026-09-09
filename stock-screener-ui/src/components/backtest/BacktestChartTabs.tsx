@@ -55,11 +55,9 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
     return (
       <Center
         id="chart-container"
-        className="backtest-chart-tabs backtest-chart-empty"
         data-testid="chart-container"
         h={400}
-        bg="var(--mantine-color-body)"
-        styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
+        sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
       >
         <Text c="dimmed">Select a symbol to view chart</Text>
       </Center>
@@ -71,28 +69,29 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
   return (
     <Box
       id="chart-container"
-      className="backtest-chart-tabs"
       data-testid="chart-container"
       h="100%"
       style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
     >
-      <Box mb="xs" flex="0 0 auto" className="chart-tabs-header">
-        <Group justify="space-between" align="center">
-          <Tabs
-            value={selectedSymbol}
-            onChange={(value) => value && onSymbolSelect(value)}
-            data-testid="chart-tabs"
-          >
-            <Tabs.List>
-              {symbols.map((symbol) => (
-                <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
-                  {symbol}
-                </Tabs.Tab>
-              ))}
-            </Tabs.List>
-          </Tabs>
+      <Box mb="xs" flex="0 0 auto" data-testid="chart-tabs-header" sx={{ p: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Tabs
+              value={selectedSymbol}
+              onChange={(value) => value && onSymbolSelect(value)}
+              data-testid="chart-tabs"
+            >
+              <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+                {symbols.map((symbol) => (
+                  <Tabs.Tab key={symbol} value={symbol} data-testid={`chart-tab-${symbol}`}>
+                    {symbol}
+                  </Tabs.Tab>
+                ))}
+              </Tabs.List>
+            </Tabs>
+          </Box>
 
-          <Group gap="xs">
+          <Group gap={1} align="center" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Select
               data-testid="chart-tf-select"
               value={selectedTf}
@@ -104,7 +103,6 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
             />
             <Select
               id="chart-zoom-select"
-              className="chart-zoom-select"
               value={zoomValue}
               onChange={(value) => value && onZoomChange(value)}
               data={ZOOM_OPTIONS}
@@ -113,12 +111,12 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
               size="sm"
             />
           </Group>
-        </Group>
+        </Box>
       </Box>
 
       <Box
         flex={1}
-        className="chart-tabs-content"
+        data-testid="chart-tabs-content"
         style={{ minHeight: 0, position: "relative", overflow: "hidden" }}
       >
         {selectedSymbol ? (
@@ -133,8 +131,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
           <Center
             data-testid="chart-placeholder"
             h="100%"
-            bg="var(--mantine-color-body)"
-            styles={{ root: { borderRadius: "var(--mantine-radius-md)" } }}
+            sx={(theme) => ({ bgcolor: theme.palette.background.paper, borderRadius: 2 })}
           >
             <Text c="dimmed">Select a symbol</Text>
           </Center>

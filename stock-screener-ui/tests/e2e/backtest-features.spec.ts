@@ -205,7 +205,7 @@ async function expectChartHighlighted(page: Page) {
     .toBeTruthy();
 }
 
-test.describe("Backtest - Mantine Features", () => {
+test.describe("Backtest Features", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
     await loginAsTestUser(page);

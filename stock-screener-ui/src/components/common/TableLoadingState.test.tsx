@@ -10,12 +10,6 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-vi.mock("@/ui", () => ({
-  Flex: ({ children, ...props }: any) => <div data-testid="flex" {...props}>{children}</div>,
-  Text: ({ children, ...props }: any) => <span data-testid="text" {...props}>{children}</span>,
-  Loader: ({ size }: any) => <div data-testid="loader" data-size={size} />,
-}));
-
 describe("TableLoadingState", () => {
   it("renders with default message", () => {
     render(<TableLoadingState />);
@@ -34,12 +28,12 @@ describe("TableLoadingState", () => {
 
   it("shows spinner by default", () => {
     render(<TableLoadingState />);
-    expect(screen.getByTestId("loader")).toBeInTheDocument();
+    expect(screen.getByRole("progressbar")).toBeInTheDocument();
   });
 
   it("hides spinner when showSpinner is false", () => {
     render(<TableLoadingState showSpinner={false} />);
-    expect(screen.queryByTestId("loader")).not.toBeInTheDocument();
+    expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
 
   it("renders children instead of message", () => {

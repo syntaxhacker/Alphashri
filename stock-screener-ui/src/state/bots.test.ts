@@ -16,8 +16,6 @@ import {
   deleteBotAction,
   startBotAction,
   stopBotAction,
-  startAutoRefresh,
-  stopAutoRefresh,
 } from "./bots";
 import type { BotConfig, BotsState } from "../types/bots";
 
@@ -66,7 +64,6 @@ function createMockBot(overrides: Partial<BotConfig> = {}): BotConfig {
 describe("bots state", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
 
   afterEach(() => {
@@ -110,7 +107,6 @@ describe("bots state", () => {
 describe("view management", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -138,7 +134,6 @@ describe("view management", () => {
 describe("subscribe", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -163,7 +158,6 @@ describe("subscribe", () => {
 describe("modal management", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -213,7 +207,6 @@ describe("modal management", () => {
 describe("selectBot", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -239,7 +232,6 @@ describe("selectBot", () => {
 describe("clearError", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -260,7 +252,6 @@ describe("clearError", () => {
 describe("loadBots", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -299,7 +290,6 @@ describe("loadBots", () => {
 describe("createBotAction", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -330,7 +320,6 @@ describe("createBotAction", () => {
 describe("deleteBotAction", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -364,7 +353,6 @@ describe("deleteBotAction", () => {
 describe("startBotAction / stopBotAction", () => {
   beforeEach(() => {
     vi.useFakeTimers();
-    stopAutoRefresh();
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -396,38 +384,5 @@ describe("startBotAction / stopBotAction", () => {
     const result = await startBotAction("bot-1");
     expect(result).toBe(false);
     expect(getBotsState().error).toBe("start fail");
-  });
-});
-
-describe("startAutoRefresh / stopAutoRefresh", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-    stopAutoRefresh();
-  });
-  afterEach(() => {
-    vi.useRealTimers();
-    vi.restoreAllMocks();
-    stopAutoRefresh();
-  });
-
-  it("startAutoRefresh sets up interval", async () => {
-    const api = await import("../api/bots");
-    vi.mocked(api.getBotStatus).mockResolvedValue({ running: true } as any);
-
-    startAutoRefresh("bot-1", 1000);
-    vi.advanceTimersByTime(1500);
-    expect(api.getBotStatus).toHaveBeenCalledWith("bot-1");
-  });
-
-  it("stopAutoRefresh clears interval", async () => {
-    const api = await import("../api/bots");
-    const spy = vi.fn().mockResolvedValue({ running: true } as any);
-    vi.mocked(api.getBotStatus).mockImplementation(spy);
-
-    stopAutoRefresh();
-    startAutoRefresh("bot-1", 1000);
-    stopAutoRefresh();
-    vi.advanceTimersByTime(10000);
-    expect(spy).toHaveBeenCalledTimes(0);
   });
 });

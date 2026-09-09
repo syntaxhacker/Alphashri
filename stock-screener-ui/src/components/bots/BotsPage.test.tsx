@@ -1,8 +1,9 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
+import { MemoryRouter, useSearchParams } from "react-router-dom";
 import { UIProvider } from "@/ui";
 import type { BotsState } from "../../types/bots";
 
@@ -14,8 +15,6 @@ const mockStartBotAction = vi.fn();
 const mockStopBotAction = vi.fn();
 const mockDeleteBotAction = vi.fn();
 const mockClearError = vi.fn();
-const mockStartAutoRefresh = vi.fn();
-const mockStopAutoRefresh = vi.fn();
 const mockInitBotsState = vi.fn();
 const mockOpenCreateModal = vi.fn();
 const mockOpenEditModal = vi.fn();
@@ -33,8 +32,6 @@ vi.mock("../../state/bots", () => ({
   stopBotAction: (...args: any[]) => mockStopBotAction(...args),
   deleteBotAction: (...args: any[]) => mockDeleteBotAction(...args),
   clearError: (...args: any[]) => mockClearError(...args),
-  startAutoRefresh: (...args: any[]) => mockStartAutoRefresh(...args),
-  stopAutoRefresh: (...args: any[]) => mockStopAutoRefresh(...args),
   initBotsState: (...args: any[]) => mockInitBotsState(...args),
   openCreateModal: (...args: any[]) => mockOpenCreateModal(...args),
   openEditModal: (...args: any[]) => mockOpenEditModal(...args),
@@ -81,8 +78,17 @@ const baseState = (): BotsState =>
     editingBot: null,
   }) as BotsState;
 
-function renderWithProviders(ui: React.ReactElement) {
-  return render(<UIProvider>{ui}</UIProvider>);
+function renderWithProviders(ui: React.ReactElement, initialEntries: string[] = ["/bots"]) {
+  return render(
+    <MemoryRouter initialEntries={initialEntries}>
+      <UIProvider>{ui}</UIProvider>
+    </MemoryRouter>,
+  );
+}
+
+function SearchProbe() {
+  const [params] = useSearchParams();
+  return <div data-testid="search-probe">{params.toString()}</div>;
 }
 
 function createBot(overrides: Record<string, any> = {}) {
@@ -209,7 +215,7 @@ describe("BotsPage", () => {
     expect(mockLoadBotTrades).toHaveBeenCalledWith("bot-1");
   });
 
-  it("calls startAutoRefresh when viewing status of a running bot", async () => {
+  it("loads status once (no polling) when viewing status of a running bot", async () => {
     const user = userEvent.setup();
     const state = baseState();
     state.bots = [createBot({ running: true, pid: 12345 })];
@@ -219,7 +225,6 @@ describe("BotsPage", () => {
     expect(mockSelectBot).toHaveBeenCalled();
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
     expect(mockLoadBotStatus).toHaveBeenCalledWith("bot-1");
-    expect(mockStartAutoRefresh).toHaveBeenCalledWith("bot-1", 5000);
   });
 
   it("switches to Status view and shows BotStatusPanel when a bot is selected and view is status", () => {
@@ -304,7 +309,7 @@ describe("BotsPage", () => {
     expect(screen.getByTestId("bot-config-modal")).toBeInTheDocument();
   });
 
-  it("calls stopAutoRefresh when switching views", async () => {
+  it("switches views without polling", async () => {
     const user = userEvent.setup();
     const state = baseState();
     state.bots = [createBot()];
@@ -314,7 +319,54 @@ describe("BotsPage", () => {
     const statusTab = screen.getByTestId("bots-tab-status");
     await user.click(statusTab);
     expect(mockSetCurrentView).toHaveBeenCalledWith("status");
-    expect(mockStopAutoRefresh).toHaveBeenCalled();
+  });
+
+  it("deep-links ?tab=performance to the Performance view", () => {
+    mockGetBotsState.mockReturnValue(baseState());
+    renderWithProviders(<BotsPage />, ["/bots?tab=performance"]);
+    expect(mockSetCurrentView).toHaveBeenCalledWith("performance");
+  });
+
+  it("falls back to list for ?tab=status with no bot selected", () => {
+    mockGetBotsState.mockReturnValue(baseState());
+    renderWithProviders(<BotsPage />, ["/bots?tab=status"]);
+    expect(mockSetCurrentView).toHaveBeenCalledWith("list");
+  });
+
+  it("writes current view to the URL when no ?tab= present", () => {
+    mockGetBotsState.mockReturnValue(baseState());
+    render(
+      <MemoryRouter initialEntries={["/bots"]}>
+        <UIProvider>
+          <BotsPage />
+          <SearchProbe />
+        </UIProvider>
+      </MemoryRouter>,
+    );
+    expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=list");
+  });
+
+  it("updates ?tab= when switching tabs", async () => {
+    const user = userEvent.setup();
+    mockGetBotsState.mockReturnValue(baseState());
+    const makeTree = () => (
+      <MemoryRouter initialEntries={["/bots"]}>
+        <UIProvider>
+          <BotsPage />
+          <SearchProbe />
+        </UIProvider>
+      </MemoryRouter>
+    );
+    const { rerender } = render(makeTree());
+    await user.click(screen.getByTestId("bots-tab-performance"));
+    expect(mockSetCurrentView).toHaveBeenCalledWith("performance");
+    // emulate the store update with a FRESH tree so React re-renders
+    // (re-rendering the identical element object bails out and reads nothing new)
+    mockGetCurrentView.mockReturnValue("performance");
+    rerender(makeTree());
+    await waitFor(() => {
+      expect(screen.getByTestId("search-probe")).toHaveTextContent("tab=performance");
+    });
   });
 
   it("calls clearError when error dismiss is clicked", async () => {

@@ -29,14 +29,12 @@ const SCREENER_OPTIONS = [
   { value: "intraday_15m", label: "15-Min Movers" },
 ];
 
-function getScoreColor(score: number): string {
-  if (score >= 70) return "green";
-  if (score >= 40) return "yellow";
-  return "red";
+function getScoreColor(_score: number): string {
+  return "default";
 }
 
 function pctColor(pct: number): string {
-  return pct >= 0 ? "var(--mantine-color-teal-6)" : "var(--mantine-color-red-6)";
+  return pct >= 0 ? "info.main" : "error.main";
 }
 
 function formatPrice(p: number): string {
@@ -139,7 +137,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
       <Button
         size="sm"
         variant="subtle"
-        color="gray"
+        color="secondary"
         leftSection={<IconDatabase size={16} />}
         onClick={() => setOpened(true)}
         data-testid="screener-picker-btn"
@@ -177,7 +175,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
           </Group>
 
           {error && (
-            <Text size="sm" c="red" data-testid="screener-error">
+            <Text size="sm" c="error" data-testid="screener-error">
               {error}
             </Text>
           )}
@@ -230,23 +228,13 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         wrap="nowrap"
                         px="xs"
                         py={3}
-                        style={{
-                          borderRadius: 4,
+                        sx={{
+                          borderRadius: 1,
                           cursor: "pointer",
-                          background: idx % 2 === 1
-                            ? "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))"
-                            : undefined,
+                          bgcolor: idx % 2 === 1 ? "background.default" : undefined,
+                          "&:hover": { bgcolor: "action.hover" },
                         }}
-                        onMouseEnter={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            "light-dark(var(--mantine-color-gray-2), var(--mantine-color-dark-4))";
-                        }}
-                        onMouseLeave={(e) => {
-                          (e.currentTarget as HTMLElement).style.background =
-                            idx % 2 === 1
-                              ? "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))"
-                              : "";
-                        }}
+
                       >
                         <Checkbox
                           size="xs"
@@ -264,7 +252,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                           {pct >= 0 ? "+" : ""}{pct.toFixed(1)}%
                         </Text>
                         {stock.touched_52w ? (
-                          <Text size="xs" w={72} ta="center" c="blue" style={{ fontFamily: "monospace" }}>
+                          <Text size="xs" w={72} ta="center" c="primary" style={{ fontFamily: "monospace" }}>
                             {formatTouchDate(stock)}
                           </Text>
                         ) : (
@@ -272,7 +260,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                             -
                           </Text>
                         )}
-                        <Badge size="sm" color={getScoreColor(stock.score)} variant="light" w={36}>
+                        <Badge size="sm" color={getScoreColor(stock.score)} variant="filled" w={36}>
                           {stock.score}
                         </Badge>
                       </Group>

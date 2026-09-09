@@ -1,0 +1,34 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { ScrollArea } from "./ScrollArea";
+
+const meta: Meta<typeof ScrollArea> = {
+  title: "Primitives/Layout/ScrollArea",
+  component: ScrollArea,
+  tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Custom scroll container with styled scrollbars. Use for constrained-height lists, tables, or sidebars. When not to use: for page-level scroll use native overflow. Uses MUI ScrollArea with theme tokens (no hardcoded colors)." } } },
+};
+
+export default meta;
+type Story = StoryObj<typeof ScrollArea>;
+
+const longContent = Array.from({ length: 40 }, (_, i) => (
+  <div key={i} style={{ padding: "6px 12px" }}>
+    Row {i + 1}
+  </div>
+));
+
+export const VerticalScroll: Story = {
+  render: () => (
+    <ScrollArea h={200} w={300} type="always">
+      {longContent}
+    </ScrollArea>
+  ),
+};
+
+export const AutoScrollbar: Story = {
+  render: () => (
+    <ScrollArea h={200} w={300} offsetScrollbars>
+      {longContent}
+    </ScrollArea>
+  ),
+};

@@ -5,41 +5,55 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import ChartView from "./ChartView";
 import { fetchChartPreview } from "../../api/chartPreview";
-import { buildChartOption } from "../../components/chart/chartRenderer";
 import { UIProvider } from "@/ui";
 import { useParams, useNavigate } from "react-router-dom";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-// Mock echarts
-const mockEChartsInstance = {
-  setOption: vi.fn(),
-  resize: vi.fn(),
-  dispose: vi.fn(),
+// Mock lightweight-charts (TradingViewChart)
+const mockRemove = vi.fn();
+const mockChartApi = {
+  addSeries: () => ({
+    setData: vi.fn(),
+    createPriceLine: vi.fn(),
+    removePriceLine: vi.fn(),
+    priceToCoordinate: () => 100,
+    coordinateToPrice: () => 100,
+    priceScale: () => ({ applyOptions: vi.fn() }),
+  }),
+  timeScale: () => ({
+    setVisibleRange: vi.fn(),
+    fitContent: vi.fn(),
+    timeToCoordinate: () => 100,
+    subscribeVisibleLogicalRangeChange: vi.fn(),
+    unsubscribeVisibleLogicalRangeChange: vi.fn(),
+  }),
+  applyOptions: vi.fn(),
+  remove: mockRemove,
+  subscribeClick: vi.fn(),
+  unsubscribeClick: vi.fn(),
 };
+
+vi.mock("lightweight-charts", () => ({
+  ColorType: { Solid: "solid" },
+  CandlestickSeries: {},
+  HistogramSeries: {},
+  LineSeries: {},
+  createSeriesMarkers: vi.fn(() => ({ setMarkers: vi.fn() })),
+  createChart: vi.fn(() => mockChartApi),
+}));
 
 beforeEach(() => {
   vi.clearAllMocks();
   setupBrowserMocks();
-  (window as any).echarts = {
-    init: vi.fn(() => mockEChartsInstance),
-  };
 });
 
 afterEach(() => {
-  delete (window as any).echarts;
   cleanup();
 });
 
 // Mock API
 vi.mock("../../api/chartPreview", () => ({
   fetchChartPreview: vi.fn(),
-}));
-
-vi.mock("../../components/chart/chartRenderer", () => ({
-  buildChartOption: vi.fn(() => ({
-    title: { text: "Chart" },
-    dataset: { source: [] },
-  })),
 }));
 
 vi.mock("react-router-dom", () => ({
@@ -70,8 +84,7 @@ describe("ChartView", () => {
 
   beforeEach(() => {
     vi.mocked(useNavigate).mockReturnValue(mockNavigate);
-    mockEChartsInstance.setOption.mockClear();
-    mockEChartsInstance.dispose.mockClear();
+    mockRemove.mockClear();
   });
 
   it("renders chart view container", () => {
@@ -264,34 +277,32 @@ describe("ChartView", () => {
     expect(screen.getByText(/52W High: ₹150\.00/)).toBeInTheDocument();
   });
 
-  it("initializes echarts instance on data load", async () => {
+  it("renders tradingview chart on data load", async () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    vi.mocked(buildChartOption).mockReturnValue({});
     render(
       <UIProvider>
         <ChartView />
       </UIProvider>,
     );
     await waitFor(() => {
-      expect((window as any).echarts.init).toHaveBeenCalled();
+      expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
     });
   });
 
-  it("disposes echarts instance on cleanup", async () => {
+  it("removes chart instance on cleanup", async () => {
     vi.mocked(useParams).mockReturnValue({ symbol: "TEST" });
     vi.mocked(fetchChartPreview).mockResolvedValue(mockChartData);
-    vi.mocked(buildChartOption).mockReturnValue({});
     const { unmount } = render(
       <UIProvider>
         <ChartView />
       </UIProvider>,
     );
     await waitFor(() => {
-      expect((window as any).echarts.init).toHaveBeenCalled();
+      expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
     });
     unmount();
-    expect(mockEChartsInstance.dispose).toHaveBeenCalled();
+    expect(mockRemove).toHaveBeenCalled();
   });
 
   it("shows retry button in error state", async () => {
