@@ -123,15 +123,19 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd stock-screener-ui && npx playwright install chromium
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: false
       - name: Install Python deps for backend
         run: |
-          cd stock-screener-ui
-          # Install all deps normally, except conflicting packages
-          grep -vE "^(tradingagents|tradingview-screener|preciz)" requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          cd stock-screener-ui/api
+          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
         run: |
           cd stock-screener-ui
@@ -142,6 +146,8 @@ jobs:
         run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
         env:
           CI: true
+      - name: Wait for API
+        run: npx wait-on http://localhost:8765/api/health --timeout 30000
       - name: Wait for dev server
         run: npx wait-on http://localhost:5173 --timeout 30000
         env:
@@ -179,15 +185,19 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd stock-screener-ui && npx playwright install chromium
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: false
       - name: Install Python deps for backend
         run: |
-          cd stock-screener-ui
-          # Install all deps normally, except conflicting packages
-          grep -vE "^(tradingagents|tradingview-screener|preciz)" requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          cd stock-screener-ui/api
+          grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
         run: |
           cd stock-screener-ui
@@ -198,6 +208,8 @@ jobs:
         run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
         env:
           CI: true
+      - name: Wait for API
+        run: npx wait-on http://localhost:8765/api/health --timeout 30000
       - name: Wait for dev server
         run: npx wait-on http://localhost:5173 --timeout 30000
         env:
