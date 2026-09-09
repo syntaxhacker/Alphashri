@@ -290,6 +290,8 @@ export interface UIInputWrapperProps extends UIBaseProps {
   readOnly?: boolean;
   size?: UISize;
   placeholder?: string;
+  /** Form field name — forwarded to the native input for FormData support. */
+  name?: string;
 }
 
 export interface UITextInputProps extends UIInputWrapperProps {

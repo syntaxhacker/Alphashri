@@ -42,6 +42,7 @@ export function Select({
   size,
   className,
   style,
+  name,
   "data-testid": testId,
   ...rest
 }: UISelectProps) {
@@ -95,6 +96,8 @@ export function Select({
         disabled={disabled}
         error={isError}
         size={muiSize}
+        // name renders a hidden form input so FormData picks up the value
+        name={name as string | undefined}
         startAdornment={
           leftSection ? <InputAdornment position="start">{leftSection}</InputAdornment> : undefined
         }

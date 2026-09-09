@@ -41,7 +41,7 @@ afterEach(() => {
 });
 
 describe("useECharts", () => {
-  it("returns chartRef, chartInstance, and setChartOption", () => {
+  it("returns chartRef, chartInstance, and setChartOption", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
     expect(result.current.chartRef).toBeDefined();
@@ -49,7 +49,7 @@ describe("useECharts", () => {
     expect(typeof result.current.setChartOption).toBe("function");
   });
 
-  it("initializes chart on first setChartOption call", () => {
+  it("initializes chart on first setChartOption call", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
     const mockDiv = document.createElement("div");
@@ -57,14 +57,14 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
     expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, null);
   });
 
-  it("initializes chart without theme (colors handled in options)", () => {
+  it("initializes chart without theme (colors handled in options)", async () => {
     const { result } = renderHook(() => useECharts({ isDark: true }));
 
     const mockDiv = document.createElement("div");
@@ -72,14 +72,14 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
     expect(mockEcharts.init).toHaveBeenCalledWith(mockDiv, null);
   });
 
-  it("registers click handler when onChartClick provided", () => {
+  it("registers click handler when onChartClick provided", async () => {
     const mockOnClick = vi.fn();
     const { result } = renderHook(() => useECharts({ isDark: false, onChartClick: mockOnClick }));
 
@@ -88,14 +88,14 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
     expect(getChartInstance().on).toHaveBeenCalledWith("click", mockOnClick);
   });
 
-  it("does not register click handler without onChartClick", () => {
+  it("does not register click handler without onChartClick", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
     const mockDiv = document.createElement("div");
@@ -103,14 +103,14 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
     expect(getChartInstance().on).not.toHaveBeenCalled();
   });
 
-  it("calls setOption with not merge and resizes", () => {
+  it("calls setOption with not merge and resizes", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
     const mockDiv = document.createElement("div");
@@ -118,15 +118,15 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ title: { text: "Test" } });
+    await act(async () => {
+      await result.current.setChartOption({ title: { text: "Test" } });
     });
 
     expect(getChartInstance().setOption).toHaveBeenCalledWith({ title: { text: "Test" } }, true);
     expect(getChartInstance().resize).toHaveBeenCalled();
   });
 
-  it("does nothing when echarts library not available", () => {
+  it("does nothing when echarts library not available", async () => {
     delete (window as any).echarts;
 
     const { result } = renderHook(() => useECharts({ isDark: false }));
@@ -136,14 +136,14 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
     expect(mockEcharts.init).not.toHaveBeenCalled();
   });
 
-  it("adds window resize listener on mount", () => {
+  it("adds window resize listener on mount", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
     const mockDiv = document.createElement("div");
@@ -151,12 +151,12 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
   });
 
-  it("adds ResizeObserver when available", () => {
+  it("adds ResizeObserver when available", async () => {
     const mockDiv = document.createElement("div");
     const observeMock = vi.fn();
 
@@ -175,8 +175,8 @@ describe("useECharts", () => {
     });
 
     // Initialize chart
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
     // Note: The current implementation doesn't create ResizeObserver after mount
@@ -185,7 +185,7 @@ describe("useECharts", () => {
     expect(global.ResizeObserver).toBeDefined();
   });
 
-  it("handles multiple setChartOption calls", () => {
+  it("handles multiple setChartOption calls", async () => {
     const { result } = renderHook(() => useECharts({ isDark: false }));
 
     const mockDiv = document.createElement("div");
@@ -193,18 +193,18 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [{ type: "line" }] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [{ type: "line" }] });
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [{ type: "bar" }] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [{ type: "bar" }] });
     });
 
     expect(getChartInstance().setOption).toHaveBeenCalledTimes(2);
   });
 
-  it("retains click handler reference across options updates", () => {
+  it("retains click handler reference across options updates", async () => {
     const mockOnClick = vi.fn();
     const { result } = renderHook(() => useECharts({ isDark: false, onChartClick: mockOnClick }));
 
@@ -213,12 +213,12 @@ describe("useECharts", () => {
       value: mockDiv,
     });
 
-    act(() => {
-      result.current.setChartOption({ series: [] });
+    await act(async () => {
+      await result.current.setChartOption({ series: [] });
     });
 
-    act(() => {
-      result.current.setChartOption({ xAxis: { type: "category" } });
+    await act(async () => {
+      await result.current.setChartOption({ xAxis: { type: "category" } });
     });
 
     expect(getChartInstance().on).toHaveBeenCalledWith("click", mockOnClick);

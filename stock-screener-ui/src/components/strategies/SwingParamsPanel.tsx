@@ -10,7 +10,7 @@ interface SwingParamsPanelProps {
 
 export function SwingParamsPanel({ initialValues, isSwing, is52wChaser }: SwingParamsPanelProps) {
   return (
-    <Tabs.Panel value="52w" className="strategy-form-tab-panel" data-testid="strategy-panel-52w">
+    <Tabs.Panel value="52w" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-52w">
       <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
           <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Entry Threshold %</Text>

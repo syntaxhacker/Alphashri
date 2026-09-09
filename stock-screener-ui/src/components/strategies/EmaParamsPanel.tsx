@@ -9,7 +9,7 @@ interface EmaParamsPanelProps {
 
 export function EmaParamsPanel({ initialValues, isSwing }: EmaParamsPanelProps) {
   return (
-    <Tabs.Panel value="ema" className="strategy-form-tab-panel" data-testid="strategy-panel-ema">
+    <Tabs.Panel value="ema" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-ema">
       <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
           <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>Fast EMA Period</Text>

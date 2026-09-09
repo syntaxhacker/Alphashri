@@ -10,6 +10,7 @@ export function RunnerPanel({ initialValues, isOrb }: RunnerPanelProps) {
   return (
     <Tabs.Panel
       value="runner"
+      keepMounted
       className="strategy-form-tab-panel"
       data-testid="strategy-panel-runner"
     >

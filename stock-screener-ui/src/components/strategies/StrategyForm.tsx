@@ -405,6 +405,13 @@ export function StrategyForm({
                 type="submit"
                 className="MuiButton-root strategy-form-submit-btn"
                 data-testid="submit-strategy-btn"
+                // Explicit onClick: form submission events from inside a
+                // Dialog portal are unreliable (happy-dom never fires them);
+                // preventDefault avoids a double submit in real browsers.
+                onClick={(e) => {
+                  e.preventDefault();
+                  handleSubmit();
+                }}
               >
                 <span className="MuiButton-label">
                   <span className="MuiButton-label">

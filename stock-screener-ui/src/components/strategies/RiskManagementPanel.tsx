@@ -9,7 +9,7 @@ interface RiskManagementPanelProps {
 
 export function RiskManagementPanel({ initialValues, isIntraday }: RiskManagementPanelProps) {
   return (
-    <Tabs.Panel value="risk" className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
+    <Tabs.Panel value="risk" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-risk">
       <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
           <Text size="xs" c="dimmed" ta="center" style={{ lineHeight: 1.5 }}>

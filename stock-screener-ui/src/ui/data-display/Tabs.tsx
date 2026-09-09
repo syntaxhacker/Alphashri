@@ -139,7 +139,6 @@ export function TabsPanel({ value: panelValue, keepMounted, children, className,
       {...(rest as any)}
     >
       <Box sx={{ display: isActive ? "block" : "none" }}>{children}</Box>
-      {!isActive && keepMounted ? <Box sx={{ display: "none" }}>{children}</Box> : null}
     </Box>
   );
 }

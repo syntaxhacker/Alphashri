@@ -9,7 +9,7 @@ interface OrbParamsPanelProps {
 
 export function OrbParamsPanel({ initialValues, isSwing }: OrbParamsPanelProps) {
   return (
-    <Tabs.Panel value="orb" className="strategy-form-tab-panel" data-testid="strategy-panel-orb">
+    <Tabs.Panel value="orb" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-orb">
       <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
           <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>OR Duration (min)</Text>

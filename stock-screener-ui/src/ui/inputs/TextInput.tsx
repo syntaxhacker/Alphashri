@@ -25,6 +25,8 @@ export function TextInput({
   size,
   placeholder,
   type: inputType,
+  name,
+  id: inputId,
 }: UITextInputProps) {
   const muiSize = mapSize(size);
   const isError = Boolean(error);
@@ -48,6 +50,8 @@ export function TextInput({
       disabled={disabled}
       size={muiSize}
       type={inputType}
+      name={name as string | undefined}
+      id={inputId as string | undefined}
       fullWidth
       className={className}
       style={style as React.CSSProperties}

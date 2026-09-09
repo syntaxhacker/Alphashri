@@ -9,7 +9,7 @@ interface SrBreakoutParamsPanelProps {
 
 export function SrBreakoutParamsPanel({ initialValues, isSwing }: SrBreakoutParamsPanelProps) {
   return (
-    <Tabs.Panel value="sr" className="strategy-form-tab-panel" data-testid="strategy-panel-sr">
+    <Tabs.Panel value="sr" keepMounted className="strategy-form-tab-panel" data-testid="strategy-panel-sr">
       <Stack spacing={1} gap="sm" mt="sm" sx={{ gap: 1, p: 1 }}>
         <SlTpRow
           slDefault={initialValues.sl_pct}

@@ -72,7 +72,10 @@ export function NumberInput({
 
   return (
     <TextField
-      value={value ?? ""}
+      // NOTE: value must stay undefined (uncontrolled) when the caller only
+      // passes defaultValue — `?? ""` forces a controlled-empty input that
+      // hides defaults, breaks FormData reads, and trips native validation.
+      value={value}
       defaultValue={defaultValue}
       onChange={handleChange}
       label={label as string | undefined}
