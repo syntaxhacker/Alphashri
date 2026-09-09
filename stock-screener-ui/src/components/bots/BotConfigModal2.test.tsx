@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { UIProvider } from "@/ui";
@@ -153,8 +153,8 @@ const mockStrategies: AvailableStrategy[] = [
   },
 ];
 
-// @/ui TextInput puts data-testid on the field root; the native input lives inside.
-const nameTextbox = () => within(screen.getByTestId("bot-name-input")).getByRole("textbox");
+// @/ui TextInput puts data-testid directly on the native input.
+const nameTextbox = () => screen.getByTestId("bot-name-input");
 
 function renderWithProviders(ui: React.ReactElement) {
   return render(<UIProvider>{ui}</UIProvider>);
