@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { cleanup, screen, waitFor } from "@testing-library/react";
+import { cleanup, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { AggregatedDashboard } from "./AggregatedDashboard";
@@ -185,8 +185,8 @@ describe("AggregatedDashboard", () => {
     ]);
     renderWithProviders(<AggregatedDashboard />);
 
-    await user.click(screen.getByTestId("dashboard-bot-filter"));
-    await user.click(screen.getByText("ORB Bot"));
+    await user.click(within(screen.getByTestId("dashboard-bot-filter")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "ORB Bot" }));
 
     await waitFor(() => {
       expect(fetchDashboardAnalytics).toHaveBeenLastCalledWith({

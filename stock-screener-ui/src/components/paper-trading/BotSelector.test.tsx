@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { BotSelector } from "./BotSelector";
@@ -92,7 +92,7 @@ describe("BotSelector", () => {
     expect(screen.getByTestId("bot-selector")).toBeInTheDocument();
     expect(screen.getByText("Bot:")).toBeInTheDocument();
     expect(screen.getByTestId("bot-select")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Select bot")).toBeInTheDocument();
+    expect(screen.getByText("Select bot")).toBeInTheDocument();
   });
 
   test("shows running indicator with green dot and Running (PID X) text", () => {
@@ -148,8 +148,8 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
-    const option = await screen.findByText("ORB Bot (2 pos)");
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
+    const option = await screen.findByRole("option", { name: "ORB Bot (2 pos)" });
     await user.click(option);
     expect(onSelectBot).toHaveBeenCalledWith("1");
   });
@@ -230,7 +230,7 @@ describe("BotSelector", () => {
       />,
     );
     const startBtn = screen.getByTestId("start-bot-btn");
-    await user.hover(startBtn);
+    await user.hover(startBtn.parentElement as HTMLElement);
     expect(await screen.findByText("Market closed — cannot start bot")).toBeInTheDocument();
   });
 
@@ -305,7 +305,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
     expect(await screen.findByText("ORB Bot (2 pos)")).toBeInTheDocument();
     expect(await screen.findByText("SR Bot (5 pos)")).toBeInTheDocument();
   });
@@ -427,7 +427,8 @@ describe("BotSelector", () => {
     await vi.waitFor(() => {
       expect(refreshBtn).toHaveAttribute("data-loading");
     });
-    await user.click(refreshBtn);
+    // loading buttons get pointer-events:none — dispatch directly to simulate the guarded second click
+    fireEvent.click(refreshBtn);
     resolveRefresh!();
     await vi.waitFor(() => {
       expect(onRefresh).toHaveBeenCalledTimes(1);
@@ -446,7 +447,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
     expect(await screen.findByText("Zero Pos Bot (0 pos)")).toBeInTheDocument();
   });
 
@@ -480,7 +481,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
     for (let i = 0; i < 12; i++) {
       expect(await screen.findByText(`Bot ${i + 1} (${i} pos)`)).toBeInTheDocument();
     }
@@ -498,8 +499,8 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
-    const orbOption = await screen.findByText("ORB Bot (2 pos)");
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
+    const orbOption = await screen.findByRole("option", { name: "ORB Bot (2 pos)" });
     await user.click(orbOption);
     expect(onSelectBot).not.toHaveBeenCalled();
   });

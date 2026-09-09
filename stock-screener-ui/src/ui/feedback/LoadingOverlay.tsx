@@ -1,6 +1,8 @@
 import Backdrop from "@mui/material/Backdrop";
 import CircularProgress from "@mui/material/CircularProgress";
 import Box from "@mui/material/Box";
+import { MARKER_BORDER } from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import type { UILoadingOverlayProps } from "../types";
 
 export function LoadingOverlay({
@@ -28,7 +30,7 @@ export function LoadingOverlay({
         position: "absolute",
         inset: 0,
         zIndex: zIndex as never,
-        bgcolor: overlayProps?.color ? (overlayProps.color as string) : "rgba(255,255,255,0.6)",
+        bgcolor: overlayProps?.color ? (overlayProps.color as string) : withAlpha(MARKER_BORDER, 0.6),
         opacity: overlayProps?.opacity,
         backdropFilter:
           overlayProps?.blur != null

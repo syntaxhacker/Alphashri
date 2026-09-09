@@ -17,11 +17,11 @@ function DirectionBadge({ alert }: { alert: SectorAlert }) {
 const columns: ColumnDef<SectorAlert>[] = [
   {
     id: "timestamp",
-    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Time</Box>,
+    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Time</Box>,
     accessorKey: "timestamp",
-    meta: { align: "center" },
+    meta: { align: "left" },
     cell: (info) => (
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
         <Text size="sm" fw={700}>
           {info.getValue<string>()}
         </Text>
@@ -30,17 +30,17 @@ const columns: ColumnDef<SectorAlert>[] = [
   },
   {
     id: "sector",
-    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector</Box>,
+    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Sector</Box>,
     accessorKey: "sector",
-    meta: { align: "center" },
-    cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm">{info.getValue<string>()}</Text></Box>,
+    meta: { align: "left" },
+    cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm">{info.getValue<string>()}</Text></Box>,
   },
   {
     id: "direction",
-    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Move</Box>,
+    header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Move</Box>,
     accessorKey: "direction",
-    meta: { align: "center" },
-    cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><DirectionBadge alert={row.original} /></Box>,
+    meta: { align: "left" },
+    cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><DirectionBadge alert={row.original} /></Box>,
   },
 ];
 

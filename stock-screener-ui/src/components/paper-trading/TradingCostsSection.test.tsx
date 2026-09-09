@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import {render, screen, cleanup, within, fireEvent} from "@testing-library/react";
 import { TradingCostsSection } from "./TradingCostsSection";
 import type { StrategyConfig } from "../../types/strategies";
 import { TestWrapper } from "../../test/test-utils";
@@ -96,89 +96,89 @@ describe("TradingCostsSection", () => {
   it("displays initial costs values as percentages", () => {
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
     // brokerage_pct: 0.001 => 0.1%
-    expect(screen.getByTestId("config-brokerage")).toHaveValue("0.1");
+    expect(within(screen.getByTestId("config-brokerage")).getByRole("spinbutton")).toHaveValue(0.1);
     // stt_pct: 0.001 => 0.1%
-    expect(screen.getByTestId("config-stt")).toHaveValue("0.1");
+    expect(within(screen.getByTestId("config-stt")).getByRole("spinbutton")).toHaveValue(0.1);
     // exchange_pct: 0.0001 => 0.01%
-    expect(screen.getByTestId("config-exchange")).toHaveValue("0.01");
+    expect(within(screen.getByTestId("config-exchange")).getByRole("spinbutton")).toHaveValue(0.01);
     // sebi_pct: 0.0001 => 0.01%
-    expect(screen.getByTestId("config-sebi")).toHaveValue("0.01");
+    expect(within(screen.getByTestId("config-sebi")).getByRole("spinbutton")).toHaveValue(0.01);
     // stamp_pct: 0.0001 => 0.01%
-    expect(screen.getByTestId("config-stamp")).toHaveValue("0.01");
+    expect(within(screen.getByTestId("config-stamp")).getByRole("spinbutton")).toHaveValue(0.01);
     // gst_pct: 18 => 18%
-    expect(screen.getByTestId("config-gst")).toHaveValue("18");
+    expect(within(screen.getByTestId("config-gst")).getByRole("spinbutton")).toHaveValue(18);
   });
 
   it("displays min_brokerage as is", () => {
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    expect(screen.getByTestId("config-min-brokerage")).toHaveValue("20");
+    expect(within(screen.getByTestId("config-min-brokerage")).getByRole("spinbutton")).toHaveValue(20);
   });
 
   it("calls onChange with key and converted value for brokerage", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-brokerage");
-    await user.clear(input); await user.type(input, "0.2");
+    const input = within(screen.getByTestId("config-brokerage")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.2" } });
     expect(mockOnChange).toHaveBeenCalledWith("brokerage_pct", 0.002); // 0.2/100
   });
 
   it("calls onChange for min_brokerage", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-min-brokerage");
-    await user.clear(input); await user.type(input, "50");
+    const input = within(screen.getByTestId("config-min-brokerage")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "50" } });
     expect(mockOnChange).toHaveBeenCalledWith("min_brokerage", 50);
   });
 
   it("calls onChange for stt", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-stt");
-    await user.clear(input); await user.type(input, "0.05");
+    const input = within(screen.getByTestId("config-stt")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.05" } });
     expect(mockOnChange).toHaveBeenCalledWith("stt_pct", 0.0005);
   });
 
   it("calls onChange for exchange", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-exchange");
-    await user.clear(input); await user.type(input, "0.02");
+    const input = within(screen.getByTestId("config-exchange")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.02" } });
     expect(mockOnChange).toHaveBeenCalledWith("exchange_pct", 0.0002);
   });
 
   it("calls onChange for sebi", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-sebi");
-    await user.clear(input); await user.type(input, "0.015");
+    const input = within(screen.getByTestId("config-sebi")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.015" } });
     expect(mockOnChange).toHaveBeenCalledWith("sebi_pct", 0.00015);
   });
 
   it("calls onChange for stamp", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-stamp");
-    await user.clear(input); await user.type(input, "0.02");
+    const input = within(screen.getByTestId("config-stamp")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "0.02" } });
     expect(mockOnChange).toHaveBeenCalledWith("stamp_pct", 0.0002);
   });
 
   it("calls onChange for gst", async () => {
       const user = userEvent.setup();
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    const input = screen.getByTestId("config-gst");
-    await user.clear(input); await user.type(input, "20");
+    const input = within(screen.getByTestId("config-gst")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "20" } });
     expect(mockOnChange).toHaveBeenCalledWith("gst_pct", 0.2); // 20/100
   });
 
   it("renders labels correctly", () => {
     render(<TradingCostsSection {...defaultProps} />, { wrapper: TestWrapper });
-    expect(screen.getByText("Brokerage %")).toBeInTheDocument();
-    expect(screen.getByText("Min Brokerage")).toBeInTheDocument();
-    expect(screen.getByText("STT %")).toBeInTheDocument();
-    expect(screen.getByText("Exchange %")).toBeInTheDocument();
-    expect(screen.getByText("SEBI %")).toBeInTheDocument();
-    expect(screen.getByText("Stamp %")).toBeInTheDocument();
-    expect(screen.getByText("GST %")).toBeInTheDocument();
+    expect(screen.getByLabelText("Brokerage %")).toBeInTheDocument();
+    expect(screen.getByLabelText("Min Brokerage")).toBeInTheDocument();
+    expect(screen.getByLabelText("STT %")).toBeInTheDocument();
+    expect(screen.getByLabelText("Exchange %")).toBeInTheDocument();
+    expect(screen.getByLabelText("SEBI %")).toBeInTheDocument();
+    expect(screen.getByLabelText("Stamp %")).toBeInTheDocument();
+    expect(screen.getByLabelText("GST %")).toBeInTheDocument();
   });
 
   it("renders descriptions", () => {
@@ -205,10 +205,10 @@ describe("TradingCostsSection", () => {
     render(<TradingCostsSection config={config} onChange={mockOnChange} />, {
       wrapper: TestWrapper,
     });
-    expect(screen.getByTestId("config-brokerage")).toHaveValue("0");
-    expect(screen.getByTestId("config-min-brokerage")).toHaveValue("0");
-    expect(screen.getByTestId("config-stt")).toHaveValue("0");
-    expect(screen.getByTestId("config-gst")).toHaveValue("0");
+    expect(within(screen.getByTestId("config-brokerage")).getByRole("spinbutton")).toHaveValue(0);
+    expect(within(screen.getByTestId("config-min-brokerage")).getByRole("spinbutton")).toHaveValue(0);
+    expect(within(screen.getByTestId("config-stt")).getByRole("spinbutton")).toHaveValue(0);
+    expect(within(screen.getByTestId("config-gst")).getByRole("spinbutton")).toHaveValue(0);
   });
 
   it("handles fractional percentages correctly", () => {
@@ -219,7 +219,7 @@ describe("TradingCostsSection", () => {
     render(<TradingCostsSection config={config} onChange={mockOnChange} />, {
       wrapper: TestWrapper,
     });
-    expect(screen.getByTestId("config-brokerage")).toHaveValue("0.05");
-    expect(screen.getByTestId("config-exchange")).toHaveValue("0.005");
+    expect(within(screen.getByTestId("config-brokerage")).getByRole("spinbutton")).toHaveValue(0.05);
+    expect(within(screen.getByTestId("config-exchange")).getByRole("spinbutton")).toHaveValue(0.005);
   });
 });

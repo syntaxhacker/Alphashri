@@ -59,14 +59,14 @@ export function NewsList({
           </Box>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
             <Select size="small" value={selectedSource} onChange={(e) => { const v = String(e.target.value); if (v) onSourceChange(v); }} displayEmpty sx={{ minWidth: 160, display: "flex", alignItems: "center", justifyContent: "center" }} data-testid="source-selector">
-              {sourceData.map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
+              {(sourceData ?? []).map((o) => (<MenuItem key={o.value} value={o.value}>{o.label}</MenuItem>))}
             </Select>
           </Box>
         </CardContent>
       </Card>
 
       {loading && Object.keys(groupedNewsItems).length === 0 ? (
-        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+        <Card elevation={1} sx={{ width: "100%", p: 1 }} data-testid="news-loader">
           <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
               <CircularProgress size={20} />

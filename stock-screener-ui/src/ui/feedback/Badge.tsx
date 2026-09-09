@@ -1,6 +1,7 @@
 import Chip from "@mui/material/Chip";
 import Box from "@mui/material/Box";
 import { alpha, useTheme } from "@mui/material/styles";
+import { TEXT_MUTED, SCALE_DARK, TEXT } from "@/ui/palette";
 import type { UIBadgeProps } from "../types";
 
 function mapColor(color: UIBadgeProps["color"]): string {
@@ -19,8 +20,12 @@ function mapColor(color: UIBadgeProps["color"]): string {
       return "secondary";
     case "primary":
       return "primary";
+    case "default":
+    case "neutral":
+    case "dimmed":
+      return "secondary";
     default:
-      return "primary";
+      return "secondary";
   }
 }
 
@@ -60,9 +65,13 @@ export function Badge({
   const muiColor = mapColor(color);
   const muiSize = mapSize(size);
 
-  // Resolve palette color (fallback to primary if unknown)
+  // Resolve palette color (fallback to secondary -> grey for default)
   const palette: Record<string, { main: string; dark: string; contrastText: string }> = theme.palette as never;
-  const pal = (palette[muiColor] as { main: string; dark: string; contrastText: string } | undefined) ?? palette.primary;
+  const isDefault = color === "default" || color === "neutral" || color === "dimmed";
+  const grey = (theme.palette as any).grey;
+  const pal = isDefault
+    ? { main: grey?.[600] ?? TEXT_MUTED, dark: grey?.[700] ?? SCALE_DARK[4], contrastText: TEXT }
+    : ((palette[muiColor] as { main: string; dark: string; contrastText: string } | undefined) ?? palette.primary);
 
   const isFilled = variant === "filled" || variant === "white";
   const isOutline = variant === "outline" || variant === "default";

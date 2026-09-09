@@ -1,4 +1,6 @@
 import { Box, Tooltip, ActionIcon } from "@/ui";
+import { BLACK } from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import { IconTarget, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 
 interface ChainScrollActionsProps {
@@ -41,7 +43,7 @@ export function ChainScrollActions({ scrollToATM, scrollToEdge }: ChainScrollAct
           size="xl"
           radius="xl"
           onClick={() => scrollToATM("smooth")}
-          style={{ boxShadow: "0 4px 12px rgba(0,0,0,0.15)" }}
+          style={{ boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.15)}` }}
           className="scroll-action-btn scroll-atm-btn"
           data-testid="options-scroll-atm-btn"
         >

@@ -118,7 +118,11 @@ export function TanStackTable<T>({
   const [scrollTop, setScrollTop] = useState(0);
 
   const hasSizedColumns = useMemo(
-    () => columns.some((col) => typeof (col as { size?: number }).size === "number"),
+    () => columns.some((col) => typeof (col as { size?: number }).size === "number" && (col as { size?: number }).size !== 0),
+    [columns],
+  );
+  const visibleColumnCount = useMemo(
+    () => columns.filter((col) => (col as { size?: number }).size !== 0).length,
     [columns],
   );
 
@@ -183,22 +187,22 @@ export function TanStackTable<T>({
   const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
 
   return (
-    <TableContainer component={Paper} elevation={0} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "65vh", minHeight: 200, border: 0, bgcolor: palette.SURFACE }}>
-      <ScrollArea
-        sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
+    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "65vh", minHeight: 200, border: 0, bgcolor: palette.SURFACE }}>
+      <ScrollArea className="paper-tanstack-scroll" sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
         onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >
         <Box
           component="table"
           data-testid={dataTestId}
-          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: Math.max(640, columns.length * 96), ...(style || {}) } as React.CSSProperties}
+          id={dataTestId ? `paper-tanstack-table-${dataTestId}` : undefined}
+          style={{ width: "100%", tableLayout: hasSizedColumns ? "fixed" : "auto", minWidth: Math.max(640, visibleColumnCount * 96), ...(style || {}) } as React.CSSProperties}
           sx={{
             width: "100%",
-            minWidth: Math.max(640, columns.length * 96),
+            minWidth: Math.max(640, visibleColumnCount * 96),
             borderCollapse: "collapse",
             bgcolor: palette.SURFACE,
           }}
-          className={className}
+          className={`paper-tanstack-table ${className || ""}`}
         >
         <thead>
           {table.getHeaderGroups().map((hg) => (
@@ -207,11 +211,13 @@ export function TanStackTable<T>({
                 const width = getColumnWidth(h.column);
                 const { align } = getColumnMeta(h.column);
                 return (
-                  <Box
+                    <Box
                     component="th"
                     key={h.id}
+                    className="paper-tanstack-header-cell"
+                    id={`paper-tanstack-header-${String(h.column.id)}`}
                     sx={{
-                      padding: "3px 8px",
+                      padding: width === 0 ? "0" : "3px 8px",
                       fontSize: 11,
                       fontWeight: 600,
                       whiteSpace: "nowrap",
@@ -221,6 +227,7 @@ export function TanStackTable<T>({
                       borderBottom: 1,
                       borderColor: palette.BORDER,
                       width: width !== undefined ? width : undefined,
+                      display: width === 0 ? "none" : undefined,
                       textAlign: align ?? (numericColumnIds.has(h.column.id) ? "right" : "left"),
                       cursor: h.column.getCanSort() ? "pointer" : "default",
                       position: stickyHeader ? "sticky" : undefined,
@@ -299,8 +306,10 @@ export function TanStackTable<T>({
                           <Box
                             component="td"
                             key={cell.id}
+                            className="paper-tanstack-cell"
+                            id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
                             sx={{
-                              padding: "3px 8px",
+                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : "3px 8px",
                               fontSize: 11,
                               lineHeight: 1.2,
                               whiteSpace: "nowrap",
@@ -309,6 +318,7 @@ export function TanStackTable<T>({
                               borderColor: palette.BORDER,
                               bgcolor: palette.SURFACE,
                               width: width !== undefined ? width : undefined,
+                              display: width === 0 ? "none" : undefined,
                               textAlign: align ?? (numericColumnIds.has(cell.column.id) ? "right" : "left"),
                               ...(width !== undefined
                                 ? { overflow: "hidden", textOverflow: "ellipsis" }
@@ -321,8 +331,8 @@ export function TanStackTable<T>({
                       })}
                     </tr>
                     {row.getIsExpanded() && renderSubComponent && (
-                      <tr key={`${row.id}-expanded`}>
-                        <td colSpan={row.getVisibleCells().length} style={{ padding: 0, border: "none" }}>
+                      <tr key={`${row.id}-expanded`} className="paper-tanstack-expanded-row" id={`paper-expanded-row-${row.id}`} style={{ background: palette.BG }}>
+                        <td className="paper-tanstack-expanded-cell" colSpan={row.getVisibleCells().length} style={{ padding: 0, borderTop: `1px solid ${palette.BORDER}`, borderBottom: `1px solid ${palette.BORDER}`, background: palette.BG }}>
                           {renderSubComponent(row.original)}
                         </td>
                       </tr>

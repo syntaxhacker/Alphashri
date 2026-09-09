@@ -2,6 +2,7 @@ import { Text, useColorScheme, useTheme } from "@/ui";
 import Box from "@mui/material/Box";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
+import { IV_AREA_START, IV_AREA_END, CHART_DROPDOWN } from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
 
 interface IVSkewChartProps {
@@ -30,7 +31,7 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
         const data = params[0];
         return `Strike: ${data.name}<br/>IV: ${data.value}%`;
       },
-      backgroundColor: isDark ? "rgba(0,0,0,0.8)" : "var(--mui-palette-background-paper)",
+      backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
       textStyle: {
         color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
         fontSize: theme.fontSizes.sm,
@@ -70,8 +71,8 @@ export function IVSkewChart({ strikeMatrix }: IVSkewChartProps) {
             x2: 0,
             y2: 1,
             colorStops: [
-              { offset: 0, color: "rgba(25,118,210,0.3)" },
-              { offset: 1, color: "rgba(25,118,210,0)" },
+              { offset: 0, color: IV_AREA_START },
+              { offset: 1, color: IV_AREA_END },
             ],
           },
         },

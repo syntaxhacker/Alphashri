@@ -42,20 +42,20 @@ export function SectorTable({ sectors }: SectorTableProps) {
     () => [
       {
         id: "sector",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Sector</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Sector</Box>,
         accessorKey: "sector",
-        meta: { align: "center" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", fontWeight: 700, fontSize: 13 }}>{info.getValue<string>()}</Box>,
+        meta: { align: "left" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", fontWeight: 700, fontSize: 13 }}>{info.getValue<string>()}</Box>,
       },
       {
         id: "avg_change",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Change</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Change</Box>,
         accessorKey: "avg_change",
-        meta: { align: "center" },
+        meta: { align: "right" },
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", color: getPnLTextColor(val), fontWeight: 700, fontSize: 12 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: getPnLTextColor(val), fontWeight: 700, fontSize: 12 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}%
             </Box>
@@ -71,14 +71,14 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "ad_ratio",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>A/D Ratio</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>A/D Ratio</Box>,
         accessorFn: (row) => `${row.advances} : ${row.declines}`,
-        meta: { align: "center" },
+        meta: { align: "right" },
         cell: (info) => {
           const row = info.row.original;
           const adColor = row.advances > row.declines ? "green" : "red";
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", color: adColor, fontSize: 12, fontWeight: 600 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", color: adColor, fontSize: 12, fontWeight: 600 }}>
               {row.advances} : {row.declines}
             </Box>
           );
@@ -102,11 +102,11 @@ export function SectorTable({ sectors }: SectorTableProps) {
       },
       {
         id: "top_movers",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Top Movers</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Top Movers</Box>,
         accessorKey: "top_movers",
-        meta: { align: "center" },
+        meta: { align: "left" },
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>
             <Text size="sm" c="dimmed" lineClamp={1}>
               {info.getValue<string>()}
             </Text>

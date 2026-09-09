@@ -44,13 +44,13 @@ describe("RiskManagementPanel", () => {
   it("renders Min Trade Value input with ₹ prefix", () => {
     renderInTabs();
     expect(screen.getByTestId("strategy-min-trade-value-input")).toBeInTheDocument();
-    expect(screen.getByText("Min Trade Value (₹)")).toBeInTheDocument();
+    expect(screen.getByText("Min Trade Value")).toBeInTheDocument();
   });
 
   it("renders Max Trade Value input with ₹ prefix", () => {
     renderInTabs();
     expect(screen.getByTestId("strategy-max-trade-value-input")).toBeInTheDocument();
-    expect(screen.getByText("Max Trade Value (₹)")).toBeInTheDocument();
+    expect(screen.getByText("Max Trade Value")).toBeInTheDocument();
   });
 
   it("renders Cooldown Minutes input for intraday types", () => {

@@ -60,9 +60,9 @@ export function PerformanceView({
         id: "strategy_name",
         header: "Strategy",
         accessorKey: "strategy_name",
-        meta: { align: "center" } as any,
+        meta: { align: "left" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={500} size="sm" ta="center">
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={500} size="sm" ta="left">
             {info.getValue<string>()}
           </Text></Box>
         ),
@@ -71,17 +71,17 @@ export function PerformanceView({
         id: "total_trades",
         header: "Total Trades",
         accessorKey: "total_trades",
-        meta: { align: "center" } as any,
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{info.getValue<number>()}</Text></Box>,
+        meta: { align: "right" } as any,
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" ta="right">{info.getValue<number>()}</Text></Box>,
       },
       {
         id: "wl",
         header: "W / L",
         accessorFn: (row) => `${row.winners}/${row.losers}`,
-        meta: { align: "center" } as any,
+        meta: { align: "right" } as any,
         cell: (info) => (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
+          <Group gap={4} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1 }}>
             <Text size="sm" c="info">
               {info.row.original.winners}
             </Text>
@@ -99,11 +99,11 @@ export function PerformanceView({
         id: "win_rate",
         header: "Win Rate",
         accessorKey: "win_rate",
-        meta: { align: "center" } as any,
+        meta: { align: "right" } as any,
         cell: (info) => {
           const winRate = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             <Badge size="sm" color={winRate >= 50 ? "success" : "error"} variant="filled">
               {winRate.toFixed(1)}%
             </Badge>
@@ -115,11 +115,11 @@ export function PerformanceView({
         id: "net_pnl",
         header: "Net P&L",
         accessorKey: "net_pnl",
-        meta: { align: "center" } as any,
+        meta: { align: "right" } as any,
         cell: (info) => {
           const val = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
             <span style={{ color: val >= 0 ? "var(--mui-palette-info-main)" : "var(--mui-palette-error-main)", fontWeight: 500, fontSize: 13 }}>
               {val >= 0 ? "+" : ""}
               {val.toFixed(2)}

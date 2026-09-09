@@ -5,27 +5,27 @@ describe("getMovementBarValue", () => {
   test("returns 50% for zero change (midpoint)", () => {
     const result = getMovementBarValue(0);
     expect(result.capped).toBe(50);
-    expect(result.color).toBe("green");
+    expect(result.color).toBe("success");
   });
 
-  test("returns green color for positive change", () => {
-    expect(getMovementBarValue(1).color).toBe("green");
-    expect(getMovementBarValue(2.5).color).toBe("green");
+  test("returns success color for positive change", () => {
+    expect(getMovementBarValue(1).color).toBe("success");
+    expect(getMovementBarValue(2.5).color).toBe("success");
   });
 
-  test("returns red color for negative change", () => {
-    expect(getMovementBarValue(-1).color).toBe("red");
-    expect(getMovementBarValue(-2.5).color).toBe("red");
+  test("returns error color for negative change", () => {
+    expect(getMovementBarValue(-1).color).toBe("error");
+    expect(getMovementBarValue(-2.5).color).toBe("error");
   });
 
   test("caps at 100% for large positive change", () => {
-    expect(getMovementBarValue(5)).toEqual({ capped: 100, color: "green" });
-    expect(getMovementBarValue(10)).toEqual({ capped: 100, color: "green" });
+    expect(getMovementBarValue(5)).toEqual({ capped: 100, color: "success" });
+    expect(getMovementBarValue(10)).toEqual({ capped: 100, color: "success" });
   });
 
   test("caps at 0% for large negative change", () => {
-    expect(getMovementBarValue(-5)).toEqual({ capped: 0, color: "red" });
-    expect(getMovementBarValue(-10)).toEqual({ capped: 0, color: "red" });
+    expect(getMovementBarValue(-5)).toEqual({ capped: 0, color: "error" });
+    expect(getMovementBarValue(-10)).toEqual({ capped: 0, color: "error" });
   });
 
   test("handles -3% change as minimum boundary", () => {
@@ -41,7 +41,7 @@ describe("getMovementBarValue", () => {
   test("handles fractional changes", () => {
     const result = getMovementBarValue(0.5);
     expect(result.capped).toBeCloseTo(58.33, 1);
-    expect(result.color).toBe("green");
+    expect(result.color).toBe("success");
   });
 });
 

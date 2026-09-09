@@ -141,6 +141,7 @@ export function BacktestResultsTable({
         enableSorting
         initialState={{ sorting: [{ id: sortColumn, desc: sortDirection === "desc" }] }}
         getRowTestId={(row) => `result-row-${row.symbol}`}
+        getRowClassName={(row) => (selectedSymbol === row.symbol ? "result-row-selected" : undefined)}
         getRowStyle={(row) => ({
           backgroundColor:
             selectedSymbol === row.symbol ? "rgba(var(--mui-palette-primary-mainChannel) / 0.08)" : undefined,

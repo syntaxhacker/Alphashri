@@ -7,6 +7,7 @@ import ReactECharts from "echarts-for-react";
 import { OptionAlerts } from "./OptionAlerts";
 import { IVSkewChart } from "./IVSkewChart";
 import { fontWeights } from "../../../config/theme";
+import { CHART_DROPDOWN } from "@/ui/palette";
 import { CompactPanel } from "../../common/compact";
 
 interface OIAnalysisProps {
@@ -62,7 +63,7 @@ export function OIAnalysis({ strikeMatrix, spotPrice }: OIAnalysisProps) {
     tooltip: {
       trigger: "axis",
       axisPointer: { type: "shadow" },
-      backgroundColor: isDark ? "rgba(0,0,0,0.8)" : "var(--mui-palette-background-paper)",
+      backgroundColor: isDark ? CHART_DROPDOWN : "var(--mui-palette-background-paper)",
       textStyle: {
         color: isDark ? "var(--mui-palette-common-white)" : "var(--mui-palette-text-primary)",
         fontSize: theme.fontSizes.sm,

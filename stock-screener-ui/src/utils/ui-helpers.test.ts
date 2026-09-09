@@ -409,29 +409,12 @@ describe("getWinRateColor", () => {
 });
 
 describe("getScoreColor", () => {
-  test("returns teal for >= 80", () => {
-    expect(getScoreColor(80)).toBe("info");
-    expect(getScoreColor(100)).toBe("info");
-  });
-
-  test("returns green for >= 60", () => {
-    expect(getScoreColor(60)).toBe("success");
-    expect(getScoreColor(75)).toBe("success");
-  });
-
-  test("returns yellow for >= 40", () => {
-    expect(getScoreColor(40)).toBe("warning");
-    expect(getScoreColor(55)).toBe("warning");
-  });
-
-  test("returns orange for >= 20", () => {
-    expect(getScoreColor(20)).toBe("warning");
-    expect(getScoreColor(35)).toBe("warning");
-  });
-
-  test("returns gray for < 20", () => {
-    expect(getScoreColor(19)).toBe("secondary");
-    expect(getScoreColor(0)).toBe("secondary");
+  test("returns default for any score (simple single color)", () => {
+    expect(getScoreColor(80)).toBe("default");
+    expect(getScoreColor(60)).toBe("default");
+    expect(getScoreColor(40)).toBe("default");
+    expect(getScoreColor(20)).toBe("default");
+    expect(getScoreColor(0)).toBe("default");
   });
 });
 

@@ -1,7 +1,8 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, within } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { OptionChainHeader } from "./OptionChainHeader";
 
@@ -41,17 +42,21 @@ describe("OptionChainHeader", () => {
     expect(screen.getByText("Expiry")).toBeInTheDocument();
   });
 
-  it("displays available underlyings as select options", () => {
+  it("displays available underlyings as select options", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<OptionChainHeader {...defaultProps} />);
-    expect(screen.getByText("NIFTY")).toBeInTheDocument();
-    expect(screen.getByText("BANKNIFTY")).toBeInTheDocument();
-    expect(screen.getByText("FINNIFTY")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("underlying-select")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "NIFTY" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "BANKNIFTY" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "FINNIFTY" })).toBeInTheDocument();
   });
 
-  it("displays available expiries as select options", () => {
+  it("displays available expiries as select options", async () => {
+    const user = userEvent.setup();
     renderWithProviders(<OptionChainHeader {...defaultProps} />);
-    expect(screen.getByText("25MAY")).toBeInTheDocument();
-    expect(screen.getByText("01JUN")).toBeInTheDocument();
-    expect(screen.getByText("08JUN")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("expiry-select")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "25MAY" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "01JUN" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "08JUN" })).toBeInTheDocument();
   });
 });

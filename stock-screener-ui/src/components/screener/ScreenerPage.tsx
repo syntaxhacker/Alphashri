@@ -4,6 +4,7 @@ import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
 import CardContent from "@mui/material/CardContent";
 import { Box, Tabs, Text, Select, Skeleton } from "@/ui";
+import { BORDER, SURFACE } from "@/ui/palette";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
 import * as state from "../../state";
 import { ScreenerHeader } from "./ScreenerHeader";
@@ -160,9 +161,9 @@ export function ScreenerPage({
             minHeight: 48,
             maxHeight: 48,
             border: 1,
-            borderColor: "#30363D",
+            borderColor: BORDER,
             borderRadius: 2,
-            bgcolor: "#161B22",
+            bgcolor: SURFACE,
             flexShrink: 0,
             overflow: "hidden",
             flexWrap: "nowrap",
@@ -237,9 +238,9 @@ export function ScreenerPage({
                 flexDirection: "column",
                 overflow: "hidden",
                 border: 1,
-                borderColor: "#30363D",
+                borderColor: BORDER,
                 borderRadius: 2,
-                bgcolor: "#161B22",
+                bgcolor: SURFACE,
                 opacity: isPending ? 0.6 : 1,
               }}
             >

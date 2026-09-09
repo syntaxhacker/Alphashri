@@ -14,6 +14,22 @@ function resolveSize(size: UITextProps["size"]): string | undefined {
   return sizeMap[size as string] ?? (size as string);
 }
 
+function resolveColor(c: string): string {
+  const map: Record<string, string> = {
+    success: "success.main",
+    error: "error.main",
+    warning: "warning.main",
+    info: "info.main",
+    primary: "primary.main",
+    secondary: "text.secondary",
+    dimmed: "text.secondary",
+    default: "text.primary",
+  };
+  if (!c) return c;
+  if (c.startsWith("#") || c.startsWith("rgb") || c.includes(".")) return c;
+  return map[c] ?? c;
+}
+
 export function Text({
   children,
   className,
@@ -27,6 +43,7 @@ export function Text({
   fw,
   c,
   ta,
+  tt,
   lh,
   truncate,
   lineClamp,
@@ -35,9 +52,10 @@ export function Text({
   ...rest
 }: UITextProps) {
   const sx: Record<string, unknown> = {
-    ...(c != null && { color: c as string }),
+    ...(c != null && { color: resolveColor(c as string) }),
     ...(fw != null && { fontWeight: fw }),
     ...(ta != null && { textAlign: ta }),
+    ...(tt != null && { textTransform: tt }),
     ...(lh != null && { lineHeight: lh }),
     ...(size != null && { fontSize: resolveSize(size as UITextProps["size"]) }),
   };

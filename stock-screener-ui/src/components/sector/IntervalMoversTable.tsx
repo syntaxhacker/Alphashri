@@ -15,34 +15,34 @@ export function IntervalMoversTable({ movers }: { movers: InternalStockMover[] }
     () => [
       {
         id: "symbol",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Stock</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>Stock</Box>,
         accessorKey: "symbol",
-        meta: { align: "center" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text fw={600}>{info.getValue<string>()}</Text></Box>,
+        meta: { align: "left" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text fw={600}>{info.getValue<string>()}</Text></Box>,
       },
       {
         id: "prev",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Prev</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Prev</Box>,
         accessorKey: "prev_change",
-        meta: { align: "center" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>().toFixed(2)}%</Box>,
+        meta: { align: "right" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{info.getValue<number>().toFixed(2)}%</Box>,
       },
       {
         id: "change",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Now</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Now</Box>,
         accessorKey: "change",
-        meta: { align: "center" },
-        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>().toFixed(2)}%</Box>,
+        meta: { align: "right" },
+        cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{info.getValue<number>().toFixed(2)}%</Box>,
       },
       {
         id: "delta",
-        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Δ</Box>,
+        header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>Δ</Box>,
         accessorKey: "delta",
-        meta: { align: "center" },
+        meta: { align: "right" },
         cell: (info) => {
           const delta = info.getValue<number>();
           return (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
               <Text c={getPnLTextColor(delta)} fw={700}>
                 {delta > 0 ? "+" : ""}
                 {delta.toFixed(2)}%

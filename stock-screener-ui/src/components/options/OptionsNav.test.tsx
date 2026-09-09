@@ -37,6 +37,6 @@ describe("OptionsNav", () => {
   it("marks active tab with correct value", () => {
     renderWithProviders(<OptionsNav activeTab="positions" onTabChange={vi.fn()} />);
     const tab = screen.getByTestId("nav-tab-positions");
-    expect(tab).toHaveAttribute("data-active");
+    expect(tab).toHaveAttribute("aria-selected", "true");
   });
 });

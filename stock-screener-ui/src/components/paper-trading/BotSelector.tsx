@@ -68,14 +68,16 @@ export function BotSelector({
       />
       <Tooltip label={running ? "Running" : "Stopped"}>
         <Box
-          sx={(theme) => ({
+          style={{
             width: 8,
             height: 8,
             borderRadius: "50%",
-            background: selectedBotId
-              ? running ? theme.palette.success.main : theme.palette.grey[500]
-              : theme.palette.grey[400],
-          })}
+            background: !selectedBotId
+              ? "var(--mui-palette-divider)"
+              : running
+                ? "var(--mui-palette-success-main)"
+                : "var(--mui-palette-grey-500)",
+          }}
         />
       </Tooltip>
       <Text size="xs" c="dimmed" data-testid="bot-status">

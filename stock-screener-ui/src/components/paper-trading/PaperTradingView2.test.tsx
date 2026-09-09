@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, within } from "@testing-library/react";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const mockStateStore: any = {
   currentView: "live",
@@ -109,6 +109,7 @@ vi.mock("./PaperSettings", () => ({
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useLocation: vi.fn(() => ({ pathname: "/" })),
+  useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
 vi.mock("../../hooks/useStoreSubscription", () => ({
@@ -133,7 +134,7 @@ afterEach(() => {
 });
 
 function r() {
-  return renderWithMantine(<PaperTradingView />);
+  return renderWithProviders(<PaperTradingView />);
 }
 
 describe("PaperTradingView", () => {
@@ -276,7 +277,7 @@ describe("PaperTradingView", () => {
   describe("cleanup on unmount", () => {
     test("cleanup stops auto-refresh on unmount", async () => {
       const { stopLiveAutoRefresh } = await import("../../api/paperTrading");
-      const { unmount } = renderWithMantine(<PaperTradingView />);
+      const { unmount } = renderWithProviders(<PaperTradingView />);
       unmount();
       expect(stopLiveAutoRefresh).toHaveBeenCalled();
     });

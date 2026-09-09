@@ -1,6 +1,8 @@
 import { useEffect } from "react";
 import { Box, Paper, IconButton, Typography } from "@mui/material";
 import CloseIcon from "@mui/icons-material/Close";
+import { BLACK } from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import type { Notification } from "../../state/store/notificationsSlice";
 
 type NotificationItemProps = {
@@ -59,7 +61,7 @@ export function NotificationItem({ notification, onDismiss }: NotificationItemPr
         borderLeft: "3px solid",
         borderLeftColor: config.borderColor,
         borderRadius: 1,
-        boxShadow: "0 4px 12px rgba(15,23,42,0.08)",
+        boxShadow: `0 4px 12px ${withAlpha(BLACK, 0.08)}`,
       }}
     >
       <Box aria-hidden="true" sx={{ color: config.color, lineHeight: 1.5 }}>

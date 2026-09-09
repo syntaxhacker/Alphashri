@@ -24,22 +24,22 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
   const columns = useMemo<ColumnDef<HeatmapStock>[]>(() => [
     {
       id: "symbol",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Symbol</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>Symbol</Box>,
       accessorKey: "symbol",
-      meta: { align: "center" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
+      meta: { align: "left" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}><Typography sx={{ fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{info.getValue<string>()}</Typography></Box>,
     },
     {
       id: "metric",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>{activeMetric.label}</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>{activeMetric.label}</Box>,
       accessorFn: (row) => getMetricValue(row, metric),
-      meta: { align: "center" },
+      meta: { align: "right" },
       cell: (info) => {
         const val = info.getValue<number>();
         const bg = getMetricColor(val, metricMin, metricMax);
         const tc = getMetricTextColor(val, metricMin, metricMax);
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
             <Box sx={{ backgroundColor: bg, color: tc, p: 1, borderRadius: 1, fontWeight: 700, fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>
               {activeMetric.fmt(val)}
             </Box>
@@ -49,42 +49,42 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
     },
     {
       id: "name",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Name</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>Name</Box>,
       accessorKey: "name",
-      meta: { align: "center" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
+      meta: { align: "left" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{info.getValue<string>()}</Typography></Box>,
     },
     {
       id: "pe_ratio",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>P/E</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>P/E</Box>,
       accessorKey: "pe_ratio",
-      meta: { align: "center" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<number>()?.toFixed(1)}</Typography></Box>,
+      meta: { align: "right" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{info.getValue<number>()?.toFixed(1)}</Typography></Box>,
     },
     {
       id: "market_cap",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>MCap</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>MCap</Box>,
       accessorKey: "market_cap",
-      meta: { align: "center" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{formatMarketCap(info.getValue<number>())}</Typography></Box>,
+      meta: { align: "right" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>{formatMarketCap(info.getValue<number>())}</Typography></Box>,
     },
     {
       id: "price",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Price</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>Price</Box>,
       accessorKey: "price",
-      meta: { align: "center" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>₹{info.getValue<number>()?.toFixed(2)}</Typography></Box>,
+      meta: { align: "right" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-end" }}>₹{info.getValue<number>()?.toFixed(2)}</Typography></Box>,
     },
     {
       id: "change_pct",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Chg</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>Chg</Box>,
       accessorKey: "change_pct",
-      meta: { align: "center" },
+      meta: { align: "right" },
       cell: (info) => {
         const val = info.getValue<number>();
         return (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-            <Typography sx={{ fontSize: 12, color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end", gap: 1, p: 1 }}>
+            <Typography sx={{ fontSize: 12, color: val >= 0 ? "success.main" : "error.main", display: "flex", alignItems: "center", justifyContent: "flex-end" }}>
               {val >= 0 ? "+" : ""}{val?.toFixed(2)}%
             </Typography>
           </Box>
@@ -93,10 +93,10 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
     },
     {
       id: "sector",
-      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>Sector</Box>,
+      header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>Sector</Box>,
       accessorKey: "sector",
-      meta: { align: "center" },
-      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "center" }}>{info.getValue<string>()}</Typography></Box>,
+      meta: { align: "left" },
+      cell: (info) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}><Typography sx={{ fontSize: 12, display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{info.getValue<string>()}</Typography></Box>,
     },
   ], [activeMetric, metric, metricMin, metricMax]);
 

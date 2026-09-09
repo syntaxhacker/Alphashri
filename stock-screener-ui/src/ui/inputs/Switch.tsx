@@ -81,7 +81,7 @@ export function Switch({
         control={control}
         label={labelNode}
         disabled={disabled}
-        data-testid={testId}
+        data-testid={testId ? `${testId}-label` : undefined}
         sx={{ m: 0, alignItems: description ? "flex-start" : "center" }}
       />
     </FormGroup>

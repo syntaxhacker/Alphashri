@@ -6,15 +6,8 @@ import { fetchAnalytics } from "../../api/paperTrading";
 import { CompactStat, CompactStatGrid } from "../common/compact";
 import type { AnalyticsData, DailyPnLPoint, EquityCurvePoint } from "../../types/paperTrading";
 import { PERF_POSITIVE, PERF_NEGATIVE, POSITIVE, NEGATIVE, TEXT_MUTED } from "../../config/colors";
+import { withAlpha } from "../../utils/color";
 import ReactECharts from "echarts-for-react";
-
-function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
 
 const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.12) } };
 

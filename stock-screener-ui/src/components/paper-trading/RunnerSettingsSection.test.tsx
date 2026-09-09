@@ -1,8 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach, test } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import {render, screen, cleanup, within, fireEvent} from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import userEvent from "@testing-library/user-event";
 import { RunnerSettingsSection } from "./RunnerSettingsSection";
 import type { StrategyConfig } from "../../types/strategies";
 import { TestWrapper } from "../../test/test-utils";
@@ -115,9 +114,9 @@ describe("RunnerSettingsSection", () => {
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      expect(screen.getByText("Cooldown (min)")).toBeInTheDocument();
+      expect(screen.getByLabelText("Cooldown (min)")).toBeInTheDocument();
       expect(screen.getByText("Cooldown between trades")).toBeInTheDocument();
-      expect(screen.getByText("Max Distance from OR %")).toBeInTheDocument();
+      expect(screen.getByLabelText("Max Distance from OR %")).toBeInTheDocument();
       expect(screen.getByText("Max distance from opening range")).toBeInTheDocument();
     });
 
@@ -133,53 +132,49 @@ describe("RunnerSettingsSection", () => {
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const cooldownInput = screen.getByTestId("config-cooldown");
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      expect(cooldownInput).toHaveValue("60");
-      expect(maxDistanceInput).toHaveValue("1");
+      const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      expect(cooldownInput).toHaveValue(60);
+      expect(maxDistanceInput).toHaveValue(1);
     });
   });
 
   describe("onChange behavior", () => {
     it("calls onChange with correct key and value when cooldown changes", async () => {
-      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const cooldownInput = screen.getByTestId("config-cooldown");
-      await user.clear(cooldownInput); await user.type(cooldownInput, "30");
+      const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
+      fireEvent.change(cooldownInput, { target: { value: "30" } });
       expect(mockOnChange).toHaveBeenCalledWith("cooldown_minutes", 30);
     });
 
     it("calls onChange with correct key and value when max_distance changes", async () => {
-      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, "2.5");
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      fireEvent.change(maxDistanceInput, { target: { value: "2.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 2.5);
     });
 
     it("converts cooldown value to number", async () => {
-      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const cooldownInput = screen.getByTestId("config-cooldown");
-      await user.clear(cooldownInput); await user.type(cooldownInput, "45");
+      const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
+      fireEvent.change(cooldownInput, { target: { value: "45" } });
       expect(mockOnChange).toHaveBeenCalledWith("cooldown_minutes", 45);
       // Verify it's a number not a string
       expect(typeof mockOnChange.mock.calls[0][1]).toBe("number");
     });
 
     it("converts max_distance value to number including decimals", async () => {
-      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, "1.75");
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      fireEvent.change(maxDistanceInput, { target: { value: "1.75" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 1.75);
       expect(typeof mockOnChange.mock.calls[0][1]).toBe("number");
     });
@@ -194,8 +189,8 @@ describe("RunnerSettingsSection", () => {
         />,
         { wrapper: TestWrapper },
       );
-      const cooldownInput = screen.getByTestId("config-cooldown");
-      expect(cooldownInput).toHaveValue("0");
+      const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
+      expect(cooldownInput).toHaveValue(0);
     });
 
     it("renders with max cooldown value (120)", () => {
@@ -206,8 +201,8 @@ describe("RunnerSettingsSection", () => {
         />,
         { wrapper: TestWrapper },
       );
-      const cooldownInput = screen.getByTestId("config-cooldown");
-      expect(cooldownInput).toHaveValue("120");
+      const cooldownInput = within(screen.getByTestId("config-cooldown")).getByRole("spinbutton");
+      expect(cooldownInput).toHaveValue(120);
     });
 
     it("renders with min max_distance (0.5)", () => {
@@ -218,8 +213,8 @@ describe("RunnerSettingsSection", () => {
         />,
         { wrapper: TestWrapper },
       );
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      expect(maxDistanceInput).toHaveValue("0.5");
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      expect(maxDistanceInput).toHaveValue(0.5);
     });
 
     it("renders with max max_distance value (5)", () => {
@@ -230,17 +225,16 @@ describe("RunnerSettingsSection", () => {
         />,
         { wrapper: TestWrapper },
       );
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      expect(maxDistanceInput).toHaveValue("5");
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      expect(maxDistanceInput).toHaveValue(5);
     });
 
     it("accepts fractional max_distance values like 0.5", async () => {
-      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, "0.5");
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      fireEvent.change(maxDistanceInput, { target: { value: "0.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", 0.5);
     });
 
@@ -248,12 +242,11 @@ describe("RunnerSettingsSection", () => {
       ["1.5", 1.5],
       ["3.75", 3.75],
     ])("accepts fractional max_distance values like %s", async (inputVal, expected) => {
-      const user = userEvent.setup();
       render(<RunnerSettingsSection config={createMockConfig()} onChange={mockOnChange} />, {
         wrapper: TestWrapper,
       });
-      const maxDistanceInput = screen.getByTestId("config-max-distance");
-      await user.clear(maxDistanceInput); await user.type(maxDistanceInput, String(inputVal));
+      const maxDistanceInput = within(screen.getByTestId("config-max-distance")).getByRole("spinbutton");
+      fireEvent.change(maxDistanceInput, { target: { value: String(inputVal) } });
       expect(mockOnChange).toHaveBeenCalledWith("max_distance_from_or_pct", expected);
     });
   });

@@ -9,7 +9,7 @@ const sp = (v: unknown) => {
 };
 const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | undefined));
 
-export function Box({ children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave, p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex, ...rest }: UIBoxProps & Record<string, unknown>) {
+export function Box({ children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave, p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex, alignItems, justifyContent, flexDirection, gap, ...rest }: UIBoxProps & Record<string, unknown> & { alignItems?: unknown; justifyContent?: unknown; flexDirection?: unknown; gap?: unknown }) {
   return (
     <MuiBox
       id={id as string}
@@ -49,6 +49,10 @@ export function Box({ children, className, style, id, "data-testid": testId, onC
         ...(mih != null && { minHeight: toSz(mih) }),
         ...(mah != null && { maxHeight: toSz(mah) }),
         ...(flex != null && { flex: flex as string }),
+        ...(alignItems != null && { alignItems: alignItems as string }),
+        ...(justifyContent != null && { justifyContent: justifyContent as string }),
+        ...(flexDirection != null && { flexDirection: flexDirection as string }),
+        ...(gap != null && { gap: sp(gap) }),
       }}
       {...rest}
     >

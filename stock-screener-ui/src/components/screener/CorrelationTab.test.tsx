@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor, act } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, act, fireEvent, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
@@ -115,15 +115,16 @@ describe("CorrelationTab", () => {
   });
 
   it("calls searchSymbols on search input", async () => {
-      const user = userEvent.setup();
     mockSearchSymbols.mockResolvedValueOnce([
       { symbol: "RELIANCE", name: "Reliance Industries" },
     ]);
     renderWithProvider(<CorrelationTab />);
     const input = screen.getByPlaceholderText("Search and select symbols");
-    await act(async () => {
-      await user.clear(input); await user.type(input, "REL");
-    });
+    // NOTE: userEvent.type per-keystroke simulation is swallowed by MUI
+    // Autocomplete in happy-dom when the parent re-renders (stateful data);
+    // fireEvent exercises the same onSearchChange path. Real-browser E2E
+    // covers actual typing.
+    fireEvent.change(input, { target: { value: "REL" } });
     await waitFor(() => {
       expect(mockSearchSymbols).toHaveBeenCalledWith("REL", 10);
     });
@@ -136,13 +137,15 @@ describe("CorrelationTab", () => {
     expect(screen.getByText("Intraday")).toBeInTheDocument();
   });
 
-  it("period Select changes options based on timeframe", () => {
+  it("period Select changes options based on timeframe", async () => {
+    const user = userEvent.setup();
     renderWithProvider(<CorrelationTab />);
     const select = screen.getByTestId("correlation-period");
     expect(select).toBeInTheDocument();
     // Daily timeframe shows 30d, 90d, 180d, 1Y options
-    expect(screen.getByText("30d")).toBeInTheDocument();
-    expect(screen.getByText("90d")).toBeInTheDocument();
+    await user.click(within(select).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "30d" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "90d" })).toBeInTheDocument();
   });
 
   it("Calculate button triggers fetchCorrelationData", async () => {

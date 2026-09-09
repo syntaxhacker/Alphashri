@@ -360,6 +360,7 @@ function OptionChainTableInner({
               <Box
                 key={strike}
                 ref={isATM ? atmRowRef : null}
+                className={isATM ? "chain-row-atm" : undefined}
                 sx={{
                   ...styles.row,
                   background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.palette.warning.light, 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,

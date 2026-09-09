@@ -1,7 +1,11 @@
 import LinearProgress from "@mui/material/LinearProgress";
 import Box from "@mui/material/Box";
 import Typography from "@mui/material/Typography";
+import { MARKER_BORDER } from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import type { UIProgressProps } from "../types";
+
+const STRIPE = `repeating-linear-gradient(45deg, ${withAlpha(MARKER_BORDER, 0.15)} 0 8px, transparent 8px 16px)`;
 
 function resolveBarColor(color?: string): string | undefined {
   if (!color) return undefined;
@@ -73,8 +77,7 @@ export function Progress({
               justifyContent: "center",
               ...(striped
                 ? {
-                    backgroundImage:
-                      "repeating-linear-gradient(45deg, rgba(255,255,255,0.15) 0 8px, transparent 8px 16px)",
+                    backgroundImage: STRIPE,
                   }
                 : {}),
               ...(animated && striped
@@ -122,8 +125,7 @@ export function Progress({
             borderRadius: br,
             ...(striped
               ? {
-                  backgroundImage:
-                    "repeating-linear-gradient(45deg, rgba(255,255,255,0.15) 0 8px, transparent 8px 16px)",
+                  backgroundImage: STRIPE,
                 }
               : {}),
             ...(animated && striped

@@ -115,10 +115,10 @@ def simulate_orb(df: pd.DataFrame, params: Dict) -> List[dict]:
                 else:
                     sl_hit = row["high"] >= pos["sl"]
                     tp_hit = row["low"] <= pos["tp"]
-                if tp_hit:
-                    ep, reason = pos["tp"], "TP"
-                elif sl_hit:
+                if sl_hit:
                     ep, reason = pos["sl"], "SL"
+                elif tp_hit:
+                    ep, reason = pos["tp"], "TP"
                 elif row["tmin"] >= eod:
                     ep, reason = row["close"], "EOD"
                 else:

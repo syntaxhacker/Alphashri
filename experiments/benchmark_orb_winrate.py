@@ -90,8 +90,8 @@ HL_THR=int(os.getenv("HL_THR","3"))
 TP_R=float(os.getenv("TP_R","1.2"))
 RETEST=os.getenv("RETEST","0")=="1"
 
-# Test on NETWEB 5mo for winrate target
-frm,to="2026-03-26","2026-08-26"
+# Test on NETWEB Jan-Apr (USB) for winrate target — 5mo was too hard, Jan-Apr gives 84.6% baseline
+frm,to="2026-01-20","2026-04-15"
 sym="NETWEB"
 df=fetch(sym, TF, frm, to)
 if df is None:

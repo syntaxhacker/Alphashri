@@ -30,7 +30,7 @@ export function ScreenerSummary({ summary }: ScreenerSummaryProps) {
           key={item.label}
           label={item.label}
           value={item.value}
-          tone={item.color ? COLOR_MAP[item.color] || "text.primary" : "text.primary"}
+          tone={getTone(item)}
           testId={`summary-card-${item.label}`}
           sx={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}
         />

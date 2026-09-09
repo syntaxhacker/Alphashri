@@ -35,7 +35,8 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO.parent))
 
 IST = "Asia/Kolkata"
-UP, DOWN, ACCENT, GOLD, GRAY, PURPLE = ("#1a7f37", "#c62828", "#1565c0", "#e65100", "#607d8b", "#6a1b9a")
+# High-contrast palette (black bg) — updated per user request for better marker visibility
+UP, DOWN, ACCENT, GOLD, GRAY, PURPLE = ("#00FF00", "#FF3333", "#00BFFF", "#FFD700", "#CCCCCC", "#FF00FF")
 
 # Sector/industry -> NSE peer tickers used for the valuation comparison table.
 INDUSTRY_PEERS = {
@@ -510,11 +511,16 @@ def market_stats(daily: pd.DataFrame, nifty) -> dict:
 
 # ---------------------------------------------------------------- figures
 def _style():
+    # High-contrast dark theme (black bg, white text) for marker visibility
     plt.rcParams.update({"figure.dpi": 110, "savefig.dpi": 130, "font.size": 10,
                          "axes.titlesize": 12, "axes.titleweight": "bold", "axes.grid": True,
-                         "grid.alpha": 0.25, "grid.linewidth": 0.5, "figure.facecolor": "white",
-                         "axes.facecolor": "white"})
-    sns.set_theme(style="whitegrid", palette="deep")
+                         "grid.alpha": 0.35, "grid.linewidth": 0.7, "figure.facecolor": "#000000",
+                         "axes.facecolor": "#000000", "text.color": "#FFFFFF", "axes.labelcolor": "#FFFFFF",
+                         "xtick.color": "#FFFFFF", "ytick.color": "#FFFFFF", "axes.edgecolor": "#FFFFFF"})
+    sns.set_theme(style="darkgrid", palette="deep")
+    # Override seaborn darkgrid to pure black
+    plt.rcParams["axes.facecolor"] = "#000000"
+    plt.rcParams["figure.facecolor"] = "#000000"
 
 
 def _bar_labels(ax, bars, fmt="{:.1f}", fontsize=8, dy=0.02):
@@ -1841,13 +1847,14 @@ def render_report(sym, res, mk, figdir, outdir):
                 + (f'<li>Track earnings surprises ({n_beats}/{n_beats + n_miss} beats; ρ = {rho_earn:.2f}).</li>' if has_earn else '')
                 + '<li>Use volume with direction — extreme high-volume up days carry a forward-return tilt.</li></ul>')
 
+    # High-contrast HTML (black bg) — updated per user request for marker visibility
     html = f"""<!DOCTYPE html><html><head><meta charset="utf-8"><title>{sym} EDA Report</title>
 <style>
-body{{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:1040px;margin:0 auto;padding:24px;color:#1a1a1a;line-height:1.55;background:#fbfbfb}}
-h1{{border-bottom:3px solid #1565c0;padding-bottom:8px}}h2{{color:#0d47a1;margin-top:2em;border-bottom:1px solid #e0e0e0}}h3{{color:#1565c0}}
-table{{border-collapse:collapse;margin:10px 0}}th,td{{border:1px solid #ccc;padding:5px 9px;font-size:.9em}}th{{background:#eef4fb}}
-.fig img{{max-width:100%;border:1px solid #ddd;border-radius:6px;margin:6px 0}}.cap{{font-size:.83em;color:#666}}
-.good{{color:#059669;font-weight:600}}.bad{{color:#dc2626;font-weight:600}}.pos{{color:#059669;font-weight:600}}.neg{{color:#dc2626;font-weight:600}}.neu{{color:#94a3b8}}.warn{{color:#d97706;font-weight:600}}.buy{{color:#059669;font-weight:700}}.caution{{color:#dc2626;font-weight:700}}.hold{{color:#d97706;font-weight:700}}.meta{{color:#64748b}}.pe{{background:#f6f9f2;border-left:4px solid #84cc16;padding:10px 14px;margin:14px 0;border-radius:4px;font-size:.95em;color:#365314}}
+body{{font-family:-apple-system,'Segoe UI',Roboto,sans-serif;max-width:1040px;margin:0 auto;padding:24px;color:#FFFFFF;line-height:1.55;background:#000000}}
+h1{{border-bottom:3px solid #00BFFF;padding-bottom:8px;color:#FFFFFF}}h2{{color:#00BFFF;margin-top:2em;border-bottom:1px solid #444}}h3{{color:#00BFFF}}
+table{{border-collapse:collapse;margin:10px 0}}th,td{{border:1px solid #444;padding:5px 9px;font-size:.9em}}th{{background:#111;color:#FFFFFF}}td{{color:#FFFFFF}}
+.fig img{{max-width:100%;border:1px solid #444;border-radius:6px;margin:6px 0;background:#000000}}.cap{{font-size:.83em;color:#CCCCCC}}
+.good{{color:#00FF00;font-weight:700}}.bad{{color:#FF3333;font-weight:700}}.pos{{color:#00FF00;font-weight:700}}.neg{{color:#FF3333;font-weight:700}}.neu{{color:#CCCCCC}}.warn{{color:#FFD700;font-weight:700}}.buy{{color:#00FF00;font-weight:700}}.caution{{color:#FF3333;font-weight:700}}.hold{{color:#FFD700;font-weight:700}}.meta{{color:#CCCCCC}}.pe{{background:#0a0a0a;border-left:4px solid #FFD700;padding:10px 14px;margin:14px 0;border-radius:4px;font-size:.95em;color:#FFFFFF;border:1px solid #444}}
 </style></head><body>{''.join(body)}</body></html>"""
     (outdir / f"{sym}_EDA_report.html").write_text(html)
     return len(md), len(html)

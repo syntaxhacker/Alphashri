@@ -37,7 +37,7 @@ sys.path.insert(0, str(REPO))
 sys.path.insert(0, str(REPO.parent))
 
 IST = "Asia/Kolkata"
-UP, DOWN, ACCENT, GOLD, GRAY, PURPLE = ("#1a7f37", "#c62828", "#1565c0", "#e65100", "#607d8b", "#6a1b9a")
+UP, DOWN, ACCENT, GOLD, GRAY, PURPLE = ("#00FF00", "#FF3333", "#00BFFF", "#FFD700", "#CCCCCC", "#FF00FF")
 
 MARKET_OPEN_MIN = 9 * 60 + 15          # 09:15 in minutes-from-midnight
 MARKET_MINUTES = 375                    # 09:15 -> 15:30

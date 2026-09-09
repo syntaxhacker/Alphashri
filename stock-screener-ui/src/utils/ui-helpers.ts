@@ -354,12 +354,8 @@ export function getWinRateColor(value: number): string {
   return "error";
 }
 
-export function getScoreColor(score: number): string {
-  if (score >= 80) return "info";
-  if (score >= 60) return "success";
-  if (score >= 40) return "warning";
-  if (score >= 20) return "warning";
-  return "secondary";
+export function getScoreColor(_score: number): string {
+  return "default";
 }
 
 // ============================================

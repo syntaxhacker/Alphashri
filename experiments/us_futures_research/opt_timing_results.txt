@@ -1,0 +1,110 @@
+ES ORB Timing/Direction Filters — 15m OR (5 x 3min bars), 2026-01-20..2026-04-15
+====================================================================================================
+CSV: /media/mysyntax/LENOVO_USB_/cme-futures-ohlc-main/ES/ES_1min_20260120_20260415.csv
+Sessions: 61  baseline trade sessions: 54 (PF=1.64 net=15.5% win=53.7%)
+Strategy: retest limit @ edge after breakout close, TP=2R/SL=opposite edge, EOD flat, 1pt cost, 1% risk compounded
+Costs 1pt RT, SL first on intrabar hit. Range = first 5 bars (09:30-09:44 ET). Body = breakout bar body.
+Gap = RTH open (09:30 3min bar open) - prev RTH close. Gap skip = abs(gap_pct) > thresh.
+Cutoff = entry (retest) bar ET start >= cutoff => skip.
+Baseline per orb_verify retest 15m: trades 54 PF 1.64 net 15.5% win 53.7% maxDD -6.7% (this run must match).
+
+Gap stats: mean |gap_pct| 0.513%  max |gap_pct| 2.61%  days gap>1% 8  gap>0 31 gap<0 29
+
+variant                                             tr  win%     PF    net%  gross%   avgR    DD%  ΔPF  Δnet  Δtr
+-----------------------------------------------------------------------------------------------------------------
+BASELINE (all, both, no body, no skip, no cutoff)   54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0 (baseline)
+breakout N<=10 (30m per 10 bars)                    51  54.9   1.68    15.4    18.0  0.289   -6.2 +0.04  -0.1  -3 ***
+breakout N<=20 (30m per 10 bars)                    54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0
+breakout N<=40 (30m per 10 bars)                    54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0
+gap-aligned only (long if gap>0, short if gap<0)    26  46.2   1.17     2.2     3.4  0.092   -6.1 -0.47 -13.3 -28
+gap-aligned + N<=20                                 26  46.2   1.17     2.2     3.4  0.092   -6.1 -0.47 -13.3 -28
+gap-aligned + N<=10                                 24  45.8   1.14     1.7     2.7  0.076   -6.1 -0.50 -13.8 -30
+body >30% range                                     28  53.6   1.79     9.6    11.1  0.336   -4.0 +0.15  -5.9 -26 ***
+body>30% + N<=20                                    28  53.6   1.79     9.6    11.1  0.336   -4.0 +0.15  -5.9 -26 ***
+body>30% + gap-aligned                              14  57.1   2.09     6.9     7.6  0.486   -2.1 +0.45  -8.6 -40 ***
+body>30% + gap-aligned + N<=20                      14  57.1   2.09     6.9     7.6  0.486   -2.1 +0.45  -8.6 -40 ***
+skip gap>1% (news)                                  47  59.6   2.06    20.6    23.1  0.406   -4.3 +0.42  +5.1  -7 ***
+skip gap>1% + gap-aligned                           22  54.5   1.68     6.6     7.6  0.298   -4.2 +0.04  -8.9 -32 ***
+skip gap>0.5% (stricter)                            33  60.6   2.07    14.3    16.1  0.414   -4.1 +0.43  -1.2 -21 ***
+entry cutoff 15:00 ET                               54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0
+entry cutoff 14:00 ET                               54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0
+entry cutoff 15:30 ET (EOD flat)                    54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0
+cutoff 15:00 + N<=20                                54  53.7   1.64    15.5    18.2  0.274   -6.7 +0.00  +0.0  +0
+cutoff 15:00 + body>30%                             28  53.6   1.79     9.6    11.1  0.336   -4.0 +0.15  -5.9 -26 ***
+N<=20 + skip gap>1%                                 47  59.6   2.06    20.6    23.1  0.406   -4.3 +0.42  +5.1  -7 ***
+N<=20 + body + skip gap>1%                          25  60.0   2.27    12.5    13.9  0.479   -3.8 +0.63  -3.0 -29 ***
+N<=20 + gap-aligned + body>30% + skip gap>1% + cutoff 15:00  12  66.7   3.14     9.2     9.8  0.742   -2.1 +1.50  -6.3 -42 ***
+N<=40 + gap-aligned                                 26  46.2   1.17     2.2     3.4  0.092   -6.1 -0.47 -13.3 -28
+N<=40 + body>30%                                    28  53.6   1.79     9.6    11.1  0.336   -4.0 +0.15  -5.9 -26 ***
+gap-CONTRARIAN (short if gap>0, long if gap<0)      29  62.1   2.53    15.2    16.7  0.495   -2.6 +0.89  -0.3 -25 ***
+
+Sorted by PF (desc) — top 10 with >=5 trades:
+variant                                             tr  win%     PF    net%  gross%   avgR    DD%  ΔPF  Δnet  Δtr
+-----------------------------------------------------------------------------------------------------------------
+N<=20 + gap-aligned + body>30% + skip gap>1% + cutoff 15:00  12  66.7   3.14     9.2     9.8  0.742   -2.1
+gap-CONTRARIAN (short if gap>0, long if gap<0)      29  62.1   2.53    15.2    16.7  0.495   -2.6
+N<=20 + body + skip gap>1%                          25  60.0   2.27    12.5    13.9  0.479   -3.8
+body>30% + gap-aligned                              14  57.1   2.09     6.9     7.6  0.486   -2.1
+body>30% + gap-aligned + N<=20                      14  57.1   2.09     6.9     7.6  0.486   -2.1
+skip gap>0.5% (stricter)                            33  60.6   2.07    14.3    16.1  0.414   -4.1
+skip gap>1% (news)                                  47  59.6   2.06    20.6    23.1  0.406   -4.3
+N<=20 + skip gap>1%                                 47  59.6   2.06    20.6    23.1  0.406   -4.3
+body >30% range                                     28  53.6   1.79     9.6    11.1  0.336   -4.0
+body>30% + N<=20                                    28  53.6   1.79     9.6    11.1  0.336   -4.0
+
+Sorted by net% (desc) — top 10:
+variant                                             tr  win%     PF    net%  gross%   avgR    DD%  ΔPF  Δnet  Δtr
+-----------------------------------------------------------------------------------------------------------------
+skip gap>1% (news)                                  47  59.6   2.06    20.6    23.1  0.406   -4.3
+N<=20 + skip gap>1%                                 47  59.6   2.06    20.6    23.1  0.406   -4.3
+BASELINE (all, both, no body, no skip, no cutoff)   54  53.7   1.64    15.5    18.2  0.274   -6.7
+breakout N<=20 (30m per 10 bars)                    54  53.7   1.64    15.5    18.2  0.274   -6.7
+breakout N<=40 (30m per 10 bars)                    54  53.7   1.64    15.5    18.2  0.274   -6.7
+entry cutoff 15:00 ET                               54  53.7   1.64    15.5    18.2  0.274   -6.7
+entry cutoff 14:00 ET                               54  53.7   1.64    15.5    18.2  0.274   -6.7
+entry cutoff 15:30 ET (EOD flat)                    54  53.7   1.64    15.5    18.2  0.274   -6.7
+cutoff 15:00 + N<=20                                54  53.7   1.64    15.5    18.2  0.274   -6.7
+breakout N<=10 (30m per 10 bars)                    51  54.9   1.68    15.4    18.0  0.289   -6.2
+
+Breakout timing curve (N filter only):
+  N=10   -> trades 51 PF  1.68 net  15.4% win 54.9% DD -6.2%
+  N=20   -> trades 54 PF  1.64 net  15.5% win 53.7% DD -6.7%
+  N=40   -> trades 54 PF  1.64 net  15.5% win 53.7% DD -6.7%
+  N=None -> trades 54 PF  1.64 net  15.5% win 53.7% DD -6.7%
+
+BEST by PF (trades>=10): N<=20 + gap-aligned + body>30% + skip gap>1% + cutoff 15:00 PF=3.14 net=9.2% trades=12 win=66.7% DD=-2.1%
+BEST by net% (trades>=10): skip gap>1% (news) net=20.6% PF=2.06 trades=47 win=59.6%
+BEST by PF (trades>=20, robust): gap-CONTRARIAN (short if gap>0, long if gap<0) PF=2.53 net=15.2% trades=29
+BEST by net% (trades>=20): N<=20 + skip gap>1% net=20.6% PF=2.06 trades=47
+
+Interpretation:
+- 14 variants beat baseline PF 1.64 with >=8 trades:
+    N<=20 + gap-aligned + body>30% + skip gap>1% + cutoff 15:00: PF 3.14 (Δ+1.50) net 9.2% (Δ-6.3%) trades 12
+    gap-CONTRARIAN (short if gap>0, long if gap<0): PF 2.53 (Δ+0.89) net 15.2% (Δ-0.3%) trades 29
+    N<=20 + body + skip gap>1%: PF 2.27 (Δ+0.63) net 12.5% (Δ-3.0%) trades 25
+    body>30% + gap-aligned + N<=20: PF 2.09 (Δ+0.45) net 6.9% (Δ-8.6%) trades 14
+    body>30% + gap-aligned: PF 2.09 (Δ+0.45) net 6.9% (Δ-8.6%) trades 14
+    skip gap>0.5% (stricter): PF 2.07 (Δ+0.43) net 14.3% (Δ-1.2%) trades 33
+    N<=20 + skip gap>1%: PF 2.06 (Δ+0.42) net 20.6% (Δ+5.1%) trades 47
+    skip gap>1% (news): PF 2.06 (Δ+0.42) net 20.6% (Δ+5.1%) trades 47
+    body >30% range: PF 1.79 (Δ+0.15) net 9.6% (Δ-5.9%) trades 28
+    body>30% + N<=20: PF 1.79 (Δ+0.15) net 9.6% (Δ-5.9%) trades 28
+    N<=40 + body>30%: PF 1.79 (Δ+0.15) net 9.6% (Δ-5.9%) trades 28
+    cutoff 15:00 + body>30%: PF 1.79 (Δ+0.15) net 9.6% (Δ-5.9%) trades 28
+    breakout N<=10 (30m per 10 bars): PF 1.68 (Δ+0.04) net 15.4% (Δ-0.1%) trades 51
+    skip gap>1% + gap-aligned: PF 1.68 (Δ+0.04) net 6.6% (Δ-8.9%) trades 22
+- Gap-aligned: trades 26 PF 1.17 net 2.2% vs baseline 54/1.64/15.5% -> hurts
+- Gap-contrarian: trades 29 PF 2.53 net 15.2% win 62.1%
+- Body >30% range: trades 28 PF 1.79 net 9.6% win 53.6% -> improves
+- Skip gap>1%: trades 47 PF 2.06 net 20.6% -> gap>1% days=8 so effect is small
+- N<=10: trades 51 PF 1.68 net 15.4% win 54.9% -> early breakouts better
+- N<=20: trades 54 PF 1.64 net 15.5% win 53.7% -> 
+- N<=40: trades 54 PF 1.64 net 15.5% win 53.7% -> 
+- Cutoff 15:00 ET: trades 54 PF 1.64 net 15.5% -> identical to baseline (no late entries)
+
+Notes:
+- Retest = breakout close beyond edge, then limit at edge (hi/lo). SL=opposite edge, TP=2R, EOD flat last 3min close.
+- N timing: breakout bar index i in body (0=first post-range 3min bar 09:45). N=10→09:45-10:14, N=20→11: -09:44, N=40→11:44. 'all' = no filter.
+- Gap = today's RTH open (09:30 bar open) - prev RTH close (last bar close). Body = abs(close-open) of breakout bar.
+- Window only 61 sessions, 54 baseline trades; PF deltas are noisy. No filter produces robust statistically significant lift on this sample.
+- If baseline mismatches 54 trades check DST mask and CSV window; this run uses orb_verify.load_3min exactly.

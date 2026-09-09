@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import "@testing-library/jest-dom/vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { renderHook, act } from "@testing-library/react";
 import { renderWithProviders } from "../../test-utils/renderWithProviders";
@@ -689,17 +689,19 @@ describe("HistoryFilters", () => {
     expect(screen.getByTestId("filter-to-date")).toBeInTheDocument();
   });
 
-  it("renders symbol select with clearable and 'All' option", () => {
+  it("renders symbol select with clearable and 'All' option", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    const symbolSelect = screen.getByTestId("filter-symbol");
-    expect(symbolSelect).toBeInTheDocument();
-    expect(screen.getByText("All")).toBeInTheDocument();
+    expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
   });
 
-  it("symbol select shows all unique symbols from trades", () => {
+  it("symbol select shows all unique symbols from trades", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [
       mockTrade({ symbol: "RELIANCE" }),
       mockTrade({ symbol: "TCS" }),
@@ -708,8 +710,9 @@ describe("HistoryFilters", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    expect(screen.getByText("RELIANCE")).toBeInTheDocument();
-    expect(screen.getByText("TCS")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "RELIANCE" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "TCS" })).toBeInTheDocument();
   });
 
   it("changing from date calls handleFilterFromDate", async () => {
@@ -742,8 +745,8 @@ describe("HistoryFilters", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    const symbolSelect = screen.getByTestId("filter-symbol");
-    await user.selectOptions(symbolSelect, "RELIANCE");
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "RELIANCE" }));
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith("RELIANCE");
   });
@@ -751,22 +754,25 @@ describe("HistoryFilters", () => {
   it("selecting 'All' clears the filter", async () => {
     const user = userEvent.setup();
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" })];
+    mockStateStore.filterSymbol = "RELIANCE";
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    const symbolSelect = screen.getByTestId("filter-symbol");
-    await user.selectOptions(symbolSelect, "");
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "All" }));
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith(null);
   });
 
-  it("renders empty symbol options when no trades", () => {
+  it("renders empty symbol options when no trades", async () => {
+    const user = userEvent.setup();
     mockStateStore.trades = [];
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
     expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
-    expect(screen.getByText("All")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
     expect(screen.queryAllByRole("option")).toHaveLength(1);
   });
 });
@@ -932,8 +938,8 @@ describe("PaperTradingHelpers integration", () => {
 
     r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-    const symbolSelect = screen.getByTestId("filter-symbol");
-    await user.selectOptions(symbolSelect, "RELIANCE");
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "RELIANCE" }));
 
     expect(mockFilters.handleFilterSymbol).toHaveBeenCalledWith("RELIANCE");
   });
@@ -974,7 +980,8 @@ describe("PaperTradingHelpers integration", () => {
     expect(screen.getByTestId("stop-bot-btn")).toBeInTheDocument();
   });
 
-  it("FiltersBar correctly renders HistoryFilters with all subcomponents", () => {
+  it("FiltersBar correctly renders HistoryFilters with all subcomponents", async () => {
+    const user = userEvent.setup();
     mockStateStore.currentView = "history";
     mockStateStore.trades = [mockTrade({ symbol: "RELIANCE" }), mockTrade({ symbol: "TCS" })];
 
@@ -991,9 +998,10 @@ describe("PaperTradingHelpers integration", () => {
     expect(screen.getByTestId("filter-from-date")).toBeInTheDocument();
     expect(screen.getByTestId("filter-to-date")).toBeInTheDocument();
     expect(screen.getByTestId("filter-symbol")).toBeInTheDocument();
-    expect(screen.getByText("All")).toBeInTheDocument();
-    expect(screen.getByText("RELIANCE")).toBeInTheDocument();
-    expect(screen.getByText("TCS")).toBeInTheDocument();
+    await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+    expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "RELIANCE" })).toBeInTheDocument();
+    expect(await screen.findByRole("option", { name: "TCS" })).toBeInTheDocument();
   });
 });
 
@@ -1089,12 +1097,14 @@ describe("Edge cases", () => {
   });
 
   describe("trades empty for symbol options", () => {
-    it("HistoryFilters shows only 'All' option when no trades", () => {
+    it("HistoryFilters shows only 'All' option when no trades", async () => {
+      const user = userEvent.setup();
       mockStateStore.trades = [];
 
       r(<HistoryFilters state={mockStateStore} filters={mockFilters} />);
 
-      expect(screen.getByText("All")).toBeInTheDocument();
+      await user.click(within(screen.getByTestId("filter-symbol")).getByRole("combobox"));
+      expect(await screen.findByRole("option", { name: "All" })).toBeInTheDocument();
       expect(screen.queryAllByRole("option")).toHaveLength(1);
     });
   });

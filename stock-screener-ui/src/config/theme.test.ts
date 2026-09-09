@@ -8,17 +8,18 @@ describe("Theme Configuration (MUI default)", () => {
     expect(typeof muiTheme).toBe("object");
   });
   it("has cssVariables enabled", () => {
-    // default MUI theme uses cssVariables for colorSchemes
-    expect((muiTheme as any).cssVariables).toBe(true);
+    // NT theme uses cssVariables object form -> createThemeWithVars exposes
+    // generated CSS vars via theme.vars (no boolean .cssVariables flag)
+    expect((muiTheme as any).vars).toBeDefined();
   });
-  it("has colorSchemes light and dark enabled", () => {
+  it("has colorSchemes light and dark", () => {
     const cs = (muiTheme as any).colorSchemes;
     expect(cs).toBeDefined();
-    expect(cs.light).toBe(true);
-    expect(cs.dark).toBe(true);
+    expect(cs.light).toBeDefined();
+    expect(cs.dark).toBeDefined();
   });
-  it("is default MUI theme without custom palette overrides", () => {
-    // Should not have custom primary hardcoded; MUI defaults are used
+  it("derives palette from palette.ts (single source of truth)", () => {
+    // Custom NT theme: colors derive from palette.ts, not MUI defaults
     // Just ensure theme object is valid
     expect(muiTheme.palette).toBeDefined();
   });

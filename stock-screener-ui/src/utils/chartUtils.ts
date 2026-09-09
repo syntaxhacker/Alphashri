@@ -17,6 +17,12 @@ import {
   CHART_DARK_DROPDOWN,
   INDICATOR_BLUE_A,
   INDICATOR_BLUE_B,
+  BG,
+  TEXT,
+  TEXT_MUTED,
+  BORDER,
+  CHART_BG,
+  CHART_LIGHT_BG,
 } from "../config/colors";
 
 export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<string, any>) {
@@ -26,8 +32,8 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
   // Support both legacy (colors) and MUI (palette) themes; FormControl muiName crash guard
   if (colors?.dark && colors?.gray) {
     return {
-      bgColor: isDark ? colors.dark[7] : t.white ?? "#ffffff",
-      textColor: isDark ? (t.white ?? "#ffffff") : colors.gray[8],
+      bgColor: isDark ? colors.dark[7] : t.white ?? CHART_BG,
+      textColor: isDark ? (t.white ?? TEXT) : colors.gray[8],
       gridLineColor: isDark ? colors.dark[5] : colors.gray[2],
       borderColor: isDark ? colors.dark[4] : colors.gray[3],
       mutedColor: isDark ? colors.dark[1] : colors.gray[6],
@@ -35,7 +41,7 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
       negativeColor: NEGATIVE,
     };
   }
-  // MUI palette fallback
+  // MUI palette fallback — defaults use palette single source of truth
   const bgDefault = palette?.background?.default;
   const bgPaper = palette?.background?.paper;
   const textPrimary = palette?.text?.primary;
@@ -43,11 +49,11 @@ export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<str
   const divider = palette?.divider;
   const grey = palette?.grey;
   return {
-    bgColor: isDark ? (bgPaper ?? bgDefault ?? "#121212") : (bgPaper ?? "#ffffff"),
-    textColor: isDark ? (textPrimary ?? "#ffffff") : (textPrimary ?? "#1a1a1a"),
-    gridLineColor: divider ?? (grey?.[700] ?? "#333"),
-    borderColor: divider ?? (grey?.[400] ?? "#e0e0e0"),
-    mutedColor: textSecondary ?? (grey?.[500] ?? "#888"),
+    bgColor: isDark ? (bgPaper ?? bgDefault ?? BG) : (bgPaper ?? CHART_LIGHT_BG),
+    textColor: isDark ? (textPrimary ?? TEXT) : (textPrimary ?? BG),
+    gridLineColor: divider ?? (grey?.[700] ?? BORDER),
+    borderColor: divider ?? (grey?.[400] ?? BORDER),
+    mutedColor: textSecondary ?? (grey?.[500] ?? TEXT_MUTED),
     positiveColor: POSITIVE,
     negativeColor: NEGATIVE,
   };

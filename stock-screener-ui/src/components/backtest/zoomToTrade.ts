@@ -1,5 +1,4 @@
 import type { SymbolChartData } from "../../types/backtest";
-import { theme } from "../../config/theme";
 import { normalizeTime } from "../../utils/ui-helpers";
 import {
   MARKER_TP,
@@ -275,7 +274,8 @@ export function zoomToTrade(
 ) {
   if (!chartData) return;
 
-  const fontSizes = theme.fontSizes;
+  // MUI theme has no fontSizes scale (Mantine-era leftover) — fixed chart label sizes.
+  const fontSizes = { xs: 10, sm: 11, md: 12 };
   const chart = chartInstances.get(symbol);
   if (!chart) return;
 

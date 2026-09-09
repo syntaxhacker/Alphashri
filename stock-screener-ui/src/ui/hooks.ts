@@ -167,10 +167,45 @@ export function useUICore() {
   return { useColorScheme, useMuiTheme };
 }
 
-// Minimal Tree shim for compat (no legacy Tree)
-export function useTree() {
-  return { expanded: [], toggleExpanded: () => {}, setExpanded: () => {} } as any;
+// Tree state (Mantine useTree-compatible): tracks expanded node values.
+// initialExpandedState accepts an array of values or a record of value->bool.
+export function useTree(options?: { initialExpandedState?: string[] | Record<string, boolean> }) {
+  const initial = useRef<string[] | undefined>(undefined);
+  if (initial.current === undefined) {
+    const s = options?.initialExpandedState;
+    initial.current = Array.isArray(s)
+      ? [...s]
+      : s && typeof s === "object"
+        ? Object.keys(s).filter((k) => (s as Record<string, boolean>)[k])
+        : [];
+  }
+  const [expanded, setExpandedState] = useState<string[]>(initial.current ?? []);
+  const setExpanded = useCallback((next: string[]) => {
+    setExpandedState([...next]);
+  }, []);
+  const toggleExpanded = useCallback((value: string) => {
+    setExpandedState((prev) =>
+      prev.includes(value) ? prev.filter((v) => v !== value) : [...prev, value],
+    );
+  }, []);
+  return { expanded, toggleExpanded, setExpanded } as any;
 }
-export function getTreeExpandedState(_data: any, _value: any): string[] {
+export function getTreeExpandedState(data: any, value: any): string[] {
+  // "*" expands every node in the tree (recursive over children)
+  if (value === "*") {
+    const out: string[] = [];
+    const walk = (nodes: any[]) => {
+      for (const n of nodes ?? []) {
+        if (n?.value !== undefined) out.push(String(n.value));
+        if (Array.isArray(n?.children)) walk(n.children);
+      }
+    };
+    walk(Array.isArray(data) ? data : []);
+    return out;
+  }
+  if (Array.isArray(value)) return [...value];
+  if (value && typeof value === "object") {
+    return Object.keys(value).filter((k) => (value as Record<string, boolean>)[k]);
+  }
   return [];
 }

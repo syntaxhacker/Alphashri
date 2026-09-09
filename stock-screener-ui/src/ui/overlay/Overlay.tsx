@@ -1,6 +1,8 @@
 import * as React from "react";
 import Backdrop from "@mui/material/Backdrop";
 import Box from "@mui/material/Box";
+import { BLACK } from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 import type { UIOverlayProps } from "../types";
 
 function colorWithOpacity(color: string | undefined, opacity: number | undefined): string | undefined {
@@ -36,7 +38,7 @@ export function Overlay({
         {
           position: fixed ? "fixed" : "absolute",
           inset: 0,
-          bgcolor: bgcolor ?? "rgba(0,0,0,0.5)",
+          bgcolor: bgcolor ?? withAlpha(BLACK, 0.5),
           opacity: opacity != null && !color ? opacity : undefined,
           // When color is provided with opacity, MUI's bgcolor alpha is color itself; we also set opacity for overlay blending
           ...(bgcolor && opacity != null ? { opacity } : {}),

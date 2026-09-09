@@ -91,10 +91,11 @@ export function OptionChainPanel({
           <Text size="xs" c="dimmed" data-testid="options-chain-selection" sx={{ textAlign: "center" }}>
             {selectedUnderlying} · {selectedExpiry}
           </Text>
-          <Box
-            component={IconRefresh}
-            size={18}
-            sx={{ opacity: loading ? 0.5 : 1, cursor: "pointer" }}
+            <Box
+              component={IconRefresh}
+              size={18}
+              style={{ opacity: loading ? 0.5 : 1 }}
+              sx={{ cursor: "pointer" }}
             onClick={() => !loading && refreshChain()}
             data-testid="refresh-chain-btn"
           />

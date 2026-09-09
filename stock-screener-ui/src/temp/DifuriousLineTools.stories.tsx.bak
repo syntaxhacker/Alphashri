@@ -1,0 +1,776 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { useEffect, useRef, useState, useCallback } from "react";
+import Box from "@mui/material/Box";
+import Paper from "@mui/material/Paper";
+import Stack from "@mui/material/Stack";
+import Button from "@mui/material/Button";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import Tooltip from "@mui/material/Tooltip";
+import Divider from "@mui/material/Divider";
+import * as palette from "@/ui/palette";
+import oneDayReal from "./oneDayCandles.json";
+
+// palette anchors — dense, no blue, 8pt grid
+const BG = "#0D1117";
+const SURFACE = "#161B22";
+const SURFACE_ALT = "#21262D";
+const BORDER = "#30363D";
+const TEXT = "#F0F6FC";
+const TEXT_MUTED = "#8B949E";
+const POS = palette.POSITIVE; // #3FB950
+const NEG = palette.NEGATIVE;
+
+const meta: Meta = {
+  title: "Temp/Difurious Line Tools",
+  tags: ["autodocs"],
+  parameters: {
+    layout: "fullscreen",
+    backgrounds: { default: "dark" },
+    docs: {
+      description: {
+        component:
+          "Difurious lightweight-charts-line-tools — full-screen TradingView-like demo. 375×1m RELIANCE candles (2026-03-20), candlestick + volume, Long/Short Position and Trend/Horizontal lines via difurious API (createLineToolsPlugin → registerLineTool → addLineTool). Toolbar: Long / Short / Trend / HLine / Clear. Dynamic-import fallback if packages not installed.",
+      },
+    },
+  },
+};
+export default meta;
+
+// ---- dataset: 375 candles ----
+type Raw = { time: string; open: number; high: number; low: number; close: number; volume: number };
+const rawCandles: Raw[] = oneDayReal as Raw[];
+
+function toUnixSec(s: string): number {
+  // "2026-03-20 09:15" IST (+05:30)
+  const iso = s.replace(" ", "T") + ":00+05:30";
+  return Math.floor(new Date(iso).getTime() / 1000);
+}
+
+const candleData = rawCandles.map((c) => ({
+  time: toUnixSec(c.time) as unknown as string,
+  open: c.open,
+  high: c.high,
+  low: c.low,
+  close: c.close,
+}));
+
+const volumeData = rawCandles.map((c) => ({
+  time: toUnixSec(c.time) as unknown as string,
+  value: c.volume,
+  color: c.close >= c.open ? "rgba(63,185,80,0.45)" : "rgba(248,81,73,0.45)",
+}));
+
+function DifuriousInner() {
+  const containerRef = useRef<HTMLDivElement>(null);
+  const chartRef = useRef<any>(null);
+  const seriesRef = useRef<any>(null);
+  const pluginRef = useRef<any>(null);
+  const toolsRef = useRef<any[]>([]);
+  const [status, setStatus] = useState<"loading" | "ready" | "missing" | "error">("loading");
+  const [errMsg, setErrMsg] = useState("");
+  const [activeTool, setActiveTool] = useState<"none" | "long" | "short" | "trend" | "hline">("none");
+  const [lastAction, setLastAction] = useState("No tool active — click Long / Short / Trend / HLine");
+  const [installed, setInstalled] = useState(false);
+
+  const dispose = useCallback(() => {
+    try {
+      toolsRef.current.forEach((t) => {
+        try {
+          t?.remove?.();
+          t?.dispose?.();
+          t?.delete?.();
+        } catch {}
+      });
+      toolsRef.current = [];
+      try {
+        pluginRef.current?.remove?.();
+        pluginRef.current?.dispose?.();
+        pluginRef.current?.destroy?.();
+      } catch {}
+      if (chartRef.current?.remove) chartRef.current.remove();
+    } catch {}
+    chartRef.current = null;
+    seriesRef.current = null;
+    pluginRef.current = null;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    let ro: ResizeObserver | null = null;
+
+    async function init() {
+      setStatus("loading");
+      // ---- lightweight-charts base ----
+      let lwc: any = null;
+      try {
+        lwc = await import(/* @vite-ignore */ "lightweight-charts");
+      } catch (e: any) {
+        if (!cancelled) {
+          setStatus("missing");
+          setErrMsg(e?.message ?? String(e));
+        }
+        return;
+      }
+      if (cancelled || !containerRef.current) return;
+
+      const { createChart, CandlestickSeries, HistogramSeries } = lwc;
+      if (!createChart) {
+        setStatus("missing");
+        setErrMsg("lightweight-charts createChart not found");
+        return;
+      }
+
+      const chart = createChart(containerRef.current, {
+        width: containerRef.current.clientWidth,
+        height: containerRef.current.clientHeight,
+        layout: { background: { color: BG }, textColor: TEXT, attributionLogo: false },
+        grid: { vertLines: { color: SURFACE_ALT }, horzLines: { color: SURFACE_ALT } },
+        crosshair: { mode: 0 },
+        timeScale: {
+          timeVisible: true,
+          secondsVisible: false,
+          borderColor: BORDER,
+          rightOffset: 6,
+          barSpacing: 4,
+          minBarSpacing: 2,
+        },
+        rightPriceScale: { borderColor: BORDER, scaleMargins: { top: 0.06, bottom: 0.22 } },
+        handleScroll: true,
+        handleScale: true,
+      });
+      chartRef.current = chart;
+
+      const seriesKind = CandlestickSeries ?? "Candlestick";
+      let series: any = null;
+      try {
+        series = chart.addSeries(seriesKind, {
+          upColor: POS,
+          downColor: NEG,
+          borderUpColor: POS,
+          borderDownColor: NEG,
+          wickUpColor: POS,
+          wickDownColor: NEG,
+          borderVisible: false,
+          wickVisible: true,
+        });
+      } catch {
+        series = (chart as any).addCandlestickSeries?.({
+          upColor: POS,
+          downColor: NEG,
+          borderUpColor: POS,
+          borderDownColor: NEG,
+          wickUpColor: POS,
+          wickDownColor: NEG,
+        });
+      }
+      if (!series) {
+        setStatus("error");
+        setErrMsg("addSeries(Candlestick) failed");
+        return;
+      }
+      seriesRef.current = series;
+      series.setData(candleData as any);
+
+      // volume — histogram on bottom scale
+      try {
+        const H = HistogramSeries ?? "Histogram";
+        const volSeries: any = chart.addSeries(H, {
+          priceScaleId: "",
+          priceFormat: { type: "volume" },
+          color: "rgba(63,185,80,0.45)",
+          priceLineVisible: false,
+        });
+        volSeries.setData(volumeData as any);
+        chart.priceScale("").applyOptions({ scaleMargins: { top: 0.82, bottom: 0 } });
+      } catch {}
+
+      chart.timeScale().fitContent();
+
+      // ---- difurious line-tools plugin ----
+      let core: any = null;
+      try {
+        core = await import(/* @vite-ignore */ "lightweight-charts-line-tools-core");
+      } catch (e: any) {
+        if (!cancelled) {
+          setStatus("missing");
+          setErrMsg(e?.message ?? "lightweight-charts-line-tools-core not installed");
+        }
+        return;
+      }
+      if (cancelled) return;
+
+      const createPlugin =
+        core.createLineToolsPlugin ??
+        core.createLineToolPlugin ??
+        core.default?.createLineToolsPlugin ??
+        core.default;
+
+      if (typeof createPlugin !== "function") {
+        setStatus("error");
+        setErrMsg("createLineToolsPlugin not exported from lightweight-charts-line-tools-core");
+        return;
+      }
+
+      // optional side-effect imports that register tools onto the plugin
+      // keep failures soft — toolbar will surface the gap
+      try {
+        await import(/* @vite-ignore */ "lightweight-charts-line-tools-long-short-position");
+      } catch {}
+      try {
+        await import(/* @vite-ignore */ "lightweight-charts-line-tools-lines");
+      } catch {}
+
+      let plugin: any = null;
+      // difurious API: createLineToolsPlugin(chart, series)
+      const pluginAttempts: Array<() => any> = [
+        () => createPlugin(chart, series),
+        () => createPlugin({ chart, series }),
+        () => createPlugin(chart, { series }),
+        () => new createPlugin(chart, series),
+      ];
+      for (const fn of pluginAttempts) {
+        try {
+          const p = fn();
+          if (p) {
+            plugin = p;
+            break;
+          }
+        } catch {}
+      }
+      if (!plugin) {
+        setStatus("error");
+        setErrMsg("createLineToolsPlugin(chart, series) failed — check package version");
+        return;
+      }
+      pluginRef.current = plugin;
+
+      // best-effort registerLineTool if the build requires explicit registration
+      // side-effect imports usually auto-register, but try explicit as well
+      const tryRegister = async () => {
+        const candidates: Array<() => Promise<any>> = [
+          async () => {
+            const m = await import(/* @vite-ignore */ "lightweight-charts-line-tools-long-short-position");
+            return m.LongShortPosition ?? m.LongPosition ?? m.ShortPosition ?? m.default;
+          },
+          async () => {
+            const m = await import(/* @vite-ignore */ "lightweight-charts-line-tools-lines");
+            return m.TrendLine ?? m.HorizontalLine ?? m.LineTool ?? m.default;
+          },
+        ];
+        for (const get of candidates) {
+          try {
+            const Tool = await get();
+            if (Tool && typeof plugin.registerLineTool === "function") {
+              try {
+                plugin.registerLineTool(Tool);
+              } catch {}
+            }
+          } catch {}
+        }
+      };
+      await tryRegister();
+
+      // demo: add one of each so canvas isn't empty when deps are present
+      const safeAdd = (typeCandidates: string[], opts: any) => {
+        if (typeof plugin.addLineTool !== "function") return null;
+        for (const t of typeCandidates) {
+          try {
+            const h = plugin.addLineTool(t, opts);
+            if (h) return h;
+          } catch {}
+          try {
+            const h = plugin.addLineTool({ type: t, ...opts });
+            if (h) return h;
+          } catch {}
+        }
+        return null;
+      };
+
+      // positions need anchor time/price — use mid-day candle
+      const demoIdx = 105;
+      const demoCandle = rawCandles[demoIdx];
+      if (demoCandle) {
+        const t = toUnixSec(demoCandle.time) as unknown as number;
+        const h = safeAdd(["long-position", "LongPosition", "longPosition", "long", "Long"], {
+          // some builds accept entryPrice/sl/tp, others time+price anchors
+          time: t,
+          price: demoCandle.close,
+          entryPrice: demoCandle.close,
+          stopLoss: +(demoCandle.close * 0.993).toFixed(2),
+          takeProfit: +(demoCandle.close * 1.012).toFixed(2),
+        });
+        if (h) toolsRef.current.push(h);
+      }
+
+      // trend line demo: 09:45 -> 10:15
+      try {
+        const t1 = toUnixSec(rawCandles[30].time) as unknown as number;
+        const t2 = toUnixSec(rawCandles[60].time) as unknown as number;
+        const h = safeAdd(["trend-line", "TrendLine", "trendLine", "trend", "Trend"], {
+          time1: t1,
+          price1: rawCandles[30].low,
+          time2: t2,
+          price2: rawCandles[60].high,
+          point1: { time: t1, price: rawCandles[30].low },
+          point2: { time: t2, price: rawCandles[60].high },
+          lineColor: TEXT_MUTED,
+        });
+        if (h) toolsRef.current.push(h);
+      } catch {}
+
+      ro = new ResizeObserver(() => {
+        if (!containerRef.current || !chartRef.current) return;
+        chartRef.current.applyOptions({
+          width: containerRef.current.clientWidth,
+          height: containerRef.current.clientHeight,
+        });
+      });
+      ro.observe(containerRef.current);
+
+      if (!cancelled) {
+        setInstalled(true);
+        setStatus("ready");
+        setLastAction("Demo Long + Trend added — use toolbar for more. Drag handles on chart.");
+      }
+    }
+
+    init();
+    return () => {
+      cancelled = true;
+      try {
+        ro?.disconnect();
+      } catch {}
+      dispose();
+    };
+  }, [dispose]);
+
+  // ---- toolbar actions via difurious API ----
+  const addTool = useCallback(
+    async (kind: "long" | "short" | "trend" | "hline") => {
+      setActiveTool(kind);
+      const plugin = pluginRef.current;
+      const statusReady = plugin && typeof plugin.addLineTool === "function";
+      if (!statusReady) {
+        // fallback: ensure packages exist, surface install hint
+        let missing = "";
+        try {
+          await import(/* @vite-ignore */ "lightweight-charts-line-tools-core");
+        } catch (e: any) {
+          missing = e?.message ?? String(e);
+        }
+        if (missing) {
+          setLastAction("Install deps first — see overlay for commands");
+          setStatus("missing");
+          setErrMsg(missing);
+          return;
+        }
+        // retry dynamic registration of missing sub-packages
+        try {
+          await import(/* @vite-ignore */ "lightweight-charts-line-tools-long-short-position");
+        } catch {}
+        try {
+          await import(/* @vite-ignore */ "lightweight-charts-line-tools-lines");
+        } catch {}
+        if (typeof pluginRef.current?.addLineTool !== "function") {
+          setLastAction("Plugin not ready — reload after install");
+          return;
+        }
+      }
+
+      const p = pluginRef.current;
+      const last = rawCandles[rawCandles.length - 1];
+      const base = last?.close ?? 1425;
+      const tNow = toUnixSec(last.time) as unknown as number;
+      const tPrev = toUnixSec(rawCandles[Math.max(0, rawCandles.length - 30)].time) as unknown as number;
+
+      const tryAdd = (types: string[], opts: any): any => {
+        for (const tp of types) {
+          try {
+            const h = p.addLineTool(tp, opts);
+            if (h) return h;
+          } catch {}
+          try {
+            const h = p.addLineTool({ type: tp, ...opts });
+            if (h) return h;
+          } catch {}
+        }
+        return null;
+      };
+
+      let handle: any = null;
+      if (kind === "long") {
+        handle = tryAdd(["long-position", "LongPosition", "longPosition", "long", "Long"], {
+          time: tNow,
+          price: base,
+          entryPrice: base,
+          stopLoss: +(base * 0.992).toFixed(2),
+          takeProfit: +(base * 1.015).toFixed(2),
+          direction: "long",
+        });
+        if (handle) {
+          toolsRef.current.push(handle);
+          setLastAction(`Long added @ ${base.toFixed(2)} — drag entry/SL/TP`);
+        } else setLastAction("Long failed — check difurious version / tool name");
+      } else if (kind === "short") {
+        handle = tryAdd(["short-position", "ShortPosition", "shortPosition", "short", "Short"], {
+          time: tNow,
+          price: base,
+          entryPrice: base,
+          stopLoss: +(base * 1.008).toFixed(2),
+          takeProfit: +(base * 0.985).toFixed(2),
+          direction: "short",
+        });
+        // some builds only expose a combined long-position tool with direction flag
+        if (!handle) {
+          handle = tryAdd(["long-position", "LongPosition", "longPosition"], {
+            time: tNow,
+            price: base,
+            entryPrice: base,
+            stopLoss: +(base * 1.008).toFixed(2),
+            takeProfit: +(base * 0.985).toFixed(2),
+            direction: "short",
+            isShort: true,
+          });
+        }
+        if (handle) {
+          toolsRef.current.push(handle);
+          setLastAction(`Short added @ ${base.toFixed(2)} — drag entry/SL/TP`);
+        } else setLastAction("Short failed — check difurious version / tool name");
+      } else if (kind === "trend") {
+        // trend uses two anchor points
+        const p1 = rawCandles[Math.max(0, rawCandles.length - 60)];
+        const p2 = last;
+        const t1 = toUnixSec(p1.time) as unknown as number;
+        const t2 = tNow;
+        handle = tryAdd(["trend-line", "TrendLine", "trendLine", "trend", "Trend"], {
+          time1: t1,
+          price1: p1.low,
+          time2: t2,
+          price2: p2.high,
+          point1: { time: t1, price: p1.low },
+          point2: { time: t2, price: p2.high },
+          p1: { time: t1, price: p1.low },
+          p2: { time: t2, price: p2.high },
+          lineColor: TEXT_MUTED,
+          extendRight: false,
+        });
+        if (handle) {
+          toolsRef.current.push(handle);
+          setLastAction("Trend added — drag endpoints on chart");
+        } else setLastAction("Trend failed — check difurious version");
+      } else if (kind === "hline") {
+        handle = tryAdd(["horizontal-line", "HorizontalLine", "horizontalLine", "hline", "HLine"], {
+          price: base,
+          time: tNow,
+          lineColor: TEXT_MUTED,
+          time1: tPrev,
+          time2: tNow,
+          price1: base,
+          price2: base,
+        });
+        // fallback to trend with flat y
+        if (!handle) {
+          handle = tryAdd(["trend-line", "TrendLine", "trendLine"], {
+            time1: tPrev,
+            price1: base,
+            time2: tNow,
+            price2: base,
+            point1: { time: tPrev, price: base },
+            point2: { time: tNow, price: base },
+            lineColor: TEXT_MUTED,
+          });
+        }
+        if (handle) {
+          toolsRef.current.push(handle);
+          setLastAction(`HLine added @ ${base.toFixed(2)} — drag to adjust`);
+        } else setLastAction("HLine failed — check difurious version");
+      }
+    },
+    [],
+  );
+
+  const handleClear = useCallback(() => {
+    toolsRef.current.forEach((t) => {
+      try {
+        t?.remove?.();
+        t?.dispose?.();
+        t?.delete?.();
+      } catch {}
+    });
+    toolsRef.current = [];
+    // also try plugin-level clear
+    try {
+      pluginRef.current?.removeAll?.();
+      pluginRef.current?.clear?.();
+      pluginRef.current?.removeAllLineTools?.();
+    } catch {}
+    setActiveTool("none");
+    setLastAction("Cleared — candlestick + volume kept. Add Long/Short/Trend/HLine again.");
+  }, []);
+
+  const placeholder = status === "missing" || status === "error";
+
+  const btnSx = (on: boolean) => ({
+    fontSize: 11,
+    height: 20,
+    minWidth: 0,
+    p: "0 8px",
+    borderColor: on ? TEXT : BORDER,
+    bgcolor: on ? SURFACE_ALT : "transparent",
+    color: on ? TEXT : TEXT_MUTED,
+    "&:hover": { bgcolor: SURFACE_ALT, borderColor: TEXT },
+  });
+
+  return (
+    <Box sx={{ height: "100vh", display: "flex", flexDirection: "column", bgcolor: BG, overflow: "hidden" }}>
+      {/* Toolbar — 48px TradingView-like, dense 20px controls, no blue, 8pt grid */}
+      <Paper
+        elevation={0}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.75,
+          px: 1.25,
+          height: 48,
+          minHeight: 48,
+          borderBottom: 1,
+          borderColor: BORDER,
+          bgcolor: SURFACE,
+          borderRadius: 0,
+          flexShrink: 0,
+        }}
+      >
+        <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: TEXT_MUTED }}>
+          DIFURIOUS
+        </Typography>
+        <Chip
+          size="small"
+          label="RELIANCE · 1m · 375"
+          sx={{ fontSize: 10, height: 20, bgcolor: SURFACE_ALT, color: TEXT, border: 1, borderColor: BORDER, ml: 0.5 }}
+        />
+        <Box sx={{ width: 1, height: 18, bgcolor: BORDER, mx: 0.75 }} />
+
+        <Tooltip title="Add Long Position (entry/SL/TP) via addLineTool">
+          <span>
+            <Button
+              size="small"
+              variant={activeTool === "long" ? "contained" : "outlined"}
+              color="inherit"
+              onClick={() => void addTool("long")}
+              sx={{ ...btnSx(activeTool === "long"), minWidth: 52 }}
+            >
+              Long
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title="Add Short Position via addLineTool">
+          <span>
+            <Button
+              size="small"
+              variant={activeTool === "short" ? "contained" : "outlined"}
+              color="inherit"
+              onClick={() => void addTool("short")}
+              sx={{ ...btnSx(activeTool === "short"), minWidth: 56 }}
+            >
+              Short
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title="Add Trend Line (2-point) via addLineTool">
+          <span>
+            <Button
+              size="small"
+              variant={activeTool === "trend" ? "contained" : "outlined"}
+              color="inherit"
+              onClick={() => void addTool("trend")}
+              sx={{ ...btnSx(activeTool === "trend"), minWidth: 56 }}
+            >
+              Trend
+            </Button>
+          </span>
+        </Tooltip>
+        <Tooltip title="Add Horizontal Line via addLineTool">
+          <span>
+            <Button
+              size="small"
+              variant={activeTool === "hline" ? "contained" : "outlined"}
+              color="inherit"
+              onClick={() => void addTool("hline")}
+              sx={{ ...btnSx(activeTool === "hline"), minWidth: 56 }}
+            >
+              HLine
+            </Button>
+          </span>
+        </Tooltip>
+        <Button
+          size="small"
+          variant="outlined"
+          color="inherit"
+          onClick={handleClear}
+          sx={{ fontSize: 10, height: 20, minWidth: 48, p: "0 8px", borderColor: BORDER, color: TEXT_MUTED }}
+        >
+          Clear
+        </Button>
+
+        <Box sx={{ flex: 1 }} />
+        <Chip
+          size="small"
+          label={installed ? "Difurious ready" : status === "loading" ? "Loading…" : "Install required"}
+          sx={{
+            fontSize: 10,
+            height: 20,
+            bgcolor: installed ? "rgba(63,185,80,0.12)" : SURFACE_ALT,
+            color: installed ? POS : TEXT_MUTED,
+            border: 1,
+            borderColor: installed ? "rgba(63,185,80,0.35)" : BORDER,
+          }}
+        />
+      </Paper>
+
+      {/* Info bar — 20px dense, 8pt */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 1,
+          px: 1.25,
+          height: 20,
+          minHeight: 20,
+          borderBottom: 1,
+          borderColor: BORDER,
+          bgcolor: SURFACE,
+          flexShrink: 0,
+        }}
+      >
+        <Typography
+          variant="caption"
+          sx={{ fontSize: 10, color: TEXT_MUTED, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+        >
+          {lastAction}
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+          createLineToolsPlugin(chart, series) → registerLineTool → addLineTool
+        </Typography>
+      </Box>
+
+      {/* Chart — flex 1 */}
+      <Box sx={{ flex: 1, minHeight: 0, p: 1, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }}>
+        <Paper
+          elevation={0}
+          sx={{
+            flex: 1,
+            minHeight: 0,
+            display: "flex",
+            flexDirection: "column",
+            overflow: "hidden",
+            border: 1,
+            borderColor: BORDER,
+            borderRadius: 1,
+            bgcolor: BG,
+            position: "relative",
+          }}
+        >
+          <Box ref={containerRef} sx={{ flex: 1, minHeight: 320, width: "100%" }} />
+          {placeholder && (
+            <Box
+              sx={{
+                position: "absolute",
+                inset: 0,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                bgcolor: "rgba(13,17,23,0.92)",
+                p: 2,
+              }}
+            >
+              <Stack spacing={1.25} sx={{ maxWidth: 580, textAlign: "center", alignItems: "center" }}>
+                <Typography variant="caption" sx={{ fontSize: 11, fontWeight: 700, letterSpacing: 0.6, color: TEXT }}>
+                  difurious line-tools not installed
+                </Typography>
+                <Typography variant="caption" sx={{ fontSize: 11, color: TEXT_MUTED, lineHeight: 1.5 }}>
+                  Story compiles without deps — install and reload Storybook. No code changes needed.
+                </Typography>
+                <Box
+                  component="pre"
+                  sx={{
+                    fontSize: 11,
+                    fontFamily: "monospace",
+                    bgcolor: SURFACE,
+                    border: 1,
+                    borderColor: BORDER,
+                    borderRadius: 1,
+                    px: 1.5,
+                    py: 0.75,
+                    color: TEXT,
+                    m: 0,
+                    overflow: "auto",
+                    maxWidth: "100%",
+                    textAlign: "left",
+                    whiteSpace: "pre-wrap",
+                  }}
+                >
+                  {`bun add lightweight-charts lightweight-charts-line-tools-core lightweight-charts-line-tools-long-short-position lightweight-charts-line-tools-lines`}
+                </Box>
+                <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+                  After install: candlestick (375×1m, volume) + Long/Short Position + Trend/Horizontal
+                  <Box component="span" sx={{ color: TEXT, fontFamily: "monospace" }}>
+                    {" "}
+                    createLineToolsPlugin(chart, series) → registerLineTool → addLineTool
+                  </Box>
+                  . Toolbar buttons create fresh tools; drag handles on chart.
+                </Typography>
+                {errMsg && (
+                  <Typography variant="caption" sx={{ fontSize: 10, color: NEG, fontFamily: "monospace" }}>
+                    {errMsg}
+                  </Typography>
+                )}
+                <Divider flexItem sx={{ borderColor: BORDER, width: "100%" }} />
+                <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+                  Preview uses real 2026-03-20 RELIANCE 1m (o/h/l/c/vol). Theme BG {BG} · SURFACE {SURFACE} · BORDER {BORDER} · dense 8pt · no blue.
+                </Typography>
+              </Stack>
+            </Box>
+          )}
+        </Paper>
+
+        {/* Bottom meta — 20px dense */}
+        <Paper
+          elevation={0}
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 1,
+            px: 1.25,
+            height: 20,
+            minHeight: 20,
+            border: 1,
+            borderColor: BORDER,
+            borderRadius: 1,
+            bgcolor: SURFACE,
+            flexShrink: 0,
+          }}
+        >
+          <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+            {rawCandles.length} candles · {rawCandles[0].time} → {rawCandles[rawCandles.length - 1].time} · 1m · volume histogram
+          </Typography>
+          <Box sx={{ flex: 1 }} />
+          <Typography variant="caption" sx={{ fontSize: 10, color: TEXT_MUTED }}>
+            Dense 20px · BG {BG} · no blue
+          </Typography>
+        </Paper>
+      </Box>
+    </Box>
+  );
+}
+
+export const Default: StoryObj = {
+  render: () => <DifuriousInner />,
+  parameters: { layout: "fullscreen" },
+};
+
+export const FullScreen: StoryObj = {
+  render: () => <DifuriousInner />,
+  parameters: { layout: "fullscreen" },
+};
