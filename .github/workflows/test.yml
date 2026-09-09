@@ -123,14 +123,18 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd stock-screener-ui && npx playwright install chromium
-      - name: Start dev server
-        run: cd stock-screener-ui && bun run dev &
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start app (API + UI)
+        run: cd stock-screener-ui && ./start.sh start
         env:
           CI: true
-      - name: Wait for dev server
-        run: npx wait-on http://localhost:5173 --timeout 30000
-        env:
+          START_BOTS: "false"
+          RELOAD_FLAG: "--reload"
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
+      - name: Wait for app to start
+        run: npx wait-on http://localhost:5173 --timeout 30000
       - name: Run smoke E2E tests
         run: cd stock-screener-ui && npx playwright test --grep @smoke
         env:
@@ -164,14 +168,18 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd stock-screener-ui && npx playwright install chromium
-      - name: Start dev server
-        run: cd stock-screener-ui && bun run dev &
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Start app (API + UI)
+        run: cd stock-screener-ui && ./start.sh start
         env:
           CI: true
-      - name: Wait for dev server
-        run: npx wait-on http://localhost:5173 --timeout 30000
-        env:
+          START_BOTS: "false"
+          RELOAD_FLAG: "--reload"
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
+      - name: Wait for app to start
+        run: npx wait-on http://localhost:5173 --timeout 30000
       - name: Run full E2E tests
         run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/50
         env:

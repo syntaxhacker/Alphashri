@@ -64,8 +64,8 @@ test.describe("Authentication - Login", () => {
 
     await gotoLoginPage(page);
 
-    await page.locator('[data-testid="login-email-input"] input').fill("test@alphashri.dev");
-    await page.locator('[data-testid="login-password-input"] input').fill("password123");
+    await page.locator('[data-testid="login-email-input"]').fill("test@alphashri.dev");
+    await page.locator('[data-testid="login-password-input"]').fill("password123");
     await page.locator('[data-testid="login-submit-btn"]').click();
 
     // Should navigate to main app - wait for sidemenu to appear
@@ -83,8 +83,8 @@ test.describe("Authentication - Login", () => {
 
     await gotoLoginPage(page);
 
-    await page.locator('[data-testid="login-email-input"] input').fill("wrong@example.com");
-    await page.locator('[data-testid="login-password-input"] input').fill("wrongpassword");
+    await page.locator('[data-testid="login-email-input"]').fill("wrong@example.com");
+    await page.locator('[data-testid="login-password-input"]').fill("wrongpassword");
     await page.locator('[data-testid="login-submit-btn"]').click();
 
     // Should show error message using data-testid
@@ -95,8 +95,8 @@ test.describe("Authentication - Login", () => {
     await gotoLoginPage(page);
 
     // Enter invalid email
-    await page.locator('[data-testid="login-email-input"] input').fill("invalid-email");
-    await page.locator('[data-testid="login-password-input"] input').fill("password123");
+    await page.locator('[data-testid="login-email-input"]').fill("invalid-email");
+    await page.locator('[data-testid="login-password-input"]').fill("password123");
 
     await page.locator('[data-testid="login-submit-btn"]').click();
 
@@ -114,7 +114,7 @@ test.describe("Authentication - Login", () => {
     await gotoLoginPage(page);
 
     // Enter only email
-    await page.locator('[data-testid="login-email-input"] input').fill("test@example.com");
+    await page.locator('[data-testid="login-email-input"]').fill("test@example.com");
     // Leave password empty
 
     // Click login
@@ -182,10 +182,10 @@ test.describe("Authentication - Register", () => {
     await page.locator('[data-testid="register-link"]').click();
     await expect(page.locator('[data-testid="register-form"]')).toBeVisible({ timeout: 5000 });
 
-    await page.locator('[data-testid="register-email-input"] input').fill("newuser@example.com");
-    await page.locator('[data-testid="register-password-input"] input').fill("newpassword123");
-    await page.locator('[data-testid="confirm-password-input"] input').fill("newpassword123");
-    await page.locator('[data-testid="display-name-input"] input').fill("New User");
+    await page.locator('[data-testid="register-email-input"]').fill("newuser@example.com");
+    await page.locator('[data-testid="register-password-input"]').fill("newpassword123");
+    await page.locator('[data-testid="confirm-password-input"]').fill("newpassword123");
+    await page.locator('[data-testid="display-name-input"]').fill("New User");
     await page.locator('[data-testid="register-button"]').click();
 
     // Should navigate to main app - wait for sidemenu to appear
