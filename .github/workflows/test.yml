@@ -123,18 +123,29 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd stock-screener-ui && npx playwright install chromium
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
-          python-version: "3.12"
-      - name: Start app (API + UI)
-        run: cd stock-screener-ui && ./start.sh start
+          enable-cache: false
+      - name: Install Python deps for backend
+        run: |
+          cd stock-screener-ui
+          # Install all deps normally, except conflicting packages
+          grep -vE "^(tradingagents|tradingview-screener|preciz)" requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+      - name: Start backend API
+        run: |
+          cd stock-screener-ui
+          uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 &
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Start frontend dev server
+        run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
         env:
           CI: true
-          START_BOTS: "false"
-          RELOAD_FLAG: "--reload"
-          NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
-      - name: Wait for app to start
+      - name: Wait for dev server
         run: npx wait-on http://localhost:5173 --timeout 30000
+        env:
+          NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run smoke E2E tests
         run: cd stock-screener-ui && npx playwright test --grep @smoke
         env:
@@ -168,18 +179,29 @@ jobs:
       - run: cd stock-screener-ui && bun install --frozen-lockfile
       - name: Install Playwright browsers
         run: cd stock-screener-ui && npx playwright install chromium
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
-          python-version: "3.12"
-      - name: Start app (API + UI)
-        run: cd stock-screener-ui && ./start.sh start
+          enable-cache: false
+      - name: Install Python deps for backend
+        run: |
+          cd stock-screener-ui
+          # Install all deps normally, except conflicting packages
+          grep -vE "^(tradingagents|tradingview-screener|preciz)" requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+      - name: Start backend API
+        run: |
+          cd stock-screener-ui
+          uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 &
+        env:
+          PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
+      - name: Start frontend dev server
+        run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
         env:
           CI: true
-          START_BOTS: "false"
-          RELOAD_FLAG: "--reload"
-          NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
-      - name: Wait for app to start
+      - name: Wait for dev server
         run: npx wait-on http://localhost:5173 --timeout 30000
+        env:
+          NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run full E2E tests
         run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/50
         env:
