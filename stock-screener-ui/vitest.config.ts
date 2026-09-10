@@ -15,8 +15,6 @@ export default defineConfig({
       "**/tests/e2e/**",
       "**/dist/**",
       "**/coverage/**",
-      // Third-party Mantine component library — not part of this project's test suite
-      "**/ui.mantine.dev/**",
     ],
     environment: "happy-dom",
     globals: true,

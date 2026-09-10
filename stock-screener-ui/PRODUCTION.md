@@ -18,8 +18,6 @@ Production infrastructure, deployment, and debugging docs. See [AGENTS.md](./AGE
 
 ### Cloudflare Pages Build
 - Build command: `bun install && bun run build` (Cloudflare Pages build image does **not** have `bun`; it silently falls back to `npm install`)
-- **Critical**: `npm` is stricter than `bun` about peer dependency conflicts. A mismatch between `@mantine/core` and `@mantine/dates` major versions will cause the build to fail with `ERESOLVE unable to resolve dependency tree`
-- **Rule**: all `@mantine/*` packages must share the same major version. If you upgrade one, upgrade all.
 - Output directory: `dist`
 - Root directory: `stock-screener-ui`
 

@@ -38,7 +38,7 @@ export async function navigateToLiveTab(page: Page): Promise<void> {
 }
 
 export async function selectBot(page: Page, botId: string): Promise<void> {
-  // BotSelector uses a Mantine Select – wait for it to be visible
+  // BotSelector uses an MUI Select – wait for it to be visible
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
 

@@ -38,7 +38,6 @@
 
 ### Cross-File Test Duplicates
 - `tests/e2e/bots.spec.ts` duplicates `multi-strategy-signal-types.spec.ts` (26+18 lines)
-- `tests/e2e/backtest-mantine.spec.ts` duplicates `backtest.spec.ts` (multiple blocks)
 - `tests/e2e/layout.spec.ts` duplicates `market-ticker.spec.ts` (8 lines)
 
 ## Python Tests

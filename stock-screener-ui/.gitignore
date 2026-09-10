@@ -10,7 +10,7 @@ lerna-debug.log*
 node_modules
 dist
 dist-ssr
-ui.mantine.dev
+coverage
 *.local
 
 # Environment files - don't commit secrets

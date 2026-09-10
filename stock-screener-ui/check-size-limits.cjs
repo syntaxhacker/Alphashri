@@ -30,7 +30,7 @@ function getAllSourceFiles(dir) {
     const stat = fs.statSync(filePath);
     if (stat && stat.isDirectory()) {
       // Skip common directories that shouldn't be size-checked
-      if (['node_modules', 'dist', 'coverage', 'ui.mantine.dev', 'tests', 'test-utils'].includes(file)) {
+      if (['node_modules', 'dist', 'coverage', 'tests', 'test-utils'].includes(file)) {
         return;
       }
       results = results.concat(getAllSourceFiles(filePath));

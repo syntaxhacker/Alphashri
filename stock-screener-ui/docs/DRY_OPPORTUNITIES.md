@@ -34,7 +34,7 @@
 - `bun run check:unused` found:
   - 7 unused files (e.g., some backtest/news/sector components – can delete or integrate)
   - 1 unused dep: d3-interpolate
-  - 49 unused exports (e.g., many in replay/mantine.ts, paper-trading helpers, heatmap colors, useApi hooks, useScreener* – dead code from refactors)
+  - 49 unused exports (e.g., many in replay helpers, paper-trading helpers, heatmap colors, useApi hooks, useScreener* – dead code from refactors)
 - Removing these reduces maintenance surface (DRY principle: don't keep similar-but-unused variants).
 
 ## From depcheck
