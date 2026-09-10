@@ -62,7 +62,7 @@ export function TradingViewChart({
   candles,
   trades = [],
   highlightedTradeId,
-  height = 400,
+  height,
   markLines,
   emaData,
   livePosition,
@@ -74,15 +74,20 @@ export function TradingViewChart({
   const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const emaSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const heightRef = useRef(height);
 
-  // create chart once — not on height/candles
+  // create chart once — not on height/candles.
+  // With an explicit height -> fixed size (page-level charts). Without -> autoSize
+  // so the chart fills its flex container (paper Trade History panel).
   useEffect(() => {
     if (!containerRef.current) return;
+    const fixedHeight = heightRef.current;
     const chart = createChart(containerRef.current, {
       layout: { background: { type: ColorType.Solid, color: palette.BG }, textColor: palette.TEXT },
       grid: { vertLines: { color: palette.BORDER }, horzLines: { color: palette.BORDER } },
-      width: containerRef.current.clientWidth,
-      height,
+      ...(fixedHeight != null
+        ? { width: containerRef.current.clientWidth, height: fixedHeight }
+        : { autoSize: true }),
       timeScale: { borderColor: palette.BORDER, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5 },
       rightPriceScale: { borderColor: palette.BORDER },
       crosshair: { mode: 1 },
@@ -115,15 +120,18 @@ export function TradingViewChart({
     const markers = createSeriesMarkers(candleSeries, []);
     markersRef.current = markers;
 
-    const ro = new ResizeObserver(() => {
-      if (containerRef.current && chartRef.current) {
-        chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
-      }
-    });
-    ro.observe(containerRef.current);
+    let ro: ResizeObserver | null = null;
+    if (fixedHeight != null) {
+      ro = new ResizeObserver(() => {
+        if (containerRef.current && chartRef.current) {
+          chartRef.current.applyOptions({ width: containerRef.current.clientWidth });
+        }
+      });
+      ro.observe(containerRef.current);
+    }
 
     return () => {
-      ro.disconnect();
+      ro?.disconnect();
       chart.remove();
       chartRef.current = null;
       candleSeriesRef.current = null;
@@ -134,9 +142,10 @@ export function TradingViewChart({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // height updates without recreate
+  // height updates without recreate (fixed-height mode only)
   useEffect(() => {
-    chartRef.current?.applyOptions({ height });
+    heightRef.current = height;
+    if (height != null) chartRef.current?.applyOptions({ height });
   }, [height]);
 
   // simple per docs: setData on candles change, fitContent once
@@ -288,7 +297,7 @@ export function TradingViewChart({
 
   return (
     <Box sx={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-      <Box ref={containerRef} sx={{ width: "100%", height, flex: 1, minHeight: 0 }} data-testid="tradingview-chart" />
+      <Box ref={containerRef} sx={{ width: "100%", flex: 1, minHeight: 0, position: "relative", ...(height != null ? { height } : {}) }} data-testid="tradingview-chart" />
     </Box>
   );
 }

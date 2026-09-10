@@ -151,7 +151,7 @@ export function ReplayConfigBar({
 
   return (
     <Box>
-      <Group gap="sm" wrap="wrap" data-testid="replay-config">
+      <Group gap="sm" wrap="wrap" align="flex-start" data-testid="replay-config">
         <Box>
           <Text size="xs" fw={500} mb={2}>
             Bot
