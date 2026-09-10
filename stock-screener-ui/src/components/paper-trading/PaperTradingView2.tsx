@@ -249,12 +249,8 @@ function SettingsView({ state: _state }: SettingsViewProps) {
   return (
     <Box className="paper-settings-view" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="paper-settings-panel" id="settings-view">
       <ScrollArea className="paper-settings-scroll" flex={1} sx={{ minHeight: 0 }} type="auto">
-        <Box className="paper-settings-inner" id="paper-settings-inner" sx={{ maxWidth: 780, mx: "auto", width: "100%" }}>
-          <Card className="paper-settings-card" id="paper-settings-card" elevation={0}>
-            <CardContent className="paper-settings-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-              <PaperSettings />
-            </CardContent>
-          </Card>
+        <Box className="paper-settings-inner" id="paper-settings-inner" sx={{ maxWidth: 1200, mx: "auto", width: "100%", p: 1.5 }}>
+          <PaperSettings />
         </Box>
       </ScrollArea>
     </Box>
