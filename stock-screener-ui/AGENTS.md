@@ -3,6 +3,7 @@
 ## ⚠️ Golden Rules
 - **NEVER delete or directly modify `db/alphashri.db`** — it contains user accounts, bot state, and trade history. Tests use in-memory SQLite via `test_engine` fixture. If a migration is stuck, use `SKIP_ALEMBIC=1` or ask the user.
 - **NEVER commit secrets, API keys, or tokens** to the repo.
+- **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
 
 ## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
 **Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash` (push/pop/apply/clear/drop), `rebase`, `merge`, `cherry-pick`, `revert`, or any `HEAD`-moving command.
@@ -10,6 +11,12 @@
 **Before any multi-file/subagent work:**
 1. `git status --porcelain` — if dirty, create checkpoint BEFORE work.
 2. Subagents are git-forbidden (read-only `status/log/diff` only); main agent is sole git actor.
+
+**Branch & PR policy (non-negotiable):**
+- Main/integration agent never commits directly onto `develop` or `main`. Start from the latest `develop`, create `feat/…` / `fix/…` / `chore/…` / `docs/…`, commit there, `git push -u origin <branch>`, then `gh pr create --base develop`.
+- Release flow: `develop` → PR → `main`. Never `git push origin main`.
+- `git commit` locally is fine; only `git push` of a **feature branch** is allowed without asking. Pushing to shared branches requires explicit user approval and is normally a PR merge instead.
+- If already on `develop` with uncommitted work, create the feature branch (`git switch -c <type>/<name>`) before committing — never commit then push `develop`.
 
 **Subagent contract:** Agents launched via `Task` are read-only + edit (file writes allowed), but **STRICTLY FORBIDDEN** from any `bash` git command that can disturb other agents in same env p — including `stash` (push/pop/apply/clear/drop), `reset`, `checkout`, `restore`, `clean`, `rebase`, `merge`, `cherry-pick`, `revert`, `branch -D`, `push --force`. Allowed subagent git: `status`, `log --oneline`, `diff --stat` (read-only). If a subagent proposes `stash/reset/clean/checkout/rebase`, main agent must reject and surface to user.
 
@@ -281,7 +288,18 @@ See [PRODUCTION.md](./PRODUCTION.md) for infrastructure, deployment, Railway CLI
 - Backend: pytest, files in `stock-screener-ui/tests/`
 - Run both before committing
 - **Read `TEST_RULES.md`** before writing or modifying any test — covers assertion conventions, mock patterns, accordion interaction, data-testid naming, and coverage requirements
-- **E2E tests**: Never run the full E2E suite (`npx playwright test` without file filter) — it takes >10min. Only run spec files that failed in CI. Use `--workers=6` for speed. Verify locally before pushing.
+- **E2E tests**: Never run the full E2E suite (`npx playwright test` without file filter) — it takes >10min. Only run spec files that failed in CI. Use `--workers=4` (runner has 4 vCPU) and `--output=/tmp/...` to avoid clobbering. Verify locally before pushing.
+
+### CI E2E architecture (learnings — 2026-09)
+- **20 shards max.** GitHub Free allows **20 concurrent jobs**; the repo is public so `ubuntu-latest` = 4 vCPU/16 GB. More shards than 20 just queue. `--shard=N/20`, `workers: 4`.
+- **No `waitForTimeout`.** Use web-first assertions (`expect(...).toBeVisible()`), `expect.poll(...)`, `page.waitForResponse/Function`. Fixed sleeps are the #1 source of slowness and flakes.
+- **No pixel screenshot tests.** `toHaveScreenshot` was removed (env-sensitive, redundant with DOM assertions). Visual review happens in Storybook; wire Chromatic if automated visual diffing is needed.
+- **No `globalSetup`.** `playwright.setup.ts` was deleted — it launched a browser to write a `storageState` file nothing read. Auth is seeded per-page via `loginAsTestUser` (`addInitScript`).
+- **Backend in CI**: set `CI_MODE=1` so `api_server_fastapi` skips news/Redis/background tasks and creates the SQLite schema from models (`SKIP_ALEMBIC=1` leaves it empty otherwise).
+- **Readiness probe**: `/health` also supports `HEAD`; wait with `wait-on http-get://127.0.0.1:8765/api/health` (plain `http://` uses HEAD).
+- **`setup-uv` cache requires a lockfile**: the repo has no `uv.lock`, so `enable-cache: true` **fails** unless you set `cache-dependency-glob: "**/requirements.txt"`.
+- **Unit jobs don't gate E2E**: E2E runs in parallel (no `needs`). `vitest --changed` only on PR-to-`develop`; full suite on push / PR-to-`main`.
+- **Dedupe push vs PR**: workflow `concurrency.group = ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}` cancels the duplicate run for the same branch.
 
 ### Running Targeted Tests (Fast)
 Use glob patterns to run only the changed feature's tests during development:
@@ -312,12 +330,13 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - See [MUTATION_TESTING.md](./MUTATION_TESTING.md) for advanced testing guide
 
 ## Committing (SMALL COMMITS ALWAYS)
-**Rule: Commit small, commit often — locally. Push only when user says `push`/`commit`.**
+**Rule: Commit small, commit often — on a feature branch. Pushing a feature branch is fine; pushing `develop`/`main` is forbidden.**
 
+- **Branch first:** on `develop`, `git switch -c <type>/<name>` before committing. Never commit then push `develop`.
 - **Size:** One logical change per commit, max ~80-120 lines / one `src/ui/*` group / one component family.
 - **Frequency:** After each green checkpoint (`bun run build` + `bun run lint` pass, or `build-storybook` pass for UI). Do not accumulate >30 min or >100 lines without a commit.
 - **Format:** Conventional `type: scope` — `feat`, `fix`, `refactor`, `chore`. No `Co-authored-by` line unless user asks.
-- **Local only:** `git commit -m "..."` is always allowed. `git push` / PR creation requires explicit user `push`/`pr`.
+- **Push policy:** `git push -u origin <feature-branch>` is allowed. Pushing `develop`/`main` requires explicit user approval and is normally a PR merge (`gh pr create --base develop`).
 - **Checkpoint type:** Use `wip:` prefix if not yet green: `wip: mui scaffold — Box/Stack`.
 - **Safety net:** Before any `reset`/`clean`, `git stash push -m "pre-<task>"` or commit — never lose working tree.
 - Lint + build must pass: `bun run lint && bun run build`

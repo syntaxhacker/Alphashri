@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main, develop]
     paths:
+      - '.github/workflows/**'
       - 'stock-screener-ui/src/**'
       - 'stock-screener-ui/tests/**'
       - 'stock-screener-ui/package.json'
@@ -37,6 +38,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: "**/requirements.txt"
       - run: |
           cd stock-screener-ui/api
           # Install all deps normally, except conflicting packages (pandas 2.x vs 3.x)
@@ -129,6 +131,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: "**/requirements.txt"
       - name: Install Python deps for backend
         run: |
           cd stock-screener-ui/api
@@ -205,6 +208,7 @@ jobs:
       - uses: astral-sh/setup-uv@v4
         with:
           enable-cache: true
+          cache-dependency-glob: "**/requirements.txt"
       - name: Install Python deps for backend
         run: |
           cd stock-screener-ui/api
