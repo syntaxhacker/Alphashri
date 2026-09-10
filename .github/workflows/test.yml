@@ -110,7 +110,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     needs: [pytest, frontend-lint-typecheck, frontend-unit]
-    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    if: github.event_name == 'pull_request' && (github.base_ref == 'develop' || github.base_ref == 'main')
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -139,26 +139,38 @@ jobs:
       - name: Start backend API
         run: |
           cd stock-screener-ui
-          uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 &
+          PYTHONUNBUFFERED=1 nohup uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 > /tmp/api.log 2>&1 &
+          disown
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
           DATABASE_URL: sqlite:///./test.db
           SKIP_ALEMBIC: "1"
           JWT_SECRET_KEY: test-secret
+          CI_MODE: "1"
       - name: Start frontend dev server
-        run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
+        run: |
+          cd stock-screener-ui
+          nohup bun run dev --host 127.0.0.1 --port 5173 > /tmp/vite.log 2>&1 &
+          disown
         env:
           CI: true
       - name: Wait for API
-        run: npx wait-on http://localhost:8765/api/health --timeout 30000
+        run: npx wait-on http://127.0.0.1:8765/api/health --timeout 120000
       - name: Wait for dev server
-        run: npx wait-on http://localhost:5173 --timeout 30000
+        run: npx wait-on http://127.0.0.1:5173 --timeout 60000
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run smoke E2E tests
         run: cd stock-screener-ui && npx playwright test --grep @smoke
         env:
           CI: true
+      - name: Dump server logs on failure
+        if: failure()
+        run: |
+          echo "===== API LOG ====="
+          cat /tmp/api.log || true
+          echo "===== VITE LOG ====="
+          cat /tmp/vite.log || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
@@ -204,26 +216,38 @@ jobs:
       - name: Start backend API
         run: |
           cd stock-screener-ui
-          uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 &
+          PYTHONUNBUFFERED=1 nohup uvicorn api_server_fastapi:app --host 127.0.0.1 --port 8765 > /tmp/api.log 2>&1 &
+          disown
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
           DATABASE_URL: sqlite:///./test.db
           SKIP_ALEMBIC: "1"
           JWT_SECRET_KEY: test-secret
+          CI_MODE: "1"
       - name: Start frontend dev server
-        run: cd stock-screener-ui && bun run dev --host 127.0.0.1 --port 5173 &
+        run: |
+          cd stock-screener-ui
+          nohup bun run dev --host 127.0.0.1 --port 5173 > /tmp/vite.log 2>&1 &
+          disown
         env:
           CI: true
       - name: Wait for API
-        run: npx wait-on http://localhost:8765/api/health --timeout 30000
+        run: npx wait-on http://127.0.0.1:8765/api/health --timeout 120000
       - name: Wait for dev server
-        run: npx wait-on http://localhost:5173 --timeout 30000
+        run: npx wait-on http://127.0.0.1:5173 --timeout 60000
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run full E2E tests
         run: cd stock-screener-ui && npx playwright test --shard=${{ matrix.shard }}/50
         env:
           CI: true
+      - name: Dump server logs on failure
+        if: failure()
+        run: |
+          echo "===== API LOG ====="
+          cat /tmp/api.log || true
+          echo "===== VITE LOG ====="
+          cat /tmp/vite.log || true
       - uses: actions/upload-artifact@v4
         if: failure()
         with:

@@ -6,6 +6,7 @@ Serves screener data and backtest API as JSON.
 Run with: uvicorn api_server_fastapi:app --reload --port 8765
 """
 import sys
+import os
 from pathlib import Path as PathlibPath
 from contextlib import asynccontextmanager
 from datetime import datetime
@@ -19,6 +20,12 @@ sys.path.insert(0, str(_scanners_dir))
 sys.path.insert(0, str(_script_dir))
 
 import config
+
+
+def _ci_mode() -> bool:
+    """True when running in CI/E2E: skip heavy optional startup (news, redis, background jobs)."""
+    return os.getenv("CI_MODE", "").lower() in ("1", "true", "yes")
+
 
 from fastapi import FastAPI, Query, Depends, HTTPException
 from pydantic import BaseModel
@@ -58,7 +65,10 @@ fetch_article_content = None
 NEWS_SOURCES = []
 article_analyzer = None
 
-_news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
+if _ci_mode():
+    print("⚙️ CI_MODE enabled — skipping news module init")
+else:
+    _news_available, _llm_available, article_analyzer, fetch_news, fetch_article_content, NEWS_SOURCES = _init_news_modules()
 
 
 PREWARM_SCREENERS = ["trending", "buyer_interest", "high_momentum", "nifty_movers", "52w_high", "price_surge"]
@@ -289,18 +299,33 @@ async def lifespan(app: FastAPI):
     _52w_task = None
     news_poller = None
     _prefetch_task = None
+    _recovery_task = None
+    ci = _ci_mode()
+    redis_connected = False
     try:
         from db.database import init_db
         init_db()
         print("✅ Database initialized")
-        _load_instruments()
-        from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
-        get_redis_client()
-        if is_cache_available():
-            _load_stats_from_redis()
-            print("✅ Redis cache connected")
+
+        if ci:
+            print("⚙️ CI_MODE enabled — skipping Redis and background tasks")
+            try:
+                import db.models  # noqa: F401 — register all models on Base.metadata
+                from db.database import Base as _BaseAll, engine as _engine_all
+                _BaseAll.metadata.create_all(bind=_engine_all)
+                print("✅ CI mode: database schema created")
+            except Exception as e:
+                print(f"⚠️ CI mode: schema creation failed: {e}")
         else:
-            print("⚠️ Redis unavailable — caching disabled")
+            from cache.redis_client import get_redis_client, is_cache_available, _load_stats_from_redis
+            get_redis_client()
+            if is_cache_available():
+                _load_stats_from_redis()
+                redis_connected = True
+                print("✅ Redis cache connected")
+            else:
+                print("⚠️ Redis unavailable — caching disabled")
+        _load_instruments()
         import traceback
         try:
             # Auto-create price_surge_events table (may not exist yet on fresh databases)
@@ -309,34 +334,35 @@ async def lifespan(app: FastAPI):
             _Base.metadata.create_all(bind=_engine, tables=[PriceSurgeEvent.__table__])
         except Exception:
             pass
-        try:
-            news_poller = asyncio.create_task(news_poller_task())
-            print("📰 News poller started")
-        except Exception as e:
-            print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
-        try:
-            _prefetch_task = asyncio.create_task(news_startup_prefetch())
-            print("📰 News prefetch scheduled")
-        except Exception as e:
-            print(f"⚠️ News prefetch failed: {e}")
-        try:
-            prewarm = asyncio.create_task(screener_prewarm_task())
-            print("🔄 Screener pre-warm started")
-        except Exception as e:
-            print(f"⚠️ Screener prewarm failed: {e}")
+        if not ci:
+            try:
+                news_poller = asyncio.create_task(news_poller_task())
+                print("📰 News poller started")
+            except Exception as e:
+                print(f"⚠️ News poller failed: {e} {traceback.format_exc()}")
+            try:
+                _prefetch_task = asyncio.create_task(news_startup_prefetch())
+                print("📰 News prefetch scheduled")
+            except Exception as e:
+                print(f"⚠️ News prefetch failed: {e}")
+            try:
+                prewarm = asyncio.create_task(screener_prewarm_task())
+                print("🔄 Screener pre-warm started")
+            except Exception as e:
+                print(f"⚠️ Screener prewarm failed: {e}")
 
-        try:
-            _52w_task = asyncio.create_task(compute_52w_ranges_task())
-            print("📊 52W Range background task started")
-        except Exception as e:
-            print(f"⚠️ 52W Range task failed: {e}")
-            _52w_task = None
+            try:
+                _52w_task = asyncio.create_task(compute_52w_ranges_task())
+                print("📊 52W Range background task started")
+            except Exception as e:
+                print(f"⚠️ 52W Range task failed: {e}")
+                _52w_task = None
 
-        try:
-            _recovery_task = asyncio.create_task(bot_auto_recovery_task())
-            print("🔄 Bot auto-recovery task started")
-        except Exception as e:
-            print(f"⚠️ Bot auto-recovery task failed: {e}")
+            try:
+                _recovery_task = asyncio.create_task(bot_auto_recovery_task())
+                print("🔄 Bot auto-recovery task started")
+            except Exception as e:
+                print(f"⚠️ Bot auto-recovery task failed: {e}")
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -367,9 +393,10 @@ async def lifespan(app: FastAPI):
         pass
 
     print("📰 News poller stopped")
-    from cache.redis_client import close_redis
+    if redis_connected:
+        from cache.redis_client import close_redis
+        close_redis()
     from db.database import engine
-    close_redis()
     engine.dispose()
     print("🔌 Redis closed, DB pool disposed")
 
