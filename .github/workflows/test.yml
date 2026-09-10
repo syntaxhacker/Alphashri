@@ -6,6 +6,7 @@ on:
   pull_request:
     branches: [main, develop]
     paths:
+      - '.github/workflows/**'
       - 'stock-screener-ui/src/**'
       - 'stock-screener-ui/tests/**'
       - 'stock-screener-ui/package.json'
