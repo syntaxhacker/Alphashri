@@ -15,7 +15,6 @@ test.describe("Sector Correlation & Rotation", () => {
   test("should navigate to correlation tab and display heatmap", async ({ page }) => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
-    await page.waitForTimeout(1000); // Wait for data fetch
 
     // Check heatmap panel is rendered and visible
     const heatmap = page.locator('[data-testid="sector-correlation-heatmap"]');
@@ -29,7 +28,6 @@ test.describe("Sector Correlation & Rotation", () => {
   test("should display beta bar chart", async ({ page }) => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
-    await page.waitForTimeout(1000);
 
     const betaChart = page.locator('[data-testid="sector-beta-chart"]');
     await expect(betaChart).toBeVisible();
@@ -40,7 +38,6 @@ test.describe("Sector Correlation & Rotation", () => {
   test("should display relative strength table with rankings", async ({ page }) => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
-    await page.waitForTimeout(1000);
 
     const table = page.locator('[data-testid="relative-strength-table"] table');
     await expect(table).toBeVisible();
@@ -62,7 +59,6 @@ test.describe("Sector Correlation & Rotation", () => {
   test("should display rotation timeline", async ({ page }) => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
-    await page.waitForTimeout(1000);
 
     const timeline = page.locator('[data-testid="rotation-timeline"]');
     await expect(timeline).toBeVisible();
@@ -72,7 +68,6 @@ test.describe("Sector Correlation & Rotation", () => {
   test("should switch between India and US markets", async ({ page }) => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
-    await page.waitForTimeout(1000);
 
     // Initially India - check table shows Indian sectors
     const table = page.locator('[data-testid="relative-strength-table"]');
@@ -82,7 +77,6 @@ test.describe("Sector Correlation & Rotation", () => {
     // Switch to US - use the market select control
     await page.getByTestId("market-segment").click();
     await page.getByRole("option", { name: "US" }).click();
-    await page.waitForTimeout(1000);
 
     // US sector ETFs should appear in table
     await expect(table).toContainText("SPY");
@@ -100,7 +94,6 @@ test.describe("Sector Correlation & Rotation", () => {
     // Change lookback to 1M
     await page.getByTestId("lookback-segment").click();
     await page.getByRole("option", { name: "1M" }).click();
-    await page.waitForTimeout(500);
 
     // Data should still render
     await expect(table).toBeVisible();
@@ -110,11 +103,16 @@ test.describe("Sector Correlation & Rotation", () => {
   test("should show last updated timestamp", async ({ page }) => {
     await gotoSector(page);
     await page.locator('[role="tab"]:has-text("Sector Correlation")').click();
-    await page.waitForTimeout(1000);
 
     // Look for timestamp indicator (clock icon nearby)
     const view = page.locator('[data-testid="sector-analysis-view"]');
     await expect(view).toBeVisible();
+    // Wait until the last-updated timestamp has been rendered
+    await expect
+      .poll(async () =>
+        view.evaluate((el) => /\d{1,2}:\d{2}:\d{2}\s*(AM|PM)/.test(el.innerText)),
+      )
+      .toBe(true);
     // Timestamp format like "12:34:56 PM"
     const hasTime = await view.evaluate((el) => {
       const text = el.innerText;

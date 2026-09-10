@@ -157,7 +157,6 @@ async function setupBacktest(page: Page) {
 }
 
 async function getChartOption(page: Page): Promise<any | null> {
-  await page.waitForTimeout(1000);
   return page.evaluate(() => {
     const echarts = (window as any).echarts;
     if (!echarts) return null;
@@ -258,7 +257,6 @@ test.describe("Backtest Features", () => {
       const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
       await expect(zoomSelect).toBeVisible();
       await zoomSelect.click({ force: true });
-      await page.waitForTimeout(300);
       await expect(page.getByRole("listbox")).toBeVisible({ timeout: 5000 });
       for (const label of ["All", "30D", "7D", "1D"]) {
         await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible({
@@ -344,7 +342,22 @@ test.describe("Backtest Features", () => {
       // to the chart markers rather than a transient CSS class. Verify the chart and the
       // trade history panel stay intact after the old timeout window.
       await expectChartHighlighted(page);
-      await page.waitForTimeout(4000);
+      // The old behavior cleared a transient CSS class after 3s. There is no "still highlighted"
+      // observable event, so wait past that window while requiring the chart instance to persist.
+      const clickedAt = Date.now();
+      await page.waitForFunction(
+        (t0) => {
+          const echarts = (window as any).echarts;
+          const container = document.querySelector('[data-testid="echarts-container"]');
+          if (!echarts || !container) return false;
+          const hasInstance = Array.from(container.querySelectorAll("div")).some((d) =>
+            echarts.getInstanceByDom(d),
+          );
+          return Date.now() - t0 >= 3500 && hasInstance;
+        },
+        clickedAt,
+        { timeout: 10000 },
+      );
       await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({
         timeout: 10000,
       });
@@ -654,13 +667,15 @@ test.describe("Backtest Features", () => {
       await expect(variationSelect).toBeVisible();
 
       await variationSelect.click({ force: true });
-      await page.waitForTimeout(300);
 
       const listbox = page.getByRole("listbox");
-      const isOpen = await listbox.isVisible().catch(() => false);
+      const isOpen = await listbox
+        .waitFor({ state: "visible", timeout: 3000 })
+        .then(() => true)
+        .catch(() => false);
       if (isOpen) {
         await page.keyboard.press("Escape");
-        await page.waitForTimeout(100);
+        await expect(listbox).not.toBeVisible({ timeout: 3000 });
       }
 
       await expect(variationSelect).toBeVisible();

@@ -45,7 +45,6 @@ test.describe("Paper Trading - Strategy Tabs", () => {
     await navigateToPaperTradingWithBot(page, TEST_BOT_UUID);
 
     // Wait for scan card to load with mock data
-    await page.waitForTimeout(1000);
     const scanCard = page.locator('[data-testid="watchlist-scan-card"]');
     await expect(scanCard).toBeVisible({ timeout: 10000 });
   });
@@ -117,8 +116,8 @@ test.describe("Paper Trading - API Polling", () => {
 
     await navigateToPaperTrading(page);
 
-    // Verify bots API was called on load
-    expect(botsApiCalled).toBe(true);
+    // Verify bots API was called on load (poll — the request can land just after navigation)
+    await expect.poll(() => botsApiCalled, { timeout: 10000 }).toBe(true);
   });
 
   test("should call bot portfolio API when bot is selected", async ({ page }) => {
@@ -462,7 +461,8 @@ test.describe("Paper Trading - Position Actions", () => {
     const closeBtn = page.locator('[data-testid="close-position-1-TCS"]');
     await closeBtn.click({ timeout: 15000 });
 
-    await page.waitForTimeout(500);
+    // Confirm dialog is auto-dismissed; assert the UI is still intact (no error state).
+    await expect(closeBtn).toBeVisible();
   });
 
   test("should show Close All button when positions exist", async ({ page }) => {
@@ -480,9 +480,11 @@ test.describe("Paper Trading - Position Actions", () => {
     });
 
     const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
+    const closeAllResponse = page.waitForResponse(
+      (r) => r.url().includes("/close-all") && r.request().method() === "POST",
+    );
     await closeAllBtn.click({ timeout: 15000 });
-
-    await page.waitForTimeout(500);
+    await closeAllResponse;
   });
 
   test("should close all positions via API", async ({ page }) => {
@@ -509,9 +511,7 @@ test.describe("Paper Trading - Position Actions", () => {
     const closeAllBtn = page.locator('[data-testid="close-all-positions"]');
     await closeAllBtn.click({ timeout: 15000 });
 
-    await page.waitForTimeout(1000);
-
-    expect(closeAllApiCalled).toBe(true);
+    await expect.poll(() => closeAllApiCalled).toBe(true);
   });
 });
 
@@ -541,13 +541,12 @@ test.describe("Paper Trading - Settings", () => {
     const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
     await slPctInput.fill("1.5");
 
-    await page.waitForTimeout(300);
-
     const saveBtn = page.locator('[data-testid="save-settings-button"]');
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
 
-    await page.waitForTimeout(500);
+    // Save resolves -> config is no longer dirty, label flips to "Saved".
+    await expect(saveBtn).toHaveText("Saved");
   });
 
   test("should update Risk risk_per_trade", async ({ page }) => {
@@ -571,13 +570,12 @@ test.describe("Paper Trading - Settings", () => {
     const riskInput = page.locator('[data-testid="config-risk-per-trade"] input');
     await riskInput.fill("2.0");
 
-    await page.waitForTimeout(300);
-
     const saveBtn = page.locator('[data-testid="save-settings-button"]');
     await expect(saveBtn).toBeEnabled();
     await saveBtn.click();
 
-    await page.waitForTimeout(500);
+    // Save resolves -> config is no longer dirty, label flips to "Saved".
+    await expect(saveBtn).toHaveText("Saved");
   });
 
   test("should reset settings to defaults", async ({ page }) => {
@@ -590,8 +588,6 @@ test.describe("Paper Trading - Settings", () => {
     const resetBtn = page.locator('[data-testid="reset-settings-button"]');
     await resetBtn.click({ timeout: 15000 });
 
-    await page.waitForTimeout(500);
-
     const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
     await expect(slPctInput).toHaveValue("0.4");
   });
@@ -602,8 +598,6 @@ test.describe("Paper Trading - Settings", () => {
     const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
     // Use a positive value below min (0.1) - should trigger error without being clamped
     await slPctInput.fill("0.05");
-
-    await page.waitForTimeout(300);
 
     // Error should be visible immediately after invalid value is entered
     await expect(page.locator('[data-testid="config-sl-pct-error"]')).toBeVisible({
@@ -731,7 +725,7 @@ test.describe("Paper Trading - Chart Controls", () => {
 
     await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 15000 });
     await page.locator('[data-testid="bot-select"]').click({ timeout: 15000 });
-    await page.waitForTimeout(200);
+    await expect(page.getByRole("listbox")).toBeVisible();
     await page.keyboard.press("Enter");
 
     await page.getByTestId("tab-live").click();
@@ -765,9 +759,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     const emaSwitch = page.getByTestId("overlay-ema");
     await expect(emaSwitch).toBeVisible();
     await emaSwitch.click();
-    await page.waitForTimeout(200);
 
-    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+    await expect(page.getByTestId("chip-ema")).toHaveClass(/MuiChip-filled/);
   });
 
   test("should toggle ORB lines", async ({ page }) => {
@@ -777,9 +770,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     const orbSwitch = page.getByTestId("overlay-orb");
     await expect(orbSwitch).toBeVisible();
     await orbSwitch.click();
-    await page.waitForTimeout(200);
 
-    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+    await expect(page.getByTestId("chip-orb")).toHaveClass(/MuiChip-filled/);
   });
 
   test("should toggle 52W high line", async ({ page }) => {
@@ -789,9 +781,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     const w52Switch = page.getByTestId("overlay-52w");
     await expect(w52Switch).toBeVisible();
     await w52Switch.click();
-    await page.waitForTimeout(200);
 
-    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+    await expect(page.getByTestId("chip-52w")).toHaveClass(/MuiChip-filled/);
   });
 
   test("should toggle SL/TP markers via All trades switch", async ({ page }) => {
@@ -801,9 +792,8 @@ test.describe("Paper Trading - Chart Controls", () => {
     const allTradesSwitch = page.getByTestId("overlay-all");
     await expect(allTradesSwitch).toBeVisible();
     await allTradesSwitch.click();
-    await page.waitForTimeout(200);
 
-    await expect(page.getByTestId("paper-chart-header")).toBeVisible();
+    await expect(page.getByTestId("chip-all")).toHaveClass(/MuiChip-filled/);
   });
 
   test("should switch timeframe", async ({ page }) => {
@@ -813,12 +803,11 @@ test.describe("Paper Trading - Chart Controls", () => {
     await expect(timeframeSelect).toBeVisible();
 
     await timeframeSelect.click();
-    await page.waitForTimeout(300);
+    await expect(page.getByRole("listbox")).toBeVisible();
 
     await page.keyboard.press("ArrowDown");
-    await page.waitForTimeout(100);
     await page.keyboard.press("Enter");
-    await page.waitForTimeout(500);
+    await expect(page.getByRole("listbox")).not.toBeVisible();
 
     await expect(page.getByTestId("paper-chart-header")).toBeVisible();
   });

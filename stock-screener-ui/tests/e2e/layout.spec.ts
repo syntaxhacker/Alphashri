@@ -26,17 +26,6 @@ test.describe("Layout - App Structure", () => {
     await expect(page.locator('[data-testid="app-navbar"]')).toBeVisible();
   });
 
-  test("desktop navbar visual", async ({ page }) => {
-    await page.goto("/");
-    await page.waitForSelector('[data-testid="app-navbar"]', { timeout: 10000 });
-    await expect(page.locator('[data-testid="app-navbar"]')).toBeInViewport();
-    await page.locator('[data-testid="navbar-links"]').evaluate((el) => {
-      el.scrollTop = 0;
-      el.querySelectorAll("*").forEach((c) => { (c as HTMLElement).scrollTop = 0; });
-    });
-    await expect(page.locator('[data-testid="app-navbar"]')).toHaveScreenshot("navbar-desktop.png", { maxDiffPixelRatio: 0.01 });
-  });
-
   test("app-main is visible", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });

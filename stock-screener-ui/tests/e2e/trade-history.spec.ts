@@ -196,7 +196,6 @@ test.describe("Trade History - Trade Interactions", () => {
     await expect(toggleBtn).toBeVisible();
     await toggleBtn.click();
 
-    await page.waitForTimeout(300);
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
   });
 
@@ -208,7 +207,6 @@ test.describe("Trade History - Trade Interactions", () => {
     const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
     await toggleBtn.click();
 
-    await page.waitForTimeout(300);
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
     await expect(page.locator('[data-testid="trade-notes-trade-1"]')).toBeVisible();
   });
@@ -221,7 +219,6 @@ test.describe("Trade History - Trade Interactions", () => {
     const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
     await toggleBtn.click();
 
-    await page.waitForTimeout(300);
     const reasonField = page.locator('[data-testid="trade-reason-trade-1"]');
     const notesField = page.locator('[data-testid="trade-notes-trade-1"]');
     const saveBtn = page.locator('[data-testid="trade-notes-save-trade-1"]');
@@ -239,14 +236,15 @@ test.describe("Trade History - Trade Interactions", () => {
     const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
     await toggleBtn.click();
 
-    await page.waitForTimeout(300);
     const notesField = page.locator('[data-testid="trade-notes-trade-1"]');
     await notesField.fill("Test notes");
 
     const saveBtn = page.locator('[data-testid="trade-notes-save-trade-1"]');
+    const saveResponse = page.waitForResponse(
+      (r) => r.url().includes("/api/paper/trades/") && r.request().method() === "PATCH",
+    );
     await saveBtn.click();
-
-    await page.waitForTimeout(500);
+    await saveResponse;
   });
 
   test("should show trade entry and exit prices when expanded", async ({ page }) => {
@@ -257,7 +255,6 @@ test.describe("Trade History - Trade Interactions", () => {
     const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
     await toggleBtn.click();
 
-    await page.waitForTimeout(300);
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
     const row = page.locator('[data-testid="trade-row-trade-1"]');
     await expect(row).toContainText("₹3750.00");
@@ -271,11 +268,9 @@ test.describe("Trade History - Trade Interactions", () => {
 
     const toggleBtn = page.locator('[data-testid="trade-detail-toggle-trade-1"]');
     await toggleBtn.click();
-    await page.waitForTimeout(300);
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).toBeVisible();
 
     await toggleBtn.click();
-    await page.waitForTimeout(300);
     // After collapse, the expanded detail should not be present
     await expect(page.locator('[data-testid="trade-reason-trade-1"]')).not.toBeVisible();
   });

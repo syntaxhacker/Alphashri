@@ -546,7 +546,20 @@ async function verifyChartRenders(page: Page) {
 }
 
 async function getChartOption(page: Page): Promise<any | null> {
-  await page.waitForTimeout(1000);
+  await page
+    .waitForFunction(
+      () => {
+        const echarts = (window as any).echarts;
+        const container = document.querySelector('[data-testid="echarts-container"]');
+        if (!echarts || !container) return false;
+        return Array.from(container.querySelectorAll("div")).some((d) =>
+          echarts.getInstanceByDom(d),
+        );
+      },
+      undefined,
+      { timeout: 10000 },
+    )
+    .catch(() => {});
   return page.evaluate(() => {
     const echarts = (window as any).echarts;
     if (!echarts) return null;
@@ -711,11 +724,13 @@ test.describe("Backtest - Timeframe Switching (All Strategies)", () => {
       const tfSelect = page.locator('[data-testid="chart-tf-select"]');
       await expect(tfSelect).toBeVisible({ timeout: 10000 });
       await tfSelect.click({ force: true });
-      await page.waitForTimeout(300);
       const option = page.getByRole("option").filter({ hasText: tf }).first();
-      if (await option.isVisible().catch(() => false)) {
+      const menuOpen = await option
+        .waitFor({ state: "visible", timeout: 3000 })
+        .then(() => true)
+        .catch(() => false);
+      if (menuOpen) {
         await option.click();
-        await page.waitForTimeout(500);
         await verifyChartRenders(page);
       }
     });

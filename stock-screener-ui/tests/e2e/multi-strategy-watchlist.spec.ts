@@ -122,7 +122,13 @@ test.describe("Multi-Strategy System - History Filter", () => {
     await expect(strategyFilter).toBeVisible();
     await strategyFilter.click();
     await page.getByRole("option", { name: "ORB Conservative" }).click();
-    await page.waitForTimeout(2000);
+    // Filter applied: selected strategy stays visible, the other strategy's trade drops out.
+    await expect(page.getByTestId("history-panel")).toContainText("ORB Conservative", {
+      timeout: 5000,
+    });
+    await expect(page.getByTestId("history-panel")).not.toContainText("ORB Aggressive", {
+      timeout: 5000,
+    });
   });
 });
 
