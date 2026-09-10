@@ -1,0 +1,16 @@
+{"type":"config","name":"smc-trend-break-pf","metricName":"pf_test","metricUnit":"ratio","bestDirection":"higher"}
+{"run":1,"commit":"c5c52aa","metric":0.841,"metrics":{"pf_train":1.569,"net_test":-143.92,"net_train":1019.27,"trades_test":52,"trades_train":102},"status":"keep","description":"baseline RR3 coupled engine","timestamp":1788422420,"segment":0}
+{"run":2,"commit":"c5c52aa","metric":0.498,"metrics":{"pf_train":1.571,"net_test":-579.57,"net_train":1003.6},"status":"discard","description":"BE stop at +1.5R","timestamp":1788422503,"segment":0}
+{"run":3,"commit":"c5c52aa","metric":0.841,"metrics":{"pf_train":1.723,"net_test":-143.92,"net_train":1267.87},"status":"discard","description":"relative chase filter max_chase_r=1.0","timestamp":1788422736,"segment":0}
+{"run":4,"commit":"3f277bb","metric":0.838,"metrics":{"pf_train":1.724,"net_test":-123.09,"net_train":882.2},"status":"discard","description":"session 12:00-23:00 IST only","timestamp":1788422979,"segment":0}
+{"run":5,"commit":"3f277bb","metric":0.928,"metrics":{"pf_train":1.713,"net_test":-52.93,"net_train":863.62},"status":"keep","description":"session 12-23 + ATR>=8","timestamp":1788422979,"segment":0}
+{"run":6,"commit":"3f277bb","metric":0.0,"metrics":{"pf_train":1.864,"net_test":-106.42,"net_train":484.8},"status":"discard","description":"daystop 40 + session + ATR","timestamp":1788422979,"segment":0}
+{"run":7,"commit":"aab2d22","metric":0.231,"metrics":{"pf_train":1.478,"net_test":-305.32,"net_train":220.51},"status":"discard","description":"15m HTF trend gate (Agent B spec)","timestamp":1788423128,"segment":0}
+{"run":8,"commit":"aab2d22","metric":0.543,"metrics":{"pf_train":1.545,"net_test":-467.39,"net_train":753.62},"status":"discard","description":"tp-near under session+ATR","timestamp":1788423164,"segment":0}
+{"run":9,"commit":"aab2d22","metric":0.0,"metrics":{"note":"july-daystop30 PF 0.99 net -13.56, worst-day -116 (open trades run past entry-block)"},"status":"discard","description":"daystop 30pts (=50 MNQ) on July month","timestamp":1788423549,"segment":0}
+{"run":10,"commit":"aab2d22","metric":0.384,"metrics":{"pf_train":1.744,"net_test":-478.39,"net_train":816.03},"status":"discard","description":"yfinance daily-bias direction gate","timestamp":1788424429,"segment":0}
+{"run":11,"commit":"436a57d","metric":0.557,"metrics":{"pf_train":1.624},"status":"discard","description":"forensics zone-age>30","timestamp":1788429801,"segment":0}
+{"run":12,"commit":"436a57d","metric":0.744,"metrics":{"pf_train":1.925},"status":"discard","description":"forensics displacement<0.25ATR skip","timestamp":1788429801,"segment":0}
+{"run":13,"commit":"436a57d","metric":0.979,"metrics":{"pf_train":1.59},"status":"keep","description":"ATR gate 8->10 (forensics)","timestamp":1788429801,"segment":0}
+{"run":14,"commit":"646bd3d","metric":0.979,"metrics":{"pf_train":1.457,"net_test":-13.67,"net_train":515.31},"status":"keep","description":"day-flatten-150 DD cap (PF-neutral, worst-day -67pct on July)","timestamp":1788430921,"segment":0}
+{"run":15,"commit":"f0b1f44","metric":0.0,"metrics":{"note":"rej-exit+8h history: +704 vs +875 baseline; Sep2 improves -220->-175 but 07-24 collapses +194->-30"},"status":"discard","description":"overnight history + double-rejection exit","timestamp":1788505273,"segment":0}

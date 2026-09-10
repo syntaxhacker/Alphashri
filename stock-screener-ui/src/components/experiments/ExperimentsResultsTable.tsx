@@ -25,8 +25,8 @@ function RunStatusBadge({ run }: { run: ExperimentRun }) {
   if (run.status === "keep") {
     return (
       <Badge
-        color="green"
-        variant="light"
+        color="success"
+        variant="filled"
         size="sm"
         data-testid={`experiments-status-${run.run}`}
       >
@@ -36,8 +36,8 @@ function RunStatusBadge({ run }: { run: ExperimentRun }) {
   }
   return (
     <Badge
-      color="red"
-      variant="light"
+      color="error"
+      variant="filled"
       size="sm"
       data-testid={`experiments-status-${run.run}`}
     >
@@ -233,10 +233,10 @@ export function ExperimentsResultsTable() {
               size="sm"
               c={
                 val >= 50
-                  ? "green"
+                  ? "success"
                   : val >= 40
                     ? "dimmed"
-                    : "red"
+                    : "error"
               }
             >
               {val.toFixed(0)}%
@@ -274,7 +274,7 @@ export function ExperimentsResultsTable() {
             <Text size="sm">{row.original.metrics.total_trades}</Text>
             {row.original.metrics.total_trades < 10 && (
               <Badge
-                color="yellow"
+                color="warning"
                 variant="light"
                 size="xs"
                 data-testid={`experiments-low-sample-${row.original.run}`}
@@ -354,9 +354,9 @@ export function ExperimentsResultsTable() {
           cursor: "pointer",
           backgroundColor:
             selectedRun?.run === run.run
-              ? "var(--mantine-color-blue-light)"
+              ? "primary.light"
               : bestRun?.run === run.run
-                ? "var(--mantine-color-teal-light)"
+                ? "success.light"
                 : undefined,
         })}
       />

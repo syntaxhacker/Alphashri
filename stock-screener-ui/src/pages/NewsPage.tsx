@@ -1,6 +1,10 @@
 import { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { useMediaQuery, Box, Stack, Flex, ScrollArea, Modal } from "@/ui";
+import Container from "@mui/material/Container";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Grid from "@mui/material/Grid";
+import { useMediaQuery, Box, Stack, ScrollArea, Modal } from "@/ui";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "../components/news/news-types";
 import { fetchArticle } from "../api/news";
 import { useNewsSourceGroups, getSourceOptions } from "../components/news/useNewsSourceGroups";
@@ -67,10 +71,21 @@ function NewsPageMobile({
   onCloseArticle: () => void;
 }) {
   return (
-    <Box p="sm" data-testid="news-page" className="news-page">
-      <ScrollArea.Autosize mah="calc(100vh - 100px)" offsetScrollbars>
-        <NewsList {...newsListProps} />
-      </ScrollArea.Autosize>
+    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, width: "100%", minHeight: 0, height: "100%", overflow: "hidden", alignItems: "center", justifyContent: "center" }} data-testid="news-page">
+      <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexShrink: 0 }} />
+      <Stack spacing={1} sx={{ flex: 1, width: "100%", alignItems: "center", justifyContent: "center" }}>
+        <Grid container spacing={2} sx={{ justifyContent: "center", alignItems: "center", width: "100%" }}>
+          <Grid size={{ xs: 12 }} sx={{ display: "flex", justifyContent: "center" }}>
+            <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+              <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+                <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                  <NewsList {...newsListProps} />
+                </Box>
+              </CardContent>
+            </Card>
+          </Grid>
+        </Grid>
+      </Stack>
       <Modal
         opened={modalOpen}
         onClose={onCloseArticle}
@@ -79,9 +94,11 @@ function NewsPageMobile({
         scrollAreaComponent={ScrollArea.Autosize}
         data-testid="article-modal"
       >
-        <ArticleDetail {...articleDetailProps} />
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+          <ArticleDetail {...articleDetailProps} />
+        </Box>
       </Modal>
-    </Box>
+    </Container>
   );
 }
 
@@ -93,25 +110,29 @@ function NewsPageDesktop({
   articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
 }) {
   return (
-    <Flex data-testid="news-page" className="news-page" h="100%" style={{ overflow: "hidden" }}>
-      <Stack
-        w="35%"
-        miw={300}
-        style={{
-          borderRight: "1px solid var(--mantine-color-default-border)",
-          overflow: "hidden",
-        }}
-      >
-        <ScrollArea h="100%" offsetScrollbars p="sm">
-          <NewsList {...newsListProps} />
-        </ScrollArea>
-      </Stack>
-      <Stack flex={1} style={{ overflow: "hidden" }}>
-        <ScrollArea h="100%" offsetScrollbars p="sm">
-          <ArticleDetail {...articleDetailProps} />
-        </ScrollArea>
-      </Stack>
-    </Flex>
+    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, minHeight: 0, height: "100%", overflow: "hidden", width: "100%", alignItems: "center", justifyContent: "center" }} data-testid="news-page">
+      <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexShrink: 0, p: 1 }} />
+      <Grid container spacing={2} sx={{ justifyContent: "center", alignItems: "stretch", width: "100%", flex: 1, minHeight: 0 }}>
+        <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", justifyContent: "center", minHeight: 0 }}>
+          <Card elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", p: 1, minHeight: 0, overflow: "hidden" }}>
+            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <NewsList {...newsListProps} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+        <Grid size={{ xs: 12, md: 7 }} sx={{ display: "flex", justifyContent: "center", minHeight: 0 }}>
+          <Card elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", p: 1, minHeight: 0, overflow: "hidden" }}>
+            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+              <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+                <ArticleDetail {...articleDetailProps} />
+              </Box>
+            </CardContent>
+          </Card>
+        </Grid>
+      </Grid>
+    </Container>
   );
 }
 

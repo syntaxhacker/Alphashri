@@ -67,7 +67,7 @@ test.describe("Paper Trading Settings", () => {
   test("should update Max Positions to 4, save, and persist on refresh", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
+    const maxPositionsInput = page.locator('[data-testid="config-max-positions"] input');
     await expect(maxPositionsInput).toBeVisible({ timeout: 5000 });
     await expect(maxPositionsInput).toHaveValue("5");
 
@@ -83,7 +83,7 @@ test.describe("Paper Trading Settings", () => {
     // Navigate fresh to paper trading settings after reload
     await navigateToPaperTradingSettings(page);
 
-    const maxPositionsAfterRefresh = page.locator('[data-testid="config-max-positions"]');
+    const maxPositionsAfterRefresh = page.locator('[data-testid="config-max-positions"] input');
     await expect(maxPositionsAfterRefresh).toHaveValue("4");
   });
 
@@ -95,15 +95,15 @@ test.describe("Paper Trading Settings", () => {
     await expect(page.locator("text=Runner Settings")).toBeVisible();
     await expect(page.locator("text=Trading Costs")).toBeVisible();
 
-    await expect(page.locator('[data-testid="config-sl-pct"]')).toHaveValue("0.4");
-    await expect(page.locator('[data-testid="config-tp-pct"]')).toHaveValue("1.2");
-    await expect(page.locator('[data-testid="config-cooldown"]')).toHaveValue("30");
+    await expect(page.locator('[data-testid="config-sl-pct"] input')).toHaveValue("0.4");
+    await expect(page.locator('[data-testid="config-tp-pct"] input')).toHaveValue("1.2");
+    await expect(page.locator('[data-testid="config-cooldown"] input')).toHaveValue("30");
   });
 
   test("should reset settings to defaults", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    const maxPositionsInput = page.locator('[data-testid="config-max-positions"]');
+    const maxPositionsInput = page.locator('[data-testid="config-max-positions"] input');
     await maxPositionsInput.fill("3");
     await expect(maxPositionsInput).toHaveValue("3");
 
@@ -113,7 +113,7 @@ test.describe("Paper Trading Settings", () => {
     await resetButton.click();
     await navigateToPaperTradingSettings(page);
 
-    const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"]');
+    const maxPositionsAfterReset = page.locator('[data-testid="config-max-positions"] input');
     await expect(maxPositionsAfterReset).toHaveValue("5");
   });
 });

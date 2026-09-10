@@ -52,7 +52,7 @@ test.describe("UI Controls", () => {
     await page.waitForSelector("table tbody tr", {
       timeout: 15000,
     });
-    const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
+    const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"] input');
     await expect(autoRefreshInput).toBeVisible();
     await autoRefreshInput.fill("30");
     await autoRefreshInput.blur();

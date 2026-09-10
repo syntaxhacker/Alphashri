@@ -1,0 +1,137 @@
+ES ORB SL/TP Optimization — 15m Opening Range (5 x 3min bars), 2026-01-20..2026-04-15
+Costs: 1.0 pt RT (~$50), 1% per trade compounded, EOD flat, SL first on intrabar hit
+Modes: retest = breakout close -> limit at edge; run = 4 consec closes -> market at 4th open
+SL: 0.7x=0.7*range below/above entry, 1.0x=opposite edge, 1.3x=1.3*range, tight=swing low/high of breakout bar
+
+BASELINE (retest 1.0x 2.0R): trades=54 PF=1.64 net=15.5% win=53.7% maxDD=-6.7% avg_R=0.274
+Baseline PF 1.64 expected per orb_verify.py (small diff due to SL def: entry-1.0*range vs opposite edge ~identical for retest)
+
+mode    SL     TP     tr  win%   avgR     PF    net%  gross%    DD%  vsBase
+---------------------------------------------------------------------------
+retest  1.3x   1.0R   54  63.0  0.236   1.78    13.4    15.4   -6.7 *** IMPROVES ***
+retest  1.0x   2.5R   54  51.9  0.285   1.66    16.1    18.9   -6.6 *** IMPROVES ***
+retest  1.0x   2.0R   54  53.7  0.274   1.64    15.5    18.2   -6.7 (baseline)
+retest  1.3x   1.5R   54  57.4  0.219   1.63    12.2    14.3   -6.3
+retest  1.3x   3.0R   54  53.7  0.224   1.60    12.4    14.5   -6.2
+retest  1.0x   1.5R   54  55.6  0.227   1.56    12.7    15.4   -7.1
+retest  1.0x   3.0R   54  50.0  0.251   1.56    13.9    16.6   -6.6
+retest  1.3x   2.0R   54  53.7  0.204   1.55    11.3    13.3   -6.2
+retest  1.3x   2.5R   54  53.7  0.199   1.54    10.9    13.0   -6.2
+run     1.3x   3.0R   61  49.2  0.181   1.52    11.2    13.6   -4.9
+retest  0.7x   1.0R   54  63.0  0.197   1.50    10.9    14.7   -4.1
+run     1.3x   1.5R   61  52.5  0.159   1.49     9.9    12.2   -3.7
+run     1.0x   3.0R   61  50.8  0.150   1.45     9.2    11.4   -4.9
+run     1.3x   2.5R   61  49.2  0.157   1.45     9.6    12.0   -4.9
+run     1.0x   1.0R   61  57.4  0.126   1.42     7.8     9.9   -3.8
+retest  1.0x   1.0R   54  61.1  0.159   1.42     8.7    11.3   -7.6
+run     1.0x   2.5R   61  50.8  0.127   1.38     7.7     9.9   -4.9
+run     1.0x   1.5R   61  50.8  0.121   1.36     7.4     9.5   -4.9
+run     1.3x   1.0R   61  55.7  0.108   1.35     6.6     8.9   -3.8
+run     1.3x   2.0R   61  49.2  0.117   1.34     7.1     9.4   -4.9
+run     1.0x   2.0R   61  50.8  0.088   1.27     5.2     7.4   -4.9
+retest  0.7x   2.0R   54  42.6  0.094   1.16     4.7     8.3  -11.1
+run     0.7x   2.5R   61  37.7  0.084   1.14     4.6     8.8   -9.9
+retest  0.7x   3.0R   54  38.9  0.082   1.13     3.9     7.5  -12.9
+retest  0.7x   1.5R   54  46.3  0.068   1.12     3.3     6.9  -10.3
+retest  0.7x   2.5R   54  38.9  0.048   1.08     2.0     5.5  -12.0
+run     0.7x   1.0R   61  52.5  0.006   1.01     0.1     4.1   -7.6
+run     0.7x   3.0R   61  32.8  0.006   1.01    -0.4     3.6  -10.4
+run     0.7x   2.0R   61  37.7 -0.018   0.97    -1.6     2.3  -11.2
+run     0.7x   1.5R   61  42.6 -0.032   0.94    -2.3     1.6  -10.4
+retest  tight  3.0R   54  27.8 -0.133   0.85    -7.8     5.3  -15.8
+retest  tight  2.5R   54  31.5 -0.142   0.84    -8.1     4.9  -14.5
+retest  tight  2.0R   54  37.0 -0.133   0.83    -7.5     5.6  -14.1
+retest  tight  1.5R   54  40.7 -0.225   0.70   -11.9     0.6  -13.3
+retest  tight  1.0R   54  50.0 -0.244   0.63   -12.6    -0.3  -12.9
+run     tight  1.0R   61   1.6 -1.546   0.01   -61.4   -44.7  -60.8
+run     tight  1.5R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+run     tight  2.0R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+run     tight  2.5R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+run     tight  3.0R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+
+Sorted by net% (desc):
+mode    SL     TP     tr  win%   avgR     PF    net%  gross%    DD%  vsBase
+---------------------------------------------------------------------------
+retest  1.0x   2.5R   54  51.9  0.285   1.66    16.1    18.9   -6.6
+retest  1.0x   2.0R   54  53.7  0.274   1.64    15.5    18.2   -6.7
+retest  1.0x   3.0R   54  50.0  0.251   1.56    13.9    16.6   -6.6
+retest  1.3x   1.0R   54  63.0  0.236   1.78    13.4    15.4   -6.7
+retest  1.0x   1.5R   54  55.6  0.227   1.56    12.7    15.4   -7.1
+retest  1.3x   3.0R   54  53.7  0.224   1.60    12.4    14.5   -6.2
+retest  1.3x   1.5R   54  57.4  0.219   1.63    12.2    14.3   -6.3
+retest  1.3x   2.0R   54  53.7  0.204   1.55    11.3    13.3   -6.2
+run     1.3x   3.0R   61  49.2  0.181   1.52    11.2    13.6   -4.9
+retest  1.3x   2.5R   54  53.7  0.199   1.54    10.9    13.0   -6.2
+retest  0.7x   1.0R   54  63.0  0.197   1.50    10.9    14.7   -4.1
+run     1.3x   1.5R   61  52.5  0.159   1.49     9.9    12.2   -3.7
+run     1.3x   2.5R   61  49.2  0.157   1.45     9.6    12.0   -4.9
+run     1.0x   3.0R   61  50.8  0.150   1.45     9.2    11.4   -4.9
+retest  1.0x   1.0R   54  61.1  0.159   1.42     8.7    11.3   -7.6
+run     1.0x   1.0R   61  57.4  0.126   1.42     7.8     9.9   -3.8
+run     1.0x   2.5R   61  50.8  0.127   1.38     7.7     9.9   -4.9
+run     1.0x   1.5R   61  50.8  0.121   1.36     7.4     9.5   -4.9
+run     1.3x   2.0R   61  49.2  0.117   1.34     7.1     9.4   -4.9
+run     1.3x   1.0R   61  55.7  0.108   1.35     6.6     8.9   -3.8
+run     1.0x   2.0R   61  50.8  0.088   1.27     5.2     7.4   -4.9
+retest  0.7x   2.0R   54  42.6  0.094   1.16     4.7     8.3  -11.1
+run     0.7x   2.5R   61  37.7  0.084   1.14     4.6     8.8   -9.9
+retest  0.7x   3.0R   54  38.9  0.082   1.13     3.9     7.5  -12.9
+retest  0.7x   1.5R   54  46.3  0.068   1.12     3.3     6.9  -10.3
+retest  0.7x   2.5R   54  38.9  0.048   1.08     2.0     5.5  -12.0
+run     0.7x   1.0R   61  52.5  0.006   1.01     0.1     4.1   -7.6
+run     0.7x   3.0R   61  32.8  0.006   1.01    -0.4     3.6  -10.4
+run     0.7x   2.0R   61  37.7 -0.018   0.97    -1.6     2.3  -11.2
+run     0.7x   1.5R   61  42.6 -0.032   0.94    -2.3     1.6  -10.4
+retest  tight  2.0R   54  37.0 -0.133   0.83    -7.5     5.6  -14.1
+retest  tight  3.0R   54  27.8 -0.133   0.85    -7.8     5.3  -15.8
+retest  tight  2.5R   54  31.5 -0.142   0.84    -8.1     4.9  -14.5
+retest  tight  1.5R   54  40.7 -0.225   0.70   -11.9     0.6  -13.3
+retest  tight  1.0R   54  50.0 -0.244   0.63   -12.6    -0.3  -12.9
+run     tight  1.0R   61   1.6 -1.546   0.01   -61.4   -44.7  -60.8
+run     tight  1.5R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+run     tight  2.0R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+run     tight  2.5R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+run     tight  3.0R   61   0.0 -1.579   0.00   -62.2   -45.8  -61.6
+
+BEST by PF: retest SL=1.3x TP=1.0R PF=1.78 net=13.4% trades=54 win=63.0% maxDD=-6.7%
+BEST by net%: retest SL=1.0x TP=2.5R net=16.1% PF=1.66 trades=54
+
+Combos beating baseline PF 1.64 (raw 1.641): 2 / 40
+  (list sorted PF desc):
+    retest 1.3x 1.0R PF=1.78 net=13.4% trades=54
+    retest 1.0x 2.5R PF=1.66 net=16.1% trades=54
+
+=== Tight SL analysis ===
+  retest tight 1.0R -> PF=0.63 net=-12.6% win=50.0% trades=54 maxDD=-12.9%
+  retest tight 1.5R -> PF=0.7 net=-11.9% win=40.7% trades=54 maxDD=-13.3%
+  retest tight 2.0R -> PF=0.83 net=-7.5% win=37.0% trades=54 maxDD=-14.1%
+  retest tight 2.5R -> PF=0.84 net=-8.1% win=31.5% trades=54 maxDD=-14.5%
+  retest tight 3.0R -> PF=0.85 net=-7.8% win=27.8% trades=54 maxDD=-15.8%
+  run tight 1.0R -> PF=0.01 net=-61.4% win=1.6% trades=61 maxDD=-60.8%
+  run tight 1.5R -> PF=0.0 net=-62.2% win=0.0% trades=61 maxDD=-61.6%
+  run tight 2.0R -> PF=0.0 net=-62.2% win=0.0% trades=61 maxDD=-61.6%
+  run tight 2.5R -> PF=0.0 net=-62.2% win=0.0% trades=61 maxDD=-61.6%
+  run tight 3.0R -> PF=0.0 net=-62.2% win=0.0% trades=61 maxDD=-61.6%
+
+Does 4th-candle (run) help with tighter SL?
+  Best retest tight: 3.0R PF=0.85 net=-7.8%
+  Best run    tight: 1.0R PF=0.01 net=-61.4%
+  -> NO: retest+tight remains superior to run+tight; YouTuber's 4th-candle entry DOES NOT help tighter SL.
+
+=== SL multiplier impact (retest only, avg across TP) ===
+  retest 0.7x: avg PF=1.20 avg net=5.0% (over 5 TPs)
+  retest 1.0x: avg PF=1.57 avg net=13.4% (over 5 TPs)
+  retest 1.3x: avg PF=1.62 avg net=12.1% (over 5 TPs)
+  retest tight: avg PF=0.77 avg net=-9.6% (over 5 TPs)
+
+=== SL multiplier impact (run only) ===
+  run 0.7x: avg PF=1.01 avg net=0.1%
+  run 1.0x: avg PF=1.38 avg net=7.5%
+  run 1.3x: avg PF=1.43 avg net=8.9%
+  run tight: avg PF=0.00 avg net=-62.0%
+
+Notes:
+ - Fixed TP only, intrabar SL-first, 15m OR = high=max(high[0:5]), low=min(low[0:5]) on 3-min bars, RTH 09:30 ET
+ - Tight SL = low/high of the breakout bar that first closed beyond range (retest) or low/high of 4th consec bar (run)
+ - 0.7x tightens, 1.3x widens — both change win% and R psych: tighter higher win% if chop but worse PF if wicks stop you
+ - Window only ~54 traded days with fills (out of ~74 sessions); not 12-month claim — treat PF comparisons as head-to-head on same window

@@ -18,7 +18,7 @@ import {
   Divider,
   Tooltip,
   ThemeIcon,
-  Code as MantineCode,
+  Code,
   Timeline,
   Title,
   Anchor,
@@ -104,7 +104,7 @@ const mdComponents = {
       {children}
     </Text>
   ),
-  code: ({ children }: any) => <MantineCode style={{ fontSize: 11 }}>{children}</MantineCode>,
+  code: ({ children }: any) => <Code style={{ fontSize: 11 }}>{children}</Code>,
   a: ({ href, children }: any) => (
     <Anchor href={href} size="sm">
       {children}
@@ -141,8 +141,7 @@ const mdComponents = {
   th: ({ children }: any) => (
     <Box
       component="th"
-      style={{
-        border: "1px solid var(--mantine-color-default-border)",
+      sx={{
         padding: 2,
         fontWeight: 600,
       }}
@@ -151,10 +150,7 @@ const mdComponents = {
     </Box>
   ),
   td: ({ children }: any) => (
-    <Box
-      component="td"
-      style={{ border: "1px solid var(--mantine-color-default-border)", padding: 2 }}
-    >
+    <Box component="td" sx={{ padding: 2 }}>
       {children}
     </Box>
   ),
@@ -380,7 +376,7 @@ export function ChatPopup() {
         size={56}
         radius="xl"
         variant="filled"
-        color="blue"
+        color="primary"
         onClick={toggleChat}
         style={{
           position: "fixed",
@@ -415,13 +411,7 @@ export function ChatPopup() {
           }}
           data-testid="chat-popup-window"
         >
-          <Box
-            p="sm"
-            style={{
-              borderBottom: "1px solid var(--mantine-color-default-border)",
-              backgroundColor: "var(--mantine-color-blue-light)",
-            }}
-          >
+          <Box p="sm" sx={{ bgcolor: "primary.light" }}>
             <Group justify="space-between">
               <Group gap="xs">
                 <IconRobot size={20} />
@@ -453,7 +443,7 @@ export function ChatPopup() {
                   </>
                 )}
                 {isAvailable === false && (
-                  <Badge size="xs" color="red">
+                  <Badge size="xs" color="error">
                     Unavailable
                   </Badge>
                 )}
@@ -462,13 +452,7 @@ export function ChatPopup() {
           </Box>
 
           <Collapse in={showHistory}>
-            <Box
-              style={{
-                maxHeight: 180,
-                overflowY: "auto",
-                borderBottom: "1px solid var(--mantine-color-default-border)",
-              }}
-            >
+            <Box sx={{ maxHeight: 180, overflowY: "auto" }}>
               <Group p="xs" justify="space-between">
                 <Text size="xs" fw={600}>
                   Conversations
@@ -493,7 +477,7 @@ export function ChatPopup() {
                         <ActionIcon
                           variant="subtle"
                           size="xs"
-                          color="red"
+                          color="error"
                           onClick={(e) => handleDeleteConversation(c.id, e)}
                           data-testid={`chat-delete-convo-${c.id}`}
                         >
@@ -526,16 +510,16 @@ export function ChatPopup() {
                 {agentProgress.map((agent) => (
                   <Group key={agent.agent} gap={4}>
                     <Box
-                      style={{
+                      sx={{
                         width: 8,
                         height: 8,
                         borderRadius: "50%",
-                        backgroundColor:
+                        bgcolor:
                           agent.status === "completed"
-                            ? "var(--mantine-color-green-6)"
+                            ? "success.main"
                             : agent.status === "running"
-                              ? "var(--mantine-color-blue-6)"
-                              : "var(--mantine-color-gray-5)",
+                              ? "primary.main"
+                              : "grey.400",
                       }}
                     />
                     <Text size="xs" c="dimmed">
@@ -557,7 +541,7 @@ export function ChatPopup() {
                           <Text size="xs" c="dimmed" lineClamp={1}>
                             {tc.tool}
                           </Text>
-                          <Text size="xs" c="gray" style={{ opacity: 0.5 }}>
+                          <Text size="xs" c="secondary" sx={{ opacity: 0.5 }}>
                             {tc.agent}
                           </Text>
                         </Group>
@@ -592,12 +576,13 @@ export function ChatPopup() {
                     <Paper
                       p="xs"
                       radius="md"
-                      bg={
-                        msg.role === "user"
-                          ? "var(--mantine-color-blue-light)"
-                          : "light-dark(var(--mantine-color-gray-1), var(--mantine-color-dark-6))"
-                      }
-                      style={{ maxWidth: "85%" }}
+                      sx={{
+                        bgcolor:
+                          msg.role === "user"
+                            ? "primary.light"
+                            : "background.paper",
+                        maxWidth: "85%",
+                      }}
                     >
                       <Group gap={4} mb={4}>
                         {msg.role === "user" ? <IconUser size={14} /> : <IconRobot size={14} />}
@@ -611,17 +596,17 @@ export function ChatPopup() {
                       {msg.analysis && (
                         <Stack gap={4} mt="xs">
                           <Group gap={4}>
-                            <Badge size="xs" color="blue">
+                            <Badge size="xs" color="primary">
                               {msg.analysis.ticker}
                             </Badge>
                             <Badge
                               size="xs"
                               color={
                                 msg.analysis.decision === "BUY"
-                                  ? "green"
+                                  ? "success"
                                   : msg.analysis.decision === "SELL"
-                                    ? "red"
-                                    : "yellow"
+                                    ? "error"
+                                    : "warning"
                               }
                             >
                               {msg.analysis.decision}
@@ -630,12 +615,11 @@ export function ChatPopup() {
                           {msg.analysis.reports && Object.keys(msg.analysis.reports).length > 0 && (
                             <Stack gap={2}>
                               {Object.entries(msg.analysis.reports).map(([section, content]) => (
-                                <Paper
+                                  <Paper
                                   key={section}
                                   p={4}
-                                  style={{
-                                    background:
-                                      "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))",
+                                  sx={{
+                                    bgcolor: "background.paper",
                                   }}
                                 >
                                   <Text size="xs" fw={600} tt="capitalize">
@@ -671,7 +655,7 @@ export function ChatPopup() {
             )}
           </ScrollArea>
 
-          <Box p="sm" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
+          <Box p="sm">
             <Group gap="xs">
               <TextInput
                 size="sm"
@@ -686,7 +670,7 @@ export function ChatPopup() {
               <ActionIcon
                 size="sm"
                 variant="filled"
-                color="blue"
+                color="primary"
                 onClick={handleSend}
                 disabled={!input.trim() || isLoading || isAvailable === false}
                 data-testid="chat-send-button"

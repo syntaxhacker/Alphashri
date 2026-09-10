@@ -26,13 +26,13 @@ describe.each([
   it("move column + green - red dash for null", () => {
     const f = fmt(cols, moveKey);
     expect((f(2.5) as any).value).toBe("+2.50%");
-    expect((f(2.5) as any).className).toBe("green");
-    expect((f(-1) as any).className).toBe("red");
+    expect((f(2.5) as any).className).toBe("success");
+    expect((f(-1) as any).className).toBe("error");
     expect((f(null) as any).value).toBe("-");
     expect((f(null) as any).className).toBe("");
     expect(() => f(NaN)).not.toThrow();
     expect(() => f(Infinity)).not.toThrow();
-    expect((f(0) as any).className).toBe("green");
+    expect((f(0) as any).className).toBe("success");
   });
   it("volume_surge formats", () => {
     const f = fmt(cols, "volume_surge");
@@ -44,8 +44,8 @@ describe.each([
   it("rsi null -> 0.0", () => expect(fmt(cols, "rsi")(null)).toBe("0.0"));
   it("volume_m null -> 0.00", () => expect(fmt(cols, "volume_m")(null)).toBe("0.00"));
   it("day_change green/red", () => {
-    expect((fmt(cols, "day_change")(1) as any).className).toBe("green");
-    expect((fmt(cols, "day_change")(-1) as any).className).toBe("red");
+    expect((fmt(cols, "day_change")(1) as any).className).toBe("success");
+    expect((fmt(cols, "day_change")(-1) as any).className).toBe("error");
   });
   it("all sortable", () => cols.forEach((c) => expect(c.sortable).toBe(true)));
 });

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach, beforeEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, within } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
@@ -8,27 +8,7 @@ import { StrategyForm } from "./StrategyForm";
 import type { StrategyConfig } from "../../types/strategies";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
-vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...core,
-    UIProvider: ui.UIProvider,
-    useDebouncedValue: ui.useDebouncedValue,
-    Select: ({ onChange, data, "data-testid": testId, ...rest }: any) => (
-      <select
-        data-testid={testId}
-        onChange={(e) => onChange?.(e.target.value)}
-        {...rest}
-      >
-        {data?.map((opt: any) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ) };
-});
+// mui migrated
 
 beforeEach(() => {
   window.alert = vi.fn();
@@ -132,8 +112,9 @@ describe("StrategyForm", () => {
         <StrategyForm {...baseProps} mode="edit" />
       </UIProvider>,
     );
-    const typeInput = screen.getByTestId("strategy-type-input");
-    expect(typeInput).toBeDisabled();
+    // disabled state lives on the combobox inside the FormControl wrapper
+    const typeInput = within(screen.getByTestId("strategy-type-input")).getByRole("combobox");
+    expect(typeInput).toHaveAttribute("aria-disabled", "true");
   });
 
   it("renders Description input", () => {
@@ -446,8 +427,9 @@ describe("StrategyForm", () => {
     );
     expect(screen.getByTestId("strategy-tab-orb")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-sr")).not.toBeInTheDocument();
-    const select = screen.getByTestId("strategy-type-input");
-    await user.selectOptions(select, "SR_BREAKOUT");
+    // MUI Select: options render in a Menu portal once opened
+    await user.click(within(screen.getByTestId("strategy-type-input")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "S/R Breakout" }));
     expect(screen.getByTestId("strategy-tab-sr")).toBeInTheDocument();
     expect(screen.queryByTestId("strategy-tab-orb")).not.toBeInTheDocument();
   });

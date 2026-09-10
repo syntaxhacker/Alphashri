@@ -78,24 +78,18 @@ export function BacktestConfig({
 
   const selectData = useMemo(
     () => [
-      {
-        group: "Templates (Base Logic)",
-        items: variations
-          .filter((v) => v.is_template)
-          .map((v) => ({
-            value: v.id,
-            label: `${v.name} (${v.strategy_type})`,
-          })),
-      },
-      {
-        group: "Your Variations",
-        items: variations
-          .filter((v) => !v.is_template)
-          .map((v) => ({
-            value: v.id,
-            label: v.name,
-          })),
-      },
+      ...variations
+        .filter((v) => v.is_template)
+        .map((v) => ({
+          value: v.id,
+          label: `${v.name} (${v.strategy_type})`,
+        })),
+      ...variations
+        .filter((v) => !v.is_template)
+        .map((v) => ({
+          value: v.id,
+          label: v.name,
+        })),
     ],
     [variations],
   );
@@ -107,62 +101,64 @@ export function BacktestConfig({
 
   return (
     <Paper
+      elevation={1}
       id="config-form"
-      className="backtest-config"
       p="sm"
       radius="sm"
-      withBorder
       data-testid="strategy-config"
+      sx={{ p: 1 }}
     >
-      <Stack gap="xs">
-        <Group gap="sm" align="flex-start">
-          <Text size="sm" fw={500} w={70} pt={4}>
-            Strategy
-          </Text>
-          <Box flex={1}>
-            <Select
-              id="variation-select"
-              className="config-variation-select"
-              data-testid="variation-select"
-              placeholder="Select strategy or template"
-              value={selectedVariation}
-              onChange={(v) => onVariationChange(v)}
-              data={selectData}
-              size="sm"
-              clearable
-              searchable
-            />
+      <Stack spacing={1} sx={{ gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Box sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
+            <Text size="sm" fw={500} c="dimmed">Strategy</Text>
+          </Box>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", textAlign: "right", flexDirection: "column", alignContent: "stretch" }}>
+            <Box sx={{ width: "100%", flex: 1, display: "flex", alignItems: "center" }}>
+              <Select
+                id="variation-select"
+                className="config-variation-select"
+                data-testid="variation-select"
+                placeholder="Select strategy or template"
+                value={selectedVariation}
+                onChange={(v) => onVariationChange(v)}
+                data={selectData}
+                size="sm"
+                clearable
+                searchable
+              />
+            </Box>
             {selectedVariationData?.description && (
-              <Text size="xs" c="dimmed" mt={2}>
+              <Text size="xs" c="dimmed" sx={{ mt: 0.5, width: "100%", textAlign: "left" }}>
                 {selectedVariationData.description}
               </Text>
             )}
           </Box>
-        </Group>
+        </Box>
 
         <Divider />
 
-        <Group gap="sm" align="flex-start">
-          <Text size="sm" fw={500} w={70} pt={4}>
-            Symbols
-          </Text>
-          <Box flex={1}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
+          <Box sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
+            <Text size="sm" fw={500} c="dimmed">Symbols</Text>
+          </Box>
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>
             <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
           </Box>
-        </Group>
+        </Box>
 
         <Divider />
 
-        <Box>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
           {strategy && strategy.params.length > 0 ? (
-            <Group gap="sm" align="flex-start">
-              <Text size="sm" fw={500} w={70} pt={4}>
-                Params
-              </Text>
-              <Box className="config-params-row" flex={1}>
+            <>
+              <Box sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
+                <Text size="sm" fw={500} c="dimmed">Params</Text>
+              </Box>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, textAlign: "right", justifyContent: "flex-end" }}>
                 {strategy.params.map((param) => (
                   <Tooltip key={param.key} label={param.label} withArrow>
-                    <Group gap={4} align="center">
+                    <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                       <Text size="xs" c="dimmed">
                         {param.label}
                       </Text>
@@ -171,29 +167,31 @@ export function BacktestConfig({
                         value={params[param.key]}
                         onChange={(value) => onParamChange(param.key, value)}
                       />
-                    </Group>
+                    </Box>
                   </Tooltip>
                 ))}
               </Box>
-            </Group>
+            </>
           ) : (
-            <Group gap="sm" align="center">
-              <Text size="sm" fw={500} w={70}>
-                Params
-              </Text>
-              <Text size="sm" c="dimmed">
-                Select a strategy to configure parameters
-              </Text>
-            </Group>
+            <>
+              <Box sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
+                <Text size="sm" fw={500} c="dimmed">Params</Text>
+              </Box>
+              <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "flex-end", textAlign: "right" }}>
+                <Text size="sm" c="dimmed">
+                  Select a strategy to configure parameters
+                </Text>
+              </Box>
+            </>
           )}
         </Box>
 
         <Divider />
 
-        <Group justify="space-between" align="center" wrap="wrap" gap="sm">
-          <Group gap="sm" align="center">
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, flexWrap: "wrap" }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Tooltip label="Backtest period in days" withArrow>
-              <Group gap={4} align="center">
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
                 <Text size="sm" c="dimmed">
                   Days
                 </Text>
@@ -205,23 +203,25 @@ export function BacktestConfig({
                   max={365}
                   step={30}
                   size="sm"
-                  w={65}
+                  w={72}
                 />
-              </Group>
+              </Box>
             </Tooltip>
 
             <Tooltip label="Include brokerage and slippage costs" withArrow>
-              <Checkbox
-                data-testid="include-costs-checkbox"
-                label="Include Costs"
-                checked={includeCosts}
-                onChange={(checked) => onIncludeCostsChange(checked)}
-                size="sm"
-              />
+              <Box sx={{ display: "flex", alignItems: "center" }}>
+                <Checkbox
+                  data-testid="include-costs-checkbox"
+                  label="Include Costs"
+                  checked={includeCosts}
+                  onChange={(checked) => onIncludeCostsChange(checked)}
+                  size="sm"
+                />
+              </Box>
             </Tooltip>
-          </Group>
+          </Box>
 
-          <Group gap="xs" align="center">
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Tooltip label="Ctrl+Enter to run" withArrow>
               <Button
                 variant="filled"
@@ -246,6 +246,7 @@ export function BacktestConfig({
                   p={0}
                   w={28}
                   data-testid="run-menu-btn"
+                  sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
                 >
                   <IconChevronDown size={12} />
                 </Button>
@@ -270,7 +271,7 @@ export function BacktestConfig({
                 <Menu.Divider />
                 <Menu.Item
                   onClick={onReset}
-                  color="gray"
+                  color="secondary"
                   leftSection={<IconRotate size={14} />}
                   data-testid="reset-btn"
                 >
@@ -278,8 +279,8 @@ export function BacktestConfig({
                 </Menu.Item>
               </Menu.Dropdown>
             </Menu>
-          </Group>
-        </Group>
+          </Box>
+        </Box>
       </Stack>
     </Paper>
   );

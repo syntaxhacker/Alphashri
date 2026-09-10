@@ -16,7 +16,7 @@ async function gotoLoginPage(page: Page) {
 }
 
 async function openUserMenu(page: Page) {
-  const trigger = page.locator('[data-testid="user-menu-trigger"]');
+  const trigger = page.locator('[data-testid="user-menu-trigger"]').first();
   await expect(trigger).toBeVisible({ timeout: 10000 });
   await trigger.click();
   await expect(page.locator('[data-testid="logout-button"]')).toBeVisible({ timeout: 5000 });
@@ -226,8 +226,8 @@ test.describe("Authentication - Logout", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     // Should show user info
-    await expect(page.locator('[data-testid="user-menu-trigger"]')).toContainText("TestUser");
-    await expect(page.locator('[data-testid="user-menu-trigger"]')).toContainText(
+    await expect(page.locator('[data-testid="user-menu-trigger"]').first()).toContainText("TestUser");
+    await expect(page.locator('[data-testid="user-menu-trigger"]').first()).toContainText(
       "test@alphashri.dev",
     );
   });

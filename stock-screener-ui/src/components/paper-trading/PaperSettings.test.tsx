@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import { render, screen, cleanup, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { TestWrapper } from "../../test/test-utils";
@@ -307,13 +307,14 @@ describe("PaperSettings", () => {
     });
 
     it("strategy selector with options marks default with '(Default)'", async () => {
+      const user = userEvent.setup();
       render(<PaperSettings />, { wrapper: TestWrapper });
       await waitFor(() => {
-        const select = screen.getByTestId("strategy-selector");
-        expect(select).toBeInTheDocument();
-        // Check that the option with "(Default)" exists
-        expect(screen.getByText("ORB Strategy (Default)")).toBeInTheDocument();
+        expect(screen.getByTestId("strategy-selector")).toBeInTheDocument();
       });
+      // Options render in the dropdown Menu (portal) once opened
+      await user.click(within(screen.getByTestId("strategy-selector")).getByRole("combobox"));
+      expect(await screen.findByRole("option", { name: "ORB Strategy (Default)" })).toBeInTheDocument();
     });
 
     it("manage button is visible", () => {
@@ -363,8 +364,10 @@ describe("PaperSettings", () => {
         }),
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
-      const select = screen.getByTestId("strategy-selector");
-      expect(select).toBeDisabled();
+      // disabled state lives on the combobox inside the FormControl wrapper
+      // (jest-dom toBeDisabled ignores aria-disabled on divs -> assert directly)
+      const select = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
+      expect(select).toHaveAttribute("aria-disabled", "true");
     });
 
     it("strategy select is disabled while configLoading", () => {
@@ -372,8 +375,8 @@ describe("PaperSettings", () => {
         createMockState({ strategyConfig: mockConfig, configLoading: true }),
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
-      const select = screen.getByTestId("strategy-selector");
-      expect(select).toBeDisabled();
+      const select = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
+      expect(select).toHaveAttribute("aria-disabled", "true");
     });
 
     it("changing strategy calls handleStrategyChange which calls fetchStrategyConfig", async () => {
@@ -383,15 +386,16 @@ describe("PaperSettings", () => {
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
       // Wait for strategies to load so select is enabled
-      await waitFor(() => {
-        expect(screen.getByTestId("strategy-selector")).not.toBeDisabled();
+      const combo = await waitFor(() => {
+        const c = within(screen.getByTestId("strategy-selector")).getByRole("combobox");
+        expect(c.getAttribute("aria-disabled")).not.toBe("true");
+        return c;
       });
       const user = userEvent.setup();
-      const select = screen.getByTestId("strategy-selector");
-      // Open the dropdown by clicking the select
-      await user.click(select);
+      // Open the dropdown by clicking the combobox
+      await user.click(combo);
       // Wait for the dropdown options to appear and click the one for strategy2
-      const option = screen.getByText("EMA Crossover");
+      const option = await screen.findByRole("option", { name: "EMA Crossover" });
       await user.click(option);
       expect(fetchStrategyConfig).toHaveBeenCalledWith(2);
     });
@@ -411,8 +415,9 @@ describe("PaperSettings", () => {
         createMockState({ strategyConfig: mockConfig, configError: "Some error occurred" }),
       );
       render(<PaperSettings />, { wrapper: TestWrapper });
-      const alert = screen.getByText("Some error occurred").closest(".mantine-Alert-root");
+      const alert = screen.getByText("Some error occurred").closest('[role="alert"]');
       expect(alert).toBeInTheDocument();
+      expect(screen.getByRole("alert")).toHaveTextContent("Some error occurred");
     });
   });
 

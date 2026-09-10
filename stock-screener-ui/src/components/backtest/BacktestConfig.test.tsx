@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup, waitFor } from "@testing-library/react";
+import {render, screen, cleanup, waitFor, within} from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { BacktestConfig } from "./BacktestConfig";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
@@ -123,12 +123,12 @@ describe("BacktestConfig", () => {
 
   it("displays days input with correct value", () => {
     render(<BacktestConfig {...defaultProps({ days: 60 })} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("days-input")).toHaveValue("60");
+    expect(within(screen.getByTestId("days-input")).getByRole("spinbutton")).toHaveValue(60);
   });
 
   it("renders include costs checkbox and reflects prop", () => {
     render(<BacktestConfig {...defaultProps({ includeCosts: true })} />, { wrapper: Wrapper });
-    expect(screen.getByTestId("include-costs-checkbox")).toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Include Costs" })).toBeChecked();
   });
 
   it("run button disabled when isRunning true", () => {

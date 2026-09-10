@@ -58,8 +58,8 @@ describe("undervalued columns", () => {
 
   describe("day_change", () => {
     it("green/red", () => {
-      expect((fmt("day_change")(2) as any).className).toBe("green");
-      expect((fmt("day_change")(-2) as any).className).toBe("red");
+      expect((fmt("day_change")(2) as any).className).toBe("success");
+      expect((fmt("day_change")(-2) as any).className).toBe("error");
     });
   });
 

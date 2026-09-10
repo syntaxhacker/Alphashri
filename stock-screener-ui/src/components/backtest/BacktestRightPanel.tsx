@@ -1,7 +1,7 @@
 import { memo } from "react";
 import { Flex } from "@/ui";
 import type { SymbolChartData, Trade } from "../../types/backtest";
-import { BacktestChartTabs, TradeHistoryTable } from "./mantine";
+import { BacktestChartTabs, TradeHistoryTable } from ".";
 
 interface BacktestRightPanelProps {
   showCharts: boolean;

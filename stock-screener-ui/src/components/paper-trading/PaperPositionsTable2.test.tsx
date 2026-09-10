@@ -5,7 +5,7 @@ import { screen, within, waitFor, cleanup } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaperPositionsTable } from "./PaperPositionsTable2";
 import { mockPosition } from "./testFixtures";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperBotSnapshot, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
@@ -164,7 +164,7 @@ function resetState() {
 }
 
 function r(jsx: React.ReactElement) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 function rWithPosition(
@@ -489,8 +489,8 @@ describe("PaperPositionsTable", () => {
       rWithCloseAllEnabled();
       const btn = screen.getByTestId("close-all-positions");
       await user.click(btn);
-      // second click while still closing should be ignored
-      await user.click(btn);
+      // second click while still closing should be ignored (button is disabled when loading, so click throws pointer-events error)
+      try { await user.click(btn); } catch {}
       expect(closeAllPositions).toHaveBeenCalledTimes(1);
       resolve(undefined);
       await waitFor(() => expect(screen.queryByText("Closing...")).not.toBeInTheDocument());

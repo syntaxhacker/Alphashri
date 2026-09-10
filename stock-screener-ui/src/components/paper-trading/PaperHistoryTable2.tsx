@@ -6,16 +6,15 @@ import {
   Group,
   Loader,
   SegmentedControl,
-  Flex,
-  ScrollArea,
   Anchor,
   Badge,
   ActionIcon,
-  Grid,
   Stack,
   Textarea,
   Button,
+  LoadingOverlay,
 } from "@/ui";
+import Box from "@mui/material/Box";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { PaperTrade } from "../../types/paperTrading";
 import {
@@ -28,6 +27,8 @@ import {
   getStrategyTypeFromName,
 } from "../../utils/ui-helpers";
 import { SideBadge, ExitReasonBadge, ClickableSymbol } from "../common";
+import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
+import * as palette from "@/ui/palette";
 import { TanStackTable } from "../common/TanStackTable";
 import {
   getPaperTradingState,
@@ -53,21 +54,28 @@ function useQuickFilter() {
   const handleQuickFilter = (period: string) => {
     let fromDate: string | null = null;
     let toDate: string | null = null;
+    const todayStr = dayjs().format("YYYY-MM-DD");
     switch (period) {
       case "today":
-        fromDate = dayjs().format("YYYY-MM-DD");
-        toDate = fromDate;
+        fromDate = todayStr;
+        toDate = todayStr;
         break;
       case "week":
         fromDate = dayjs().subtract(7, "day").format("YYYY-MM-DD");
+        toDate = todayStr;
         break;
       case "month":
         fromDate = dayjs().subtract(1, "month").format("YYYY-MM-DD");
+        toDate = todayStr;
         break;
       case "year":
         fromDate = dayjs().subtract(1, "year").format("YYYY-MM-DD");
+        toDate = todayStr;
         break;
+      case "all":
       default:
+        fromDate = null;
+        toDate = null;
         break;
     }
     setFilterFromDate(fromDate);
@@ -98,9 +106,9 @@ function HistoryFilters({
 
   return (
     <>
-      <Flex flex="none" py={1} className="paper-history-filters" id="history-filters">
-        <Group gap="xs" justify="space-between" w="100%">
-          <Group gap="xs">
+      <Box className="paper-history-filters" sx={{ flex: "none", py: 0.5, px: 0.5 }} id="history-filters">
+        <Stack className="paper-history-filters-stack" id="paper-history-filters-stack" direction={{ xs: "column", sm: "row" } as any} justify="space-between" align={{ xs: "stretch", sm: "center" }} gap={1} sx={{ width: "100%" }}>
+          <Box className="paper-history-filters-left" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", flex: 1, minWidth: 0 }}>
             {bots.length > 1 && (
               <Select
                 placeholder="All Bots"
@@ -110,7 +118,7 @@ function HistoryFilters({
                 ]}
                 value={state.filterBot || ""}
                 onChange={(v) => setFilterBot(v)}
-                style={{ width: 160 }}
+                sx={{ width: 160, borderRadius: 1 }}
                 size="xs"
                 data-testid="bot-filter-select"
               />
@@ -124,48 +132,39 @@ function HistoryFilters({
                 ]}
                 value={state.filterStrategy != null ? String(state.filterStrategy) : ""}
                 onChange={(v) => setFilterStrategy(v ? Number(v) : null)}
-                style={{ width: 160 }}
+                sx={{ width: 160, borderRadius: 1 }}
                 size="xs"
                 data-testid="strategy-filter-select"
               />
             )}
-          </Group>
-          <SegmentedControl
-            value={getCurrentPeriod()}
-            onChange={handleQuickFilter}
-            data={[
-              { value: "today", label: "Today" },
-              { value: "week", label: "Week" },
-              { value: "month", label: "Month" },
-              { value: "year", label: "Year" },
-              { value: "all", label: "All" },
-            ]}
-            size="xs"
-            data-testid="quick-filter"
-          />
-        </Group>
-      </Flex>
+          </Box>
+          <Box className="paper-history-filters-right" sx={{ display: "flex", alignItems: "center", justifyContent: { xs: "flex-start", sm: "flex-end" }, flexWrap: "wrap", gap: 0.5, flexShrink: 0 }}>
+            <SegmentedControl
+              className="paper-quick-filter"
+              value={getCurrentPeriod()}
+              onChange={handleQuickFilter}
+              data={[
+                { value: "today", label: "Today" },
+                { value: "week", label: "Week" },
+                { value: "month", label: "Month" },
+                { value: "year", label: "Year" },
+                { value: "all", label: "All" },
+              ]}
+              size="xs"
+              data-testid="quick-filter"
+            />
+          </Box>
+        </Stack>
+      </Box>
 
-      <Flex
-        flex="none"
-        className="paper-history-list-wrapper"
-        data-testid="trades-header"
-        id="trades-header"
-      >
-        <Group justify="space-between" px={4} py={2}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">
-            Trade History
-          </Text>
-        </Group>
-      </Flex>
+      <Box className="paper-trades-header" sx={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 1 }} data-testid="trades-header" id="trades-header">
+        <Text className="paper-trades-header-title" size="xs" fw={600} c="dimmed" tt="uppercase">
+          Trade History
+        </Text>
+      </Box>
     </>
   );
 }
-
-/* ─────────────────────────────────────────────────────────────
- * Day summary header row (rendered inside the single table as a
- * full-width group row) + trade detail sub-components.
- * ───────────────────────────────────────────────────────────── */
 
 const DaySummary = memo(function DaySummary({
   date,
@@ -182,27 +181,27 @@ const DaySummary = memo(function DaySummary({
   const pnlColor = getPnLTextColor(dayPnl);
 
   return (
-    <Group justify="space-between" px={4} py={1} wrap="nowrap" data-testid={`day-header-${date}`}>
-      <Group gap={6} wrap="nowrap">
-        <Text size="xs" c="dimmed">
+    <Box className="paper-day-summary" id={`paper-day-summary-${date}`} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1, py: 0.5, gap: 1, flexWrap: "nowrap" }} data-testid={`day-header-${date}`}>
+      <Box className="paper-day-summary-left" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
+        <Text className="paper-day-summary-toggle" size="xs" c="dimmed" sx={{ lineHeight: 1 }}>
           {expanded ? "▾" : "▸"}
         </Text>
-        <Text size="xs" fw={600} c="dimmed" tt="uppercase">
+        <Text className="paper-day-summary-date" size="xs" fw={700} tt="uppercase">
           {formatDateHeader(date)}
         </Text>
-      </Group>
-      <Group gap="xs" wrap="nowrap">
-        <Text size="xs" c={pnlColor} fw={600}>
+      </Box>
+      <Box className="paper-day-summary-right" sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "nowrap" }}>
+        <Text className="paper-day-summary-pnl" size="xs" c={pnlColor} fw={700} sx={{ textAlign: "right" }}>
           {formatSignedPnl(dayPnl)}
         </Text>
-        <Badge color={wins > 0 ? "green" : "gray"} variant="light" size="xs">
+        <Badge className="paper-day-summary-wins" color={wins > 0 ? "success" : "secondary"} variant="filled" size="xs">
           ▲{wins}
         </Badge>
-        <Badge color={losses > 0 ? "red" : "gray"} variant="light" size="xs">
+        <Badge className="paper-day-summary-losses" color={losses > 0 ? "error" : "secondary"} variant="filled" size="xs">
           ▼{losses}
         </Badge>
-      </Group>
-    </Group>
+      </Box>
+    </Box>
   );
 });
 
@@ -213,50 +212,46 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   const netColor = getPnLTextColor(netPnl);
 
   const entryContext = [
-    { label: "Trade ID", value: `#${trade.trade_id}` },
-    { label: "Entry Time", value: formatTimeOnly(trade.entry_time) },
-    { label: "Peak", value: `₹${trade.peak_price?.toFixed(2) ?? "-"}` },
-    { label: "Low", value: `₹${trade.low_price?.toFixed(2) ?? "-"}` },
-    { label: "Hold", value: trade.hold_duration_minutes != null ? formatDuration(trade.hold_duration_minutes) : "-" },
+    { label: "Trade ID", value: `#${trade.trade_id}`, color: palette.PRIMARY },
+    { label: "Entry Time", value: formatTimeOnly(trade.entry_time), color: palette.TEXT },
+    { label: "Peak", value: `₹${trade.peak_price?.toFixed(2) ?? "-"}`, color: trade.peak_price ? palette.POSITIVE : palette.TEXT_MUTED },
+    { label: "Low", value: `₹${trade.low_price?.toFixed(2) ?? "-"}`, color: trade.low_price ? palette.NEGATIVE : palette.TEXT_MUTED },
+    { label: "Hold", value: trade.hold_duration_minutes != null ? formatDuration(trade.hold_duration_minutes) : "-", color: palette.TEXT_MUTED },
   ];
 
   const exitContext = [
-    { label: "Exit Time", value: formatTimeOnly(trade.exit_time) },
-    { label: "Exit Price", value: trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-" },
-    { label: "Costs", value: `₹${formatNumber(trade.costs)}` },
-    { label: "Gross P&L", value: formatSignedPnl(grossPnl), color: grossColor },
-    { label: "Net P&L", value: formatSignedPnl(netPnl), color: netColor },
+    { label: "Exit Time", value: formatTimeOnly(trade.exit_time), color: palette.TEXT },
+    { label: "Exit Price", value: trade.exit_price != null ? `₹${trade.exit_price.toFixed(2)}` : "-", color: palette.TEXT },
+    { label: "Costs", value: `₹${formatNumber(trade.costs)}`, color: palette.NEGATIVE },
+    { label: "Gross P&L", value: formatSignedPnl(grossPnl), color: grossColor === "success" ? palette.POSITIVE : palette.NEGATIVE },
+    { label: "Net P&L", value: formatSignedPnl(netPnl), color: netColor === "success" ? palette.POSITIVE : palette.NEGATIVE },
   ];
 
   return (
-    <Grid gutter={2}>
-      <Grid.Col span={{ base: 12, md: 6 }}>
-        <Stack gap={2}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Entry</Text>
-          {entryContext.map((item) => (
-            <Group key={item.label} gap="xs" justify="space-between">
-              <Text size="xs" c="dimmed">{item.label}</Text>
-              <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
-            </Group>
-          ))}
-        </Stack>
-      </Grid.Col>
-      <Grid.Col span={{ base: 12, md: 6 }}>
-        <Stack gap={2}>
-          <Text size="xs" fw={600} c="dimmed" tt="uppercase">Exit</Text>
-          {exitContext.map((item) => (
-            <Group key={item.label} gap="xs" justify="space-between">
-              <Text size="xs" c="dimmed">{item.label}</Text>
-              <Text size="sm" fw={500} c={item.color}>{item.value}</Text>
-            </Group>
-          ))}
-          <Group gap="xs" justify="space-between">
-            <Text size="xs" c="dimmed">Exit Reason</Text>
-            <ExitReasonBadge reason={trade.exit_reason} />
-          </Group>
-        </Stack>
-      </Grid.Col>
-    </Grid>
+    <Box className="paper-trade-stats" id={`paper-trade-stats-${trade.trade_id}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(220px, 260px))" }, gap: 0.75, width: "100%", justifyContent: "center", maxWidth: 540, mx: "auto" }}>
+      <Box className="paper-trade-stats-entry" id={`paper-trade-stats-entry-${trade.trade_id}`} sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
+        <Text className="paper-trade-stats-entry-title" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Entry</Text>
+        {entryContext.map((item) => (
+          <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
+            <Text className="paper-trade-stats-label" size="xs" c="dimmed" sx={{ lineHeight: 1.1, minWidth: 62, flexShrink: 0 }}>{item.label}</Text>
+            <Text className="paper-trade-stats-value" size="xs" fw={600} c={item.color} sx={{ lineHeight: 1.2, fontSize: "0.78rem" }}>{item.value}</Text>
+          </Box>
+        ))}
+      </Box>
+      <Box className="paper-trade-stats-exit" id={`paper-trade-stats-exit-${trade.trade_id}`} sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
+        <Text className="paper-trade-stats-exit-title" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Exit</Text>
+        {exitContext.map((item) => (
+          <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
+            <Text className="paper-trade-stats-label" size="xs" c="dimmed" sx={{ lineHeight: 1.1, minWidth: 62, flexShrink: 0 }}>{item.label}</Text>
+            <Text className="paper-trade-stats-value" size="xs" fw={600} c={item.color} sx={{ lineHeight: 1.2, fontSize: "0.78rem" }}>{item.value}</Text>
+          </Box>
+        ))}
+        <Box className="paper-trade-stats-exit-reason" id={`paper-trade-stats-exit-reason-${trade.trade_id}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35 }}>
+          <Text className="paper-trade-stats-label" size="xs" c="dimmed" sx={{ lineHeight: 1.1, minWidth: 62, flexShrink: 0 }}>Exit Reason</Text>
+          <ExitReasonBadge reason={trade.exit_reason} />
+        </Box>
+      </Box>
+    </Box>
   );
 });
 
@@ -272,53 +267,50 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
   };
 
   return (
-    <Stack gap={2}>
-      <Group gap="xs" align="flex-start" grow>
-        <Stack gap={1} style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">Reason</Text>
-          <Text size="xs" style={{ whiteSpace: "pre-wrap", lineHeight: 1.5 }} data-testid={`trade-reason-${trade.trade_id}`}>
+    <Box className="paper-trade-notes-editor" id={`paper-trade-notes-${trade.trade_id}`} sx={{ p: 0.75, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)" }}>
+      <Stack className="paper-trade-notes-stack" spacing={1}>
+        <Box className="paper-trade-notes-reason-row" id={`paper-trade-notes-reason-row-${trade.trade_id}`} sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, py: 0.5, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+          <Text className="paper-trade-notes-label" size="xs" c="dimmed" fw={600} tt="uppercase" sx={{ flexShrink: 0, letterSpacing: 0.5 }}>Reason</Text>
+          <Text className="paper-trade-notes-reason" id={`paper-trade-notes-reason-${trade.trade_id}`} size="xs" sx={{ whiteSpace: "pre-wrap", lineHeight: 1.5, textAlign: "right", flex: 1 }} data-testid={`trade-reason-${trade.trade_id}`}>
             {trade.reason || "-"}
           </Text>
-        </Stack>
-      </Group>
-      <Group gap="sm" align="flex-start" grow>
-        <Stack gap={1} style={{ flex: 1 }}>
-          <Text size="xs" c="dimmed">Notes</Text>
-          <Textarea
-            size="xs"
-            minRows={2}
-            maxRows={4}
-            value={notes}
-            onChange={(val) => setNotes(val)}
-            placeholder="Any additional notes..."
-            styles={{ input: { background: "var(--mantine-color-body)" } }}
-            data-testid={`trade-notes-${trade.trade_id}`}
-          />
-        </Stack>
-      </Group>
-      <Group justify="flex-end">
-        <Button size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`}>
-          Save
-        </Button>
-      </Group>
-    </Stack>
+        </Box>
+        <Box className="paper-trade-notes-input-group" id={`paper-trade-notes-input-group-${trade.trade_id}`} sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <Text className="paper-trade-notes-notes-label" size="xs" c="dimmed" fw={600} tt="uppercase" sx={{ letterSpacing: 0.5 }}>Notes</Text>
+          <Box className="paper-trade-notes-input-row" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            <Box className="paper-trade-notes-textarea-wrap" sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+              <Textarea
+                className="paper-trade-notes-textarea"
+                size="xs"
+                minRows={2}
+                maxRows={4}
+                value={notes}
+                onChange={(val) => setNotes(val)}
+                placeholder="Any additional notes..."
+                styles={{ input: { background: "var(--mui-palette-background-paper)" } }}
+                data-testid={`trade-notes-${trade.trade_id}`}
+              />
+            </Box>
+            <Button className="paper-trade-notes-save" id={`paper-trade-notes-save-${trade.trade_id}`} size="xs" variant="light" loading={saving} onClick={handleSave} data-testid={`trade-notes-save-${trade.trade_id}`} sx={{ alignSelf: "center" }}>
+              Save
+            </Button>
+          </Box>
+        </Box>
+      </Stack>
+    </Box>
   );
 });
 
 const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
-    <Stack gap="xs">
-      <TradeStats trade={trade} />
-      <TradeNotesEditor trade={trade} />
-    </Stack>
+    <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 1, py: 0.75, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
+      <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={0.75}>
+        <TradeStats trade={trade} />
+        <TradeNotesEditor trade={trade} />
+      </Stack>
+    </Box>
   );
 });
-
-/* ─────────────────────────────────────────────────────────────
- * Single trade history table: one <table> grouped by exit date.
- * Day summary rows (full-width) collapse/expand each day; trade
- * rows expand to show the TradeDetail sub-component.
- * ───────────────────────────────────────────────────────────── */
 
 function tradeDate(trade: PaperTrade): string {
   return (trade.exit_time || "").split("T")[0];
@@ -340,7 +332,6 @@ function TradeHistoryTable({
     entryTime?: string,
   ) => void;
 }) {
-  // Newest-first so day groups render newest date on top.
   const sortedTrades = useMemo(
     () => [...trades].sort((a, b) => (b.exit_time || "").localeCompare(a.exit_time || "")),
     [trades],
@@ -359,7 +350,6 @@ function TradeHistoryTable({
     return out;
   }, [sortedTrades]);
 
-  // Remount the table whenever the set of days changes so every day starts expanded.
   const datesKey = dates.join("|");
   const initialExpanded = useMemo(
     () => Object.fromEntries(dates.map((d) => [`date:${d}`, true])),
@@ -396,24 +386,25 @@ function TradeHistoryTable({
         cell: ({ row }) => (
           <ActionIcon
             variant="subtle"
-            color="gray"
+            color="secondary"
             size="sm"
+            aria-label={row.getIsExpanded() ? "Collapse" : "Expand"}
             onClick={(e) => {
               e.stopPropagation();
               row.toggleExpanded();
             }}
             data-testid={`trade-detail-toggle-${row.original.trade_id}`}
           >
-            {row.getIsExpanded() ? "▼" : "▶"}
+            {row.getIsExpanded() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </ActionIcon>
         ),
       },
       {
-        // Grouping-only column: the full-width day header rows display the
-        // date, so per-row cells are empty to avoid a redundant wide column.
         id: "date",
         header: "",
         accessorFn: tradeDate,
+        size: 0,
+        enableSorting: false,
         cell: () => null,
       },
       {
@@ -446,7 +437,7 @@ function TradeHistoryTable({
         header: "Hold",
         accessorKey: "hold_duration_minutes",
         cell: ({ row }) => (
-          <Text size="sm" c="dimmed">
+          <Text className="paper-cell-hold" size="sm">
             {row.original.hold_duration_minutes != null ? formatDuration(row.original.hold_duration_minutes) : "-"}
           </Text>
         ),
@@ -472,7 +463,7 @@ function TradeHistoryTable({
         cell: ({ row }) => {
           const pct = row.original.pnl_pct;
           return (
-            <Text c={getPnLTextColor(pct)} fw={600} size="sm">
+            <Text className="paper-cell-pnlpct" c={getPnLTextColor(pct)} fw={600} size="sm">
               {pct != null ? `${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%` : "-"}
             </Text>
           );
@@ -483,7 +474,7 @@ function TradeHistoryTable({
         header: "P&L",
         accessorKey: "net_pnl",
         cell: ({ row }) => (
-          <Text c={getPnLTextColor(row.original.net_pnl)} fw={600} size="sm">
+          <Text className="paper-cell-pnl" c={getPnLTextColor(row.original.net_pnl)} fw={600} size="sm">
             ₹{formatNumber(row.original.net_pnl)}
           </Text>
         ),
@@ -531,14 +522,13 @@ function TradeHistoryTable({
 
   return (
     <TanStackTable<PaperTrade>
+      className="paper-trade-history-table"
       key={datesKey}
       data={sortedTrades}
       columns={columns}
       enableGrouping
       grouping={["date"]}
       initialState={{
-        // Sort day groups newest-first; trades inside a day keep the
-        // pre-sorted (exit_time desc) order.
         sorting: [{ id: "date", desc: true }],
         expanded: initialExpanded,
       }}
@@ -567,21 +557,24 @@ function HistoryList({
   handleSelectSymbol: (symbol: string, exitTime?: string, tradeId?: string) => Promise<void>;
 }) {
   return (
-    <ScrollArea flex={1} className="paper-history-list" id="history-list" type="scroll">
-      {filteredTrades.length === 0 ? (
-        <Flex py="sm" justify="center" align="center" direction="column" gap={4}>
-          <Text size="xs" fw={500} c="dimmed">
+    <Box className="paper-history-list" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative" }} id="history-list">
+      <LoadingOverlay visible={state.isLoading} zIndex={5} overlayProps={{ radius: "sm", blur: 1 }} className="paper-history-loading-overlay" />
+      {filteredTrades.length === 0 && !state.isLoading ? (
+        <Box className="paper-history-empty" id="paper-history-empty" sx={{ display: "flex", justifyContent: "center", alignItems: "center", flexDirection: "column", gap: 1, py: 4, flex: 1, minHeight: 200, textAlign: "center" }}>
+          <Text className="paper-history-empty-text" size="xs" fw={500} c="dimmed">
             No trades found
           </Text>
-        </Flex>
+        </Box>
       ) : (
-        <TradeHistoryTable
-          trades={filteredTrades}
-          selectedTradeId={state.selectedTradeId}
-          onSelectSymbol={handleSelectSymbol}
-        />
+        <Box sx={{ opacity: state.isLoading ? 0.6 : 1, transition: "opacity 0.15s", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+          <TradeHistoryTable
+            trades={filteredTrades}
+            selectedTradeId={state.selectedTradeId}
+            onSelectSymbol={handleSelectSymbol}
+          />
+        </Box>
       )}
-    </ScrollArea>
+    </Box>
   );
 }
 
@@ -635,37 +628,25 @@ export function PaperHistoryTable() {
 
   if (state.isLoading && state.trades.length === 0) {
     return (
-      <Flex
-        justify="center"
-        py="sm"
-        data-testid="history-panel"
-        className="paper-history-panel"
-        id="history-panel"
-      >
-        <Group gap="xs">
+      <Box className="paper-history-loading" sx={{ display: "flex", justifyContent: "center", py: 1 }} data-testid="history-panel" id="history-panel">
+        <Group className="paper-history-loading-group" gap="xs">
           <Loader size="sm" />
-          <Text size="xs" c="dimmed">
+          <Text className="paper-history-loading-text" size="xs" c="dimmed">
             Loading trade history...
           </Text>
         </Group>
-      </Flex>
+      </Box>
     );
   }
 
   return (
-    <Flex
-      direction="column"
-      h="100%"
-      className="paper-history-container"
-      id="history-container"
-      data-testid="history-panel"
-    >
+    <Box className="paper-history-panel" sx={{ display: "flex", flexDirection: "column", height: "100%", flex: 1, minHeight: 0 }} data-testid="history-panel" id="history-container">
       <HistoryFilters bots={bots} strategies={strategies} state={state} />
       <HistoryList
         filteredTrades={filteredTrades}
         state={state}
         handleSelectSymbol={handleSelectSymbol}
       />
-    </Flex>
+    </Box>
   );
 }

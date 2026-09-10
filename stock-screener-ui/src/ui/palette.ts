@@ -1,5 +1,5 @@
 // ============================================================
-// SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP
+// SINGLE SOURCE OF TRUTH FOR ALL COLORS IN THE APP (LEGACY DARK)
 // ------------------------------------------------------------
 // Style: HIGH-CONTRAST DARK theme (GitHub Dark inspired)
 //   - Near-black navy surfaces (#0D1117 / #161B22) — not pitch black
@@ -19,7 +19,7 @@ export const BG_COLOR = "#0D1117";       // body (near-black navy)
 export const SURFACE_COLOR = "#161B22";  // cards
 export const BORDER_COLOR = "#30363D";   // visible borders
 
-// ----- Mantine scales (high-contrast dark ramps) -----
+// ----- MUI scales (high-contrast dark ramps) -----
 export const SCALE_DARK = ["#F0F6FC","#C9D1D9","#8B949E","#6E7681","#484F58","#30363D","#21262D","#0D1117","#0A0E14","#010409"];
 export const SCALE_GRAY = ["#F0F6FC","#C9D1D9","#8B949E","#6E7681","#484F58","#30363D","#21262D","#161B22","#0D1117","#010409"];
 export const SCALE_BLUE = ["#F0F7FF","#D9E8FF","#B3D1FF","#80B5FF","#4D99FF","#1F7FFF","#1F6FEB","#1A5CD6","#1449B8","#0F3A94"];
@@ -164,6 +164,20 @@ export const CHART_LIGHT_SPLIT = "#EFF2F5";
 export const ERROR_COLOR = ERROR;
 export const CHART_DARK_DATAZOOM_BG = CHART_DATAZOOM_BG;
 export const CHART_LIGHT_DATAZOOM_BG = "#FFFFFF";
+
+// ----- NinjaTrader high-contrast SMC POC tokens -----
+export const NT_BG = "#0E0E0E";
+export const NT_GRID = "#2A2A2A";
+export const NT_CANDLE_BULL = "#00FF88";
+export const NT_CANDLE_BEAR = "#FF3B30";
+export const NT_FVG_BULL_FILL = "rgba(0,255,136,0.18)";
+export const NT_FVG_BULL_STROKE = "rgba(0,255,136,0.9)";
+export const NT_FVG_BEAR_FILL = "rgba(255,59,48,0.18)";
+export const NT_FVG_BEAR_STROKE = "rgba(255,59,48,0.9)";
+export const NT_IFVG_FILL = "rgba(255,215,0,0.22)";
+export const NT_IFVG_STROKE = "#FFD700";
+export const NT_HLINE = "#38BDF8";
+export const NT_TREND = "#A78BFA";
 
 // ----- Backward-compat aliases -----
 export const BLACK = "#010409";

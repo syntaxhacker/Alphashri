@@ -1,5 +1,6 @@
 import { memo, useRef, useState, useEffect, useMemo } from "react";
 import { Text, Group, Flex, Tooltip, ActionIcon, Badge, Collapse, Box, Stack, SimpleGrid, Textarea, Button, Loader } from "@/ui";
+import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import dayjs from "dayjs";
 import { ClickableSymbol } from "../common";
@@ -19,15 +20,8 @@ import {
   formatCurrencyIN,
   getPnLTextColor,
 } from "../../utils/ui-helpers";
-import { POSITIVE, NEGATIVE } from "../../config/colors";
-
-function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
+import { POSITIVE, NEGATIVE, WARNING } from "@/ui/palette";
+import { withAlpha } from "../../utils/color";
 
 export function nearBreakoutPct(item: PaperScanItem): number {
   const price = item.price;
@@ -90,9 +84,9 @@ const PriceCell = memo(function PriceCell({ price, quantity, entry }: { price: n
   const safeEntry = Number.isFinite(entry) ? entry : 0;
   const safeQty = Number.isFinite(quantity) ? quantity : 0;
   return (
-    <Text size="sm">
+    <Text className="paper-price-cell" size="sm">
       {safeQty}×₹{safeEntry.toFixed(0)}
-      <Text span c="dimmed" size="xs">→</Text>
+      <Text className="paper-price-arrow" span c="dimmed" size="xs">→</Text>
       <PriceDisplay price={safePrice} prevPrice={Number.isFinite(prevPrice) ? prevPrice : 0} />
     </Text>
   );
@@ -159,14 +153,12 @@ const PnLDisplay = memo(function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlP
     <Text
       c={pnlClass}
       fw={600}
-      className={
-        flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : undefined
-      }
+      className={`paper-pnl-display ${flash === "up" ? "price-flash-up" : flash === "down" ? "price-flash-down" : ""}`}
       onAnimationEnd={() => setFlash(null)}
       style={{ display: "inline" }}
     >
       {formatSignedPnl(pnl)}
-      <Text span c="dimmed" fs="italic" size="sm">
+      <Text className="paper-pnl-pct" span c="dimmed" fs="italic" size="sm">
         {" "}
         ({formatPercentage(pnlPct)})
       </Text>
@@ -249,67 +241,69 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
   };
 
   return (
-    <Stack gap={2}>
-      <SimpleGrid cols={2} spacing="xs">
-        <Box style={{ overflow: "hidden" }}>
-          <Text size="xs" c="dimmed">Entry Reason</Text>
-          <Text size="sm" style={{ wordBreak: "break-word" }}>{pos.entry_reason || "—"}</Text>
+    <Stack className="paper-position-detail" id={`paper-position-detail-${pos.order_id || pos.symbol}`} gap={1}>
+      <SimpleGrid className="paper-position-detail-reasons" id={`paper-position-reasons-${pos.symbol}`} cols={2} spacing="xs">
+        <Box className="paper-position-entry-reason" id={`paper-position-entry-reason-${pos.symbol}`} sx={{ overflow: "hidden" }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Entry Reason</Text>
+          <Text className="paper-position-value" size="sm" sx={{ wordBreak: "break-word" }}>{pos.entry_reason || "—"}</Text>
         </Box>
-        <Box style={{ overflow: "hidden" }}>
-          <Text size="xs" c="dimmed">Exit Reason</Text>
-          <Text size="sm" style={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
+        <Box className="paper-position-exit-reason" id={`paper-position-exit-reason-${pos.symbol}`} sx={{ overflow: "hidden" }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Exit Reason</Text>
+          <Text className="paper-position-value" size="sm" sx={{ wordBreak: "break-word" }}>Open (no exit yet)</Text>
         </Box>
       </SimpleGrid>
-      <SimpleGrid cols={4} spacing={2}>
-        <Box>
-          <Text size="xs" c="dimmed">Stop Loss</Text>
-          <Text size="sm" c="red">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
+      <SimpleGrid className="paper-position-detail-stats" id={`paper-position-stats-${pos.symbol}`} cols={4} spacing="sm">
+        <Box className="paper-position-stat" id={`paper-position-sl-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Stop Loss</Text>
+          <Text className="paper-position-value" size="sm" c="error">{pos.stop_loss ? `₹${pos.stop_loss.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Take Profit</Text>
-          <Text size="sm" c="teal">{pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "—"}</Text>
+        <Box className="paper-position-stat" id={`paper-position-tp-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Take Profit</Text>
+          <Text className="paper-position-value" size="sm" c="success">{pos.take_profit ? `₹${pos.take_profit.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Peak</Text>
-          <Text size="sm">{pos.peak_price ? `₹${pos.peak_price.toFixed(2)}` : "—"}</Text>
+        <Box className="paper-position-stat" id={`paper-position-peak-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Peak</Text>
+          <Text className="paper-position-value" size="sm">{pos.peak_price ? `₹${pos.peak_price.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Low</Text>
-          <Text size="sm">{pos.low_price ? `₹${pos.low_price.toFixed(2)}` : "—"}</Text>
+        <Box className="paper-position-stat" id={`paper-position-low-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Low</Text>
+          <Text className="paper-position-value" size="sm">{pos.low_price ? `₹${pos.low_price.toFixed(2)}` : "—"}</Text>
         </Box>
-        <Box>
-          <Text size="xs" c="dimmed">52W High</Text>
-          <Text size="sm" c="orange">
+        <Box className="paper-position-stat" id={`paper-position-52high-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W High</Text>
+          <Text className="paper-position-value" size="sm" c="warning">
             {loading52 ? <Loader size="xs" /> : week52?.high_52w ? `₹${week52.high_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
-        <Box>
-          <Text size="xs" c="dimmed">52W Low</Text>
-          <Text size="sm" c="blue">
+        <Box className="paper-position-stat" id={`paper-position-52low-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>52W Low</Text>
+          <Text className="paper-position-value" size="sm" c="primary">
             {loading52 ? <Loader size="xs" /> : week52?.low_52w ? `₹${week52.low_52w.toFixed(2)}` : "—"}
           </Text>
         </Box>
-        <Box>
-          <Text size="xs" c="dimmed">Position ID</Text>
-          <Text size="xs" style={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
+        <Box className="paper-position-stat" id={`paper-position-id-${pos.symbol}`} sx={{ p: 0.5 }}>
+          <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600}>Position ID</Text>
+          <Text className="paper-position-value" size="xs" sx={{ wordBreak: "break-all" }}>{pos.order_id || pos.id || "—"}</Text>
         </Box>
       </SimpleGrid>
-      <Box>
-        <Text size="xs" c="dimmed" mb={2}>Notes</Text>
-        <Group gap="xs">
-          <Textarea
-            size="xs"
-            value={notes}
-            onChange={(val) => setNotes(val)}
-            placeholder="Add notes..."
-            style={{ flex: 1 }}
-            maxLength={500}
-            autosize
-            minRows={1}
-            maxRows={3}
-          />
-          <Button size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving}>Save</Button>
-        </Group>
+      <Box className="paper-position-notes" id={`paper-position-notes-${pos.symbol}`}>
+        <Text className="paper-position-label" size="xs" c="dimmed" tt="uppercase" fw={600} mb="xs">Notes</Text>
+        <Box className="paper-position-notes-row" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          <Box className="paper-position-notes-input-wrap" sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Textarea
+              className="paper-position-notes-textarea"
+              size="xs"
+              value={notes}
+              onChange={(val) => setNotes(val)}
+              placeholder="Add notes..."
+              maxLength={500}
+              autosize
+              minRows={1}
+              maxRows={3}
+            />
+          </Box>
+          <Button className="paper-position-notes-save" id={`paper-position-notes-save-${pos.symbol}`} size="compact-xs" variant="light" onClick={handleSaveNotes} loading={saving} sx={{ alignSelf: "center" }}>Save</Button>
+        </Box>
       </Box>
     </Stack>
   );
@@ -318,8 +312,8 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
 export function getPositionAgeColor(entryTime: string): string {
   const elapsed = Date.now() - new Date(entryTime).getTime();
   const hours = elapsed / (1000 * 60 * 60);
-  if (hours > 4) return "var(--mantine-color-orange-1)";
-  if (hours > 2) return "var(--mantine-color-orange-0)";
+  if (hours > 4) return withAlpha(WARNING, 0.15);
+  if (hours > 2) return withAlpha(WARNING, 0.08);
   return "transparent";
 }
 
@@ -392,18 +386,20 @@ export function PositionsTableBody({
   const columns = useMemo<ColumnDef<PaperPosition>[]>(() => [
     {
       id: "toggle",
-      header: "",
+       header: "",
       size: 32,
+      meta: { align: "center" },
       enableSorting: false,
-       cell: ({ row }) => (
+        cell: ({ row }) => (
         <ActionIcon
           variant="subtle"
-          color="gray"
+          color="secondary"
           size="sm"
+          aria-label={row.getIsExpanded() ? "Collapse" : "Expand"}
           onClick={(e) => { e.stopPropagation(); row.toggleExpanded(); }}
           data-testid={`position-expand-${getCompositeRowId(row.original)}`}
         >
-          {row.getIsExpanded() ? "▼" : "▶"}
+          {row.getIsExpanded() ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
         </ActionIcon>
       ),
     },
@@ -411,6 +407,7 @@ export function PositionsTableBody({
       id: "symbol",
       header: "Symbol",
       size: 100,
+      meta: { align: "left" },
       accessorKey: "symbol",
       cell: ({ row }) => {
         const pos = row.original;
@@ -433,6 +430,7 @@ export function PositionsTableBody({
       id: "price",
       header: "Entry→Curr",
       size: 160,
+      meta: { align: "right" },
       accessorFn: (row) => row.current_price - row.entry_price,
       cell: ({ row }) => {
         const pos = row.original;
@@ -443,6 +441,7 @@ export function PositionsTableBody({
       id: "pnl",
       header: "P&L",
       size: 100,
+      meta: { align: "right" },
       accessorFn: (row) => row.pnl,
       cell: ({ row }) => <PnLDisplay pnl={row.original.pnl} pnlPct={row.original.pnl_pct} />,
     },
@@ -450,6 +449,7 @@ export function PositionsTableBody({
       id: "age",
       header: "Age",
       size: 80,
+      meta: { align: "left" },
       accessorFn: (row) => row.entry_time,
       cell: ({ row }) => <Text size="xs" c="dimmed">{formatElapsed(row.original.entry_time)}</Text>,
     },
@@ -457,6 +457,7 @@ export function PositionsTableBody({
       id: "close",
       header: "",
       size: 40,
+      meta: { align: "center" },
       enableSorting: false,
       cell: ({ row }) => {
         const pos = row.original;
@@ -464,7 +465,7 @@ export function PositionsTableBody({
           <Tooltip label="Close position">
             <ActionIcon
               variant="subtle"
-              color="gray"
+              color="secondary"
               size="sm"
               onClick={(e) => { e.stopPropagation(); handleClosePosition(pos.symbol, pos.current_price); }}
               data-testid={`close-position-${getCompositeRowId(pos)}`}
@@ -479,18 +480,18 @@ export function PositionsTableBody({
 
   return (
     <TanStackTable<PaperPosition>
+      className="paper-positions-table"
       data={positions}
       columns={columns}
       getRowCanExpand={() => true}
       renderSubComponent={(pos) => (
-        <Box p="xs" style={{ background: "var(--mantine-color-dark-7)", borderBottom: "1px solid var(--mantine-color-dark-4)" }}>
+        <Box className="paper-position-expanded" id={`paper-position-expanded-${pos.order_id || pos.symbol}`} p="xs" sx={{ bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)", borderBottom: "1px solid var(--mui-palette-divider)" }}>
           <PositionDetail pos={pos} />
         </Box>
       )}
       getRowStyle={(pos) => ({
         cursor: "pointer",
         background: calcRowBg(pos.current_price, pos.entry_price, pos.stop_loss, pos.take_profit),
-        borderLeft: `3px solid ${getSideColor(pos.side)}`,
         transition: "background 0.5s ease",
       })}
       getRowTestId={(pos) => `position-row-${getCompositeRowId(pos)}`}
@@ -531,7 +532,6 @@ export function StrategySummaryFooter({
       direction="column"
       mt={2}
       pt={2}
-      style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}
       data-testid="strategy-summary-footer"
       className="paper-strategy-summary"
       id="strategy-summary"

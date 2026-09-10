@@ -29,6 +29,7 @@ import config
 
 _TF_TO_UPSTOX: Dict[int, tuple] = {
     1: ("minutes", 1),
+    3: ("minutes", 1),  # 3m via 1m resample
     5: ("minutes", 5),
     10: ("minutes", 10),
     15: ("minutes", 15),
@@ -42,6 +43,7 @@ _TF_TO_UPSTOX: Dict[int, tuple] = {
 
 _RESAMPLE_RULE: Dict[int, str] = {
     1: "1min",
+    3: "3min",
     5: "5min",
     10: "10min",
     15: "15min",

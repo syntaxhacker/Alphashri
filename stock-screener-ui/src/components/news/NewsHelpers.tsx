@@ -57,7 +57,7 @@ function ArticleSymbols({
             <Badge
               size="sm"
               variant="light"
-              color={symbol.instrument_key ? "blue" : "gray"}
+              color={symbol.instrument_key ? "primary" : "secondary"}
               onClick={() => onSymbolClick(symbol)}
               data-testid={`news-symbol-${symbol.code}`}
             >
@@ -101,7 +101,7 @@ function ArticleBody({
   }
   if (error) {
     return (
-      <Alert color="red" variant="light" title="Failed to load article">
+      <Alert color="error" variant="light" title="Failed to load article">
         <Text size="sm">{error}</Text>
       </Alert>
     );
@@ -136,7 +136,7 @@ export function ArticleView({
         p="sm"
         justify="space-between"
         className="news-article-header"
-        style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}
+        sx={{ borderBottom: 1, borderColor: "divider" }}
       >
         <Button
           variant="subtle"
@@ -193,8 +193,9 @@ function NewsItemCard({
     <Card
       padding="xs"
       className={`news-item-card ${isUnread ? "unread" : ""}`}
-      style={{
-        borderLeft: isUnread ? "3px solid var(--mantine-color-blue-6)" : undefined,
+      sx={{
+        borderLeft: isUnread ? 3 : undefined,
+        borderColor: isUnread ? "primary.main" : undefined,
       }}
       onClick={(e) => {
         e.stopPropagation();
@@ -203,7 +204,7 @@ function NewsItemCard({
       data-testid="news-item"
     >
       <Group gap="xs" wrap="nowrap">
-        {isUnread && <Box w={5} h={5} bg="blue" style={{ borderRadius: "50%", flexShrink: 0 }} />}
+        {isUnread && <Box w={5} h={5} bg="primary" sx={{ borderRadius: "50%", flexShrink: 0 }} />}
         <Text
           size="xs"
           fw={isUnread ? 500 : 400}
@@ -241,9 +242,9 @@ function NewsSourceGroup({
       <Group
         gap="xs"
         p="xs"
-        style={{
-          borderRadius: "var(--mantine-radius-sm)",
-          backgroundColor: "var(--mantine-color-default-hover)",
+        sx={{
+          borderRadius: 1,
+          bgcolor: "action.hover",
         }}
         onClick={onToggle}
         data-testid={`news-source-group-${source}`}
@@ -252,7 +253,7 @@ function NewsSourceGroup({
         <Text size="sm" fw={600} tt="uppercase">
           {source}
         </Text>
-        <Badge size="xs" variant="light" color="gray">
+        <Badge size="xs" variant="light" color="secondary">
           {items.length}
         </Badge>
       </Group>
@@ -332,7 +333,7 @@ export function NewsFilterControls({
       />
 
       {unreadCount > 0 && (
-        <Badge size="sm" variant="light" color="blue" onClick={onMarkAllRead} data-testid="news-unread-badge">
+        <Badge size="sm" variant="light" color="primary" onClick={onMarkAllRead} data-testid="news-unread-badge">
           {unreadCount} unread
         </Badge>
       )}
@@ -373,7 +374,7 @@ export function NewsListContent({
   }
   if (error) {
     return (
-      <Text c="red" ta="center" py="xl" data-testid="news-error">
+      <Text c="error" ta="center" py="xl" data-testid="news-error">
         {error}
       </Text>
     );
@@ -417,7 +418,7 @@ export function NewsListHeader({
   onClose: () => void;
 }) {
   return (
-    <Paper withBorder p="sm" mb="xs" id="news-panel-header" data-testid="news-panel-header">
+    <Paper p="sm" mb="xs" id="news-panel-header" data-testid="news-panel-header">
       <Group justify="space-between">
         <Group gap="xs">
           <Text fw={600}>NEWS</Text>
@@ -426,7 +427,7 @@ export function NewsListHeader({
               <Box
                 w={6}
                 h={6}
-                bg="green"
+                bg="success"
                 style={{ borderRadius: "50%" }}
                 data-testid="news-ws-indicator"
               />

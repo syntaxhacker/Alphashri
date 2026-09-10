@@ -1,12 +1,10 @@
-import {
-  Stack,
-  Text,
-  Select,
-  NumberInput,
-  Divider,
-  Box,
-  Button,
-} from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Paper from "@mui/material/Paper";
+import List from "@mui/material/List";
+import ListItemButton from "@mui/material/ListItemButton";
+import CardContent from "@mui/material/CardContent";
+import { Text, Select, NumberInput, Divider, Button } from "@/ui";
 import type { ScreenerOption, ProfileFilter } from "../../types";
 import * as state from "../../state";
 import { fetchData } from "../../api";
@@ -16,7 +14,7 @@ interface Props {
   screenerOptions: ScreenerOption[];
 }
 
-/** Mantine Select expects { value, label }[]; API may send string[] or number[]. */
+/** MUI Select expects { value, label }[]; API may send string[] or number[]. */
 export function normalizeSelectFilterOptions(
   options: ProfileFilter["options"],
 ): { value: string; label: string }[] {
@@ -59,35 +57,55 @@ function renderFilter(filter: ProfileFilter) {
           ? String(filter.default)
           : null;
     return (
-      <Select
+      <ListItemButton
         key={filter.key}
-        label={filter.label}
-        data={selectData}
-        value={selected}
-        onChange={(val) => handleFilterChange(filter.key, val)}
-        size="xs"
-        clearable
-      />
+        selected={false}
+        disableRipple
+        sx={{ p: 0, borderRadius: 1, display: "flex", alignItems: "center", width: "100%" }}
+      >
+        <Stack spacing={0.5} sx={{ width: "100%", p: 0.5 }}>
+          <Text size="xs" c="dimmed">
+            {filter.label}
+          </Text>
+          <Select
+            data={selectData}
+            value={selected}
+            onChange={(val) => handleFilterChange(filter.key, val)}
+            size="xs"
+            clearable
+            aria-label={filter.label}
+          />
+        </Stack>
+      </ListItemButton>
     );
   }
 
   return (
-    <NumberInput
+    <ListItemButton
       key={filter.key}
-      label={filter.label}
-      value={(value as number) || filter.default || ""}
-      onChange={(val) => handleFilterChange(filter.key, val as number)}
-      min={filter.min}
-      max={filter.max}
-      step={filter.step}
-      size="xs"
-    />
+      selected={false}
+      disableRipple
+      sx={{ p: 0, borderRadius: 1, display: "flex", alignItems: "center", width: "100%" }}
+    >
+      <Stack spacing={0.5} sx={{ width: "100%", p: 0.5 }}>
+        <Text size="xs" c="dimmed">
+          {filter.label}
+        </Text>
+        <NumberInput
+          value={(value as number) || filter.default || ""}
+          onChange={(val) => handleFilterChange(filter.key, val as number)}
+          min={filter.min}
+          max={filter.max}
+          step={filter.step}
+          size="xs"
+          aria-label={filter.label}
+        />
+      </Stack>
+    </ListItemButton>
   );
 }
 
-export function ScreenerSidePanel({
-  activeScreener,
-}: Props) {
+export function ScreenerSidePanel({ activeScreener }: Props) {
   const profileMeta = state.profileMetaById[activeScreener];
   const filters = profileMeta?.filters || [];
 
@@ -100,27 +118,29 @@ export function ScreenerSidePanel({
   };
 
   return (
-    <Box
-      style={{
-        width: 148,
-        padding: 6,
-        borderRight: "1px solid var(--mantine-color-default-border)",
-        backgroundColor: "var(--mantine-color-body)",
-        overflowY: "auto",
-        flexShrink: 0,
-      }}
+    <Paper
+      elevation={1}
+      sx={{ width: 148, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
       data-testid="screener-side-panel"
     >
-      <Stack gap={4}>
-        <Text size="10px" fw={600} c="dimmed" tt="uppercase">
-          Filters
-        </Text>
-        <Stack gap={4}>{filters.map(renderFilter)}</Stack>
-        <Divider my={2} />
-        <Button size="xs" variant="light" onClick={handleApplyFilters} fullWidth>
-          Apply filters
-        </Button>
-      </Stack>
-    </Box>
+      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.5 }}>
+          <Text size="11px" fw={600} c="dimmed" tt="uppercase">
+            Filters
+          </Text>
+        </Box>
+        <List sx={{ display: "flex", flexDirection: "column", gap: 1, p: 0, width: "100%" }}>
+          <Stack spacing={1} sx={{ width: "100%", gap: 1 }}>
+            {filters.map(renderFilter)}
+          </Stack>
+        </List>
+        <Divider sx={{ my: 0.5 }} />
+        <Box sx={{ display: "flex", justifyContent: "center", width: "100%", pt: 0.5 }}>
+          <Button size="xs" variant="light" onClick={handleApplyFilters} fullWidth>
+            Apply filters
+          </Button>
+        </Box>
+      </CardContent>
+    </Paper>
   );
 }

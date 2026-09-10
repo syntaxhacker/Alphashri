@@ -1,0 +1,65 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { CorrelationHeatmap } from "./CorrelationHeatmap";
+
+// ECharts is loaded via CDN in the app (window.echarts), but Storybook's iframe needs a mock
+if (typeof window !== "undefined" && !(window as any).echarts) {
+  (window as any).echarts = {
+    init: () => ({
+      setOption: () => {},
+      resize: () => {},
+      dispose: () => {},
+      on: () => {},
+      off: () => {},
+    }),
+  };
+}
+
+const symbols = ["RELIANCE", "TCS", "INFY", "HDFCBANK"];
+
+const matrix4x4: number[][] = [
+  [1.0, 0.42, 0.31, -0.18],
+  [0.42, 1.0, 0.76, -0.05],
+  [0.31, 0.76, 1.0, 0.12],
+  [-0.18, -0.05, 0.12, 1.0],
+];
+
+const meta: Meta<typeof CorrelationHeatmap> = {
+  title: "Composites/CorrelationHeatmap",
+  component: CorrelationHeatmap,
+  tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          "CorrelationHeatmap — ECharts heatmap (via `useECharts`) rendering an NxN correlation matrix. Use for portfolio/screener correlation views. Pass `matrix` (square number[][] with 1.0 diagonal) + `symbols` labels; handles loading/empty via `TableStates` pattern. When not: for single-metric tables use `CompactStatGrid` or `SectorTable`.",
+      },
+    },
+  },
+};
+
+export default meta;
+type Story = StoryObj<typeof CorrelationHeatmap>;
+
+export const Default: Story = {
+  render: () => (
+    <div style={{ maxWidth: 640 }}>
+      <CorrelationHeatmap matrix={matrix4x4} symbols={symbols} />
+    </div>
+  ),
+};
+
+export const Loading: Story = {
+  render: () => (
+    <div style={{ maxWidth: 640, minHeight: 300 }}>
+      <CorrelationHeatmap matrix={matrix4x4} symbols={symbols} isLoading />
+    </div>
+  ),
+};
+
+export const NoData: Story = {
+  render: () => (
+    <div style={{ maxWidth: 640, minHeight: 300 }}>
+      <CorrelationHeatmap matrix={[]} symbols={[]} />
+    </div>
+  ),
+};

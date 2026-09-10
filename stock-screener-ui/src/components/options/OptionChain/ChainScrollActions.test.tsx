@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChainScrollActions } from "./ChainScrollActions";
@@ -12,7 +12,7 @@ afterEach(() => {
 
 describe("ChainScrollActions", () => {
   it("renders scroll action buttons", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainScrollActions scrollToATM={vi.fn()} scrollToEdge={vi.fn()} />,
     );
     expect(screen.getByTestId("options-scroll-top-btn")).toBeInTheDocument();
@@ -21,7 +21,7 @@ describe("ChainScrollActions", () => {
   });
 
   it("renders container", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainScrollActions scrollToATM={vi.fn()} scrollToEdge={vi.fn()} />,
     );
     expect(screen.getByTestId("options-chain-scroll-actions")).toBeInTheDocument();

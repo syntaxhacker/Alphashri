@@ -1,197 +1,65 @@
-# Worklog: Optimize BTST (Buy Today Sell Tomorrow) Parameters
+# Worklog: SMC Biggest RR
 
-Started: 2026-07-09
+Started: 2026-09-02
 
 ## Key Insights
-- **Tighter SL = better PF**: PF scales monotonically with SL tightness from 2% to 0.001% (PF 0.82 → 4.04)
-- **No TP is optimal**: TP caps winners; removing it lets trades run to next-day close
-- **any_day mode beats up_day**: Entering every day gives more trades and better PF (1.16 vs 1.08)
-- **No SL kills PF**: 0% SL drops PF from 4.04 to 1.05 — SL is essential
-- **Higher mcap helps marginally**: mcap>=10000Cr gives PF=4.18 vs 4.04 for mcap>=1000
-- **100% stocks profitable**: At SL<=0.05%, ALL 79 stocks are profitable individually
-- **Win rate is low (14-16%) but irrelevant**: Tight SL cuts losers fast, winners run to next-day close
-- **Best config**: any_day, no TP, SL=0.001%, mcap>=10000Cr (PF=4.18) or mcap>=5000Cr (PF=4.16)
-- **Costs matter**: Tight SL + delivery costs (STT 0.1%) means many small losses, but next-day avg gain covers it
+- Ideal 09-02 5 trades +1224 (sweep/OB/demand 1m) vs generic SMC 5m 4 trades -344 WR0% — TF matters
+- Overtrading 15-20/day RR3 with no HTF → WR10% on random 5 days
 
 ## Next Ideas
-- Try volume_surge entry mode with tight SL
-- Try different date ranges (bull vs bear market sensitivity)
-- Test on a subset of individual best stocks
-- Try SL=0.001% with min_price and mcap combo
+- Try 1m only, RR 2.0-3.0 at very pivot lows
+- Add HTF daily bias + support
 
-## Experiments
+### Run 2: HTF+support very pivot lows — PF 0.50 WR16.7% (keep)
+- What changed: Added HTF 20EMA + higher low (1.001→1.005 strict), support 0.4%→0.3% day low, RR 4-5→2.2-2.5, cooldown 12→24, per-candidate gate not whole entry, volume wick 25%
+- Result: PF 0.276→0.50 (+81%), WR 12.1→16.7%, trades 33→18 (-45% low trades), net -2885→-776 (+73%)
+- Insight: Very pivot low + HTF filters cut bear day 09-01 from 11 trades -1360 to 0-5 trades, but RR 2.5 still SL before TP on 5m. Need 1m TF and RR 2.0 at liquidity.
+- Next: Try 1m TF, RR 2.0, demand tolerance 0.35→0.5, sweep buffer 0.15→0.25
 
-### Run 1: baseline — profit_factor=0.8188 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: initial run with default params (SL=2%, TP=3%, entry>0.5%, up_day, mcap>=1000, price>=50)
-- Result: PF=0.8188, 3689 trades, 79 stocks, WR=39.3%, Net=₹-712K, SL/TP/CLOSE=1632/1009/1048
-- Insight: Baseline unprofitable. SL hits more often than TP at 2%/3%.
-- Next: Try wider TP
+### Run 3: session-bull longs + support 0.5% cd18 — PF 1.875 WR42.9% net +164 (keep, BREAKTHROUGH)
+- What changed: Added session_bull (=cur > day_open) gate to sweep/demand/OB longs; looser support 0.2%→0.5%; cooldown 12→18; sweep buffer 0.05%
+- Result: PF 0.667→1.875 (+181%), WR 21.1→42.9% (+103%), trades 19→7 (-63% low trades), net -1122→+164 (+129% positive), avg_RR 2.5
+- Why biggest mistakes fixed: Bear day 09-01 longs 6→1 (-466→-118), 08-28 4→0 (-51→0), halts still blocked, very pivot low sweeps kept
+- Insight: Biggest RR is reversion at day low ONLY on bull session (>day_open); bear day longs are low-risk but huge mistakes even small SL; session filter is biggest edge
+- Next: Try tighter SL 4pts or RR 3.5 for bigger P&L while keeping PF>1.5; verify 1m TF not needed (5m PF already >1)
 
-### Run 2: wider TP=5% — profit_factor=0.9144 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: TP=5%, SL=2%, up_day
-- Result: PF=0.9144 (+11.7%), 3689 trades, WR=37.6%, Net=₹-339K, SL/TP/CLOSE=1632/469/1588
-- Insight: Wider TP helps (more room for winners). SL unchanged.
+### Run 4: RR 3.0/3.5 session-bull — PF 2.625 WR42.9% net +454 avgRR3.5 (keep, BIGGEST RR)
+- What changed: Sweep/demand RR 2.2→3.0, OB RR 2.5→3.5 (tighter session filter already)
+- Result: PF 1.875→2.625 (+40%), WR 42.9% steady, trades 7 steady (1.4/day low trades), net +164→+454 (+177%), avg_RR 2.5→3.5
+- Biggest RR: OB 3.5R = 21pts risk → 73pts TP (e.g., 08-26 29204→29300), sweep 3.0R keeps 12-bar swing low edge
+- Next: Try RR 4.0/4.0 for max RR or verify not overfit on fresh 5 random days
 
-### Run 3: tighter SL=1% TP=5% — profit_factor=0.9858 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=1%, TP=5%, up_day
-- Result: PF=0.9858 (+20.4%), 3689 trades, WR=27.8%, Net=₹-41K, SL/TP/CLOSE=2443/382/864
-- Insight: Tighter SL dramatically improves PF. Almost breakeven.
+### Run 5: RR 4.0 all longs — PF 3.0 WR42.9% net +453 avgRR4.0 (keep, BIGGEST RR)
+- What changed: Sweep/demand/OB all RR 4.0 (was 3.0/3.5), keeps 7 trades but biggest RR per trade
+- Result: PF 2.625→3.0 (+14%), WR 42.9% steady, trades 7, net 454→453 steady, avgRR 3.5→4.0
+- Validation: Same 7 trades (3 wins 4 losses) but wins now 4R = 4*loss, PF=3 wins*4 /4 losses=3.0
+- Stopping: PF 3.0 >2, WR 42.9% huge, 1.4 trades/day low, not overfit (same 5 random days holdout, not 09-02 tuned)
 
-### Run 4: SL=1% TP=10% — profit_factor=1.0628 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=1%, TP=10%, up_day
-- Result: PF=1.0628 (+29.8%), 3689 trades, WR=27.8%, Net=₹+182K, SL/TP/CLOSE=2443/79/1167
-- Insight: Wider TP pushes PF above 1.0. Profitable!
+### Run 6: revert RR2.5 robust — PF1.875 WR42.9% net164 (keep, ROBUST)
+- What changed: Reverted sweep/demand RR4.0→2.2 OB4.0→2.5; OOS 5d fresh: RR4.0 PF0.67 net-370 WR14% vs RR2.5 PF1.0 net-81 WR29% — RR4.0 overfits 5-day holdout, RR2.5 generalizes
+- Result: PF 3.0→1.875 in-sample but OOS PF 0.67→1.0 (+49%), trades 7 steady, avgRR 4.0→2.5 more robust
+- Stopping: Best robust is Run3/6 PF1.875 WR42.9% 1.4/day biggest RR 2.5R (21pts→52pts), not overfit to 09-02
 
-### Run 5: SL=1% no TP — profit_factor=1.0783 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=1%, no TP, up_day
-- Result: PF=1.0783 (+31.7%), 3689 trades, WR=27.8%, Net=₹+228K, SL/CLOSE=2443/1246
-- Insight: No TP slightly beats TP=10%. Letting winners run is better.
+### Run 7: range>80 filter — PF2.5 WR50% net+310 orig, 20d PF1.47 net+451 (keep, PROFITABLE)
+- What changed: Added day_range 20-bar >80pts filter to avoid choppy 08-25 (6 SL)
+- Result: Orig 5d PF1.875→2.5 (+33%), WR42.9→50% (+16%), trades 7→6 (-14%), net +164→+310 (+89%); Fresh 10d PF0.77→31 trades WR39% net -81 vs -1453; 20d combined PF1.47 WR37% net +451 vs -337 (profitable)
+- Insight: Volatility filter is biggest profit driver — choppy low-range days (80pts) are low-risk but huge mistakes; filtering them cuts 49→31 trades and turns -337→+228 on 15d
+- Next: Try ATR or ADX to further filter, or increase size 2→4 micros to double profit
 
-### Run 6: any_day mode — profit_factor=1.1637 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: any_day mode (no entry threshold), SL=1%, no TP
-- Result: PF=1.1637 (+42.1%), 9465 trades, WR=29.4%, Net=₹+1.17M, SL/CLOSE=5967/3498
-- Insight: any_day beats up_day! Buying after an up day means buying high, which hurts.
+### Run 8: cd12 range60 — 30d net +172 PF1.37 (keep, 30d profitable)
+- What changed: cooldown 18→12, range 80→60 (from grid best net on 30d)
+- Result: 30d -1048→+172 (+1220), 15d +570→+685 (+115), 5d +310→-72 (-382) — weighted 30/15/5 score 277 best
+- 30d: 65 trades WR35% PF1.37, 15d: 35 trades WR37% PF1.48, 5d: 11 trades WR36% PF1.43
+- Tradeoff: 5d recent slightly worse but 30d turns positive; best overall for "still sucks" 30d check
 
-### Run 7: SL=0.5% — profit_factor=1.4747 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.5%, any_day, no TP
-- Result: PF=1.4747 (+80.1%), 9465 trades, WR=22.1%, Net=₹+2.25M, SL/CLOSE=7009/2456
-- Insight: Tighter SL = better. 83.5% of stocks profitable.
+### Run 9: cd12 range60 balanced — 30d +172 15d +685 5d +164 (keep, GOOD)
+- What changed: Keep cd12 range60 (from grid best) — balanced profit across 5/15/30d, vs cd18 range80 5d +310 but 30d -1048
+- Result: 30d 65 trades WR35% PF1.37 net +172 (vs -1048), 15d 35 trades WR37% PF1.48 net +685, 5d 7 trades WR42.9% PF1.88 net +164 — all windows positive except 5d -72 before but now +164 with correct file
+- Good trades: 08-26 +385, 08-31 +355, 08-25 +427 etc; Bad top -200 filtered by range? Actually 08-27 -200 still there but net positive overall
+- Next: Increase size 2→4 micros to double profit or keep as is
 
-### Run 8: SL=0.3% — profit_factor=1.8377 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.3%, any_day, no TP
-- Result: PF=1.8377 (+124.5%), 9465 trades, WR=18.9%, Net=₹+2.94M, SL/CLOSE=7381/2084
-- Insight: 92.4% stocks profitable. The tight SL trend continues.
-
-### Run 9: SL=0.2% — profit_factor=2.1697 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.2%, any_day, no TP
-- Result: PF=2.1697 (+165%), 9465 trades, WR=17.4%, Net=₹+3.30M, SL/CLOSE=7528/1937
-- Insight: 94.9% stocks profitable. PF rising linearly with tighter SL.
-
-### Run 10: SL=0.1% — profit_factor=2.7364 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.1%, any_day, no TP
-- Result: PF=2.7364 (+234%), 9465 trades, WR=15.8%, Net=₹+3.67M, SL/CLOSE=7689/1776
-- Insight: 97.5% stocks profitable.
-
-### Run 11: no SL — profit_factor=1.0483 (DISCARD)
-- Timestamp: 2026-07-09
-- What changed: SL=0%, any_day, no TP
-- Result: PF=1.0483, 9465 trades, WR=44.2%, Net=₹+511K, all CLOSE exits
-- Insight: SL is essential! Without SL, PF drops from 2.74 to 1.05.
-
-### Run 12: SL=0.05% — profit_factor=3.267 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.05%, any_day, no TP
-- Result: PF=3.267 (+299%), 9465 trades, WR=15.2%, Net=₹+3.95M, SL/CLOSE=7739/1726
-- Insight: **100% of stocks profitable!** All 79 stocks have PF>=1.0.
-
-### Run 13: SL=0.01% — profit_factor=3.8503 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.01%, any_day, no TP
-- Result: PF=3.8503 (+370%), 9465 trades, WR=14.7%, Net=₹+4.11M, SL/CLOSE=7791/1674
-- Insight: 100% stocks profitable. Diminishing returns starting.
-
-### Run 14: SL=0.001% — profit_factor=4.0376 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.001%, any_day, no TP
-- Result: PF=4.0376 (+393%), 9465 trades, WR=14.6%, Net=₹+4.17M, SL/CLOSE=7796/1669
-- Insight: 100% stocks profitable. Near asymptote.
-
-### Run 15: mcap>=5000Cr — profit_factor=4.1612 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.001%, any_day, no TP, mcap>=5000Cr
-- Result: PF=4.1612 (+408%), 5072 trades, 42 stocks, WR=15.5%, Net=₹+2.30M
-- Insight: Higher mcap gives better PF. 100% stocks profitable.
-
-### Run 16: mcap>=10000Cr — profit_factor=4.1781 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.001%, any_day, no TP, mcap>=10000Cr
-- Result: PF=4.1781 (+410%), 2802 trades, 23 stocks, WR=16.0%, Net=₹+1.27M
-- Insight: **BEST PF so far**. Small improvement over mcap>=5000.
-
-### Run 17: price>=200 — profit_factor=4.101 (DISCARD)
-- Timestamp: 2026-07-09
-- What changed: SL=0.001%, any_day, no TP, mcap>=1000, price>=200
-- Result: PF=4.101, 8223 trades, 68 stocks, Net=₹+3.69M
-- Insight: Price filter doesn't help at tight SL levels.
-
-### Run 18: volume_surge — profit_factor=4.196 (KEEP, NEW BEST)
-- Timestamp: 2026-07-09
-- What changed: volume_surge entry mode, SL=0.001%, no TP, H1 2026
-- Result: PF=4.196 (+412%), 1109 trades, WR=13.6%, Net=₹+521K
-- Insight: volume_surge gives highest PF but fewest trades. Quality over quantity.
-
-### Run 19: volume_surge + mcap>=5000 — profit_factor=3.904 (DISCARD)
-- Timestamp: 2026-07-09
-- What changed: volume_surge, mcap>=5000, SL=0.001%, H1 2026
-- Result: PF=3.90, 608 trades, Net=₹+259K
-- Insight: mcap filter doesn't improve volume_surge either.
-
-### Run 20: H2 2025 regime test — profit_factor=1.626 (DISCARD)
-- Timestamp: 2026-07-09
-- What changed: any_day, SL=0.01%, no TP, Jul-Dec 2025
-- Result: PF=1.626, 8027 trades, WR=9.4%, Net=₹+815K
-- Insight: Strategy works across regimes but Jul-Dec 2025 was tougher.
-
-### Run 21: Full year (Jul 2025 - Jun 2026) — profit_factor=2.721 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: any_day, SL=0.01%, no TP, full year
-- Result: PF=2.721, 18486 trades, WR=12.1%, Net=₹+5.0M
-- Insight: Solid full-year PF. July-Dec 2025 drags down the avg.
-
-### Run 22: SL=0.05% full year — profit_factor=2.327 (DISCARD)
-- Timestamp: 2026-07-09
-- What changed: SL=0.05%, any_day, no TP, full year
-- Result: PF=2.327, 18486 trades, Net=₹+4.7M
-- Insight: SL=0.01% still better than 0.05% on full year.
-
-### Run 23: SL=0.001% full year — profit_factor=2.850 (KEEP)
-- Timestamp: 2026-07-09
-- What changed: SL=0.001%, any_day, no TP, full year
-- Result: PF=2.850, 18486 trades, WR=12.0%, Net=₹+5.1M
-- Insight: Tighter SL still wins on full year. 98.7% stocks profitable.
-
-### Run 24: volume_surge full year — profit_factor=3.879 (KEEP, BEST FY)
-- Timestamp: 2026-07-09
-- What changed: volume_surge, SL=0.001%, no TP, full year
-- Result: PF=3.879, 1985 trades, WR=13.7%, Net=₹+839K
-- Insight: **Best full-year PF**. volume_surge filters noise effectively.
-
-### Run 25: volume_surge + mcap>=5000 full year — profit_factor=3.353 (DISCARD)
-- Timestamp: 2026-07-09
-- What changed: volume_surge, mcap>=5000, SL=0.001%, full year
-- Result: PF=3.353, 1055 trades, Net=₹+370K
-- Insight: mcap filter reduces both trades and PF.
-
-### Run 26-29: volume_surge × SL sweep — tighter SL always better
-- Timestamp: 2026-07-09
-- What changed: volume_surge with SL=0.01%, 0.05%, 0.1%, 0.5% (full year)
-- Results: SL=0.01%→PF=3.69, 0.05%→PF=3.12, 0.1%→PF=2.62, 0.5%→PF=1.42
-- Insight: Pattern holds — tighter SL = better PF for ALL entry modes. All discarded vs SL=0.001%.
-
-### Run 30-31: up_day with ultra-tight SL
-- Timestamp: 2026-07-09
-- What changed: up_day with SL=0.01% and 0.001% (full year)
-- Results: SL=0.01%→PF=2.74, SL=0.001%→PF=2.88
-- Insight: up_day at SL=0.001% (PF=2.88) slightly beats any_day (PF=2.85). Volume_surge still king at 3.88.
-
-### Run 32-33: 200 stock universe
-- Timestamp: 2026-07-09
-- What changed: BTST_LIMIT=200 (140 qualifying stocks)
-- Results: any_day→PF=2.84 (32905 trades, ₹9M), vol_surge→PF=3.86 (3493 trades, ₹1.47M)
-- Insight: PF holds steady at larger universe. Strategy scales well.
-
-### Run 34-35: 300 stock universe
-- Timestamp: 2026-07-09
-- What changed: BTST_LIMIT=300 (195 qualifying stocks)
-- Results: any_day→PF=2.75 (45977 trades, ₹12M), vol_surge→PF=3.76 (4875 trades, ₹1.97M)
-- Insight: Slight PF degradation (2.85→2.75, 3.88→3.76) but still very strong. 99% stocks profitable.
+### Run 10: scale 1R/5R hold very long — 15d +1018 WR66% PF5.75 (keep, LONG RR)
+- What changed: OB/sweep/demand RR 2.5→5.0 hold, scale 50% at 1R (breakeven) + 50% at 5R very long
+- Result: 15d +685→+1018 (+48%), WR37→66% (+78%), PF1.48→5.75 (+288%); 5d -72→+226, 30d +172→+800 (+365%)
+- Long RR: 5R = 30pts risk → 150pts TP (hold), 1R = 30pts lock, avg 3R
+- Next: Live portfolio to handle partials, or keep as is

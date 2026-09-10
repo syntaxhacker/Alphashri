@@ -154,8 +154,8 @@ import { fetchPaperChart } from "../../api/paperTrading";
 vi.mocked(fetchPaperChart).mockRejectedValueOnce(new Error("Network error"));
 ```
 
-### Mocking Mantine Components
-Some Mantine components require context (e.g., `Table.Tr`/`Table.Td` need a `Table` provider) or render in portals (e.g., `Tooltip`). For isolated unit tests, mock these components to simple HTML elements:
+### Mocking UI Components
+Some UI components require context or render in portals. For isolated unit tests, mock these components to simple HTML elements (pattern below shows the shape — adapt the import path to the current `@/ui` wrapper):
 
 ```typescript
 // Mock at the top of your test file (before component imports)

@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import {render, screen, cleanup, within, fireEvent} from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { ParamInput } from "./ParamInput";
 import type { StrategyParam } from "../../types/backtest";
@@ -51,21 +51,21 @@ describe("ParamInput", () => {
         wrapper: Wrapper,
       });
       // Input value is string
-      expect(screen.getByTestId("param-test_param")).toHaveValue("50");
+      expect(within(screen.getByTestId("param-test_param")).getByRole("spinbutton")).toHaveValue(50);
     });
 
     it("displays provided value", () => {
       const param = mockParam({ type: "number" });
       render(<ParamInput param={param} value={25} onChange={mockOnChange} />, { wrapper: Wrapper });
-      expect(screen.getByTestId("param-test_param")).toHaveValue("25");
+      expect(within(screen.getByTestId("param-test_param")).getByRole("spinbutton")).toHaveValue(25);
     });
 
     it("allows typing a new value", async () => {
       const user = userEvent.setup();
       const param = mockParam({ type: "number" });
       render(<ParamInput param={param} value={10} onChange={mockOnChange} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("param-test_param");
-      await user.clear(input); await user.type(input, "30");
+      const input = within(screen.getByTestId("param-test_param")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "30" } });
       expect(mockOnChange).toHaveBeenCalledWith(30);
     });
   });
@@ -91,7 +91,7 @@ describe("ParamInput", () => {
       render(<ParamInput param={param} value={undefined} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
-      expect(screen.getByTestId("param-test_param")).toHaveValue("opt2");
+      expect(within(screen.getByTestId("param-test_param")).getByRole("combobox")).toHaveTextContent("opt2");
     });
 
     it("displays provided value", () => {
@@ -102,7 +102,7 @@ describe("ParamInput", () => {
       render(<ParamInput param={param} value="opt1" onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
-      expect(screen.getByTestId("param-test_param")).toHaveValue("opt1");
+      expect(within(screen.getByTestId("param-test_param")).getByRole("combobox")).toHaveTextContent("opt1");
     });
 
     it("renders with all options", () => {

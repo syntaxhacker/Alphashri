@@ -6,16 +6,16 @@ import { UIProvider } from "@/ui";
 import { render, RenderResult } from "@testing-library/react";
 
 /**
- * Standard wrapper for tests that need Mantine UI context
+ * Standard wrapper for tests that need MUI UI context
  */
 export function TestWrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
 }
 
 /**
- * Render helper that automatically wraps with MantineProvider
+ * Render helper that automatically wraps with UIProvider
  */
-export function renderWithMantine(
+export function renderWithProviders(
   ui: React.ReactElement,
   options?: Parameters<typeof render>[1],
 ): RenderResult {

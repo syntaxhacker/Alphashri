@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, Grid, Stack, NumberInput } from "@/ui";
+import { Text, Stack, NumberInput } from "@/ui";
+import Box from "@mui/material/Box";
 import type { StrategyConfig } from "../../types/paperTrading";
 
 type ConfigValueHandler = (
@@ -18,8 +19,8 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Risk Parameters
       </Text>
-      <Grid gutter={4}>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Max Positions"
             description="Maximum concurrent positions"
@@ -32,8 +33,8 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Capital/Trade %"
             description="Capital per trade"
@@ -46,8 +47,8 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Daily Loss %"
             description="Maximum daily loss"
@@ -60,10 +61,10 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
-      <Grid gutter={4} mt={2}>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, mt: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Max Exposure %"
             description="Maximum total exposure"
@@ -76,8 +77,8 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Risk/Trade %"
             description="Risk per trade"
@@ -90,10 +91,10 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
-      <Grid gutter={4} mt={2}>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, mt: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Min Trade Value"
             description="Minimum trade value (₹)"
@@ -106,8 +107,8 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Max Trade Value"
             description="Maximum trade value (₹)"
@@ -120,8 +121,8 @@ export const RiskManagementSection = memo(function RiskManagementSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
+        </Box>
+      </Box>
     </Stack>
   );
 });

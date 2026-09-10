@@ -4,9 +4,17 @@ import { Stack, Title, Text } from "@/ui";
 import { TradingDatePicker } from "./TradingDatePicker";
 
 const meta: Meta<typeof TradingDatePicker> = {
-  title: "Design System/Common/TradingDatePicker",
+  title: "Composites/TradingDatePicker",
   component: TradingDatePicker,
   tags: ["autodocs"],
+  parameters: {
+    docs: {
+      description: {
+        component:
+          'Trading-day date picker — wraps MUI `DatePickerInput` with weekends and NSE holidays disabled and IST-aware value handling. Use for backtest dates, replay selectors, or any trading-day input. When not: for free-form or non-trading dates use the plain MUI `DatePickerInput` directly.',
+      },
+    },
+  },
 };
 
 export default meta;

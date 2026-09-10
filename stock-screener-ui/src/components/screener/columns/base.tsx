@@ -74,7 +74,7 @@ export const touched52wCol: ColumnDef = {
       });
       return (
         <Tooltip label={`Touched on ${fullDate} (${timeAgo})`}>
-          <Text span fw={500} c="blue">
+          <Text span fw={500} c="primary">
             Yes ({timeAgo})
           </Text>
         </Tooltip>
@@ -104,7 +104,7 @@ export const moveCol = (key: string, label: string): ColumnDef => ({
 });
 
 function pctFormat(value: number) {
-  const cls = value > 0 ? "green" : "red";
+  const cls = value > 0 ? "success" : "error";
   return { value: `${value > 0 ? "+" : ""}${value.toFixed(1)}%`, className: cls };
 }
 

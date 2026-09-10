@@ -3,7 +3,8 @@ import { useECharts } from "../../hooks/useECharts";
 import { useChartZoom } from "../../hooks/useChartZoom";
 import { buildChartOption } from "../../utils/chart/buildChartOption";
 import type { ChartInput } from "../../utils/chart/types";
-import { Box, Loader, Center } from "@/ui";
+import { Loader } from "@/ui";
+import Box from "@mui/material/Box";
 
 export interface TradingChartHandle {
   chartInstance: React.MutableRefObject<any>;
@@ -45,6 +46,14 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
   }));
 
   useEffect(() => {
+    if (!(window as any).echarts) {
+      void import("echarts").then((mod) => {
+        (window as any).echarts = (mod as any).default ?? mod;
+      });
+    }
+  }, []);
+
+  useEffect(() => {
     if (isLoading || !input.candles.length) return;
 
     const times = input.candles.map((c) => {
@@ -60,11 +69,11 @@ export const TradingChart = forwardRef<TradingChartHandle, TradingChartProps>(fu
 
   if (isLoading) {
     return (
-      <Center style={{ ...style, height: 400 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, height: 400, width: "100%" }} style={style as any}>
         <Loader size="lg" />
-      </Center>
+      </Box>
     );
   }
 
-  return <Box ref={chartRef} style={{ ...style, flex: 1, minHeight: 0 }} />;
+  return <Box ref={chartRef} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flex: 1, minHeight: 0, width: "100%" }} style={style} />;
 });

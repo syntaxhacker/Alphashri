@@ -1,4 +1,4 @@
-import type { MantineTheme } from "@/ui";
+import type { UITheme } from "@/ui";
 import {
   POSITIVE,
   NEGATIVE,
@@ -17,15 +17,43 @@ import {
   CHART_DARK_DROPDOWN,
   INDICATOR_BLUE_A,
   INDICATOR_BLUE_B,
+  BG,
+  TEXT,
+  TEXT_MUTED,
+  BORDER,
+  CHART_BG,
+  CHART_LIGHT_BG,
 } from "../config/colors";
 
-export function getChartThemeColors(isDark: boolean, theme: MantineTheme | Record<string, any>) {
+export function getChartThemeColors(isDark: boolean, theme: UITheme | Record<string, any>) {
+  const t: any = theme as any;
+  const colors = t?.colors;
+  const palette = t?.palette;
+  // Support both legacy (colors) and MUI (palette) themes; FormControl muiName crash guard
+  if (colors?.dark && colors?.gray) {
+    return {
+      bgColor: isDark ? colors.dark[7] : t.white ?? CHART_BG,
+      textColor: isDark ? (t.white ?? TEXT) : colors.gray[8],
+      gridLineColor: isDark ? colors.dark[5] : colors.gray[2],
+      borderColor: isDark ? colors.dark[4] : colors.gray[3],
+      mutedColor: isDark ? colors.dark[1] : colors.gray[6],
+      positiveColor: POSITIVE,
+      negativeColor: NEGATIVE,
+    };
+  }
+  // MUI palette fallback — defaults use palette single source of truth
+  const bgDefault = palette?.background?.default;
+  const bgPaper = palette?.background?.paper;
+  const textPrimary = palette?.text?.primary;
+  const textSecondary = palette?.text?.secondary;
+  const divider = palette?.divider;
+  const grey = palette?.grey;
   return {
-    bgColor: isDark ? theme.colors.dark[7] : theme.white,
-    textColor: isDark ? theme.white : theme.colors.gray[8],
-    gridLineColor: isDark ? theme.colors.dark[5] : theme.colors.gray[2],
-    borderColor: isDark ? theme.colors.dark[4] : theme.colors.gray[3],
-    mutedColor: isDark ? theme.colors.dark[1] : theme.colors.gray[6],
+    bgColor: isDark ? (bgPaper ?? bgDefault ?? BG) : (bgPaper ?? CHART_LIGHT_BG),
+    textColor: isDark ? (textPrimary ?? TEXT) : (textPrimary ?? BG),
+    gridLineColor: divider ?? (grey?.[700] ?? BORDER),
+    borderColor: divider ?? (grey?.[400] ?? BORDER),
+    mutedColor: textSecondary ?? (grey?.[500] ?? TEXT_MUTED),
     positiveColor: POSITIVE,
     negativeColor: NEGATIVE,
   };

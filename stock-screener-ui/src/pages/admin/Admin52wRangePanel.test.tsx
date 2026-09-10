@@ -3,21 +3,15 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithMantine } from "../../test/test-utils";
+import { renderWithProviders } from "../../test/test-utils";
 import { Admin52wRangePanel } from "./Admin52wRangePanel";
-const renderPanel = () => renderWithMantine(<Admin52wRangePanel />);
+const renderPanel = () => renderWithProviders(<Admin52wRangePanel />);
 
 const fetchWithAuthMock = vi.fn();
 
 vi.mock("../../components/auth/AuthProvider2", () => ({
   useAuth: () => ({ fetchWithAuth: fetchWithAuthMock }),
 }));
-
-vi.mock("@/ui", async (importOriginal) => {
-  const actual: any = await importOriginal();
-  // Mock Mantine components simply but keep Progress behavior
-  return actual;
-});
 
 function makeStatus(overrides: any = {}) {
   return {
@@ -104,7 +98,7 @@ describe("Admin52wRangePanel", () => {
       .mockResolvedValueOnce({ ok: true, json: async () => makeStatus({ job: { status: "running" } }) });
     renderPanel();
     await waitFor(() => expect(screen.getByTestId("admin-52w-run")).toBeInTheDocument());
-    const checkbox = screen.getByTestId("admin-52w-full-refresh") as HTMLInputElement;
+    const checkbox = screen.getByRole("checkbox") as HTMLInputElement;
     expect(checkbox.checked).toBe(false);
     await user.click(checkbox);
     expect(checkbox.checked).toBe(true);

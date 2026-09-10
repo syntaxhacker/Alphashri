@@ -60,12 +60,13 @@ describe("ScreenerLoading", () => {
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
-  it("applies custom className", () => {
+  it("has data-testid for test hooks (MUI sx, no global CSS)", () => {
     render(
       <UIProvider>
         <ScreenerLoading />
       </UIProvider>,
     );
-    expect(screen.getByTestId("screener-loading")).toHaveClass("screener-loading");
+    expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-loader")).toBeInTheDocument();
   });
 });

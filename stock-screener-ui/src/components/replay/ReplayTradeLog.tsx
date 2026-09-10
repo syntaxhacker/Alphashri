@@ -11,14 +11,14 @@ import { SideBadge } from "../common/BadgeComponents";
 import type { ReplayTrade } from "../../types/replay";
 
 const EXIT_REASON_COLORS: Record<string, string> = {
-  TP: "green",
-  SL: "red",
-  EOD: "orange",
-  FORCE_CLOSE: "gray",
+  TP: "success",
+  SL: "error",
+  EOD: "warning",
+  FORCE_CLOSE: "secondary",
 };
 
 function getExitBadgeColor(reason: string): string {
-  return EXIT_REASON_COLORS[reason] ?? "gray";
+  return EXIT_REASON_COLORS[reason] ?? "secondary";
 }
 
 interface ReplayTradeLogProps {
@@ -200,7 +200,7 @@ export function ReplayTradeLog({
         header: "Reason",
         enableSorting: false,
         cell: ({ row }) => (
-          <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="light">
+          <Badge size="xs" color={getExitBadgeColor(row.original.exit_reason)} variant="filled">
             {row.original.exit_reason}
           </Badge>
         ),
@@ -249,7 +249,7 @@ export function ReplayTradeLog({
             cursor: onTradeClick ? "pointer" : undefined,
             backgroundColor:
               highlightedTradeId === row.id
-                ? "var(--mantine-color-blue-light)"
+                ? "primary.light"
                 : undefined,
           })}
           getRowClassName={(row) =>

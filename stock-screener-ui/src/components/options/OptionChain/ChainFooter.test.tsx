@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, afterEach, vi } from "vitest";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { ChainFooter } from "./ChainFooter";
@@ -22,14 +22,14 @@ const mockTheme = {
 
 describe("ChainFooter", () => {
   it("renders footer container", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,
     );
     expect(screen.getByTestId("options-chain-table-footer")).toBeInTheDocument();
   });
 
   it("renders ITM legend item", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,
     );
     expect(screen.getByTestId("options-legend-itm")).toBeInTheDocument();
@@ -37,7 +37,7 @@ describe("ChainFooter", () => {
   });
 
   it("renders ATM legend item", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,
     );
     expect(screen.getByTestId("options-legend-atm")).toBeInTheDocument();
@@ -45,7 +45,7 @@ describe("ChainFooter", () => {
   });
 
   it("renders sentiment badges legend", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,
     );
     expect(screen.getByTestId("options-legend-badges")).toBeInTheDocument();
@@ -56,7 +56,7 @@ describe("ChainFooter", () => {
   });
 
   it("shows spot price when provided", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={24500} />,
     );
     expect(screen.getByTestId("options-chain-spot-price")).toBeInTheDocument();
@@ -64,7 +64,7 @@ describe("ChainFooter", () => {
   });
 
   it("does not show spot price when null", () => {
-    renderWithMantine(
+    renderWithProviders(
       <ChainFooter theme={mockTheme as any} colorScheme="light" spotPrice={null} />,
     );
     expect(screen.queryByTestId("options-chain-spot-price")).not.toBeInTheDocument();

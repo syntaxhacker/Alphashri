@@ -8,18 +8,21 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-// Mock Mantine notifications
-const mockNotifications = vi.hoisted(() => ({
-  show: vi.fn(),
+const { mockShowNotification } = vi.hoisted(() => ({
+  mockShowNotification: vi.fn(),
 }));
 
-vi.mock("@mantine/notifications", () => ({
-  notifications: mockNotifications,
-}));
+vi.mock("@/ui", async (importOriginal) => {
+  const actual = (await importOriginal()) as Record<string, unknown>;
+  return {
+    ...actual,
+    showNotification: mockShowNotification,
+  };
+});
 
 describe("useNotification", () => {
   beforeEach(() => {
-    mockNotifications.show.mockClear();
+    mockShowNotification.mockClear();
   });
 
   it("returns show, success, and error functions", () => {
@@ -38,7 +41,7 @@ describe("useNotification", () => {
         result.current.show({ title: "Test", message: "Test message" });
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith({
+      expect(mockShowNotification).toHaveBeenCalledWith({
         title: "Test",
         message: "Test message",
         color: "blue",
@@ -52,7 +55,7 @@ describe("useNotification", () => {
         result.current.show({ title: "Test", message: "Message" });
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith(
+      expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({ color: "blue" }),
       );
     });
@@ -64,7 +67,7 @@ describe("useNotification", () => {
         result.current.show({ title: "Test", message: "Message", color: "red" });
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith(
+      expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({ color: "red" }),
       );
     });
@@ -89,8 +92,8 @@ describe("useNotification", () => {
         act(() => {
           result.current.show({ title: "Test", message: "Message", color });
         });
-        expect(mockNotifications.show).toHaveBeenCalledWith(expect.objectContaining({ color }));
-        mockNotifications.show.mockClear();
+        expect(mockShowNotification).toHaveBeenCalledWith(expect.objectContaining({ color }));
+        mockShowNotification.mockClear();
       });
     });
   });
@@ -103,7 +106,7 @@ describe("useNotification", () => {
         result.current.success("Success Title", "Success message");
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith({
+      expect(mockShowNotification).toHaveBeenCalledWith({
         title: "Success Title",
         message: "Success message",
         color: "green",
@@ -117,7 +120,7 @@ describe("useNotification", () => {
         result.current.success("Congratulations!", "Operation completed successfully");
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith(
+      expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Congratulations!",
           message: "Operation completed successfully",
@@ -134,7 +137,7 @@ describe("useNotification", () => {
         result.current.error("Error Title", "Error message");
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith({
+      expect(mockShowNotification).toHaveBeenCalledWith({
         title: "Error Title",
         message: "Error message",
         color: "red",
@@ -148,7 +151,7 @@ describe("useNotification", () => {
         result.current.error("Failed", "Something went wrong");
       });
 
-      expect(mockNotifications.show).toHaveBeenCalledWith(
+      expect(mockShowNotification).toHaveBeenCalledWith(
         expect.objectContaining({
           title: "Failed",
           message: "Something went wrong",

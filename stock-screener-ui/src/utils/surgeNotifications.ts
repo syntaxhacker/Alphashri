@@ -1,4 +1,4 @@
-import { notifications } from "@mantine/notifications";
+import { enqueueSnackbar } from "notistack";
 import type { ScreenerData } from "../types";
 import { recordSurge } from "../api/notifications";
 
@@ -91,7 +91,7 @@ export function checkPriceSurges(
     const dir = moveValue > 0 ? "\u{1F680}" : "\u{1F4C9}";
     const priceStr = stock.upstox_price != null ? ` | \u20B9${stock.upstox_price}` : "";
 
-    notifications.show({
+    enqueueSnackbar({
       title: `${dir} ${stock.symbol} ${signed}`,
       message: `${screenLabel} | ${moveLabel}${priceStr}`,
       color: moveValue > 0 ? "green" : "red",

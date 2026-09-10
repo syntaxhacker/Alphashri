@@ -1,11 +1,14 @@
-import { Box, Stack, Flex, Button, Group, Text } from "@/ui";
+import { Box, Stack, Button, Group, Text } from "@/ui";
+import Container from "@mui/material/Container";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplateTreeView } from "./TemplateTreeView";
 import { PerformanceView } from "./PerformanceView";
 import { StrategyForm } from "./StrategyForm";
 import type { StrategiesPageProps } from "./types";
-import { CompactPage, CompactPanel } from "../common/compact";
+import { CompactPanel } from "../common/compact";
 
 export function StrategiesPage({
   strategies,
@@ -39,7 +42,7 @@ export function StrategiesPage({
   const renderContent = () => {
     if (error) {
       return (
-        <Stack gap="sm" align="stretch" mt="sm" className="strategies-error-container">
+        <Stack spacing={1} alignItems="stretch" sx={{ mt: 1 }}>
           <CompactPanel
             testId="strategies-error"
             title={
@@ -55,8 +58,8 @@ export function StrategiesPage({
               <Group gap="xs">
                 <Button
                   onClick={onRefresh}
-                  variant="light"
-                  color="red"
+                  variant="filled"
+                  color="error"
                   size="sm"
                   leftSection={<IconRefresh size={14} />}
                   data-testid="strategies-retry-btn"
@@ -77,7 +80,6 @@ export function StrategiesPage({
         </Stack>
       );
     }
-
     switch (activeView) {
       case "tree":
         return (
@@ -108,55 +110,43 @@ export function StrategiesPage({
   };
 
   return (
-    <CompactPage>
-      <Stack
-        h="100%"
-        className="strategies-page"
-        id="strategies-main"
-        gap="sm"
-        data-testid="strategies-view"
-      >
-        <Box
-          flex="0 0 auto"
-          className="strategies-nav-container"
-          data-testid="strategies-nav-container"
-        >
+    <Container maxWidth="xl" className="strategies-page" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
+      <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} data-testid="strategies-nav-container">
           <StrategiesNav activeView={activeView} onChange={onViewChange} />
         </Box>
 
-        <Flex
-          flex={1}
-          className="strategies-content"
-          id="strategies-content"
-          style={{ minHeight: 0, overflow: "hidden" }}
-          data-testid="strategies-content"
-        >
-          <Box style={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
-        </Flex>
+        <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
+          <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
+        </Box>
 
-        <StrategyForm
-          mode="create"
-          template={parentTemplate}
-          opened={showCreateModal}
-          onClose={onCloseCreateModal}
-          onSubmit={onCreateStrategy}
-          data-testid="strategies-create-modal"
-        />
+        {showCreateModal && (
+          <StrategyForm
+            mode="create"
+            template={parentTemplate}
+            opened={true}
+            onClose={onCloseCreateModal}
+            onSubmit={onCreateStrategy}
+            data-testid="strategies-create-modal"
+          />
+        )}
 
-        <StrategyForm
-          mode="edit"
-          strategy={editingStrategy}
-          opened={showEditModal}
-          onClose={onCloseEditModal}
-          onSubmit={(data) => {
-            if (editingStrategy) {
-              onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
-            }
-          }}
-          isBotRunning={isAnyBotRunning}
-          data-testid="strategies-edit-modal"
-        />
+        {showEditModal && (
+          <StrategyForm
+            mode="edit"
+            strategy={editingStrategy}
+            opened={true}
+            onClose={onCloseEditModal}
+            onSubmit={(data) => {
+              if (editingStrategy) {
+                onEditStrategy(editingStrategy.internal_id ?? Number(editingStrategy.id), data);
+              }
+            }}
+            isBotRunning={isAnyBotRunning}
+            data-testid="strategies-edit-modal"
+          />
+        )}
       </Stack>
-    </CompactPage>
+    </Container>
   );
 }

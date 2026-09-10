@@ -66,22 +66,22 @@ describe("ChainSummary computation", () => {
   });
 
   describe("PCR color logic", () => {
-    test("returns green when pcr > 1.2", () => {
-      expect(computePcrColor(1.3)).toBe("green");
-      expect(computePcrColor(2.0)).toBe("green");
-      expect(computePcrColor(100)).toBe("green");
+    test("returns success when pcr > 1.2", () => {
+      expect(computePcrColor(1.3)).toBe("success");
+      expect(computePcrColor(2.0)).toBe("success");
+      expect(computePcrColor(100)).toBe("success");
     });
 
-    test("returns red when pcr < 0.7", () => {
-      expect(computePcrColor(0.5)).toBe("red");
-      expect(computePcrColor(0.0)).toBe("red");
-      expect(computePcrColor(0.69)).toBe("red");
+    test("returns error when pcr < 0.7", () => {
+      expect(computePcrColor(0.5)).toBe("error");
+      expect(computePcrColor(0.0)).toBe("error");
+      expect(computePcrColor(0.69)).toBe("error");
     });
 
-    test("returns blue when pcr is between 0.7 and 1.2", () => {
-      expect(computePcrColor(0.7)).toBe("blue");
-      expect(computePcrColor(1.0)).toBe("blue");
-      expect(computePcrColor(1.2)).toBe("blue");
+    test("returns primary when pcr is between 0.7 and 1.2", () => {
+      expect(computePcrColor(0.7)).toBe("primary");
+      expect(computePcrColor(1.0)).toBe("primary");
+      expect(computePcrColor(1.2)).toBe("primary");
     });
   });
 

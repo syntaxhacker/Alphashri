@@ -92,7 +92,7 @@ function ByBotTab({ summary, trades }: { summary: StrategyRunnerSummary | null; 
         header: "Win Rate",
         accessorKey: "summary.win_rate",
         cell: ({ row }) => (
-          <Text size="xs" c={row.original.summary.win_rate >= 50 ? "green" : "red"} ta="right">
+          <Text size="xs" c={row.original.summary.win_rate >= 50 ? "success" : "error"} ta="right">
             {f1(row.original.summary.win_rate)}%
           </Text>
         ),
@@ -112,7 +112,7 @@ function ByBotTab({ summary, trades }: { summary: StrategyRunnerSummary | null; 
         header: "Profit Factor",
         accessorKey: "summary.profit_factor",
         cell: ({ row }) => (
-          <Text size="xs" c={row.original.summary.profit_factor > 1 ? "green" : row.original.summary.profit_factor < 1 ? "red" : undefined} ta="right">
+          <Text size="xs" c={row.original.summary.profit_factor > 1 ? "success" : row.original.summary.profit_factor < 1 ? "error" : undefined} ta="right">
             {formatPF(row.original.summary.profit_factor)}
           </Text>
         ),
@@ -199,7 +199,7 @@ function BySymbolTab({ summary, trades, bots }: TabsProps) {
         header: "Win Rate",
         accessorKey: "win_rate",
         cell: ({ row }) => (
-          <Text size="xs" c={row.original.win_rate >= 50 ? "green" : "red"} ta="right">
+          <Text size="xs" c={row.original.win_rate >= 50 ? "success" : "error"} ta="right">
             {f1(row.original.win_rate)}%
           </Text>
         ),
@@ -227,7 +227,7 @@ function BySymbolTab({ summary, trades, bots }: TabsProps) {
         header: "PF",
         accessorKey: "profit_factor",
         cell: ({ row }) => (
-          <Text size="xs" c={row.original.profit_factor > 1 ? "green" : row.original.profit_factor < 1 ? "red" : undefined} ta="right">
+          <Text size="xs" c={row.original.profit_factor > 1 ? "success" : row.original.profit_factor < 1 ? "error" : undefined} ta="right">
             {formatPF(row.original.profit_factor)}
           </Text>
         ),
@@ -330,7 +330,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
         header: "Reason",
         enableSorting: false,
         cell: ({ row }) => (
-          <Badge size="xs" color="gray" variant="light">
+          <Badge size="xs" color="secondary" variant="light">
             {row.original.reason || "-"}
           </Badge>
         ),
@@ -346,7 +346,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
             <ActionIcon
               size="xs"
               variant={isExpanded ? "filled" : "subtle"}
-              color={isExpanded ? "blue" : "gray"}
+              color={isExpanded ? "primary" : "secondary"}
               onClick={(e) => { e.stopPropagation(); setExpandedTrade(isExpanded ? null : tradeKey); }}
             >
               <Text size="xs">{isExpanded ? "−" : "+"}</Text>
@@ -378,7 +378,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
             return expandedTrade === key;
           }}
           renderSubComponent={(trade) => (
-            <Box p="md" style={{ background: "light-dark(var(--mantine-color-gray-0), var(--mantine-color-dark-6))" }}>
+            <Box p="md" sx={{ bgcolor: "background.paper" }}>
               <TradeChart
                 symbol={trade.symbol}
                 date={trade.entry_time?.slice(0, 10) || ""}
@@ -443,10 +443,10 @@ function CorrelationTab({ summary, trades, bots }: TabsProps) {
           }
           const netPnl = botTrades.reduce((s, t) => s + t.net_pnl, 0);
           const wins = botTrades.filter((t) => t.pnl > 0).length;
-          const bgColor = netPnl > 0 ? "var(--mantine-color-green-1)" : "var(--mantine-color-red-1)";
-          const textColor = netPnl > 0 ? "var(--mantine-color-green-8)" : "var(--mantine-color-red-8)";
+          const bgColor = netPnl > 0 ? "success.light" : "error.light";
+          const textColor = netPnl > 0 ? "success.main" : "error.main";
           return (
-            <Box ta="center" style={{ background: bgColor, padding: "2px 4px" }}>
+            <Box ta="center" sx={{ bgcolor: bgColor, padding: "2px 4px" }}>
               <Text size="xs" fw={500} c={textColor}>
                 {netPnl >= 0 ? "+" : ""}{netPnl.toFixed(0)}
               </Text>

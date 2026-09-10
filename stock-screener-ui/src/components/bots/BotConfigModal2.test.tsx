@@ -153,6 +153,9 @@ const mockStrategies: AvailableStrategy[] = [
   },
 ];
 
+// @/ui TextInput puts data-testid directly on the native input.
+const nameTextbox = () => screen.getByTestId("bot-name-input");
+
 function renderWithProviders(ui: React.ReactElement) {
   return render(<UIProvider>{ui}</UIProvider>);
 }
@@ -185,14 +188,12 @@ describe("BotConfigModal", () => {
 
   it("form pre-fills bot data when editing", () => {
     renderWithProviders(<BotConfigModal {...defaultProps} bot={mockBot} />);
-    const nameInput = screen.getByTestId("bot-name-input") as HTMLInputElement;
-    expect(nameInput.value).toBe("Test Bot");
+    expect(nameTextbox()).toHaveValue("Test Bot");
   });
 
   it("bot name input is required", () => {
     renderWithProviders(<BotConfigModal {...defaultProps} />);
-    const nameInput = screen.getByTestId("bot-name-input");
-    expect(nameInput).toBeRequired();
+    expect(nameTextbox()).toBeRequired();
   });
 
   it("active checkbox is shown", () => {
@@ -264,7 +265,7 @@ describe("BotConfigModal", () => {
     renderWithProviders(
       <BotConfigModal {...defaultProps} onClose={onClose} />,
     );
-    await user.type(screen.getByTestId("bot-name-input"), "New Bot");
+    await user.type(nameTextbox(), "New Bot");
     await user.click(screen.getByTestId("save-bot-config-btn"));
     await waitFor(() => {
       expect(mockCreateBotAction).toHaveBeenCalled();

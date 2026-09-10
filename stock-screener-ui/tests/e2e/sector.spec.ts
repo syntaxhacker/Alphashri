@@ -35,8 +35,8 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
     const header = page
       .locator('[data-testid="sector-analysis-view"]')
       .locator(".sector-analysis-header");
-    await expect(header.locator("label", { hasText: "India" })).toBeVisible();
-    await expect(header.locator("label", { hasText: "US" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "India" })).toBeVisible();
+    await expect(header.getByRole("button", { name: "US" })).toBeVisible();
   });
 
   test("should display Live Dashboard and Historical Cycles tabs", async ({ page }) => {
@@ -181,7 +181,8 @@ test.describe("Sector Dashboard - Market Selector", () => {
     await expect(
       page
         .locator('[data-testid="sector-analysis-view"]')
-        .locator(".sector-analysis-header label", { hasText: "India" }),
+        .locator(".sector-analysis-header")
+        .getByRole("button", { name: "India" }),
     ).toBeVisible();
   });
 
@@ -190,7 +191,8 @@ test.describe("Sector Dashboard - Market Selector", () => {
     await expect(
       page
         .locator('[data-testid="sector-analysis-view"]')
-        .locator(".sector-analysis-header label", { hasText: "US" }),
+        .locator(".sector-analysis-header")
+        .getByRole("button", { name: "US" }),
     ).toBeVisible();
   });
 
@@ -199,8 +201,8 @@ test.describe("Sector Dashboard - Market Selector", () => {
     const header = page
       .locator('[data-testid="sector-analysis-view"]')
       .locator(".sector-analysis-header");
-    const indiaBtn = header.locator("label", { hasText: "India" });
-    const usBtn = header.locator("label", { hasText: "US" });
+    const indiaBtn = header.getByRole("button", { name: "India" });
+    const usBtn = header.getByRole("button", { name: "US" });
     await usBtn.click();
     await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
       timeout: 5000,

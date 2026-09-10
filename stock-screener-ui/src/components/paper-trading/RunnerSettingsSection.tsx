@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, Grid, Stack, NumberInput } from "@/ui";
+import { Text, Stack, NumberInput } from "@/ui";
+import Box from "@mui/material/Box";
 import type { StrategyConfig } from "../../types/paperTrading";
 
 type ConfigValueHandler = (
@@ -18,8 +19,8 @@ export const RunnerSettingsSection = memo(function RunnerSettingsSection({ confi
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Runner Configuration
       </Text>
-      <Grid gutter={4}>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Cooldown (min)"
             description="Cooldown between trades"
@@ -32,8 +33,8 @@ export const RunnerSettingsSection = memo(function RunnerSettingsSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Max Distance from OR %"
             description="Max distance from opening range"
@@ -46,8 +47,8 @@ export const RunnerSettingsSection = memo(function RunnerSettingsSection({ confi
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
+        </Box>
+      </Box>
     </Stack>
   );
 });

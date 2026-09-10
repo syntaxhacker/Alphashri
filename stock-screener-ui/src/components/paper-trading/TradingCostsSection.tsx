@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, Grid, Stack, NumberInput } from "@/ui";
+import { Text, Stack, NumberInput } from "@/ui";
+import Box from "@mui/material/Box";
 import type { StrategyConfig } from "../../types/paperTrading";
 
 type ConfigValueHandler = (
@@ -18,8 +19,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Cost Parameters
       </Text>
-      <Grid gutter={4}>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Brokerage %"
             description="Brokerage percentage"
@@ -32,8 +33,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Min Brokerage"
             description="Minimum brokerage (₹)"
@@ -46,8 +47,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="STT %"
             description="Securities transaction tax"
@@ -60,10 +61,10 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
-      <Grid gutter={4} mt={2}>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, mt: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Exchange %"
             description="Exchange charges"
@@ -76,8 +77,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="SEBI %"
             description="SEBI charges"
@@ -90,8 +91,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Stamp %"
             description="Stamp duty"
@@ -104,10 +105,10 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
-      <Grid gutter={4} mt={2}>
-        <Grid.Col span={12}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, mt: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="GST %"
             description="Goods and services tax"
@@ -120,8 +121,8 @@ export const TradingCostsSection = memo(function TradingCostsSection({ config, o
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
+        </Box>
+      </Box>
     </Stack>
   );
 });

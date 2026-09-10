@@ -44,7 +44,7 @@ const trendingFilters = [
 ];
 
 describe("normalizeSelectFilterOptions", () => {
-  it("converts numeric options for Mantine Select", () => {
+  it("converts numeric options for MUI Select", () => {
     expect(normalizeSelectFilterOptions([5, 10, 15, 30])).toEqual([
       { value: "5", label: "5" },
       { value: "10", label: "10" },

@@ -1,14 +1,9 @@
 import { useState, useMemo } from "react";
-import {
-  Box,
-  Flex,
-  Text,
-  Group,
-  Select,
-  TextInput,
-  LoadingOverlay,
-  Badge,
-} from "@/ui";
+import Container from "@mui/material/Container";
+import Grid from "@mui/material/Grid";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import { Box, Text, Select, TextInput, LoadingOverlay, Badge } from "@/ui";
 import { useAsyncData } from "../../hooks/useAsyncData";
 import { fetchHeatmapData, fetchHeatmapSectors, type SectorInfo } from "../../api/heatmap";
 import { METRICS, getMetricValue, getMetricColor, getMetricTextColor } from "./heatmapUtils";
@@ -93,66 +88,78 @@ export function HeatmapPage() {
   const isTop10View = view === "top10";
 
   return (
-    <Box data-testid="heatmap-page" style={{ height: "100vh", display: "flex", flexDirection: "column", overflow: "hidden" }}>
-      <Box p="sm" style={{ borderBottom: "1px solid var(--mantine-color-default-border)" }}>
-        <Flex justify="space-between" align="center" wrap="wrap" gap="sm">
-          <Group gap="xs">
-            <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
-            <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "green" : "blue"}>
-              {heatmapData?.cached ? "Cached" : "Live"}
-            </Badge>
-          </Group>
-        </Flex>
-        <Group mt="sm" gap="sm" wrap="wrap">
-          <Select
-            data-testid="heatmap-sector-filter"
-            size="xs"
-            placeholder="Filter by sector"
-            clearable
-            value={sectorFilter}
-            onChange={setSectorFilter}
-            data={sectorOptions}
-            style={{ width: 180 }}
-            searchable
-          />
-          <TextInput
-            data-testid="heatmap-search"
-            size="xs"
-            placeholder="Search symbol..."
-            value={searchFilter}
-            onChange={(val) => setSearchFilter(val)}
-            style={{ width: 140 }}
-          />
-          {!isScatterView && (
-            <Select
-              data-testid="heatmap-metric"
-              size="xs"
-              label="Metric"
-              value={metric}
-              onChange={(v) => setMetric(v || "market_cap")}
-              data={metricOptions}
-              style={{ width: 130 }}
-            />
-          )}
-          <Select
-            data-testid="heatmap-view"
-            size="xs"
-            label="View"
-            value={view}
-            onChange={(v) => setView(v || "treemap")}
-            data={VIEWS}
-            style={{ width: 130 }}
-          />
-          <Text data-testid="heatmap-stock-count" size="xs" c="dimmed">{filteredStocks.length} stocks</Text>
-        </Group>
-      </Box>
+    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, minHeight: 0, height: "100%", overflow: "hidden", width: "100%", alignItems: "center" }} data-testid="heatmap-page">
+      <Card elevation={1} sx={{ flexShrink: 0, width: "100%", p: 1 }}>
+        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexWrap: "wrap", gap: 1 }}>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+              <Text data-testid="heatmap-title" fw={700} size="lg">🇮🇳 NSE 500</Text>
+              <Badge data-testid="heatmap-badge" variant="light" color={heatmapData?.cached ? "success" : "primary"}>
+                {heatmapData?.cached ? "Cached" : "Live"}
+              </Badge>
+            </Box>
+          </Box>
+          <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Select
+                data-testid="heatmap-sector-filter"
+                size="xs"
+                placeholder="Filter by sector"
+                clearable
+                value={sectorFilter}
+                onChange={setSectorFilter}
+                data={sectorOptions}
+                sx={{ width: 180 }}
+                searchable
+              />
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <TextInput
+                data-testid="heatmap-search"
+                size="xs"
+                placeholder="Search symbol..."
+                value={searchFilter}
+                onChange={(val) => setSearchFilter(val)}
+                sx={{ width: 140 }}
+              />
+            </Grid>
+            {!isScatterView && (
+              <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <Select
+                  data-testid="heatmap-metric"
+                  size="xs"
+                  label="Metric"
+                  value={metric}
+                  onChange={(v) => setMetric(v || "market_cap")}
+                  data={metricOptions}
+                  sx={{ width: 130 }}
+                />
+              </Grid>
+            )}
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Select
+                data-testid="heatmap-view"
+                size="xs"
+                label="View"
+                value={view}
+                onChange={(v) => setView(v || "treemap")}
+                data={VIEWS}
+                sx={{ width: 130 }}
+              />
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Text data-testid="heatmap-stock-count" size="xs" c="dimmed">{filteredStocks.length} stocks</Text>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
 
-      <Box style={{ flex: 1, overflow: "hidden", position: "relative" }}>
+      <Box sx={{ flex: 1, overflow: "auto", position: "relative", minHeight: 0, p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%" }}>
         <LoadingOverlay visible={heatmapLoading} />
         {heatmapError && (
-          <Flex justify="center" align="center" h={200}>
-            <Text data-testid="heatmap-error" c="red">Error: {heatmapError.message || "Failed to load"}</Text>
-          </Flex>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, width: "100%" }}>
+            <Text data-testid="heatmap-error" c="error">Error: {heatmapError.message || "Failed to load"}</Text>
+          </Box>
         )}
         {!heatmapLoading && isChartView && (
           <HeatmapTreemap
@@ -214,20 +221,26 @@ export function HeatmapPage() {
         )}
       </Box>
 
-      <Box data-testid="heatmap-legend" p="xs" style={{ borderTop: "1px solid var(--mantine-color-default-border)" }}>
-        <Group gap="md">
-          <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
-          <Group gap={4}>
-            <Box style={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMin, metricMin, metricMax), borderRadius: 2 }} />
-            <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
-          </Group>
-          <Box style={{ flex: 1, maxWidth: 120, height: 8, borderRadius: 4, background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
-          <Group gap={4}>
-            <Box style={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMax, metricMin, metricMax), borderRadius: 2 }} />
-            <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>
-          </Group>
-        </Group>
-      </Box>
-    </Box>
+      <Card elevation={1} sx={{ flexShrink: 0, width: "100%", p: 1 }} data-testid="heatmap-legend">
+        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
+          <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Text size="xs" fw={600} data-testid="heatmap-legend-label">{activeMetric.label}</Text>
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+              <Box sx={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMin, metricMin, metricMax), borderRadius: "2px" }} />
+              <Text size="xs" data-testid="heatmap-legend-min">{activeMetric.fmt(metricMin)}</Text>
+            </Grid>
+            <Grid size="auto" sx={{ flex: 1, maxWidth: 120, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Box sx={{ flex: 1, maxWidth: 120, height: 8, borderRadius: "4px", background: `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+              <Box sx={{ width: 12, height: 12, backgroundColor: getMetricColor(metricMax, metricMin, metricMax), borderRadius: "2px" }} />
+              <Text size="xs" data-testid="heatmap-legend-max">{activeMetric.fmt(metricMax)}</Text>
+            </Grid>
+          </Grid>
+        </CardContent>
+      </Card>
+    </Container>
   );
 }

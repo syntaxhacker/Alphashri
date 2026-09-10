@@ -1,5 +1,8 @@
-import { Flex, Text } from "@/ui";
-import { rgba } from "@mantine/core";
+import { Box, Stack } from "@/ui";
+import Card from "@mui/material/Card";
+import CardContent from "@mui/material/CardContent";
+import Typography from "@mui/material/Typography";
+import { alpha } from "@mui/material/styles";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
 import { TOOLTIP_DARK_BG, TOOLTIP_LIGHT_BG, TOOLTIP_DARK_BORDER, TOOLTIP_LIGHT_BORDER, TOOLTIP_DARK_TEXT, TOOLTIP_LIGHT_TEXT, AXIS_DARK_LINE, AXIS_LIGHT_LINE, AXIS_DARK_SPLIT, AXIS_LIGHT_SPLIT, BLACK } from "../../config/colors";
@@ -93,7 +96,7 @@ export function SectorBarView({ stocks, metric, getMetricValue, getMetricColor, 
           itemStyle: { color: getMetricColor(e.avg, minAvg, maxAvg) },
         })),
         barMaxWidth: 28,
-        emphasis: { itemStyle: { shadowBlur: 4, shadowColor: rgba(BLACK, 0.3) } },
+        emphasis: { itemStyle: { shadowBlur: 4, shadowColor: alpha(BLACK, 0.3) } },
         label: {
           show: true,
           position: 'right',
@@ -106,18 +109,22 @@ export function SectorBarView({ stocks, metric, getMetricValue, getMetricColor, 
   }, [stocks, metric, getMetricValue, getMetricColor, fmt, label, isDark, tooltipBg, tooltipText, axisLineColor, splitLineColor]);
 
   return (
-    <Flex direction="column" style={{ height: '100%', flex: 1 }}>
-      <Flex p="xs" align="center" gap="xs">
-        <Text size="sm" fw={600}>Avg {label} by Sector</Text>
-        <Text size="xs" c="dimmed">({stocks.length} stocks)</Text>
-      </Flex>
-      <div style={{ flex: 1, minHeight: 0 }}>
-        <ReactECharts
-          option={option}
-          style={{ height: '100%', width: '100%' }}
-          opts={{ renderer: 'canvas' }}
-        />
-      </div>
-    </Flex>
+    <Stack spacing={1} sx={{ height: "100%", flex: 1, p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
+      <Card elevation={1} sx={{ width: "100%", p: 1 }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+            <Typography variant="subtitle2" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Avg {label} by Sector</Typography>
+            <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>({stocks.length} stocks)</Typography>
+          </Box>
+        </CardContent>
+      </Card>
+      <Card elevation={1} sx={{ width: "100%", flex: 1, p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
+          <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+          </Box>
+        </CardContent>
+      </Card>
+    </Stack>
   );
 }

@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { cleanup, screen } from "@testing-library/react";
+import { cleanup, screen, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { BotSelector } from "./BotSelector";
 import type { BotSummary } from "../../types/paperTrading";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const { mockIsMarketClosedToday } = vi.hoisted(() => ({
   mockIsMarketClosedToday: vi.fn().mockReturnValue(false),
@@ -67,7 +67,7 @@ afterEach(() => {
 
 describe("BotSelector", () => {
   test("returns null when bots array is empty", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[]}
         selectedBotId={null}
@@ -80,7 +80,7 @@ describe("BotSelector", () => {
   });
 
   test("renders dropdown with bot options showing name and position count", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot, stoppedBot]}
         selectedBotId={null}
@@ -92,11 +92,11 @@ describe("BotSelector", () => {
     expect(screen.getByTestId("bot-selector")).toBeInTheDocument();
     expect(screen.getByText("Bot:")).toBeInTheDocument();
     expect(screen.getByTestId("bot-select")).toBeInTheDocument();
-    expect(screen.getByPlaceholderText("Select bot")).toBeInTheDocument();
+    expect(screen.getByText("Select bot")).toBeInTheDocument();
   });
 
   test("shows running indicator with green dot and Running (PID X) text", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId="1"
@@ -110,7 +110,7 @@ describe("BotSelector", () => {
   });
 
   test("shows stopped indicator with gray dot and Stopped text", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"
@@ -124,7 +124,7 @@ describe("BotSelector", () => {
   });
 
   test('shows "?" in PID when running but no pid', () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningNoPidBot]}
         selectedBotId="3"
@@ -139,7 +139,7 @@ describe("BotSelector", () => {
   test("calls onSelectBot when dropdown changes", async () => {
     const user = userEvent.setup();
     const onSelectBot = vi.fn();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot, stoppedBot]}
         selectedBotId={null}
@@ -148,8 +148,8 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
-    const option = await screen.findByText("ORB Bot (2 pos)");
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
+    const option = await screen.findByRole("option", { name: "ORB Bot (2 pos)" });
     await user.click(option);
     expect(onSelectBot).toHaveBeenCalledWith("1");
   });
@@ -157,7 +157,7 @@ describe("BotSelector", () => {
   test("calls onToggleBot when Stop button clicked", async () => {
     const user = userEvent.setup();
     const onToggleBot = vi.fn();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId="1"
@@ -173,7 +173,7 @@ describe("BotSelector", () => {
   test("calls onToggleBot when Start button clicked", async () => {
     const user = userEvent.setup();
     const onToggleBot = vi.fn();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"
@@ -189,7 +189,7 @@ describe("BotSelector", () => {
   test("shows loading state on refresh button during refresh", async () => {
     const user = userEvent.setup();
     const onRefresh = vi.fn().mockResolvedValue(undefined);
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId="1"
@@ -205,7 +205,7 @@ describe("BotSelector", () => {
 
   test("start button disabled when market is closed", () => {
     mockIsMarketClosedToday.mockReturnValue(true);
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"
@@ -220,7 +220,7 @@ describe("BotSelector", () => {
   test("start button shows tooltip when market closed", async () => {
     mockIsMarketClosedToday.mockReturnValue(true);
     const user = userEvent.setup();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"
@@ -230,13 +230,13 @@ describe("BotSelector", () => {
       />,
     );
     const startBtn = screen.getByTestId("start-bot-btn");
-    await user.hover(startBtn);
+    await user.hover(startBtn.parentElement as HTMLElement);
     expect(await screen.findByText("Market closed — cannot start bot")).toBeInTheDocument();
   });
 
   test("start button not disabled when market open", () => {
     mockIsMarketClosedToday.mockReturnValue(false);
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"
@@ -249,7 +249,7 @@ describe("BotSelector", () => {
   });
 
   test("refresh button disabled when no bot selected", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId={null}
@@ -262,7 +262,7 @@ describe("BotSelector", () => {
   });
 
   test("indicator dot uses gray-4 when no bot selected", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId={null}
@@ -275,11 +275,11 @@ describe("BotSelector", () => {
       '[style*="border-radius: 50%"]',
     );
     expect(dot).toBeInTheDocument();
-    expect(dot?.getAttribute("style")).toContain("--mantine-color-gray-4");
+    expect(dot?.getAttribute("style")).toContain("--mui-palette-divider");
   });
 
   test("indicator dot uses green-6 when bot running", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId="1"
@@ -291,12 +291,12 @@ describe("BotSelector", () => {
     const dot = screen.getByTestId("bot-selector").querySelector(
       '[style*="border-radius: 50%"]',
     );
-    expect(dot?.getAttribute("style")).toContain("--mantine-color-green-6");
+    expect(dot?.getAttribute("style")).toContain("--mui-palette-success-main");
   });
 
   test("getBotLabel formats bot label with name and position count", async () => {
     const user = userEvent.setup();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot, stoppedBot]}
         selectedBotId={null}
@@ -305,13 +305,13 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
     expect(await screen.findByText("ORB Bot (2 pos)")).toBeInTheDocument();
     expect(await screen.findByText("SR Bot (5 pos)")).toBeInTheDocument();
   });
 
   test("shows Stopped status when no bot selected", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot, stoppedBot]}
         selectedBotId={null}
@@ -328,7 +328,7 @@ describe("BotSelector", () => {
     const setTimeoutSpy = vi.spyOn(window, "setTimeout");
     const user = userEvent.setup();
     const onRefresh = vi.fn().mockResolvedValue(undefined);
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId="1"
@@ -346,7 +346,7 @@ describe("BotSelector", () => {
   });
 
   test("updates status display when bot PID changes while running", () => {
-    const { rerender } = renderWithMantine(
+    const { rerender } = renderWithProviders(
       <BotSelector
         bots={[{ ...runningBot, pid: 12345 }]}
         selectedBotId="1"
@@ -369,7 +369,7 @@ describe("BotSelector", () => {
   });
 
   test("shows Running (PID ?) when running=true and pid=null", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[{ ...runningBot, id: "5", pid: null }]}
         selectedBotId="5"
@@ -383,7 +383,7 @@ describe("BotSelector", () => {
 
   test("start button reflects market open/close transitions", () => {
     mockIsMarketClosedToday.mockReturnValue(false);
-    const { rerender } = renderWithMantine(
+    const { rerender } = renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"
@@ -413,7 +413,7 @@ describe("BotSelector", () => {
       resolveRefresh = resolve;
     });
     const onRefresh = vi.fn().mockReturnValue(refreshPromise);
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot]}
         selectedBotId="1"
@@ -427,7 +427,8 @@ describe("BotSelector", () => {
     await vi.waitFor(() => {
       expect(refreshBtn).toHaveAttribute("data-loading");
     });
-    await user.click(refreshBtn);
+    // loading buttons get pointer-events:none — dispatch directly to simulate the guarded second click
+    fireEvent.click(refreshBtn);
     resolveRefresh!();
     await vi.waitFor(() => {
       expect(onRefresh).toHaveBeenCalledTimes(1);
@@ -437,7 +438,7 @@ describe("BotSelector", () => {
   test("renders bot with zero positions in dropdown", async () => {
     const user = userEvent.setup();
     const zeroPosBot: BotSummary = { ...stoppedBot, id: "10", name: "Zero Pos Bot", position_count: 0 };
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[zeroPosBot]}
         selectedBotId={null}
@@ -446,12 +447,12 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
     expect(await screen.findByText("Zero Pos Bot (0 pos)")).toBeInTheDocument();
   });
 
   test("running bot with pid=0 shows Running (PID 0) without crashing", () => {
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[{ ...runningBot, id: "6", pid: 0 }]}
         selectedBotId="6"
@@ -471,7 +472,7 @@ describe("BotSelector", () => {
       name: `Bot ${i + 1}`,
       position_count: i,
     }));
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={manyBots}
         selectedBotId={null}
@@ -480,7 +481,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
     for (let i = 0; i < 12; i++) {
       expect(await screen.findByText(`Bot ${i + 1} (${i} pos)`)).toBeInTheDocument();
     }
@@ -489,7 +490,7 @@ describe("BotSelector", () => {
   test("selecting the same bot again does not call onSelectBot", async () => {
     const user = userEvent.setup();
     const onSelectBot = vi.fn();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[runningBot, stoppedBot]}
         selectedBotId="1"
@@ -498,8 +499,8 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    await user.click(screen.getByTestId("bot-select"));
-    const orbOption = await screen.findByText("ORB Bot (2 pos)");
+    await user.click(within(screen.getByTestId("bot-select")).getByRole("combobox"));
+    const orbOption = await screen.findByRole("option", { name: "ORB Bot (2 pos)" });
     await user.click(orbOption);
     expect(onSelectBot).not.toHaveBeenCalled();
   });
@@ -507,7 +508,7 @@ describe("BotSelector", () => {
   test("rapid start button clicks all call onToggleBot (parent manages debounce)", async () => {
     const user = userEvent.setup();
     const onToggleBot = vi.fn();
-    renderWithMantine(
+    renderWithProviders(
       <BotSelector
         bots={[stoppedBot]}
         selectedBotId="2"

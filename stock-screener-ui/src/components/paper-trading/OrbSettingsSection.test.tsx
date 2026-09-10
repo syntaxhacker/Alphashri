@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import {render, screen, cleanup, within, fireEvent} from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { OrbSettingsSection } from "./OrbSettingsSection";
 import type { StrategyConfig } from "../../types/strategies";
@@ -101,11 +101,11 @@ describe("OrbSettingsSection", () => {
 
     it("renders all 5 input fields with correct labels", () => {
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      expect(screen.getByText("OR Minutes")).toBeInTheDocument();
-      expect(screen.getByText("Stop Loss %")).toBeInTheDocument();
-      expect(screen.getByText("Take Profit %")).toBeInTheDocument();
-      expect(screen.getByText("Min OR Range %")).toBeInTheDocument();
-      expect(screen.getByText("Max OR Range %")).toBeInTheDocument();
+      expect(screen.getByLabelText("OR Minutes")).toBeInTheDocument();
+      expect(screen.getByLabelText("Stop Loss %")).toBeInTheDocument();
+      expect(screen.getByLabelText("Take Profit %")).toBeInTheDocument();
+      expect(screen.getByLabelText("Min OR Range %")).toBeInTheDocument();
+      expect(screen.getByLabelText("Max OR Range %")).toBeInTheDocument();
     });
 
     it("renders all descriptions", () => {
@@ -128,11 +128,11 @@ describe("OrbSettingsSection", () => {
 
     it("displays initial values correctly", () => {
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      expect(screen.getByTestId("config-or-minutes")).toHaveValue("15");
-      expect(screen.getByTestId("config-sl-pct")).toHaveValue("0.4");
-      expect(screen.getByTestId("config-tp-pct")).toHaveValue("1.2");
-      expect(screen.getByTestId("config-min-or-range")).toHaveValue("0.5");
-      expect(screen.getByTestId("config-max-or-range")).toHaveValue("2");
+      expect(within(screen.getByTestId("config-or-minutes")).getByRole("spinbutton")).toHaveValue(15);
+      expect(within(screen.getByTestId("config-sl-pct")).getByRole("spinbutton")).toHaveValue(0.4);
+      expect(within(screen.getByTestId("config-tp-pct")).getByRole("spinbutton")).toHaveValue(1.2);
+      expect(within(screen.getByTestId("config-min-or-range")).getByRole("spinbutton")).toHaveValue(0.5);
+      expect(within(screen.getByTestId("config-max-or-range")).getByRole("spinbutton")).toHaveValue(2);
     });
   });
 
@@ -140,40 +140,40 @@ describe("OrbSettingsSection", () => {
     it("passes or_minutes value as-is (Number from NumberInput)", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-or-minutes");
-      await user.clear(input); await user.type(input, "30");
+      const input = within(screen.getByTestId("config-or-minutes")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "30" } });
       expect(mockOnChange).toHaveBeenCalledWith("or_minutes", 30);
     });
 
     it("converts sl_pct string to Number", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-sl-pct");
-      await user.clear(input); await user.type(input, "0.5");
+      const input = within(screen.getByTestId("config-sl-pct")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "0.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("sl_pct", 0.5);
     });
 
     it("converts tp_pct string to Number", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-tp-pct");
-      await user.clear(input); await user.type(input, "2.5");
+      const input = within(screen.getByTestId("config-tp-pct")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "2.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("tp_pct", 2.5);
     });
 
     it("converts min_or_range_pct string to Number", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-min-or-range");
-      await user.clear(input); await user.type(input, "1.0");
+      const input = within(screen.getByTestId("config-min-or-range")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "1.0" } });
       expect(mockOnChange).toHaveBeenCalledWith("min_or_range_pct", 1.0);
     });
 
     it("converts max_or_range_pct string to Number", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-max-or-range");
-      await user.clear(input); await user.type(input, "5.5");
+      const input = within(screen.getByTestId("config-max-or-range")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "5.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_or_range_pct", 5.5);
     });
   });
@@ -182,17 +182,13 @@ describe("OrbSettingsSection", () => {
     it("shows error when sl_pct is less than 0.1", () => {
       const config = mockConfig({ sl_pct: 0.05 });
       render(<OrbSettingsSection config={config} onChange={mockOnChange} />, { wrapper: Wrapper });
-      const errorElement = screen.getByTestId("config-sl-pct-error");
-      expect(errorElement).toBeInTheDocument();
-      expect(errorElement).toHaveTextContent("Invalid stop loss percentage");
+      expect(screen.getByText("Invalid stop loss percentage")).toBeInTheDocument();
     });
 
     it("shows error when sl_pct is greater than 5", () => {
       const config = mockConfig({ sl_pct: 5.5 });
       render(<OrbSettingsSection config={config} onChange={mockOnChange} />, { wrapper: Wrapper });
-      const errorElement = screen.getByTestId("config-sl-pct-error");
-      expect(errorElement).toBeInTheDocument();
-      expect(errorElement).toHaveTextContent("Invalid stop loss percentage");
+      expect(screen.getByText("Invalid stop loss percentage")).toBeInTheDocument();
     });
 
     it("does not show error when sl_pct is 0.1 (lower boundary)", () => {
@@ -217,27 +213,27 @@ describe("OrbSettingsSection", () => {
   describe("boundary values", () => {
     it("accepts sl_pct boundary values (0.1 and 5)", () => {
       const { rerender } = render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const slInput = screen.getByTestId("config-sl-pct");
+      const slInput = within(screen.getByTestId("config-sl-pct")).getByRole("spinbutton");
 
       // Lower boundary
       rerender(
         <OrbSettingsSection config={mockConfig({ sl_pct: 0.1 })} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
-      expect(slInput).toHaveValue("0.1");
+      expect(slInput).toHaveValue(0.1);
       expect(screen.queryByTestId("config-sl-pct-error")).not.toBeInTheDocument();
 
       // Upper boundary
       rerender(<OrbSettingsSection config={mockConfig({ sl_pct: 5 })} onChange={mockOnChange} />, {
         wrapper: Wrapper,
       });
-      expect(slInput).toHaveValue("5");
+      expect(slInput).toHaveValue(5);
       expect(screen.queryByTestId("config-sl-pct-error")).not.toBeInTheDocument();
     });
 
     it("accepts min_or_range_pct boundary values (0.1 and 5)", () => {
       const { rerender } = render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const minInput = screen.getByTestId("config-min-or-range");
+      const minInput = within(screen.getByTestId("config-min-or-range")).getByRole("spinbutton");
 
       rerender(
         <OrbSettingsSection
@@ -246,24 +242,24 @@ describe("OrbSettingsSection", () => {
         />,
         { wrapper: Wrapper },
       );
-      expect(minInput).toHaveValue("0.1");
+      expect(minInput).toHaveValue(0.1);
 
       rerender(
         <OrbSettingsSection config={mockConfig({ min_or_range_pct: 5 })} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
-      expect(minInput).toHaveValue("5");
+      expect(minInput).toHaveValue(5);
     });
 
     it("accepts max_or_range_pct boundary values (1 and 10)", () => {
       const { rerender } = render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const maxInput = screen.getByTestId("config-max-or-range");
+      const maxInput = within(screen.getByTestId("config-max-or-range")).getByRole("spinbutton");
 
       rerender(
         <OrbSettingsSection config={mockConfig({ max_or_range_pct: 1 })} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
-      expect(maxInput).toHaveValue("1");
+      expect(maxInput).toHaveValue(1);
 
       rerender(
         <OrbSettingsSection
@@ -272,24 +268,24 @@ describe("OrbSettingsSection", () => {
         />,
         { wrapper: Wrapper },
       );
-      expect(maxInput).toHaveValue("10");
+      expect(maxInput).toHaveValue(10);
     });
 
     it("accepts or_minutes boundary values (15 and 120)", () => {
       const { rerender } = render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const orInput = screen.getByTestId("config-or-minutes");
+      const orInput = within(screen.getByTestId("config-or-minutes")).getByRole("spinbutton");
 
       rerender(
         <OrbSettingsSection config={mockConfig({ or_minutes: 15 })} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
-      expect(orInput).toHaveValue("15");
+      expect(orInput).toHaveValue(15);
 
       rerender(
         <OrbSettingsSection config={mockConfig({ or_minutes: 120 })} onChange={mockOnChange} />,
         { wrapper: Wrapper },
       );
-      expect(orInput).toHaveValue("120");
+      expect(orInput).toHaveValue(120);
     });
   });
 
@@ -297,32 +293,32 @@ describe("OrbSettingsSection", () => {
     it("accepts fractional step values for sl_pct (0.1 step)", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-sl-pct");
-      await user.clear(input); await user.type(input, "0.25");
+      const input = within(screen.getByTestId("config-sl-pct")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "0.25" } });
       expect(mockOnChange).toHaveBeenCalledWith("sl_pct", 0.25);
     });
 
     it("accepts fractional step values for tp_pct (0.1 step)", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-tp-pct");
-      await user.clear(input); await user.type(input, "3.75");
+      const input = within(screen.getByTestId("config-tp-pct")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "3.75" } });
       expect(mockOnChange).toHaveBeenCalledWith("tp_pct", 3.75);
     });
 
     it("accepts fractional step values for min_or_range_pct (0.1 step)", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-min-or-range");
-      await user.clear(input); await user.type(input, "2.35");
+      const input = within(screen.getByTestId("config-min-or-range")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "2.35" } });
       expect(mockOnChange).toHaveBeenCalledWith("min_or_range_pct", 2.35);
     });
 
     it("accepts fractional step values for max_or_range_pct (0.5 step)", async () => {
       const user = userEvent.setup();
       render(<OrbSettingsSection {...defaultProps} />, { wrapper: Wrapper });
-      const input = screen.getByTestId("config-max-or-range");
-      await user.clear(input); await user.type(input, "3.5");
+      const input = within(screen.getByTestId("config-max-or-range")).getByRole("spinbutton");
+      fireEvent.change(input, { target: { value: "3.5" } });
       expect(mockOnChange).toHaveBeenCalledWith("max_or_range_pct", 3.5);
     });
   });

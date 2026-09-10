@@ -53,7 +53,7 @@ export function PnlBadge({ value, children, size, "data-testid": testId }: PnlBa
   const displayText = children ?? (value >= 0 ? `+${value}` : `${value}`);
 
   return (
-    <Badge color={color} variant="light" size={size} data-testid={testId}>
+    <Badge color={color} variant="filled" size={size} data-testid={testId}>
       {displayText}
     </Badge>
   );

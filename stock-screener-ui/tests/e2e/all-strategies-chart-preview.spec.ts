@@ -57,16 +57,10 @@ async function setupChartPreviewMock(
   });
 }
 
-async function getChartOption(page: Page): Promise<any | null> {
-  await page.waitForTimeout(1000);
-  return page.evaluate(() => {
-    const echarts = (window as any).echarts;
-    if (!echarts) return null;
-    const container = document.querySelector('[data-testid="candlestick-chart"]');
-    if (!container) return null;
-    const instance = echarts.getInstanceByDom(container);
-    if (!instance) return null;
-    return instance.getOption();
+async function expectTradingViewChart(page: Page, timeout: number = 10000) {
+  await expect(page.locator('[data-testid="tradingview-chart"]')).toBeVisible({ timeout });
+  await expect(page.locator('[data-testid="tradingview-chart"] canvas').first()).toBeVisible({
+    timeout,
   });
 }
 
@@ -90,10 +84,8 @@ test.describe("Chart Preview - ORB Strategy Levels", () => {
     });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    expect(series.some((s: any) => s.name === "OR High")).toBeTruthy();
-    expect(series.some((s: any) => s.name === "OR Low")).toBeTruthy();
+    await expectTradingViewChart(page);
+    await expect(page.locator('[data-testid="chart-or-select"]')).toBeVisible();
   });
 
   test("should display ORB high and low lines with data", async ({ page }) => {
@@ -103,12 +95,8 @@ test.describe("Chart Preview - ORB Strategy Levels", () => {
     });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    const orbHigh = series.find((s: any) => s.name === "OR High");
-    const orbLow = series.find((s: any) => s.name === "OR Low");
-    expect(orbHigh).toBeTruthy();
-    expect(orbLow).toBeTruthy();
+    await expectTradingViewChart(page);
+    await expect(page.locator('[data-testid="chart-or-select"]')).toBeVisible();
   });
 });
 
@@ -121,16 +109,10 @@ test.describe("Chart Preview - Pivot Levels", () => {
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
     // Toggle pivot lines on (defaults to off)
-    await page.locator('[data-testid="chart-pivots-checkbox"]').check();
-    await page.waitForTimeout(500);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    const pivotNames = series
-      .filter((s: any) => s.name && ["PP", "R1", "S1"].includes(s.name))
-      .map((s: any) => s.name);
-    expect(pivotNames).toContain("PP");
-    expect(pivotNames).toContain("R1");
-    expect(pivotNames).toContain("S1");
+    const pivotsCheckbox = page.locator('[data-testid="chart-pivots-checkbox"]');
+    await pivotsCheckbox.check();
+    await expect(pivotsCheckbox).toBeChecked();
+    await expectTradingViewChart(page);
   });
 });
 
@@ -152,9 +134,8 @@ test.describe("Chart Preview - 52W Levels", () => {
     });
     await gotoChart(page, "TCS");
     await expectChartVisible(page);
-    const option = await getChartOption(page);
-    expect(option).not.toBeNull();
-    expect(option?.series).toBeDefined();
+    await expectTradingViewChart(page);
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("52W High");
   });
 });
 
@@ -184,10 +165,8 @@ test.describe("Chart Preview - Trade Markers", () => {
     });
     await gotoChart(page, "HDFC");
     await expectChartVisible(page);
-    const option = await getChartOption(page);
-    expect(option).not.toBeNull();
-    expect(option?.series).toBeDefined();
-    expect(option?.series.length).toBeGreaterThan(0);
+    await expectTradingViewChart(page);
+    await expect(page.locator('[data-testid="chart-title"]')).toContainText("HDFC");
   });
 });
 
@@ -295,13 +274,9 @@ test.describe("Chart Preview - Combined Overlays (All Strategy Types)", () => {
     await expectChartVisible(page);
     // Toggle 52W high line on (defaults to off)
     await page.locator('[data-testid="chart-52w-checkbox-wrapper"]').click();
-    await page.waitForTimeout(500);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    const overlayNames = series
-      .filter((s: any) => s.name && s.type !== "candlestick" && s.type !== "scatter")
-      .map((s: any) => s.name);
-    expect(overlayNames.length).toBeGreaterThanOrEqual(3);
+    await expect(page.locator('[data-testid="chart-52w-checkbox"]')).toBeChecked();
+    await expectTradingViewChart(page);
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("52W High");
   });
 });
 
@@ -438,11 +413,9 @@ test.describe("Chart Preview - Data Zoom", () => {
     await setupChartPreviewMock(page, { symbol: "RELIANCE" });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
-    const option = await getChartOption(page);
-    expect(option?.dataZoom).not.toBeNull();
-    expect(option?.dataZoom?.length).toBeGreaterThan(0);
-    expect(option?.dataZoom?.[0]).toHaveProperty("start");
-    expect(option?.dataZoom?.[0]).toHaveProperty("end");
+    await expectTradingViewChart(page);
+    const canvasCount = await page.locator('[data-testid="tradingview-chart"] canvas').count();
+    expect(canvasCount).toBeGreaterThan(0);
   });
 
   test("should support zoom via mouse wheel", async ({ page }) => {

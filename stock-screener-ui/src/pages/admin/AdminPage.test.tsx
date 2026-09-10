@@ -2,17 +2,13 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
-import { renderWithRouter } from "../../test-utils/renderWithMantine";
+import { renderWithRouter } from "../../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 
 const mockFetchWithAuth = vi.fn();
 
 vi.mock("../../api/fetchWithAuth", () => ({
   fetchWithAuth: () => mockFetchWithAuth(),
-}));
-
-vi.mock("@mantine/notifications", () => ({
-  notifications: { show: vi.fn() },
 }));
 
 describe("AdminPage", () => {

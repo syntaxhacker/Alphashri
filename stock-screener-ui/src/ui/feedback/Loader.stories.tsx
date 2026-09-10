@@ -1,0 +1,55 @@
+import type { Meta, StoryObj } from "@storybook/react-vite";
+import { Group } from "@/ui";
+import { Loader } from "./Loader";
+
+const meta: Meta<typeof Loader> = {
+  title: "Primitives/Feedback/Loader",
+  component: Loader,
+  tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Animated spinner for loading states. Use inline with buttons or centered on page. When not to use: for progress with known percent use Progress. Uses MUI Loader with theme tokens (no hardcoded colors)." } } },
+};
+
+export default meta;
+type Story = StoryObj<typeof Loader>;
+
+export const Default: Story = {};
+
+export const Sizes: Story = {
+  render: () => (
+    <Group gap="lg">
+      <Loader size="xs" />
+      <Loader size="sm" />
+      <Loader size="md" />
+      <Loader size="lg" />
+      <Loader size="xl" />
+    </Group>
+  ),
+};
+
+export const Types: Story = {
+  render: () => (
+    <Group gap="lg">
+      <Loader type="oval" />
+      <Loader type="bars" />
+      <Loader type="dots" />
+    </Group>
+  ),
+};
+
+export const Colored: Story = {
+  render: () => (
+    <Group gap="lg">
+      <Loader color="primary" />
+      <Loader color="success" />
+      <Loader color="error" />
+      <Loader color="warning" size="sm" />
+    </Group>
+  ),
+};
+
+export const CustomSizeNumber: Story = {
+  args: {
+    size: 42,
+    color: "info",
+  },
+};

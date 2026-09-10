@@ -130,43 +130,43 @@ describe("truncateUrl", () => {
 });
 
 describe("getStatusColor", () => {
-  it("returns green for success", () => {
-    expect(getStatusColor("success")).toBe("green");
+  it("returns success for success", () => {
+    expect(getStatusColor("success")).toBe("success");
   });
 
-  it("returns green for SUCCESS (case insensitive)", () => {
-    expect(getStatusColor("SUCCESS")).toBe("green");
+  it("returns success for SUCCESS (case insensitive)", () => {
+    expect(getStatusColor("SUCCESS")).toBe("success");
   });
 
-  it("returns green for Success (mixed case)", () => {
-    expect(getStatusColor("Success")).toBe("green");
+  it("returns success for Success (mixed case)", () => {
+    expect(getStatusColor("Success")).toBe("success");
   });
 
-  it("returns red for error", () => {
-    expect(getStatusColor("error")).toBe("red");
+  it("returns error for error", () => {
+    expect(getStatusColor("error")).toBe("error");
   });
 
-  it("returns red for ERROR", () => {
-    expect(getStatusColor("ERROR")).toBe("red");
+  it("returns error for ERROR", () => {
+    expect(getStatusColor("ERROR")).toBe("error");
   });
 
-  it("returns yellow for pending", () => {
-    expect(getStatusColor("pending")).toBe("yellow");
+  it("returns warning for pending", () => {
+    expect(getStatusColor("pending")).toBe("warning");
   });
 
-  it("returns yellow for PENDING", () => {
-    expect(getStatusColor("PENDING")).toBe("yellow");
+  it("returns warning for PENDING", () => {
+    expect(getStatusColor("PENDING")).toBe("warning");
   });
 
-  it("returns gray for unknown status", () => {
-    expect(getStatusColor("unknown")).toBe("gray");
+  it("returns secondary for unknown status", () => {
+    expect(getStatusColor("unknown")).toBe("secondary");
   });
 
-  it("returns gray for empty string", () => {
-    expect(getStatusColor("")).toBe("gray");
+  it("returns secondary for empty string", () => {
+    expect(getStatusColor("")).toBe("secondary");
   });
 
-  it("returns gray for random string", () => {
-    expect(getStatusColor("foobar")).toBe("gray");
+  it("returns secondary for random string", () => {
+    expect(getStatusColor("foobar")).toBe("secondary");
   });
 });

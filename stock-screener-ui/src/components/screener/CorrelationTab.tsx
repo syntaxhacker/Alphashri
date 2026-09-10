@@ -1,6 +1,9 @@
 import { useState, useCallback, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Stack, Group, MultiSelect, SegmentedControl, Select, Button, Alert } from "@/ui";
+import Grid from "@mui/material/Grid";
+import Stack from "@mui/material/Stack";
+import Box from "@mui/material/Box";
+import { MultiSelect, SegmentedControl, Select, Button, Alert, Text } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
@@ -67,10 +70,10 @@ export function CorrelationTab() {
           setPeriod(parseInt(p, 10));
           setPeriodUnit(tf === "intraday" ? "minutes" : "days");
         }
-        fetchCorrelationData();
+        setTimeout(() => fetchCorrelationData(), 0);
       }
     }
-  }, []);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSearch = useCallback(async (query: string) => {
     if (!query || query.length < 2) {
@@ -113,69 +116,63 @@ export function CorrelationTab() {
   }, [localSymbols, timeframe, period, setSearchParams]);
 
   const periods = timeframe === "daily" ? DAILY_PERIODS : INTRADAY_PERIODS;
-  const currentPeriod = timeframe === "daily" ? period.toString() : period.toString();
+  const currentPeriod = period.toString();
 
   return (
-    <Stack data-testid="correlation-tab" gap="sm" style={{ height: "100%" }}>
-      <CompactPanel
-        title="Correlation Analysis"
-        description="Analyze price correlation between symbols"
-      >
-        <Stack gap="sm">
-          <Group gap="sm" align="flex-end">
-            <MultiSelect
-              label="Symbols"
-              placeholder="Search and select symbols"
-              data={searchData.map((s) => ({ value: s.symbol, label: s.symbol }))}
-              value={localSymbols}
-              onChange={setLocalSymbols}
-              onSearchChange={handleSearch}
-              searchable
-              size="sm"
-              style={{ flex: 1 }}
-            />
-            <SegmentedControl
-              value={timeframe}
-              onChange={handleTimeframeChange}
-              data={[
-                { label: "Daily", value: "daily" },
-                { label: "Intraday", value: "intraday" },
-              ]}
-              size="sm"
-              data-testid="correlation-timeframe"
-            />
-            <Select
-              label="Period"
-              value={currentPeriod}
-              onChange={handlePeriodChange}
-              data={periods}
-              size="sm"
-              w={80}
-              data-testid="correlation-period"
-            />
-            <Button
-              onClick={handleCalculate}
-              loading={isLoading}
-              disabled={localSymbols.length < 2}
-              size="sm"
-              leftSection={<IconChartLine size={16} />}
-            >
-              Calculate
-            </Button>
-          </Group>
+    <Stack data-testid="correlation-tab" spacing={2} sx={{ height: "100%", width: "100%" }}>
+      <CompactPanel title="Correlation Analysis" description="Analyze price correlation between symbols">
+        <Stack spacing={2} sx={{ width: "100%", alignItems: "center" }}>
+          <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+          <Grid container spacing={2} alignItems="center" justifyContent="center" sx={{ width: "100%" }}>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
+              <Stack spacing={0.5} sx={{ alignItems: "center" }}>
+                <Text size="xs" c="dimmed">
+                  Symbols
+                </Text>
+                <MultiSelect
+                  placeholder="Search and select symbols"
+                  data={searchData.map((s) => ({ value: s.symbol, label: s.symbol }))}
+                  value={localSymbols}
+                  onChange={setLocalSymbols}
+                  onSearchChange={handleSearch}
+                  searchable
+                  size="sm"
+                  aria-label="Symbols"
+                />
+              </Stack>
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
+              <SegmentedControl
+                value={timeframe}
+                onChange={handleTimeframeChange}
+                data={[
+                  { label: "Daily", value: "daily" },
+                  { label: "Intraday", value: "intraday" },
+                ]}
+                size="sm"
+                data-testid="correlation-timeframe"
+              />
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
+              <Select label="Period" value={currentPeriod} onChange={handlePeriodChange} data={periods} size="sm" data-testid="correlation-period" />
+            </Grid>
+            <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
+              <Button onClick={handleCalculate} loading={isLoading} disabled={localSymbols.length < 2} size="sm" leftSection={<IconChartLine size={16} />} fullWidth>
+                Calculate
+              </Button>
+            </Grid>
+          </Grid>
+          </Box>
 
           {error && (
-            <Alert icon={<IconAlertCircle size={16} />} color="red" size="sm">
+            <Alert icon={<IconAlertCircle size={16} />} color="error" size="sm">
               {error}
             </Alert>
           )}
 
           {meta && (
             <CompactStatGrid>
-              <CompactStat
-                label="Date Range"
-                value={`${formatDateRange(meta.start_date)} → ${formatDateRange(meta.end_date)}`}
-              />
+              <CompactStat label="Date Range" value={`${formatDateRange(meta.start_date)} → ${formatDateRange(meta.end_date)}`} />
               <CompactStat label="Data Points" value={meta.data_points} />
               <CompactStat label="Symbols" value={symbols.length} />
               <CompactStat label="Timeframe" value={timeframe === "daily" ? "Daily" : "Intraday"} />
@@ -184,7 +181,7 @@ export function CorrelationTab() {
         </Stack>
       </CompactPanel>
 
-      <Stack gap="sm" style={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <Stack spacing={2} sx={{ flex: 1, minHeight: 0 }}>
         <CompactPanel title="Correlation Matrix">
           <CorrelationMatrix matrix={matrix || []} symbols={symbols} isLoading={isLoading} />
         </CompactPanel>

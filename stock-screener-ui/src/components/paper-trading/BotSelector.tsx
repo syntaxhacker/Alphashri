@@ -72,9 +72,11 @@ export function BotSelector({
             width: 8,
             height: 8,
             borderRadius: "50%",
-            background: selectedBotId
-              ? `var(--mantine-color-${running ? "green" : "gray"}-6)`
-              : "var(--mantine-color-gray-4)",
+            background: !selectedBotId
+              ? "var(--mui-palette-divider)"
+              : running
+                ? "var(--mui-palette-success-main)"
+                : "var(--mui-palette-grey-500)",
           }}
         />
       </Tooltip>
@@ -98,7 +100,7 @@ export function BotSelector({
         <Button
           size="compact-xs"
           variant="subtle"
-          color="red"
+          color="error"
           leftSection={<IconPlayerStop size={14} />}
           onClick={onToggleBot}
           data-testid="stop-bot-btn"
@@ -114,7 +116,7 @@ export function BotSelector({
             <Button
               size="compact-xs"
               variant="subtle"
-              color="blue"
+              color="primary"
               leftSection={<IconPlayerPlay size={14} />}
               onClick={onToggleBot}
               disabled={marketClosed || !selectedBotId}

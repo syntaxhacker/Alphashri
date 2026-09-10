@@ -1,49 +1,50 @@
-import { forwardRef } from "react";
+import type { ReactNode } from "react";
+import { Box, Button, Typography } from "@mui/material";
 
 interface ChartBodyProps {
   loading: boolean;
   error: string | null;
-  chartError: string | null;
   hasData: boolean;
+  chart: ReactNode;
 }
 
-export const ChartBody = forwardRef<HTMLDivElement, ChartBodyProps>(
-  ({ loading, error, chartError, hasData }, ref) => {
-    const displayError = error || chartError;
+export function ChartBody(
+  { loading, error, hasData, chart }: ChartBodyProps,
+) {
+  const displayError = error;
 
     return (
-      <div className="chart-view-body" id="chart-body" data-testid="chart-body">
+      <Box
+        id="chart-body"
+        data-testid="chart-body"
+        sx={{ flex: 1, minHeight: 0, p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%" }}
+      >
         {loading && (
-          <div className="chart-loading" data-testid="chart-loading">
-            <p>Loading chart...</p>
-          </div>
+          <Box data-testid="chart-loading" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+            <Typography sx={{ textAlign: "center" }}>Loading chart...</Typography>
+          </Box>
         )}
 
         {displayError && !loading && (
-          <div className="chart-error" data-testid="chart-error">
-            <p>{displayError}</p>
-            <button
-              onClick={() => window.location.reload()}
-              data-testid="chart-retry-btn"
-              className="retry-btn"
-            >
-              Retry
-            </button>
-          </div>
+          <Box data-testid="chart-error" sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
+            <Typography color="error" sx={{ textAlign: "center" }}>{displayError}</Typography>
+            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+              <Button onClick={() => window.location.reload()} data-testid="chart-retry-btn" size="small" variant="outlined">
+                Retry
+              </Button>
+            </Box>
+          </Box>
         )}
 
         {!loading && !displayError && hasData && (
-          <div
-            ref={ref}
-            className="chart-container-full"
+          <Box
             data-testid="candlestick-chart"
             id="candlestick-chart"
-            style={{ width: "100%", height: "100%" }}
-          />
+            sx={{ bgcolor: "background.paper", borderRadius: 1, width: "100%", maxWidth: 1200, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}
+          >
+            {chart}
+          </Box>
         )}
-      </div>
+      </Box>
     );
-  },
-);
-
-ChartBody.displayName = "ChartBody";
+}

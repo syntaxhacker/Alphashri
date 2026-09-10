@@ -4,11 +4,17 @@ import { IconRefresh, IconSearch, IconSparkles } from "@tabler/icons-react";
 import { CompactPage, CompactPanel, CompactStat, CompactStatGrid } from "./compact";
 
 const meta: Meta<typeof CompactPanel> = {
-  title: "Design System/Common/Compact",
+  title: "Composites/Compact",
   component: CompactPanel,
   tags: ["autodocs"],
   parameters: {
     layout: "fullscreen",
+    docs: {
+      description: {
+        component:
+          'Compact layout primitives — `CompactPage` (dense page shell with title/actions), `CompactPanel` (themed card surface for cards and empty states), and `CompactStat`/`CompactStatGrid` (responsive 2-4 column stat tiles). Use for dashboard and dense data pages where vertical space is tight. When not: for spacious marketing or detail pages use standard MUI `Card`/`Paper` directly.',
+      },
+    },
   },
 };
 
@@ -32,10 +38,10 @@ export const Panel: Story = {
             This replaces repeated `Card` and `Paper` shells in compact dashboard views.
           </Text>
           <Group gap="xs">
-            <Badge variant="light" color="teal">
+            <Badge variant="light" color="info">
               Reusable
             </Badge>
-            <Badge variant="light" color="gray">
+            <Badge variant="light" color="secondary">
               Theme-aware
             </Badge>
           </Group>
@@ -49,7 +55,7 @@ export const StatGrid: Story = {
   render: () => (
     <div style={{ padding: 16, maxWidth: 960 }}>
       <CompactStatGrid>
-        <CompactStat label="Net P&L" value="₹42,180" tone="green" hint="+8.2% today" />
+        <CompactStat label="Net P&L" value="₹42,180" tone="success" hint="+8.2% today" />
         <CompactStat label="Win Rate" value="61.4%" tone="blue.6" hint="Last 30 trades" />
         <CompactStat label="Open Positions" value="4" tone="orange.6" hint="2 active strategies" />
         <CompactStat label="Drawdown" value="-3.1%" tone="red.6" hint="Within limit" />

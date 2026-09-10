@@ -84,11 +84,11 @@ export function getPeriodFromDateRange(fromDate: string | null, toDate: string |
   const todayStr = dayjs().format("YYYY-MM-DD");
   if (fromDate === todayStr && toDate === todayStr) return "today";
   const weekAgoStr = dayjs().subtract(7, "day").format("YYYY-MM-DD");
-  if (fromDate === weekAgoStr && !toDate) return "week";
+  if (fromDate === weekAgoStr && (toDate === todayStr || !toDate)) return "week";
   const monthAgoStr = dayjs().subtract(1, "month").format("YYYY-MM-DD");
-  if (fromDate === monthAgoStr && !toDate) return "month";
+  if (fromDate === monthAgoStr && (toDate === todayStr || !toDate)) return "month";
   const yearAgoStr = dayjs().subtract(1, "year").format("YYYY-MM-DD");
-  if (fromDate === yearAgoStr && !toDate) return "year";
+  if (fromDate === yearAgoStr && (toDate === todayStr || !toDate)) return "year";
   if (fromDate) {
     if (dayjs(fromDate).isAfter(dayjs().subtract(7, "day").subtract(1, "second"))) return "week";
     if (dayjs(fromDate).isAfter(dayjs().subtract(1, "month").subtract(1, "second"))) return "month";

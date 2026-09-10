@@ -1,13 +1,14 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { AppShell } from "@mantine/core";
+import { AppShell } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
 import { BrowserRouter } from "react-router-dom";
 import { IconRocket, IconChartLine, IconTrendingUp, IconCurrencyDollar } from "@tabler/icons-react";
 
 const meta: Meta<typeof NavbarLinksGroup> = {
-  title: "Design System/Layout/NavItem",
+  title: "Examples/App Layout/NavItem",
   component: NavbarLinksGroup,
   tags: ["autodocs"],
+  parameters: { docs: { description: { component: "Sidebar nav item — single link or collapsible group for AppShell navbar. Use inside NavbarNested/SideMenu. When not: for header nav use NavLink or Tabs." } } },
   decorators: [
     (Story) => (
       <BrowserRouter>

@@ -27,7 +27,7 @@ export function ArticleSymbols({
           >
             <Badge
               variant="light"
-              color={symbol.instrument_key ? "blue" : "gray"}
+              color={symbol.instrument_key ? "primary" : "secondary"}
               onClick={() => onSymbolClick(symbol)}
               data-testid={`news-symbol-${symbol.code}`}
             >

@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Text, Grid, Stack, NumberInput } from "@/ui";
+import { Text, Stack, NumberInput } from "@/ui";
+import Box from "@mui/material/Box";
 import type { StrategyConfig } from "../../types/paperTrading";
 
 type ConfigValueHandler = (
@@ -20,8 +21,8 @@ export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onC
       <Text fw={600} size="xs" tt="uppercase" mb={2}>
         Opening Range Breakout
       </Text>
-      <Grid gutter={4}>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="OR Minutes"
             description="Opening range in minutes"
@@ -34,8 +35,8 @@ export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onC
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Stop Loss %"
             description="Stop loss percentage"
@@ -50,8 +51,8 @@ export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onC
             error={slPctError ? "Invalid stop loss percentage" : undefined}
             errorProps={{ "data-testid": "config-sl-pct-error" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 4 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Take Profit %"
             description="Take profit percentage"
@@ -64,10 +65,10 @@ export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onC
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
-      <Grid gutter={4} mt={2}>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, mt: 2 }}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Min OR Range %"
             description="Minimum ORB range"
@@ -80,8 +81,8 @@ export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onC
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
+        </Box>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
           <NumberInput
             label="Max OR Range %"
             description="Maximum ORB range"
@@ -94,8 +95,8 @@ export const OrbSettingsSection = memo(function OrbSettingsSection({ config, onC
             size="xs"
             style={{ width: "100%" }}
           />
-        </Grid.Col>
-      </Grid>
+        </Box>
+      </Box>
     </Stack>
   );
 });

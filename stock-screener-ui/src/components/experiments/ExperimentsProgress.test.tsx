@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { describe, it, expect, afterEach, beforeEach, vi } from "vitest";
 import { cleanup, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import { ExperimentsProgress } from "./ExperimentsProgress";
 import type { ExperimentState } from "../../types/experiments";
 
@@ -54,7 +54,7 @@ describe("ExperimentsProgress", () => {
   });
 
   it("shows empty state when no active experiment", () => {
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-empty")).toHaveTextContent(
       "No active experiment",
     );
@@ -63,7 +63,7 @@ describe("ExperimentsProgress", () => {
   it("renders status, progress counter, progress bar, and best PF", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState());
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-progress-status")).toHaveTextContent("running");
     expect(screen.getByTestId("experiments-progress-counter")).toHaveTextContent("14/72");
@@ -75,7 +75,7 @@ describe("ExperimentsProgress", () => {
   it("renders last result description", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState());
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-last-result")).toHaveTextContent(
       "sl 1.0 pf 1.83",
     );
@@ -84,7 +84,7 @@ describe("ExperimentsProgress", () => {
   it("falls back to best_desc when last_result has no description", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState({ last_result: null, best_desc: "baseline sweep" }));
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-last-result")).toHaveTextContent(
       "baseline sweep",
     );
@@ -96,7 +96,7 @@ describe("ExperimentsProgress", () => {
     setSessionState(makeState());
     api.pauseExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-pause-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("experiments-resume-btn")).not.toBeInTheDocument();
@@ -114,7 +114,7 @@ describe("ExperimentsProgress", () => {
     setSessionState(makeState({ status: "paused" }));
     api.resumeExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-resume-btn")).toBeInTheDocument();
     expect(screen.queryByTestId("experiments-pause-btn")).not.toBeInTheDocument();
@@ -131,7 +131,7 @@ describe("ExperimentsProgress", () => {
     setSessionState(makeState());
     api.cancelExperiment.mockResolvedValue(true);
     api.fetchSessionState.mockResolvedValue(null);
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
 
     await user.click(screen.getByTestId("experiments-cancel-btn"));
     await waitFor(() => {
@@ -142,7 +142,7 @@ describe("ExperimentsProgress", () => {
   it("hides control buttons once completed", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState({ status: "completed", current: 72, total: 72, best_pf: 1.83 }));
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
 
     expect(screen.getByTestId("experiments-progress-status")).toHaveTextContent("completed");
     expect(screen.queryByTestId("experiments-pause-btn")).not.toBeInTheDocument();
@@ -153,7 +153,7 @@ describe("ExperimentsProgress", () => {
   it("renders error status badge", () => {
     setActiveSession("exp_orb_1");
     setSessionState(makeState({ status: "error" }));
-    renderWithMantine(<ExperimentsProgress />);
+    renderWithProviders(<ExperimentsProgress />);
     expect(screen.getByTestId("experiments-progress-status")).toHaveTextContent("error");
   });
 });

@@ -94,7 +94,7 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         header: "Status",
         accessorKey: "status",
         cell: (info) => (
-          <Badge color={getStatusColor(info.getValue<string>())} variant="light" size="sm">
+          <Badge color={getStatusColor(info.getValue<string>())} variant="filled" size="sm">
             {info.getValue<string>()}
           </Badge>
         ),
@@ -168,7 +168,7 @@ export function LLMStatsPanel() {
 
   return (
     <Stack gap="sm" data-testid="admin-llm-panel">
-      <Paper withBorder p="sm" radius="sm">
+      <Paper p="sm" radius="sm">
         {loading && !data ? (
           <Group gap="sm" justify="center" py="sm">
             <Loader size="sm" />
@@ -202,13 +202,13 @@ export function LLMStatsPanel() {
         </CompactPanel>
       )}
 
-      {error && <Alert color="red" variant="light">{error}</Alert>}
+      {error && <Alert color="error" variant="light">{error}</Alert>}
 
       <Group justify="space-between">
         <Text size="sm" fw={500}>Recent Runs</Text>
         <Group gap="xs">
           <Button size="compact-xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStats} loading={loading}>Refresh</Button>
-          <Button size="compact-xs" variant="light" color="red" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
+          <Button size="compact-xs" variant="filled" color="error" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
         </Group>
       </Group>
 

@@ -3,7 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { screen, cleanup, within } from "@testing-library/react";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 
 const mockStateStore: any = {
   currentView: "live",
@@ -106,33 +106,10 @@ vi.mock("./PaperSettings", () => ({
   PaperSettings: () => <div data-testid="paper-settings">Settings</div>,
 }));
 
-vi.mock("@/ui", async () => {
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...ui,
-    DatePicker: ({ value, onChange, ...props }: any) => (
-      <input data-testid={props["data-testid"]} type="date" value={value} onChange={onChange} readOnly />
-    ),
-    Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
-      <select data-testid={testId} value={value || ""} onChange={(e: any) => { const val = e.target.value; onChange(val === "" ? null : val); }} {...rest}>
-        {data?.map((opt: any) => <option key={opt.value} value={opt.value ?? ""}>{opt.label}</option>)}
-      </select>
-    ),
-    SegmentedControl: ({ data, value, onChange, ...props }: any) => (
-      <div data-testid={props["data-testid"]}>
-        {data?.map((item: any) => (
-          <button key={item.value} data-active={value === item.value} onClick={() => onChange(item.value)}>
-            {item.label}
-          </button>
-        ))}
-      </div>
-    ),
-  };
-});
-
 vi.mock("react-router-dom", () => ({
   useNavigate: vi.fn(() => vi.fn()),
   useLocation: vi.fn(() => ({ pathname: "/" })),
+  useSearchParams: vi.fn(() => [new URLSearchParams(), vi.fn()]),
 }));
 
 vi.mock("../../hooks/useStoreSubscription", () => ({
@@ -157,7 +134,7 @@ afterEach(() => {
 });
 
 function r() {
-  return renderWithMantine(<PaperTradingView />);
+  return renderWithProviders(<PaperTradingView />);
 }
 
 describe("PaperTradingView", () => {
@@ -300,7 +277,7 @@ describe("PaperTradingView", () => {
   describe("cleanup on unmount", () => {
     test("cleanup stops auto-refresh on unmount", async () => {
       const { stopLiveAutoRefresh } = await import("../../api/paperTrading");
-      const { unmount } = renderWithMantine(<PaperTradingView />);
+      const { unmount } = renderWithProviders(<PaperTradingView />);
       unmount();
       expect(stopLiveAutoRefresh).toHaveBeenCalled();
     });

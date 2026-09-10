@@ -168,13 +168,13 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
     return (
       <Box
         data-testid="replay-chart-empty"
-        style={{
+        sx={{
           height: "100%",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          backgroundColor: "var(--mantine-color-body)",
-          borderRadius: "var(--mantine-radius-md)",
+          bgcolor: "background.paper",
+          borderRadius: 2,
         }}
       >
         <Text c="dimmed">Run a replay to see chart</Text>
@@ -189,7 +189,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           <Badge
             key={sym}
             variant={sym === selectedSymbol ? "filled" : "light"}
-            color={sym === selectedSymbol ? "teal" : "gray"}
+            color={sym === selectedSymbol ? "info" : "secondary"}
             size="sm"
             style={{ cursor: "pointer" }}
             onClick={() => setSelectedSymbol(sym)}
@@ -205,7 +205,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
                 key={preset.label}
                 size="compact-xs"
                 variant={activeTF === preset.minutes ? "filled" : "subtle"}
-                color={activeTF === preset.minutes ? "teal" : "gray"}
+                color={activeTF === preset.minutes ? "info" : "secondary"}
                 onClick={() => setActiveTF(preset.minutes)}
                 data-testid={`tf-btn-${preset.label}`}
               >

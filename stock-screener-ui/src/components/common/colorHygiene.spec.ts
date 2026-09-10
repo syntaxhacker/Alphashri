@@ -3,7 +3,7 @@
  * Guard: common components must not contain hardcoded color literals.
  * Colors come from ONE source: src/ui/palette.ts (via config/colors).
  * This catches any future component that inlines hex/rgba instead of
- * importing palette tokens or using Mantine theme CSS variables.
+ * importing palette tokens or using MUI theme CSS variables.
  */
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -31,7 +31,7 @@ function walk(dir: string): string[] {
     const p = join(dir, name);
     if (statSync(p).isDirectory()) {
       out.push(...walk(p));
-    } else if (/\.(ts|tsx|css)$/.test(name) && !name.endsWith(".test.") && !name.includes("stories")) {
+    } else if (/\.(ts|tsx|css)$/.test(name) && !name.includes(".test.") && !name.includes(".spec.") && !name.includes("stories")) {
       out.push(p);
     }
   }
@@ -60,6 +60,8 @@ describe("color hygiene guard", () => {
     const ALLOWED_RGBA = [
       "rgba(63, 185, 80, 0.45)", // VOLUME_BULLISH (green up)
       "rgba(248, 81, 73, 0.45)", // VOLUME_BEARISH (red down)
+      "rgba(63, 185, 80, 0.18)", // flash-up (POSITIVE 0.18)
+      "rgba(248, 81, 73, 0.14)", // flash-down (NEGATIVE 0.14)
       "rgba(13, 17, 23, 0.9)",   // BG #0D1117
       "rgba(1, 4, 9, 0.4)",      // BLACK #010409
     ];
@@ -79,6 +81,6 @@ describe("color hygiene guard", () => {
       const m = txt.match(COLOR_RE);
       if (m) offenders.push(`${r}: ${[...new Set(m)].slice(0, 4).join(", ")}`);
     }
-    expect(offenders, "ui wrappers must pass through Mantine theme").toEqual([]);
+    expect(offenders, "ui wrappers must pass through MUI theme").toEqual([]);
   });
 });

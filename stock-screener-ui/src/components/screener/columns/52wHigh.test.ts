@@ -23,12 +23,12 @@ describe("52wHigh columns", () => {
   describe("gapCol to_52w_high formatting (52W gap %)", () => {
     const fmt = () => findFmt("to_52w_high");
     it.each([
-      [-5.76, "-5.76%", "green"],
+      [-5.76, "-5.76%", "success"],
       [0, "0.00%", ""],
       [0.3, "+0.30%", ""],
       [2, "+2.00%", ""],
-      [2.01, "+2.01%", "red"],
-      [3.5, "+3.50%", "red"],
+      [2.01, "+2.01%", "error"],
+      [3.5, "+3.50%", "error"],
     ])("gap %s -> %s class %s", (val, expVal, expCls) => {
       const res: any = fmt()(val);
       expect(res.value).toBe(expVal);

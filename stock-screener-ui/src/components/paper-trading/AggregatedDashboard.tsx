@@ -9,7 +9,6 @@ import {
   Flex,
   Group,
   Loader,
-  Paper,
   Select,
   SimpleGrid,
   Stack,
@@ -20,6 +19,7 @@ import { getPaperTradingState, subscribe } from "../../state/paperTrading";
 import { fetchDashboardAnalytics } from "../../api/paperTrading";
 import { TradingDatePicker } from "../common/TradingDatePicker";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { SectionHeader } from "../common/SectionHeader";
 import { formatCurrencyCompact, formatSignedPnl, getPnLTextColor } from "../../utils/ui-helpers";
 import {
   PERF_POSITIVE,
@@ -34,6 +34,7 @@ import {
   SECTOR_GREEN,
   SECTOR_RED,
 } from "../../config/colors";
+import { withAlpha } from "../../utils/color";
 import { TanStackTable } from "../common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type {
@@ -44,31 +45,22 @@ import type {
   PaperDashboardTradeItem,
 } from "../../types/paperTrading";
 
-function withAlpha(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 const PRESETS = ["7D", "30D", "90D", "YTD", "All"];
-const PRESET_COLORS = ["blue", "cyan", "teal", "grape", "gray"];
 const splitLine = { lineStyle: { color: withAlpha(TEXT_MUTED, 0.14) } };
 
-const EXIT_PIE_COLORS = [
-  POSITIVE, NEGATIVE, SECTOR_GREEN, SECTOR_RED,
-  CREAM, TEXT_MUTED, BROWN, BROWN_DARK,
-];
+// Card + chart rhythm: hero 240, distribution row 200, tables scroll at 280.
+const CHART_HERO = 240;
+const CHART_ROW = 200;
 
-function SectionHeading({ title, badge, color = "blue" }: { title: string; badge?: string; color?: string }) {
-  return (
-    <Group gap="xs">
-      <Box w={4} h={18} style={{ borderRadius: 2, backgroundColor: `var(--mantine-color-${color}-6)` }} />
-      <Text fw={600} size="sm">{title}</Text>
-      {badge && <Badge size="sm" variant="light" color={color}>{badge}</Badge>}
-    </Group>
-  );
+// Exit reasons get semantic colors (TP green / SL red); anything else neutrals.
+const EXIT_NEUTRALS = [CREAM, TEXT_MUTED, BROWN, BROWN_DARK, SECTOR_GREEN, SECTOR_RED];
+function exitColor(reason: string, index: number) {
+  const r = reason.toLowerCase();
+  if (/tp|profit|target|take/.test(r)) return POSITIVE;
+  if (/sl|stop|loss/.test(r)) return NEGATIVE;
+  if (/trail/.test(r)) return SECTOR_GREEN;
+  if (/breakeven|\bbe\b|time|expir/.test(r)) return TEXT_MUTED;
+  return EXIT_NEUTRALS[index % EXIT_NEUTRALS.length];
 }
 
 function formatPf(value: number | null) {
@@ -102,7 +94,7 @@ function EquityChart({ data }: { data: PaperDashboardAnalyticsData }) {
   const lineColor = isPositive ? PERF_POSITIVE : PERF_NEGATIVE;
   return (
     <ReactECharts
-      style={{ height: 230, minHeight: 230 }}
+      style={{ height: CHART_HERO, minHeight: CHART_HERO }}
       option={chartBase(
         points.map((p) => p.date.slice(5)),
         [{
@@ -130,7 +122,7 @@ function EquityChart({ data }: { data: PaperDashboardAnalyticsData }) {
 function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
   return (
     <ReactECharts
-      style={{ height: 230, minHeight: 230 }}
+      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
       option={chartBase(
         data.daily_pnl.map((p) => p.date.slice(5)),
         [{
@@ -143,10 +135,6 @@ function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
             },
           })),
           barMaxWidth: 22,
-        },
-        {
-          type: "line",
-          data: [],
           markLine: {
             silent: true,
             symbol: "none",
@@ -163,7 +151,7 @@ function DailyPnlChart({ data }: { data: PaperDashboardAnalyticsData }) {
 function DrawdownChart({ data }: { data: PaperDashboardAnalyticsData }) {
   return (
     <ReactECharts
-      style={{ height: 190, minHeight: 190 }}
+      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
       option={chartBase(
         data.drawdown.map((p) => p.date.slice(5)),
         [{
@@ -193,7 +181,7 @@ function BotComparisonChart({ data }: { data: PaperDashboardAnalyticsData }) {
   const bots = data.bot_rankings.slice(0, 8);
   return (
     <ReactECharts
-      style={{ height: 190, minHeight: 190 }}
+      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
       option={{
         grid: { left: 88, right: 12, top: 12, bottom: 20 },
         tooltip: { trigger: "axis" as const },
@@ -218,7 +206,7 @@ function BotComparisonChart({ data }: { data: PaperDashboardAnalyticsData }) {
 function ExitReasonChart({ data }: { data: PaperDashboardAnalyticsData }) {
   return (
     <ReactECharts
-      style={{ height: 190, minHeight: 190 }}
+      style={{ height: CHART_ROW, minHeight: CHART_ROW }}
       option={{
         tooltip: { trigger: "item" as const },
         series: [{
@@ -227,7 +215,7 @@ function ExitReasonChart({ data }: { data: PaperDashboardAnalyticsData }) {
           data: data.exit_reasons.map((r, i) => ({
             name: r.reason,
             value: r.count,
-            itemStyle: { color: EXIT_PIE_COLORS[i % EXIT_PIE_COLORS.length], borderColor: withAlpha(BLACK, 0.1), borderWidth: 1 },
+            itemStyle: { color: exitColor(r.reason, i), borderColor: withAlpha(BLACK, 0.1), borderWidth: 1 },
           })),
           label: { fontSize: 10, formatter: "{b} {d}%" },
           emphasis: {
@@ -263,20 +251,32 @@ function SummaryStrip({ data }: { data: PaperDashboardAnalyticsData }) {
 }
 
 function BotRankingPanel({ bots }: { bots: PaperDashboardBotRanking[] }) {
+  const columns = useMemo<ColumnDef<PaperDashboardBotRanking>[]>(() => [
+    {
+      header: "#",
+      accessorKey: "bot_id",
+      cell: ({ row }) => (
+        <Text fw={700} size="sm" c={row.index === 0 ? "gold" : row.index < 3 ? undefined : "dimmed"}>
+          {row.index === 0 ? "🥇" : row.index === 1 ? "🥈" : row.index === 2 ? "🥉" : row.index + 1}
+        </Text>
+      ),
+    },
+    {
+      header: "Bot",
+      accessorKey: "bot_name",
+      cell: ({ getValue, row }) => (
+        <Stack gap={0} style={{ minWidth: 0 }}>
+          <Text size="sm" fw={700} truncate>{getValue<string>()}</Text>
+          <Text size="xs" c="dimmed">{row.original.total_trades} trades · {pct(row.original.win_rate)} win</Text>
+        </Stack>
+      ),
+    },
+    { header: "PF", accessorKey: "profit_factor", cell: ({ getValue }) => formatPf(getValue<number | null>()) },
+    { header: "Net P&L", accessorKey: "total_net_pnl", cell: ({ getValue }) => <PnlValue value={getValue<number>()} /> },
+  ], []);
   return (
-    <CompactPanel title="Bot Ranking" description={`${bots.length} bots with closed trades`} h="100%">
-      <Stack gap={6}>
-        {bots.slice(0, 8).map((bot, index) => (
-          <Flex key={bot.bot_id} align="center" gap="xs">
-            <Text w={22} size="xs" c="dimmed">{index + 1}</Text>
-            <Stack gap={0} style={{ minWidth: 0, flex: 1 }}>
-              <Text size="sm" fw={700} truncate>{bot.bot_name}</Text>
-              <Text size="xs" c="dimmed">{bot.total_trades} trades · {pct(bot.win_rate)} win · PF {formatPf(bot.profit_factor)}</Text>
-            </Stack>
-            <PnlValue value={bot.total_net_pnl} />
-          </Flex>
-        ))}
-      </Stack>
+    <CompactPanel className="paper-dashboard-bot-ranking" title="Bot Ranking" description={`${bots.length} bots with closed trades`}>
+      <TanStackTable columns={columns} data={bots.slice(0, 8)} />
     </CompactPanel>
   );
 }
@@ -296,7 +296,7 @@ function StrategyTable({ rows }: { rows: PaperDashboardStrategyRanking[] }) {
 
 function TradesTable({ title, trades }: { title: string; trades: PaperDashboardTradeItem[] }) {
   const isWinners = title.toLowerCase().includes("win");
-  const accentColor = isWinners ? "teal" : "red";
+  const accentColor = isWinners ? "success" : "error";
   const columns = useMemo<ColumnDef<PaperDashboardTradeItem>[]>(() => [
     { header: "Symbol", accessorKey: "symbol", cell: ({ getValue }) => <Text fw={700} size="sm">{getValue<string>()}</Text> },
     { header: "Bot", accessorKey: "bot_name" },
@@ -306,11 +306,7 @@ function TradesTable({ title, trades }: { title: string; trades: PaperDashboardT
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Group gap="xs" mb="xs">
-        <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: `var(--mantine-color-${accentColor}-6)` }} />
-        <Text fw={600} size="sm">{title}</Text>
-        <Badge size="sm" variant="light" color={accentColor}>{trades.length}</Badge>
-      </Group>
+      <Box mb="xs"><SectionHeader title={title} badge={trades.length} color={accentColor} /></Box>
       <TanStackTable columns={columns} data={trades} />
     </CompactPanel>
   );
@@ -325,11 +321,7 @@ function SymbolPanel({ data }: { data: PaperDashboardAnalyticsData }) {
   ], []);
   return (
     <CompactPanel scrollable style={{ height: 280 }}>
-      <Group gap="xs" mb="xs">
-        <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-indigo-6)" }} />
-        <Text fw={600} size="sm">Symbol Performance</Text>
-        <Badge size="sm" variant="light" color="indigo">{data.symbol_performance.length}</Badge>
-      </Group>
+      <Box mb="xs"><SectionHeader title="Symbol Performance" badge={data.symbol_performance.length} color="secondary" /></Box>
       <TanStackTable columns={columns} data={data.symbol_performance.slice(0, 12)} />
     </CompactPanel>
   );
@@ -367,26 +359,28 @@ export function AggregatedDashboard() {
   const data = state.dashboardAnalyticsData;
 
   return (
-    <Flex direction="column" gap="xs" p="xs" data-testid="paper-dashboard">
-      <Stack gap={2}>
-        <SectionHeading title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="blue" />
-        <Text size="xs" c="dimmed">
-          {data?.period.from_date || "first trade"} to {data?.period.to_date || "today"}
-        </Text>
-      </Stack>
-      <Button size="xs" leftSection={<IconRefresh size={14} />} onClick={load} loading={state.dashboardAnalyticsLoading}>
-        Refresh
-      </Button>
+    <Flex direction="column" gap={16} p={2} data-testid="paper-dashboard" className="paper-dashboard" id="paper-dashboard">
+      <Group justify="space-between" align="flex-end" className="paper-dashboard-header" id="paper-dashboard-header">
+        <Stack gap={0}>
+          <SectionHeader title="Dashboard" badge={data?.period.trade_count ? `${data.period.trade_count} trades` : undefined} color="primary" />
+          <Text size="xs" c="dimmed">
+            {data?.period.from_date || "first trade"} to {data?.period.to_date || "today"}
+          </Text>
+        </Stack>
+        <Button className="paper-dashboard-refresh" size="xs" leftSection={<IconRefresh size={14} />} onClick={load} loading={state.dashboardAnalyticsLoading}>
+          Refresh
+        </Button>
+      </Group>
 
-      <Group gap="xs" wrap="wrap">
+      <Group gap={16} wrap="wrap" className="paper-dashboard-filters" id="paper-dashboard-filters">
         <Select size="sm" w={180} value={botId} onChange={(value) => setBotId(value || "all")} data={botOptions} data-testid="dashboard-bot-filter" />
-        <Group gap={4}>
-          {PRESETS.map((item, idx) => (
+        <Group gap={8}>
+          {PRESETS.map((item) => (
             <Button
               key={item}
               size="xs"
-              variant={preset === item ? "filled" : "light"}
-              color={PRESET_COLORS[idx]}
+              variant={preset === item ? "filled" : "outline"}
+              color="primary"
               onClick={() => {
                 setPreset(item);
                 setFromDate("");
@@ -402,78 +396,58 @@ export function AggregatedDashboard() {
       </Group>
 
       {state.dashboardAnalyticsLoading && !data ? (
-        <Center h={420}>
-          <Stack align="center" gap="sm">
+        <Center h={420} className="paper-dashboard-loading">
+          <Stack align="center" gap={8}>
             <Loader />
             <Text size="sm" c="dimmed">Loading dashboard...</Text>
           </Stack>
         </Center>
       ) : !data || data.summary.total_trades === 0 ? (
-        <Center h={260}>
+        <Center h={260} className="paper-dashboard-empty">
           <Text c="dimmed">No closed trades found for this period.</Text>
         </Center>
       ) : (
         <>
           <SummaryStrip data={data} />
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
-            <BotRankingPanel bots={data.bot_rankings} />
-            <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-blue-6)" }} />
-                <Text fw={600} size="sm">Equity Curve</Text>
-              </Group>
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={16} className="paper-dashboard-row-hero">
+            <CompactPanel
+              className="paper-dashboard-card"
+              title={<SectionHeader title="Equity Curve" color="primary" />}
+            >
               <EquityChart data={data} />
-            </Paper>
+            </CompactPanel>
+            <BotRankingPanel bots={data.bot_rankings} />
           </SimpleGrid>
 
-          <SimpleGrid cols={{ base: 1, lg: 3 }} spacing="xs">
-            <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-teal-6)" }} />
-                <Text fw={600} size="sm">Bot Comparison</Text>
-              </Group>
+          <SimpleGrid cols={{ base: 1, sm: 2, lg: 4 }} spacing={16} className="paper-dashboard-row-dist">
+            <CompactPanel title={<SectionHeader title="Bot Comparison" color="primary" />}>
               <BotComparisonChart data={data} />
-            </Paper>
-            <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-grape-6)" }} />
-                <Text fw={600} size="sm">Daily P&L</Text>
-              </Group>
+            </CompactPanel>
+            <CompactPanel title={<SectionHeader title="Daily P&L" color="primary" />}>
               <DailyPnlChart data={data} />
-            </Paper>
-            <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-red-6)" }} />
-                <Text fw={600} size="sm">Drawdown</Text>
-              </Group>
+            </CompactPanel>
+            <CompactPanel title={<SectionHeader title="Drawdown" color="primary" />}>
               <DrawdownChart data={data} />
-            </Paper>
+            </CompactPanel>
+            <CompactPanel title={<SectionHeader title="Exit Mix" color="primary" />}>
+              <ExitReasonChart data={data} />
+            </CompactPanel>
           </SimpleGrid>
 
-          <Paper withBorder p="xs" radius="xs">
-            <Group gap="xs" mb="xs">
-              <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-cyan-6)" }} />
-              <Text fw={600} size="sm">Strategy Performance</Text>
-            </Group>
+          <CompactPanel
+            className="paper-dashboard-strategy"
+            title={<SectionHeader title="Strategy Performance" color="primary" />}
+          >
             <StrategyTable rows={data.strategy_rankings} />
-          </Paper>
+          </CompactPanel>
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
+          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing={16} className="paper-dashboard-winners-losers">
             <TradesTable title="Biggest Winners" trades={data.biggest_winners} />
             <TradesTable title="Biggest Losers" trades={data.biggest_losers} />
           </SimpleGrid>
 
-          <SimpleGrid cols={{ base: 1, lg: 2 }} spacing="xs">
-            <SymbolPanel data={data} />
-            <Paper withBorder p="xs" radius="xs">
-              <Group gap="xs" mb="xs">
-                <Box w={4} h={16} style={{ borderRadius: 2, backgroundColor: "var(--mantine-color-orange-6)" }} />
-                <Text fw={600} size="sm">Exit Reason Breakdown</Text>
-              </Group>
-              <ExitReasonChart data={data} />
-            </Paper>
-          </SimpleGrid>
+          <SymbolPanel data={data} />
         </>
       )}
     </Flex>

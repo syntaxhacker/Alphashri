@@ -1,11 +1,11 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, afterEach, beforeEach } from "vitest";
-import { screen, cleanup, waitFor, within } from "@testing-library/react";
+import { screen, cleanup, waitFor, within, fireEvent } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { PaperChart } from "./PaperChart2";
 import { mockPosition } from "./testFixtures";
-import { renderWithMantine } from "../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../test-utils/renderWithProviders";
 import type { PaperChartData, PaperTradingState } from "../../types/paperTrading";
 
 afterEach(() => {
@@ -98,68 +98,28 @@ vi.mock("../../hooks/useStoreSubscription", () => ({
   useStoreSubscription: vi.fn(),
 }));
 
+// The real ui DatePicker (MUI section-based field) drops inputProps testids
+// and can't be driven by fireEvent; mock as a native input like
+// PaperTradingHelpers.test.tsx does for TradingDatePicker. Values convert to
+// Date like the real picker (empty -> null).
+vi.mock("@/ui/dates/DatePicker", () => ({
+  DatePicker: ({ value, onChange, "data-testid": testId, placeholder }: any) => (
+    <input
+      type="text"
+      data-testid={testId}
+      defaultValue={Array.isArray(value) ? "" : (value ?? "")}
+      placeholder={placeholder}
+      onChange={(e) => onChange(e.target.value ? new Date(e.target.value) : null)}
+    />
+  ),
+}));
+
 vi.mock("../chart/TradingChart", () => ({
   TradingChart: vi.fn(() => <div data-testid="mock-trading-chart">TradingChart</div>),
 }));
 
-// Mock Mantine UI components for deterministic DOM interaction
-vi.mock("@/ui", async () => {
-  const core = await vi.importActual<typeof import("@mantine/core")>("@mantine/core");
-  const ui = await vi.importActual<typeof import("@/ui")>("@/ui");
-  return {
-    ...core,
-    UIProvider: ui.UIProvider,
-    useColorScheme: () => ({ colorScheme: "light", toggleColorScheme: vi.fn() }),
-    Select: ({ data, value, onChange, "data-testid": testId, ...rest }: any) => (
-      <select
-        data-testid={testId}
-        value={value || ""}
-        onChange={(e: any) => onChange(e.target.value || null)}
-        {...rest}
-      >
-        {data?.map((opt: any) => (
-          <option key={opt.value} value={opt.value}>
-            {opt.label}
-          </option>
-        ))}
-      </select>
-    ),
-    DatePicker: ({ value, onChange, "data-testid": testId, ...rest }: any) => {
-      return (
-        <div data-testid={testId || "chart-date-picker"}>
-          <input
-            data-testid="chart-date-picker-input"
-            value={value?.[0] ? new Date(value[0]).toISOString().slice(0,10) : ""}
-            onChange={(e) => {
-              const v = e.target.value ? new Date(e.target.value) : null;
-              // simulate range change: keep second date as today if only one
-              if (v) onChange([v, new Date()]);
-              else onChange([null, null]);
-            }}
-            placeholder="Range"
-          />
-          <button data-testid="chart-date-clear" onClick={() => onChange([null, null])}>clear</button>
-          <button data-testid="chart-date-set-range" onClick={() => onChange([new Date("2026-04-20"), new Date("2026-04-24")])}>set-range</button>
-          <button data-testid="chart-date-invalid-range" onClick={() => onChange([new Date("2026-04-25"), new Date("2026-04-20")])}>invalid</button>
-        </div>
-      );
-    },
-    Chip: ({ children, checked, onChange, ...rest }: any) => (
-      <label data-testid={rest["data-chip"] || undefined}>
-        <input
-          type="checkbox"
-          checked={!!checked}
-          onChange={(e) => onChange(e.target.checked)}
-          data-testid={`chip-${String(children).toLowerCase()}`}
-        />
-        {children}
-      </label>
-    ),
-    Popover: ({ children }: any) => <div>{children}</div>,
-    PopoverTarget: ({ children }: any) => <div>{children}</div>,
-    PopoverDropdown: ({ children }: any) => <div data-testid="popover-dropdown">{children}</div>,
-  };
-});
+// Mock MUI UI components for deterministic DOM interaction
+// mui migrated
 
 function setState(overrides: Partial<PaperTradingState>) {
   currentState = createMockState(overrides);
@@ -183,7 +143,7 @@ function mockChartData(overrides: Partial<PaperChartData> = {}): PaperChartData 
 }
 
 function r(jsx: React.ReactElement) {
-  return renderWithMantine(jsx);
+  return renderWithProviders(jsx);
 }
 
 describe("PaperChart2 component rendering - empty states via DOM", () => {
@@ -287,8 +247,9 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       selectedStrategyId: 1,
     });
     r(<PaperChart />);
-    const select = screen.getByTestId("chart-timeframe-select") as HTMLSelectElement;
-    await user.selectOptions(select, "1hour");
+    // MUI Select: options render in a Menu portal once opened ("1h" -> "1hour")
+    await user.click(within(screen.getByTestId("chart-timeframe-select")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "1h" }));
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
     // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true
@@ -303,19 +264,19 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
   });
 
   test("DatePicker range change triggers fetchPaperChart", async () => {
-    const user = userEvent.setup();
     setState({
       selectedSymbol: "RELIANCE",
       chartData: mockChartData(),
       chartLoading: false,
     });
     r(<PaperChart />);
-    await user.click(screen.getByTestId("chart-date-set-range"));
+    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "04/20/2026" } });
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
   });
 
-  test("DatePicker invalid range (from > to) does not call fetchPaperChart", async () => {
-    const user = userEvent.setup();
+  test("DatePicker clear (null date) does not call fetchPaperChart", async () => {
+    // The range UI is single-date; an emptied field yields null and must be
+    // ignored (previously crashed reading r[0] of null).
     setState({
       selectedSymbol: "RELIANCE",
       chartData: mockChartData(),
@@ -323,8 +284,9 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
     });
     r(<PaperChart />);
     mockFetchPaperChart.mockClear();
-    await user.click(screen.getByTestId("chart-date-invalid-range"));
-    // should return early, not call fetch
+    fireEvent.change(screen.getByTestId("chart-date-range"), { target: { value: "" } });
+    // let any async handling settle, then assert silence
+    await new Promise((resolve) => setTimeout(resolve, 50));
     expect(mockFetchPaperChart).not.toHaveBeenCalled();
   });
 
@@ -338,12 +300,13 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       showAllTrades: false,
     });
     r(<PaperChart />);
-    // Chips rendered inside PopoverDropdown
-    const orbChip = screen.getByTestId("chip-orb");
+    // Chips rendered inside PopoverDropdown — open it first
+    await user.click(screen.getByTestId("chart-more-button"));
+    const orbChip = await screen.findByTestId("chip-orb");
     await user.click(orbChip);
     expect(mockSetShowOrbLines).toHaveBeenCalledWith(true);
 
-    const allChip = screen.getByTestId("chip-all");
+    const allChip = await screen.findByTestId("chip-all");
     await user.click(allChip);
     expect(mockSetShowAllTrades).toHaveBeenCalledWith(true);
   });

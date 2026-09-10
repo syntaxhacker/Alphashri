@@ -3,7 +3,7 @@ import { describe, it, expect, afterEach, vi } from "vitest";
 import { screen, cleanup } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { GreeksPanel } from "./GreeksPanel";
-import { renderWithMantine } from "../../../test-utils/renderWithMantine";
+import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 afterEach(() => {
   cleanup();
@@ -12,17 +12,17 @@ afterEach(() => {
 
 describe("GreeksPanel", () => {
   it("renders panel container", () => {
-    renderWithMantine(<GreeksPanel />);
+    renderWithProviders(<GreeksPanel />);
     expect(screen.getByTestId("options-greeks-panel")).toBeInTheDocument();
   });
 
   it("shows Greeks Analysis title", () => {
-    renderWithMantine(<GreeksPanel />);
+    renderWithProviders(<GreeksPanel />);
     expect(screen.getByText("Greeks Analysis")).toBeInTheDocument();
   });
 
   it("shows placeholder content", () => {
-    renderWithMantine(<GreeksPanel />);
+    renderWithProviders(<GreeksPanel />);
     expect(screen.getByText("Greeks visualization will appear here")).toBeInTheDocument();
   });
 });

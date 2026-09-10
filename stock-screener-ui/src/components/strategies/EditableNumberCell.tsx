@@ -103,7 +103,7 @@ export function EditableNumberCell({
           textAlign: "right",
           height: 24,
           minHeight: 24,
-          fontSize: "var(--mantine-font-size-xs)",
+          fontSize: "11px",
           padding: "0 6px",
         },
       }}

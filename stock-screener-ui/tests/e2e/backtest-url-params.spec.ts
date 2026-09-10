@@ -174,7 +174,9 @@ test.describe("Backtest - URL Query Params", () => {
 
     await expect(page.locator('[data-testid="chip-BHEL"]')).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('[data-testid="variation-select"]')).toHaveValue(/52[Ww]/i, {
+    await expect(
+      page.locator('[data-testid="variation-select"] [role="combobox"]'),
+    ).toContainText(/52[Ww]/i, {
       timeout: 5000,
     });
   });
@@ -184,7 +186,9 @@ test.describe("Backtest - URL Query Params", () => {
 
     await expect(page.locator('[data-testid="chip-TCS"]')).toBeVisible({ timeout: 10000 });
 
-    await expect(page.locator('[data-testid="variation-select"]')).toHaveValue(/Conservative/i, {
+    await expect(
+      page.locator('[data-testid="variation-select"] [role="combobox"]'),
+    ).toContainText(/Conservative/i, {
       timeout: 5000,
     });
   });
@@ -207,13 +211,11 @@ test.describe("Backtest - URL Query Params", () => {
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
     await page.waitForLoadState("networkidle");
 
-    const variationSelect = page.locator('[data-testid="variation-select"]');
+    const variationSelect = page.locator('[data-testid="variation-select"] [role="combobox"]');
     await variationSelect.click({ force: true });
     await page.waitForTimeout(300);
 
-    const targetOption = page
-      .locator(".mantine-Select-option")
-      .filter({ hasText: /52[Ww] Target/i });
+    const targetOption = page.getByRole("option").filter({ hasText: /52[Ww] Target/i });
     await expect(targetOption.first()).toBeVisible({ timeout: 5000 });
     await targetOption.first().click();
     await page.waitForTimeout(500);
@@ -240,10 +242,10 @@ test.describe("Backtest - URL Query Params", () => {
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
     await symbolSelect.click({ force: true });
     await page.keyboard.type("RELIANCE", { delay: 50 });
-    await expect(page.locator(".mantine-MultiSelect-option").first()).toBeVisible({
+    await expect(page.locator('[role="option"]').first()).toBeVisible({
       timeout: 5000,
     });
-    await page.locator(".mantine-MultiSelect-option").first().click();
+    await page.locator('[role="option"]').first().click();
     await page.waitForTimeout(500);
 
     await page.waitForFunction(
@@ -266,7 +268,7 @@ test.describe("Backtest - URL Query Params", () => {
 
     await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 10000 });
 
-    await page.click('button:has-text("Screener")');
+    await page.locator('[data-testid="nav-screener"]').click();
     await page.waitForLoadState("networkidle");
     await expect(
       page.locator('[data-testid="screener-view"], [data-testid="screener-page"]'),
@@ -274,7 +276,7 @@ test.describe("Backtest - URL Query Params", () => {
       timeout: 10000,
     });
 
-    await page.click('button:has-text("Backtest")');
+    await page.locator('[data-testid="nav-backtest"]').click();
     await page.waitForLoadState("networkidle");
     await page.waitForSelector('[data-testid="backtest-view"]', { timeout: 10000 });
 

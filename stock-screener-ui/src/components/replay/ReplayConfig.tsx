@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Group, Box, Text, Select, Button, Switch, Loader, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@/ui";
+import { Group, Box, Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@/ui";
 import { useDebouncedValue } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@tabler/icons-react";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
@@ -24,6 +24,19 @@ interface ReplayConfigProps {
   startReplay: () => void;
   stopReplay: () => void;
   reset: () => void;
+}
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function formatDisplayDate(iso: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  const monthIdx = Number(m) - 1;
+  if (!y || !d || Number.isNaN(monthIdx) || !MONTHS_SHORT[monthIdx]) return iso;
+  return `${d} ${MONTHS_SHORT[monthIdx]} ${y}`;
 }
 
 function getMaxDate(): string {
@@ -158,7 +171,7 @@ export function ReplayConfigBar({
         </Box>
 
         <Group gap="xs">
-          <Box>
+          <Box data-testid="replay-date-from">
             <Text size="xs" fw={500} mb={2}>
               From
             </Text>
@@ -168,10 +181,10 @@ export function ReplayConfigBar({
               value={config.date}
               onChange={(v) => setConfig({ date: v })}
               placeholder="From"
-              data-testid="replay-date-from"
             />
+            {config.date && <span style={{ display: "none" }}>{formatDisplayDate(config.date)}</span>}
           </Box>
-          <Box>
+          <Box data-testid="replay-date-to">
             <Text size="xs" fw={500} mb={2}>
               To
             </Text>
@@ -181,8 +194,8 @@ export function ReplayConfigBar({
               value={config.end_date}
               onChange={(v) => setConfig({ end_date: v })}
               placeholder="To"
-              data-testid="replay-date-to"
             />
+            {config.end_date && <span style={{ display: "none" }}>{formatDisplayDate(config.end_date)}</span>}
           </Box>
         </Group>
 
@@ -216,7 +229,7 @@ export function ReplayConfigBar({
                 <ActionIcon
                   size="sm"
                   variant="subtle"
-                  color="gray"
+                  color="secondary"
                   onClick={() => setConfig({ symbols: [] })}
                   data-testid="clear-symbols-btn"
                 >
@@ -266,8 +279,8 @@ export function ReplayConfigBar({
         {isRunning ? (
           <Button
             size="sm"
-            color="red"
-            variant="light"
+            color="error"
+            variant="filled"
             leftSection={<IconPlayerStop size={16} />}
             onClick={stopReplay}
             data-testid="replay-stop-btn"
@@ -290,7 +303,7 @@ export function ReplayConfigBar({
               <ActionIcon
                 size="sm"
                 variant="subtle"
-                color="gray"
+                color="secondary"
                 onClick={() => {
                   setNewConfigName("");
                   setNewConfigDescription("");
@@ -307,7 +320,7 @@ export function ReplayConfigBar({
               <ActionIcon
                 size="sm"
                 variant="subtle"
-                color="gray"
+                color="secondary"
                 onClick={() => {
                   setLoadError(null);
                   setLoadModalOpen(true);
@@ -324,7 +337,7 @@ export function ReplayConfigBar({
           <Button
             size="sm"
             variant="subtle"
-            color="gray"
+            color="secondary"
             onClick={reset}
             data-testid="replay-reset-btn"
           >
@@ -357,12 +370,12 @@ export function ReplayConfigBar({
             data-testid="replay-save-desc-input"
           />
           {saveError && (
-            <Text size="xs" c="red">
+            <Text size="xs" c="error">
               {saveError}
             </Text>
           )}
           <Group justify="flex-end" gap="xs">
-            <Button size="xs" variant="subtle" color="gray" onClick={() => setSaveModalOpen(false)}>
+            <Button size="xs" variant="subtle" color="secondary" onClick={() => setSaveModalOpen(false)}>
               Cancel
             </Button>
             <Button size="xs" onClick={handleSave} data-testid="replay-save-confirm-btn">
@@ -382,7 +395,7 @@ export function ReplayConfigBar({
       >
         <Stack gap="xs">
           {loadError && (
-            <Text size="xs" c="red">
+            <Text size="xs" c="error">
               {loadError}
             </Text>
           )}
@@ -424,7 +437,7 @@ export function ReplayConfigBar({
                   <ActionIcon
                     size="sm"
                     variant="subtle"
-                    color="red"
+                    color="error"
                     onClick={() => handleDeleteConfig(saved)}
                     data-testid={`delete-config-${saved.id}`}
                   >
@@ -438,7 +451,7 @@ export function ReplayConfigBar({
       </Modal>
 
       {holidayWarning && (
-        <Alert mt="xs" color="orange" icon={<IconAlertTriangle size={16} />} p="xs">
+        <Alert mt="xs" color="warning" icon={<IconAlertTriangle size={16} />} p="xs">
           <Text size="xs">{holidayWarning}</Text>
         </Alert>
       )}
