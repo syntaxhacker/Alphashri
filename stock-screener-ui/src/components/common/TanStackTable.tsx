@@ -70,6 +70,11 @@ interface Props<T> {
    * screener) responsive; the full row model still drives sorting/selection.
    */
   rowWindowSize?: number;
+  /**
+   * When true the table fills its parent's height (no 65vh cap) instead of
+   * being capped — use inside a flex column layout that already has a height.
+   */
+  fillContainer?: boolean;
 }
 
 const ROW_ESTIMATED = 20;
@@ -131,6 +136,7 @@ export function TanStackTable<T>({
   getRowCanExpand,
   renderSubComponent,
   rowWindowSize = 0,
+  fillContainer = false,
 }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
   const [expanded, setExpanded] = useState<ExpandedState>(initialState?.expanded ?? {});
@@ -218,7 +224,7 @@ export function TanStackTable<T>({
   const bottomSpacerHeight = useRowWindow ? Math.max(0, totalHeight - rowOffsets[rowWindowEnd]) : 0;
 
   return (
-    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "65vh", minHeight: 200, border: 0, bgcolor: palette.SURFACE }}>
+    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: fillContainer ? "none" : "65vh", minHeight: fillContainer ? 0 : 200, flex: fillContainer ? 1 : undefined, height: fillContainer ? "100%" : undefined, border: 0, bgcolor: palette.SURFACE }}>
       <ScrollArea className="paper-tanstack-scroll" sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
         onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >

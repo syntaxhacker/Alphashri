@@ -171,15 +171,6 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
     }
   }, [state.chartFromDate, state.chartData?.date]);
 
-  const todayPresets = useMemo(() => [
-    { value: [dayjs().toDate(), dayjs().toDate()], label: "Single day" },
-    { value: [dayjs().subtract(1, "day").toDate(), dayjs().toDate()], label: "Last 2 days" },
-    { value: [dayjs().subtract(7, "day").toDate(), dayjs().toDate()], label: "Last 7 days" },
-    { value: [dayjs().subtract(30, "day").toDate(), dayjs().toDate()], label: "Last 30 days" },
-    { value: [dayjs().subtract(90, "day").toDate(), dayjs().toDate()], label: "Last 3 months" },
-    { value: [dayjs().startOf("year").toDate(), dayjs().toDate()], label: "Year to date" },
-  ], []);
-
   const chartDate = range[1] ? dayjs(range[1]).format("YYYY-MM-DD") : state.chartData?.date;
   const fromDate = range[0] ? dayjs(range[0]).format("YYYY-MM-DD") : undefined;
 
@@ -253,22 +244,31 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         value={state.chartTimeframe}
         onChange={handleTimeframeChange}
         data={fromDate ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
-        styles={{ input: { width: 64, minHeight: 26 } }}
+        style={{ width: 84 }}
       />
 
       <DatePicker
-        type="range"
         size="xs"
         clearable
-        allowSingleDateInRange
         maxDate={new Date()}
-        placeholder="Range"
+        placeholder="From"
         valueFormat="MMM D"
-        value={range}
-        onChange={handleRangeChange}
-        presets={todayPresets}
+        value={range[0]}
+        onChange={(d) => handleRangeChange([d, range[1]])}
+        data-testid="chart-date-range-from"
+        style={{ width: 130 }}
+      />
+
+      <DatePicker
+        size="xs"
+        clearable
+        maxDate={new Date()}
+        placeholder="To"
+        valueFormat="MMM D"
+        value={range[1]}
+        onChange={(d) => handleRangeChange([range[0], d])}
         data-testid="chart-date-range"
-        styles={{ input: { width: fromDate ? 160 : 90, minHeight: 26 } }}
+        style={{ width: 130 }}
       />
 
       <Popover
