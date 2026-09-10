@@ -75,28 +75,27 @@ test.describe("Heatmap Page", () => {
   });
 
   test("should display treemap by default", async ({ page }) => {
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
     await expect(page.locator('[data-testid="heatmap-page"] canvas').first()).toBeVisible();
   });
 
   test("should switch to list view", async ({ page }) => {
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
     await page.locator('[data-testid="heatmap-view"]').click();
     await page.getByRole("option", { name: "List" }).click();
-    await page.waitForTimeout(500);
     await expect(page.locator('[data-testid="heatmap-list-table"]')).toBeVisible({ timeout: 10000 });
   });
 
   test("should switch to scatter view", async ({ page }) => {
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
     await page.locator('[data-testid="heatmap-view"]').click();
     await page.getByRole("option", { name: "Scatter" }).click();
-    await page.waitForTimeout(1000);
+    await expect(page.getByText("X Axis", { exact: true })).toBeVisible();
     await expect(page.locator('[data-testid="heatmap-page"] canvas').first()).toBeVisible();
   });
 
   test("should filter by sector", async ({ page }) => {
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
     await page.locator('[data-testid="heatmap-stock-count"]').waitFor({ state: "visible", timeout: 10000 });
     await page.locator('[data-testid="heatmap-sector-filter"]').click();
     const option = page.getByRole("option", { name: /Energy/ });
@@ -106,25 +105,23 @@ test.describe("Heatmap Page", () => {
   });
 
   test("should search by symbol", async ({ page }) => {
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
     await page.locator('[data-testid="heatmap-search"]').fill("TCS");
     await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("1 stock");
   });
 
   test("should display legend with metric range", async ({ page }) => {
-    await page.waitForTimeout(1000);
     await expect(page.locator('[data-testid="heatmap-legend-label"]')).toBeVisible();
     await expect(page.locator('[data-testid="heatmap-legend-min"]')).toBeVisible();
     await expect(page.locator('[data-testid="heatmap-legend-max"]')).toBeVisible();
   });
 
   test("should switch metric", async ({ page }) => {
-    await page.waitForTimeout(1000);
+    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
     await page.locator('[data-testid="heatmap-metric"]').click();
     const option = page.getByRole("option", { name: "P/E Ratio" });
     await expect(option).toBeVisible({ timeout: 3000 });
     await option.click();
-    await page.waitForTimeout(500);
-    await expect(page.locator('[data-testid="heatmap-stock-count"]')).toContainText("5 stocks");
+    await expect(page.locator('[data-testid="heatmap-legend-label"]')).toHaveText("P/E Ratio");
   });
 });

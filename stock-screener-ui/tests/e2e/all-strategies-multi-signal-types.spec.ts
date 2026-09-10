@@ -63,7 +63,7 @@ async function navigateToBot(page: Page) {
 
   await page.waitForSelector('[data-testid="bot-select"]', { state: "visible", timeout: 10000 });
   await page.locator('[data-testid="bot-select"]').click();
-  await page.waitForTimeout(200);
+  await expect(page.getByRole("option").first()).toBeVisible({ timeout: 5000 });
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
 

@@ -115,7 +115,7 @@ test.describe("Correlation - UI", () => {
     if (await option2.isVisible()) {
       await option2.click();
     }
-    await page.waitForTimeout(500);
+    await expect(page.locator("button:has-text('Calculate')")).toBeEnabled();
 
     await page.locator("button:has-text('Calculate')").click();
 

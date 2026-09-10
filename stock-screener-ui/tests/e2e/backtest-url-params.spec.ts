@@ -213,20 +213,14 @@ test.describe("Backtest - URL Query Params", () => {
 
     const variationSelect = page.locator('[data-testid="variation-select"] [role="combobox"]');
     await variationSelect.click({ force: true });
-    await page.waitForTimeout(300);
 
     const targetOption = page.getByRole("option").filter({ hasText: /52[Ww] Target/i });
     await expect(targetOption.first()).toBeVisible({ timeout: 5000 });
     await targetOption.first().click();
-    await page.waitForTimeout(500);
 
-    await page.waitForFunction(
-      () => {
-        const sp = new URLSearchParams(window.location.search);
-        return sp.has("p");
-      },
-      { timeout: 5000 },
-    );
+    await expect
+      .poll(async () => (await getUrlPayload(page))?.s as any, { timeout: 5000 })
+      .toBe("52w_target");
 
     const urlPayload = await getUrlPayload(page);
     expect(urlPayload).not.toBeNull();
@@ -246,15 +240,10 @@ test.describe("Backtest - URL Query Params", () => {
       timeout: 5000,
     });
     await page.locator('[role="option"]').first().click();
-    await page.waitForTimeout(500);
 
-    await page.waitForFunction(
-      () => {
-        const sp = new URLSearchParams(window.location.search);
-        return sp.has("p");
-      },
-      { timeout: 5000 },
-    );
+    await expect
+      .poll(async () => (await getUrlPayload(page))?.y as any, { timeout: 5000 })
+      .toContain("RELIANCE");
 
     const urlPayload = await getUrlPayload(page);
     expect(urlPayload).not.toBeNull();

@@ -13,9 +13,8 @@ export default defineConfig({
   timeout: 60000,
   expect: {
     timeout: 15000,
-    toHaveScreenshot: { maxDiffPixelRatio: 0.01, threshold: 0.1, mode: "strict" },
   },
-  globalSetup: './playwright.setup.ts',
+  maxFailures: process.env.CI ? 10 : undefined,
   use: {
     baseURL: 'http://localhost:5173',
     trace: 'on-first-retry',

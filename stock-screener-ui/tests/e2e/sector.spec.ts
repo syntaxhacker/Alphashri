@@ -143,7 +143,6 @@ test.describe("Sector Dashboard - Tab Switching", () => {
     await page.waitForSelector('[data-testid="sector-table-container"] table', { timeout: 10000 });
     await page.locator('[role="tab"]:has-text("Historical Cycles")').click();
     await expect(page.locator('[data-testid="sector-iframe"]')).toBeVisible({ timeout: 5000 });
-    await page.waitForTimeout(300);
     await page.locator('[role="tab"]:has-text("Live Dashboard")').click();
     await expect(page.locator('[data-testid="sector-table-container"] table').first()).toBeVisible({
       timeout: 10000,
