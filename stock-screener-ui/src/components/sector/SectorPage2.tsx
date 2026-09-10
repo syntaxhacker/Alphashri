@@ -222,7 +222,11 @@ function DashboardContent({
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
                 <Title order={4}>Sector Performance</Title>
               </Box>
-              <Box sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, flex: 1 }}>
+              <Box
+                id="sector-table-container"
+                data-testid="sector-table-container"
+                sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, flex: 1 }}
+              >
                 <SectorTable sectors={data.sectors} />
               </Box>
             </CardContent>
@@ -438,7 +442,7 @@ function SectorPageHeader({
   onRefresh: () => void;
 }) {
   return (
-    <Card elevation={1} sx={{ width: "100%", flexShrink: 0, p: 1 }}>
+    <Card elevation={1} className="sector-analysis-header" sx={{ width: "100%", flexShrink: 0, p: 1 }}>
       <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
         <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexShrink: 0 }}>
           <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "center" }}>

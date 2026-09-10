@@ -1,7 +1,6 @@
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import type { UINumberInputProps } from "../types";
-
 function mapSize(size?: UINumberInputProps["size"]): "small" | "medium" {
   return size === "xs" || size === "sm" ? "small" : "medium";
 }
@@ -25,6 +24,7 @@ export function NumberInput({
   label,
   description,
   error,
+  errorProps,
   required,
   disabled,
   size,
@@ -100,6 +100,7 @@ export function NumberInput({
           max,
           step,
         },
+        formHelperText: isError && errorProps ? (errorProps as any) : undefined,
       }}
       sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" } }}
       {...(rest as object)}

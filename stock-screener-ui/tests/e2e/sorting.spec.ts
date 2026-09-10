@@ -34,7 +34,7 @@ test.describe("Table Sorting", () => {
     const symbolHeader = page
       .locator('[data-testid="screener-table"] thead th', { hasText: /^Symbol/ })
       .first();
-    await symbolHeader.click({ force: true });
+    await symbolHeader.getByText("Symbol", { exact: true }).click();
     await expect(symbolHeader).toContainText("▲", { timeout: 5000 });
   });
 

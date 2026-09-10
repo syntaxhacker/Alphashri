@@ -78,24 +78,18 @@ export function BacktestConfig({
 
   const selectData = useMemo(
     () => [
-      {
-        group: "Templates (Base Logic)",
-        items: variations
-          .filter((v) => v.is_template)
-          .map((v) => ({
-            value: v.id,
-            label: `${v.name} (${v.strategy_type})`,
-          })),
-      },
-      {
-        group: "Your Variations",
-        items: variations
-          .filter((v) => !v.is_template)
-          .map((v) => ({
-            value: v.id,
-            label: v.name,
-          })),
-      },
+      ...variations
+        .filter((v) => v.is_template)
+        .map((v) => ({
+          value: v.id,
+          label: `${v.name} (${v.strategy_type})`,
+        })),
+      ...variations
+        .filter((v) => !v.is_template)
+        .map((v) => ({
+          value: v.id,
+          label: v.name,
+        })),
     ],
     [variations],
   );

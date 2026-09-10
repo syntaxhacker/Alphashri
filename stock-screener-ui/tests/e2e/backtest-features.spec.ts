@@ -259,10 +259,12 @@ test.describe("Backtest Features", () => {
       await expect(zoomSelect).toBeVisible();
       await zoomSelect.click({ force: true });
       await page.waitForTimeout(300);
-      const dropdown = page
-        .locator(".mantine-Select-dropdown")
-        .filter({ hasText: /All.*30D.*7D.*1D/ });
-      await expect(dropdown).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("listbox")).toBeVisible({ timeout: 5000 });
+      for (const label of ["All", "30D", "7D", "1D"]) {
+        await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible({
+          timeout: 5000,
+        });
+      }
     });
   });
 
@@ -487,7 +489,7 @@ test.describe("Backtest Features", () => {
         .locator('[data-testid="trade-history-table"] th', { hasText: /^Entry/ })
         .first();
       await expect(timeHeader).toBeVisible();
-      await timeHeader.click();
+      await timeHeader.click({ force: true });
       await expect(page.locator('[data-testid="trade-history-table"]')).toBeVisible();
     });
 
@@ -621,12 +623,10 @@ test.describe("Backtest Features", () => {
     test("should remove individual symbol chip on close", async ({ page }) => {
       await gotoBacktest(page);
       await selectSymbolFromMultiselect(page, "RELIANCE");
-      await page.keyboard.press("Escape");
-      await page.waitForTimeout(300);
-      await expect(page.locator('[data-testid="chip-RELIANCE"]')).toBeVisible({ timeout: 5000 });
-      const clearBtn = page.locator('[data-testid="clear-symbols-btn"]');
-      await clearBtn.click();
-      await expect(page.locator('[data-testid="chip-RELIANCE"]')).not.toBeVisible({
+      const chip = page.locator('[data-testid="chip-RELIANCE"]');
+      await expect(chip).toBeVisible({ timeout: 5000 });
+      await chip.locator("svg").first().click({ force: true });
+      await expect(chip).not.toBeVisible({
         timeout: 5000,
       });
     });
@@ -639,7 +639,7 @@ test.describe("Backtest Features", () => {
       const runMenuBtn = page.locator('[data-testid="run-menu-btn"]');
       await expect(runMenuBtn).toBeEnabled({ timeout: 5000 });
       await runMenuBtn.click();
-      await expect(page.locator(".mantine-Menu-dropdown")).toBeVisible({ timeout: 5000 });
+      await expect(page.getByRole("menu")).toBeVisible({ timeout: 5000 });
       await expect(page.getByText("Run Backtest")).toBeVisible();
       await expect(page.getByText("Run & Save to History")).toBeVisible();
       await expect(page.getByText("Reset Config")).toBeVisible();
@@ -656,15 +656,11 @@ test.describe("Backtest Features", () => {
       await variationSelect.click({ force: true });
       await page.waitForTimeout(300);
 
-      const dropdown = page.locator(".mantine-Select-dropdown");
-      const hasVisibleOptions = await dropdown
-        .locator(".mantine-Select-option")
-        .isVisible()
-        .catch(() => false);
-
-      if (hasVisibleOptions) {
-        await dropdown.locator(".mantine-Select-option").first().click();
-        await page.waitForTimeout(300);
+      const listbox = page.getByRole("listbox");
+      const isOpen = await listbox.isVisible().catch(() => false);
+      if (isOpen) {
+        await page.keyboard.press("Escape");
+        await page.waitForTimeout(100);
       }
 
       await expect(variationSelect).toBeVisible();

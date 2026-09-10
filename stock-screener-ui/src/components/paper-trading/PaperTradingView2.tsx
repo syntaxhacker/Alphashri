@@ -189,7 +189,7 @@ function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
             <PaperPortfolioCard portfolio={state.portfolio as any} />
           </CardContent>
         </Card>
-        <Card className="paper-positions-card-wrap" id="paper-positions-card-wrap" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Card className="paper-positions-card-wrap" id="paper-positions-card-wrap" elevation={0} sx={{ flex: 1, minHeight: 160, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-positions-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <ScrollArea className="paper-positions-scroll" flex={1} sx={{ minHeight: 0 }}>
               <Stack className="paper-positions-stack" spacing={1}>
@@ -198,8 +198,8 @@ function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
             </ScrollArea>
           </CardContent>
         </Card>
-        <Card className="paper-watchlist-card-wrap" id="paper-watchlist-card-wrap" elevation={0}>
-          <CardContent className="paper-watchlist-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+        <Card className="paper-watchlist-card-wrap" id="paper-watchlist-card-wrap" elevation={0} sx={{ flex: "0 1 auto", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+          <CardContent className="paper-watchlist-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
             <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} onRefresh={handleScanRefresh} refreshing={scanRefreshing} />
           </CardContent>
         </Card>

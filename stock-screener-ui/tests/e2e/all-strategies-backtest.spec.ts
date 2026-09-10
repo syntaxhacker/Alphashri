@@ -712,7 +712,7 @@ test.describe("Backtest - Timeframe Switching (All Strategies)", () => {
       await expect(tfSelect).toBeVisible({ timeout: 10000 });
       await tfSelect.click({ force: true });
       await page.waitForTimeout(300);
-      const option = page.locator(".mantine-Select-option").filter({ hasText: tf });
+      const option = page.getByRole("option").filter({ hasText: tf }).first();
       if (await option.isVisible().catch(() => false)) {
         await option.click();
         await page.waitForTimeout(500);
@@ -728,10 +728,12 @@ test.describe("Backtest - Chart Zoom", () => {
     const zoomSelect = page.locator('[data-testid="chart-zoom-select"]');
     await expect(zoomSelect).toBeVisible();
     await zoomSelect.click({ force: true });
-    await page.waitForTimeout(300);
-    await expect(
-      page.locator(".mantine-Select-dropdown").filter({ hasText: /All.*30D.*7D.*1D/ }),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByRole("listbox")).toBeVisible({ timeout: 5000 });
+    for (const label of ["All", "30D", "7D", "1D"]) {
+      await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible({
+        timeout: 5000,
+      });
+    }
   });
 
   test("should have dataZoom configured on chart", async ({ page }) => {
@@ -985,7 +987,7 @@ test.describe("Backtest - Error Scenarios", () => {
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
     await symbolSelect.click({ force: true });
     await page.keyboard.type("RELIANCE");
-    await page.locator(".mantine-MultiSelect-option").first().click({ timeout: 5000 });
+    await page.locator('[role="option"]').first().click({ timeout: 5000 });
     await page.locator('[data-testid="run-backtest-btn"]').click();
     await expect(page.locator('[data-testid="backtest-error"]')).toBeVisible({ timeout: 10000 });
   });

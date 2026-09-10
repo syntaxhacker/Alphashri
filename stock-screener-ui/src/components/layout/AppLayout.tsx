@@ -2,7 +2,8 @@ import { useLocation } from "react-router-dom";
 import { useDisclosure } from "@/ui/hooks";
 import { NavbarNested } from "./NavbarNested";
 import { NotificationsPanel } from "../notifications/NotificationsPanel";
-import { UserButton } from "./UserButton";
+import { MarketTicker } from "./MarketTicker";
+import NewsPanel2 from "../news/NewsPanel2";
 import MuiAppBar from "@mui/material/AppBar";
 import MuiDrawer from "@mui/material/Drawer";
 import Toolbar from "@mui/material/Toolbar";
@@ -33,7 +34,7 @@ export function AppLayout({ children }: AppLayoutProps) {
   );
 
   return (
-    <Box sx={{ display: "flex", minHeight: "100vh", bgcolor: "background.default" }} id="app-shell" data-testid="app-shell">
+    <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", bgcolor: "background.default" }} id="app-shell" data-testid="app-shell">
       <MuiAppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }} id="app-header" data-testid="app-header">
         <Toolbar>
           <IconButton color="inherit" size="small" edge="start" onClick={toggleMobile} sx={{ display: { md: "none" }, mr: 1 }} aria-label="Toggle navigation">
@@ -45,14 +46,16 @@ export function AppLayout({ children }: AppLayoutProps) {
           <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, letterSpacing: "-0.01em" }} id="app-logo" data-testid="app-logo">
             Alphashri
           </Typography>
-          <Box sx={{ flexGrow: 1 }} />
+          <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+            <MarketTicker />
+          </Box>
+          <NewsPanel2 />
           <Stack direction="row" spacing={1} alignItems="center">
             <IconButton color="inherit" onClick={() => setNotifOpen(true)} data-testid="notif-bell" aria-label="Notifications">
               <Badge color="error" variant="dot" invisible={false}>
                 <NotificationsIcon />
               </Badge>
             </IconButton>
-            <UserButton collapsed={false} />
           </Stack>
         </Toolbar>
       </MuiAppBar>
@@ -90,7 +93,7 @@ export function AppLayout({ children }: AppLayoutProps) {
         {drawerContent}
       </MuiDrawer>
 
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, minHeight: 0, overflow: "auto", bgcolor: "background.default", display: "flex", flexDirection: "column" }} id="app-main" data-testid="app-main">
         <Toolbar />
         <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%", p: 0, m: 0 }}>
           {children}

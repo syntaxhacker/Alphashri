@@ -24,9 +24,9 @@ test.describe("Screener - Section Labels", () => {
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
-    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
+    await expect(page.getByTestId("screener-select")).toContainText("Trending");
     await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="screener-nav-option-trending"]')).toBeVisible();
+    await expect(page.getByTestId("screener-select")).toContainText("Trending");
   });
   test("should show touched section when data has touched stocks", async ({ page }) => {
     await page.goto("/");

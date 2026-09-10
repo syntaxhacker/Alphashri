@@ -79,8 +79,9 @@ test.describe("Sector Correlation & Rotation", () => {
     await expect(table).toContainText("NIFTY 50");
     await expect(table).toContainText("NIFTY BANK");
 
-    // Switch to US - click the US label in the market segmented control
-    await page.locator('[data-testid="market-segment"] label:has-text("US")').click();
+    // Switch to US - use the market select control
+    await page.getByTestId("market-segment").click();
+    await page.getByRole("option", { name: "US" }).click();
     await page.waitForTimeout(1000);
 
     // US sector ETFs should appear in table
@@ -96,8 +97,9 @@ test.describe("Sector Correlation & Rotation", () => {
     const table = page.locator('[data-testid="relative-strength-table"]');
     await expect(table).toBeVisible({ timeout: 10000 });
 
-    // Change lookback to 1M (SegmentedControl uses label elements)
-    await page.locator('[data-testid="lookback-segment"] label:has-text("1M")').click();
+    // Change lookback to 1M
+    await page.getByTestId("lookback-segment").click();
+    await page.getByRole("option", { name: "1M" }).click();
     await page.waitForTimeout(500);
 
     // Data should still render

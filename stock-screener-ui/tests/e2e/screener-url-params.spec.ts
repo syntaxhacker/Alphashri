@@ -1,5 +1,10 @@
-import { test, expect } from "@playwright/test";
+import { test, expect, Page } from "@playwright/test";
 import { setupApiMocks, loginAsTestUser } from "../mocks/apiResponses";
+
+async function selectScreener(page: Page, label: string) {
+  await page.getByTestId("screener-select").getByRole("combobox").click();
+  await page.getByRole("option", { name: label }).click();
+}
 
 test.describe("Screener - URL Params", () => {
   test.beforeEach(async ({ page }) => {
@@ -11,21 +16,19 @@ test.describe("Screener - URL Params", () => {
     await page.goto("/?screener=builtin%3Abuyer_interest_enhanced");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
-    await expect(
-      page.locator('[data-testid="screener-nav-option-buyer_interest_enhanced"]'),
-    ).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId("screener-select")).toContainText("Buyer Interest+", {
+      timeout: 5000,
+    });
 
     // Verify the correct section title is shown (not fallback "Approaching")
     await expect(page.getByText(/Buyer Interest\+ \(\d+\)/)).toBeVisible({ timeout: 5000 });
   });
 
-  test("should update URL when screener nav is clicked", async ({ page }) => {
+  test("should update URL when screener is changed", async ({ page }) => {
     await page.goto("/");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
-    await page.click('[data-testid="screener-nav-option-buyer_interest_enhanced"]', {
-      force: true,
-    });
+    await selectScreener(page, "Buyer Interest+");
 
     await expect(page).toHaveURL(/screener=/);
   });
@@ -34,9 +37,7 @@ test.describe("Screener - URL Params", () => {
     await page.goto("/?screener=builtin%3Abuyer_interest_enhanced");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
-    await page.click('[data-testid="screener-nav-option-trending"]', {
-      force: true,
-    });
+    await selectScreener(page, "Trending");
 
     await expect(page).toHaveURL(/screener=trending/);
   });

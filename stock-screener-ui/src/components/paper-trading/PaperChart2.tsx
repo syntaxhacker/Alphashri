@@ -128,7 +128,7 @@ function ChartEmptyState({
             {icon}
           </Text>
         )}
-        {children}
+        {icon ? children : <Box data-testid="chart-placeholder-content">{children}</Box>}
       </CardContent>
     </Card>
   );

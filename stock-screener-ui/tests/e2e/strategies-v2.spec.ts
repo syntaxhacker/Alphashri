@@ -33,8 +33,10 @@ test.describe("Strategies V2", () => {
     test("strategies-nav-tabs visible, default Strategy Tree tab active", async ({ page }) => {
       await gotoStrategies(page);
       await expect(page.getByTestId("strategies-nav-tabs")).toBeVisible();
-      const treeTab = page.getByTestId("strategies-nav-tabs").locator('input[value="tree"]');
-      await expect(treeTab).toBeChecked();
+      const treeTab = page
+        .getByTestId("strategies-nav-tabs")
+        .getByRole("button", { name: "Strategy Tree" });
+      await expect(treeTab).toHaveAttribute("aria-pressed", "true");
     });
 
     test("click Performance tab -> performance-view visible", async ({ page }) => {

@@ -538,7 +538,7 @@ test.describe("Paper Trading - Settings", () => {
       }
     });
 
-    const slPctInput = page.locator('[data-testid="config-sl-pct"]');
+    const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
     await slPctInput.fill("1.5");
 
     await page.waitForTimeout(300);
@@ -568,7 +568,7 @@ test.describe("Paper Trading - Settings", () => {
       }
     });
 
-    const riskInput = page.locator('[data-testid="config-risk-per-trade"]');
+    const riskInput = page.locator('[data-testid="config-risk-per-trade"] input');
     await riskInput.fill("2.0");
 
     await page.waitForTimeout(300);
@@ -592,14 +592,14 @@ test.describe("Paper Trading - Settings", () => {
 
     await page.waitForTimeout(500);
 
-    const slPctInput = page.locator('[data-testid="config-sl-pct"]');
+    const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
     await expect(slPctInput).toHaveValue("0.4");
   });
 
   test("should show validation error for invalid sl_pct", async ({ page }) => {
     await navigateToPaperTradingSettings(page);
 
-    const slPctInput = page.locator('[data-testid="config-sl-pct"]');
+    const slPctInput = page.locator('[data-testid="config-sl-pct"] input');
     // Use a positive value below min (0.1) - should trigger error without being clamped
     await slPctInput.fill("0.05");
 

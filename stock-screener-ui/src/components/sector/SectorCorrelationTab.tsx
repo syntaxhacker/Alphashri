@@ -241,7 +241,7 @@ export function SectorCorrelationTab() {
               <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
                 <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Cross-Sector Correlation</Typography>
               </Box>
-              <Box sx={{ p: 1, minHeight: 300, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Box sx={{ p: 1, minHeight: 300, width: "100%", display: "block" }}>
                 <CorrelationHeatmap matrix={data.correlation_matrix} symbols={data.sector_names} isDark={isDark} />
               </Box>
             </CardContent>

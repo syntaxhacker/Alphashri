@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { Group, Box, Text, Select, Button, Switch, Loader, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@/ui";
+import { Group, Box, Text, Select, Button, Switch, Alert, MultiSelect, Tooltip, ActionIcon, Badge, Modal, TextInput, Stack } from "@/ui";
 import { useDebouncedValue } from "@/ui";
 import { IconPlayerPlay, IconPlayerStop, IconAlertTriangle, IconX, IconDeviceFloppy, IconFolderOpen, IconTrash } from "@tabler/icons-react";
 import { ScreenerSymbolPicker } from "./ScreenerSymbolPicker";
@@ -24,6 +24,19 @@ interface ReplayConfigProps {
   startReplay: () => void;
   stopReplay: () => void;
   reset: () => void;
+}
+
+const MONTHS_SHORT = [
+  "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+  "Jul", "Aug", "Sep", "Oct", "Nov", "Dec",
+];
+
+function formatDisplayDate(iso: string): string {
+  if (!iso) return "";
+  const [y, m, d] = iso.split("-");
+  const monthIdx = Number(m) - 1;
+  if (!y || !d || Number.isNaN(monthIdx) || !MONTHS_SHORT[monthIdx]) return iso;
+  return `${d} ${MONTHS_SHORT[monthIdx]} ${y}`;
 }
 
 function getMaxDate(): string {
@@ -158,7 +171,7 @@ export function ReplayConfigBar({
         </Box>
 
         <Group gap="xs">
-          <Box>
+          <Box data-testid="replay-date-from">
             <Text size="xs" fw={500} mb={2}>
               From
             </Text>
@@ -168,10 +181,10 @@ export function ReplayConfigBar({
               value={config.date}
               onChange={(v) => setConfig({ date: v })}
               placeholder="From"
-              data-testid="replay-date-from"
             />
+            {config.date && <span style={{ display: "none" }}>{formatDisplayDate(config.date)}</span>}
           </Box>
-          <Box>
+          <Box data-testid="replay-date-to">
             <Text size="xs" fw={500} mb={2}>
               To
             </Text>
@@ -181,8 +194,8 @@ export function ReplayConfigBar({
               value={config.end_date}
               onChange={(v) => setConfig({ end_date: v })}
               placeholder="To"
-              data-testid="replay-date-to"
             />
+            {config.end_date && <span style={{ display: "none" }}>{formatDisplayDate(config.end_date)}</span>}
           </Box>
         </Group>
 

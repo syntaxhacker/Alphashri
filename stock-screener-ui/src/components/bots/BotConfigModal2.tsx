@@ -196,12 +196,12 @@ export function BotConfigModal({ opened, bot, availableStrategies, onClose }: Bo
     };
 
     if (isEdit && bot) {
-      await updateBotAction(bot.id, data);
+      const updated = await updateBotAction(bot.id, data);
+      if (updated) onClose();
     } else {
-      await createBotAction(data);
+      const created = await createBotAction(data);
+      if (created) onClose();
     }
-
-    onClose();
   };
 
   const handleClose = () => {

@@ -1,16 +1,12 @@
-import {
-  Box,
-  Stack,
-} from "@/ui";
-import Grid from "@mui/material/Grid";
+import { Box, Stack } from "@/ui";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Typography from "@mui/material/Typography";
 import Chip from "@mui/material/Chip";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
 import Collapse from "@mui/material/Collapse";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
@@ -123,7 +119,7 @@ export function ArticleDetail({
               {articleContent?.summary && articleContent.analysis_status !== "failed" && (
                 <Card elevation={1} sx={{ width: "100%", p: 1 }}>
                   <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-                    <Alert severity="info" icon={<IconInfoCircle size={16} />} sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{articleContent.summary}</Typography></Alert>
+                    <Alert severity="info" icon={<IconInfoCircle size={16} />} sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><AlertTitle>Summary</AlertTitle><Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{articleContent.summary}</Typography></Alert>
                   </CardContent>
                 </Card>
               )}

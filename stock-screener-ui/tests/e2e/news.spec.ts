@@ -112,7 +112,7 @@ test.describe("News Panel - Source Switching", () => {
       timeout: 5000,
     });
     await page.getByRole("option", { name: "Economic Times" }).click();
-    expect(await sourceSelector.locator("input").inputValue()).toBe("Economic Times");
+    await expect(sourceSelector.locator(".MuiSelect-select")).toHaveText("Economic Times");
   });
 });
 

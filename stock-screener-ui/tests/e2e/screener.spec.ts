@@ -51,7 +51,7 @@ test.describe("Screener - Data Display", () => {
     });
 
     // Check for status text (contains last updated timestamp)
-    const status = page.locator('[data-testid="screener-header"] [data-testid="status"]');
+    const status = page.locator('[data-testid="screener-status"]');
     await expect(status).toBeVisible();
   });
 });
@@ -118,7 +118,7 @@ test.describe("Screener - Auto Refresh", () => {
     await page.waitForSelector('[data-testid="app-shell"]', {
       timeout: 15000,
     });
-    const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"]');
+    const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"] input');
     await expect(autoRefreshInput).toBeVisible();
     await autoRefreshInput.clear();
     await autoRefreshInput.fill("0");
@@ -259,7 +259,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForLoadState("networkidle");
     const buyerInterest = page.locator("text=Buyer Interest+").first();
     await buyerInterest.click();
-    const filterBadges = page.locator(".mantine-Badge-root");
+    const filterBadges = page.locator('[data-testid="screener-active-badge"]');
     await expect(filterBadges.first()).toBeVisible({
       timeout: 10000,
     });
@@ -310,7 +310,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForLoadState("networkidle");
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="create-screener-form"]')).toBeVisible({
+    await expect(page.locator('[data-testid="inline-form"]')).toBeVisible({
       timeout: 10000,
     });
   });
@@ -326,7 +326,7 @@ test.describe("Screener - Config Tab", () => {
     await expect(page.locator('[data-testid="screener-name-input"]')).toBeVisible({
       timeout: 10000,
     });
-    await expect(page.locator('[data-testid="create-modal-preview"]')).toBeVisible({
+    await expect(page.locator('[data-testid="screener-preview-panel"]')).toBeVisible({
       timeout: 10000,
     });
   });
@@ -368,7 +368,7 @@ test.describe("Screener - Config Tab", () => {
     await page.waitForLoadState("networkidle");
     await page.click('[data-testid="create-screener-btn"]');
     await page.waitForLoadState("networkidle");
-    await expect(page.locator('[data-testid="modal-live-preview-title"]')).toBeVisible({
+    await expect(page.locator('[data-testid="preview-header"]')).toBeVisible({
       timeout: 10000,
     });
   });

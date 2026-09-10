@@ -15,7 +15,7 @@ export async function gotoStrategies(page: Page) {
 }
 
 export async function switchToStrategiesTab(page: Page, tabName: string) {
-  await page.getByTestId("strategies-nav-tabs").locator("label", { hasText: tabName }).click();
+  await page.getByTestId("strategies-nav-tabs").getByRole("button", { name: tabName }).click();
 }
 
 export async function openCreateFromTemplate(page: Page) {

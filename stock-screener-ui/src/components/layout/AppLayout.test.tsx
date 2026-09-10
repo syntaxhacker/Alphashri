@@ -34,6 +34,14 @@ vi.mock("../layout/NavbarNested", () => ({
   ),
 }));
 
+vi.mock("./MarketTicker", () => ({
+  MarketTicker: () => <div data-testid="market-ticker-mock" />,
+}));
+
+vi.mock("../news/NewsPanel2", () => ({
+  default: () => <div data-testid="news-panel-mock" />,
+}));
+
 describe("AppLayout", () => {
   beforeEach(() => {
     vi.clearAllMocks();

@@ -23,10 +23,9 @@ test.describe("Backtest View - Navigation", () => {
     await gotoBacktest(page);
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
     await symbolSelect.click();
-    await expect(page.locator(".mantine-MultiSelect-dropdown")).toBeVisible({ timeout: 5000 });
     await page.keyboard.type("RELIANCE", { delay: 50 });
-    await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
-    const options = page.locator(".mantine-MultiSelect-option");
+    await page.waitForSelector('[role="option"]', { timeout: 5000 });
+    const options = page.locator('[role="option"]');
     await options.first().click();
     const runBtn = page.locator('[data-testid="run-backtest-btn"]');
     await runBtn.click();
@@ -80,10 +79,9 @@ test.describe("Backtest View - Navigation", () => {
 
     const symbolSelect = page.locator('[data-testid="symbol-multiselect"]');
     await symbolSelect.click();
-    await expect(page.locator(".mantine-MultiSelect-dropdown")).toBeVisible({ timeout: 5000 });
     await page.keyboard.type("RELIANCE", { delay: 50 });
-    await page.waitForSelector(".mantine-MultiSelect-option", { timeout: 5000 });
-    const option = page.locator(".mantine-MultiSelect-option").first();
+    await page.waitForSelector('[role="option"]', { timeout: 5000 });
+    const option = page.locator('[role="option"]').first();
     if (await option.isVisible()) {
       await option.click();
     }
