@@ -1,8 +1,11 @@
 name: CI
 
 on:
+  # Direct pushes to develop are forbidden (feature branch -> PR). Pushing on
+  # develop here would duplicate the develop -> main PR run and, because both
+  # resolve to the same concurrency group, cancel it.
   push:
-    branches: [main, develop]
+    branches: [main]
   pull_request:
     branches: [main, develop]
     paths:
