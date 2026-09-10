@@ -1,5 +1,7 @@
+import { useContext } from "react";
 import { IconLogout } from "@tabler/icons-react";
 import { Avatar, Box, Group, Text, UnstyledButton, Menu, MenuTarget, MenuDropdown, MenuItem, rem } from "@/ui";
+import { AuthContext } from "../auth/AuthProvider2";
 
 
 declare global {
@@ -13,7 +15,15 @@ declare global {
 }
 
 export function UserButton({ collapsed }: { collapsed?: boolean }) {
-  const user = window.__ALPHASHRI_USER__ || { displayName: "User", email: "user@example.com" };
+  // Prefer the auth context so the button re-renders when the user loads.
+  // Fall back to the window global for Storybook (no provider) and tests.
+  const auth = useContext(AuthContext);
+  const user = auth?.user
+    ? {
+        displayName: auth.user.display_name || auth.user.email?.split("@")[0] || "User",
+        email: auth.user.email,
+      }
+    : window.__ALPHASHRI_USER__ || { displayName: "User", email: "user@example.com" };
 
   const handleLogout = () => {
     if (window.handleLogout) {
