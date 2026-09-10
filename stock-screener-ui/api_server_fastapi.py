@@ -280,6 +280,34 @@ async def compute_52w_ranges_task():
             await asyncio.sleep(300)
 
 
+async def db_backup_task():
+    """Daily local SQLite backup with retention (see scripts/backup_db.py).
+
+    Creates one timestamped backup per calendar day (skip_if_today), then
+    re-checks periodically so a long-running process rolls over to the next
+    day. Retention prunes old copies. Disable with DB_BACKUP_ENABLED=0.
+    """
+    import os
+
+    if _ci_mode() or os.getenv("DB_BACKUP_ENABLED", "1").lower() in ("0", "false", "no"):
+        return
+
+    from scripts.backup_db import run_backup
+
+    interval = int(os.getenv("DB_BACKUP_INTERVAL_SEC", str(6 * 3600)))
+    while True:
+        try:
+            await asyncio.to_thread(run_backup, skip_if_today=True)
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"⚠️ DB backup failed: {e}")
+        try:
+            await asyncio.sleep(interval)
+        except asyncio.CancelledError:
+            break
+
+
 def _compute_screener(provider, mode, screener, profile_filters):
     screener_id = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     data = fetch_screener_data(provider, mode, screener, profile_filters)
@@ -300,6 +328,7 @@ async def lifespan(app: FastAPI):
     news_poller = None
     _prefetch_task = None
     _recovery_task = None
+    _db_backup_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -363,6 +392,13 @@ async def lifespan(app: FastAPI):
                 print("🔄 Bot auto-recovery task started")
             except Exception as e:
                 print(f"⚠️ Bot auto-recovery task failed: {e}")
+
+            try:
+                _db_backup_task = asyncio.create_task(db_backup_task())
+                print("💾 DB backup task started")
+            except Exception as e:
+                print(f"⚠️ DB backup task failed: {e}")
+                _db_backup_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -379,6 +415,8 @@ async def lifespan(app: FastAPI):
         _prefetch_task.cancel()
     if _recovery_task:
         _recovery_task.cancel()
+    if _db_backup_task:
+        _db_backup_task.cancel()
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes

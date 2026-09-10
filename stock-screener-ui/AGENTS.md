@@ -341,6 +341,13 @@ npx vitest run src/components/common/ChatPopup.test.tsx  # use vitest for vi.moc
 - **Safety net:** Before any `reset`/`clean`, `git stash push -m "pre-<task>"` or commit — never lose working tree.
 - Lint + build must pass: `bun run lint && bun run build`
 
+## DB Backups (local SQLite)
+- `scripts/backup_db.py` writes **consistent** snapshots (SQLite online backup API, safe while bots/API write) to `backups/db/alphashri_<YYYYmmdd_HHMMSS>.db`, then prunes copies older than the retention window.
+- **Automatic**: `db_backup_task()` in the API lifespan creates one backup per calendar day (`skip_if_today`), then re-checks every `DB_BACKUP_INTERVAL_SEC` (default 6h). Started by `./start.sh`.
+- **Manual**: `python scripts/backup_db.py` (also `--retention-days 3`, `--backup-dir /path`, `--skip-if-today`, `--quiet`).
+- Env: `DB_BACKUP_ENABLED=0` to disable, `DB_BACKUP_DIR` (default `backups/db`), `DB_BACKUP_RETENTION_DAYS` (default 7), `DB_BACKUP_INTERVAL_SEC` (default 21600).
+- `backups/` is gitignored. Skipped automatically when `DATABASE_URL` is not `sqlite://` (e.g. Postgres) and in `CI_MODE`.
+
 ## DB Migrations (Alembic)
 - Location: `db/migrations/versions/`
 - Chain: `e5f6a7b8c9d0` → `f6a7b8c9d0e1` (add notes) → `g7b8c9d0e1f2` (add peak/low price) → `2026_04_16_add_reason_to_trades` → `2026_04_20_snapshot_to_db` (BotRuntimeState, StrategyRuntimeState, Position new columns)
