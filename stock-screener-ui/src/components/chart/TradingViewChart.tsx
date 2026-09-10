@@ -1,9 +1,26 @@
 import { useEffect, useRef } from "react";
-import { createChart, ColorType, CandlestickSeries, HistogramSeries, createSeriesMarkers, type IChartApi, type ISeriesApi, type CandlestickData, type HistogramData, type Time } from "lightweight-charts";
+import {
+  createChart,
+  ColorType,
+  CandlestickSeries,
+  HistogramSeries,
+  LineSeries,
+  LineStyle,
+  createSeriesMarkers,
+  type IChartApi,
+  type ISeriesApi,
+  type IPriceLine,
+  type CandlestickData,
+  type HistogramData,
+  type LineData,
+  type Time,
+  type LineWidth,
+} from "lightweight-charts";
 import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
+import type { MarkLineData, UnifiedLivePosition } from "@/utils/chart/types";
 
 export interface TradingViewChartProps {
   candles: ReplayCandle[];
@@ -11,14 +28,52 @@ export interface TradingViewChartProps {
   highlightedTradeId?: number | null;
   onTradeClick?: (id: number) => void;
   height?: number;
+  /** Horizontal levels (ORB high/low, pivots, 52W high/low, highlighted SL/TP) */
+  markLines?: MarkLineData[];
+  /** EMA overlays, each aligned index-wise to `candles` */
+  emaData?: { label: string; color: string; data: (number | null)[] }[];
+  /** Active position entry / SL / TP levels */
+  livePosition?: UnifiedLivePosition;
 }
 
-export function TradingViewChart({ candles, trades = [], highlightedTradeId, height = 400 }: TradingViewChartProps) {
+const toTime = (t: string): Time => (new Date(t.replace(" ", "T")).getTime() / 1000) as Time;
+
+function toLineStyle(type: string): LineStyle {
+  switch (type) {
+    case "dashed":
+      return LineStyle.Dashed;
+    case "dotted":
+      return LineStyle.Dotted;
+    case "largeDashed":
+      return LineStyle.LargeDashed;
+    case "sparseDotted":
+      return LineStyle.SparseDotted;
+    default:
+      return LineStyle.Solid;
+  }
+}
+
+function clampWidth(w?: number): LineWidth {
+  const n = Math.round(w ?? 1);
+  return (n < 1 ? 1 : n > 4 ? 4 : n) as LineWidth;
+}
+
+export function TradingViewChart({
+  candles,
+  trades = [],
+  highlightedTradeId,
+  height = 400,
+  markLines,
+  emaData,
+  livePosition,
+}: TradingViewChartProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
   const volumeSeriesRef = useRef<ISeriesApi<"Histogram"> | null>(null);
   const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
+  const priceLinesRef = useRef<IPriceLine[]>([]);
+  const emaSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
 
   // create chart once — not on height/candles
   useEffect(() => {
@@ -73,6 +128,8 @@ export function TradingViewChart({ candles, trades = [], highlightedTradeId, hei
       chartRef.current = null;
       candleSeriesRef.current = null;
       volumeSeriesRef.current = null;
+      priceLinesRef.current = [];
+      emaSeriesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -92,7 +149,7 @@ export function TradingViewChart({ candles, trades = [], highlightedTradeId, hei
     }
     const candleData: CandlestickData[] = candles
       .map((c) => ({
-        time: (new Date(c.time.replace(" ", "T")).getTime() / 1000) as Time,
+        time: toTime(c.time),
         open: c.open,
         high: c.high,
         low: c.low,
@@ -103,7 +160,7 @@ export function TradingViewChart({ candles, trades = [], highlightedTradeId, hei
 
     const volData: HistogramData[] = candles
       .map((c) => ({
-        time: (new Date(c.time.replace(" ", "T")).getTime() / 1000) as Time,
+        time: toTime(c.time),
         value: c.volume,
         color: c.close >= c.open ? withAlpha(palette.POSITIVE, 0.9) : withAlpha(palette.NEGATIVE, 0.9),
       }))
@@ -111,20 +168,94 @@ export function TradingViewChart({ candles, trades = [], highlightedTradeId, hei
     volumeSeriesRef.current.setData(volData as any);
   }, [candles]);
 
+  // horizontal overlay levels: ORB / pivots / 52W / highlighted SL-TP / position
+  useEffect(() => {
+    const series = candleSeriesRef.current;
+    if (!series) return;
+    priceLinesRef.current.forEach((l) => {
+      try {
+        series.removePriceLine(l);
+      } catch {
+        /* noop */
+      }
+    });
+    priceLinesRef.current = [];
+
+    const add = (price: number | undefined, color: string, width: number | undefined, style: LineStyle, title: string) => {
+      if (price == null || !isFinite(price) || price <= 0) return;
+      const line = series.createPriceLine({
+        price,
+        color,
+        lineWidth: clampWidth(width),
+        lineStyle: style,
+        axisLabelVisible: true,
+        title,
+      });
+      priceLinesRef.current.push(line);
+    };
+
+    (markLines || []).forEach((ml) => {
+      add(ml.yAxis, ml.lineStyle.color, ml.lineStyle.width, toLineStyle(ml.lineStyle.type), ml.label.formatter);
+    });
+
+    if (livePosition) {
+      add(livePosition.entry_price, palette.PRIMARY, 1, LineStyle.Solid, `Entry ${livePosition.entry_price}`);
+      if (livePosition.stop_loss && livePosition.stop_loss > 0) {
+        add(livePosition.stop_loss, palette.NEGATIVE, 1, LineStyle.Dashed, `SL ${livePosition.stop_loss}`);
+      }
+      if (livePosition.take_profit && livePosition.take_profit > 0) {
+        add(livePosition.take_profit, palette.POSITIVE, 1, LineStyle.Dashed, `TP ${livePosition.take_profit}`);
+      }
+    }
+  }, [markLines, livePosition]);
+
+  // EMA overlays (line series aligned to candles)
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    emaSeriesRef.current.forEach((s) => {
+      try {
+        chart.removeSeries(s);
+      } catch {
+        /* noop */
+      }
+    });
+    emaSeriesRef.current = [];
+
+    if (!emaData || emaData.length === 0 || candles.length === 0) return;
+
+    emaData.forEach((ema) => {
+      const series = chart.addSeries(LineSeries, {
+        color: ema.color,
+        lineWidth: 1 as LineWidth,
+        priceLineVisible: false,
+        lastValueVisible: false,
+        crosshairMarkerVisible: false,
+      });
+      const data: LineData[] = ema.data
+        .map((v, i) =>
+          v == null || !isFinite(v) || !candles[i] ? null : { time: toTime(candles[i].time), value: v },
+        )
+        .filter((d): d is LineData => d !== null)
+        .sort((a, b) => (a.time as number) - (b.time as number));
+      series.setData(data);
+      emaSeriesRef.current.push(series);
+    });
+  }, [emaData, candles]);
+
   // markers — lightweight-charts v5 uses createSeriesMarkers plugin, not series.setMarkers
   useEffect(() => {
     if (!markersRef.current) return;
     const markers = trades
       .filter((t) => t.entry_time)
       .map((t) => {
-        const time = (new Date(t.entry_time.replace(" ", "T")).getTime() / 1000) as Time;
         const isBuy = t.side === "BUY";
         const isHighlighted = highlightedTradeId === (t as any).id;
         return {
-          time,
-          position: isBuy ? "belowBar" as const : "aboveBar" as const,
+          time: toTime(t.entry_time),
+          position: isBuy ? ("belowBar" as const) : ("aboveBar" as const),
           color: isBuy ? palette.POSITIVE : palette.NEGATIVE,
-          shape: isBuy ? "arrowUp" as const : "arrowDown" as const,
+          shape: isBuy ? ("arrowUp" as const) : ("arrowDown" as const),
           text: isHighlighted ? `★ ${t.side} ${t.entry_price}` : `${t.side}`,
           size: isHighlighted ? 2 : 1,
         };
@@ -132,10 +263,9 @@ export function TradingViewChart({ candles, trades = [], highlightedTradeId, hei
     const exitMarkers = trades
       .filter((t) => t.exit_time)
       .map((t) => {
-        const time = (new Date(t.exit_time.replace(" ", "T")).getTime() / 1000) as Time;
         const isHighlighted = highlightedTradeId === (t as any).id;
         return {
-          time,
+          time: toTime(t.exit_time),
           position: "aboveBar" as const,
           color: t.exit_reason === "TP" ? palette.POSITIVE : t.exit_reason === "SL" ? palette.NEGATIVE : palette.MARKER_EOD,
           shape: "circle" as const,
@@ -145,12 +275,15 @@ export function TradingViewChart({ candles, trades = [], highlightedTradeId, hei
     const allMarkers = [...markers, ...exitMarkers].sort((a, b) => (a.time as number) - (b.time as number));
     try {
       markersRef.current.setMarkers(allMarkers as any);
-    } catch {}
+    } catch {
+      /* noop */
+    }
   }, [trades, highlightedTradeId]);
 
   // fit once on mount / symbol change
   useEffect(() => {
     if (candles.length) chartRef.current?.timeScale().fitContent();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [candles.length === 0 ? 0 : candles[0]?.time]);
 
   return (

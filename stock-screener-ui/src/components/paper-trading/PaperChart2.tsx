@@ -37,6 +37,7 @@ import {
 import { fetchPaperChart } from "../../api/paperTrading";
 import { getPnLTextColor, formatPercentage } from "../../utils/ui-helpers";
 import { TradingChart } from "../chart/TradingChart";
+import { TradingViewChart } from "../chart/TradingViewChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
@@ -367,7 +368,7 @@ function getEmptyState(
   return null;
 }
 
-export function PaperChart() {
+export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradingview" } = {}) {
   const { colorScheme } = useColorScheme();
   const isDark = colorScheme === "dark";
   const state = getPaperTradingState();
@@ -418,7 +419,18 @@ export function PaperChart() {
         <LoadingOverlay visible={state.chartLoading} zIndex={10} overlayProps={{ radius: "sm", blur: 1 }} />
         {chartInput ? (
           <Box className="paper-chart-canvas-wrap" id="paper-chart-canvas-wrap" sx={{ flex: 1, minHeight: 0, display: "flex" }}>
-            <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+            {engine === "tradingview" ? (
+              <TradingViewChart
+                candles={chartInput.candles as any}
+                trades={chartInput.trades as any}
+                highlightedTradeId={chartInput.highlightedTradeId ?? null}
+                markLines={chartInput.markLines}
+                emaData={chartInput.emaData}
+                livePosition={chartInput.livePosition}
+              />
+            ) : (
+              <TradingChart input={chartInput} style={{ flex: 1, minHeight: 0 }} />
+            )}
           </Box>
         ) : (
           <ChartEmptyState className="paper-chart-loading" icon="⏳">

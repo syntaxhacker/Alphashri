@@ -526,6 +526,7 @@ function TradeHistoryTable({
       key={datesKey}
       data={sortedTrades}
       columns={columns}
+      rowWindowSize={120}
       enableGrouping
       grouping={["date"]}
       initialState={{

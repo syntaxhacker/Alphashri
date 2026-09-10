@@ -233,7 +233,7 @@ function HistoryView({ state: _state }: HistoryViewProps) {
       <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Card className="paper-history-chart-card" id="paper-history-chart-card" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-history-chart-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <PaperChart />
+            <PaperChart engine="tradingview" />
           </CardContent>
         </Card>
       </Box>
