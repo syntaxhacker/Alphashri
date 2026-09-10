@@ -432,6 +432,8 @@ if _sector_dashboard_dir.exists():
 
 @app.get("/health")
 @app.get("/api/health")
+@app.head("/health")
+@app.head("/api/health")
 async def health():
     return {'status': 'ok', 'timestamp': datetime.now(config.IST).isoformat()}
 

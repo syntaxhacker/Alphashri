@@ -155,9 +155,9 @@ jobs:
         env:
           CI: true
       - name: Wait for API
-        run: npx wait-on http://127.0.0.1:8765/api/health --timeout 120000
+        run: npx wait-on http-get://127.0.0.1:8765/api/health --timeout 120000
       - name: Wait for dev server
-        run: npx wait-on http://127.0.0.1:5173 --timeout 60000
+        run: npx wait-on http-get://127.0.0.1:5173 --timeout 60000
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run smoke E2E tests
@@ -232,9 +232,9 @@ jobs:
         env:
           CI: true
       - name: Wait for API
-        run: npx wait-on http://127.0.0.1:8765/api/health --timeout 120000
+        run: npx wait-on http-get://127.0.0.1:8765/api/health --timeout 120000
       - name: Wait for dev server
-        run: npx wait-on http://127.0.0.1:5173 --timeout 60000
+        run: npx wait-on http-get://127.0.0.1:5173 --timeout 60000
         env:
           NODE_PATH: ${{ github.workspace }}/stock-screener-ui/node_modules
       - name: Run full E2E tests
