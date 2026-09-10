@@ -23,7 +23,7 @@
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 
 ## Stack
-React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backend: FastAPI (Python).
+React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
 - `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
@@ -65,9 +65,9 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backen
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
 - **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
 
-## MUI 9 Financial Theme Rules (Migrated from Mantine)
+## MUI 9 Financial Theme Rules
 - Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
-- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never `var(--mantine-*)`
+- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never hardcode hex outside the palette
 - Use MUI wrappers from `src/ui/` (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea` via `Box overflow:auto`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx` `radius sm 8` `p sm 8` `gap sm 8`)
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
@@ -80,7 +80,6 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backen
 - Never call `useState` for data that lives in a store
 
 ## Component Patterns
-- Barrel files (`mantine.ts`) point to current components — edit `*2.tsx` files, update barrel, never edit old files
 - Page-level routing components in `src/pages/<feature>/` (e.g., `pages/chart/ChartView.tsx`, `pages/sector/SectorPage.tsx`)
 - Shared components: `SortableHeader`, `BadgeComponents`, `PnlText`, `DataTable`, `compact.tsx`, `states.tsx` in `src/components/common/`
 - Shared utilities: `formatNumber`, `formatSignedPnl`, `formatPercentage`, `formatCurrencyCompact`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`

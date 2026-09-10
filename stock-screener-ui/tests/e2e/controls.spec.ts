@@ -74,7 +74,7 @@ test.describe("UI Controls", () => {
       const retryBtn = page.getByRole("button", {
         name: "Retry",
       });
-      const errorAlert = page.locator(".mantine-Alert-root");
+      const errorAlert = page.locator(".MuiAlert-root");
       const count = (await retryBtn.count()) + (await errorAlert.count());
       expect(count).toBeGreaterThan(0);
     }

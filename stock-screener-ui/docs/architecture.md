@@ -6,7 +6,7 @@ graph TB
     end
 
     subgraph Frontend ["Frontend (React + TypeScript + Vite)"]
-        UI["Mantine UI Components"]
+        UI["MUI Components"]
         Redux["Redux Toolkit Store"]
         Router["React Router"]
         Charts["ECharts"]

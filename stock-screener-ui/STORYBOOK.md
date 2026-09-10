@@ -23,7 +23,7 @@ src/
 | Layer | Location | May import | Story title |
 |---|---|---|---|
 | Tokens | `ui/palette.ts`, `ui/theme.tsx` | nothing | `Foundations/*` |
-| Primitives | `src/ui/**` | tokens, Mantine | `Primitives/<Category>/<Name>` |
+| Primitives | `src/ui/**` | tokens, MUI | `Primitives/<Category>/<Name>` |
 | Composites | `components/common/**` | primitives | `Composites/<Name>` |
 | Patterns | `components/patterns/**` (future) | composites | `Patterns/<Name>` |
 | Feature examples | feature stories | anything | `Examples/<Feature>/<Name>` |
@@ -67,13 +67,13 @@ Storybook is the SSOT for UI usage. Each component documents inline (JSDoc above
 
 ## 6. Theme Strategy
 
-`.storybook/preview.tsx` wraps every story in `MantineProvider forceColorScheme={global}` with a Light/Dark toolbar toggle (default Light). Components must render correctly in both. Literal colors must come from `palette.ts`, never inline.
+`.storybook/preview.tsx` wraps every story in MUI's `ThemeProvider` with a Light/Dark toolbar toggle (default Light). Components must render correctly in both. Literal colors must come from `palette.ts`, never inline.
 
 ## 7. Accessibility
 
 - `@storybook/addon-a11y` runs axe on every story (panel + CI via test runner).
 - Interactive primitives carry a keyboard map in their docs description.
-- Form controls require visible labels or `aria-label`; error states use the wrapper's `error` prop (Mantine wires `aria-invalid`).
+- Form controls require visible labels or `aria-label`; error states use the wrapper's `error` prop (MUI wires `aria-invalid`).
 - Policy: serious/critical axe violations fail CI; minor need a waiver comment.
 
 ## 8. Interaction Testing
@@ -127,7 +127,7 @@ Before merge:
 - [ ] All important states covered (disabled / loading / error / empty / long content)
 - [ ] At least one play() interaction where behavior matters
 - [ ] `vitest` specs co-located (`*.test.tsx`) still pass
-- [ ] No hardcoded Hex outside `palette.ts`; no `@mantine/core` import outside `src/ui`
+- [ ] No hardcoded Hex outside `palette.ts`; no `@mui/material` import outside `src/ui`
 - [ ] Renders correctly in Light + Dark; viewport 375/768/1280 checked
 
 ## 17. Developer Experience

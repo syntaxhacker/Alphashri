@@ -50,13 +50,13 @@ test.describe("Layout - Theme Toggle", () => {
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 10000 });
 
     const initialScheme = await page.evaluate(
-      () => document.documentElement.getAttribute("data-color-scheme") ?? document.documentElement.getAttribute("data-mantine-color-scheme"),
+      () => document.documentElement.getAttribute("data-color-scheme"),
     );
 
     await page.locator('[data-testid="theme-toggle-btn"]').click();
 
     const newScheme = await page.evaluate(
-      () => document.documentElement.getAttribute("data-color-scheme") ?? document.documentElement.getAttribute("data-mantine-color-scheme"),
+      () => document.documentElement.getAttribute("data-color-scheme"),
     );
 
     expect(newScheme).not.toBe(initialScheme);

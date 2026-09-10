@@ -230,13 +230,32 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
   const hasActiveOverlays = OVERLAY_ITEMS.some(({ key }) => state[key]);
 
   return (
-    <Toolbar disableGutters sx={{ minHeight: 48, px: 1, gap: 1, flex: "0 0 auto" }} data-testid="paper-chart-header" id="chart-header">
-      {state.chartData?.symbol && (
-        <Text fw={600} size="xs" truncate>
-          {state.chartData.symbol}
-          {shortDate && <Text span size="xs" c="dimmed" fw={400} ml={4}>{shortDate}</Text>}
-        </Text>
-      )}
+    <Toolbar
+      disableGutters
+      sx={{
+        minHeight: 48,
+        px: 1,
+        py: 0.5,
+        gap: 1,
+        alignItems: "center",
+        flex: "0 0 auto",
+        flexWrap: "nowrap",
+      }}
+      data-testid="paper-chart-header"
+      id="chart-header"
+    >
+      <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.75, minWidth: 0, flexShrink: 1, mr: 1 }}>
+        {state.chartData?.symbol && (
+          <Text fw={600} size="xs" truncate sx={{ minWidth: 0 }}>
+            {state.chartData.symbol}
+          </Text>
+        )}
+        {shortDate && (
+          <Text size="xs" c="dimmed" fw={400} sx={{ whiteSpace: "nowrap" }}>
+            · {shortDate}
+          </Text>
+        )}
+      </Box>
 
       <Select
         data-testid="chart-timeframe-select"
@@ -244,7 +263,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         value={state.chartTimeframe}
         onChange={handleTimeframeChange}
         data={fromDate ? TIMEFRAME_OPTIONS : TIMEFRAME_OPTIONS.filter((tf) => tf.value !== "12hour" && tf.value !== "1day")}
-        style={{ width: 84 }}
+        style={{ width: 84, minWidth: 84, flex: "0 0 auto" }}
       />
 
       <DatePicker
@@ -256,20 +275,22 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         value={range[0]}
         onChange={(d) => handleRangeChange([d, range[1]])}
         data-testid="chart-date-range-from"
-        style={{ width: 130 }}
+        style={{ width: 150, flex: "0 0 auto" }}
       />
 
       <DatePicker
         size="xs"
         clearable
         maxDate={new Date()}
-        placeholder="To"
         valueFormat="MMM D"
+        placeholder="To"
         value={range[1]}
         onChange={(d) => handleRangeChange([range[0], d])}
         data-testid="chart-date-range"
-        style={{ width: 130 }}
+        style={{ width: 150, flex: "0 0 auto" }}
       />
+
+      <Box sx={{ flex: 1 }} />
 
       <Popover
         width={260}

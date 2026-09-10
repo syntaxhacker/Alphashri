@@ -6,7 +6,6 @@ import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
 import { Stack, Box, Text, Title } from "@/ui";
 import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import TableContainer from "@mui/material/TableContainer";
@@ -40,10 +39,8 @@ function ReplayPageContent(
   handleTradeClick: (trade: ReplayTrade) => void,
 ) {
   return (
-    <Container maxWidth="xl" sx={{ py: 2, height: "100%", overflow: "auto" }} data-testid="replay-page">
-      <Grid container spacing={2} sx={{ height: "100%" }}>
-        <Grid size={{ xs: 12 }}>
-          <Stack gap="sm" sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
+    <Container maxWidth="xl" sx={{ py: 2, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="replay-page">
+      <Stack gap="sm" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <Card elevation={1}>
               <CardContent>
                 <TableContainer>
@@ -91,7 +88,7 @@ function ReplayPageContent(
                 </CardContent>
               </Card>
             )}
-            <Card elevation={1} sx={{ flex: 1, minHeight: 400 }}>
+            <Card elevation={1} sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
               <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
                 <ReplayMainView
                   candlesBySymbol={state.candlesBySymbol}
@@ -130,8 +127,6 @@ function ReplayPageContent(
               </Card>
             )}
           </Stack>
-        </Grid>
-      </Grid>
     </Container>
   );
 }
