@@ -1,6 +1,7 @@
-// ReplayControls — presentational playback control strip (play/pause, speed, OR TF,
-// scrub slider, clock/trade summary + loading/error chips). Extracted verbatim from
-// pages/poc/TickReplay so the page stays focused on data/state orchestration.
+// ReplayControls — presentational playback control strip (play/pause, speed, scrub slider,
+// clock/trade summary + loading/error chips). Strategy-specific parameter controls are
+// injected via `children` so this core component stays strategy-agnostic.
+import type { ReactNode } from "react";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import Button from "@mui/material/Button";
@@ -21,7 +22,6 @@ export interface ReplayControlsProps {
   loading: boolean;
   disabled: boolean;
   speed: number;
-  orTf: number;
   t0: number;
   tEnd: number;
   clock: number;
@@ -31,14 +31,15 @@ export interface ReplayControlsProps {
   error?: string;
   onPlayToggle: () => void;
   onSpeedChange: (speed: number) => void;
-  onOrTfChange: (orTf: number) => void;
   onJump: (t: number) => void;
+  /** strategy-specific parameter controls rendered after Speed */
+  children?: ReactNode;
 }
 
 export default function ReplayControls({
-  playing, loading, disabled, speed, orTf, t0, tEnd, clock,
+  playing, loading, disabled, speed, t0, tEnd, clock,
   closedCount, revealedCount, net, error,
-  onPlayToggle, onSpeedChange, onOrTfChange, onJump,
+  onPlayToggle, onSpeedChange, onJump, children,
 }: ReplayControlsProps) {
   return (
     <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: "center", flexWrap: "wrap" }}>
@@ -48,9 +49,7 @@ export default function ReplayControls({
       <TextField size="small" select value={speed} onChange={e => onSpeedChange(Number(e.target.value))} sx={{ width: 110 }} label="Speed">
         {SPEEDS.map(s => <MenuItem key={s} value={s}>{s}x</MenuItem>)}
       </TextField>
-      <TextField size="small" select value={orTf} onChange={e => onOrTfChange(Number(e.target.value))} sx={{ width: 110 }} label="OR TF">
-        {[5, 15, 30].map(m => <MenuItem key={m} value={m}>{m}m</MenuItem>)}
-      </TextField>
+      {children}
       <Box sx={{ flex: 1, minWidth: 200, px: 1 }}>
         <Slider size="small" min={t0} max={tEnd} step={1} value={Math.round(clock)}
           onChange={(_, v) => onJump(v as number)} aria-label="replay position" />
