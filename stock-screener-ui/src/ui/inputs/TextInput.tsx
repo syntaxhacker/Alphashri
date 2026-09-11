@@ -27,8 +27,12 @@ export function TextInput({
   type: inputType,
   name,
   id: inputId,
+  w,
+  h,
 }: UITextInputProps) {
   const muiSize = mapSize(size);
+  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
+  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
   const isError = Boolean(error);
   const helperText = isError
     ? typeof error === "string"
@@ -52,7 +56,7 @@ export function TextInput({
       type={inputType}
       name={name as string | undefined}
       id={inputId as string | undefined}
-      fullWidth
+      fullWidth={explicitWidth == null}
       className={className}
       style={style as React.CSSProperties}
       data-testid={testId ? `${testId}-field` : undefined}
@@ -70,7 +74,7 @@ export function TextInput({
         // editable element (typing, fill, clear all work on it)
         htmlInput: testId ? ({ "data-testid": testId } as any) : undefined,
       }}
-      sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" } }}
+      sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" }, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
     />
   );
 }

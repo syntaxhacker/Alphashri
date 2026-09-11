@@ -3,6 +3,7 @@ export { Box } from "./layout/Box";
 export { Flex } from "./layout/Flex";
 export { Stack } from "./layout/Stack";
 export { Group } from "./layout/Group";
+export { ToolbarRow } from "./layout/ToolbarRow";
 export { Center } from "./layout/Center";
 export { Paper } from "./layout/Paper";
 export { Card } from "./layout/Card";

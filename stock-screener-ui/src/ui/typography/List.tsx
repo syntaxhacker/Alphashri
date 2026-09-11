@@ -87,7 +87,7 @@ export function ListItem({ children, className, style, "data-testid": testId, id
   return (
     <MuiListItem className={className} style={style} id={id} data-testid={testId} sx={{ alignItems: "flex-start" }} {...(cleanRest as Record<string, unknown>)}>
       {icon ? <ListItemIcon sx={{ minWidth: 28, mt: 0.25 }}>{icon}</ListItemIcon> : null}
-      {(() => { const LIT: any = ListItemText; return <LIT primary={children} primaryTypographyProps={{ component: "span", variant: "body2" }} sx={{ m: 0 }} />; })()}
+      {(() => { const LIT: any = ListItemText; return <LIT primary={children} slotProps={{ primary: { component: "span", variant: "body2" } }} sx={{ m: 0 }} />; })()}
     </MuiListItem>
   );
 }
