@@ -13,14 +13,14 @@ import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import { orRangeLabel } from "@/utils/replayTime";
 import { TZ_IST, TZ_IST_LABEL } from "@/config/constants";
-import { ReplayTradeTable, type RTrade } from "./ReplayTradeTable";
+import { ReplayTradeTable, type ReplayTrade } from "@/components/replay/tick";
 
 type Candle = { time: number; open: number; high: number; low: number; close: number };
 type VwapPt = { time: number; value: number };
 type Bundle = {
   candles: Candle[]; subs: Candle[]; vwap: VwapPt[];
   or_high: number; or_low: number; or_minutes: number; or_end: number;
-  trades: RTrade[]; basis?: number; sub_secs?: number; hist_bars?: number; error?: string;
+  trades: ReplayTrade[]; basis?: number; sub_secs?: number; hist_bars?: number; error?: string;
 };
 
 const DATES = ["2026-09-02", "2026-08-26", "2026-07-24", "2026-08-27", "2026-07-22", "2026-07-02"];
@@ -297,8 +297,9 @@ export default function TickReplay() {
             ctx.fillStyle = palette.NEGATIVE;
             ctx.fillText(`-${Math.abs(t.entry - t.sl).toFixed(1)}`, Math.min(left + w + 4, rect.width - 60), top + 12);
           }
-          const yT = t.tp != null ? p2y(t.tp) : null;
-          if (yT != null) {
+          const tp = t.tp;
+          const yT = tp != null ? p2y(tp) : null;
+          if (yT != null && tp != null) {
             const ttop = Math.min(yE, yT);
             const th = Math.abs(yT - yE);
             if (th >= 2) {
@@ -307,7 +308,7 @@ export default function TickReplay() {
               ctx.strokeStyle = withAlpha(palette.POSITIVE, 0.55);
               ctx.strokeRect(left + 0.5, ttop + 0.5, w - 1, Math.max(th - 1, 1));
               ctx.fillStyle = palette.POSITIVE;
-              ctx.fillText(`+${Math.abs(t.tp - t.entry).toFixed(1)} (${t.rr >= 0 ? "+" : ""}${t.rr.toFixed(1)}R)`, Math.min(left + w + 4, rect.width - 110), ttop + 12);
+              ctx.fillText(`+${Math.abs(tp - t.entry).toFixed(1)} (${t.rr >= 0 ? "+" : ""}${t.rr.toFixed(1)}R)`, Math.min(left + w + 4, rect.width - 110), ttop + 12);
             }
           }
           ctx.strokeStyle = palette.MARKER_ENTRY;

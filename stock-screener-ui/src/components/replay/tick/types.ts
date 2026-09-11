@@ -7,7 +7,8 @@ export type { Bar };
 export type TradeStack = "inv" | "retest";
 export type TradeSide = "LONG" | "SHORT";
 export type TradeKind = "inv" | "retest";
-export type TradeResult = "TP" | "SL" | "TRAIL";
+export type ReplayResult = "TP" | "SL" | "TRAIL" | "BE" | "EOD" | "REV" | "REJ";
+export type TradeResult = ReplayResult;
 
 export interface ReplayTrade {
   stack?: TradeStack;
@@ -19,9 +20,10 @@ export interface ReplayTrade {
   sl: number;
   tp: number | null; // null = structure trail, no fixed target
   exit: number;
-  result: TradeResult;
+  result: ReplayResult;
   pnl: number; // points
   rr: number; // R multiple
+  meta?: Record<string, unknown>;
 }
 
 export type ZoneKind = "supply" | "demand" | "fvg-bull" | "fvg-bear" | "ifvg" | "lrl";
@@ -41,4 +43,14 @@ export interface ReplayTrend {
   t2: number;
   p2: number;
   label?: string;
+}
+
+export interface ReplayBundle {
+  bars: Bar[];
+  trades: ReplayTrade[];
+  zones?: ReplayZone[];
+  trends?: ReplayTrend[];
+  basis?: number;
+  error?: string;
+  meta?: Record<string, unknown>;
 }

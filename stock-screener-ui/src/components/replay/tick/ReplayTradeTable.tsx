@@ -8,12 +8,9 @@ import { formatDuration, getPnLTextColor } from "@/utils/ui-helpers";
 import { TZ_IST } from "@/config/constants";
 import * as palette from "@/ui/palette";
 import { IconChevronRight, IconChevronDown } from "@tabler/icons-react";
+import type { ReplayTrade } from "./types";
 
-export type RTrade = {
-  time: number; exit_time: number; side: "LONG" | "SHORT"; kind: string;
-  entry: number; sl: number; tp: number; exit: number;
-  result: "TP" | "SL" | "EOD"; pnl: number; rr: number;
-};
+export type RTrade = ReplayTrade;
 
 const fmtT = (ts: number) =>
   new Date(ts * 1000).toLocaleString("en-IN", { timeZone: TZ_IST, hour: "2-digit", minute: "2-digit", hour12: false });
@@ -30,7 +27,7 @@ function StatRow({ label, value, color }: { label: string; value: string; color?
 }
 
 /** Expanded detail: same Entry/Exit context-grid language as the paper trade history. */
-const ReplayTradeStats = memo(function ReplayTradeStats({ trade, clock }: { trade: RTrade; clock: number }) {
+const ReplayTradeStats = memo(function ReplayTradeStats({ trade, clock }: { trade: ReplayTrade; clock: number }) {
   const closed = trade.exit_time <= clock;
   const risk = Math.abs(trade.entry - trade.sl);
   return (
@@ -40,7 +37,7 @@ const ReplayTradeStats = memo(function ReplayTradeStats({ trade, clock }: { trad
         <StatRow label="Time" value={fmtT(trade.time)} />
         <StatRow label="Price" value={trade.entry.toFixed(1)} />
         <StatRow label="Stop" value={trade.sl.toFixed(1)} color={palette.NEGATIVE} />
-        <StatRow label="Target" value={trade.tp.toFixed(1)} color={palette.POSITIVE} />
+        <StatRow label="Target" value={trade.tp != null ? trade.tp.toFixed(1) : "trail"} color={palette.POSITIVE} />
         <StatRow label="Risk" value={`${risk.toFixed(1)} pts`} color={palette.TEXT_MUTED} />
       </Box>
       <Box sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0 }}>
@@ -60,11 +57,11 @@ const ReplayTradeStats = memo(function ReplayTradeStats({ trade, clock }: { trad
 });
 
 export function ReplayTradeTable({ trades, clock, onSelectTime }: {
-  trades: RTrade[];
+  trades: ReplayTrade[];
   clock: number;
   onSelectTime: (t: number) => void;
 }) {
-  const columns = useMemo<ColumnDef<RTrade>[]>(
+  const columns = useMemo<ColumnDef<ReplayTrade>[]>(
     () => [
       {
         id: "toggle",
@@ -119,7 +116,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
         header: "TP",
         accessorKey: "tp",
         cell: ({ row }) => (
-          <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.tp.toFixed(1)}</Typography>
+          <Typography variant="caption" sx={{ fontFamily: "monospace", fontSize: 11 }}>{row.original.tp != null ? row.original.tp.toFixed(1) : "trail"}</Typography>
         ),
       },
       {
@@ -193,7 +190,7 @@ export function ReplayTradeTable({ trades, clock, onSelectTime }: {
   );
 
   return (
-    <TanStackTable<RTrade>
+    <TanStackTable<ReplayTrade>
       className="replay-trade-table"
       data={trades}
       columns={columns}
