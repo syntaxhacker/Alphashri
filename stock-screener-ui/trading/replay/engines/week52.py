@@ -8,10 +8,9 @@ uses it instead of its default NQ loader.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
-
 from market_data.market_data import fetch_candles
 from trading.replay.contract import ParamSpec, ReplayContext, StrategyResult
+from trading.replay.datasources import load_daily_bars
 from trading.week52_utils import calculate_52w_high, days_since_52w_high_touch
 
 
@@ -50,25 +49,9 @@ class Week52ChaserReplay:
         """Fetch NSE daily bars ending at ``date`` and build a bar-only context."""
         symbol = str(params.get("symbol") or "NETWEB")
         lookback_days = int(params.get("lookback_days", 400))
-        to_date = date
-        from_date = (datetime.fromisoformat(date) - timedelta(days=lookback_days + 260)).strftime("%Y-%m-%d")
-
-        df = fetch_candles(symbol, tf=1440, from_date=from_date, to_date=to_date)
-        daily_bars: list[dict] = []
-        if df is not None and not df.empty:
-            for ts, row in df.iterrows():
-                try:
-                    volume = row["volume"] if "volume" in row else 0
-                    daily_bars.append({
-                        "time": int(ts.timestamp()),
-                        "open": float(row["open"]),
-                        "high": float(row["high"]),
-                        "low": float(row["low"]),
-                        "close": float(row["close"]),
-                        "volume": float(volume) if volume == volume else 0.0,
-                    })
-                except Exception:
-                    continue
+        # ``fetch`` is injected so the module-level ``fetch_candles`` stays the
+        # patchable data-source symbol for this engine.
+        daily_bars = load_daily_bars(symbol, date, lookback_days, fetch=fetch_candles)
 
         return ReplayContext(date=date, symbol=symbol, params=params, ticks=[],
                              bars=daily_bars, hist_bars=None, basis=None)

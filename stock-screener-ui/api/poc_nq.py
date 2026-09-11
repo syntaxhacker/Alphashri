@@ -5,6 +5,7 @@ from fastapi import APIRouter, Query, Request
 
 from trading.replay import registry
 from trading.replay.contract import ReplayContext
+from trading.replay.datasources import load_nq_session
 
 router = APIRouter(prefix="/api/poc", tags=["poc"])
 
@@ -29,31 +30,12 @@ def _basis_method(basis):
 
 
 def _load_replay_data(date: str, hist_hours: int = 0):
-    """Shared loader for replay endpoints: sorted ticks, 1m bars, optional overnight history.
+    """Shared loader for replay endpoints (delegates to ``load_nq_session``).
 
-    Imports are resolved at call time so tests can patch ``scripts.nq_ticks`` /
-    ``scripts.smc_tick_eval`` exactly like the legacy endpoints did.
+    Kept as a thin module-level shim so existing callers/tests that patch
+    ``scripts.nq_ticks`` / ``scripts.smc_tick_eval`` keep working unchanged.
     """
-    from scripts.nq_ticks import fetch_nq_ticks
-    from scripts.smc_tick_eval import build_1m_bars
-
-    ticks, basis = fetch_nq_ticks(date)
-    ticks = sorted(ticks, key=lambda t: t["timestamp"])  # single order for fills, subs, VWAP
-    bars = build_1m_bars(ticks)
-    hist_bars = []
-    if hist_hours and hist_hours > 0 and bars:
-        from datetime import datetime, timedelta
-
-        from scripts.smc_tick_eval import fetch_ticks
-
-        prev = (datetime.fromisoformat(date) - timedelta(days=1)).date().isoformat()
-        try:
-            pticks = fetch_ticks(prev)
-            cut = bars[0]["time"] - hist_hours * 3600
-            hist_bars = [b for b in build_1m_bars(pticks) if b["time"] >= cut and b["time"] < bars[0]["time"]]
-        except Exception:
-            hist_bars = []
-    return ticks, bars, hist_bars, basis
+    return load_nq_session(date, hist_hours)
 
 
 def _parse_replay_params(strategy, request) -> dict:
