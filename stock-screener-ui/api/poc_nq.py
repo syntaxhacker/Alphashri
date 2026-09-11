@@ -322,10 +322,15 @@ def get_replay(strategy_id: str, request: Request):
         return _cache[key]["data"]
 
     try:
-        hist_hours = int(params.get("hist") or 0) if "hist" in params else 0
-        ticks, bars, hist_bars, basis = _load_replay_data(date, hist_hours)
-        ctx = ReplayContext(date=date, symbol="NQ=F", params=params, ticks=ticks, bars=bars,
-                            hist_bars=hist_bars or None, basis=_basis_median(basis))
+        loader = getattr(strategy, "load", None)
+        basis = None
+        if callable(loader):
+            ctx = loader(date, params)
+        else:
+            hist_hours = int(params.get("hist") or 0) if "hist" in params else 0
+            ticks, bars, hist_bars, basis = _load_replay_data(date, hist_hours)
+            ctx = ReplayContext(date=date, symbol="NQ=F", params=params, ticks=ticks, bars=bars,
+                                hist_bars=hist_bars or None, basis=_basis_median(basis))
         result = strategy.run(ctx)
     except Exception as e:
         return {"strategy_id": strategy_id, "date": date, "candles": [], "bars": [],
@@ -342,7 +347,7 @@ def get_replay(strategy_id: str, request: Request):
         "trends": result.trends,
         "levels": result.levels,
         "kpis": result.kpis,
-        "symbol": "NQ=F",
+        "symbol": ctx.symbol,
         "basis": _basis_median(basis),
         "basis_method": _basis_method(basis),
         **result.extras,

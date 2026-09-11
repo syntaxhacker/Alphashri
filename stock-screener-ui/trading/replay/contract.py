@@ -107,3 +107,13 @@ class ReplayStrategy(Protocol):
 
     def run(self, ctx: ReplayContext) -> StrategyResult:
         ...
+
+    def load(self, date: str, params: dict) -> ReplayContext:
+        """Optional data-source hook.
+
+        Engines whose data source is not the endpoint's default NQ-tick loader
+        (e.g. NSE daily bars) implement this to build their own
+        :class:`ReplayContext`. When absent, the generic endpoint falls back to
+        its built-in NQ tick/1m-bar loader (``api.poc_nq._load_replay_data``).
+        """
+        ...
