@@ -81,6 +81,15 @@ describe("ScreenerHeader", () => {
     expect(getNumberInput()).toBeDisabled();
   });
 
+  it("keeps inputs enabled during background refresh when results are present", () => {
+    render(
+      <UIProvider>
+        <ScreenerHeader {...defaultProps} isLoading={true} disableControls={false} />
+      </UIProvider>,
+    );
+    expect(getNumberInput()).toBeEnabled();
+  });
+
   it("disables provider select when loading", () => {
     render(
       <UIProvider>

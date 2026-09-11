@@ -1,4 +1,4 @@
-import { useMemo, useRef } from "react";
+import { useCallback, useMemo, useRef } from "react";
 import { Box, Stack } from "@/ui";
 import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
@@ -63,9 +63,18 @@ export function HeatmapTreemap({
   const activeMetric = metrics.find((m) => m.value === metric) || metrics[0];
   const metricKey = activeMetric.value;
 
-  const metricValues = stocks.map((s) => getMetricValue(s, metricKey));
+  const metricValues = useMemo(
+    () => stocks.map((stock) => getMetricValue(stock, metricKey)),
+    [stocks, metricKey],
+  );
   const metricMin = metricValues.length ? Math.min(...metricValues) : 0;
   const metricMax = metricValues.length ? Math.max(...metricValues) : 1;
+  const handleChartClick = useCallback(
+    (params: { name?: string }) => {
+      if (params?.name) onSymbolClick?.(params.name);
+    },
+    [onSymbolClick],
+  );
 
   const chartOption = useMemo(() => {
     const data = stocks.map((stock) => {
@@ -209,15 +218,7 @@ export function HeatmapTreemap({
                 option={chartOption}
                 style={{ height: chartHeight, width: "100%", flex: 1 }}
                 opts={{ renderer: "canvas" }}
-                onEvents={
-                  onSymbolClick
-                    ? {
-                        click: (params: { name?: string }) => {
-                          if (params?.name) onSymbolClick(params.name);
-                        },
-                      }
-                    : undefined
-                }
+                onEvents={onSymbolClick ? { click: handleChartClick } : undefined}
               />
             </Box>
           </CardContent>

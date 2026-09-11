@@ -25,6 +25,9 @@ export const DEFAULT_SCREENER_DATA: ScreenerData = {
 const { subscribe, notify: notifySubscribers } = createSubscriber();
 export { subscribe, notifySubscribers };
 
+const { subscribe: subscribeToSelection, notify: notifySelectionSubscribers } = createSubscriber();
+export { subscribeToSelection };
+
 // Data state - initialize with empty structure to avoid null checks
 export let data: ScreenerData = { ...DEFAULT_SCREENER_DATA };
 export let isLoading = false;
@@ -156,15 +159,15 @@ export function toggleSymbolSelection(symbol: string) {
   } else {
     selectedSymbols = [...selectedSymbols, symbol];
   }
-  notifySubscribers();
+  notifySelectionSubscribers();
 }
 
 export function setSelectedSymbols(symbols: string[]) {
   selectedSymbols = symbols;
-  notifySubscribers();
+  notifySelectionSubscribers();
 }
 
 export function clearSelectedSymbols() {
   selectedSymbols = [];
-  notifySubscribers();
+  notifySelectionSubscribers();
 }

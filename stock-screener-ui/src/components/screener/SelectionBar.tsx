@@ -1,15 +1,16 @@
+import { memo } from "react";
 import { alpha } from "@mui/material/styles";
 import { Box, Group, Button, Badge } from "@/ui";
 import { IconChartDots, IconX } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { selectedSymbols, clearSelectedSymbols, subscribe } from "../../state";
+import { selectedSymbols, clearSelectedSymbols, subscribeToSelection } from "../../state";
 
 interface SelectionBarProps {
   onCompare: () => void;
 }
 
-export function SelectionBar({ onCompare }: SelectionBarProps) {
-  useStoreSubscription(subscribe);
+export const SelectionBar = memo(function SelectionBar({ onCompare }: SelectionBarProps) {
+  useStoreSubscription(subscribeToSelection);
   if (selectedSymbols.length === 0) return null;
 
   return (
@@ -47,4 +48,4 @@ export function SelectionBar({ onCompare }: SelectionBarProps) {
       </Group>
     </Box>
   );
-}
+});

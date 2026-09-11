@@ -2,7 +2,6 @@ import { useState, useCallback, lazy, Suspense, useTransition } from "react";
 import { useSearchParams } from "react-router-dom";
 import MuiStack from "@mui/material/Stack";
 import Paper from "@mui/material/Paper";
-import CardContent from "@mui/material/CardContent";
 import { Box, Tabs, Text, Select, Skeleton } from "@/ui";
 import { BORDER, SURFACE } from "@/ui/palette";
 import { IconTable, IconChartDots, IconSettings } from "@tabler/icons-react";
@@ -138,6 +137,7 @@ export function ScreenerPage({
   }, [setSearchParams]);
 
   const hasSideFilters = screenerHasSideFilters(activeScreener);
+  const hasResults = approachingStocks.length + touchedStocks.length > 0;
 
   return (
     <Box sx={{ width: "100%", minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }}>
@@ -219,6 +219,7 @@ export function ScreenerPage({
               viewMode={viewMode}
               onViewModeChange={setViewMode}
               hideStatus
+              disableControls={isLoading && !hasResults}
             />
           </Box>
         </Paper>

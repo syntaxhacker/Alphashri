@@ -13,6 +13,7 @@ vi.mock("../../state", () => ({
   toggleSymbolSelection: vi.fn(),
   clearSelectedSymbols: vi.fn(),
   setSelectedSymbols: vi.fn(),
+  subscribeToSelection: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("../common/PreviewChartProvider", () => ({

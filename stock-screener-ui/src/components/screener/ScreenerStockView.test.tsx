@@ -7,7 +7,7 @@ import { UIProvider } from "@/ui";
 
 vi.mock("./ScreenerTable", () => ({
   ScreenerTable: (props: any) => (
-    <div data-testid={props["data-testid"] || "screener-table"} data-view="table">
+    <div data-testid={props.testId || "screener-table"} data-view="table">
       Table View
     </div>
   ),

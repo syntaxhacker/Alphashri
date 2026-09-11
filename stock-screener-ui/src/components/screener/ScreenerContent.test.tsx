@@ -88,6 +88,18 @@ describe("ScreenerContent", () => {
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
   });
 
+  it("retains loaded sections during a background refresh", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        isLoading
+        approachingStocks={[mockStock("A")]}
+      />,
+    );
+    expect(screen.getByTestId("screener-section")).toHaveAttribute("data-title", "Approaching (1)");
+    expect(screen.queryByTestId("screener-loading")).not.toBeInTheDocument();
+  });
+
   it("shows error panel when error is set", () => {
     renderWithProvider(<ScreenerContent {...defaultProps} error="Failed to fetch" />);
     expect(screen.getByTestId("screener-error")).toBeInTheDocument();

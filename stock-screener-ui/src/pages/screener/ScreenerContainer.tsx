@@ -30,6 +30,8 @@ export function ScreenerContainer() {
     onSymbolHover,
   } = useScreenerState(urlScreener);
 
+  const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
+
   return (
     <ScreenerPage
       screenerOptions={screenerOptions}
@@ -38,9 +40,9 @@ export function ScreenerContainer() {
       onConfigScreenerSelect={onConfigScreenerSelect}
       title={`${(screenerOptions ?? []).find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
       status={
-        isLoading
+        isLoading && totalStocks === 0
           ? "Loading..."
-          : `${(approachingStocks ?? []).length + (touchedStocks ?? []).length} stocks`
+          : `${totalStocks} stocks${isLoading ? " • Updating..." : ""}`
       }
       isLoading={isLoading}
       autoRefreshSeconds={autoRefreshSeconds}
