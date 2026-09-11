@@ -3,7 +3,7 @@ import type { ReplayBundle, ReplayTrade, ReplayTrend, ReplayZone } from "../tick
 
 export interface ReplayParamSpec {
   name: string; label: string;
-  type: "int" | "float" | "bool" | "select" | "text";
+  type: "int" | "float" | "bool" | "select" | "text" | "symbol";
   default: unknown;
   min?: number; max?: number; step?: number;
   options?: string[]; description?: string;

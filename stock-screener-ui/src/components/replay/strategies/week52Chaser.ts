@@ -30,7 +30,7 @@ const week52Chaser: ReplayStrategyPlugin = {
   endpoint: "/api/poc/replay/week52-chaser",
   dates: DATES,
   params: [
-    { name: "symbol", label: "Symbol", type: "text", default: "NETWEB" },
+    { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
     { name: "lookback_days", label: "Lookback days", type: "int", default: 400, min: 60, max: 1000, step: 10 },
     { name: "sl_pct", label: "SL %", type: "float", default: 2.0, min: 0, step: 0.1 },
     { name: "tp_pct", label: "TP %", type: "float", default: 3.0, min: 0, step: 0.1 },

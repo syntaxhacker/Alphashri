@@ -45,7 +45,7 @@ describe("replay strategy catalog", () => {
         expect(spec.name.length).toBeGreaterThan(0);
         expect(typeof spec.label).toBe("string");
         expect(spec.label.length).toBeGreaterThan(0);
-        expect(["int", "float", "bool", "select", "text"]).toContain(spec.type);
+        expect(["int", "float", "bool", "select", "text", "symbol"]).toContain(spec.type);
         expect(spec.default).toBeDefined();
         if (spec.options) {
           expect(Array.isArray(spec.options)).toBe(true);

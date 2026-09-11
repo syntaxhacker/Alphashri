@@ -27,7 +27,7 @@ describe("strategy registry", () => {
       expect(typeof p.name).toBe("string");
       expect(p.name.length).toBeGreaterThan(0);
       expect(typeof p.label).toBe("string");
-      expect(["int", "float", "bool", "select", "text"]).toContain(p.type);
+      expect(["int", "float", "bool", "select", "text", "symbol"]).toContain(p.type);
       expect(p.default).toBeDefined();
       if (p.options) {
         expect(Array.isArray(p.options)).toBe(true);

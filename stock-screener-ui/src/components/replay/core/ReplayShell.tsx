@@ -23,6 +23,7 @@ import {
 import { useReplayClock } from "./useReplayClock";
 import ReplayChartHost, { type ReplayChartHandle } from "./ReplayChartHost";
 import ReplayControls from "./ReplayControls";
+import SymbolAutocomplete from "./SymbolAutocomplete";
 import type {
   ReplayParamSpec,
   ReplayParamValues,
@@ -72,6 +73,16 @@ function ParamControl({ spec, value, onChange }: {
         control={<Checkbox size="small" checked={Boolean(value)} onChange={(_, c) => onChange(c)} />}
         label={spec.label}
         sx={{ color: palette.TEXT_MUTED, "& .MuiFormControlLabel-label": { fontSize: 12 } }}
+      />
+    );
+  }
+  if (spec.type === "symbol") {
+    return (
+      <SymbolAutocomplete
+        value={String(value ?? "")}
+        label={spec.label}
+        onChange={onChange}
+        testid={`replay-symbol-${spec.name}`}
       />
     );
   }

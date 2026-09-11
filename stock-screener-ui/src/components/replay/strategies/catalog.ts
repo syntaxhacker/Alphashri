@@ -73,7 +73,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "text", default: "NETWEB" },
+      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 2.0 },
       { name: "entry_threshold_pct", label: "Entry threshold %", type: "float", default: 2.0 },
@@ -90,7 +90,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "text", default: "NETWEB" },
+      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "near_high_threshold_pct", label: "Near-high threshold %", type: "float", default: 3.0 },
       { name: "min_days_since_52w_high", label: "Min days since 52W high", type: "int", default: 20 },
@@ -105,7 +105,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "text", default: "NETWEB" },
+      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 3.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 5.0 },
@@ -121,7 +121,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "text", default: "NETWEB" },
+      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 3.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 6.0 },
@@ -139,7 +139,7 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "text", default: "NETWEB" },
+      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 5.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 8.0 },

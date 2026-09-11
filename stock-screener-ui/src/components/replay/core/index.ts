@@ -5,6 +5,7 @@ export type { ReplayChartHandle, ReplayCandle, ReplayVwapPt, OrLevels } from "./
 export { default as ReplayControls, SPEEDS } from "./ReplayControls";
 export type { ReplayControlsProps } from "./ReplayControls";
 export { default as ReplayShell } from "./ReplayShell";
+export { default as SymbolAutocomplete } from "./SymbolAutocomplete";
 export type {
   ReplayStrategyPlugin,
   ReplayParamSpec,
