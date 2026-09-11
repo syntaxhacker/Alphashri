@@ -1,4 +1,4 @@
-import { Group, Select, Badge, Tooltip, ActionIcon } from "@/ui";
+import { Box, ToolbarRow, Select, Badge, Tooltip, ActionIcon } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 import { AUTO_REFRESH_INTERVALS } from "./NewsLocalStorage";
 
@@ -26,16 +26,18 @@ export function NewsFilterControls({
   onMarkAllRead: () => void;
 }) {
   return (
-    <Group gap="xs">
-      <Select
-        size="sm"
-        value={selectedSource}
-        onChange={(v) => v && onSourceChange(v)}
-        data={sourceData}
-        flex={1}
-        className="news-source-select"
-        data-testid="news-source-select"
-      />
+    <ToolbarRow gap={8}>
+      <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
+        <Select
+          size="sm"
+          value={selectedSource}
+          onChange={(v) => v && onSourceChange(v)}
+          data={sourceData}
+          style={{ width: "100%" }}
+          className="news-source-select"
+          data-testid="news-source-select"
+        />
+      </Box>
 
       <Tooltip label="Refresh">
         <ActionIcon
@@ -65,6 +67,6 @@ export function NewsFilterControls({
           {unreadCount} unread
         </Badge>
       )}
-    </Group>
+    </ToolbarRow>
   );
 }

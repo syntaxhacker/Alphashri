@@ -16,7 +16,7 @@ function useArticleDetail(isMobile: boolean) {
   const [selectedArticle, setSelectedArticle] = useState<NewsItem | null>(null);
   const [articleContent, setArticleContent] = useState<ArticleResponse | null>(null);
   const [articleLoading, setArticleLoading] = useState(false);
-  const [_articleError, setArticleError] = useState<string | null>(null);
+  const [articleError, setArticleError] = useState<string | null>(null);
   const [showFullContent, setShowFullContent] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
   const articleFetchId = useRef(0);
@@ -51,6 +51,7 @@ function useArticleDetail(isMobile: boolean) {
     selectedArticle,
     articleContent,
     articleLoading,
+    articleError,
     showFullContent,
     modalOpen,
     handleArticleClick,
@@ -71,14 +72,13 @@ function NewsPageMobile({
   onCloseArticle: () => void;
 }) {
   return (
-    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, width: "100%", minHeight: 0, height: "100%", overflow: "hidden", alignItems: "center", justifyContent: "center" }} data-testid="news-page">
-      <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexShrink: 0 }} />
-      <Stack spacing={1} sx={{ flex: 1, width: "100%", alignItems: "center", justifyContent: "center" }}>
-        <Grid container spacing={2} sx={{ justifyContent: "center", alignItems: "center", width: "100%" }}>
-          <Grid size={{ xs: 12 }} sx={{ display: "flex", justifyContent: "center" }}>
-            <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-              <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-                <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, width: "100%", minHeight: 0, height: "100%", overflow: "hidden", alignItems: "stretch", justifyContent: "flex-start" }} data-testid="news-page">
+      <Stack spacing={1} sx={{ flex: 1, width: "100%", alignItems: "stretch", justifyContent: "flex-start" }}>
+        <Grid container spacing={2} sx={{ justifyContent: "flex-start", alignItems: "stretch", width: "100%" }}>
+          <Grid size={{ xs: 12 }} sx={{ display: "flex", justifyContent: "flex-start" }}>
+            <Card elevation={0} sx={{ width: "100%", p: 1 }}>
+              <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
+                <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}>
                   <NewsList {...newsListProps} />
                 </Box>
               </CardContent>
@@ -110,22 +110,21 @@ function NewsPageDesktop({
   articleDetailProps: React.ComponentProps<typeof ArticleDetail>;
 }) {
   return (
-    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, minHeight: 0, height: "100%", overflow: "hidden", width: "100%", alignItems: "center", justifyContent: "center" }} data-testid="news-page">
-      <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexShrink: 0, p: 1 }} />
-      <Grid container spacing={2} sx={{ justifyContent: "center", alignItems: "stretch", width: "100%", flex: 1, minHeight: 0 }}>
-        <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", justifyContent: "center", minHeight: 0 }}>
-          <Card elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", p: 1, minHeight: 0, overflow: "hidden" }}>
-            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", gap: 1, minHeight: 0, height: "100%", overflow: "hidden", width: "100%", alignItems: "stretch", justifyContent: "flex-start" }} data-testid="news-page">
+      <Grid container spacing={2} sx={{ justifyContent: "flex-start", alignItems: "stretch", width: "100%", flex: 1, minHeight: 0 }}>
+        <Grid size={{ xs: 12, md: 5 }} sx={{ display: "flex", justifyContent: "flex-start", minHeight: 0 }}>
+          <Card elevation={0} sx={{ flex: 1, display: "flex", flexDirection: "column", p: 1, minHeight: 0, overflow: "hidden" }}>
+            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}>
+              <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}>
                 <NewsList {...newsListProps} />
               </Box>
             </CardContent>
           </Card>
         </Grid>
-        <Grid size={{ xs: 12, md: 7 }} sx={{ display: "flex", justifyContent: "center", minHeight: 0 }}>
-          <Card elevation={1} sx={{ flex: 1, display: "flex", flexDirection: "column", p: 1, minHeight: 0, overflow: "hidden" }}>
-            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-              <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        <Grid size={{ xs: 12, md: 7 }} sx={{ display: "flex", justifyContent: "flex-start", minHeight: 0 }}>
+          <Card elevation={0} sx={{ flex: 1, display: "flex", flexDirection: "column", p: 1, minHeight: 0, overflow: "hidden" }}>
+            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, overflow: "hidden", minHeight: 0, display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}>
+              <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1, width: "100%", display: "flex", flexDirection: "column", alignItems: "stretch", justifyContent: "flex-start" }}>
                 <ArticleDetail {...articleDetailProps} />
               </Box>
             </CardContent>
@@ -169,11 +168,15 @@ export default function NewsPage() {
     selectedArticle: article.selectedArticle,
     articleContent: article.articleContent,
     articleLoading: article.articleLoading,
+    articleError: article.articleError,
     isMobile,
     showFullContent: article.showFullContent,
     onClose: article.handleCloseArticle,
     onToggleFullContent: article.toggleFullContent,
     onSymbolClick: handleSymbolClick,
+    onRetryArticle: article.selectedArticle
+      ? () => article.handleArticleClick(article.selectedArticle as NewsItem)
+      : undefined,
   };
 
   if (isMobile) {

@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render, screen, cleanup } from "@testing-library/react";
+import { render, screen, cleanup, waitFor } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import { AppLayout } from "./AppLayout";
 import { TestWrapper } from "../../test-utils/testUtils";
+import { fetchSurges } from "../../api/notifications";
 
 // Mock matchMedia
 beforeEach(() => {
@@ -40,6 +41,14 @@ vi.mock("./MarketTicker", () => ({
 
 vi.mock("../news/NewsPanel2", () => ({
   default: () => <div data-testid="news-panel-mock" />,
+}));
+
+vi.mock("../../api/notifications", () => ({
+  fetchSurges: vi.fn(async () => ({ total: 0, events: [] })),
+}));
+
+vi.mock("../../api/notifications", () => ({
+  fetchSurges: vi.fn(async () => ({ total: 0, events: [] })),
 }));
 
 describe("AppLayout", () => {
@@ -191,6 +200,39 @@ describe("AppLayout", () => {
     await user.click(screen.getByTestId("notif-bell"));
     // NotificationsPanel should be triggered (mocked panel not needed, just bell interaction)
     expect(screen.getByTestId("notif-bell")).toBeInTheDocument();
+  });
+
+  it("shows the surge alert count on the bell", async () => {
+    vi.mocked(fetchSurges).mockResolvedValueOnce({ total: 5, events: [] });
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+
+    expect(await screen.findByText("5")).toBeInTheDocument();
+    expect(
+      screen.getByTestId("notif-badge").querySelector(".MuiBadge-badge"),
+    ).not.toHaveClass("MuiBadge-invisible");
+  });
+
+  it("hides the surge badge when there are no alerts", async () => {
+    render(
+      <TestWrapper>
+        <AppLayout>
+          <div>Content</div>
+        </AppLayout>
+      </TestWrapper>,
+    );
+
+    await waitFor(() => {
+      expect(fetchSurges).toHaveBeenCalled();
+    });
+    expect(
+      screen.getByTestId("notif-badge").querySelector(".MuiBadge-badge"),
+    ).toHaveClass("MuiBadge-invisible");
   });
 
   it("passes collapsed prop correctly to NavbarNested after toggle", async () => {

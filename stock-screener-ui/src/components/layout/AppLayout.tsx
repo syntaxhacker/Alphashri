@@ -1,7 +1,7 @@
 import { useLocation } from "react-router-dom";
 import { useDisclosure } from "@/ui/hooks";
 import { NavbarNested } from "./NavbarNested";
-import { NotificationsPanel } from "../notifications/NotificationsPanel";
+import { NotificationsPanel, useSurgeAlertTotal } from "../notifications/NotificationsPanel";
 import { MarketTicker } from "./MarketTicker";
 import NewsPanel2 from "../news/NewsPanel2";
 import MuiAppBar from "@mui/material/AppBar";
@@ -11,6 +11,7 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
 import IconButton from "@mui/material/IconButton";
+import Tooltip from "@mui/material/Tooltip";
 import Badge from "@mui/material/Badge";
 import MenuIcon from "@mui/icons-material/Menu";
 import NotificationsIcon from "@mui/icons-material/Notifications";
@@ -27,7 +28,15 @@ export function AppLayout({ children }: AppLayoutProps) {
   const [mobileOpened, { toggle: toggleMobile, close: closeMobile }] = useDisclosure();
   const [desktopCollapsed, { toggle: toggleDesktop }] = useDisclosure(false);
   const [notifOpen, setNotifOpen] = useState(false);
+  const [notifRefreshKey, setNotifRefreshKey] = useState(0);
+  const surgeTotal = useSurgeAlertTotal(notifRefreshKey);
   const navWidth = desktopCollapsed ? 64 : 200;
+
+  const handleNotifOpen = () => setNotifOpen(true);
+  const handleNotifClose = () => {
+    setNotifOpen(false);
+    setNotifRefreshKey((key) => key + 1);
+  };
 
   const drawerContent = (
     <NavbarNested activePath={location.pathname} collapsed={desktopCollapsed} onToggleCollapse={toggleDesktop} onMobileNavigate={closeMobile} />
@@ -51,16 +60,28 @@ export function AppLayout({ children }: AppLayoutProps) {
           </Box>
           <NewsPanel2 />
           <Stack direction="row" spacing={1} alignItems="center">
-            <IconButton color="inherit" onClick={() => setNotifOpen(true)} data-testid="notif-bell" aria-label="Notifications">
-              <Badge color="error" variant="dot" invisible={false}>
-                <NotificationsIcon />
-              </Badge>
-            </IconButton>
+            <Tooltip title={surgeTotal > 0 ? `${surgeTotal} surge alerts` : "Notifications"}>
+              <IconButton
+                color="inherit"
+                onClick={handleNotifOpen}
+                data-testid="notif-bell"
+                aria-label={surgeTotal > 0 ? `Notifications, ${surgeTotal} surge alerts` : "Notifications"}
+              >
+                <Badge
+                  color="error"
+                  badgeContent={surgeTotal > 99 ? "99+" : surgeTotal}
+                  invisible={surgeTotal === 0}
+                  data-testid="notif-badge"
+                >
+                  <NotificationsIcon />
+                </Badge>
+              </IconButton>
+            </Tooltip>
           </Stack>
         </Toolbar>
       </MuiAppBar>
 
-      <NotificationsPanel opened={notifOpen} onClose={() => setNotifOpen(false)} />
+      <NotificationsPanel opened={notifOpen} onClose={handleNotifClose} />
 
       <MuiDrawer
         variant="temporary"

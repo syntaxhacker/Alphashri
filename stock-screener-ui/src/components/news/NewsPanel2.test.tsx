@@ -213,6 +213,20 @@ describe("NewsPanel2", () => {
     });
   });
 
+  it("retries a failed article load from the reader", async () => {
+    const user = userEvent.setup();
+    (fetchArticle as any).mockRejectedValueOnce(new Error("Network error"));
+    renderComponent();
+    await user.click(screen.getByTestId("news-toggle-btn"));
+
+    await user.click(await screen.findByText("Test News 1"));
+    await user.click(await screen.findByTestId("news-article-retry-btn"));
+
+    await waitFor(() => {
+      expect(fetchArticle).toHaveBeenCalledTimes(2);
+    });
+  });
+
   it("handles source filtering", async () => {
     const user = userEvent.setup();
     renderComponent();
