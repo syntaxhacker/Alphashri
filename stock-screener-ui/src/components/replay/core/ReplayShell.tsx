@@ -2,6 +2,7 @@
 // playback clock, and delegates rendering to the existing core/tick components. All
 // strategy vocabulary (labels, endpoints, envelopes, captions) lives in the plugin.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
@@ -93,7 +94,7 @@ const fmtReviewTime = (ts: number) => {
   return `${t} ${day} ${TZ_IST_LABEL}`;
 };
 
-export default function ReplayShell({ plugin }: { plugin: ReplayStrategyPlugin }) {
+export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStrategyPlugin; headerExtra?: ReactNode }) {
   const [date, setDate] = useState(plugin.dates[0]);
   const [params, setParams] = useState<ReplayParamValues>(() => initialParams(plugin));
   const [raw, setRaw] = useState<any>(null);
@@ -196,7 +197,10 @@ export default function ReplayShell({ plugin }: { plugin: ReplayStrategyPlugin }
 
   return (
     <Box sx={{ p: 2, width: "100%" }} data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
-      <Typography variant="h6" sx={{ color: "#E5E7EB", mb: 0.5 }}>{plugin.label}</Typography>
+      <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5 }}>
+        <Typography variant="h6" sx={{ color: "#E5E7EB" }}>{plugin.label}</Typography>
+        {headerExtra}
+      </Stack>
       {(plugin.subtitle || plugin.summary) && (
         <Typography variant="caption" sx={{ color: "#9CA3AF", display: "block", mb: 1 }}>
           {plugin.subtitle}{plugin.summary?.(bundle ?? EMPTY_BUNDLE, raw)}

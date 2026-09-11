@@ -5,6 +5,7 @@ import Typography from "@mui/material/Typography";
 import { useParams } from "react-router-dom";
 import ReplayShell from "@/components/replay/core/ReplayShell";
 import { getStrategy } from "@/components/replay/strategies";
+import StrategySwitcher from "@/components/replay/strategies/StrategySwitcher";
 
 export default function ReplayStrategyPage({ defaultStrategyId }: { defaultStrategyId?: string }) {
   const { strategyId } = useParams();
@@ -21,5 +22,5 @@ export default function ReplayStrategyPage({ defaultStrategyId }: { defaultStrat
     );
   }
 
-  return <ReplayShell key={plugin.id} plugin={plugin} />;
+  return <ReplayShell key={plugin.id} plugin={plugin} headerExtra={<StrategySwitcher currentId={plugin.id} />} />;
 }
