@@ -124,11 +124,14 @@ export default function ReplayShell({ plugin }: { plugin: ReplayStrategyPlugin }
     jump(0);
     const query = new URLSearchParams({ date });
     for (const spec of plugin.params) query.set(spec.name, String(params[spec.name] ?? spec.default));
-    fetch(`${plugin.endpoint}?${query.toString()}`, { signal: ac.signal })
-      .then(r => {
-        if (r.ok === false) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
+    const request: Promise<any> = plugin.load
+      ? plugin.load({ date, params, signal: ac.signal })
+      : fetch(`${plugin.endpoint}?${query.toString()}`, { signal: ac.signal })
+          .then(r => {
+            if (r.ok === false) throw new Error(`HTTP ${r.status}`);
+            return r.json();
+          });
+    request
       .then(j => {
         if (ac.signal.aborted) return;
         setRaw(j);
@@ -257,6 +260,7 @@ export default function ReplayShell({ plugin }: { plugin: ReplayStrategyPlugin }
             {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: "#58A6FF" }} />}
             {bundle?.error && <Chip size="small" label={bundle.error} color="error" />}
           </Stack>
+          {plugin.panel?.(bundle ?? EMPTY_BUNDLE, raw)}
           {!loading && trades.length === 0 && (
             <Box sx={{ p: 2, color: palette.TEXT_MUTED, fontSize: 12 }}>No trades in this view.</Box>
           )}

@@ -2,8 +2,10 @@
 // Consumers should import getStrategy/listStrategies from here so registration is guaranteed.
 import { registerStrategy } from "./registry";
 import vwapOrb from "./vwapOrb";
+import smcIfvg from "./smcIfvg";
 
 registerStrategy(vwapOrb);
+registerStrategy(smcIfvg);
 
 export { registerStrategy, getStrategy, listStrategies } from "./registry";
 export type {

@@ -26,11 +26,16 @@ export interface ReplayStrategyPlugin {
   dates: string[];               // selectable sessions
   params: ReplayParamSpec[];
   normalize: (json: any) => ReplayBundle;             // envelope -> canonical bundle
+  /** Custom fetch when a strategy needs multiple calls merged. When absent the shell
+   *  performs the default single GET `${endpoint}?${query}`. */
+  load?: (ctx: { date: string; params: ReplayParamValues; signal: AbortSignal }) => Promise<any>;
   timeline?: (json: any) => TimelineData;             // required when mode === "timeline"
   card?: {                                            // used when mode === "review"
     zones?: (json: any) => ReplayZone[];
     trends?: (json: any) => ReplayTrend[];
     explainer?: (trade: ReplayTrade, json: any) => string;
   };
+  /** Full-width row rendered after the param controls in review mode (e.g. KPI chips). */
+  panel?: (bundle: ReplayBundle, json: any) => ReactNode;
   summary?: (bundle: ReplayBundle, json: any) => ReactNode;
 }
