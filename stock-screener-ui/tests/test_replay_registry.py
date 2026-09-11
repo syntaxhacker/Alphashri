@@ -56,6 +56,36 @@ class TestRegistry:
         assert {p["name"] for p in smc["params"]} == {"entries", "flip", "from_ist", "to_ist"}
 
 
+# ---------------- strategies listing endpoint ----------------
+
+
+class TestStrategiesEndpoint:
+
+    def _client(self):
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+
+        app = FastAPI()
+        app.include_router(poc_nq.router)
+        return TestClient(app)
+
+    def test_lists_known_strategies_with_params(self):
+        res = self._client().get("/api/poc/replay/strategies")
+        assert res.status_code == 200
+        assert "strategies" in res.json()
+        by_id = {s["id"]: s for s in res.json()["strategies"]}
+        assert {"vwap-orb", "smc-ifvg"} <= set(by_id)
+        for strategy in by_id.values():
+            for p in strategy["params"]:
+                assert {"name", "type", "default"} <= set(p)
+
+    def test_not_captured_by_strategy_id_route(self):
+        res = self._client().get("/api/poc/replay/strategies")
+        data = res.json()
+        assert "strategies" in data
+        assert "strategy_id" not in data
+
+
 # ---------------- generic endpoint ----------------
 
 class TestGenericEndpoint:

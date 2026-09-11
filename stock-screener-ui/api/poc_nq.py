@@ -291,6 +291,12 @@ def get_smc_ifvg(
     return data
 
 
+@router.get("/replay/strategies")
+def get_replay_strategies():
+    """List registered replay strategies and their parameter specs."""
+    return {"strategies": registry.list_strategies()}
+
+
 @router.get("/replay/{strategy_id}")
 def get_replay(strategy_id: str, request: Request):
     """Generic replay endpoint: any registered strategy, one envelope."""
