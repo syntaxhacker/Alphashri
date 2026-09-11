@@ -8,9 +8,11 @@ describe("week52-chaser plugin", () => {
     expect(plugin).toBeDefined();
     expect(plugin!.id).toBe("week52-chaser");
     expect(plugin!.label).toBe("52W High Chaser");
-    expect(plugin!.mode).toBe("review");
+    expect(plugin!.mode).toBe("timeline");
+    expect(plugin!.runMode).toBe("manual");
     expect(plugin!.endpoint).toBe("/api/poc/replay/week52-chaser");
     expect(typeof plugin!.normalize).toBe("function");
+    expect(typeof plugin!.timeline).toBe("function");
   });
 
   test("normalize maps json.bars and json.trades", () => {
@@ -56,9 +58,22 @@ describe("week52-chaser plugin", () => {
     }
   });
 
-  test("card sets multi-day fit padding with defaults", () => {
+  test("timeline maps daily bars with an 86400s bar window", () => {
     const plugin = getStrategy("week52-chaser")!;
-    expect(plugin.card?.fitPaddingBeforeMin).toBe(4320);
-    expect(plugin.card?.fitPaddingAfterMin).toBe(4320);
+    const bars = [{ time: 1, open: 1, high: 2, low: 0.5, close: 1.5 }];
+    const tl = plugin.timeline!({ bars });
+    expect(tl.candles).toBe(bars);
+    expect(tl.subs).toEqual([]);
+    expect(tl.vwap).toEqual([]);
+    expect(tl.levels).toEqual({ or_high: 0, or_low: 0, or_end: 0 });
+    expect(tl.barSeconds).toBe(86400);
+    expect(plugin.timeline!({}).candles).toEqual([]);
+  });
+
+  test("has a symbol param for symbol-scoped fetches", () => {
+    const plugin = getStrategy("week52-chaser")!;
+    const symbol = plugin.params.find(p => p.name === "symbol");
+    expect(symbol).toBeDefined();
+    expect(symbol!.type).toBe("symbol");
   });
 });

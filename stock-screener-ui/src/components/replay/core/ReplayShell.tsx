@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import Box from "@mui/material/Box";
+import Button from "@mui/material/Button";
 import Card from "@mui/material/Card";
 import Typography from "@mui/material/Typography";
 import Stack from "@mui/material/Stack";
@@ -111,25 +112,36 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
   const [raw, setRaw] = useState<any>(null);
   const [bundle, setBundle] = useState<ReplayBundle | null>(null);
   const [timeline, setTimeline] = useState<TimelineData | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(plugin.runMode !== "manual");
+  const [runNonce, setRunNonce] = useState(0);
   const [playing, setPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
   const hostRef = useRef<ReplayChartHandle>(null);
+
+  const manual = plugin.runMode === "manual";
 
   const setParam = useCallback((name: string, value: unknown) => {
     setParams(prev => ({ ...prev, [name]: value }));
   }, []);
 
   const candles = timeline?.candles ?? EMPTY_BARS;
+  const barSeconds = timeline?.barSeconds ?? 60;
   const t0 = candles.length ? candles[0].time : 0;
-  const tEnd = candles.length ? candles[candles.length - 1].time + 60 : 0;
+  const tEnd = candles.length ? candles[candles.length - 1].time + barSeconds : 0;
 
   const onTick = useCallback((now: number) => { hostRef.current?.paint(now); }, []);
   const onEnd = useCallback(() => setPlaying(false), []);
 
   const { clock, clockRef, jump } = useReplayClock({ t0, tEnd, playing, speed, onTick, onEnd });
 
+  // Manual plugins only fetch on an explicit Run (runNonce); auto plugins refetch on
+  // date/param change. Stringifying params keeps the key value-stable across renders.
+  const fetchKey = manual
+    ? `manual:${runNonce}`
+    : `auto:${plugin.id}:${date}:${JSON.stringify(params)}`;
+
   useEffect(() => {
+    if (manual && runNonce === 0) return;
     const ac = new AbortController();
     setLoading(true);
     setPlaying(false);
@@ -161,7 +173,8 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
       })
       .finally(() => { if (!ac.signal.aborted) setLoading(false); });
     return () => ac.abort();
-  }, [date, params, plugin, jump]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fetchKey]);
 
   const trades = bundle?.trades ?? EMPTY_TRADES;
 
@@ -209,6 +222,13 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
       onChange={v => setParam(spec.name, v)} />
   ));
 
+  const runButton = manual ? (
+    <Button size="small" variant="contained" onClick={() => setRunNonce(n => n + 1)} disabled={loading}>
+      Run
+    </Button>
+  ) : null;
+  const showRunHint = manual && runNonce === 0;
+
   return (
     <Box sx={{ p: 2, width: "100%" }} data-testid={plugin.mode === "timeline" ? "tick-replay" : "replay-strategy"}>
       <Stack direction="row" spacing={1} sx={{ alignItems: "center", justifyContent: "space-between", flexWrap: "wrap", mb: 0.5 }}>
@@ -226,6 +246,11 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
             sx={{ bgcolor: d === date ? "#2563EB" : "#1F2937", color: "#E5E7EB", cursor: "pointer", fontWeight: d === date ? 700 : 400 }} />
         ))}
       </Stack>
+      {showRunHint && (
+        <Typography variant="caption" sx={{ color: palette.TEXT_MUTED, display: "block", mb: 1 }}>
+          Choose a symbol / date, then press Run
+        </Typography>
+      )}
 
       {plugin.mode === "timeline" ? (
         <>
@@ -245,6 +270,7 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
             onSpeedChange={setSpeed}
             onJump={jump}
           >
+            {runButton}
             {paramControls}
           </ReplayControls>
           <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, overflow: "hidden", mb: 2 }}>
@@ -256,6 +282,7 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
               levels={levels}
               trades={trades}
               height={420}
+              barSeconds={barSeconds}
               clock={clock}
               playing={playing}
             />
@@ -272,6 +299,11 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
         </>
       ) : (
         <>
+          {manual && (
+            <Stack direction="row" spacing={1} sx={{ mb: 1, alignItems: "center" }}>
+              {runButton}
+            </Stack>
+          )}
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
             {paramControls}
             {!plugin.panel && <Chip size="small" label={`${trades.length} trades`} sx={{ bgcolor: "#1F2937", color: palette.POSITIVE }} />}

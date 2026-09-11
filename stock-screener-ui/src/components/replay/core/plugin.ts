@@ -15,6 +15,8 @@ export interface TimelineData {
   subs:    { time: number; open: number; high: number; low: number; close: number }[];
   vwap:    { time: number; value: number }[];
   levels:  { or_high: number; or_low: number; or_end: number };
+  /** Bar duration in seconds (60 intraday, 86400 daily). Defaults to 60. */
+  barSeconds?: number;
 }
 
 export interface ReplayStrategyPlugin {
@@ -22,6 +24,8 @@ export interface ReplayStrategyPlugin {
   label: string;
   subtitle?: string;
   mode: "timeline" | "review";
+  /** "manual" requires an explicit Run click (no auto-fetch). Defaults to "auto". */
+  runMode?: "auto" | "manual";
   endpoint: string;              // e.g. "/api/poc/replay/vwap-orb"
   dates: string[];               // selectable sessions
   params: ReplayParamSpec[];

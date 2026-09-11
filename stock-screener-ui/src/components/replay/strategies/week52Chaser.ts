@@ -26,7 +26,8 @@ const week52Chaser: ReplayStrategyPlugin = {
   id: "week52-chaser",
   label: "52W High Chaser",
   subtitle: "trading/week52_chaser_signals.py · NSE daily bars · multi-day swing",
-  mode: "review",
+  mode: "timeline",
+  runMode: "manual",
   endpoint: "/api/poc/replay/week52-chaser",
   dates: DATES,
   params: [
@@ -44,6 +45,13 @@ const week52Chaser: ReplayStrategyPlugin = {
     bars: json?.bars ?? [],
     trades: json?.trades ?? [],
     error: json?.error,
+  }),
+  timeline: (json) => ({
+    candles: json?.bars ?? [],
+    subs: [],
+    vwap: [],
+    levels: { or_high: 0, or_low: 0, or_end: 0 },
+    barSeconds: 86400,
   }),
   card: {
     explainer: (trade: ReplayTrade) => {

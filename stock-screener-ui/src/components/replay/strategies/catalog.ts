@@ -5,15 +5,28 @@
 import { DATES as INTRADAY_DATES } from "./vwapOrb";
 import { DATES as DAILY_DATES } from "./week52Chaser";
 import { makeReplayPlugin, type ReplayPluginSpec } from "./factory";
-import type { ReplayStrategyPlugin } from "../core/plugin";
+import type { ReplayParamSpec, ReplayStrategyPlugin } from "../core/plugin";
+
+// Recent NSE trading sessions for the 1m equity replays (explicit Run, symbol-scoped).
+export const INTRADAY_NSE_DATES = [
+  "2026-09-10", "2026-09-09", "2026-09-08", "2026-09-05", "2026-09-04", "2026-09-03",
+];
+const EQUITY_BAR_SECONDS = 60;
+const SWING_BAR_SECONDS = 86400;
+const SYMBOL_PARAM = (def = "RELIANCE"): ReplayParamSpec =>
+  ({ name: "symbol", label: "Symbol", type: "symbol", default: def });
 
 export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "orb",
     label: "Opening Range Breakout",
-    dates: INTRADAY_DATES,
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: EQUITY_BAR_SECONDS,
+    dates: INTRADAY_NSE_DATES,
     daily: false,
     params: [
+      SYMBOL_PARAM(),
       { name: "or_minutes", label: "OR minutes", type: "int", default: 45 },
       { name: "sl_pct", label: "SL %", type: "float", default: 1.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 1.5 },
@@ -26,9 +39,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "sr-breakout",
     label: "Pivot S/R Breakout",
-    dates: INTRADAY_DATES,
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: EQUITY_BAR_SECONDS,
+    dates: INTRADAY_NSE_DATES,
     daily: false,
     params: [
+      SYMBOL_PARAM(),
       { name: "sl_pct", label: "SL %", type: "float", default: 1.5 },
       { name: "tp_pct", label: "TP %", type: "float", default: 2.5 },
       { name: "pivot_type", label: "Pivot type", type: "select", default: "classic", options: ["classic", "camarilla", "fibonacci", "woodie"] },
@@ -41,9 +58,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "ema-cross",
     label: "EMA 9/21 Crossover",
-    dates: INTRADAY_DATES,
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: EQUITY_BAR_SECONDS,
+    dates: INTRADAY_NSE_DATES,
     daily: false,
     params: [
+      SYMBOL_PARAM(),
       { name: "ema_fast_period", label: "EMA fast period", type: "int", default: 9 },
       { name: "ema_slow_period", label: "EMA slow period", type: "int", default: 21 },
       { name: "sl_pct", label: "SL %", type: "float", default: 1.0 },
@@ -70,10 +91,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "52w-target",
     label: "52W Target",
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: SWING_BAR_SECONDS,
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
+      SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 2.0 },
       { name: "entry_threshold_pct", label: "Entry threshold %", type: "float", default: 2.0 },
@@ -87,10 +111,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "blind-52w",
     label: "Blind 52W",
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: SWING_BAR_SECONDS,
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
+      SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "near_high_threshold_pct", label: "Near-high threshold %", type: "float", default: 3.0 },
       { name: "min_days_since_52w_high", label: "Min days since 52W high", type: "int", default: 20 },
@@ -102,10 +129,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "short-52w-failed",
     label: "Short Failed 52W Breakout",
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: SWING_BAR_SECONDS,
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
+      SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 3.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 5.0 },
@@ -118,10 +148,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "adx-trend",
     label: "ADX/DI Trend",
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: SWING_BAR_SECONDS,
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
+      SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 3.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 6.0 },
@@ -136,10 +169,13 @@ export const REPLAY_STRATEGY_SPECS: ReplayPluginSpec[] = [
   {
     id: "volume-surge",
     label: "Volume Surge Breakout",
+    mode: "timeline",
+    runMode: "manual",
+    barSeconds: SWING_BAR_SECONDS,
     dates: DAILY_DATES,
     daily: true,
     params: [
-      { name: "symbol", label: "Symbol", type: "symbol", default: "NETWEB" },
+      SYMBOL_PARAM("NETWEB"),
       { name: "lookback_days", label: "Lookback days", type: "int", default: 400 },
       { name: "sl_pct", label: "SL %", type: "float", default: 5.0 },
       { name: "tp_pct", label: "TP %", type: "float", default: 8.0 },

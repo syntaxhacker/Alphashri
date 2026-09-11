@@ -27,6 +27,8 @@ interface ReplayChartHostProps {
   levels: OrLevels;
   trades: ReplayTrade[];
   height?: number;
+  /** bar duration in seconds (60 intraday, 86400 daily). Defaults to 60. */
+  barSeconds?: number;
   /** React clock (4fps) — used only to repaint on manual pan/zoom while paused */
   clock: number;
   /** controlled playing state — gates auto-follow + range-change repaints */
@@ -37,7 +39,7 @@ const fmtT = (ts: number) =>
   new Date(ts * 1000).toLocaleString("en-IN", { timeZone: TZ_IST, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false });
 
 const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(function ReplayChartHost(
-  { bars, subs, vwap, levels, trades, height = 420, clock, playing }, ref,
+  { bars, subs, vwap, levels, trades, height = 420, barSeconds = 60, clock, playing }, ref,
 ) {
   const boxRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -167,12 +169,12 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
     }
     pg.lastNow = now;
     const nBefore = pg.n;
-    while (pg.n < C.length && C[pg.n].time + 60 <= now) pg.n++;
+    while (pg.n < C.length && C[pg.n].time + barSeconds <= now) pg.n++;
     const vBefore = pg.v;
-    // VWAP uses the same completion rule as candles: a minute's value is known only after it ends
-    while (pg.v < V.length && V[pg.v].time + 60 <= now) pg.v++;
-    // forming bar: aggregate subs of the current minute up to now (≤12 subs, pointer-skipped)
-    const mStart = Math.floor(now / 60) * 60;
+    // VWAP uses the same completion rule as candles: a bar's value is known only after it ends
+    while (pg.v < V.length && V[pg.v].time + barSeconds <= now) pg.v++;
+    // forming bar: aggregate subs of the current bar window up to now
+    const mStart = Math.floor(now / barSeconds) * barSeconds;
     while (pg.subPtr < subs.length && subs[pg.subPtr].time < mStart) pg.subPtr++;
     const live: ReplayCandle[] = [];
     for (let k = pg.subPtr; k < subs.length; k++) {
@@ -247,7 +249,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
         for (const t of shown) {
           // endT must be an exact bar time (exchange-style: forming bar while open)
           const liveEnd = t.exit_time <= now ? t.exit_time : now;
-          const endT = Math.floor(liveEnd / 60) * 60;
+          const endT = Math.floor(liveEnd / barSeconds) * barSeconds;
           const x1 = t2x(t.time);
           const x2 = t2x(endT);
           const yE = p2y(t.entry);
@@ -296,7 +298,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
     if (playingRef.current && (!visRange || visRange.to == null || visRange.to > pg.n - 12)) {
       chart.timeScale().scrollToPosition(6, false);
     }
-  }, [bars, subs, vwap, levels, trades, height]);
+  }, [bars, subs, vwap, levels, trades, height, barSeconds]);
   paintRef.current = paint;
 
   return (
