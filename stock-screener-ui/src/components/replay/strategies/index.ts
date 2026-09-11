@@ -4,10 +4,12 @@ import { registerStrategy } from "./registry";
 import vwapOrb from "./vwapOrb";
 import smcIfvg from "./smcIfvg";
 import week52Chaser from "./week52Chaser";
+import { replayCatalog } from "./catalog";
 
 registerStrategy(vwapOrb);
 registerStrategy(smcIfvg);
 registerStrategy(week52Chaser);
+for (const plugin of replayCatalog) registerStrategy(plugin);
 
 export { registerStrategy, getStrategy, listStrategies } from "./registry";
 export type {

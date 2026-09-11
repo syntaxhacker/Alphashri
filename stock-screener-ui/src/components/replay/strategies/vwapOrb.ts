@@ -4,7 +4,7 @@ import { orRangeLabel } from "@/utils/replayTime";
 import { TZ_IST_LABEL } from "@/config/constants";
 import type { ReplayStrategyPlugin } from "../core/plugin";
 
-const DATES = ["2026-09-02", "2026-08-26", "2026-07-24", "2026-08-27", "2026-07-22", "2026-07-02"];
+export const DATES = ["2026-09-02", "2026-08-26", "2026-07-24", "2026-08-27", "2026-07-22", "2026-07-02"];
 
 const vwapOrb: ReplayStrategyPlugin = {
   id: "vwap-orb",

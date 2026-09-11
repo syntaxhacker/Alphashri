@@ -11,7 +11,7 @@ import type { ReplayTrade } from "../tick";
 import type { ReplayStrategyPlugin } from "../core/plugin";
 
 // Month-end trading sessions — recent venues to exercise multi-day swing trades.
-const DATES = ["2026-08-28", "2026-07-31", "2026-06-30", "2026-05-29", "2026-04-30", "2026-03-31"];
+export const DATES = ["2026-08-28", "2026-07-31", "2026-06-30", "2026-05-29", "2026-04-30", "2026-03-31"];
 
 const DAY_MIN = 1440;
 const DEFAULT_ENTRY =

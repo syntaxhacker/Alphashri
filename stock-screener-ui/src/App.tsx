@@ -29,6 +29,7 @@ const SmcPoc = lazy(() => import("./pages/poc/SmcPoc"));
 const SmcTrades = lazy(() => import("./pages/poc/SmcTrades"));
 const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
 const ReplayStrategyPage = lazy(() => import("./pages/poc/ReplayStrategyPage"));
+const ReplayIndexPage = lazy(() => import("./pages/poc/ReplayIndexPage"));
 
 function AuthScreen() {
   const [showRegister, setShowRegister] = useState(false);
@@ -93,6 +94,7 @@ function AppContent() {
             <Route path="/poc/smc" element={<SmcPoc />} />
             <Route path="/poc/smc-trades" element={<SmcTrades />} />
             <Route path="/poc/tick-replay" element={<TickReplay />} />
+            <Route path="/poc/replay" element={<ReplayIndexPage />} />
             <Route path="/poc/replay/:strategyId" element={<ReplayStrategyPage />} />
             <Route path="/chart/:symbol?" element={<ChartView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
