@@ -84,9 +84,9 @@ const PriceCell = memo(function PriceCell({ price, quantity, entry }: { price: n
   const safeEntry = Number.isFinite(entry) ? entry : 0;
   const safeQty = Number.isFinite(quantity) ? quantity : 0;
   return (
-    <Text className="paper-price-cell" size="sm">
-      {safeQty}×₹{safeEntry.toFixed(0)}
-      <Text className="paper-price-arrow" span c="dimmed" size="xs">→</Text>
+    <Text className="paper-price-cell" size="sm" sx={{ whiteSpace: "nowrap" }}>
+      {safeQty}×₹{safeEntry.toFixed(2)}
+      <Text className="paper-price-arrow" span c="dimmed" size="xs" mx={0.5}>→</Text>
       <PriceDisplay price={safePrice} prevPrice={Number.isFinite(prevPrice) ? prevPrice : 0} />
     </Text>
   );
@@ -158,7 +158,7 @@ const PnLDisplay = memo(function PnLDisplay({ pnl, pnlPct }: { pnl: number; pnlP
       style={{ display: "inline" }}
     >
       {formatSignedPnl(pnl)}
-      <Text className="paper-pnl-pct" span c="dimmed" fs="italic" size="sm">
+      <Text className="paper-pnl-pct" span c={pnlClass} size="sm">
         {" "}
         ({formatPercentage(pnlPct)})
       </Text>
@@ -224,13 +224,18 @@ const PositionDetail = memo(function PositionDetail({ pos }: { pos: PaperPositio
       return;
     }
     setLoading52(true);
-    fetch52WLevels(pos.symbol).then((data) => {
-      if (!cancelled) {
-        _52wCache[pos.symbol] = data;
-        setWeek52(data);
-        setLoading52(false);
-      }
-    });
+    fetch52WLevels(pos.symbol)
+      .then((data) => {
+        if (cancelled) return;
+        if (data) _52wCache[pos.symbol] = data;
+        setWeek52(data ?? null);
+      })
+      .catch(() => {
+        if (!cancelled) setWeek52(null);
+      })
+      .finally(() => {
+        if (!cancelled) setLoading52(false);
+      });
     return () => { cancelled = true; };
   }, [pos.symbol]);
 
@@ -365,7 +370,7 @@ export function PositionsTableBody({
         return;
       }
       setSelectedSymbol(symbol);
-      setSelectedTradeId("-1");
+      setSelectedTradeId("-1", _strategyType, strategyId);
       const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
       const fromDate = entryDate
         ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
@@ -418,7 +423,7 @@ export function PositionsTableBody({
               symbol={pos.symbol}
               showPreview
               onClick={() => {
-                handleSelect(pos.symbol, pos.order_id, pos.strategy_name, undefined, pos.strategy_id, pos.entry_time)
+                handleSelect(pos.symbol, pos.order_id, pos.strategy_name, pos.strategy_type, pos.strategy_id, pos.entry_time)
                   .catch((err) => console.error("Position select failed:", err));
               }}
             />
@@ -449,9 +454,9 @@ export function PositionsTableBody({
       id: "age",
       header: "Age",
       size: 80,
-      meta: { align: "left" },
+      meta: { align: "right" },
       accessorFn: (row) => row.entry_time,
-      cell: ({ row }) => <Text size="xs" c="dimmed">{formatElapsed(row.original.entry_time)}</Text>,
+      cell: ({ row }) => <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>{formatElapsed(row.original.entry_time)}</Text>,
     },
     {
       id: "close",
