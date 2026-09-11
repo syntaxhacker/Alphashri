@@ -256,7 +256,7 @@ export default function ReplayShell({ plugin }: { plugin: ReplayStrategyPlugin }
         <>
           <Stack direction="row" spacing={1} sx={{ mb: 1, flexWrap: "wrap", alignItems: "center" }}>
             {paramControls}
-            <Chip size="small" label={`${trades.length} trades`} sx={{ bgcolor: "#1F2937", color: palette.POSITIVE }} />
+            {!plugin.panel && <Chip size="small" label={`${trades.length} trades`} sx={{ bgcolor: "#1F2937", color: palette.POSITIVE }} />}
             {loading && <Chip size="small" label="loading ticks…" sx={{ bgcolor: "#1F2937", color: "#58A6FF" }} />}
             {bundle?.error && <Chip size="small" label={bundle.error} color="error" />}
           </Stack>
@@ -274,6 +274,8 @@ export default function ReplayShell({ plugin }: { plugin: ReplayStrategyPlugin }
               trends={trends}
               timeLabel={fmtReviewTime}
               explainer={plugin.card?.explainer ? (t) => plugin.card!.explainer!(t, raw) : undefined}
+              fitPaddingBeforeMin={plugin.card?.fitPaddingBeforeMin}
+              fitPaddingAfterMin={plugin.card?.fitPaddingAfterMin}
             />
           ))}
         </>

@@ -7,7 +7,7 @@ export type { Bar };
 export type TradeStack = "inv" | "retest";
 export type TradeSide = "LONG" | "SHORT";
 export type TradeKind = "inv" | "retest";
-export type ReplayResult = "TP" | "SL" | "TRAIL" | "BE" | "EOD" | "REV" | "REJ";
+export type ReplayResult = "TP" | "SL" | "TRAIL" | "BE" | "EOD" | "REV" | "REJ" | "MAX_HOLD";
 export type TradeResult = ReplayResult;
 
 export interface ReplayTrade {

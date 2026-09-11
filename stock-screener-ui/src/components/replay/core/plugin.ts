@@ -34,6 +34,9 @@ export interface ReplayStrategyPlugin {
     zones?: (json: any) => ReplayZone[];
     trends?: (json: any) => ReplayTrend[];
     explainer?: (trade: ReplayTrade, json: any) => string;
+    /** Visible window around each trade, in minutes. Defaults preserve intraday behavior. */
+    fitPaddingBeforeMin?: number;
+    fitPaddingAfterMin?: number;
   };
   /** Full-width row rendered after the param controls in review mode (e.g. KPI chips). */
   panel?: (bundle: ReplayBundle, json: any) => ReactNode;

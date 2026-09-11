@@ -3,9 +3,11 @@
 import { registerStrategy } from "./registry";
 import vwapOrb from "./vwapOrb";
 import smcIfvg from "./smcIfvg";
+import week52Chaser from "./week52Chaser";
 
 registerStrategy(vwapOrb);
 registerStrategy(smcIfvg);
+registerStrategy(week52Chaser);
 
 export { registerStrategy, getStrategy, listStrategies } from "./registry";
 export type {
