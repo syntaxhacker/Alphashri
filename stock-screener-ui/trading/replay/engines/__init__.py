@@ -3,7 +3,11 @@
 Importing this package makes the engine classes available; registration into the
 global registry happens in ``trading/replay/__init__.py``.
 """
-from trading.replay.engines.signal_intraday import INTRADAY_ENGINES, IntradaySignalReplay
+from trading.replay.engines.signal_intraday import (
+    INTRADAY_ENGINES,
+    IntradaySignalReplay,
+    NseIntradaySignalReplay,
+)
 from trading.replay.engines.signal_swing import SWING_ENGINES, SwingSignalReplay
 from trading.replay.engines.smc_chop import SmcChopReplay
 from trading.replay.engines.smc_ifvg import SmcIfvgReplay
@@ -14,6 +18,7 @@ __all__ = [
     "INTRADAY_ENGINES",
     "SWING_ENGINES",
     "IntradaySignalReplay",
+    "NseIntradaySignalReplay",
     "SmcChopReplay",
     "SmcIfvgReplay",
     "SwingSignalReplay",

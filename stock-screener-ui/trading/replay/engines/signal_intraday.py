@@ -15,6 +15,7 @@ from trading.ema_utils import calculate_ema
 from trading.orb_utils import calculate_or_levels
 from trading.pivot_utils import calculate_pivot_points
 from trading.replay.contract import ParamSpec, ReplayContext, StrategyResult
+from trading.replay.datasources import load_nse_1m, load_prev_daily_bar
 from trading.replay.indicators import adx as _adx
 from trading.replay.indicators import atr_pct as _atr_pct
 from trading.replay.indicators import rsi as _rsi
@@ -32,6 +33,9 @@ _ORB_KWARGS = ("or_minutes", "sl_pct", "tp_pct", "min_or_range_pct",
 
 _WARMUP = ParamSpec("warmup", "Warmup bars", "int", 5, min=0, max=120,
                     description="bars to skip before allowing entries")
+
+_SYMBOL = ParamSpec("symbol", "Symbol", "text", "RELIANCE",
+                    description="NSE ticker (1m intraday bars)")
 
 
 class IntradaySignalReplay:
@@ -165,13 +169,31 @@ class IntradaySignalReplay:
         }
 
 
+class NseIntradaySignalReplay(IntradaySignalReplay):
+    """Intraday-signal driver over a user-chosen NSE symbol's 1m session.
+
+    Owns its data source: 1m bars for the replay day plus the prior daily bar
+    so pivot-based strategies can derive prior-session levels.
+    """
+
+    required_data = {"bars"}
+
+    def load(self, date: str, params: dict) -> ReplayContext:
+        symbol = str(params.get("symbol") or "RELIANCE").upper()
+        bars = load_nse_1m(symbol, date)
+        hist_bars = load_prev_daily_bar(symbol, date)
+        return ReplayContext(date=date, symbol=symbol, params=params, ticks=[],
+                             bars=bars, hist_bars=hist_bars or None, basis=None)
+
+
 # ---------------- registry specs (ids are frozen) ----------------
 
 INTRADAY_ENGINES = [
-    IntradaySignalReplay(
+    NseIntradaySignalReplay(
         "orb", "ORB",
         "trading.orb_signals", "ORBSignalGenerator",
         [
+            _SYMBOL,
             ParamSpec("or_minutes", "Opening range (min)", "int", 45, min=1, max=120),
             ParamSpec("sl_pct", "Stop loss %", "float", 1.0),
             ParamSpec("tp_pct", "Take profit %", "float", 1.5),
@@ -182,10 +204,11 @@ INTRADAY_ENGINES = [
         ],
         style="kwargs",
     ),
-    IntradaySignalReplay(
+    NseIntradaySignalReplay(
         "sr-breakout", "S/R Breakout",
         "trading.sr_breakout_signals", "SRBreakoutSignalGenerator",
         [
+            _SYMBOL,
             ParamSpec("sl_pct", "Stop loss %", "float", 1.5),
             ParamSpec("tp_pct", "Take profit %", "float", 2.5),
             ParamSpec("pivot_type", "Pivot type", "select", "classic",
@@ -197,10 +220,11 @@ INTRADAY_ENGINES = [
             _WARMUP,
         ],
     ),
-    IntradaySignalReplay(
+    NseIntradaySignalReplay(
         "ema-cross", "EMA Cross",
         "trading.ema_cross_signals", "EMACrossSignalGenerator",
         [
+            _SYMBOL,
             ParamSpec("ema_fast_period", "Fast EMA", "int", 9, min=2, max=100),
             ParamSpec("ema_slow_period", "Slow EMA", "int", 21, min=3, max=200),
             ParamSpec("sl_pct", "Stop loss %", "float", 1.0),

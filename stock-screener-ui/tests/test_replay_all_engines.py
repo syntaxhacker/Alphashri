@@ -33,6 +33,8 @@ CANONICAL = {"time", "exit_time", "side", "kind", "entry", "sl", "tp",
 PATCH_WEEK52 = "trading.replay.engines.week52.fetch_candles"
 PATCH_SWING_LOAD = "trading.replay.engines.signal_swing.load_daily_bars"
 PATCH_NQ_TICKS = "scripts.nq_ticks.fetch_nq_ticks"
+PATCH_NSE_1M = "trading.replay.engines.signal_intraday.load_nse_1m"
+PATCH_PREV_DAILY = "trading.replay.engines.signal_intraday.load_prev_daily_bar"
 
 
 @pytest.fixture(autouse=True)
@@ -202,11 +204,11 @@ class TestIntradayEngines:
         _assert_canonical(result.trades)
         assert result.trades[0]["side"] == "LONG"
 
-    def test_intraday_engine_has_no_load_hook(self):
-        for sid in INTRADAY_IDS:
-            engine = registry.get(sid)
-            # optional hook only: engine must not own a callable load
-            assert getattr(engine, "load", None) is None
+    def test_intraday_engine_load_hook(self):
+        # NSE-driven intraday strategies own a load hook; smc stays NQ-loaded.
+        for sid in ("orb", "sr-breakout", "ema-cross"):
+            assert callable(getattr(registry.get(sid), "load", None)), sid
+        assert getattr(registry.get("smc"), "load", None) is None
 
 
 # ---------------- tick engine ----------------
@@ -233,8 +235,9 @@ class TestGenericEndpoint:
         return TestClient(app)
 
     def test_intraday_id_envelope(self):
-        ticks = _make_ticks(60)
-        with patch(PATCH_NQ_TICKS, return_value=(ticks, BASIS)):
+        bars = _intraday_bars()
+        with patch(PATCH_NSE_1M, return_value=bars), \
+                patch(PATCH_PREV_DAILY, return_value=[]):
             res = self._client().get("/api/poc/replay/orb?date=2026-01-05&or_minutes=45")
         assert res.status_code == 200
         data = res.json()
