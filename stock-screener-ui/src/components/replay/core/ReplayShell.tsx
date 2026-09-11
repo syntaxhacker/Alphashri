@@ -164,12 +164,15 @@ export default function ReplayShell({ plugin, headerExtra }: { plugin: ReplayStr
   );
   const net = closed.reduce((a, t) => a + t.pnl, 0);
 
-  // initialize clock at first candle so the chart/time/slider are correct before play
+  // Initialize at the END of the session so the chart opens with the full day visible
+  // (previously it seeded the first bar and showed a near-empty chart). Pressing Play
+  // rewinds to the first bar via onPlayToggle and replays progressively.
   useEffect(() => {
     if (timeline && timeline.candles.length && clockRef.current <= 0) {
-      jump(timeline.candles[0].time);
+      jump(tEnd);
+      hostRef.current?.fitContent();
     }
-  }, [timeline, clockRef, jump]);
+  }, [timeline, tEnd, clockRef, jump]);
 
   const onPlayToggle = useCallback(() => {
     if (clockRef.current >= tEnd) jump(t0);

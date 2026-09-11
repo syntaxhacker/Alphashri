@@ -16,6 +16,8 @@ export interface OrLevels { or_high: number; or_low: number; or_end: number }
 export interface ReplayChartHandle {
   /** paint all revealed bars/markers/RR geometry for the given replay clock */
   paint(now: number): void;
+  /** fit the whole loaded session into the viewport (used for the initial idle view) */
+  fitContent(): void;
 }
 
 interface ReplayChartHostProps {
@@ -57,6 +59,7 @@ const ReplayChartHost = forwardRef<ReplayChartHandle, ReplayChartHostProps>(func
 
   useImperativeHandle(ref, () => ({
     paint: (now: number) => paintRef.current(now),
+    fitContent: () => chartRef.current?.timeScale().fitContent(),
   }), []);
 
   // chart setup (once per data set)
