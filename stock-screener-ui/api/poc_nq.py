@@ -1,5 +1,10 @@
-from fastapi import APIRouter, Query
+import json
 import time
+
+from fastapi import APIRouter, Query, Request
+
+from trading.replay import registry
+from trading.replay.contract import ReplayContext
 
 router = APIRouter(prefix="/api/poc", tags=["poc"])
 
@@ -13,6 +18,78 @@ def _cache_put(key, data):
         for k in sorted(_cache, key=lambda k: _cache[k]["ts"])[: len(_cache) - _CACHE_MAX + 1]:
             del _cache[k]
     _cache[key] = {"ts": time.time(), "data": data}
+
+
+def _basis_median(basis):
+    return basis.get("median") if isinstance(basis, dict) else None
+
+
+def _basis_method(basis):
+    return basis.get("method") if isinstance(basis, dict) else None
+
+
+def _load_replay_data(date: str, hist_hours: int = 0):
+    """Shared loader for replay endpoints: sorted ticks, 1m bars, optional overnight history.
+
+    Imports are resolved at call time so tests can patch ``scripts.nq_ticks`` /
+    ``scripts.smc_tick_eval`` exactly like the legacy endpoints did.
+    """
+    from scripts.nq_ticks import fetch_nq_ticks
+    from scripts.smc_tick_eval import build_1m_bars
+
+    ticks, basis = fetch_nq_ticks(date)
+    ticks = sorted(ticks, key=lambda t: t["timestamp"])  # single order for fills, subs, VWAP
+    bars = build_1m_bars(ticks)
+    hist_bars = []
+    if hist_hours and hist_hours > 0 and bars:
+        from datetime import datetime, timedelta
+
+        from scripts.smc_tick_eval import fetch_ticks
+
+        prev = (datetime.fromisoformat(date) - timedelta(days=1)).date().isoformat()
+        try:
+            pticks = fetch_ticks(prev)
+            cut = bars[0]["time"] - hist_hours * 3600
+            hist_bars = [b for b in build_1m_bars(pticks) if b["time"] >= cut and b["time"] < bars[0]["time"]]
+        except Exception:
+            hist_bars = []
+    return ticks, bars, hist_bars, basis
+
+
+def _parse_replay_params(strategy, request) -> dict:
+    """ParamSpec defaults overlaid with query params, parsed/validated per type.
+
+    Unknown query keys are ignored. Invalid values fall back to the default.
+    """
+    params = {p.name: p.default for p in strategy.params}
+    specs = {p.name: p for p in strategy.params}
+    for key, raw in (getattr(request, "query_params", {}) or {}).items():
+        spec = specs.get(key)
+        if spec is None:
+            continue
+        try:
+            if spec.type == "int":
+                val = int(float(raw))
+                if spec.min is not None:
+                    val = max(int(spec.min), val)
+                if spec.max is not None:
+                    val = min(int(spec.max), val)
+            elif spec.type == "float":
+                val = float(raw)
+                if spec.min is not None:
+                    val = max(float(spec.min), val)
+                if spec.max is not None:
+                    val = min(float(spec.max), val)
+            elif spec.type == "bool":
+                val = str(raw).lower() in ("1", "true", "yes", "on")
+            elif spec.type == "select":
+                val = raw if raw in (spec.options or [raw]) else spec.default
+            else:
+                val = raw if raw != "" else spec.default
+        except Exception:
+            val = spec.default
+        params[key] = val
+    return params
 
 @router.get("/nq")
 def get_nq(
@@ -154,9 +231,9 @@ def get_tick_replay(
     orb: int = Query(default=15, description="opening-range minutes (1m bars)"),
     hist: int = Query(default=8, description="overnight history hours for structure"),
 ):
-    """Tick replay bundle: N-second candles from real ticks + VWAP+ORB trades + levels."""
+    """Thin adapter over the ``vwap-orb`` replay engine (legacy response shape)."""
     try:
-        from datetime import datetime, timedelta
+        from datetime import datetime
         datetime.fromisoformat(date)  # validate early: malformed date -> error envelope, not 500
     except Exception:
         return {"date": date, "candles": [], "trades": [], "error": f"bad date: {date!r}, want YYYY-MM-DD"}
@@ -167,73 +244,20 @@ def get_tick_replay(
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
     try:
-        from trading.vwap_orb import VWAPORBEngine, compute_or_window
-        from scripts.smc_tick_eval import fetch_ticks, build_1m_bars
-        from scripts.nq_ticks import fetch_nq_ticks
-    except Exception as e:
-        return {"date": date, "candles": [], "trades": [], "error": f"import failed: {e}"}
-    try:
-        ticks, basis = fetch_nq_ticks(date)
+        ticks, bars, hist_bars, basis = _load_replay_data(date, hist)
     except Exception as e:
         return {"date": date, "candles": [], "trades": [], "error": f"tick fetch failed: {e}"}
-    ticks = sorted(ticks, key=lambda t: t["timestamp"])  # single order for fills, subs, VWAP
-    bars = build_1m_bars(ticks)
-    hist_bars = []
-    if hist > 0 and bars:
-        prev = (datetime.fromisoformat(date) - timedelta(days=1)).date().isoformat()
-        try:
-            pticks = fetch_ticks(prev)
-            cut = bars[0]["time"] - hist * 3600
-            hist_bars = [b for b in build_1m_bars(pticks) if b["time"] >= cut and b["time"] < bars[0]["time"]]
-        except Exception:
-            hist_bars = []
-    eng = VWAPORBEngine(or_bars=orb)
-    trades = eng.run(bars, ticks, hist=hist_bars if hist_bars else None)
-    or_high, or_low, or_end = compute_or_window(bars, orb)
-    # sub-candles (live forming-bar ticks) at the requested resolution + per-1m VWAP
-    buckets: dict = {}
-    for t in ticks:
-        k = int(t["timestamp"] // 1000 // sub_s) * sub_s
-        bid = t["bidPrice"]
-        b = buckets.get(k)
-        if b is None:
-            buckets[k] = {"time": k, "open": bid, "high": bid, "low": bid, "close": bid}
-        else:
-            b["high"] = max(b["high"], bid)
-            b["low"] = min(b["low"], bid)
-            b["close"] = bid
-    subs = [buckets[k] for k in sorted(buckets)]
-    candles = [{"time": b["time"], "open": b["open"], "high": b["high"], "low": b["low"], "close": b["close"]} for b in bars]
-    # progressive session VWAP: value at each 1m candle uses only ticks up to that candle
-    vwap = []
-    pv = vv = 0.0
-    ti = 0
-    ticks_sorted = sorted(ticks, key=lambda t: t["timestamp"])
-    for c in candles:
-        end_ms = (c["time"] + 60) * 1000
-        while ti < len(ticks_sorted) and ticks_sorted[ti]["timestamp"] < end_ms:
-            t = ticks_sorted[ti]
-            v = (t.get("askVolume") or 0) + (t.get("bidVolume") or 0)
-            if v > 0:
-                pv += ((t["askPrice"] + t["bidPrice"]) / 2.0) * v
-                vv += v
-            ti += 1
-        vwap.append({"time": c["time"], "value": round(pv / vv, 2) if vv else c["close"]})
-    out = []
-    for t in trades:
-        out.append({
-            "time": int(t["t_in"] // 60000) * 60,
-            "exit_time": int(t["t_out"] // 60000) * 60,
-            "side": t["side"], "kind": "vwap-orb", "entry": t["entry"], "sl": t["sl"],
-            "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
-        })
-    basis_med = basis.get("median") if isinstance(basis, dict) else None
-    basis_method = basis.get("method") if isinstance(basis, dict) else None
-    data = {"date": date, "count": len(out), "candles": candles, "subs": subs, "vwap": vwap,
-            "or_high": round(or_high, 2), "or_low": round(or_low, 2),
-            "or_minutes": orb, "or_end": or_end,
-            "trades": out, "basis": basis_med, "basis_method": basis_method, "symbol": "NQ=F",
-            "hist_bars": len(hist_bars), "sub_secs": sub_s,
+    ctx = ReplayContext(date=date, symbol="NQ=F", params={"secs": sub_s, "orb": orb, "hist": hist},
+                        ticks=ticks, bars=bars, hist_bars=hist_bars or None, basis=_basis_median(basis))
+    result = registry.get("vwap-orb").run(ctx)
+    out = result.trades
+    basis_med = _basis_median(basis)
+    data = {"date": date, "count": len(out), "candles": result.extras["candles"],
+            "subs": result.extras["subs"], "vwap": result.extras["vwap"],
+            "or_high": result.extras["or_high"], "or_low": result.extras["or_low"],
+            "or_minutes": result.extras["or_minutes"], "or_end": result.extras["or_end"],
+            "trades": out, "basis": basis_med, "basis_method": _basis_method(basis), "symbol": "NQ=F",
+            "hist_bars": result.extras["hist_bars"], "sub_secs": result.extras["sub_secs"],
             **({"error": "no NQ basis available"} if basis_med is None else {})}
     _cache_put(key, data)
     return data
@@ -247,39 +271,75 @@ def get_smc_ifvg(
     entries: str = Query(default="both", description="inv | retest | both — divided stacks or legacy coupled"),
     flip: float | None = Query(default=None, description="inv_flip_margin: strong inversions flip bias (experimental)"),
 ):
-    """SMCIFVGEngine (trading/smc_ifvg.py) on real NQ ticks — tick-accurate fills, no lookahead."""
+    """Thin adapter over the ``smc-ifvg`` replay engine (legacy response shape)."""
     key = f"smc-ifvg:{date}:{from_ist or ''}:{to_ist or ''}:{entries}:{flip}"
     now = time.time()
     if key in _cache and now - _cache[key]["ts"] < 3600:
         return _cache[key]["data"]
     try:
-        from datetime import datetime
-        from config import IST
-        from trading.smc_ifvg import SMCIFVGEngine
-        from scripts.smc_tick_eval import build_1m_bars
-        from scripts.nq_ticks import fetch_nq_ticks
-    except Exception as e:
-        return {"date": date, "bars": [], "trades": [], "error": f"import failed: {e}"}
-    try:
-        ticks, basis = fetch_nq_ticks(date)
+        ticks, bars, _hist_bars, basis = _load_replay_data(date, 0)
     except Exception as e:
         return {"date": date, "bars": [], "trades": [], "error": f"tick fetch failed: {e}"}
-    bars = build_1m_bars(ticks)
-    trades = SMCIFVGEngine(entries=entries, **({"inv_flip_margin": flip} if flip else {})).run(bars, ticks)
-    out = []
-    for t in trades:
-        tin = datetime.fromtimestamp(t["t_in"] / 1000, tz=IST).strftime("%H:%M")
-        if from_ist and tin < from_ist:
-            continue
-        if to_ist and tin > to_ist:
-            continue
-        # floor to containing 1m bar — lightweight-charts markers reject non-bar times
-        out.append({
-            "time": int(t["t_in"] // 60000) * 60, "exit_time": int(t["t_out"] // 60000) * 60,
-            "side": t["side"], "kind": t["kind"], "entry": t["entry"], "sl": t["sl"],
-            "tp": t["tp"], "exit": t["exit"], "result": t["result"], "pnl": t["pnl"], "rr": t["rr"],
-        })
+    ctx = ReplayContext(date=date, symbol="NQ=F",
+                        params={"entries": entries, "flip": flip, "from_ist": from_ist, "to_ist": to_ist},
+                        ticks=ticks, bars=bars, hist_bars=None, basis=_basis_median(basis))
+    result = registry.get("smc-ifvg").run(ctx)
+    out = result.trades
     data = {"date": date, "count": len(out), "bars": bars, "trades": out,
             "basis": basis["median"], "basis_method": basis["method"], "symbol": "NQ=F"}
     _cache[key] = {"ts": now, "data": data}
+    return data
+
+
+@router.get("/replay/{strategy_id}")
+def get_replay(strategy_id: str, request: Request):
+    """Generic replay endpoint: any registered strategy, one envelope."""
+    strategy = registry.get(strategy_id)
+    if strategy is None:
+        return {"error": f"unknown strategy: {strategy_id}"}
+
+    params = _parse_replay_params(strategy, request)
+    date = (getattr(request, "query_params", {}) or {}).get("date")
+    if not date:
+        return {"strategy_id": strategy_id, "date": date, "candles": [], "bars": [],
+                "trades": [], "error": f"bad date: {date!r}, want YYYY-MM-DD"}
+    try:
+        from datetime import datetime
+        datetime.fromisoformat(date)
+    except Exception:
+        return {"strategy_id": strategy_id, "date": date, "candles": [], "bars": [],
+                "trades": [], "error": f"bad date: {date!r}, want YYYY-MM-DD"}
+
+    key = f"replay:v1:{strategy_id}:{json.dumps(sorted(params.items()))}"
+    now = time.time()
+    if key in _cache and now - _cache[key]["ts"] < 3600:
+        return _cache[key]["data"]
+
+    try:
+        hist_hours = int(params.get("hist") or 0) if "hist" in params else 0
+        ticks, bars, hist_bars, basis = _load_replay_data(date, hist_hours)
+        ctx = ReplayContext(date=date, symbol="NQ=F", params=params, ticks=ticks, bars=bars,
+                            hist_bars=hist_bars or None, basis=_basis_median(basis))
+        result = strategy.run(ctx)
+    except Exception as e:
+        return {"strategy_id": strategy_id, "date": date, "candles": [], "bars": [],
+                "trades": [], "error": str(e)}
+
+    data = {
+        "strategy_id": strategy_id,
+        "label": strategy.label,
+        "date": date,
+        "params": params,
+        "count": len(result.trades),
+        "trades": result.trades,
+        "zones": result.zones,
+        "trends": result.trends,
+        "levels": result.levels,
+        "kpis": result.kpis,
+        "symbol": "NQ=F",
+        "basis": _basis_median(basis),
+        "basis_method": _basis_method(basis),
+        **result.extras,
+    }
+    _cache_put(key, data)
     return data
