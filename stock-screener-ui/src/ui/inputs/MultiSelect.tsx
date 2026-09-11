@@ -47,6 +47,12 @@ export function MultiSelect({
   const options = useMemo(() => normalizeOptions(data), [data]);
   const muiSize = mapSize(size);
   const isError = Boolean(error);
+  const { w: widthProp, h: heightProp, ...restProps } = rest as {
+    w?: number | string;
+    h?: number | string;
+  } & Record<string, unknown>;
+  const explicitWidth = widthProp != null ? (typeof widthProp === "number" ? `${widthProp}px` : widthProp) : undefined;
+  const explicitHeight = heightProp != null ? (typeof heightProp === "number" ? `${heightProp}px` : heightProp) : undefined;
   const helperText = isError
     ? typeof error === "string"
       ? error
@@ -120,8 +126,8 @@ export function MultiSelect({
           sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" } }}
         />
       )}
-      sx={{ width: "100%" }}
-      {...(rest as object)}
+      sx={{ width: explicitWidth ?? "100%", ...(explicitHeight && { height: explicitHeight }) }}
+      {...(restProps as object)}
     />
   );
 }

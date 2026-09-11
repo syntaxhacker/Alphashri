@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { Box, Button, Indicator, Overlay, Paper, ScrollArea, Stack } from "@/ui";
+import { Box, Button, Divider, Indicator, Overlay, ScrollArea, Stack } from "@/ui";
 import { IconNews } from "@tabler/icons-react";
 import type { NewsItem, NewsSource, ArticleResponse, NewsSymbol } from "./news-types";
 import { fetchNews, fetchArticle, fetchNewsSources } from "../../api/news";
@@ -261,6 +261,7 @@ function NewsPanelBody({
   readIds,
   toggleSourceExpanded,
   handleArticleClick,
+  onRetryArticle,
 }: {
   selectedArticle: NewsItem | null;
   articleContent: ArticleResponse | null;
@@ -288,6 +289,7 @@ function NewsPanelBody({
   readIds: Set<string>;
   toggleSourceExpanded: (source: string) => void;
   handleArticleClick: (item: NewsItem) => void;
+  onRetryArticle?: () => void;
 }) {
   return selectedArticle ? (
     <ArticleView
@@ -298,12 +300,13 @@ function NewsPanelBody({
       onBack={handleBack}
       onClose={handleClose}
       onSymbolClick={handleSymbolClick}
+      onRetryArticle={onRetryArticle}
     />
   ) : (
     <Stack gap={0} h="100%" className="news-list-view" data-testid="news-list-view">
       <NewsListHeader wsConnected={wsConnected} isRefreshing={isRefreshing} onClose={handleClose} />
 
-      <Paper p="sm" id="news-panel-controls" data-testid="news-panel-controls">
+      <Box p="sm" id="news-panel-controls" data-testid="news-panel-controls">
         <NewsFilterControls
           sourceData={sourceData}
           selectedSource={selectedSource}
@@ -316,8 +319,10 @@ function NewsPanelBody({
           onAutoRefreshChange={setAutoRefreshMs}
           onMarkAllRead={handleMarkAllRead}
         />
+      </Box>
+      <Divider />
 
-        <ScrollArea flex={1} className="news-items-container">
+      <ScrollArea flex={1} className="news-items-container">
           <NewsListContent
             loading={loading}
             error={error}
@@ -331,7 +336,6 @@ function NewsPanelBody({
             onArticleClick={handleArticleClick}
           />
         </ScrollArea>
-      </Paper>
     </Stack>
   );
 }
@@ -344,6 +348,7 @@ function NewsPanelContainer({ isOpen, children }: { isOpen: boolean; children: R
         top: 0,
         right: isOpen ? 0 : -400,
         width: 400,
+        maxWidth: "100vw",
         height: "100vh",
         bgcolor: "background.paper",
         borderLeft: 1,
@@ -471,7 +476,8 @@ export default function NewsPanel2() {
       {panel.isOpen && <NewsPanelOverlay onClose={panel.handleClose} />}
 
       <NewsPanelContainer isOpen={panel.isOpen}>
-        <NewsPanelBody
+        {panel.isOpen && (
+          <NewsPanelBody
           selectedArticle={panel.selectedArticle}
           articleContent={panel.articleContent}
           articleLoading={panel.articleLoading}
@@ -498,7 +504,13 @@ export default function NewsPanel2() {
           readIds={panel.readIds}
           toggleSourceExpanded={panel.toggleSourceExpanded}
           handleArticleClick={panel.handleArticleClick}
+          onRetryArticle={
+            panel.selectedArticle
+              ? () => panel.handleArticleClick(panel.selectedArticle as NewsItem)
+              : undefined
+          }
         />
+        )}
       </NewsPanelContainer>
     </>
   );

@@ -14,7 +14,7 @@ vi.mock("../../state", () => ({
     return mockSelectedSymbols;
   },
   clearSelectedSymbols: (...args: any[]) => mockClearSelectedSymbols(...args),
-  subscribe: vi.fn(() => vi.fn()),
+  subscribeToSelection: vi.fn(() => vi.fn()),
 }));
 
 vi.mock("../../hooks/useStoreSubscription", () => ({
@@ -45,7 +45,7 @@ describe("SelectionBar", () => {
 
   it("returns null when selectedSymbols is empty", () => {
     mockSelectedSymbols = [];
-    const { container } = render(
+    render(
       <UIProvider>
         <SelectionBar onCompare={onCompare} />
       </UIProvider>,

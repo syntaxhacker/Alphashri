@@ -184,7 +184,7 @@ function BotsTable({
               <Badge color="error" size="sm" variant="filled">LIVE</Badge>
             )}
             {!row.original.is_active && (
-              <Badge color="secondary" size="sm" variant="light">
+              <Badge color="secondary" size="sm" variant="filled">
                 Inactive
               </Badge>
             )}

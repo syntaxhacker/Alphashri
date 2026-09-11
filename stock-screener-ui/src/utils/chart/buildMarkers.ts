@@ -1,4 +1,5 @@
 import type { UnifiedTrade, MarkerConfig } from "./types";
+import { filterVisibleTrades } from "./normalizeCommon";
 import {
   MARKER_ENTRY,
   MARKER_TP,
@@ -140,8 +141,7 @@ export function buildTradeMarkers(
   const exitConfigs = configs.slice(1);
 
   const hasHighlight = highlightedTradeId != null;
-  const filtered =
-    hasHighlight && !showAllTrades ? trades.filter((t) => t.id === highlightedTradeId) : trades;
+  const filtered = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
 
   const entryMarkers: any[] = [];
   const exitMarkersByConfig: Map<string, any[]> = new Map();

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { CompactPanel } from "../common/compact";
 import { ScreenerStockView } from "./ScreenerStockView";
 import type { Stock, ColumnDef } from "../../types";
@@ -18,7 +19,7 @@ interface ScreenerSectionProps {
   activeScreener: string;
 }
 
-export function ScreenerSection({
+export const ScreenerSection = memo(function ScreenerSection({
   title,
   description,
   testId,
@@ -55,4 +56,4 @@ export function ScreenerSection({
       />
     </CompactPanel>
   );
-}
+});

@@ -133,7 +133,7 @@ describe("renderBotsView", () => {
     expect(html).toContain('data-testid="bot-card"');
   });
 
-  it("renders running status with PID when bot is running", () => {
+  it("renders running status when bot is running", () => {
     mockState({
       bots: [
         {
@@ -151,7 +151,7 @@ describe("renderBotsView", () => {
       ],
     });
     const html = renderBotsView();
-    expect(html).toContain("Running (PID 12345)");
+    expect(html).toContain("Running");
   });
 
   it("renders inactive badge when bot is not active", () => {

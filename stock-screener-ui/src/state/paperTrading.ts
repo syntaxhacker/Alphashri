@@ -58,7 +58,7 @@ export const initialPaperTradingState: PaperTradingState = {
   chartTimeframeLive: "5min",
   chartFromDateLive: null,
   chartDataHistory: null,
-  chartTimeframeHistory: "1day",
+  chartTimeframeHistory: "15min",
   chartFromDateHistory: null,
 
   isLoading: false,

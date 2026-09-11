@@ -41,6 +41,22 @@ export function mapCandles(candles: RawCandle[]): UnifiedCandle[] {
   });
 }
 
+/**
+ * When a specific trade is highlighted, only that trade should be plotted unless
+ * the caller explicitly opted into showing all trades. Shared by the ECharts and
+ * TradingView chart paths so they never diverge.
+ */
+export function filterVisibleTrades<T extends { id: number }>(
+  trades: T[],
+  highlightedTradeId?: number | null,
+  showAllTrades?: boolean,
+): T[] {
+  if (highlightedTradeId != null && !showAllTrades) {
+    return trades.filter((t) => t.id === highlightedTradeId);
+  }
+  return trades;
+}
+
 export function mapTrades(
   trades: RawTrade[],
   getId: (t: RawTrade, idx: number) => number,

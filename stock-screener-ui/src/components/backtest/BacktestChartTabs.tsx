@@ -126,6 +126,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
             isLoading={chartLoading && !currentChartData}
             onTradeClick={onTradeClick}
             holidays={holidays}
+            zoomValue={zoomValue}
           />
         ) : (
           <Center

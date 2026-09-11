@@ -164,7 +164,7 @@ export function ExperimentsChart() {
             onChange={handleSymbolChange}
             size="sm"
             searchable
-            sx={{ width: 130 }}
+            w={130}
           />
         </Box>
       </Box>

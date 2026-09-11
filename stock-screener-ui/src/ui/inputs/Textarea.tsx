@@ -23,9 +23,13 @@ export function Textarea({
   className,
   style,
   "data-testid": testId,
+  w,
+  h,
   ...rest
 }: UITextareaProps) {
   const muiSize = mapSize(size);
+  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
+  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
   const isError = Boolean(error);
   const helperText = isError
     ? typeof error === "string"
@@ -48,7 +52,7 @@ export function Textarea({
       required={required}
       disabled={disabled}
       size={muiSize}
-      fullWidth
+      fullWidth={explicitWidth == null}
       multiline
       minRows={effectiveMinRows}
       maxRows={effectiveMaxRows}
@@ -65,6 +69,8 @@ export function Textarea({
           resize: resize ?? (autosize ? "none" : undefined),
         },
         "& .MuiInputBase-root": { bgcolor: "background.paper" },
+        width: explicitWidth,
+        ...(explicitHeight && { height: explicitHeight }),
       }}
       {...(rest as object)}
     />

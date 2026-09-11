@@ -32,6 +32,7 @@ vi.mock("../../state/paperTrading", () => ({
     selectedStrategyId: null,
   })),
   setSelectedSymbol: vi.fn(),
+  setSelectedTradeId: vi.fn(),
   subscribe: vi.fn(() => vi.fn()),
 }));
 
@@ -446,14 +447,15 @@ describe("WatchlistScan2", () => {
       const snap = createMockSnapshot();
       r(<WatchlistScan2 snapshot={snap} selectedSymbol={null} />);
       await user.click(row("RELIANCE"));
-      const { setSelectedSymbol } = await import("../../state/paperTrading");
+      const { setSelectedSymbol, setSelectedTradeId } = await import("../../state/paperTrading");
       const { fetchPaperChart } = await import("../../api/paperTrading");
       expect(setSelectedSymbol).toHaveBeenCalledWith("RELIANCE");
+      expect(setSelectedTradeId).toHaveBeenCalledWith(null, undefined, 1);
       expect(fetchPaperChart).toHaveBeenCalledWith(
         "RELIANCE",
         undefined,
         "5min",
-        null,
+        1,
       );
     });
 

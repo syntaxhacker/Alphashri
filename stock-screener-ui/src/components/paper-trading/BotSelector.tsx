@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Group, Select, Box, Button, Tooltip, Text } from "@/ui";
+import { ToolbarRow, Select, Box, Button, Tooltip, Text } from "@/ui";
 import { IconRefresh, IconPlayerPlay, IconPlayerStop } from "@tabler/icons-react";
 import type { BotSummary } from "../../types/paperTrading";
 import { isMarketClosedToday } from "../../state/holidays";
@@ -53,7 +53,7 @@ export function BotSelector({
   };
 
   return (
-    <Group gap="xs" data-testid="bot-selector">
+    <ToolbarRow gap={8} wrap={false} data-testid="bot-selector">
       <Text size="sm" c="dimmed" fw={500}>
         Bot:
       </Text>
@@ -81,7 +81,7 @@ export function BotSelector({
         />
       </Tooltip>
       <Text size="xs" c="dimmed" data-testid="bot-status">
-        {running ? `Running (PID ${selectedBot?.pid ?? '?'})` : "Stopped"}
+        {running ? "Running" : "Stopped"}
       </Text>
       <Tooltip label="Refresh">
         <Button
@@ -127,6 +127,6 @@ export function BotSelector({
           </span>
         </Tooltip>
       )}
-    </Group>
+    </ToolbarRow>
   );
 }

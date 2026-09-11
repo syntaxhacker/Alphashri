@@ -487,7 +487,7 @@ export function ChatPopup() {
                     }
                     active={activeConvo === c.id}
                     onClick={() => switchConversation(c.id)}
-                    styles={{ root: { padding: "4px 8px" }, label: { fontSize: 12 } }}
+                    style={{ padding: "4px 8px" }}
                   />
                 ))
               )}

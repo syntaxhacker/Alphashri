@@ -146,6 +146,25 @@ describe("ScreenerContainer", () => {
     expect(screen.getByTestId("screener-page")).toHaveAttribute("data-status", "Loading...");
   });
 
+  it("keeps result counts visible while background refresh is running", () => {
+    mockUseScreenerState.mockReturnValue(
+      makeScreenerState({
+        isLoading: true,
+        approachingStocks: [{ symbol: "RELIANCE" }, { symbol: "TCS" }],
+        touchedStocks: [{ symbol: "INFY" }],
+      }),
+    );
+    render(
+      <UIProvider>
+        <ScreenerContainer />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("screener-page")).toHaveAttribute(
+      "data-status",
+      "3 stocks • Updating...",
+    );
+  });
+
   it("passes error and warning through to ScreenerPage", () => {
     mockUseScreenerState.mockReturnValue(makeScreenerState({ error: "fetch failed", warning: "stale data" }));
     render(

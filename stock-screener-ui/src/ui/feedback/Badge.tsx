@@ -110,15 +110,16 @@ export function Badge({
   } else if (isOutline) {
     Object.assign(sx, {
       bgcolor: "transparent",
-      color: pal.dark,
+      color: pal.main,
       border: `1px solid ${pal.main}`,
     });
   } else {
-    // light / subtle / transparent / default light variant: alpha bg + dark text (WCAG AA)
+    // light / subtle / transparent / default light variant: tinted bg + the
+    // brighter palette shade so text stays readable on dark surfaces (WCAG AA).
     Object.assign(sx, {
-      bgcolor: alpha(pal.main, 0.11),
-      color: pal.dark,
-      border: `1px solid ${alpha(pal.main, 0.18)}`,
+      bgcolor: alpha(pal.main, 0.15),
+      color: pal.main,
+      border: `1px solid ${alpha(pal.main, 0.35)}`,
     });
   }
 

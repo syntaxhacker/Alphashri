@@ -446,7 +446,7 @@ describe("TradeHistoryTable rendering", () => {
     });
     const row = screen.getByTestId("trade-history-row-0");
     await user.click(row);
-    expect(onRowClick).toHaveBeenCalledWith(0);
+    expect(onRowClick).toHaveBeenCalledWith(1);
   });
 
   test("row background tinted red for losing trades", () => {

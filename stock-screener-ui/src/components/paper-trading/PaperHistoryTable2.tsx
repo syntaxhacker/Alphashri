@@ -1,4 +1,4 @@
-import { memo, useState, useMemo, useCallback, useEffect } from "react";
+import { memo, useState, useMemo, useCallback } from "react";
 import dayjs from "dayjs";
 import {
   Select,
@@ -228,8 +228,8 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
   ];
 
   return (
-    <Box className="paper-trade-stats" id={`paper-trade-stats-${trade.trade_id}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(220px, 260px))" }, gap: 0.75, width: "100%", justifyContent: "center", maxWidth: 540, mx: "auto" }}>
-      <Box className="paper-trade-stats-entry" id={`paper-trade-stats-entry-${trade.trade_id}`} sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
+    <Box className="paper-trade-stats" id={`paper-trade-stats-${trade.trade_id}`} sx={{ display: "grid", gridTemplateColumns: { xs: "1fr", md: "1fr 1fr" }, gap: 1, width: "100%" }}>
+      <Box className="paper-trade-stats-entry" id={`paper-trade-stats-entry-${trade.trade_id}`} sx={{ p: 1, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
         <Text className="paper-trade-stats-entry-title" id={`paper-trade-stats-entry-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Entry</Text>
         {entryContext.map((item) => (
           <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
@@ -238,7 +238,7 @@ const TradeStats = memo(function TradeStats({ trade }: { trade: PaperTrade }) {
           </Box>
         ))}
       </Box>
-      <Box className="paper-trade-stats-exit" id={`paper-trade-stats-exit-${trade.trade_id}`} sx={{ p: 0.5, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
+      <Box className="paper-trade-stats-exit" id={`paper-trade-stats-exit-${trade.trade_id}`} sx={{ p: 1, border: "1px solid var(--mui-palette-divider)", borderRadius: 1, bgcolor: "var(--mui-palette-background-paper)", minWidth: 0, width: "100%" }}>
         <Text className="paper-trade-stats-exit-title" id={`paper-trade-stats-exit-title-${trade.trade_id}`} size="xs" fw={700} c="dimmed" tt="uppercase" sx={{ letterSpacing: 0.6, pb: 0.5, mb: 0.25, borderBottom: "1px solid var(--mui-palette-divider)" }}>Exit</Text>
         {exitContext.map((item) => (
           <Box key={item.label} className="paper-trade-stats-row" id={`paper-trade-stats-row-${trade.trade_id}-${item.label.replace(/\s+/g, "-").toLowerCase()}`} sx={{ display: "flex", alignItems: "center", py: 0.35, gap: 0.35, borderBottom: "1px solid var(--mui-palette-divider)", "&:last-child": { borderBottom: 0, pb: 0 } }}>
@@ -287,7 +287,6 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
                 value={notes}
                 onChange={(val) => setNotes(val)}
                 placeholder="Any additional notes..."
-                styles={{ input: { background: "var(--mui-palette-background-paper)" } }}
                 data-testid={`trade-notes-${trade.trade_id}`}
               />
             </Box>
@@ -303,8 +302,8 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
 
 const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
-    <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 1, py: 0.75, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
-      <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={0.75}>
+    <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 2, py: 1.5, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
+      <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={1} sx={{ maxWidth: 760 }}>
         <TradeStats trade={trade} />
         <TradeNotesEditor trade={trade} />
       </Stack>
@@ -355,13 +354,6 @@ function TradeHistoryTable({
     () => Object.fromEntries(dates.map((d) => [`date:${d}`, true])),
     [dates],
   );
-
-  useEffect(() => {
-    if (selectedTradeId) {
-      const el = document.querySelector(`[data-testid="trade-row-${selectedTradeId}"]`);
-      el?.scrollIntoView({ behavior: "smooth", block: "center" });
-    }
-  }, [selectedTradeId]);
 
   const handleSelect = useCallback(
     (trade: PaperTrade) => {

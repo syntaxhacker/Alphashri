@@ -41,7 +41,7 @@ export function renderBotStatusPanel(bot: BotConfig, status: BotStatus | null): 
         <div class="bot-info">
           <h3>${bot.name}</h3>
           <span class="bot-status-badge ${status?.running ? "running" : "stopped"}">
-            ${status?.running ? `● Running (PID ${status.pid})` : "○ Stopped"}
+            ${status?.running ? `● Running` : "○ Stopped"}
           </span>
         </div>
         <div class="bot-controls">

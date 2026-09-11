@@ -5,6 +5,7 @@ import {
   Text,
   Badge,
   Group,
+  ToolbarRow,
   Box,
   Button,
   ScrollArea,
@@ -315,7 +316,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         data-testid="screener-list-panel"
         sx={{ width: 260, flexShrink: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
           <Text fw={600} size="xs" data-testid="screener-configs-title" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>
             CONFIGS
           </Text>
@@ -358,7 +359,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
                 }}
                 onClick={() => onScreenerChange(option.id)}
               >
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
                   <Group gap={1} align="center">
                     <Text size="xs" fw={500} style={{ fontSize: 12, color: palette.TEXT }}>
                       {option.label}
@@ -412,7 +413,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         data-testid="screener-preview-panel"
         sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
       >
-        <Box data-testid="preview-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
+        <Box data-testid="preview-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
           <Group gap={1} wrap="wrap" data-testid="screener-filters" align="center">
             {activeOption ? (
               <>
@@ -461,31 +462,39 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
         {(createModalOpen || editModalOpen) && (
           <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.BG, maxHeight: 380, overflow: "auto" }} data-testid="inline-form">
             <Stack gap={1}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", mb: 0.5 }}>
+              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, mb: 0.5 }}>
                 <Text fw={600} size="xs" style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>{editModalOpen ? "EDIT SCREENER" : "NEW SCREENER"}</Text>
                 <Button size="xs" variant="subtle" color="inherit" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} style={{ height: 22 }}>✕</Button>
               </Box>
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <TextInput label="Name" data-testid="screener-name-input" placeholder="e.g., My Screener" value={form.label} onChange={(val) => setForm({ ...form, label: val })} size="xs" style={{ flex: 1 }} />
-                <TextInput label="Description" placeholder="Brief description" value={form.description} onChange={(val) => setForm({ ...form, description: val })} size="xs" style={{ flex: 1 }} />
-              </Box>
+              <ToolbarRow gap={8} wrap={false}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <TextInput label="Name" data-testid="screener-name-input" placeholder="e.g., My Screener" value={form.label} onChange={(val) => setForm({ ...form, label: val })} size="xs" style={{ width: "100%" }} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <TextInput label="Description" placeholder="Brief description" value={form.description} onChange={(val) => setForm({ ...form, description: val })} size="xs" style={{ width: "100%" }} />
+                </Box>
+              </ToolbarRow>
               <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>Indicators</Text>
-              <Group gap={1} style={{ flexWrap: "wrap" }}>
+              <ToolbarRow gap={8}>
                 {["RSI", "ADX", "Volume", "52W Gap %", "Stochastic", "ATR", "MACD", "Momentum"].map((ind) => (
                   <Checkbox key={ind} label={ind} checked={form.indicators.includes(ind)} onChange={(checked) => handleIndicatorToggle(ind, checked)} size="xs" />
                 ))}
-              </Group>
+              </ToolbarRow>
               {form.filters.length > 0 && (
                 <>
                   <Text size="xs" fw={600} style={{ fontSize: 11, letterSpacing: 0.5, color: palette.TEXT_MUTED }}>Filters</Text>
-                  <Group gap={1} style={{ flexWrap: "wrap" }}>{form.filters.map(renderFilterInput)}</Group>
+                  <ToolbarRow gap={8}>{form.filters.map(renderFilterInput)}</ToolbarRow>
                 </>
               )}
-              <Box sx={{ display: "flex", gap: 1 }}>
-                <Select label="Sort Column" data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))} value={form.defaultSortColumn} onChange={(val) => setForm({ ...form, defaultSortColumn: val || "score" })} size="xs" style={{ flex: 1 }} />
-                <Select label="Direction" data={[{ value: "desc", label: "Desc ↓" }, { value: "asc", label: "Asc ↑" }]} value={form.defaultSortDirection} onChange={(val) => setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })} size="xs" style={{ flex: 1 }} />
-              </Box>
-              <Box sx={{ display: "flex", justifyContent: "flex-end", gap: 1, pt: 1, borderTop: 1, borderColor: palette.BORDER, mt: 1 }}>
+              <ToolbarRow gap={8} wrap={false}>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Select label="Sort Column" data={ALL_COLUMNS.map((c) => ({ value: c.key, label: c.label }))} value={form.defaultSortColumn} onChange={(val) => setForm({ ...form, defaultSortColumn: val || "score" })} size="xs" style={{ width: "100%" }} />
+                </Box>
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Select label="Direction" data={[{ value: "desc", label: "Desc ↓" }, { value: "asc", label: "Asc ↑" }]} value={form.defaultSortDirection} onChange={(val) => setForm({ ...form, defaultSortDirection: (val as "asc" | "desc") || "desc" })} size="xs" style={{ width: "100%" }} />
+                </Box>
+              </ToolbarRow>
+              <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "center", gap: 1, pt: 1, borderTop: 1, borderColor: palette.BORDER, mt: 1 }}>
                 <Button size="xs" variant="outline" color="inherit" onClick={() => { setCreateModalOpen(false); setEditModalOpen(false); setEditingScreener(null); setForm(EMPTY_FORM); }} data-testid="cancel-create-btn">Cancel</Button>
                 <Button size="xs" data-testid="confirm-create-btn" onClick={() => (editModalOpen ? handleUpdate() : handleCreate())} disabled={!form.label || form.columns.length === 0} loading={saving}>{editModalOpen ? "Update" : "Create"}</Button>
               </Box>
@@ -493,12 +502,12 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
           </Box>
         )}
         {deleteConfirmOpen && (
-          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: withAlpha(palette.NEGATIVE, 0.08), display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          <Box sx={{ p: 1.5, borderBottom: 1, borderColor: palette.BORDER, bgcolor: withAlpha(palette.NEGATIVE, 0.08), display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Text size="xs" style={{ color: palette.NEGATIVE }}>Are you sure you want to delete {deletingId}?</Text>
-            <Group gap={1}>
+            <ToolbarRow gap={8}>
               <Button size="xs" variant="outline" color="inherit" onClick={() => { setDeleteConfirmOpen(false); setDeletingId(null); }}>Cancel</Button>
               <Button size="xs" color="error" onClick={handleDelete} loading={saving}>Delete</Button>
-            </Group>
+            </ToolbarRow>
           </Box>
         )}
         <Box sx={{ flex: 1, overflow: "auto", p: 1, minHeight: 0 }}>
@@ -522,7 +531,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
               touchedSymbols={touchedSymbols}
               onSymbolClick={handleSymbolClick}
               onSymbolHover={handleSymbolHover}
-              data-testid="preview-table"
+              testId="preview-table"
             />
           )}
         </Box>

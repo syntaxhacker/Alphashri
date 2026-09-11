@@ -184,7 +184,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
 
   return (
     <Box data-testid="replay-chart" h="100%" style={{ display: "flex", flexDirection: "column" }}>
-      <Group gap="xs" pb={4} px="sm" style={{ flex: "0 0 auto" }}>
+      <Group gap="xs" align="center" pb={4} px="sm" style={{ flex: "0 0 auto" }}>
         {symbols.map((sym) => (
           <Badge
             key={sym}
@@ -199,7 +199,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           </Badge>
         ))}
         <Box ml="auto">
-          <Group gap="sm">
+          <Group gap="sm" align="center">
             {TF_PRESETS.map((preset) => (
               <Button
                 key={preset.label}
@@ -215,7 +215,7 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           </Group>
         </Box>
       </Group>
-      <Group gap="sm" px="sm" pb={4} style={{ flex: "0 0 auto" }}>
+      <Group gap="sm" align="center" px="sm" pb={4} style={{ flex: "0 0 auto" }}>
         <Switch
           size="xs"
           label="All trades"
@@ -228,7 +228,6 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="Markers"
           defaultChecked
           disabled
-          styles={{ label: { color: MARKER_ENTRY } }}
           data-testid="replay-show-markers"
         />
         <Switch
@@ -236,7 +235,6 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="ORB"
           checked={chartOptions.show_orb_zones}
           onChange={(e) => setChartOptions({ show_orb_zones: e.currentTarget.checked })}
-          styles={{ label: { color: PIVOT_OR_HIGH } }}
           data-testid="replay-show-orb"
         />
         <Switch
@@ -244,7 +242,6 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="Pivot"
           checked={chartOptions.show_pivot_levels}
           onChange={(e) => setChartOptions({ show_pivot_levels: e.currentTarget.checked })}
-          styles={{ label: { color: PIVOT_PP } }}
           data-testid="replay-show-pivot"
         />
         <Switch
@@ -252,7 +249,6 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="52W"
           checked={chartOptions.show_52w_high}
           onChange={(e) => setChartOptions({ show_52w_high: e.currentTarget.checked })}
-          styles={{ label: { color: PIVOT_52W_HIGH } }}
           data-testid="replay-show-52w"
         />
         <Switch
@@ -260,7 +256,6 @@ export const ReplayChart = forwardRef<ReplayChartHandle, ReplayChartProps>(funct
           label="EMA"
           checked={chartOptions.show_ema}
           onChange={(e) => setChartOptions({ show_ema: e.currentTarget.checked })}
-          styles={{ label: { color: INDICATOR_BLUE_A } }}
           data-testid="replay-show-ema"
         />
       </Group>

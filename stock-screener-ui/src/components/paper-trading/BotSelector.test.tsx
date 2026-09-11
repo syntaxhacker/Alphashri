@@ -95,7 +95,7 @@ describe("BotSelector", () => {
     expect(screen.getByText("Select bot")).toBeInTheDocument();
   });
 
-  test("shows running indicator with green dot and Running (PID X) text", () => {
+  test("shows running indicator with green dot and Running text", () => {
     renderWithProviders(
       <BotSelector
         bots={[runningBot]}
@@ -105,7 +105,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running (PID 12345)");
+    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
     expect(screen.getByTestId("stop-bot-btn")).toBeInTheDocument();
   });
 
@@ -123,7 +123,7 @@ describe("BotSelector", () => {
     expect(screen.getByTestId("start-bot-btn")).toBeInTheDocument();
   });
 
-  test('shows "?" in PID when running but no pid', () => {
+  test('shows Running when running but no pid', () => {
     renderWithProviders(
       <BotSelector
         bots={[runningNoPidBot]}
@@ -133,7 +133,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running (PID ?)");
+    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
   });
 
   test("calls onSelectBot when dropdown changes", async () => {
@@ -345,7 +345,7 @@ describe("BotSelector", () => {
     setTimeoutSpy.mockRestore();
   });
 
-  test("updates status display when bot PID changes while running", () => {
+  test("updates status display when bot pid changes while running", () => {
     const { rerender } = renderWithProviders(
       <BotSelector
         bots={[{ ...runningBot, pid: 12345 }]}
@@ -355,7 +355,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running (PID 12345)");
+    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
     rerender(
       <BotSelector
         bots={[{ ...runningBot, pid: 67890 }]}
@@ -365,10 +365,10 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running (PID 67890)");
+    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
   });
 
-  test("shows Running (PID ?) when running=true and pid=null", () => {
+  test("shows Running when running=true and pid=null", () => {
     renderWithProviders(
       <BotSelector
         bots={[{ ...runningBot, id: "5", pid: null }]}
@@ -378,7 +378,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running (PID ?)");
+    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
   });
 
   test("start button reflects market open/close transitions", () => {
@@ -451,7 +451,7 @@ describe("BotSelector", () => {
     expect(await screen.findByText("Zero Pos Bot (0 pos)")).toBeInTheDocument();
   });
 
-  test("running bot with pid=0 shows Running (PID 0) without crashing", () => {
+  test("running bot with pid=0 shows Running without crashing", () => {
     renderWithProviders(
       <BotSelector
         bots={[{ ...runningBot, id: "6", pid: 0 }]}
@@ -461,7 +461,7 @@ describe("BotSelector", () => {
         onRefresh={vi.fn()}
       />,
     );
-    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running (PID 0)");
+    expect(screen.getByTestId("bot-status")).toHaveTextContent("Running");
   });
 
   test("renders all options with 10+ bots", async () => {

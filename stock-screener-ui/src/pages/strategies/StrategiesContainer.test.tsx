@@ -91,7 +91,7 @@ describe("StrategiesContainer route", () => {
     renderStrategiesRoute();
     const container = screen.getByTestId("strategies-view");
     expect(container).toHaveClass("strategies-page");
-    expect(screen.getByTestId("strategies-nav-container")).toBeInTheDocument();
+    expect(screen.getByTestId("strategies-nav")).toBeInTheDocument();
     expect(screen.getByTestId("strategies-content")).toBeInTheDocument();
   });
 

@@ -32,13 +32,16 @@ export function NumberInput({
   className,
   style,
   "data-testid": testId,
-  w: _w,
+  w,
+  h,
   variant: _variant,
   styles: _styles,
   loading: _loading,
   ...rest
 }: any) {
   const muiSize = mapSize(size);
+  const explicitWidth = w != null ? (typeof w === "number" ? `${w}px` : w) : undefined;
+  const explicitHeight = h != null ? (typeof h === "number" ? `${h}px` : h) : undefined;
   const isError = Boolean(error);
   const helperText = isError
     ? typeof error === "string"
@@ -86,7 +89,7 @@ export function NumberInput({
       disabled={disabled}
       size={muiSize}
       type="number"
-      fullWidth
+      fullWidth={explicitWidth == null}
       className={className}
       style={style as React.CSSProperties}
       data-testid={testId}
@@ -102,7 +105,7 @@ export function NumberInput({
         },
         formHelperText: isError && errorProps ? (errorProps as any) : undefined,
       }}
-      sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" } }}
+      sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" }, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
       {...(rest as object)}
     />
   );

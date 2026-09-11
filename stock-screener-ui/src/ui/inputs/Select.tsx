@@ -48,6 +48,12 @@ export function Select({
 }: UISelectProps) {
   const autoId = useId();
   const labelId = label ? `${autoId}-label` : undefined;
+  const { w: widthProp, h: heightProp, ...restProps } = rest as {
+    w?: number | string;
+    h?: number | string;
+  } & Record<string, unknown>;
+  const explicitWidth = widthProp != null ? (typeof widthProp === "number" ? `${widthProp}px` : widthProp) : undefined;
+  const explicitHeight = heightProp != null ? (typeof heightProp === "number" ? `${heightProp}px` : heightProp) : undefined;
   const options = useMemo(() => normalizeOptions(data), [data]);
   const muiSize = mapSize(size);
   const isError = Boolean(error);
@@ -70,7 +76,7 @@ export function Select({
 
   return (
     <FormControl
-      fullWidth
+      fullWidth={explicitWidth == null}
       size={muiSize}
       error={isError}
       required={required}
@@ -78,8 +84,8 @@ export function Select({
       className={className}
       style={style as React.CSSProperties}
       data-testid={testId}
-      sx={{ minWidth: 120 }}
-      {...(rest as object)}
+      sx={{ minWidth: explicitWidth == null ? 120 : 0, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
+      {...(restProps as object)}
     >
       {label && (
         <InputLabel id={labelId} required={required}>

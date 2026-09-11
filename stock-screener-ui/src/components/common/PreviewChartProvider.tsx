@@ -3,6 +3,7 @@ import {
   useContext,
   useState,
   useCallback,
+  useMemo,
   useRef,
   useEffect,
   type ReactNode,
@@ -215,12 +216,15 @@ export function PreviewChartProvider({ children }: { children: ReactNode }) {
     [collapseChart, navigate],
   );
 
-  const ctxValue: PreviewChartContextValue = {
-    showPreviewChart,
-    hidePreviewChart,
-    toggleExpandedChart,
-    collapseChart,
-  };
+  const ctxValue = useMemo<PreviewChartContextValue>(
+    () => ({
+      showPreviewChart,
+      hidePreviewChart,
+      toggleExpandedChart,
+      collapseChart,
+    }),
+    [showPreviewChart, hidePreviewChart, toggleExpandedChart, collapseChart],
+  );
 
   return (
     <PreviewChartContext.Provider value={ctxValue}>

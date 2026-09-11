@@ -4,7 +4,6 @@ import Card from "@mui/material/Card";
 import CardContent from "@mui/material/CardContent";
 import Box from "@mui/material/Box";
 import Grid from "@mui/material/Grid";
-import Stack from "@mui/material/Stack";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
@@ -108,8 +107,8 @@ function useTradeSortHandlers() {
   return { column, direction, handleSort };
 }
 
-function highlightTradeRow(tradeIndex: number) {
-  const row = document.querySelector(`[data-trade-number="${tradeIndex + 1}"]`) as HTMLElement;
+function highlightTradeRow(tradeNumber: number) {
+  const row = document.querySelector(`[data-trade-number="${tradeNumber}"]`) as HTMLElement;
   if (!row) {
     return;
   }
@@ -156,7 +155,8 @@ function useBacktestActions(state: any) {
     [state.results, resultsSort.column, resultsSort.direction],
   );
 
-  const handleRunBacktest = useCallback(() => runBacktest(saveToHistory), [saveToHistory]);
+  const handleRunBacktest = useCallback(() => runBacktest(false), []);
+  const handleRunAndSave = useCallback(() => runBacktest(true), []);
 
   const handleViewChartAndTrades = useCallback((symbol: string) => {
     setShowCharts(true);
@@ -169,12 +169,12 @@ function useBacktestActions(state: any) {
   }, []);
 
   const handleZoomToTrade = useCallback(
-    (tradeIndex: number) => {
+    (tradeNumber: number) => {
       const chartData = state.selectedChartSymbol
         ? state.chartData.get(state.selectedChartSymbol)
         : undefined;
-      zoomToTrade(state.selectedChartSymbol || "", tradeIndex, chartData);
-      highlightTradeRow(tradeIndex);
+      zoomToTrade(state.selectedChartSymbol || "", tradeNumber, chartData);
+      highlightTradeRow(tradeNumber);
     },
     [state.selectedChartSymbol, state.chartData],
   );
@@ -197,6 +197,7 @@ function useBacktestActions(state: any) {
     tradeSort,
     sortedResults,
     handleRunBacktest,
+    handleRunAndSave,
     handleViewChartAndTrades,
     handleZoomToTrade,
     selectedTf,
@@ -226,6 +227,7 @@ function BacktestPageConfig({ state, actions }: { state: any; actions: any }) {
           onSymbolsChange={setSelectedSymbols}
           onReset={resetBacktestState}
           onRun={actions.handleRunBacktest}
+          onRunAndSave={actions.handleRunAndSave}
           saveToHistory={actions.saveToHistory}
           onSaveToHistoryChange={actions.setSaveToHistory}
         />
@@ -331,7 +333,7 @@ export function BacktestPage() {
           mb="md"
           data-testid="backtest-error"
           withCloseButton
-          onClose={setError}
+          onClose={() => setError(null)}
         >
           {state.error}
         </Alert>

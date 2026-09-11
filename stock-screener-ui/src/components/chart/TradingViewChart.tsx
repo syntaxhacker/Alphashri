@@ -21,11 +21,14 @@ import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
 import type { MarkLineData, UnifiedLivePosition } from "@/utils/chart/types";
+import { filterVisibleTrades } from "@/utils/chart/normalizeCommon";
 
 export interface TradingViewChartProps {
   candles: ReplayCandle[];
   trades?: ReplayTrade[];
   highlightedTradeId?: number | null;
+  /** When a trade is highlighted, only that trade is plotted unless this is true. */
+  showAllTrades?: boolean;
   onTradeClick?: (id: number) => void;
   height?: number;
   /** Horizontal levels (ORB high/low, pivots, 52W high/low, highlighted SL/TP) */
@@ -62,6 +65,7 @@ export function TradingViewChart({
   candles,
   trades = [],
   highlightedTradeId,
+  showAllTrades,
   height,
   markLines,
   emaData,
@@ -255,7 +259,8 @@ export function TradingViewChart({
   // markers — lightweight-charts v5 uses createSeriesMarkers plugin, not series.setMarkers
   useEffect(() => {
     if (!markersRef.current) return;
-    const markers = trades
+    const visibleTrades = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
+    const markers = visibleTrades
       .filter((t) => t.entry_time)
       .map((t) => {
         const isBuy = t.side === "BUY";
@@ -269,7 +274,7 @@ export function TradingViewChart({
           size: isHighlighted ? 2 : 1,
         };
       });
-    const exitMarkers = trades
+    const exitMarkers = visibleTrades
       .filter((t) => t.exit_time)
       .map((t) => {
         const isHighlighted = highlightedTradeId === (t as any).id;
@@ -287,7 +292,7 @@ export function TradingViewChart({
     } catch {
       /* noop */
     }
-  }, [trades, highlightedTradeId]);
+  }, [trades, highlightedTradeId, showAllTrades]);
 
   // fit once on mount / symbol change
   useEffect(() => {

@@ -1,6 +1,7 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, cleanup } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { ArticleDetail } from "./ArticleDetail";
 import type { NewsItem, ArticleResponse } from "./news-types";
@@ -107,6 +108,23 @@ describe("ArticleDetail", () => {
     it("renders external link when sourceUrl is present", () => {
       render(<ArticleDetail {...defaultProps} />, { wrapper: TestWrapper });
       expect(screen.getByText("Open Original")).toBeInTheDocument();
+    });
+
+    it("renders a retryable error when article loading fails", async () => {
+      const user = userEvent.setup();
+      const onRetryArticle = vi.fn();
+      render(
+        <ArticleDetail
+          {...defaultProps}
+          articleContent={null}
+          articleError="Network error"
+          onRetryArticle={onRetryArticle}
+        />,
+        { wrapper: TestWrapper },
+      );
+      expect(screen.getByTestId("article-error")).toHaveTextContent("Network error");
+      await user.click(screen.getByText("Retry"));
+      expect(onRetryArticle).toHaveBeenCalledTimes(1);
     });
   });
 

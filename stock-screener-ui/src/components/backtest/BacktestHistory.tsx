@@ -87,14 +87,7 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
   const handleLoad = async (id: string) => {
     try {
       const details = await fetchBacktestDetails(id);
-      console.log("Loading backtest details:", details);
       if (details) {
-        console.log("Strategy ID:", details.strategy_id);
-        console.log("Parameters from DB:", details.parameters);
-        console.log("Variation ID:", details.variation_id);
-        console.log("Symbols:", details.symbols);
-        console.log("Days:", details.parameters.days);
-
         setSelectedStrategy(details.strategy_id);
         setParams(details.parameters);
         setDays(details.parameters.days || 90);
@@ -104,18 +97,8 @@ export function BacktestHistory({ onLoad, active }: BacktestHistoryProps) {
           const variationExists = currentState.variations.some(
             (v) => v.id === details.variation_id,
           );
-          console.log(
-            "Variation exists in state:",
-            variationExists,
-            "Total variations:",
-            currentState.variations.length,
-          );
-
           if (variationExists) {
-            console.log("Setting variation ID for display:", details.variation_id);
             setSelectedVariationId(details.variation_id);
-          } else {
-            console.warn("Variation not found in loaded variations, skipping");
           }
         }
 

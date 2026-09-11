@@ -19,7 +19,7 @@ export function GreeksPanel() {
             </Box>
             <Paper elevation={1} sx={{ p: 1, width: "100%" }} className="greeks-content" data-testid="options-greeks-content">
               <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-                <TableContainer component={Paper} elevation={1}>
+                <TableContainer>
                   <Box sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
                     <Text c="dimmed">Greeks visualization will appear here</Text>
                   </Box>

@@ -4,7 +4,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { IconAlertCircle } from "@tabler/icons-react";
 import type { PerformanceViewProps } from "./types";
 import type { StrategyPerformance } from "../../types/strategies";
-import { CompactPanel, CompactStat, CompactStatGrid } from "../common/compact";
+import { CompactStat, CompactStatGrid } from "../common/compact";
 import { TanStackTable } from "../common/TanStackTable";
 
 export function PerformanceView({
@@ -14,37 +14,33 @@ export function PerformanceView({
 }: PerformanceViewProps) {
   if (isLoading) {
     return (
-      <CompactPanel
-        className="performance-view-loading"
-        testId="performance-loading-state"
-        title={
-          <Group gap="xs" wrap="nowrap">
-            <Loader size="sm" data-testid="strategies-loading" />
-            <Text fw={600} size="sm">
-              Loading performance
-            </Text>
-          </Group>
-        }
-        description="Collecting trade outcomes and win-rate data"
-      />
+      <Box className="performance-view-loading" data-testid="performance-loading-state" sx={{ p: 1 }}>
+        <Group gap="xs" align="center">
+          <Loader size="sm" data-testid="strategies-loading" />
+          <Text fw={600} size="sm">
+            Loading performance
+          </Text>
+        </Group>
+        <Text size="xs" c="dimmed">
+          Collecting trade outcomes and win-rate data
+        </Text>
+      </Box>
     );
   }
 
   if (performance.length === 0) {
     return (
-      <CompactPanel
-        className="performance-view-empty"
-        testId="performance-empty-state"
-        title={
-          <Group gap="xs" wrap="nowrap">
-            <IconAlertCircle size={18} />
-            <Text fw={600} size="sm">
-              No performance data
-            </Text>
-          </Group>
-        }
-        description="Strategies need executed trades before performance can be shown."
-      />
+      <Box className="performance-view-empty" data-testid="performance-empty-state" sx={{ p: 1 }}>
+        <Group gap="xs" align="center">
+          <IconAlertCircle size={18} />
+          <Text fw={600} size="sm">
+            No performance data
+          </Text>
+        </Group>
+        <Text size="xs" c="dimmed">
+          Strategies need executed trades before performance can be shown.
+        </Text>
+      </Box>
     );
   }
 
@@ -173,13 +169,7 @@ export function PerformanceView({
         />
       </CompactStatGrid>
 
-      <CompactPanel
-        className="performance-table-card"
-        testId="performance-table-card"
-        title="Strategy Performance"
-        description="Click a row to inspect the strategy's trade history"
-        scrollable
-      >
+      <Box className="performance-table-card" data-testid="performance-table-card" sx={{ minHeight: 0 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
           <TanStackTable<StrategyPerformance>
             data={performance}
@@ -189,7 +179,7 @@ export function PerformanceView({
             stickyHeader={false}
           />
         </Box>
-      </CompactPanel>
+      </Box>
     </Stack>
   );
 }

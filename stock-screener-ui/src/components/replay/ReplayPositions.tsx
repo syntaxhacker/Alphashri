@@ -65,7 +65,7 @@ export function ReplayPositions({ positions }: ReplayPositionsProps) {
 
   return (
     <Box data-testid="replay-positions">
-      <Group gap="sm" mb={2}>
+      <Group gap="sm" align="center" mb={2}>
         <Text size="xs" fw={500}>Open Positions</Text>
         <Badge variant="light" color="primary" size="xs">{positions.length}</Badge>
       </Group>

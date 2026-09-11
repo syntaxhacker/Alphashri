@@ -38,6 +38,7 @@ vi.mock("./ScreenerHeader", () => ({
       data-provider={props.provider}
       data-mode={props.mode}
       data-view-mode={props.viewMode}
+      data-disable-controls={props.disableControls}
     >
       <button data-testid="refresh-btn" onClick={props.onRefresh}>
         Refresh
@@ -76,7 +77,7 @@ vi.mock("./ScreenerHeader", () => ({
 vi.mock("./ScreenerTable", () => ({
   ScreenerTable: (props: any) => (
     <div
-      data-testid={props["data-testid"] || "screener-table"}
+      data-testid={props.testId || "screener-table"}
       data-stocks-count={props.stocks.length}
     >
       {props.stocks.map((stock: Stock) => (
@@ -142,6 +143,7 @@ vi.mock("../../state", () => ({
   setSelectedSymbols: vi.fn(),
   clearSelectedSymbols: vi.fn(),
   subscribe: vi.fn(() => vi.fn()),
+  subscribeToSelection: vi.fn(() => vi.fn()),
   screenerOptions: [
     { id: "trending", label: "Trending" },
   ],
@@ -226,7 +228,7 @@ describe("ScreenerPage", () => {
   it("displays loading state", () => {
     render(
       <UIProvider>
-        <ScreenerPage {...defaultProps} isLoading={true} />
+        <ScreenerPage {...defaultProps} isLoading={true} approachingStocks={[]} touchedStocks={[]} />
       </UIProvider>,
     );
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
@@ -393,6 +395,18 @@ describe("ScreenerPage", () => {
     // Header controls should be disabled - check via props
     const header = screen.getByTestId("screener-header");
     expect(header).toHaveAttribute("data-loading", "true");
+  });
+
+  it("keeps controls enabled during background refresh when results are present", () => {
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} isLoading={true} />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("screener-header")).toHaveAttribute(
+      "data-disable-controls",
+      "false",
+    );
   });
 
   it("calls onRefresh when refresh button clicked", async () => {

@@ -292,6 +292,10 @@ export interface UIInputWrapperProps extends UIBaseProps {
   placeholder?: string;
   /** Form field name — forwarded to the native input for FormData support. */
   name?: string;
+  /** Explicit control width (number → px). When set, fullWidth is disabled. */
+  w?: number | string;
+  /** Explicit control height (number → px). */
+  h?: number | string;
 }
 
 export interface UITextInputProps extends UIInputWrapperProps {
@@ -442,6 +446,8 @@ export interface UITooltipProps extends UIBaseProps {
 export interface UIPopoverProps extends UIBaseProps {
   opened?: boolean;
   onClose?: () => void;
+  /** Mantine-style controlled callback: called with the next opened state. */
+  onChange?: (opened: boolean) => void;
   position?: "top" | "bottom" | "left" | "right" | "top-start" | "top-end" | "bottom-start" | "bottom-end";
   withArrow?: boolean;
   width?: number | string;

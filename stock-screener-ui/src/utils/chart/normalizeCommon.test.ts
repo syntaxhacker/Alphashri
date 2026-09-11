@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import { mapCandles, mapTrades } from "./normalizeCommon";
+import { mapCandles, mapTrades, filterVisibleTrades } from "./normalizeCommon";
 
 describe("mapCandles", () => {
   it("maps raw candles to UnifiedCandle format", () => {
@@ -49,6 +49,29 @@ describe("mapCandles", () => {
     expect(result).not.toBe(rawCandles);
     rawCandles[0].open = 999;
     expect(result[0].open).toBe(100); // unchanged
+  });
+});
+
+describe("filterVisibleTrades", () => {
+  const trades = [{ id: 1 }, { id: 2 }, { id: 3 }];
+
+  it("returns all trades when nothing is highlighted", () => {
+    expect(filterVisibleTrades(trades, null)).toEqual(trades);
+    expect(filterVisibleTrades(trades, undefined)).toEqual(trades);
+  });
+
+  it("returns only the highlighted trade by default", () => {
+    expect(filterVisibleTrades(trades, 2)).toEqual([{ id: 2 }]);
+  });
+
+  it("returns all trades when showAllTrades is true even if one is highlighted", () => {
+    expect(filterVisibleTrades(trades, 2, true)).toEqual(trades);
+  });
+
+  it("returns a new array (immutability)", () => {
+    const result = filterVisibleTrades(trades, 1);
+    expect(result).not.toBe(trades);
+    expect(trades).toHaveLength(3);
   });
 });
 

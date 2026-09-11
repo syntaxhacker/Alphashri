@@ -93,7 +93,7 @@ function StrategyParams({ strategy }: { strategy: AvailableStrategy }) {
   if (items.length === 0) return null;
 
   return (
-    <Group gap="xs" mt={4} wrap="wrap">
+    <Group gap="xs" mt={4} wrap="wrap" align="center">
       <ThemeIcon size="xs" variant="transparent" color="secondary" style={{ flex: "0 0 auto" }}>
         <IconInfoCircle size={12} />
       </ThemeIcon>

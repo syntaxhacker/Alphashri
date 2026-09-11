@@ -30,3 +30,15 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 
 /* hide TradingView attribution logo on lightweight-charts (POC full-page) */
 #tv-attr-logo, a[href*="tradingview.com"] { display: none !important; }
+
+/* Active/selected row highlight (paper trade history, backtest, replay).
+   Targets the td because each cell sets its own background via sx. */
+.trade-row-highlighted td {
+  background-color: color-mix(in srgb, var(--mui-palette-primary-main) 18%, var(--mui-palette-background-paper)) !important;
+}
+.trade-row-highlighted td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--mui-palette-primary-main);
+}
+.trade-row-highlighted:hover td {
+  background-color: color-mix(in srgb, var(--mui-palette-primary-main) 26%, var(--mui-palette-background-paper)) !important;
+}

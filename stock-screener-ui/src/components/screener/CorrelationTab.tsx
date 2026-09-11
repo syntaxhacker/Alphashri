@@ -137,6 +137,7 @@ export function CorrelationTab() {
                   onSearchChange={handleSearch}
                   searchable
                   size="sm"
+                  w={280}
                   aria-label="Symbols"
                 />
               </Stack>
@@ -154,7 +155,7 @@ export function CorrelationTab() {
               />
             </Grid>
             <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
-              <Select label="Period" value={currentPeriod} onChange={handlePeriodChange} data={periods} size="sm" data-testid="correlation-period" />
+              <Select label="Period" value={currentPeriod} onChange={handlePeriodChange} data={periods} size="sm" w={110} data-testid="correlation-period" />
             </Grid>
             <Grid size="auto" sx={{ display: "flex", alignItems: "center" }}>
               <Button onClick={handleCalculate} loading={isLoading} disabled={localSymbols.length < 2} size="sm" leftSection={<IconChartLine size={16} />} fullWidth>

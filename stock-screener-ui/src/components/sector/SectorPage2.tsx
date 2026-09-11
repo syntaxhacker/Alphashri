@@ -82,7 +82,7 @@ function LoadingPanel() {
   return (
     <CompactPanel
       title={
-        <Group gap="xs" wrap="nowrap">
+        <Group gap="xs" wrap="nowrap" align="center">
           <Loader size="sm" />
           <Text fw={600} size="sm">
             Fetching sector performance

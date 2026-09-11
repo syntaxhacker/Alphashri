@@ -82,7 +82,8 @@ interface TradeHistoryTableProps {
   sortColumn: string;
   sortDirection: "asc" | "desc";
   onSort: (column: string) => void;
-  onRowClick: (tradeIndex: number) => void;
+  /** Called with the 1-based trade number (stable across sorting). */
+  onRowClick: (tradeNumber: number) => void;
   onClose: () => void;
 }
 
@@ -325,7 +326,8 @@ export function TradeHistoryTable({
             backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
           })}
           getRowTestId={(_row, index) => `trade-history-row-${index}`}
-          onRowClick={(row) => onRowClick(safeTrades.indexOf(row))}
+          getRowAttributes={(trade) => ({ "data-trade-number": safeTrades.indexOf(trade) + 1 })}
+          onRowClick={(row) => onRowClick(safeTrades.indexOf(row) + 1)}
         />
       </Box>
     </Stack>

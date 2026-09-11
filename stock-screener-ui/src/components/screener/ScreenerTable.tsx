@@ -1,16 +1,14 @@
-import { useMemo } from "react";
+import { memo, useCallback, useMemo } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Grid from "@mui/material/Grid";
-import Paper from "@mui/material/Paper";
-import CardContent from "@mui/material/CardContent";
 import { Checkbox, ActionIcon, CopyButton, Tooltip, Anchor, Badge, Group, Text } from "@/ui";
 import { IconCopy, IconCheck } from "@tabler/icons-react";
 import type { ColumnDef as TanStackColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../common/TanStackTable";
 import type { ColumnDef, FormattedCell } from "./columns";
 import type { Stock } from "../../types";
-import { selectedSymbols, toggleSymbolSelection, clearSelectedSymbols, setSelectedSymbols } from "../../state";
+import { selectedSymbols, toggleSymbolSelection, clearSelectedSymbols, setSelectedSymbols, subscribeToSelection } from "../../state";
+import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { getValueColor, getScoreColor, formatNumber } from "../../utils/ui-helpers";
 import { usePreviewChart } from "../common/PreviewChartProvider";
 
@@ -22,9 +20,10 @@ interface ScreenerTableProps {
   scoreFormula?: string;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
+  testId?: string;
 }
 
-export function ScreenerTable({
+export const ScreenerTable = memo(function ScreenerTable({
   stocks,
   columns,
   touchedSymbols,
@@ -32,19 +31,34 @@ export function ScreenerTable({
   scoreFormula,
   onSymbolClick,
   onSymbolHover,
+  testId = "screener-table",
 }: ScreenerTableProps) {
-  const allSymbols = stocks.map((s) => s.symbol).join(", ");
-  const visibleSymbols = stocks.map((s) => s.symbol);
-  const allVisibleSelected = visibleSymbols.every((s) => selectedSymbols.includes(s));
+  useStoreSubscription(subscribeToSelection);
+  const visibleSymbols = useMemo(() => stocks.map((stock) => stock.symbol), [stocks]);
+  const allSymbols = useMemo(() => visibleSymbols.join(", "), [visibleSymbols]);
+  const selectedSymbolSet = useMemo(() => new Set(selectedSymbols), [selectedSymbols]);
+  const allVisibleSelected = useMemo(
+    () => visibleSymbols.length > 0 && visibleSymbols.every((symbol) => selectedSymbolSet.has(symbol)),
+    [visibleSymbols, selectedSymbolSet],
+  );
   const { showPreviewChart, hidePreviewChart } = usePreviewChart();
 
-  const handleSelectAll = () => {
+  const handleSelectAll = useCallback(() => {
     if (allVisibleSelected) {
       clearSelectedSymbols();
     } else {
       setSelectedSymbols(visibleSymbols);
     }
-  };
+  }, [allVisibleSelected, visibleSymbols]);
+
+  const handleSymbolRowClick = useCallback(
+    (row: Stock) => {
+      hidePreviewChart();
+      onSymbolClick(row.symbol);
+    },
+    [hidePreviewChart, onSymbolClick],
+  );
+  const containerTestId = testId === "screener-table" ? undefined : testId;
 
   const tanStackColumns = useMemo<TanStackColumnDef<Stock>[]>(() => {
     const cols: TanStackColumnDef<Stock>[] = [
@@ -54,8 +68,8 @@ export function ScreenerTable({
           <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", justifyContent: "center" }}>
             <Checkbox
               size="xs"
-              checked={stocks.length > 0 && allVisibleSelected}
-              indeterminate={selectedSymbols.length > 0 && !allVisibleSelected}
+              checked={allVisibleSelected}
+              indeterminate={selectedSymbolSet.size > 0 && !allVisibleSelected}
               onChange={(e: any) => { e?.stopPropagation?.(); handleSelectAll(); }}
               onClick={(e: any) => e.stopPropagation()}
               data-testid="select-all-checkbox"
@@ -68,7 +82,7 @@ export function ScreenerTable({
           <Box onClick={(e) => e.stopPropagation()} sx={{ display: "flex", justifyContent: "center" }}>
             <Checkbox
               size="xs"
-              checked={selectedSymbols.includes(row.original.symbol)}
+              checked={selectedSymbolSet.has(row.original.symbol)}
               onChange={(e: any) => { e?.stopPropagation?.(); toggleSymbolSelection(row.original.symbol); }}
               onClick={(e: any) => e.stopPropagation()}
               data-testid={`sel-checkbox-${row.original.symbol}`}
@@ -85,9 +99,9 @@ export function ScreenerTable({
         header: () => {
           const isSymbolColumn = col.key === "symbol";
           return (
-            <Group gap={1} wrap="nowrap">
+            <Group gap={1} wrap="nowrap" align="center">
               <Text fw={700}>{col.label}</Text>
-              {isSymbolColumn && stocks.length > 0 && (
+              {isSymbolColumn && visibleSymbols.length > 0 && (
                 <CopyButton value={allSymbols}>
                   {({ copied, copy }) => (
                     <Tooltip label={copied ? "Copied" : "Copy all symbols"}>
@@ -132,7 +146,7 @@ export function ScreenerTable({
 
           if (col.key === "symbol") {
             return (
-              <Group gap={1} wrap="nowrap" data-testid={`symbol-cell-${stock.symbol}`}>
+              <Group gap={1} wrap="nowrap" align="center" data-testid={`symbol-cell-${stock.symbol}`}>
                 <Tooltip label="Click for details">
                   <Anchor
                     component="button"
@@ -196,10 +210,10 @@ export function ScreenerTable({
     }
 
     return cols;
-  }, [columns, stocks, allSymbols, allVisibleSelected, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, showPreviewChart, hidePreviewChart]);
+  }, [columns, visibleSymbols, allSymbols, allVisibleSelected, selectedSymbolSet, touchedSymbols, badgeLabel, scoreFormula, onSymbolClick, onSymbolHover, showPreviewChart, hidePreviewChart, handleSelectAll]);
 
     return (
-      <Box sx={{ width: "100%", overflow: "hidden", borderRadius: 1 }}>
+      <Box sx={{ width: "100%", overflow: "hidden", borderRadius: 1 }} data-testid={containerTestId}>
         <Stack spacing={0} sx={{ width: "100%" }}>
           <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
               <TanStackTable<Stock>
@@ -210,11 +224,11 @@ export function ScreenerTable({
                 stickyHeader
                 sx={{ width: "100%", minWidth: 0 } as any}
                 getRowTestId={(row) => `stock-row-${row.symbol}`}
-                onRowClick={(row) => { hidePreviewChart(); onSymbolClick(row.symbol); }}
+                onRowClick={handleSymbolRowClick}
                 rowWindowSize={stocks.length > 120 ? 80 : 0}
               />
             </Box>
           </Stack>
       </Box>
   );
-}
+});

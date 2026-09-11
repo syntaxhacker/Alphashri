@@ -74,6 +74,18 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
 - Reference MUI docs — never guess APIs; use `sx` prop, not global CSS; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
 - Tables — fin-app alignment is mandatory (text left, numbers right, badges/actions center; explicit `meta.align` per column, wrapper must match): rules + placement map in [TABLE_CHECKLIST.md](../TABLE_CHECKLIST.md)
 
+## UI Revamp Rules (MANDATORY — read before touching any tab/page)
+Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
+1. **`@/ui` is MUI, not Mantine.** Mantine-only props (`styles`, and historically `w`/`h`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs now honor `w`/`h`; when `w` is set the input stops being full-width.
+2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box sx={{ flex: 1, minWidth: 0 }}>` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
+3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
+4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
+5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
+   - `npx vitest run src/test/ui-guard.test.ts`
+   - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
+   - the feature's unit tests + its E2E spec.
+   Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
+
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
 - Redux slices in `src/state/store/` (appSlice, notificationsSlice) — legacy, minimal usage

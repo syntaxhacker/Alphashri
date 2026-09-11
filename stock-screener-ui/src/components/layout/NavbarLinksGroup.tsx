@@ -44,7 +44,14 @@ export function NavbarLinksGroup({
       <ListItemIcon sx={{ minWidth: 36, justifyContent: collapsed ? "center" : "flex-start", color: active ? "primary.dark" : "text.secondary" }}>
         <Icon size={16} />
       </ListItemIcon>
-      {!collapsed && <ListItemText primary={label} primaryTypographyProps={{ fontSize: "0.875rem", fontWeight: active ? 600 : 400 }} />}
+      {!collapsed && (
+        <ListItemText
+          primary={label}
+          slotProps={{
+            primary: { sx: { fontSize: "0.875rem", fontWeight: active ? 600 : 400 } },
+          }}
+        />
+      )}
     </ListItemButton>
   );
 

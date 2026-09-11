@@ -270,7 +270,7 @@ export function ExperimentsResultsTable() {
         sortDescFirst: true,
         meta: { align: "right" },
         cell: ({ row }) => (
-          <Group gap={6} wrap="nowrap">
+          <Group gap={6} wrap="nowrap" align="center">
             <Text size="sm">{row.original.metrics.total_trades}</Text>
             {row.original.metrics.total_trades < 10 && (
               <Badge
@@ -328,7 +328,7 @@ export function ExperimentsResultsTable() {
           placeholder="All symbols"
           clearable
           searchable
-          style={{ width: 170 }}
+          w={170}
           size="sm"
         />
       </Group>

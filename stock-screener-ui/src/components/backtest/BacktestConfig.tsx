@@ -1,7 +1,6 @@
 import { useEffect, useMemo } from "react";
 import {
   Stack,
-  Group,
   Select,
   NumberInput,
   Checkbox,
@@ -38,6 +37,7 @@ interface BacktestConfigProps {
   onSymbolsChange: (symbols: string[]) => void;
   onReset: () => void;
   onRun: () => void;
+  onRunAndSave: () => void;
 }
 
 export function BacktestConfig({
@@ -60,6 +60,7 @@ export function BacktestConfig({
   onSymbolsChange,
   onReset,
   onRun,
+  onRunAndSave,
 }: BacktestConfigProps) {
   const strategy = strategies.find((s) => s.id === selectedStrategy);
   const selectedVariationData = variations.find((v) => v.id === selectedVariation);
@@ -96,7 +97,7 @@ export function BacktestConfig({
 
   const handleRunAndSave = () => {
     onSaveToHistoryChange(true);
-    onRun();
+    onRunAndSave();
   };
 
   return (

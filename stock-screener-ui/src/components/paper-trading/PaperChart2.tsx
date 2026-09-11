@@ -27,6 +27,8 @@ import dayjs from "dayjs";
 import {
   getPaperTradingState,
   setChartTimeframe,
+  setChartTimeframeHistory,
+  setChartTimeframeLive,
   setShowAllTrades,
   setShowOrbLines,
   setShowPivotLines,
@@ -41,7 +43,8 @@ import { TradingViewChart } from "../chart/TradingViewChart";
 import { normalizePaper } from "../../utils/chart/normalizePaper";
 import type { PaperPosition } from "../../types/paperTrading";
 import { TIMEFRAMES } from "../../config/constants";
-import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH } from "@/ui/palette";
+import { PRIMARY, POSITIVE, NEGATIVE, PIVOT_OR_HIGH, PIVOT_52W_HIGH, PIVOT_PP, INDICATOR_BLUE_A } from "@/ui/palette";
+import { withAlpha } from "@/utils/color";
 
 const toApiFormat = (val: number): string => {
   if (val === 1) return "1min";
@@ -146,20 +149,12 @@ const QUICK_RANGES = [
 ] as const;
 
 const OVERLAY_ITEMS = [
-  { label: "All", key: "showAllTrades" as const, setter: setShowAllTrades },
-  { label: "ORB", key: "showOrbLines" as const, setter: setShowOrbLines },
-  { label: "Pivot", key: "showPivotLines" as const, setter: setShowPivotLines },
-  { label: "52W", key: "show52wLines" as const, setter: setShow52wLines },
-  { label: "EMA", key: "showEmaLines" as const, setter: setShowEmaLines },
+  { label: "All", key: "showAllTrades" as const, setter: setShowAllTrades, color: PRIMARY },
+  { label: "ORB", key: "showOrbLines" as const, setter: setShowOrbLines, color: PIVOT_OR_HIGH },
+  { label: "Pivot", key: "showPivotLines" as const, setter: setShowPivotLines, color: PIVOT_PP },
+  { label: "52W", key: "show52wLines" as const, setter: setShow52wLines, color: PIVOT_52W_HIGH },
+  { label: "EMA", key: "showEmaLines" as const, setter: setShowEmaLines, color: INDICATOR_BLUE_A },
 ] as const;
-
-const OVERLAY_COLORS: Record<string, string> = {
-  showAllTrades: "primary",
-  showOrbLines: "secondary",
-  showPivotLines: "info",
-  show52wLines: "secondary",
-  showEmaLines: "success",
-};
 
 function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState> }) {
   const [range, setRange] = useState<[Date | null, Date | null]>([null, null]);
@@ -208,6 +203,9 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       if (!value) return;
       setChartTimeframe(value);
       const s = getPaperTradingState();
+      // Persist the user's choice per view so it survives tab switches.
+      if (s.currentView === "history") setChartTimeframeHistory(value);
+      else if (s.currentView === "live") setChartTimeframeLive(value);
       const cd = s.chartData?.date;
       if (s.selectedSymbol && cd) {
         await fetchPaperChart(s.selectedSymbol, cd, value, s.selectedStrategyId, s.chartFromDate || undefined, true);
@@ -299,6 +297,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         withArrow
         opened={popoverOpened}
         onChange={setPopoverOpened}
+        onClose={() => setPopoverOpened(false)}
       >
         <PopoverTarget>
           <ActionIcon
@@ -306,7 +305,6 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
             variant={hasActiveOverlays ? "filled" : "subtle"}
             color={hasActiveOverlays ? "primary" : "secondary"}
             data-testid="chart-more-button"
-            onClick={() => setPopoverOpened((o) => !o)}
           >
             <IconDots size={16} />
           </ActionIcon>
@@ -318,40 +316,40 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
               <Text size="xs" fw={600}>Range</Text>
             </Group>
             <Group gap={1}>
-              {QUICK_RANGES.map((r) => {
-                const rangeColors = ["primary", "info", "info", "secondary", "warning", "secondary"] as const;
-                const idx = QUICK_RANGES.indexOf(r);
-                return (
-                  <Button
-                    key={r.label}
-                    size="compact-xs"
-                    variant="light"
-                    color={rangeColors[idx]}
-                    onClick={() => handleQuickRange(r.days)}
-                  >
-                    {r.label}
-                  </Button>
-                );
-              })}
+              {QUICK_RANGES.map((r) => (
+                <Button
+                  key={r.label}
+                  size="compact-xs"
+                  variant="light"
+                  color="primary"
+                  onClick={() => handleQuickRange(r.days)}
+                >
+                  {r.label}
+                </Button>
+              ))}
             </Group>
 
             <Divider my={1} />
 
             <Group gap="xs">
-              <Box w={3} h={14} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.secondary.main })} />
+              <Box w={3} h={14} sx={{ borderRadius: 2, backgroundColor: PRIMARY }} />
               <Text size="xs" fw={600}>Overlays</Text>
             </Group>
             <Group gap={1}>
-              {OVERLAY_ITEMS.map(({ label, key, setter }) => (
+              {OVERLAY_ITEMS.map(({ label, key, setter, color }) => (
                 <Box key={key} data-testid={`overlay-${label.toLowerCase()}`}>
                   <Chip
                     size="xs"
-                    variant="light"
+                    variant="outline"
                     radius="sm"
-                    color={OVERLAY_COLORS[key] || "primary"}
                     checked={state[key]}
                     data-testid={`chip-${label.toLowerCase()}`}
                     onChange={(checked) => setter(checked)}
+                    style={
+                      state[key]
+                        ? { backgroundColor: withAlpha(color, 0.18), color, border: `1px solid ${color}` }
+                        : { color: "var(--mui-palette-text-secondary)", border: "1px solid var(--mui-palette-divider)" }
+                    }
                   >
                     {label}
                   </Chip>
@@ -445,6 +443,7 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
                 candles={chartInput.candles as any}
                 trades={chartInput.trades as any}
                 highlightedTradeId={chartInput.highlightedTradeId ?? null}
+                showAllTrades={chartInput.showAllTrades}
                 markLines={chartInput.markLines}
                 emaData={chartInput.emaData}
                 livePosition={chartInput.livePosition}

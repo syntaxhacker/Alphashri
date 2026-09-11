@@ -1,55 +1,57 @@
 import { Box, Stack } from "@/ui";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
-import Chip from "@mui/material/Chip";
-import Link from "@mui/material/Link";
-import Divider from "@mui/material/Divider";
 import Alert from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
+import Button from "@mui/material/Button";
+import CardActions from "@mui/material/CardActions";
+import CardContent from "@mui/material/CardContent";
+import CardHeader from "@mui/material/CardHeader";
+import Chip from "@mui/material/Chip";
 import Collapse from "@mui/material/Collapse";
+import Divider from "@mui/material/Divider";
+import IconButton from "@mui/material/IconButton";
 import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
-import IconButton from "@mui/material/IconButton";
-import CircularProgress from "@mui/material/CircularProgress";
+import ListItemText from "@mui/material/ListItemText";
+import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
-import {
-  IconChartLine,
-  IconExternalLink,
-  IconInfoCircle,
-  IconTarget,
-  IconTrendingUp,
-  IconChevronDown,
-  IconChevronRight,
-  IconNews,
-} from "@tabler/icons-react";
+import Typography from "@mui/material/Typography";
+import CloseIcon from "@mui/icons-material/Close";
+import ExpandLessIcon from "@mui/icons-material/ExpandLess";
+import ExpandMoreIcon from "@mui/icons-material/ExpandMore";
+import OpenInNewIcon from "@mui/icons-material/OpenInNew";
+import ShowChartIcon from "@mui/icons-material/ShowChart";
+import { IconNews } from "@tabler/icons-react";
 import type { NewsItem, NewsSymbol, ArticleResponse } from "./news-types";
-import { SOURCE_COLORS } from "./news-constants";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import { SentimentBadge } from "./SentimentBadge";
 import { ImpactScore } from "./ImpactScore";
 import { TradeIdeaCard } from "./TradeIdeaCard";
+import { EmptyState } from "../common/states";
 
 interface ArticleDetailProps {
   selectedArticle: NewsItem | null;
   articleContent: ArticleResponse | null;
   articleLoading: boolean;
+  articleError?: string | null;
   isMobile: boolean;
   showFullContent: boolean;
   onClose: () => void;
   onToggleFullContent: () => void;
   onSymbolClick: (symbol: NewsSymbol) => void;
+  onRetryArticle?: () => void;
 }
 
 export function ArticleDetail({
   selectedArticle,
   articleContent,
   articleLoading,
+  articleError,
   isMobile,
   showFullContent,
   onClose,
   onToggleFullContent,
   onSymbolClick,
+  onRetryArticle,
 }: ArticleDetailProps) {
   const hasLlmSummary =
     articleContent?.analysis_status === "done" &&
@@ -58,168 +60,247 @@ export function ArticleDetail({
       (articleContent?.key_points && articleContent.key_points.length > 0)
     );
 
-  return (
-    <Stack spacing={1} sx={{ p: 1, alignItems: "center", justifyContent: "center", width: "100%" }} data-testid="article-detail">
-      {selectedArticle ? (
-        <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Typography variant="h6" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }} data-testid="article-title">{selectedArticle.headline}</Typography>
-                {isMobile && <IconButton size="small" onClick={onClose} data-testid="close-article-btn" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><IconInfoCircle size={16} /></IconButton>}
-              </Box>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Chip size="small" label={selectedArticle.source} color={(SOURCE_COLORS as any)[selectedArticle.source] ? "primary" : "default"} variant="outlined" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} />
-                <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}</Typography>
-              </Box>
-            </CardContent>
-          </Card>
+  if (!selectedArticle) {
+    return (
+      <Box
+        sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
+        data-testid="article-detail"
+      >
+        <EmptyState
+          icon={<IconNews size={40} stroke={1} />}
+          title="Select an article"
+          description="Choose an article from the list to view its analysis here."
+          data-testid="article-empty"
+        />
+      </Box>
+    );
+  }
 
-          {articleLoading ? (
-            <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-              <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                  <CircularProgress size={20} />
-                  <Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Analyzing article...</Typography>
-                </Box>
-              </CardContent>
-            </Card>
-          ) : (
-            <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+  return (
+    <Box
+      sx={{ width: "100%", minHeight: 0, flex: 1, display: "flex", flexDirection: "column" }}
+      data-testid="article-detail"
+    >
+      <CardHeader
+        title={
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+            <Typography variant="h6" data-testid="article-title" sx={{ flex: 1, minWidth: 0 }}>
+              {selectedArticle.headline}
+            </Typography>
+            <Chip size="small" label={selectedArticle.source} variant="outlined" />
+          </Box>
+        }
+        subheader={`${selectedArticle.source} · ${formatTimeAgo(articleContent?.publishedAt || selectedArticle.publishedAt)}`}
+        action={
+          isMobile ? (
+            <IconButton
+              size="small"
+              edge="end"
+              aria-label="Close article"
+              onClick={onClose}
+              data-testid="close-article-btn"
+            >
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          ) : undefined
+        }
+        sx={{ px: 1, py: 1, alignItems: "flex-start" }}
+      />
+      <Divider />
+      {articleLoading ? (
+        <CardContent>
+          <Stack spacing={1}>
+            <Skeleton variant="text" width="40%" />
+            <Skeleton variant="rounded" height={96} />
+            <Skeleton variant="rounded" height={96} />
+            <Typography variant="body2" color="text.secondary">
+              Analyzing article...
+            </Typography>
+          </Stack>
+        </CardContent>
+      ) : (
+        <>
+          <CardContent sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+            <Stack spacing={2}>
+              {articleError && (
+                <Alert severity="error" data-testid="article-error">
+                  {articleError}
+                </Alert>
+              )}
+
               {articleContent?.analysis_status === "failed" && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-                    <Alert severity="warning" icon={<IconInfoCircle size={16} />} sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>This article is queued for analysis and will be updated shortly.</Alert>
-                  </CardContent>
-                </Card>
+                <Alert severity="warning" icon={false}>
+                  This article is queued for analysis and will be updated shortly.
+                </Alert>
               )}
 
               {articleContent?.analysis_status === "none" && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                      <CircularProgress size={16} />
-                      <Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Analysis will be available once processed.</Typography>
-                    </Box>
-                  </CardContent>
-                </Card>
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Skeleton variant="circular" width={20} height={20} />
+                  <Typography variant="body2" color="text.secondary">
+                    Analysis will be available once processed.
+                  </Typography>
+                </Box>
               )}
 
               {articleContent?.sentiment && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                      <SentimentBadge sentiment={articleContent.sentiment} />
-                      <ImpactScore score={articleContent.impact_score} />
-                    </Box>
-                  </CardContent>
-                </Card>
+                <Stack direction="row" gap={1} align="center" wrap="wrap">
+                  <SentimentBadge sentiment={articleContent.sentiment} />
+                  <ImpactScore score={articleContent.impact_score} />
+                </Stack>
               )}
 
               {articleContent?.summary && articleContent.analysis_status !== "failed" && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-                    <Alert severity="info" icon={<IconInfoCircle size={16} />} sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}><AlertTitle>Summary</AlertTitle><Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{articleContent.summary}</Typography></Alert>
-                  </CardContent>
-                </Card>
+                <Alert severity="info">
+                  <AlertTitle>Summary</AlertTitle>
+                  <Typography variant="body2">{articleContent.summary}</Typography>
+                </Alert>
               )}
 
               {articleContent?.key_points && articleContent.key_points.length > 0 && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                      <IconTarget size={14} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>Key Takeaways</Typography>
-                    </Box>
-                    <List sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center", p: 1 }}>
-                      {articleContent.key_points.map((point, idx) => (
-                        <ListItem key={`${idx}-${point.slice(0, 40)}`} sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-                          <Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{point}</Typography>
-                        </ListItem>
-                      ))}
-                    </List>
-                  </CardContent>
-                </Card>
+                <Stack spacing={0}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Key Takeaways
+                  </Typography>
+                  <List dense disablePadding>
+                    {articleContent.key_points.map((point, idx) => (
+                      <ListItem
+                        key={`${idx}-${point.slice(0, 40)}`}
+                        disablePadding
+                        sx={{ alignItems: "flex-start" }}
+                      >
+                        <ListItemText
+                          primary={point}
+                          slotProps={{ primary: { variant: "body2" } }}
+                        />
+                      </ListItem>
+                    ))}
+                  </List>
+                </Stack>
               )}
 
               {articleContent?.symbols && articleContent.symbols.length > 0 && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-                    <Typography variant="body2" sx={{ fontWeight: 500, display: "flex", alignItems: "center", justifyContent: "center" }}>Stocks mentioned:</Typography>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
-                      {articleContent.symbols.map((symbol) => (
-                        <Tooltip key={symbol.code} title={symbol.instrument_key ? `View ${symbol.trading_symbol} chart` : `View details`}>
-                          <Chip variant="outlined" color={symbol.instrument_key ? "primary" : "default"} size="small" label={symbol.name || symbol.code} onClick={() => onSymbolClick(symbol)} icon={symbol.instrument_key ? <IconChartLine size={12} /> : undefined} sx={{ display: "flex", alignItems: "center", justifyContent: "center" }} data-testid="symbol-badge" />
-                        </Tooltip>
-                      ))}
-                    </Box>
-                  </CardContent>
-                </Card>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2">Stocks mentioned</Typography>
+                  <Box sx={{ display: "flex", flexWrap: "wrap", gap: 1 }}>
+                    {articleContent.symbols.map((symbol) => (
+                      <Tooltip
+                        key={symbol.code}
+                        title={
+                          symbol.instrument_key
+                            ? `View ${symbol.trading_symbol} chart`
+                            : `View details`
+                        }
+                      >
+                        <Chip
+                          variant="outlined"
+                          color={symbol.instrument_key ? "primary" : "default"}
+                          size="small"
+                          clickable
+                          label={symbol.name || symbol.code}
+                          icon={
+                            symbol.instrument_key ? (
+                              <ShowChartIcon fontSize="small" />
+                            ) : undefined
+                          }
+                          onClick={() => onSymbolClick(symbol)}
+                          data-testid="symbol-badge"
+                        />
+                      </Tooltip>
+                    ))}
+                  </Box>
+                </Stack>
               )}
 
               {articleContent?.trade_ideas && articleContent.trade_ideas.length > 0 && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                      <IconTrendingUp size={14} />
-                      <Typography variant="subtitle2" sx={{ fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>Trade Ideas</Typography>
-                    </Box>
-                    <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-                      {articleContent.trade_ideas.map((idea, idx) => (
-                        <Box key={`${idea.symbol}-${idea.direction}-${idx}`} sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-                          <TradeIdeaCard idea={idea} />
-                        </Box>
-                      ))}
-                    </Stack>
-                  </CardContent>
-                </Card>
+                <Stack spacing={0}>
+                  <Typography variant="subtitle2" gutterBottom>
+                    Trade Ideas
+                  </Typography>
+                  <List dense disablePadding>
+                    {articleContent.trade_ideas.map((idea, idx) => (
+                      <TradeIdeaCard
+                        key={`${idea.symbol}-${idea.direction}-${idx}`}
+                        idea={idea}
+                      />
+                    ))}
+                  </List>
+                </Stack>
               )}
 
               {articleContent?.description && (
-                <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-                  <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, gap: 1, "&:last-child": { pb: 1 } }}>
-                    <Divider sx={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }} />
-                    {hasLlmSummary ? (
-                      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                          <IconButton size="small" onClick={onToggleFullContent} data-testid="article-toggle-full-content-btn" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{showFullContent ? <IconChevronDown size={16} /> : <IconChevronRight size={16} />}</IconButton>
-                          <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center", cursor: "pointer" }} onClick={onToggleFullContent}>{showFullContent ? "Hide full article" : "View full article"}</Typography>
-                        </Box>
-                        <Collapse in={showFullContent} sx={{ width: "100%" }}>
-                          <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center", p: 1 }}>
-                            {articleContent.description.split("\n\n").map((para, idx) => (<Typography key={`full-${idx}-${para.slice(0, 40)}`} variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{para}</Typography>))}
-                          </Stack>
-                        </Collapse>
-                      </Stack>
-                    ) : (
-                      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center", p: 1 }}>
-                        {articleContent.description.split("\n\n").map((para, idx) => (<Typography key={`partial-${idx}-${para.slice(0, 40)}`} variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>{para}</Typography>))}
-                      </Stack>
-                    )}
-                  </CardContent>
-                </Card>
+                <Stack spacing={1}>
+                  <Typography variant="subtitle2">Full article</Typography>
+                  {hasLlmSummary ? (
+                    <>
+                      <Button
+                        size="small"
+                        onClick={onToggleFullContent}
+                        aria-expanded={showFullContent}
+                        data-testid="article-toggle-full-content-btn"
+                        startIcon={
+                          showFullContent ? <ExpandLessIcon /> : <ExpandMoreIcon />
+                        }
+                        sx={{ alignSelf: "flex-start" }}
+                      >
+                        {showFullContent ? "Hide full article" : "View full article"}
+                      </Button>
+                      <Collapse in={showFullContent} unmountOnExit>
+                        <Stack spacing={1}>
+                          {articleContent.description.split("\n\n").map((para, idx) => (
+                            <Typography
+                              key={`full-${idx}-${para.slice(0, 40)}`}
+                              variant="body2"
+                              paragraph
+                            >
+                              {para}
+                            </Typography>
+                          ))}
+                        </Stack>
+                      </Collapse>
+                    </>
+                  ) : (
+                    <Stack spacing={1}>
+                      {articleContent.description.split("\n\n").map((para, idx) => (
+                        <Typography
+                          key={`partial-${idx}-${para.slice(0, 40)}`}
+                          variant="body2"
+                          paragraph
+                        >
+                          {para}
+                        </Typography>
+                      ))}
+                    </Stack>
+                  )}
+                </Stack>
               )}
             </Stack>
-          )}
-
-          {selectedArticle.sourceUrl && (
-            <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-              <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-                <Link href={selectedArticle.sourceUrl} target="_blank" rel="noopener noreferrer" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                  <Typography variant="body2" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>Open Original <IconExternalLink size={14} /></Typography>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-        </Stack>
-      ) : (
-        <Card elevation={1} sx={{ width: "100%", p: 1, height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, flex: 1, "&:last-child": { pb: 1 } }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}><IconNews size={48} stroke={1} /></Box>
-            <Typography sx={{ display: "flex", alignItems: "center", justifyContent: "center", textAlign: "center" }}>Select an article from the list to view details</Typography>
           </CardContent>
-        </Card>
+          <Divider />
+          <CardActions sx={{ justifyContent: "space-between", px: 1 }}>
+            {articleError && onRetryArticle ? (
+              <Button size="small" onClick={onRetryArticle} data-testid="article-retry">
+                Retry
+              </Button>
+            ) : (
+              <span />
+            )}
+            {selectedArticle.sourceUrl ? (
+              <Button
+                size="small"
+                href={selectedArticle.sourceUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                endIcon={<OpenInNewIcon fontSize="small" />}
+              >
+                Open Original
+              </Button>
+            ) : (
+              <span />
+            )}
+          </CardActions>
+        </>
       )}
-    </Stack>
+    </Box>
   );
 }
