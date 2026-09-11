@@ -421,4 +421,16 @@ describe("TanStackTable", () => {
     expect(table.className).toContain("custom-table");
     expect(table.style.border).toBe("1px solid red");
   });
+
+  it("applies custom row attributes", () => {
+    render(
+      <TanStackTable<TestItem>
+        data={data}
+        columns={columns}
+        getRowAttributes={(row, index) => ({ "data-trade-number": index + 1, "data-key": row.id })}
+      />,
+    );
+    expect(screen.getByText("Alpha").closest("tr")).toHaveAttribute("data-trade-number", "1");
+    expect(screen.getByText("Beta").closest("tr")).toHaveAttribute("data-key", "2");
+  });
 });

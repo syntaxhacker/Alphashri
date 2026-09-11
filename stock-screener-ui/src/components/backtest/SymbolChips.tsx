@@ -48,24 +48,26 @@ export function SymbolChips({
 
   return (
     <>
-      <Group gap={4}>
-        <MultiSelect
-          id="symbol-multiselect"
-          className="config-symbol-multiselect"
-          data={symbolOptions}
-          value={selectedSymbols}
-          onChange={onSymbolsChange}
-          searchable
-          searchValue={symbolSearch}
-          onSearchChange={setSymbolSearch}
-          clearable
-          hidePickedOptions
-          size="sm"
-          flex={1}
-          nothingFoundMessage="No symbols found"
-          maxDropdownHeight={200}
-          data-testid="symbol-multiselect"
-        />
+      <Group gap={4} align="center" flex={1} miw={0}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <MultiSelect
+            id="symbol-multiselect"
+            className="config-symbol-multiselect"
+            data={symbolOptions}
+            value={selectedSymbols}
+            onChange={onSymbolsChange}
+            searchable
+            searchValue={symbolSearch}
+            onSearchChange={setSymbolSearch}
+            clearable
+            hidePickedOptions
+            size="sm"
+            style={{ width: "100%" }}
+            nothingFoundMessage="No symbols found"
+            maxDropdownHeight={200}
+            data-testid="symbol-multiselect"
+          />
+        </Box>
         {selectedSymbols.length > 0 && (
           <Tooltip label="Clear all symbols">
             <ActionIcon

@@ -3,7 +3,7 @@ import { Box, Text, useColorScheme } from "@/ui";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
 import { normalizeTime } from "../../utils/ui-helpers";
-import { normalizeBacktest } from "../../utils/chart/normalizeBacktest";
+import { getBacktestZoomStartIndex, normalizeBacktest } from "../../utils/chart/normalizeBacktest";
 import { TradingChart } from "../chart/TradingChart";
 import type { TradingChartHandle } from "../chart/TradingChart";
 
@@ -16,6 +16,8 @@ interface BacktestChartProps {
   isLoading?: boolean;
   onTradeClick?: (tradeId: number) => void;
   holidays?: MarketHoliday[];
+  /** "all" | "30d" | "7d" | "1d" — visible time-range preset. */
+  zoomValue?: string;
 }
 
 function findCandleIdx(
@@ -74,7 +76,7 @@ function computeZoomRange(
 
 export function zoomToTrade(
   symbol: string,
-  tradeIndex: number,
+  tradeNumber: number,
   chartData: SymbolChartData | undefined,
 ) {
   if (!chartData) return;
@@ -82,9 +84,8 @@ export function zoomToTrade(
   const handle = chartHandles.get(symbol);
   if (!handle) return;
 
-  const tradeId = tradeIndex + 1;
-  const entryMarker = chartData.trades.find((t) => t.type === "entry" && t.trade_id === tradeId);
-  const exitMarker = chartData.trades.find((t) => t.type === "exit" && t.trade_id === tradeId);
+  const entryMarker = chartData.trades.find((t) => t.type === "entry" && t.trade_id === tradeNumber);
+  const exitMarker = chartData.trades.find((t) => t.type === "exit" && t.trade_id === tradeNumber);
   if (!entryMarker) return;
 
   const candleTimeMap = new Map(chartData.candles.map((c, i) => [normalizeTime(c.time), i]));
@@ -108,7 +109,7 @@ export function zoomToTrade(
 
   const cb = highlightCallbacks.get(symbol);
   if (cb) {
-    cb(tradeId);
+    cb(tradeNumber);
   }
 
   setTimeout(() => {
@@ -122,6 +123,7 @@ export function BacktestChart({
   isLoading,
   onTradeClick,
   holidays,
+  zoomValue,
 }: BacktestChartProps) {
   const chartRef = useRef<TradingChartHandle | null>(null);
   const { colorScheme } = useColorScheme();
@@ -138,6 +140,29 @@ export function BacktestChart({
       highlightCallbacks.delete(symbol);
     };
   }, [symbol]);
+
+  useEffect(() => {
+    if (!chartData || zoomValue == null || chartData.candles.length === 0) return;
+    const startIdx = getBacktestZoomStartIndex(chartData.candles, zoomValue);
+    const total = chartData.candles.length;
+    const chart = chartRef.current?.chartInstance?.current;
+    if (!chart) return;
+    const timer = setTimeout(() => {
+      [0, 1].forEach((dataZoomIndex) => {
+        try {
+          chart.dispatchAction({
+            type: "dataZoom",
+            dataZoomIndex,
+            start: (startIdx / total) * 100,
+            end: 100,
+          });
+        } catch {
+          // Chart may not expose dataZoom actions in every host/test environment.
+        }
+      });
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [zoomValue, chartData, symbol]);
 
   const chartInput = useMemo(() => {
     if (!chartData) return null;

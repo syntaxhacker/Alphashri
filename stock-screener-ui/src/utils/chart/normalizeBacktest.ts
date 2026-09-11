@@ -1,4 +1,5 @@
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
+import dayjs from "dayjs";
 import type {
   ChartInput,
   UnifiedCandle,
@@ -7,6 +8,23 @@ import type {
   MarkLineData,
 } from "../chart/types";
 import { PIVOT_OR_HIGH, PIVOT_OR_LOW, PIVOT_R1, PIVOT_S1, PIVOT_PP } from "../../config/colors";
+
+export function getBacktestZoomStartIndex(
+  candles: Array<{ date?: string | null; time: string }>,
+  zoomValue?: string | null,
+): number {
+  if (!zoomValue || zoomValue === "all" || candles.length === 0) return 0;
+  const days = zoomValue === "1d" ? 1 : zoomValue === "7d" ? 7 : 30;
+  const last = candles[candles.length - 1];
+  const lastDate = last.date || last.time.split("T")[0];
+  if (!lastDate) return 0;
+  const cutoff = dayjs(lastDate).subtract(days, "day");
+  const idx = candles.findIndex((candle) => {
+    const date = candle.date || candle.time.split("T")[0];
+    return date ? !dayjs(date).isBefore(cutoff) : false;
+  });
+  return idx >= 0 ? idx : 0;
+}
 
 export function normalizeBacktest(
   data: SymbolChartData,

@@ -57,6 +57,8 @@ interface Props<T> {
   getRowClassName?: (row: T) => string | undefined;
   getRowStyle?: (row: T) => CSSProperties | undefined;
   getRowTestId?: (row: T, index: number) => string | undefined;
+  /** Extra DOM attributes for each row (e.g. data-* used for external lookup). */
+  getRowAttributes?: (row: T, index: number) => Record<string, string | number | undefined>;
   enableSorting?: boolean;
   enableSortingRemoval?: boolean;
   stickyHeader?: boolean;
@@ -122,6 +124,7 @@ export function TanStackTable<T>({
   getRowClassName,
   getRowStyle,
   getRowTestId,
+  getRowAttributes,
   enableSorting = true,
   // Matches TanStack's default: a third click on a sorted column clears sorting.
   // Pass false for tables that should only toggle asc/desc (e.g. experiments).
@@ -334,6 +337,7 @@ export function TanStackTable<T>({
                       onClick={() => onRowClick?.(row.original)}
                       className={getRowClassName?.(row.original)}
                       data-testid={getRowTestId?.(row.original, index)}
+                      {...getRowAttributes?.(row.original, index)}
                       data-row="stock"
                     >
                       {row.getVisibleCells().map((cell) => {
