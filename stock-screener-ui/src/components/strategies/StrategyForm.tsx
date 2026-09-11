@@ -386,11 +386,13 @@ export function StrategyForm({
 
           <Group
             justify="flex-end"
+            align="center"
+            gap={1}
             mt="md"
             className="strategy-form-actions"
             data-testid="strategy-form-actions"
           >
-            <Group gap="xs">
+            <Group gap="xs" align="center">
               <button
                 type="button"
                 className="MuiButton-root strategy-form-cancel-btn"

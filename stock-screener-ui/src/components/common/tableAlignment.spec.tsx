@@ -133,7 +133,8 @@ describe("table alignment across screens", () => {
       />,
     );
     const { headerByText, cellAligns } = grab("options-positions");
-    expect(headerByText.get("Type") ?? headerByText.get("Symbol")).toBe("left");
+    expect(headerByText.get("Symbol")).toBe("left");
+    expect(headerByText.get("Type")).toBe("center");
     const qty = cellAligns.find((c) => c.text === "75");
     if (qty) expect(qty.align).toBe("right");
   });

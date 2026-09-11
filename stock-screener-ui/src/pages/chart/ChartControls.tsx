@@ -1,4 +1,4 @@
-import { Box, Group, Stack } from "@/ui";
+import { Box, Stack } from "@/ui";
 import { TIMEFRAMES, OR_MINUTES_OPTIONS } from "../../config/constants";
 
 interface ChartControlsProps {
@@ -29,7 +29,7 @@ export function ChartControls({
           <Box component="span" sx={{ minWidth: 80, fontSize: "0.75rem", color: "text.secondary", textAlign: "center", flexShrink: 0 }}>
             Timeframe
           </Box>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
             <Box component="select" value={timeframe} onChange={(e: any) => onTimeframeChange(parseInt(e.target.value))} data-testid="chart-timeframe-select" sx={{ p: 0.5, borderRadius: 1, width: "100%" }}>
               {TIMEFRAMES.map((tf) => (
                 <option key={tf.value} value={tf.value}>
@@ -44,7 +44,7 @@ export function ChartControls({
           <Box component="span" sx={{ minWidth: 80, fontSize: "0.75rem", color: "text.secondary", textAlign: "center", flexShrink: 0 }}>
             OR
           </Box>
-          <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
             <Box component="select" value={orMinutes} onChange={(e: any) => onOrMinutesChange(parseInt(e.target.value))} data-testid="chart-or-select" sx={{ p: 0.5, borderRadius: 1, width: "100%" }}>
               {OR_MINUTES_OPTIONS.map((or) => (
                 <option key={or.value} value={or.value}>

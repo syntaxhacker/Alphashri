@@ -190,7 +190,7 @@ function renderBotsList(bots: BotConfig[], selectedBot: BotConfig | null): strin
               </td>
               <td>
                 <span class="bot-status ${bot.running ? "running" : "stopped"}">
-                  ${bot.running ? `Running (PID ${bot.pid})` : "Stopped"}
+                  ${bot.running ? `Running` : "Stopped"}
                 </span>
               </td>
               <td>${bot.strategies.length} strategies</td>

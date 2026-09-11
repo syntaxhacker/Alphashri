@@ -80,7 +80,7 @@ export function CompactPanel({
         <MuiCardContent sx={{ p: padded ? 1 : 0, "&:last-child": { pb: padded ? 1 : 0 }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
         {(title || description || action) && (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, mb: 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
-            <Stack spacing={1} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+            <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 1, minWidth: 0 }}>
               {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
               {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
             </Stack>

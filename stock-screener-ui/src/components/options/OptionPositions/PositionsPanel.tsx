@@ -79,6 +79,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
         id: "type",
         header: "Type",
         accessorKey: "option_type",
+        meta: { align: "center" },
         cell: (info) => (
           <Badge
             size="sm"
@@ -153,7 +154,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
             </Box>
             <Paper elevation={1} sx={{ p: 1, width: "100%" }} className="positions-table-container" data-testid="options-positions-table-container">
               <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-                <TableContainer component={Paper} elevation={1}>
+                <TableContainer>
                   <TanStackTable<Position>
                     data={positions}
                     columns={columns}

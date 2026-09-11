@@ -31,11 +31,12 @@ export function OptionChainHeader({
             <Box component="span" sx={{ minWidth: 80, fontSize: "0.75rem", color: "text.secondary", textAlign: "center", flexShrink: 0 }}>
               Underlying
             </Box>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
               <Select
                 value={selectedUnderlying}
                 onChange={(val) => val && setUnderlying(val)}
                 data={availableUnderlyings.map((u) => ({ value: u, label: u }))}
+                style={{ width: "100%" }}
                 data-testid="underlying-select"
               />
             </Box>
@@ -46,11 +47,12 @@ export function OptionChainHeader({
             <Box component="span" sx={{ minWidth: 80, fontSize: "0.75rem", color: "text.secondary", textAlign: "center", flexShrink: 0 }}>
               Expiry
             </Box>
-            <Box sx={{ flex: 1, display: "flex", alignItems: "center" }}>
+            <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center" }}>
               <Select
                 value={selectedExpiry}
                 onChange={(val) => val && setExpiry(val)}
                 data={availableExpiries.map((e) => ({ value: e, label: e }))}
+                style={{ width: "100%" }}
                 data-testid="expiry-select"
               />
             </Box>

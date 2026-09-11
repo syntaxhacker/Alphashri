@@ -46,7 +46,7 @@ export function StrategiesPage({
           <CompactPanel
             testId="strategies-error"
             title={
-              <Group gap="xs" wrap="nowrap">
+              <Group gap="xs" wrap="nowrap" align="center">
                 <IconAlertCircle size={18} />
                 <Text fw={600} size="sm">
                   Strategies failed to load
@@ -55,7 +55,7 @@ export function StrategiesPage({
             }
             description={error}
             action={
-              <Group gap="xs">
+              <Group gap="xs" align="center">
                 <Button
                   onClick={onRefresh}
                   variant="filled"
@@ -112,12 +112,10 @@ export function StrategiesPage({
   return (
     <Container maxWidth="xl" className="strategies-page" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
       <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ flex: "0 0 auto", width: "100%" }} data-testid="strategies-nav-container">
-          <StrategiesNav activeView={activeView} onChange={onViewChange} />
-        </Box>
-
-        <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
-          <Box sx={{ flex: 1, overflow: "auto", minHeight: 0 }}>{renderContent()}</Box>
+        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
+          <StrategiesNav activeView={activeView} onChange={onViewChange}>
+            {renderContent()}
+          </StrategiesNav>
         </Box>
 
         {showCreateModal && (

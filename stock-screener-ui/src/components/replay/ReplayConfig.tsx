@@ -170,7 +170,7 @@ export function ReplayConfigBar({
           />
         </Box>
 
-        <Group gap="xs">
+        <Group gap="xs" align="flex-start">
           <Box data-testid="replay-date-from">
             <Text size="xs" fw={500} mb={2}>
               From
@@ -203,7 +203,7 @@ export function ReplayConfigBar({
           <Text size="xs" fw={500} mb={2}>
             Symbols
           </Text>
-          <Group gap={4}>
+          <Group gap={4} align="center">
             <ScreenerSymbolPicker
               symbols={config.symbols}
               onAddSymbols={(newSymbols) => setConfig({ symbols: [...config.symbols, ...newSymbols] })}
@@ -374,7 +374,7 @@ export function ReplayConfigBar({
               {saveError}
             </Text>
           )}
-          <Group justify="flex-end" gap="xs">
+          <Group justify="flex-end" gap="xs" align="center">
             <Button size="xs" variant="subtle" color="secondary" onClick={() => setSaveModalOpen(false)}>
               Cancel
             </Button>
@@ -405,7 +405,7 @@ export function ReplayConfigBar({
             </Text>
           ) : (
             savedConfigs.map((saved) => (
-              <Group key={saved.id} gap="xs" wrap="nowrap">
+              <Group key={saved.id} gap="xs" wrap="nowrap" align="center">
                 <Box style={{ flex: 1 }}>
                   <Text size="sm" fw={500}>
                     {saved.name}

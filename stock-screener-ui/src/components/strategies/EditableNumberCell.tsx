@@ -98,8 +98,9 @@ export function EditableNumberCell({
       loading={saving}
       w={72}
       variant="default"
-      styles={{
-        input: {
+      sx={{
+        "& .MuiInputBase-root": { bgcolor: "background.paper" },
+        "& input": {
           textAlign: "right",
           height: 24,
           minHeight: 24,

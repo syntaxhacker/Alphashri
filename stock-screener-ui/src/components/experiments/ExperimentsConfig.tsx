@@ -57,7 +57,7 @@ function ParamValueInput({
         onChange={(v) => v != null && onChange(v)}
         data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
         size="sm"
-        sx={{ width: 90 }}
+        w={90}
       />
     );
   }
@@ -82,7 +82,7 @@ function ParamValueInput({
       max={param.max}
       step={param.step ?? 1}
       size="sm"
-      sx={{ width: 70 }}
+      w={70}
     />
   );
 }
@@ -181,7 +181,7 @@ export function ExperimentsConfig() {
                 onChange={(v) => v && setConfig({ tf: Number(v) })}
                 data={TIMEFRAMES}
                 size="sm"
-                sx={{ width: 70 }}
+                w={70}
               />
             </Box>
           </Tooltip>
@@ -190,6 +190,7 @@ export function ExperimentsConfig() {
             label="From"
             type="date"
             size="sm"
+            w={150}
             value={config.dateStart}
             onChange={(v) => setConfig({ dateStart: v })}
           />
@@ -198,6 +199,7 @@ export function ExperimentsConfig() {
             label="To"
             type="date"
             size="sm"
+            w={150}
             value={config.dateEnd}
             onChange={(v) => setConfig({ dateEnd: v })}
           />

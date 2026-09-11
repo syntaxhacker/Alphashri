@@ -141,7 +141,7 @@ function OptionColumn({
 
   const tooltipContent = (
     <Box p="xs">
-      <Group justify="space-between" mb={5}>
+      <Group justify="space-between" align="center" mb={5}>
         <Text size="sm" fw={700} c={type === "CE" ? "green" : "red"}>
           {contract.trading_symbol}
         </Text>
@@ -256,15 +256,9 @@ function OptionColumn({
                   <Box w="72%" mt={3}>
                     <Progress
                       value={clamp(Math.abs(delta) * 100, 0, 100)}
-                      size="sm"
-                      color={type === "CE" ? "teal" : "orange"}
+                      size={3}
+                      color={palette.accent}
                       radius="xl"
-                      styles={{
-                        root: { backgroundColor: hexToRgba(palette.accent, 0.08), height: 3 },
-                        bar: {
-                          backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)`,
-                        },
-                      }}
                     />
                   </Box>
                 )}

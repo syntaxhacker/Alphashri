@@ -92,7 +92,7 @@ export function StrategyRunnerConfig({
   return (
     <Box data-testid="sr-config-bar">
       <Stack gap="sm">
-        <Group gap="sm" wrap="wrap" align="flex-end">
+        <Group gap="sm" wrap="wrap" align="flex-start">
           <Box data-testid="sr-bot-select">
             <Text size="xs" fw={500} mb={2}>
               Bots
@@ -111,7 +111,7 @@ export function StrategyRunnerConfig({
             />
           </Box>
 
-          <Group gap="xs">
+          <Group gap="xs" align="flex-start">
             <Box>
               <Text size="xs" fw={500} mb={2}>
                 From
@@ -142,7 +142,7 @@ export function StrategyRunnerConfig({
             <Text size="xs" fw={500} mb={2}>
               Symbols
             </Text>
-            <Group gap={4}>
+            <Group gap={4} align="center">
               <ScreenerSymbolPicker
                 symbols={config.symbols}
                 onAddSymbols={(newSymbols) => setConfig({ symbols: [...config.symbols, ...newSymbols] })}
@@ -222,7 +222,7 @@ export function StrategyRunnerConfig({
                 Stop
               </Button>
             ) : (
-              <Group gap="xs">
+              <Group gap="xs" align="center">
                 <Button
                   size="sm"
                   leftSection={<IconPlayerPlay size={16} />}
@@ -251,7 +251,7 @@ export function StrategyRunnerConfig({
 
         {isRunning && progress.totalBots > 0 && (
           <Box>
-            <Group gap="xs" mb={4}>
+            <Group gap="xs" align="center" mb={4}>
               <Text size="xs" c="dimmed">
                 {progress.currentBotName
                   ? `Processing ${progress.currentBotName}`

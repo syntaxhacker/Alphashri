@@ -1,4 +1,5 @@
-import { Group, SegmentedControl } from "@/ui";
+import type { ReactNode } from "react";
+import { ToolbarRow, SegmentedControl } from "@/ui";
 import type { StrategiesNavProps } from "./types";
 import { CompactPanel } from "../common/compact";
 
@@ -7,7 +8,11 @@ const VIEW_OPTIONS = [
   { value: "performance", label: "Performance" },
 ] as const;
 
-export function StrategiesNav({ activeView, onChange }: StrategiesNavProps) {
+export function StrategiesNav({
+  activeView,
+  onChange,
+  children,
+}: StrategiesNavProps & { children?: ReactNode }) {
   return (
     <CompactPanel
       className="strategies-nav"
@@ -15,8 +20,10 @@ export function StrategiesNav({ activeView, onChange }: StrategiesNavProps) {
       testId="strategies-nav"
       title="Strategies"
       description="Manage templates, variations, and performance in one place"
+      scrollable
+      sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}
     >
-      <Group justify="flex-start" align="center" gap={1} wrap="wrap" sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <ToolbarRow gap={8} wrap={false}>
         <SegmentedControl
           value={activeView}
           onChange={onChange}
@@ -28,7 +35,8 @@ export function StrategiesNav({ activeView, onChange }: StrategiesNavProps) {
             label: option.label,
           }))}
         />
-      </Group>
+      </ToolbarRow>
+      <div style={{ marginTop: 8, flex: 1, minHeight: 0 }}>{children}</div>
     </CompactPanel>
   );
 }
