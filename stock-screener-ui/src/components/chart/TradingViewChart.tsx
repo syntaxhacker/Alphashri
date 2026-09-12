@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
 import {
   createChart,
   ColorType,
@@ -37,6 +37,18 @@ export interface TradingViewChartProps {
   emaData?: { label: string; color: string; data: (number | null)[] }[];
   /** Active position entry / SL / TP levels */
   livePosition?: UnifiedLivePosition;
+  /** Notified once the chart is created (and again on recreate) so callers can draw overlays. */
+  onChartReady?: (chart: IChartApi, candleSeries: ISeriesApi<"Candlestick">) => void;
+}
+
+export interface TradingViewChartHandle {
+  getChart: () => IChartApi | null;
+  getCandleSeries: () => ISeriesApi<"Candlestick"> | null;
+  fitContent: () => void;
+  /** Zoom to an inclusive index window out of `total` bars (logical range). */
+  zoomToIndexRange: (startIdx: number, endIdx: number, total?: number) => void;
+  /** Zoom to a time window; falls back to fitContent when times are unparseable. */
+  zoomToTimeRange: (fromTime: string, toTime: string) => void;
 }
 
 const toTime = (t: string): Time => (new Date(t.replace(" ", "T")).getTime() / 1000) as Time;
@@ -61,7 +73,7 @@ function clampWidth(w?: number): LineWidth {
   return (n < 1 ? 1 : n > 4 ? 4 : n) as LineWidth;
 }
 
-export function TradingViewChart({
+export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewChartProps>(function TradingViewChart({
   candles,
   trades = [],
   highlightedTradeId,
@@ -70,7 +82,8 @@ export function TradingViewChart({
   markLines,
   emaData,
   livePosition,
-}: TradingViewChartProps) {
+  onChartReady,
+}, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
   const candleSeriesRef = useRef<ISeriesApi<"Candlestick"> | null>(null);
@@ -79,6 +92,8 @@ export function TradingViewChart({
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const emaSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
   const heightRef = useRef(height);
+  const onReadyRef = useRef(onChartReady);
+  onReadyRef.current = onChartReady;
 
   // create chart once — not on height/candles.
   // With an explicit height -> fixed size (page-level charts). Without -> autoSize
@@ -123,6 +138,7 @@ export function TradingViewChart({
 
     const markers = createSeriesMarkers(candleSeries, []);
     markersRef.current = markers;
+    onReadyRef.current?.(chart, candleSeries as any);
 
     let ro: ResizeObserver | null = null;
     if (fixedHeight != null) {
@@ -151,6 +167,32 @@ export function TradingViewChart({
     heightRef.current = height;
     if (height != null) chartRef.current?.applyOptions({ height });
   }, [height]);
+
+  useImperativeHandle(ref, () => ({
+    getChart: () => chartRef.current,
+    getCandleSeries: () => candleSeriesRef.current,
+    fitContent: () => chartRef.current?.timeScale().fitContent(),
+    zoomToIndexRange: (startIdx: number, endIdx: number, total?: number) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      const lastIdx = total != null && total > 0 ? total - 1 : endIdx + 1;
+      const from = Math.max(0, startIdx) - 0.5;
+      const to = Math.min(lastIdx, endIdx) + 0.5;
+      chart.timeScale().setVisibleLogicalRange({ from, to });
+    },
+    zoomToTimeRange: (fromTime: string, toTime: string) => {
+      const chart = chartRef.current;
+      if (!chart) return;
+      const t = (s: string) => (new Date(s.replace(" ", "T")).getTime() / 1000) as Time;
+      const from = t(fromTime);
+      const to = t(toTime);
+      if (!Number.isFinite(from as number) || !Number.isFinite(to as number)) {
+        chart.timeScale().fitContent();
+        return;
+      }
+      chart.timeScale().setVisibleRange({ from, to });
+    },
+  }), []);
 
   // simple per docs: setData on candles change, fitContent once
   useEffect(() => {
@@ -305,4 +347,4 @@ export function TradingViewChart({
       <Box ref={containerRef} sx={{ width: "100%", flex: 1, minHeight: 0, position: "relative", ...(height != null ? { height } : {}) }} data-testid="tradingview-chart" />
     </Box>
   );
-}
+});
