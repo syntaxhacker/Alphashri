@@ -132,7 +132,7 @@ class TestORBStrategyMetadata:
         required_keys = {
             'or_minutes',
             'timeframe',
-            'stop_loss_pct',
+            'sl_pct',
             'take_profit_pct',
             'trade_size',
             'cooldown_bars',
@@ -167,10 +167,10 @@ class TestORBStrategyMetadata:
     def test_stop_loss_param_defaults(self):
         """Test: Stop loss param has correct defaults."""
         params = {p.key: p for p in ORBStrategy.get_params()}
-        sl_param = params['stop_loss_pct']
-        assert sl_param.default == 0.4
+        sl_param = params['sl_pct']
+        assert sl_param.default == 1.0
         assert sl_param.min == 0.1
-        assert sl_param.max == 2.0
+        assert sl_param.max == 5.0
 
     def test_take_profit_param_defaults(self):
         """Test: Take profit param has correct defaults."""
@@ -238,8 +238,8 @@ class TestORBStrategyValidateParams:
         """Test: SL >= TP returns error."""
         strategy = ORBStrategy()
         errors = strategy.validate_params({
-            'stop_loss_pct': 1.5,
-            'take_profit_pct': 1.0,
+            'sl_pct': 1.5,
+            'tp_pct': 1.0,
         })
         assert len(errors) >= 1
         assert any("Stop Loss" in e and "Take Profit" in e for e in errors)
@@ -248,8 +248,8 @@ class TestORBStrategyValidateParams:
         """Test: SL == TP returns error."""
         strategy = ORBStrategy()
         errors = strategy.validate_params({
-            'stop_loss_pct': 1.0,
-            'take_profit_pct': 1.0,
+            'sl_pct': 1.0,
+            'tp_pct': 1.0,
         })
         assert any("Stop Loss" in e for e in errors)
 
@@ -373,8 +373,8 @@ class TestORBConfig:
         )
 
         assert config.or_minutes == 45
-        assert config.sl_pct == 0.4
-        assert config.tp_pct == 1.2
+        assert config.sl_pct == 1.0
+        assert config.tp_pct == 1.5
         assert config.trade_size == 100
         assert config.enable_shorts is False
         assert config.cooldown_bars == 3

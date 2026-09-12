@@ -38,7 +38,7 @@ def _make_mock_strategy(run_result=None, validation_errors=None):
 
 @pytest.fixture
 def mock_get_strategy():
-    with patch('backtest.api.get_strategy') as m:
+    with patch('backtest.strategies.get_strategy') as m:
         yield m
 
 
@@ -141,7 +141,7 @@ class TestSanitizeForJson:
 
 class TestHandleGetStrategies:
 
-    @patch('backtest.api.list_strategies')
+    @patch('backtest.strategies.list_strategies')
     def test_returns_strategies_list(self, mock_list):
         mock_list.return_value = [
             {'id': 'orb', 'name': 'ORB', 'description': 'Opening Range'}
@@ -151,21 +151,21 @@ class TestHandleGetStrategies:
         assert len(result['strategies']) == 1
         assert result['strategies'][0]['id'] == 'orb'
 
-    @patch('backtest.api.list_strategies')
+    @patch('backtest.strategies.list_strategies')
     def test_includes_default_strategy(self, mock_list):
         mock_list.return_value = []
         result = handle_get_strategies()
         assert 'default' in result
         assert result['default'] == 'orb'
 
-    @patch('backtest.api.list_strategies')
+    @patch('backtest.strategies.list_strategies')
     def test_empty_strategies_list(self, mock_list):
         mock_list.return_value = []
         result = handle_get_strategies()
         assert result['strategies'] == []
         assert result['default'] == 'orb'
 
-    @patch('backtest.api.list_strategies')
+    @patch('backtest.strategies.list_strategies')
     def test_multiple_strategies(self, mock_list):
         mock_list.return_value = [
             {'id': 'orb', 'name': 'ORB'},
@@ -364,7 +364,7 @@ class TestHandleRunBacktest:
         mock_journal.log_backtest_trades.return_value = 1
 
         body = {'symbols': ['TCS'], 'log_to_journal': True}
-        with patch('tests.test_backtest_api.get_journal', return_value=mock_journal, create=True):
+        with patch('backtest.api._get_journal', return_value=mock_journal):
             result = handle_run_backtest(body)
         assert result['journal_logged'] == 1
 
@@ -378,7 +378,7 @@ class TestHandleRunBacktest:
         mock_get_strategy.return_value = mock_class
 
         body = {'symbols': ['TCS'], 'log_to_journal': True}
-        with patch('tests.test_backtest_api.get_journal', side_effect=Exception('Journal error'), create=True):
+        with patch('backtest.api._get_journal', side_effect=Exception('Journal error')):
             result = handle_run_backtest(body)
         assert 'journal_error' in result
         assert 'Journal error' in result['journal_error']
@@ -548,9 +548,10 @@ class TestBacktestRequestHandler:
         handler = BacktestRequestHandler()
         body = {'symbols': ['TCS']}
         handler.handle_request('POST', '/api/backtest/run', {}, body)
-        assert 'candles' in handler.backtest_cache
-        assert 'chart_data' in handler.backtest_cache
-        assert 'results' in handler.backtest_cache
+        # Cache is per-user (user_id defaults to 1)
+        assert 'candles' in handler.backtest_cache[1]
+        assert 'chart_data' in handler.backtest_cache[1]
+        assert 'results' in handler.backtest_cache[1]
 
     def test_post_run_does_not_cache_error(self, mock_handle):
         mock_handle.return_value = {'error': 'Something went wrong'}
@@ -694,10 +695,10 @@ class TestEdgeCases:
         handler = BacktestRequestHandler()
 
         handler.handle_request('POST', '/api/backtest/run', {}, {'symbols': ['A']})
-        assert handler.backtest_cache['results'][0]['run'] == 1
+        assert handler.backtest_cache[1]['results'][0]['run'] == 1
 
         handler.handle_request('POST', '/api/backtest/run', {}, {'symbols': ['B']})
-        assert handler.backtest_cache['results'][0]['run'] == 2
+        assert handler.backtest_cache[1]['results'][0]['run'] == 2
 
     def test_path_with_multiple_slashes(self):
         handler = BacktestRequestHandler()
@@ -718,3 +719,37 @@ class TestEdgeCases:
         result_upper = handler.handle_request('GET', '/API/BACKTEST/STRATEGIES', {})
         assert 'error' in result_upper
         assert 'strategies' in result_lower or 'error' not in result_lower
+
+
+class TestProcessPoolGuard:
+    """The API request path must not fork a process Pool (nested spawn hangs under
+    uvicorn --reload). handle_run_backtest disables it for the duration of the run."""
+
+    def test_run_disables_pool_and_restores_it(self, mock_get_strategy, mock_build):
+        from backtest.strategies.base import PROCESS_POOL_ENABLED
+
+        seen = {}
+        mock_class, mock_instance = _make_mock_strategy()
+
+        def _run(*_a, **_k):
+            seen['enabled_during_run'] = PROCESS_POOL_ENABLED.get()
+            return {'results': [], 'candles': {}, 'chart_data': {}}
+
+        mock_instance.run.side_effect = _run
+        mock_get_strategy.return_value = mock_class
+
+        assert PROCESS_POOL_ENABLED.get() is True
+        handle_run_backtest({'strategy': 'orb', 'symbols': ['A', 'B'], 'params': {}, 'days': 10})
+        assert seen['enabled_during_run'] is False
+        assert PROCESS_POOL_ENABLED.get() is True  # restored after the run
+
+    def test_run_restores_pool_flag_on_exception(self, mock_get_strategy):
+        from backtest.strategies.base import PROCESS_POOL_ENABLED
+
+        mock_class, mock_instance = _make_mock_strategy()
+        mock_instance.run.side_effect = RuntimeError('boom')
+        mock_get_strategy.return_value = mock_class
+
+        result = handle_run_backtest({'strategy': 'orb', 'symbols': ['A'], 'params': {}, 'days': 10})
+        assert 'error' in result
+        assert PROCESS_POOL_ENABLED.get() is True

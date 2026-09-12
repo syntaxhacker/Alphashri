@@ -481,12 +481,12 @@ class TestWeek52ChaserConfig:
             bar_type=bar_type,
         )
 
-        assert config.entry_threshold_pct == 3.0
-        assert config.stop_loss_pct == 3.0
-        assert config.take_profit_pct == 5.0
+        assert config.entry_threshold_pct == 2.0
+        assert config.stop_loss_pct == 2.0
+        assert config.take_profit_pct == 3.0
         assert config.enable_trailing_stop is False
-        assert config.trailing_stop_pct == 3.0
-        assert config.trailing_activation_pct == 2.0
+        assert config.trailing_stop_pct == 2.0
+        assert config.trailing_activation_pct == 3.0
         assert config.max_holding_days == 30
         assert config.cooldown_days == 30
         assert config.trade_size == 100
