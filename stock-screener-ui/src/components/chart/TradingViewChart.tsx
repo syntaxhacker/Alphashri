@@ -77,9 +77,12 @@ function clampWidth(w?: number): LineWidth {
   return (n < 1 ? 1 : n > 4 ? 4 : n) as LineWidth;
 }
 
-// Distinct, high-contrast entry label colors (different from candle bodies).
+// Distinct, high-contrast entry/exit label colors (different from candle bodies).
 const ENTRY_BUY_COLOR = "#38BDF8";
 const ENTRY_SELL_COLOR = "#FF9F43";
+const EXIT_TP_COLOR = "#00E676";
+const EXIT_SL_COLOR = "#FF5252";
+const EXIT_OTHER_COLOR = "#FFD166";
 
 export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewChartProps>(function TradingViewChart({
   candles,
@@ -350,12 +353,13 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       .filter((t) => t.exit_time)
       .map((t) => {
         const isHighlighted = highlightedTradeId === (t as any).id;
+        const isBuy = (t.side || "BUY").toUpperCase() !== "SELL";
         return {
           time: toTime(t.exit_time),
-          position: "aboveBar" as const,
-          color: t.exit_reason === "TP" ? palette.POSITIVE : t.exit_reason === "SL" ? palette.NEGATIVE : palette.MARKER_EOD,
+          position: (isBuy ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
+          color: t.exit_reason === "TP" ? EXIT_TP_COLOR : t.exit_reason === "SL" ? EXIT_SL_COLOR : EXIT_OTHER_COLOR,
           shape: "circle" as const,
-          text: isHighlighted ? `✕ ${t.exit_reason} ${t.exit_price}` : `${t.exit_reason}`,
+          text: entryLabels ? "" : (isHighlighted ? `✕ ${t.exit_reason} ${t.exit_price}` : `${t.exit_reason}`),
         };
       });
     const allMarkers = [...markers, ...exitMarkers].sort((a, b) => (a.time as number) - (b.time as number));
@@ -417,25 +421,14 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       if (Number.isFinite(tn)) byTime.set(tn, c);
     }
 
-    for (const t of visible) {
-      if (!t.entry_time) continue;
-      const snapped = snapTime(toTime(t.entry_time) as number);
-      if (snapped == null) continue;
-      const x = chart.timeScale().timeToCoordinate(snapped as Time);
-      const isBuy = (t.side || "BUY").toUpperCase() !== "SELL";
-      // Anchor to the bar's low/high so the pill sits clear of the candles.
-      const bar = byTime.get(snapped);
-      const anchorPrice = bar ? (isBuy ? bar.low : bar.high) : t.entry_price;
-      const y = series.priceToCoordinate(anchorPrice);
-      if (x == null || y == null) continue;
-      const label = isBuy ? "BUY" : "SELL";
-      const color = isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR;
+    // Rounded pill with dark fill + colored border/text, drawn above/below a price.
+    const drawPill = (x: number, y: number, label: string, color: string, above: boolean) => {
       const tw = ctx.measureText(label).width;
       const padX = 6;
       const h = 18;
       const w = tw + padX * 2;
       const bx = x - w / 2;
-      const by = isBuy ? y + 14 : y - 14 - h;
+      const by = above ? y - 14 - h : y + 14;
       const r = 4;
       ctx.fillStyle = "rgba(8,8,8,0.92)";
       ctx.strokeStyle = color;
@@ -451,6 +444,36 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       ctx.stroke();
       ctx.fillStyle = color;
       ctx.fillText(label, bx + padX, by + h / 2 + 0.5);
+    };
+
+    const coordFor = (timeStr: string, isBuy: boolean, price: number, isExit: boolean) => {
+      const snapped = snapTime(toTime(timeStr) as number);
+      if (snapped == null) return null;
+      const x = chart.timeScale().timeToCoordinate(snapped as Time);
+      const bar = byTime.get(snapped);
+      // entries sit beyond the bar on the entry side; exits on the opposite side
+      const anchor = bar
+        ? ((isBuy === isExit) ? bar.high : bar.low)
+        : price;
+      const y = series.priceToCoordinate(anchor);
+      if (x == null || y == null) return null;
+      return { x, y };
+    };
+
+    for (const t of visible) {
+      const isBuy = (t.side || "BUY").toUpperCase() !== "SELL";
+
+      if (t.entry_time) {
+        const c = coordFor(t.entry_time, isBuy, t.entry_price, false);
+        if (c) drawPill(c.x, c.y, isBuy ? "BUY" : "SELL", isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR, !isBuy);
+      }
+
+      if (t.exit_time) {
+        const reason = (t.exit_reason || "EXIT").toUpperCase();
+        const color = reason.startsWith("TP") ? EXIT_TP_COLOR : reason.startsWith("SL") ? EXIT_SL_COLOR : EXIT_OTHER_COLOR;
+        const c = coordFor(t.exit_time, isBuy, t.exit_price ?? t.entry_price, true);
+        if (c) drawPill(c.x, c.y, reason, color, isBuy);
+      }
     }
   }, [entryLabels, trades, highlightedTradeId, showAllTrades, candles]);
 
