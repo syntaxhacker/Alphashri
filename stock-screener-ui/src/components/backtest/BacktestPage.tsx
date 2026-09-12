@@ -8,7 +8,7 @@ import { IconAlertCircle } from "@tabler/icons-react";
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
-import { BacktestConfig } from ".";
+import { BacktestConfig, TradeHistoryTable } from ".";
 import { BacktestLeftPanel, BacktestRightPanel } from "./BacktestPanels";
 import { zoomToTrade } from "./BacktestChart";
 import {
@@ -251,10 +251,11 @@ function BacktestPanels({
   activeTab: string | null;
   setActiveTab: (tab: string | null) => void;
 }) {
+  const hasTrades = Boolean(state.tradeHistory && state.tradeHistorySymbol);
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", flex: 1, minHeight: 0, gap: 1 }} id="backtest-panels">
+    <Box sx={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, gap: 1 }} id="backtest-panels">
       <Grid container spacing={1} sx={{ flex: 1, minHeight: 0, alignItems: "stretch" }}>
-        <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <Grid size={{ xs: 12, md: 3 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }} id="backtest-left-panel">
             <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%" }}>
               <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.75, "&:last-child": { pb: 0.75 }, alignItems: "stretch" }}>
@@ -276,7 +277,7 @@ function BacktestPanels({
             </Card>
           </Box>
         </Grid>
-        <Grid size={{ xs: 12, md: 8 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+        <Grid size={{ xs: 12, md: 9 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }} id="backtest-right-panel">
             <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%" }}>
               <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.75, "&:last-child": { pb: 0.75 }, alignItems: "stretch" }}>
@@ -307,6 +308,25 @@ function BacktestPanels({
           </Box>
         </Grid>
       </Grid>
+
+      {/* Full-width trade blotter (Bloomberg-style) */}
+      {hasTrades && (
+        <Card
+          elevation={1}
+          sx={{ flex: "0 0 auto", height: 188, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}
+          data-testid="backtest-blotter"
+        >
+          <TradeHistoryTable
+            symbol={state.tradeHistorySymbol!}
+            trades={state.tradeHistory!}
+            sortColumn={actions.tradeSort.column}
+            sortDirection={actions.tradeSort.direction}
+            onSort={actions.tradeSort.handleSort}
+            onRowClick={actions.handleZoomToTrade}
+            onClose={() => setTradeHistory(null, null)}
+          />
+        </Card>
+      )}
     </Box>
   );
 }

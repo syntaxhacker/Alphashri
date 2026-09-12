@@ -124,39 +124,44 @@ export function zoomToTrade(
   }, 120);
 }
 
-/** Map backtest chart_data into lightweight-charts mark lines (levels). */
+/** Map backtest chart_data into lightweight-charts mark lines (levels).
+ *  Only the levels relevant to the strategy are shown: 52W strategies get the
+ *  52W-high line, S/R breakout gets pivots, ORB gets the opening range — never
+ *  ORB lines on a 52W chart. All lines are solid. */
 function buildLevelLines(chartData: SymbolChartData): MarkLineData[] {
   const lines: MarkLineData[] = [];
   const seen = new Set<string>();
-  const push = (value: number | null | undefined, color: string, label: string, type = "dashed") => {
+  const push = (value: number | null | undefined, color: string, label: string) => {
     if (value == null || !Number.isFinite(value) || value <= 0) return;
     const key = `${label}:${value}`;
     if (seen.has(key)) return;
     seen.add(key);
     lines.push({
       yAxis: value,
-      lineStyle: { color, type, width: 1 },
+      lineStyle: { color, type: "solid", width: 1 },
       label: { position: "insideEndTop", formatter: `${label} ${value}` },
     });
   };
 
-  for (const w of chartData.week52_levels ?? []) {
-    push((w as unknown as Record<string, number>)["52w_high"], PIVOT_52W_HIGH, "52W");
-  }
+  const week52 = chartData.week52_levels ?? [];
+  const pivots = chartData.pivot_levels ?? [];
+  const orbs = chartData.orb_zones ?? [];
 
-  const lastPivot = (chartData.pivot_levels ?? []).slice(-1)[0];
-  if (lastPivot) {
-    push(lastPivot.pp, PIVOT_PP, "PP", "dotted");
-    push(lastPivot.r1, PIVOT_R1, "R1");
-    push(lastPivot.s1, PIVOT_S1, "S1");
-    push(lastPivot.r2, PIVOT_R1, "R2", "dotted");
-    push(lastPivot.s2, PIVOT_S1, "S2", "dotted");
-  }
-
-  const lastOrb = (chartData.orb_zones ?? []).slice(-1)[0];
-  if (lastOrb) {
-    push(lastOrb.or_high, PIVOT_OR_HIGH, "OR-H");
-    push(lastOrb.or_low, PIVOT_OR_LOW, "OR-L");
+  if (week52.length > 0) {
+    for (const w of week52) {
+      push((w as unknown as Record<string, number>)["52w_high"], PIVOT_52W_HIGH, "52W");
+    }
+  } else if (pivots.length > 0) {
+    const p = pivots.slice(-1)[0];
+    push(p.pp, PIVOT_PP, "PP");
+    push(p.r1, PIVOT_R1, "R1");
+    push(p.s1, PIVOT_S1, "S1");
+    push(p.r2, PIVOT_R1, "R2");
+    push(p.s2, PIVOT_S1, "S2");
+  } else if (orbs.length > 0) {
+    const o = orbs.slice(-1)[0];
+    push(o.or_high, PIVOT_OR_HIGH, "OR-H");
+    push(o.or_low, PIVOT_OR_LOW, "OR-L");
   }
 
   return lines;
@@ -218,7 +223,12 @@ export function BacktestChart({
   const trades = useMemo(() => (chartData ? mapTrades(chartData) : []), [chartData]);
   const markLines = useMemo(() => {
     if (!chartData) return [];
-    return [...(input?.markLines ?? []), ...buildLevelLines(chartData)];
+    // Force solid lines (the shared normalizer emits dashed/dotted).
+    const forced = (input?.markLines ?? []).map((ml) => ({
+      ...ml,
+      lineStyle: { ...ml.lineStyle, type: "solid" },
+    }));
+    return [...forced, ...buildLevelLines(chartData)];
   }, [chartData, input]);
   const candles = useMemo(
     () => (input?.candles ?? []).map((c) => ({
@@ -282,6 +292,7 @@ export function BacktestChart({
       <TradingViewChart
         ref={chartRef}
         theme="nt"
+        entryLabels
         candles={candles}
         trades={trades}
         highlightedTradeId={highlightedTradeId}

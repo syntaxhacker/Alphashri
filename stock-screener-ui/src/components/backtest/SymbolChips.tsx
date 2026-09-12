@@ -93,6 +93,7 @@ export function SymbolChips({
               variant="outline"
               size="sm"
               className="symbol-chip"
+              sx={{ color: "var(--mui-palette-text-primary)", borderColor: "var(--mui-palette-divider)" }}
               rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
               data-testid={`chip-${symbol}`}
             >
@@ -108,6 +109,7 @@ export function SymbolChips({
               onClick={() => setSymbolsExpanded(true)}
               rightSection={<IconChevronDown size={10} />}
               data-testid="symbol-expand-more-btn"
+              sx={{ color: "var(--mui-palette-text-secondary)" }}
             >
               +{hiddenCount} more
             </Badge>
@@ -121,6 +123,7 @@ export function SymbolChips({
               onClick={() => setSymbolsExpanded(false)}
               rightSection={<IconChevronUp size={10} />}
               data-testid="symbol-expand-less-btn"
+              sx={{ color: "var(--mui-palette-text-secondary)" }}
             >
               Less
             </Badge>

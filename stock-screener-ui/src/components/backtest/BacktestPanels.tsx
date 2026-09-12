@@ -6,7 +6,6 @@ import {
   BacktestProgress,
   BacktestHistory,
   BacktestChartTabs,
-  TradeHistoryTable,
 } from ".";
 
 interface BacktestLeftPanelProps {
@@ -157,13 +156,6 @@ export function BacktestRightPanel({
   chartLoading,
   onTradeClick,
   holidays,
-  tradeHistory,
-  tradeHistorySymbol,
-  tradeSortColumn,
-  tradeSortDirection,
-  onTradeSort,
-  onTradeRowClick,
-  onCloseTradeHistory,
   selectedTf,
   onTfChange,
 }: BacktestRightPanelProps) {
@@ -171,64 +163,31 @@ export function BacktestRightPanel({
     return null;
   }
 
-  const hasTradeHistory = Boolean(tradeHistory && tradeHistorySymbol);
-
   return (
-    <Flex
-      direction="column"
-      gap="sm"
-      flex="1 1 0"
-      sx={{ minHeight: 0, minWidth: 0, overflow: "hidden", gap: 1 }}
+    <Box
+      sx={{
+        flex: 1,
+        minHeight: 0,
+        minWidth: 0,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "stretch",
+        overflow: "hidden",
+      }}
     >
-      <Box
-        sx={{
-          minHeight: 0,
-          minWidth: 0,
-          flex: "1 1 auto",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "stretch",
-          overflow: "hidden",
-        }}
-      >
-        <BacktestChartTabs
-          symbols={symbols}
-          selectedSymbol={selectedChartSymbol}
-          onSymbolSelect={onSymbolSelect}
-          zoomValue={zoomValue}
-          onZoomChange={onZoomChange}
-          chartDataMap={chartDataMap}
-          chartLoading={!!chartLoading}
-          onTradeClick={onTradeClick}
-          holidays={holidays}
-          selectedTf={selectedTf}
-          onTfChange={onTfChange}
-        />
-      </Box>
-      {hasTradeHistory && (
-        <Box
-          sx={{
-            minHeight: 0,
-            minWidth: 0,
-            flex: "0 0 auto",
-            maxHeight: "45%",
-            overflow: "hidden",
-            display: "flex",
-            flexDirection: "column",
-            alignItems: "stretch",
-          }}
-        >
-          <TradeHistoryTable
-            symbol={tradeHistorySymbol!}
-            trades={tradeHistory!}
-            sortColumn={tradeSortColumn}
-            sortDirection={tradeSortDirection}
-            onSort={onTradeSort}
-            onRowClick={onTradeRowClick}
-            onClose={onCloseTradeHistory}
-          />
-        </Box>
-      )}
-    </Flex>
+      <BacktestChartTabs
+        symbols={symbols}
+        selectedSymbol={selectedChartSymbol}
+        onSymbolSelect={onSymbolSelect}
+        zoomValue={zoomValue}
+        onZoomChange={onZoomChange}
+        chartDataMap={chartDataMap}
+        chartLoading={!!chartLoading}
+        onTradeClick={onTradeClick}
+        holidays={holidays}
+        selectedTf={selectedTf}
+        onTfChange={onTfChange}
+      />
+    </Box>
   );
 }

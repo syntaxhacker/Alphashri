@@ -1,4 +1,4 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
@@ -39,6 +39,8 @@ export interface TradingViewChartProps {
   livePosition?: UnifiedLivePosition;
   /** Colour theme: "nt" = NinjaTrader high-contrast (tick-replay palette). */
   theme?: "default" | "nt";
+  /** Draw larger, higher-contrast BUY/SELL pills over entry markers (opt-in). */
+  entryLabels?: boolean;
   /** Notified once the chart is created (and again on recreate) so callers can draw overlays. */
   onChartReady?: (chart: IChartApi, candleSeries: ISeriesApi<"Candlestick">) => void;
 }
@@ -75,6 +77,10 @@ function clampWidth(w?: number): LineWidth {
   return (n < 1 ? 1 : n > 4 ? 4 : n) as LineWidth;
 }
 
+// Distinct, high-contrast entry label colors (different from candle bodies).
+const ENTRY_BUY_COLOR = "#38BDF8";
+const ENTRY_SELL_COLOR = "#FF9F43";
+
 export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewChartProps>(function TradingViewChart({
   candles,
   trades = [],
@@ -85,6 +91,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   emaData,
   livePosition,
   theme = "default",
+  entryLabels = false,
   onChartReady,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -97,6 +104,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   const heightRef = useRef(height);
   const onReadyRef = useRef(onChartReady);
   onReadyRef.current = onChartReady;
+  const overlayRef = useRef<HTMLCanvasElement>(null);
+  const [ready, setReady] = useState(false);
 
   // create chart once — not on height/candles.
   // With an explicit height -> fixed size (page-level charts). Without -> autoSize
@@ -153,6 +162,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     const markers = createSeriesMarkers(candleSeries, []);
     markersRef.current = markers;
     onReadyRef.current?.(chart, candleSeries as any);
+    setReady(true);
 
     let ro: ResizeObserver | null = null;
     if (fixedHeight != null) {
@@ -165,6 +175,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     }
 
     return () => {
+      setReady(false);
       ro?.disconnect();
       chart.remove();
       chartRef.current = null;
@@ -329,9 +340,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         return {
           time: toTime(t.entry_time),
           position: isBuy ? ("belowBar" as const) : ("aboveBar" as const),
-          color: isBuy ? palette.POSITIVE : palette.NEGATIVE,
+          color: isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR,
           shape: isBuy ? ("arrowUp" as const) : ("arrowDown" as const),
-          text: isHighlighted ? `★ ${t.side} ${t.entry_price}` : `${t.side}`,
+          text: entryLabels ? "" : (isHighlighted ? `★ ${t.side} ${t.entry_price}` : `${t.side}`),
           size: isHighlighted ? 2 : 1,
         };
       });
@@ -353,7 +364,113 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     } catch {
       /* noop */
     }
-  }, [trades, highlightedTradeId, showAllTrades]);
+  }, [trades, highlightedTradeId, showAllTrades, entryLabels]);
+
+  // Larger BUY/SELL pills over entry markers (opt-in): lightweight-charts marker
+  // text size is fixed, so draw our own canvas labels for readability.
+  const drawEntryLabels = useCallback(() => {
+    const chart = chartRef.current;
+    const series = candleSeriesRef.current;
+    const canvas = overlayRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+    const parent = canvas.parentElement;
+    const rect = parent ? parent.getBoundingClientRect() : canvas.getBoundingClientRect();
+    const dpr = window.devicePixelRatio || 1;
+    const cw = Math.round(rect.width * dpr);
+    const ch = Math.round(rect.height * dpr);
+    if (canvas.width !== cw || canvas.height !== ch) {
+      canvas.width = cw;
+      canvas.height = ch;
+      canvas.style.width = `${rect.width}px`;
+      canvas.style.height = `${rect.height}px`;
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    if (!entryLabels || !chart || !series || rect.width === 0) return;
+
+    const visible = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
+    ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+    ctx.textBaseline = "middle";
+    ctx.textAlign = "left";
+
+    // Trades may carry an intraday entry time while bars are daily — snap to the
+    // nearest candle time that actually exists on the scale.
+    const barTimes = candles
+      .map((c) => toTime(c.time) as number)
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b);
+    const snapTime = (secs: number): number | null => {
+      if (barTimes.length === 0) return null;
+      let lo = 0, hi = barTimes.length - 1, ans = -1;
+      while (lo <= hi) {
+        const mid = (lo + hi) >> 1;
+        if (barTimes[mid] <= secs) { ans = mid; lo = mid + 1; } else { hi = mid - 1; }
+      }
+      return ans >= 0 ? barTimes[ans] : barTimes[0];
+    };
+
+    const byTime = new Map<number, (typeof candles)[number]>();
+    for (const c of candles) {
+      const tn = toTime(c.time) as number;
+      if (Number.isFinite(tn)) byTime.set(tn, c);
+    }
+
+    for (const t of visible) {
+      if (!t.entry_time) continue;
+      const snapped = snapTime(toTime(t.entry_time) as number);
+      if (snapped == null) continue;
+      const x = chart.timeScale().timeToCoordinate(snapped as Time);
+      const isBuy = (t.side || "BUY").toUpperCase() !== "SELL";
+      // Anchor to the bar's low/high so the pill sits clear of the candles.
+      const bar = byTime.get(snapped);
+      const anchorPrice = bar ? (isBuy ? bar.low : bar.high) : t.entry_price;
+      const y = series.priceToCoordinate(anchorPrice);
+      if (x == null || y == null) continue;
+      const label = isBuy ? "BUY" : "SELL";
+      const color = isBuy ? ENTRY_BUY_COLOR : ENTRY_SELL_COLOR;
+      const tw = ctx.measureText(label).width;
+      const padX = 6;
+      const h = 18;
+      const w = tw + padX * 2;
+      const bx = x - w / 2;
+      const by = isBuy ? y + 14 : y - 14 - h;
+      const r = 4;
+      ctx.fillStyle = "rgba(8,8,8,0.92)";
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.25;
+      ctx.beginPath();
+      ctx.moveTo(bx + r, by);
+      ctx.arcTo(bx + w, by, bx + w, by + h, r);
+      ctx.arcTo(bx + w, by + h, bx, by + h, r);
+      ctx.arcTo(bx, by + h, bx, by, r);
+      ctx.arcTo(bx, by, bx + w, by, r);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+      ctx.fillStyle = color;
+      ctx.fillText(label, bx + padX, by + h / 2 + 0.5);
+    }
+  }, [entryLabels, trades, highlightedTradeId, showAllTrades, candles]);
+
+  useEffect(() => { drawEntryLabels(); }, [drawEntryLabels, ready]);
+
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+    const onRedraw = () => requestAnimationFrame(drawEntryLabels);
+    chart.timeScale().subscribeVisibleLogicalRangeChange(onRedraw);
+    const parent = overlayRef.current?.parentElement;
+    const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onRedraw) : null;
+    if (parent && ro) ro.observe(parent);
+    window.addEventListener("resize", onRedraw);
+    return () => {
+      chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRedraw);
+      ro?.disconnect();
+      window.removeEventListener("resize", onRedraw);
+    };
+  }, [drawEntryLabels, ready]);
 
   // fit once on mount / symbol change
   useEffect(() => {
@@ -362,8 +479,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   }, [candles.length === 0 ? 0 : candles[0]?.time]);
 
   return (
-    <Box sx={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+    <Box sx={{ width: "100%", flex: 1, minHeight: 0, display: "flex", flexDirection: "column", position: "relative" }}>
       <Box ref={containerRef} sx={{ width: "100%", flex: 1, minHeight: 0, position: "relative", ...(height != null ? { height } : {}) }} data-testid="tradingview-chart" />
+      <canvas ref={overlayRef} aria-hidden="true" data-testid="tradingview-overlay" style={{ position: "absolute", inset: 0, pointerEvents: "none", zIndex: 3 }} />
     </Box>
   );
 });

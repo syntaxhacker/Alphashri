@@ -9,6 +9,7 @@ import {
   Menu,
   Box,
   Tooltip,
+  Divider,
 } from "@/ui";
 import { IconPlayerPlay, IconChevronDown, IconRotate, IconPlayerPause } from "@tabler/icons-react";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
@@ -98,11 +99,14 @@ export function BacktestConfig({
       id="config-form"
       radius="sm"
       data-testid="strategy-config"
-      sx={{ p: "6px 8px", display: "flex", flexDirection: "column", gap: "6px" }}
+      sx={{ p: "8px 10px", display: "flex", flexDirection: "column", gap: "8px" }}
     >
       {/* Row 1 — strategy + symbols */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Box sx={{ minWidth: 300, flex: "1 1 320px", display: "flex", alignItems: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <Box sx={{ minWidth: 300, flex: "1 1 360px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
+            Strategy
+          </Text>
           <Select
             id="variation-select"
             className="config-variation-select"
@@ -116,123 +120,134 @@ export function BacktestConfig({
             searchable
           />
           {selectedVariationData?.description && (
-            <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", maxWidth: 260 }}>
+            <Text size="xs" c="dimmed" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
               {selectedVariationData.description}
             </Text>
           )}
         </Box>
-        <Box sx={{ flex: "2 1 420px", minWidth: 0, display: "flex", alignItems: "center" }}>
+        <Box sx={{ minWidth: 280, flex: "2 1 420px", display: "flex", flexDirection: "column", gap: "2px" }}>
+          <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
+            Symbols
+          </Text>
           <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
         </Box>
       </Box>
 
-      {/* Row 2 — params + controls (dense) */}
-      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-        <Text size="xs" c="dimmed" fw={600} sx={{ textTransform: "uppercase", letterSpacing: 0.5 }}>
-          Params
-        </Text>
-        {strategy && strategy.params.length > 0 ? (
-          strategy.params.map((param) => (
-            <Tooltip key={param.key} label={param.label} withArrow>
-              <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                <Text size="xs" c="dimmed">{param.label}</Text>
-                <ParamInput
-                  param={param}
-                  value={params[param.key]}
-                  onChange={(value) => onParamChange(param.key, value)}
-                />
-              </Box>
-            </Tooltip>
-          ))
-        ) : (
-          <Text size="xs" c="dimmed">Select a strategy to configure parameters</Text>
-        )}
+      <Divider />
 
-        <Box sx={{ flex: 1 }} />
+      {/* Row 2 — parameters + run controls */}
+      <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <Box sx={{ minWidth: 240, flex: "1 1 auto", display: "flex", flexDirection: "column", gap: "2px" }}>
+          <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
+            Parameters
+          </Text>
+          {strategy && strategy.params.length > 0 ? (
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+              {strategy.params.map((param) => (
+                <Tooltip key={param.key} label={param.label} withArrow>
+                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+                    <Text size="xs" c="text.secondary">{param.label}</Text>
+                    <ParamInput
+                      param={param}
+                      value={params[param.key]}
+                      onChange={(value) => onParamChange(param.key, value)}
+                    />
+                  </Box>
+                </Tooltip>
+              ))}
+            </Box>
+          ) : (
+            <Text size="xs" c="dimmed">Select a strategy to configure parameters</Text>
+          )}
+        </Box>
 
-        <Tooltip label="Backtest period in days" withArrow>
-          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-            <Text size="xs" c="dimmed">Days</Text>
-            <NumberInput
-              data-testid="days-input"
-              value={days}
-              onChange={(v) => onDaysChange(Number(v) || 30)}
-              min={30}
-              max={365}
-              step={30}
-              size="sm"
-              w={68}
-            />
-          </Box>
-        </Tooltip>
+        <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.25, flexWrap: "wrap" }}>
+          <Tooltip label="Backtest period in days" withArrow>
+            <Box sx={{ display: "flex", flexDirection: "column", gap: "2px" }}>
+              <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
+                Days
+              </Text>
+              <NumberInput
+                data-testid="days-input"
+                value={days}
+                onChange={(v) => onDaysChange(Number(v) || 30)}
+                min={30}
+                max={365}
+                step={30}
+                size="sm"
+                w={68}
+              />
+            </Box>
+          </Tooltip>
 
-        <Tooltip label="Include brokerage and slippage costs" withArrow>
-          <Box sx={{ display: "flex", alignItems: "center" }}>
-            <Checkbox
-              data-testid="include-costs-checkbox"
-              label="Include Costs"
-              checked={includeCosts}
-              onChange={(checked) => onIncludeCostsChange(checked)}
-              size="sm"
-            />
-          </Box>
-        </Tooltip>
+          <Tooltip label="Include brokerage and slippage costs" withArrow>
+            <Box sx={{ display: "flex", alignItems: "center", pb: 0.25 }}>
+              <Checkbox
+                data-testid="include-costs-checkbox"
+                label="Include Costs"
+                checked={includeCosts}
+                onChange={(checked) => onIncludeCostsChange(checked)}
+                size="sm"
+              />
+            </Box>
+          </Tooltip>
 
-        <Tooltip label="Ctrl+Enter to run" withArrow>
-          <Button
-            variant="filled"
-            size="sm"
-            onClick={onRun}
-            disabled={isRunning || selectedSymbols.length === 0}
-            loading={isRunning}
-            data-testid="run-backtest-btn"
-            leftSection={isRunning ? <IconPlayerPause size={12} /> : <IconPlayerPlay size={12} />}
-          >
-            {isRunning ? "Running..." : "Run"}
-          </Button>
-        </Tooltip>
-        <Menu>
-          <Menu.Target>
+          <Tooltip label="Ctrl+Enter to run" withArrow>
             <Button
               variant="filled"
               size="sm"
-              disabled={isRunning || selectedSymbols.length === 0}
-              p={0}
-              w={28}
-              data-testid="run-menu-btn"
-              sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-            >
-              <IconChevronDown size={12} />
-            </Button>
-          </Menu.Target>
-          <Menu.Dropdown>
-            <Menu.Item
               onClick={onRun}
               disabled={isRunning || selectedSymbols.length === 0}
-              leftSection={<IconPlayerPlay size={14} />}
-              data-testid="menu-run-backtest"
+              loading={isRunning}
+              data-testid="run-backtest-btn"
+              leftSection={isRunning ? <IconPlayerPause size={12} /> : <IconPlayerPlay size={12} />}
             >
-              Run Backtest
-            </Menu.Item>
-            <Menu.Item
-              onClick={handleRunAndSave}
-              disabled={isRunning || selectedSymbols.length === 0}
-              leftSection={<IconPlayerPlay size={14} />}
-              data-testid="menu-run-save"
-            >
-              Run & Save to History
-            </Menu.Item>
-            <Menu.Divider />
-            <Menu.Item
-              onClick={onReset}
-              color="secondary"
-              leftSection={<IconRotate size={14} />}
-              data-testid="reset-btn"
-            >
-              Reset Config
-            </Menu.Item>
-          </Menu.Dropdown>
-        </Menu>
+              {isRunning ? "Running..." : "Run"}
+            </Button>
+          </Tooltip>
+          <Menu>
+            <Menu.Target>
+              <Button
+                variant="filled"
+                size="sm"
+                disabled={isRunning || selectedSymbols.length === 0}
+                p={0}
+                w={28}
+                data-testid="run-menu-btn"
+                sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+              >
+                <IconChevronDown size={12} />
+              </Button>
+            </Menu.Target>
+            <Menu.Dropdown>
+              <Menu.Item
+                onClick={onRun}
+                disabled={isRunning || selectedSymbols.length === 0}
+                leftSection={<IconPlayerPlay size={14} />}
+                data-testid="menu-run-backtest"
+              >
+                Run Backtest
+              </Menu.Item>
+              <Menu.Item
+                onClick={handleRunAndSave}
+                disabled={isRunning || selectedSymbols.length === 0}
+                leftSection={<IconPlayerPlay size={14} />}
+                data-testid="menu-run-save"
+              >
+                Run & Save to History
+              </Menu.Item>
+              <Menu.Divider />
+              <Menu.Item
+                onClick={onReset}
+                color="secondary"
+                leftSection={<IconRotate size={14} />}
+                data-testid="reset-btn"
+              >
+                Reset Config
+              </Menu.Item>
+            </Menu.Dropdown>
+          </Menu>
+        </Box>
       </Box>
     </Paper>
   );

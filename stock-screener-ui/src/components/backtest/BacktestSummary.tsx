@@ -55,7 +55,7 @@ export const BacktestSummary = memo(function BacktestSummary({ totals }: Backtes
       <CompactStat
         label="Costs"
         value={`₹${(totalCosts / 1000).toFixed(1)}K`}
-        tone="red"
+        tone="#FF7B72"
         className="summary-item summary-costs"
         data-testid="summary-costs"
       />
