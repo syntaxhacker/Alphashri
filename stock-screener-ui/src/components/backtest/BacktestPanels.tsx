@@ -174,14 +174,21 @@ export function BacktestRightPanel({
   const hasTradeHistory = Boolean(tradeHistory && tradeHistorySymbol);
 
   return (
-    <Flex direction="column" gap="sm" h="100%" sx={{ minHeight: 0, gap: 1 }}>
+    <Flex
+      direction="column"
+      gap="sm"
+      flex="1 1 0"
+      sx={{ minHeight: 0, minWidth: 0, overflow: "hidden", gap: 1 }}
+    >
       <Box
         sx={{
           minHeight: 0,
-          flex: hasTradeHistory ? "1 1 50%" : "1 1 100%",
+          minWidth: 0,
+          flex: "1 1 auto",
           display: "flex",
           flexDirection: "column",
           alignItems: "stretch",
+          overflow: "hidden",
         }}
       >
         <BacktestChartTabs
@@ -202,7 +209,9 @@ export function BacktestRightPanel({
         <Box
           sx={{
             minHeight: 0,
-            flex: "1 1 50%",
+            minWidth: 0,
+            flex: "0 0 auto",
+            maxHeight: "45%",
             overflow: "hidden",
             display: "flex",
             flexDirection: "column",

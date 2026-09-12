@@ -25,7 +25,7 @@ _backtest_handler = BacktestRequestHandler()
 def _base_backtest_response(data: dict) -> dict:
     """Common dict builder for backtest run responses (and cache payloads).
 
-    Eliminates the 9-line duplicated literal for strategy/variation/config/results/totals/etc
+    Eliminates the 9-line duplicated literal for strategy/variation/config/results/totals/etc.
     between the cache-save path and the final response construction.
     """
     return {
@@ -38,6 +38,26 @@ def _base_backtest_response(data: dict) -> dict:
         'run_time': data.get('run_time'),
         'saved_uuid': data.get('saved_uuid'),
     }
+
+
+def _build_full_chart_data(candles: dict, chart_data_raw: dict, or_minutes: int, include_52w_line: bool) -> dict:
+    """Enrich per-symbol raw trades into the full chart payload the UI expects.
+
+    Used by both the fresh and cached response paths so a cache hit returns the
+    same candles/levels as the first run (otherwise the UI falls back to the
+    legacy frontend builder, which cannot parse daily candles).
+    """
+    from backtest.chart_data import build_chart_data_for_symbol
+
+    full: dict = {}
+    for symbol, trades_data in (chart_data_raw or {}).items():
+        if symbol in (candles or {}) and (trades_data or {}).get('trades'):
+            full[symbol] = build_chart_data_for_symbol(
+                symbol, candles[symbol], trades_data['trades'], or_minutes,
+                include_52w_line=include_52w_line,
+                visuals=(trades_data or {}).get('visuals'),
+            )
+    return full
 
 
 class BacktestRunRequest(BaseModel):
@@ -105,8 +125,14 @@ async def run_backtest(
         response = _base_backtest_response(cached)
         response['from_cache'] = True
         if include_chart_data:
-            response['candles'] = cached.get('candles', {})
-            response['chart_data'] = cached.get('chart_data', {})
+            candles = cached.get('candles', {}) or {}
+            chart_data_raw = cached.get('chart_data', {}) or {}
+            cfg = cached.get('config', {}) or {}
+            or_minutes = (cfg.get('params') or {}).get('or_minutes', 45)
+            response['candles'] = candles
+            response['chart_data'] = _build_full_chart_data(
+                candles, chart_data_raw, or_minutes, cached.get('strategy') == '52w_chaser'
+            )
         return _sanitize_for_json(response)
 
     _backtest_handler.reset_progress(len(body.get('symbols', [])))
@@ -134,24 +160,13 @@ async def run_backtest(
     response = _base_backtest_response(result)
 
     if include_chart_data:
-        from backtest.chart_data import build_chart_data_for_symbol
         candles = result.get('candles', {})
         chart_data_raw = result.get('chart_data', {})
         or_minutes = result.get('config', {}).get('params', {}).get('or_minutes', 45)
-        strategy = result.get('strategy', '')
-        include_52w_line = strategy == '52w_chaser'
-
-        full_chart_data = {}
-        for symbol, trades_data in chart_data_raw.items():
-            if symbol in candles and trades_data.get('trades'):
-                full_chart_data[symbol] = build_chart_data_for_symbol(
-                    symbol, candles[symbol], trades_data['trades'], or_minutes,
-                    include_52w_line=include_52w_line,
-                    visuals=chart_data_raw[symbol].get('visuals')
-                )
+        include_52w_line = result.get('strategy', '') == '52w_chaser'
 
         response['candles'] = candles
-        response['chart_data'] = full_chart_data
+        response['chart_data'] = _build_full_chart_data(candles, chart_data_raw, or_minutes, include_52w_line)
 
     return _sanitize_for_json(response)
 

@@ -257,7 +257,7 @@ function BacktestPanels({
         <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-left-panel">
             <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
-              <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "center" }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "stretch" }}>
                 <BacktestLeftPanel
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
@@ -279,7 +279,7 @@ function BacktestPanels({
         <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
           <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-right-panel">
             <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
-              <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "center" }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "stretch" }}>
                 <BacktestRightPanel
                   showCharts={state.showCharts}
                   results={state.results}
