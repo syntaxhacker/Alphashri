@@ -54,7 +54,7 @@ except ImportError:
     StrategyConfig = object  # type: ignore
     _NAUTILUS_AVAILABLE = False
 
-from .base import BaseStrategy, StrategyParam
+from .base import BaseStrategy, StrategyParam, get_ist_time
 from ..costs import calculate_trading_costs
 from trading.ema_utils import calculate_ema as _calculate_ema
 
@@ -635,10 +635,20 @@ class EMACrossStrategy(BaseStrategy):
         if candles_df is None:
             return {}
 
+        # candles_df may be a DataFrame, the build_candle_data dict, or a list of
+        # candle dicts depending on the caller. Normalise to a list of closes.
+        if isinstance(candles_df, dict):
+            closes = list(candles_df.get('close') or [])
+        elif isinstance(candles_df, list):
+            closes = [c.get('close') for c in candles_df if isinstance(c, dict)]
+        else:
+            closes = candles_df['close'].tolist()
+        if not closes:
+            return {}
+
         import pandas as pd
         ema_fast_period = int(params.get('ema_fast_period', 9))
         ema_slow_period = int(params.get('ema_slow_period', 21))
-        closes = candles_df['close'].tolist()
         ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
         ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
 

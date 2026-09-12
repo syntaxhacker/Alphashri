@@ -14,7 +14,7 @@ def _get_api_credentials() -> Tuple[Optional[str], Optional[str]]:
 
 
 def get_upstox_client_from_db(quiet: bool = True):
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 
     _api_key, _error = _get_api_credentials()
     if not _api_key:
@@ -25,14 +25,20 @@ def get_upstox_client_from_db(quiet: bool = True):
         return None, "UPSTOX_API_SECRET environment variable is not set"
 
     try:
-        from db.models import get_shared_broker_token
-        token_data = get_shared_broker_token('upstox')
-
-        if not token_data or not token_data.get('access_token'):
-            return None, "No active Upstox broker connection. Please connect your broker in Settings."
-
+        # Same client class market_data.fetch_candles uses. Historical candles work
+        # with just the API key, so a broker OAuth token is a preference, not a
+        # requirement — attach it when present and otherwise proceed tokenless.
         client = UpstoxAPI(api_key=_api_key, api_secret=_api_secret, quiet=quiet)
-        client.auth_handler.access_token = token_data['access_token']
+
+        try:
+            from db.models import get_shared_broker_token
+            token_data = get_shared_broker_token('upstox')
+            token = token_data.get('access_token') if token_data else None
+            auth = getattr(client, 'auth_handler', None)
+            if token and auth is not None:
+                auth.access_token = token
+        except Exception:
+            pass
 
         return client, None
 
@@ -41,7 +47,7 @@ def get_upstox_client_from_db(quiet: bool = True):
 
 
 def get_upstox_client_with_token(access_token: str, quiet: bool = True):
-    from upstox_trader.config_and_utils.free_indian_apis import UpstoxAPI
+    from upstox_trader.config_and_utils.upstox_api import UpstoxAPI
 
     _api_key, _error = _get_api_credentials()
     if not _api_key:
@@ -56,7 +62,9 @@ def get_upstox_client_with_token(access_token: str, quiet: bool = True):
 
     try:
         client = UpstoxAPI(api_key=_api_key, api_secret=_api_secret, quiet=quiet)
-        client.auth_handler.access_token = access_token
+        auth = getattr(client, 'auth_handler', None)
+        if auth is not None:
+            auth.access_token = access_token
 
         return client, None
 

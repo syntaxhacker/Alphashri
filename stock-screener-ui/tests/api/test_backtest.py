@@ -15,10 +15,10 @@ import pandas as pd
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-# Mock nautilus_trader before importing backtest modules
-_nautilus_mock = MagicMock()
-_nautilus_mock.backtest.config.BacktestEngineConfig = MagicMock
-for mod_name in [
+# Modules stubbed while this test module resolves backtest strategy classes.
+# Scoped to this module (see _stub_nautilus_trader fixture) so the stub cannot
+# poison other test modules that expect real nautilus.
+_NAUTILUS_MODULES = [
     'nautilus_trader', 'nautilus_trader.backtest', 'nautilus_trader.backtest.config',
     'nautilus_trader.backtest.engine', 'nautilus_trader.config', 'nautilus_trader.model',
     'nautilus_trader.model.enums', 'nautilus_trader.model.objects',
@@ -28,9 +28,7 @@ for mod_name in [
     'nautilus_trader.persistence', 'nautilus_trader.persistence.wranglers',
     'nautilus_trader.trading', 'nautilus_trader.trading.strategy',
     'nautilus_trader.test_kit', 'nautilus_trader.test_kit.providers',
-]:
-    if mod_name not in sys.modules:
-        sys.modules[mod_name] = _nautilus_mock
+]
 
 from backtest.api import (
     BacktestRequestHandler,
@@ -41,6 +39,32 @@ from backtest.api import (
 )
 from backtest.strategies import list_strategies, get_strategy
 from backtest.costs import get_cost_breakdown, calculate_trading_costs
+
+
+@pytest.fixture(scope="module", autouse=True)
+def _stub_nautilus_trader():
+    """Provide a lightweight nautilus stub for this module's tests only.
+
+    Uses real class objects for the base classes strategies inherit from, so
+    ``class X(Strategy, Mixin)`` still builds when nautilus is mocked. Restores
+    ``sys.modules`` afterwards so other modules keep the real library.
+    """
+    mock = MagicMock()
+    # All stubbed module names share this mock, so top-level attributes are what
+    # `from nautilus_trader.x.y import Z` resolves.
+    mock.Strategy = type("Strategy", (), {})
+    mock.StrategyConfig = type("StrategyConfig", (), {})
+    mock.BacktestEngineConfig = MagicMock
+
+    saved = {name: sys.modules.get(name) for name in _NAUTILUS_MODULES}
+    for name in _NAUTILUS_MODULES:
+        sys.modules.setdefault(name, mock)
+    try:
+        yield
+    finally:
+        for name in _NAUTILUS_MODULES:
+            if saved[name] is None:
+                sys.modules.pop(name, None)
 
 
 @pytest.fixture
