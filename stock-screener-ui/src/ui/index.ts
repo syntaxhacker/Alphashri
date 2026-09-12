@@ -59,6 +59,8 @@ export { Modal } from "./overlay/Modal";
 export { Tooltip } from "./overlay/Tooltip";
 export { Popover, PopoverTarget, PopoverDropdown } from "./overlay/Popover";
 export { Overlay } from "./overlay/Overlay";
+export { default as FloatingWindow } from "./overlay/FloatingWindow";
+export type { FloatingWindowProps, FloatingWindowGeometry, FloatingWindowHandle } from "./overlay/FloatingWindow";
 
 // Navigation
 export { NavLink } from "./navigation/NavLink";
