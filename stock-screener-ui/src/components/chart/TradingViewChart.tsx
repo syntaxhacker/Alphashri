@@ -37,6 +37,8 @@ export interface TradingViewChartProps {
   emaData?: { label: string; color: string; data: (number | null)[] }[];
   /** Active position entry / SL / TP levels */
   livePosition?: UnifiedLivePosition;
+  /** Colour theme: "nt" = NinjaTrader high-contrast (tick-replay palette). */
+  theme?: "default" | "nt";
   /** Notified once the chart is created (and again on recreate) so callers can draw overlays. */
   onChartReady?: (chart: IChartApi, candleSeries: ISeriesApi<"Candlestick">) => void;
 }
@@ -82,6 +84,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   markLines,
   emaData,
   livePosition,
+  theme = "default",
   onChartReady,
 }, ref) {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,14 +104,25 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   useEffect(() => {
     if (!containerRef.current) return;
     const fixedHeight = heightRef.current;
+    const nt = theme === "nt";
+    const c = {
+      bg: nt ? palette.NT_BG : palette.BG,
+      grid: nt ? palette.NT_GRID : palette.BORDER,
+      text: nt ? "#E5E7EB" : palette.TEXT,
+      bull: nt ? palette.NT_CANDLE_BULL : palette.MARKER_BORDER,
+      bear: nt ? palette.NT_CANDLE_BEAR : palette.SCALE_BLUE[6],
+      volMuted: withAlpha(palette.TEXT_MUTED, 0.3),
+      volUp: nt ? palette.NT_FVG_BULL_STROKE : withAlpha(palette.POSITIVE, 0.9),
+      volDown: nt ? palette.NT_FVG_BEAR_STROKE : withAlpha(palette.NEGATIVE, 0.9),
+    };
     const chart = createChart(containerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: palette.BG }, textColor: palette.TEXT },
-      grid: { vertLines: { color: palette.BORDER }, horzLines: { color: palette.BORDER } },
+      layout: { background: { type: ColorType.Solid, color: c.bg }, textColor: c.text },
+      grid: { vertLines: { color: c.grid }, horzLines: { color: c.grid } },
       ...(fixedHeight != null
         ? { width: containerRef.current.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: palette.BORDER, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5 },
-      rightPriceScale: { borderColor: palette.BORDER },
+      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5 },
+      rightPriceScale: { borderColor: c.grid },
       crosshair: { mode: 1 },
       handleScroll: true,
       handleScale: true,
@@ -116,20 +130,20 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     chartRef.current = chart;
 
     const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: palette.MARKER_BORDER,
-      downColor: palette.SCALE_BLUE[6],
-      borderColor: palette.SCALE_BLUE[6],
-      borderUpColor: palette.MARKER_BORDER,
-      borderDownColor: palette.SCALE_BLUE[6],
-      wickUpColor: palette.MARKER_BORDER,
-      wickDownColor: palette.SCALE_BLUE[6],
+      upColor: c.bull,
+      downColor: c.bear,
+      borderColor: c.bear,
+      borderUpColor: c.bull,
+      borderDownColor: c.bear,
+      wickUpColor: c.bull,
+      wickDownColor: c.bear,
       borderVisible: true,
       wickVisible: true,
     });
     candleSeriesRef.current = candleSeries as any;
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
-      color: withAlpha(palette.TEXT_MUTED, 0.3),
+      color: c.volMuted,
       priceScaleId: "",
       priceFormat: { type: "volume" },
     });
@@ -160,7 +174,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       emaSeriesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [theme]);
 
   // height updates without recreate (fixed-height mode only)
   useEffect(() => {
@@ -217,11 +231,13 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       .map((c) => ({
         time: toTime(c.time),
         value: c.volume,
-        color: c.close >= c.open ? withAlpha(palette.POSITIVE, 0.9) : withAlpha(palette.NEGATIVE, 0.9),
+        color: c.close >= c.open
+          ? (theme === "nt" ? palette.NT_FVG_BULL_STROKE : withAlpha(palette.POSITIVE, 0.9))
+          : (theme === "nt" ? palette.NT_FVG_BEAR_STROKE : withAlpha(palette.NEGATIVE, 0.9)),
       }))
       .sort((a: any, b: any) => (a.time as number) - (b.time as number));
     volumeSeriesRef.current.setData(volData as any);
-  }, [candles]);
+  }, [candles, theme]);
 
   // horizontal overlay levels: ORB / pivots / 52W / highlighted SL-TP / position
   useEffect(() => {

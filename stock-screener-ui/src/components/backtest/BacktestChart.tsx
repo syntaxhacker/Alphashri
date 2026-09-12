@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef } from "react";
 import { Box, Text } from "@/ui";
+import * as palette from "@/ui/palette";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
 import { normalizeTime } from "../../utils/ui-helpers";
@@ -276,10 +277,11 @@ export function BacktestChart({
       className="backtest-chart"
       data-testid="echarts-container"
       data-symbol={symbol}
-      sx={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex" }}
+      sx={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex", bgcolor: palette.NT_BG }}
     >
       <TradingViewChart
         ref={chartRef}
+        theme="nt"
         candles={candles}
         trades={trades}
         highlightedTradeId={highlightedTradeId}
