@@ -560,7 +560,8 @@ class EMACrossStrategy(BaseStrategy):
         total = len(symbols)
         completed = 0
         num_workers = min(4, cpu_count() or 4, max(1, total))
-        use_parallel = total > 1 and num_workers > 1
+        from .base import PROCESS_POOL_ENABLED
+        use_parallel = PROCESS_POOL_ENABLED.get() and total > 1 and num_workers > 1
 
         if use_parallel:
             if progress_callback:

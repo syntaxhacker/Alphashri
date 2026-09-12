@@ -5,8 +5,15 @@ Abstract interface for all trading strategies.
 """
 
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
 from typing import Dict, List, Any, Optional
 from dataclasses import dataclass, asdict
+
+# When False, multi-symbol backtests run sequentially instead of forking a process
+# Pool. The API sets this False for each request: the server process is itself a
+# multiprocessing spawn child (uvicorn --reload), and nesting a spawn Pool inside a
+# request thread recursively spawns/hangs. CLI/tests leave it True.
+PROCESS_POOL_ENABLED: ContextVar[bool] = ContextVar("backtest_process_pool", default=True)
 
 
 @dataclass
@@ -116,7 +123,11 @@ class BaseStrategy(ABC):
         total = len(symbols)
         completed = 0
         num_workers = min(4, cpu_count() or 4, max(1, total))
-        do_parallel = use_parallel if use_parallel is not None else (total > 1 and num_workers > 1)
+        do_parallel = (
+            use_parallel
+            if use_parallel is not None
+            else (PROCESS_POOL_ENABLED.get() and total > 1 and num_workers > 1)
+        )
 
         if do_parallel:
             if progress_callback:
