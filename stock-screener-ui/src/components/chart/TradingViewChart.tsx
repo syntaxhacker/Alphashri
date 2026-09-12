@@ -137,7 +137,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       borderDownColor: c.bear,
       wickUpColor: c.bull,
       wickDownColor: c.bear,
-      borderVisible: true,
+      borderVisible: !nt,
       wickVisible: true,
     });
     candleSeriesRef.current = candleSeries as any;
@@ -252,6 +252,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     });
     priceLinesRef.current = [];
 
+    const nt = theme === "nt";
     const add = (price: number | undefined, color: string, width: number | undefined, style: LineStyle, title: string) => {
       if (price == null || !isFinite(price) || price <= 0) return;
       const line = series.createPriceLine({
@@ -261,6 +262,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         lineStyle: style,
         axisLabelVisible: true,
         title,
+        // NT: solid bright badge with dark text = maximum contrast on the axis.
+        ...(nt ? { axisLabelColor: color, axisLabelTextColor: palette.NT_BG } : {}),
       });
       priceLinesRef.current.push(line);
     };
@@ -278,7 +281,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         add(livePosition.take_profit, palette.POSITIVE, 1, LineStyle.Dashed, `TP ${livePosition.take_profit}`);
       }
     }
-  }, [markLines, livePosition]);
+  }, [markLines, livePosition, theme]);
 
   // EMA overlays (line series aligned to candles)
   useEffect(() => {
