@@ -9,7 +9,7 @@ const sp = (v: unknown) => {
 };
 const toSz = (v: unknown) => (typeof v === "number" ? `${v}px` : (v as string | undefined));
 
-export function Box({ children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave, p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex, alignItems, justifyContent, flexDirection, gap, ...rest }: UIBoxProps & Record<string, unknown> & { alignItems?: unknown; justifyContent?: unknown; flexDirection?: unknown; gap?: unknown }) {
+export function Box({ children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave, p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex, alignItems, justifyContent, flexDirection, gap, sx: sxProp, ...rest }: UIBoxProps & Record<string, unknown> & { alignItems?: unknown; justifyContent?: unknown; flexDirection?: unknown; gap?: unknown }) {
   return (
     <MuiBox
       id={id as string}
@@ -19,7 +19,7 @@ export function Box({ children, className, style, id, "data-testid": testId, onC
       onClick={onClick as never}
       onMouseEnter={onMouseEnter as never}
       onMouseLeave={onMouseLeave as never}
-      sx={{
+      sx={[{
         ...(p != null && { p: sp(p) }),
         ...(px != null && { px: sp(px) }),
         ...(py != null && { py: sp(py) }),
@@ -53,7 +53,7 @@ export function Box({ children, className, style, id, "data-testid": testId, onC
         ...(justifyContent != null && { justifyContent: justifyContent as string }),
         ...(flexDirection != null && { flexDirection: flexDirection as string }),
         ...(gap != null && { gap: sp(gap) }),
-      }}
+      }, ...(sxProp ? (Array.isArray(sxProp) ? sxProp : [sxProp]) : [])] as never}
       {...rest}
     >
       {children}
