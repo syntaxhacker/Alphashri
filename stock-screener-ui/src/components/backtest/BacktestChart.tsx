@@ -1,14 +1,23 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Text, useColorScheme } from "@/ui";
+import { useEffect, useMemo, useRef } from "react";
+import { Box, Text } from "@/ui";
 import type { SymbolChartData, ChartTrade } from "../../types/backtest";
 import type { MarketHoliday } from "../../types/holidays";
 import { normalizeTime } from "../../utils/ui-helpers";
-import { getBacktestZoomStartIndex, normalizeBacktest } from "../../utils/chart/normalizeBacktest";
-import { TradingChart } from "../chart/TradingChart";
-import type { TradingChartHandle } from "../chart/TradingChart";
+import { normalizeBacktest, getBacktestZoomStartIndex } from "../../utils/chart/normalizeBacktest";
+import type { MarkLineData } from "../../utils/chart/types";
+import { TradingViewChart } from "../chart/TradingViewChart";
+import type { TradingViewChartHandle } from "../chart/TradingViewChart";
+import type { ReplayTrade } from "../../types/replay";
+import {
+  PIVOT_OR_HIGH,
+  PIVOT_OR_LOW,
+  PIVOT_52W_HIGH,
+  PIVOT_PP,
+  PIVOT_R1,
+  PIVOT_S1,
+} from "../../config/colors";
 
-const chartHandles = new Map<string, TradingChartHandle>();
-const highlightCallbacks = new Map<string, (id: number | null) => void>();
+const chartHandles = new Map<string, TradingViewChartHandle>();
 
 interface BacktestChartProps {
   symbol: string;
@@ -18,6 +27,8 @@ interface BacktestChartProps {
   holidays?: MarketHoliday[];
   /** "all" | "30d" | "7d" | "1d" — visible time-range preset. */
   zoomValue?: string;
+  highlightedTradeId?: number | null;
+  showAllTrades?: boolean;
 }
 
 function findCandleIdx(
@@ -107,14 +118,76 @@ export function zoomToTrade(
     exitIdx,
   );
 
-  const cb = highlightCallbacks.get(symbol);
-  if (cb) {
-    cb(tradeNumber);
+  setTimeout(() => {
+    handle.zoomToIndexRange(startIdx, endIdx, totalCandles);
+  }, 120);
+}
+
+/** Map backtest chart_data into lightweight-charts mark lines (levels). */
+function buildLevelLines(chartData: SymbolChartData): MarkLineData[] {
+  const lines: MarkLineData[] = [];
+  const seen = new Set<string>();
+  const push = (value: number | null | undefined, color: string, label: string, type = "dashed") => {
+    if (value == null || !Number.isFinite(value) || value <= 0) return;
+    const key = `${label}:${value}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    lines.push({
+      yAxis: value,
+      lineStyle: { color, type, width: 1 },
+      label: { position: "insideEndTop", formatter: `${label} ${value}` },
+    });
+  };
+
+  for (const w of chartData.week52_levels ?? []) {
+    push((w as unknown as Record<string, number>)["52w_high"], PIVOT_52W_HIGH, "52W");
   }
 
-  setTimeout(() => {
-    handle.zoomToTradeByIndex(startIdx, endIdx, totalCandles);
-  }, 200);
+  const lastPivot = (chartData.pivot_levels ?? []).slice(-1)[0];
+  if (lastPivot) {
+    push(lastPivot.pp, PIVOT_PP, "PP", "dotted");
+    push(lastPivot.r1, PIVOT_R1, "R1");
+    push(lastPivot.s1, PIVOT_S1, "S1");
+    push(lastPivot.r2, PIVOT_R1, "R2", "dotted");
+    push(lastPivot.s2, PIVOT_S1, "S2", "dotted");
+  }
+
+  const lastOrb = (chartData.orb_zones ?? []).slice(-1)[0];
+  if (lastOrb) {
+    push(lastOrb.or_high, PIVOT_OR_HIGH, "OR-H");
+    push(lastOrb.or_low, PIVOT_OR_LOW, "OR-L");
+  }
+
+  return lines;
+}
+
+function mapTrades(chartData: SymbolChartData): ReplayTrade[] {
+  const entries = new Map<number, ChartTrade>();
+  const exits = new Map<number, ChartTrade>();
+  for (const t of chartData.trades) {
+    if (t.type === "entry") entries.set(t.trade_id, t);
+    else if (t.type === "exit") exits.set(t.trade_id, t);
+  }
+  const out: ReplayTrade[] = [];
+  for (const [id, entry] of entries) {
+    const exit = exits.get(id);
+    out.push({
+      id,
+      strategy: "",
+      symbol: chartData.symbol,
+      side: "BUY",
+      entry_price: entry.trade.entry_price,
+      exit_price: exit?.trade.exit_price ?? entry.trade.exit_price,
+      entry_time: entry.trade.entry_time || entry.time,
+      exit_time: exit?.trade.exit_time || exit?.time || "",
+      pnl: entry.trade.net_pnl,
+      net_pnl: entry.trade.net_pnl,
+      costs: entry.trade.trading_costs,
+      exit_reason: exit?.trade.exit_reason ?? entry.trade.exit_reason,
+      quantity: entry.trade.quantity,
+    });
+  }
+  return out.sort((a, b) => (a.entry_time || "").localeCompare(b.entry_time || ""));
 }
 
 export function BacktestChart({
@@ -124,83 +197,73 @@ export function BacktestChart({
   onTradeClick,
   holidays,
   zoomValue,
+  highlightedTradeId = null,
+  showAllTrades = true,
 }: BacktestChartProps) {
-  const chartRef = useRef<TradingChartHandle | null>(null);
-  const { colorScheme } = useColorScheme();
-  const isDark = colorScheme === "dark";
-  const [highlightedTradeId, setHighlightedTradeId] = useState<number | null>(null);
+  const chartRef = useRef<TradingViewChartHandle | null>(null);
 
   useEffect(() => {
-    if (chartRef.current) {
-      chartHandles.set(symbol, chartRef.current);
-    }
-    highlightCallbacks.set(symbol, setHighlightedTradeId);
+    if (chartRef.current) chartHandles.set(symbol, chartRef.current);
     return () => {
       chartHandles.delete(symbol);
-      highlightCallbacks.delete(symbol);
     };
   }, [symbol]);
 
-  useEffect(() => {
-    if (!chartData || zoomValue == null || chartData.candles.length === 0) return;
-    const startIdx = getBacktestZoomStartIndex(chartData.candles, zoomValue);
-    const total = chartData.candles.length;
-    const chart = chartRef.current?.chartInstance?.current;
-    if (!chart) return;
-    const timer = setTimeout(() => {
-      [0, 1].forEach((dataZoomIndex) => {
-        try {
-          chart.dispatchAction({
-            type: "dataZoom",
-            dataZoomIndex,
-            start: (startIdx / total) * 100,
-            end: 100,
-          });
-        } catch {
-          // Chart may not expose dataZoom actions in every host/test environment.
-        }
-      });
-    }, 250);
-    return () => clearTimeout(timer);
-  }, [zoomValue, chartData, symbol]);
-
-  const chartInput = useMemo(() => {
+  const input = useMemo(() => {
     if (!chartData) return null;
-    return normalizeBacktest(chartData, isDark, holidays, highlightedTradeId);
-  }, [chartData, isDark, holidays, highlightedTradeId]);
+    return normalizeBacktest(chartData, true, holidays, highlightedTradeId);
+  }, [chartData, holidays, highlightedTradeId]);
+
+  const trades = useMemo(() => (chartData ? mapTrades(chartData) : []), [chartData]);
+  const markLines = useMemo(() => {
+    if (!chartData) return [];
+    return [...(input?.markLines ?? []), ...buildLevelLines(chartData)];
+  }, [chartData, input]);
+  const candles = useMemo(
+    () => (input?.candles ?? []).map((c) => ({
+      time: c.time,
+      open: c.open,
+      high: c.high,
+      low: c.low,
+      close: c.close,
+      volume: c.volume,
+    })),
+    [input],
+  );
+
+  // zoom preset (All / 30D / 7D / 1D)
+  useEffect(() => {
+    if (!chartData || !zoomValue || chartData.candles.length === 0) return;
+    const total = chartData.candles.length;
+    const startIdx = getBacktestZoomStartIndex(chartData.candles, zoomValue);
+    const timer = setTimeout(() => {
+      if (zoomValue === "all") {
+        chartRef.current?.fitContent();
+      } else {
+        chartRef.current?.zoomToIndexRange(startIdx, total - 1, total);
+      }
+    }, 150);
+    return () => clearTimeout(timer);
+  }, [zoomValue, chartData]);
 
   if (isLoading) {
     return (
       <Box
         className="backtest-chart-loading"
         data-testid="backtest-chart-loading"
-        sx={(theme) => ({
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          backgroundColor: theme.palette.background.paper,
-          borderRadius: 2,
-        })}
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: "background.paper", borderRadius: 1 }}
       >
         <Text c="dimmed">Loading {symbol}...</Text>
       </Box>
     );
   }
 
-  if (!chartData || !chartInput) {
+  if (!chartData || !input) {
     return (
       <Box
         className="backtest-chart-empty"
         data-testid="backtest-chart-empty"
-        sx={(theme) => ({
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          height: "100%",
-          backgroundColor: theme.palette.background.paper,
-          borderRadius: 2,
-        })}
+        sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", bgcolor: "background.paper", borderRadius: 1 }}
       >
         <Text c="dimmed">No chart data for {symbol}</Text>
       </Box>
@@ -213,9 +276,18 @@ export function BacktestChart({
       className="backtest-chart"
       data-testid="echarts-container"
       data-symbol={symbol}
-      style={{ width: "100%", height: "100%", minHeight: 0, display: "flex" }}
+      sx={{ width: "100%", height: "100%", minHeight: 0, minWidth: 0, display: "flex" }}
     >
-      <TradingChart ref={chartRef} input={chartInput} onTradeClick={onTradeClick} />
+      <TradingViewChart
+        ref={chartRef}
+        candles={candles}
+        trades={trades}
+        highlightedTradeId={highlightedTradeId}
+        showAllTrades={showAllTrades}
+        markLines={markLines}
+        emaData={input.emaData}
+        onTradeClick={onTradeClick}
+      />
     </Box>
   );
 }

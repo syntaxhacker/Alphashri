@@ -207,8 +207,8 @@ function useBacktestActions(state: any) {
 
 function BacktestPageConfig({ state, actions }: { state: any; actions: any }) {
   return (
-    <Box sx={{ flex: "0 0 auto", mb: 2, display: "flex", justifyContent: "center" }} id="backtest-config-section">
-      <Box sx={{ width: "100%", maxWidth: 1600 }}>
+    <Box sx={{ flex: "0 0 auto", mb: 1, display: "flex", justifyContent: "center" }} id="backtest-config-section">
+      <Box sx={{ width: "100%" }}>
         <BacktestConfig
           strategies={state.strategies}
           variations={state.variations}
@@ -252,12 +252,12 @@ function BacktestPanels({
   setActiveTab: (tab: string | null) => void;
 }) {
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", flex: 1, minHeight: 0, gap: 2 }} id="backtest-panels">
-      <Grid container spacing={2} sx={{ flex: 1, maxWidth: 1600, minHeight: 0, justifyContent: "center", alignItems: "stretch", gap: 2 }}>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-left-panel">
-            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
-              <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "stretch" }}>
+    <Box sx={{ display: "flex", justifyContent: "center", flex: 1, minHeight: 0, gap: 1 }} id="backtest-panels">
+      <Grid container spacing={1} sx={{ flex: 1, minHeight: 0, alignItems: "stretch" }}>
+        <Grid size={{ xs: 12, md: 4 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }} id="backtest-left-panel">
+            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%" }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.75, "&:last-child": { pb: 0.75 }, alignItems: "stretch" }}>
                 <BacktestLeftPanel
                   activeTab={activeTab}
                   setActiveTab={setActiveTab}
@@ -276,10 +276,10 @@ function BacktestPanels({
             </Card>
           </Box>
         </Grid>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-right-panel">
-            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
-              <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "stretch" }}>
+        <Grid size={{ xs: 12, md: 8 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }} id="backtest-right-panel">
+            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", width: "100%" }}>
+              <CardContent sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", p: 0.75, "&:last-child": { pb: 0.75 }, alignItems: "stretch" }}>
                 <BacktestRightPanel
                   showCharts={state.showCharts}
                   results={state.results}
@@ -323,7 +323,7 @@ export function BacktestPage() {
   const symbols = state.results?.map((r) => r.symbol) ?? [];
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }} data-testid="backtest-view" id="backtest-main">
+    <Container maxWidth={false} sx={{ py: 1, px: 1.5, display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }} data-testid="backtest-view" id="backtest-main">
       {state.error && (
         <Alert
           icon={<IconAlertCircle size={16} />}
