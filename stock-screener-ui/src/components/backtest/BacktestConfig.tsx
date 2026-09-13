@@ -6,6 +6,7 @@ import {
   Button,
   Menu,
   Box,
+  Text,
 } from "@/ui";
 import { IconPlayerPlay, IconChevronDown, IconRotate, IconPlayerPause } from "@tabler/icons-react";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
@@ -39,9 +40,9 @@ function Field({ label, span, children }: { label?: string; span?: boolean; chil
   return (
     <Box sx={{ gridColumn: span ? "1 / -1" : undefined, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
       {label ? (
-        <Box component="span" sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "var(--mui-palette-text-secondary)" }}>
+        <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.5, textTransform: "uppercase", fontSize: 10, lineHeight: 1.2 }}>
           {label}
-        </Box>
+        </Text>
       ) : null}
       {children}
     </Box>
@@ -125,9 +126,9 @@ export function BacktestConfig({
           w="100%"
         />
         {selectedVariationData?.description && (
-          <Box sx={{ fontSize: 10, color: "var(--mui-palette-text-secondary)", mt: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          <Text size="xs" c="dimmed" sx={{ mt: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {selectedVariationData.description}
-          </Box>
+          </Text>
         )}
       </Field>
 
@@ -146,9 +147,9 @@ export function BacktestConfig({
           </Field>
         ))
       ) : (
-        <Box sx={{ gridColumn: "1 / -1", fontSize: 11, color: "var(--mui-palette-text-secondary)" }}>
+        <Text size="xs" c="dimmed" sx={{ gridColumn: "1 / -1" }}>
           Select a strategy to configure parameters
-        </Box>
+        </Text>
       )}
 
       <Field label="Days">

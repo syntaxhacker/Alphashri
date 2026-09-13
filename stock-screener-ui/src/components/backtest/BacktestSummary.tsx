@@ -1,5 +1,7 @@
 import { memo } from "react";
-import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import Divider from "@mui/material/Divider";
 import type { BacktestTotals } from "../../types/backtest";
 import { formatPnl as formatPnlShared, getPnLTextColor } from "../../utils/ui-helpers";
 
@@ -30,6 +32,34 @@ export function formatWinRate(winRate: number): string {
   return `${winRate.toFixed(0)}%`;
 }
 
+const Metric = ({
+  label,
+  value,
+  tone,
+  testid,
+}: {
+  label: string;
+  value: string;
+  tone?: string;
+  testid: string;
+}) => (
+  <Stack sx={{ flex: "1 1 0", minWidth: 92, px: 1.5, py: 0.75, gap: 0.25, justifyContent: "center" }}>
+    <Typography
+      variant="overline"
+      sx={{ fontSize: 10, lineHeight: 1.1, letterSpacing: 0.6, fontWeight: 600, color: "text.secondary" }}
+    >
+      {label}
+    </Typography>
+    <Typography
+      variant="subtitle1"
+      data-testid={testid}
+      sx={{ fontSize: 18, fontWeight: 700, lineHeight: 1.15, color: tone ?? "text.primary", fontVariantNumeric: "tabular-nums" }}
+    >
+      {value}
+    </Typography>
+  </Stack>
+);
+
 export const BacktestSummary = memo(function BacktestSummary({ totals }: BacktestSummaryProps) {
   if (!totals) return null;
 
@@ -38,40 +68,24 @@ export const BacktestSummary = memo(function BacktestSummary({ totals }: Backtes
   const winRate = totals.win_rate ?? 0;
   const pnlColor = getPnLTextColor(netPnl);
 
-  const Stat = ({ label, value, tone, testid }: { label: string; value: string; tone?: string; testid: string }) => (
-    <Box
-      sx={{
-        flex: "1 1 0",
-        minWidth: 0,
-        px: 0.75,
-        py: "3px",
-        borderRight: "1px solid var(--mui-palette-divider)",
-        "&:last-of-type": { borderRight: 0 },
-      }}
-    >
-      <Box sx={{ fontSize: 8, lineHeight: 1.1, letterSpacing: 0.4, textTransform: "uppercase", color: "var(--mui-palette-text-secondary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-        {label}
-      </Box>
-      <Box
-        data-testid={testid}
-        sx={{ fontSize: 12, fontWeight: 700, lineHeight: 1.25, color: tone ?? "var(--mui-palette-text-primary)", fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
-      >
-        {value}
-      </Box>
-    </Box>
-  );
-
   return (
-    <Box
+    <Stack
+      direction="row"
       id="backtest-summary"
       className="backtest-summary"
       data-testid="results-summary"
-      sx={{ display: "flex", flexWrap: "wrap", borderBottom: "1px solid var(--mui-palette-divider)" }}
+      divider={<Divider orientation="vertical" flexItem />}
+      sx={{ flexWrap: "wrap", borderBottom: 1, borderColor: "divider" }}
     >
-      <Stat label="Net PnL" value={formatPnlShared(netPnl)} tone={pnlColor === "success" ? "var(--mui-palette-success-main)" : "var(--mui-palette-error-main)"} testid="summary-net-pnl" />
-      <Stat label="Costs" value={`₹${(totalCosts / 1000).toFixed(1)}K`} tone="#FF7B72" testid="summary-costs" />
-      <Stat label="WR" value={`${winRate.toFixed(0)}%`} testid="summary-wr" />
-      <Stat label="Trades" value={String(totals.trades ?? 0)} testid="summary-trades" />
-    </Box>
+      <Metric
+        label="Net PnL"
+        value={formatPnlShared(netPnl)}
+        tone={pnlColor === "success" ? "success.main" : "error.main"}
+        testid="summary-net-pnl"
+      />
+      <Metric label="Costs" value={`₹${(totalCosts / 1000).toFixed(1)}K`} tone="#FF7B72" testid="summary-costs" />
+      <Metric label="WR" value={`${winRate.toFixed(0)}%`} testid="summary-wr" />
+      <Metric label="Trades" value={String(totals.trades ?? 0)} testid="summary-trades" />
+    </Stack>
   );
 });

@@ -292,26 +292,41 @@ export function TradeHistoryTable({
       h="100%"
       sx={{ minHeight: 0, overflow: "hidden", gap: 0, p: 0 }}
     >
-      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 1, px: 1, py: "2px", borderBottom: "1px solid var(--mui-palette-divider)" }} data-testid="trade-history-header">
-        <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>
+      <Stack
+        direction="row"
+        align="center"
+        spacing={1}
+        data-testid="trade-history-header"
+        sx={{ flex: "0 0 auto", px: 1, py: "3px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+      >
+        <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap", fontWeight: 600 }}>
           {symbol} Trades ({trades.length})
         </Text>
         <Box sx={{ flex: 1 }} />
         <ActionIcon variant="subtle" color="secondary" size="xs" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
           <IconX size={12} />
         </ActionIcon>
-      </Box>
+      </Stack>
 
-      <Box
+      <Stack
+        direction="row"
+        align="center"
+        spacing={2}
         data-testid="trade-history-summary"
-        sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 1, px: 1, py: "2px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+        sx={{ flex: "0 0 auto", px: 1, py: "5px", borderBottom: "1px solid var(--mui-palette-divider)" }}
       >
-        <Text size="xs" c="dimmed">P&L</Text>
-        <Text size="xs" fw={700} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" sx={{ fontVariantNumeric: "tabular-nums" }}>₹{totalPnl.toFixed(0)}</Text>
-        <Text size="xs" c="dimmed" sx={{ ml: 1 }}>WR</Text>
-        <Text size="xs" data-testid="trade-summary-wr" sx={{ fontVariantNumeric: "tabular-nums" }}>{winRate}%</Text>
-        <Text size="xs" c="dimmed" data-testid="trade-summary-wins" sx={{ ml: 1 }}>Wins: {wins}/{trades.length}</Text>
-      </Box>
+        <Stack direction="row" spacing={0.5} align="baseline">
+          <Text size="xs" c="dimmed">P&L</Text>
+          <Text size="sm" fw={700} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" sx={{ fontVariantNumeric: "tabular-nums" }}>
+            {`₹${totalPnl.toFixed(0)}`}
+          </Text>
+        </Stack>
+        <Stack direction="row" spacing={0.5} align="baseline">
+          <Text size="xs" c="dimmed">WR</Text>
+          <Text size="sm" fw={700} data-testid="trade-summary-wr" sx={{ fontVariantNumeric: "tabular-nums" }}>{winRate}%</Text>
+        </Stack>
+        <Text size="xs" c="dimmed" data-testid="trade-summary-wins">Wins: {wins}/{trades.length}</Text>
+      </Stack>
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} className="trade-history-scroll">
         <TanStackTable<Trade>

@@ -161,7 +161,9 @@ function useBacktestActions(state: any) {
 
 function EmptyPanel({ children }: { children: string }) {
   return (
-    <Box sx={{ p: 1.5, color: "text.secondary", fontSize: 11 }}>{children}</Box>
+    <Box sx={{ p: 1.5 }}>
+      <Text size="xs" c="dimmed">{children}</Text>
+    </Box>
   );
 }
 

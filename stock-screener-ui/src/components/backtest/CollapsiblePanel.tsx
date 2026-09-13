@@ -1,6 +1,10 @@
-// CollapsiblePanel — dense panel for the backtest right rail.
-import { Box } from "@/ui";
-import * as palette from "@/ui/palette";
+// CollapsiblePanel — dense panel for the backtest right rail (MUI elements).
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import Typography from "@mui/material/Typography";
+import Chip from "@mui/material/Chip";
+import ButtonBase from "@mui/material/ButtonBase";
+import Divider from "@mui/material/Divider";
 import { IconChevronDown, IconChevronRight } from "@tabler/icons-react";
 import type { BacktestPanelId } from "./useBacktestLayout";
 
@@ -24,42 +28,44 @@ export function CollapsiblePanel({ id, title, badge, open, onToggle, children }:
         flex: open ? "1 1 0" : "0 0 auto",
         minHeight: 0,
         minWidth: 0,
-        borderTop: `1px solid ${palette.BORDER}`,
+        borderTop: 1,
+        borderColor: "divider",
         "&:first-of-type": { borderTop: 0 },
       }}
     >
-      <Box
-        role="button"
-        tabIndex={0}
+      <ButtonBase
+        onClick={onToggle}
         aria-expanded={open}
         aria-label={`${open ? "Collapse" : "Expand"} ${title}`}
-        onClick={onToggle}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") onToggle(); }}
         sx={{
-          flex: "0 0 auto",
-          height: 28,
-          display: "flex",
-          alignItems: "center",
-          gap: 0.75,
+          width: "100%",
+          height: 30,
           px: 1,
-          cursor: "pointer",
-          userSelect: "none",
-          bgcolor: palette.SURFACE_ALT,
-          "&:hover": { bgcolor: palette.BORDER },
+          justifyContent: "flex-start",
+          bgcolor: open ? "action.selected" : "background.default",
+          "&:hover": { bgcolor: "action.hover" },
         }}
       >
-        <Box sx={{ display: "grid", placeItems: "center", color: palette.TEXT_MUTED }}>
-          {open ? <IconChevronDown size={13} /> : <IconChevronRight size={13} />}
-        </Box>
-        <Box component="span" sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, textTransform: "uppercase", color: palette.TEXT, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-          {title}
-        </Box>
-        {badge != null && (
-          <Box sx={{ minWidth: 18, height: 16, px: 0.5, display: "grid", placeItems: "center", borderRadius: "8px", bgcolor: palette.BORDER, fontSize: 10, fontWeight: 700, color: palette.TEXT, fontVariantNumeric: "tabular-nums" }}>
-            {badge}
+        <Stack direction="row" alignItems="center" spacing={0.75} sx={{ width: "100%" }}>
+          <Box sx={{ display: "grid", placeItems: "center", color: "text.secondary" }}>
+            {open ? <IconChevronDown size={14} /> : <IconChevronRight size={14} />}
           </Box>
-        )}
-      </Box>
+          <Typography
+            variant="overline"
+            sx={{ fontSize: 10, fontWeight: 700, letterSpacing: 0.6, flex: 1, textAlign: "left", color: "text.primary", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          >
+            {title}
+          </Typography>
+          {badge != null && (
+            <Chip
+              size="small"
+              label={badge}
+              sx={{ height: 16, fontSize: 10, fontWeight: 700, bgcolor: "action.hover", "& .MuiChip-label": { px: 0.75 } }}
+            />
+          )}
+        </Stack>
+      </ButtonBase>
+      <Divider />
       {open && (
         <Box sx={{ flex: "1 1 auto", minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
           {children}
