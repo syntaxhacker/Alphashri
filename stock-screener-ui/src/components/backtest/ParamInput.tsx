@@ -21,7 +21,7 @@ export const ParamInput = memo(function ParamInput({
         onChange={(v) => v && onChange(v)}
         data={(param.options || []).map((opt) => ({ value: opt, label: opt }))}
         size="sm"
-        w={80}
+        w="100%"
       />
     );
   }
@@ -46,7 +46,7 @@ export const ParamInput = memo(function ParamInput({
       max={param.max}
       step={param.step ?? 1}
       size="sm"
-      w={70}
+      w="100%"
     />
   );
 });

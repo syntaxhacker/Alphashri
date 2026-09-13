@@ -50,18 +50,18 @@ export function BacktestLeftPanel({
       h="100%"
       sx={{ display: "flex", flexDirection: "column" }}
     >
-      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
+      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", justifyContent: "flex-start", px: 0.5, py: 0 }}>
         <Tabs.List>
           <Tabs.Tab
             value="results"
-            leftSection={<IconTable size={14} />}
+            leftSection={<IconTable size={12} />}
             data-testid="backtest-tab-results"
           >
             Results
           </Tabs.Tab>
           <Tabs.Tab
             value="history"
-            leftSection={<IconHistory size={14} />}
+            leftSection={<IconHistory size={12} />}
             data-testid="backtest-tab-history"
           >
             History
@@ -95,7 +95,7 @@ export function BacktestLeftPanel({
             gap="xs"
             h="100%"
             className="backtest-results-content"
-            sx={{ minHeight: 0, gap: 1 }}
+            sx={{ minHeight: 0, gap: 0 }}
           >
             <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center" }}>
               <BacktestSummary totals={totals} />

@@ -4,12 +4,8 @@ import {
   NumberInput,
   Checkbox,
   Button,
-  Text,
-  Paper,
   Menu,
   Box,
-  Tooltip,
-  Divider,
 } from "@/ui";
 import { IconPlayerPlay, IconChevronDown, IconRotate, IconPlayerPause } from "@tabler/icons-react";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
@@ -37,6 +33,19 @@ interface BacktestConfigProps {
   onReset: () => void;
   onRun: () => void;
   onRunAndSave: () => void;
+}
+
+function Field({ label, span, children }: { label?: string; span?: boolean; children: React.ReactNode }) {
+  return (
+    <Box sx={{ gridColumn: span ? "1 / -1" : undefined, display: "flex", flexDirection: "column", gap: "2px", minWidth: 0 }}>
+      {label ? (
+        <Box component="span" sx={{ fontSize: 9, fontWeight: 700, letterSpacing: 0.5, textTransform: "uppercase", color: "var(--mui-palette-text-secondary)" }}>
+          {label}
+        </Box>
+      ) : null}
+      {children}
+    </Box>
+  );
 }
 
 export function BacktestConfig({
@@ -93,162 +102,135 @@ export function BacktestConfig({
     onRunAndSave();
   };
 
+  const hasParams = Boolean(strategy && strategy.params.length > 0);
+
   return (
-    <Paper
-      elevation={1}
+    <Box
       id="config-form"
-      radius="sm"
       data-testid="strategy-config"
-      sx={{ p: "6px 8px", display: "flex", flexDirection: "column", gap: "6px" }}
+      sx={{ p: "6px", display: "grid", gridTemplateColumns: "1fr 1fr", gap: "6px", alignItems: "start" }}
     >
-      {/* Row 1 — strategy + symbols */}
-      <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <Box sx={{ minWidth: 300, flex: "1 1 360px", display: "flex", flexDirection: "column", gap: "2px" }}>
-          <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
-            Strategy
-          </Text>
-          <Select
-            id="variation-select"
-            className="config-variation-select"
-            data-testid="variation-select"
-            placeholder="Select strategy or template"
-            value={selectedVariation}
-            onChange={(v) => onVariationChange(v)}
-            data={selectData}
+      <Field label="Strategy" span>
+        <Select
+          id="variation-select"
+          className="config-variation-select"
+          data-testid="variation-select"
+          placeholder="Select strategy or template"
+          value={selectedVariation}
+          onChange={(v) => onVariationChange(v)}
+          data={selectData}
+          size="sm"
+          clearable
+          searchable
+          w="100%"
+        />
+        {selectedVariationData?.description && (
+          <Box sx={{ fontSize: 10, color: "var(--mui-palette-text-secondary)", mt: "2px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+            {selectedVariationData.description}
+          </Box>
+        )}
+      </Field>
+
+      <Field label="Symbols" span>
+        <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
+      </Field>
+
+      {hasParams ? (
+        (strategy as Strategy).params.map((param) => (
+          <Field key={param.key} label={param.label}>
+            <ParamInput
+              param={param}
+              value={params[param.key]}
+              onChange={(value) => onParamChange(param.key, value)}
+            />
+          </Field>
+        ))
+      ) : (
+        <Box sx={{ gridColumn: "1 / -1", fontSize: 11, color: "var(--mui-palette-text-secondary)" }}>
+          Select a strategy to configure parameters
+        </Box>
+      )}
+
+      <Field label="Days">
+        <NumberInput
+          data-testid="days-input"
+          value={days}
+          onChange={(v) => onDaysChange(Number(v) || 30)}
+          min={30}
+          max={365}
+          step={30}
+          size="sm"
+          w="100%"
+        />
+      </Field>
+
+      <Field label="Options">
+        <Box sx={{ display: "flex", alignItems: "center", minHeight: 32 }}>
+          <Checkbox
+            data-testid="include-costs-checkbox"
+            label="Include Costs"
+            checked={includeCosts}
+            onChange={(checked) => onIncludeCostsChange(checked)}
             size="sm"
-            clearable
-            searchable
           />
-          {selectedVariationData?.description && (
-            <Text size="xs" c="dimmed" sx={{ display: "block", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {selectedVariationData.description}
-            </Text>
-          )}
         </Box>
-        <Box sx={{ minWidth: 280, flex: "2 1 420px", display: "flex", flexDirection: "column", gap: "2px" }}>
-          <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
-            Symbols
-          </Text>
-          <SymbolChips selectedSymbols={selectedSymbols} onSymbolsChange={onSymbolsChange} />
-        </Box>
-      </Box>
+      </Field>
 
-      <Divider />
-
-      {/* Row 2 — parameters + run controls */}
-      <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <Box sx={{ minWidth: 240, flex: "1 1 auto", display: "flex", flexDirection: "column", gap: "2px" }}>
-          <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
-            Parameters
-          </Text>
-          {strategy && strategy.params.length > 0 ? (
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
-              {strategy.params.map((param) => (
-                <Tooltip key={param.key} label={param.label} withArrow>
-                  <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-                    <Text size="xs" c="text.secondary">{param.label}</Text>
-                    <ParamInput
-                      param={param}
-                      value={params[param.key]}
-                      onChange={(value) => onParamChange(param.key, value)}
-                    />
-                  </Box>
-                </Tooltip>
-              ))}
-            </Box>
-          ) : (
-            <Text size="xs" c="dimmed">Select a strategy to configure parameters</Text>
-          )}
-        </Box>
-
-        <Box sx={{ display: "flex", alignItems: "flex-end", gap: 1.25, flexWrap: "wrap" }}>
-          <Tooltip label="Backtest period in days" withArrow>
-            <Box sx={{ display: "flex", flexDirection: "column", gap: "2px" }}>
-              <Text size="xs" c="dimmed" fw={700} sx={{ letterSpacing: 0.6, textTransform: "uppercase" }}>
-                Days
-              </Text>
-              <NumberInput
-                data-testid="days-input"
-                value={days}
-                onChange={(v) => onDaysChange(Number(v) || 30)}
-                min={30}
-                max={365}
-                step={30}
-                size="sm"
-                w={68}
-              />
-            </Box>
-          </Tooltip>
-
-          <Tooltip label="Include brokerage and slippage costs" withArrow>
-            <Box sx={{ display: "flex", alignItems: "center", pb: 0.25 }}>
-              <Checkbox
-                data-testid="include-costs-checkbox"
-                label="Include Costs"
-                checked={includeCosts}
-                onChange={(checked) => onIncludeCostsChange(checked)}
-                size="sm"
-              />
-            </Box>
-          </Tooltip>
-
-          <Tooltip label="Ctrl+Enter to run" withArrow>
+      <Box sx={{ gridColumn: "1 / -1", display: "flex", justifyContent: "flex-end", gap: 0.5 }}>
+        <Button
+          variant="filled"
+          size="sm"
+          onClick={onRun}
+          disabled={isRunning || selectedSymbols.length === 0}
+          loading={isRunning}
+          data-testid="run-backtest-btn"
+          leftSection={isRunning ? <IconPlayerPause size={12} /> : <IconPlayerPlay size={12} />}
+        >
+          {isRunning ? "Running..." : "Run"}
+        </Button>
+        <Menu>
+          <Menu.Target>
             <Button
               variant="filled"
               size="sm"
+              disabled={isRunning || selectedSymbols.length === 0}
+              p={0}
+              w={28}
+              data-testid="run-menu-btn"
+              sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
+            >
+              <IconChevronDown size={12} />
+            </Button>
+          </Menu.Target>
+          <Menu.Dropdown>
+            <Menu.Item
               onClick={onRun}
               disabled={isRunning || selectedSymbols.length === 0}
-              loading={isRunning}
-              data-testid="run-backtest-btn"
-              leftSection={isRunning ? <IconPlayerPause size={12} /> : <IconPlayerPlay size={12} />}
+              leftSection={<IconPlayerPlay size={14} />}
+              data-testid="menu-run-backtest"
             >
-              {isRunning ? "Running..." : "Run"}
-            </Button>
-          </Tooltip>
-          <Menu>
-            <Menu.Target>
-              <Button
-                variant="filled"
-                size="sm"
-                disabled={isRunning || selectedSymbols.length === 0}
-                p={0}
-                w={28}
-                data-testid="run-menu-btn"
-                sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
-              >
-                <IconChevronDown size={12} />
-              </Button>
-            </Menu.Target>
-            <Menu.Dropdown>
-              <Menu.Item
-                onClick={onRun}
-                disabled={isRunning || selectedSymbols.length === 0}
-                leftSection={<IconPlayerPlay size={14} />}
-                data-testid="menu-run-backtest"
-              >
-                Run Backtest
-              </Menu.Item>
-              <Menu.Item
-                onClick={handleRunAndSave}
-                disabled={isRunning || selectedSymbols.length === 0}
-                leftSection={<IconPlayerPlay size={14} />}
-                data-testid="menu-run-save"
-              >
-                Run & Save to History
-              </Menu.Item>
-              <Menu.Divider />
-              <Menu.Item
-                onClick={onReset}
-                color="secondary"
-                leftSection={<IconRotate size={14} />}
-                data-testid="reset-btn"
-              >
-                Reset Config
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        </Box>
+              Run Backtest
+            </Menu.Item>
+            <Menu.Item
+              onClick={handleRunAndSave}
+              disabled={isRunning || selectedSymbols.length === 0}
+              leftSection={<IconPlayerPlay size={14} />}
+              data-testid="menu-run-save"
+            >
+              Run & Save to History
+            </Menu.Item>
+            <Menu.Divider />
+            <Menu.Item
+              onClick={onReset}
+              color="secondary"
+              leftSection={<IconRotate size={14} />}
+              data-testid="reset-btn"
+            >
+              Reset Config
+            </Menu.Item>
+          </Menu.Dropdown>
+        </Menu>
       </Box>
-    </Paper>
+    </Box>
   );
 }

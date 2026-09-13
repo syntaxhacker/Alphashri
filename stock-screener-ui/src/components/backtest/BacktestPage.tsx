@@ -287,7 +287,7 @@ export function BacktestPage() {
             title="Results"
             open={panels.results}
             onToggle={() => togglePanel("results")}
-            badge={hasResults ? <Box component="span" sx={{ fontSize: 10, color: paletteMuted }}>{state.results!.length}</Box> : undefined}
+            badge={hasResults ? state.results!.length : undefined}
           >
             {hasResults ? (
               <BacktestLeftPanel
@@ -314,7 +314,7 @@ export function BacktestPage() {
             title={state.tradeHistorySymbol ? `Trades — ${state.tradeHistorySymbol}` : "Trades"}
             open={panels.trades}
             onToggle={() => togglePanel("trades")}
-            badge={hasTrades ? <Box component="span" sx={{ fontSize: 10, color: paletteMuted }}>{state.tradeHistory!.length}</Box> : undefined}
+            badge={hasTrades ? state.tradeHistory!.length : undefined}
           >
             {hasTrades ? (
               <TradeHistoryTable
@@ -335,5 +335,3 @@ export function BacktestPage() {
     </Box>
   );
 }
-
-const paletteMuted = "var(--mui-palette-text-secondary)";

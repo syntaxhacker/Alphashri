@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Group, Text, Badge, ActionIcon, Stack } from "@/ui";
+import { Text, Badge, ActionIcon, Stack } from "@/ui";
 import Box from "@mui/material/Box";
 import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -156,7 +156,7 @@ export function TradeHistoryTable({
         header: "#",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{getTradeIndex(row.original) + 1}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{getTradeIndex(row.original) + 1}</Text></Box>,
       },
       {
         id: "entry_time",
@@ -164,7 +164,7 @@ export function TradeHistoryTable({
         accessorKey: "entry_time",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{formatDateTimeHuman(row.original.entry_time)}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{formatDateTimeHuman(row.original.entry_time)}</Text></Box>,
       },
       {
         id: "exit_time",
@@ -172,7 +172,7 @@ export function TradeHistoryTable({
         accessorKey: "exit_time",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{formatDateTimeHuman(row.original.exit_time)}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{formatDateTimeHuman(row.original.exit_time)}</Text></Box>,
       },
       {
         id: "side",
@@ -182,9 +182,9 @@ export function TradeHistoryTable({
         cell: ({ row }) => {
           const side = (row.original as any).side || "LONG";
           return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{side === "LONG" ? (
-            <Text size="sm" c="success" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
+            <Text size="xs" c="success" ta="center"><IconArrowUp size={12} style={{ marginRight: 2 }} />LONG</Text>
           ) : (
-            <Text size="sm" c="error" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
+            <Text size="xs" c="error" ta="center"><IconArrowDown size={12} style={{ marginRight: 2 }} />SHORT</Text>
           )}</Box>;
         },
       },
@@ -193,14 +193,14 @@ export function TradeHistoryTable({
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("quantity")} style={{ cursor: "pointer" }}>Qty</span></Box>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{row.original.quantity ?? 0}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{row.original.quantity ?? 0}</Text></Box>,
       },
       {
         id: "entry_price",
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("entry_price")} style={{ cursor: "pointer" }}>Entry Price</span></Box>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{(row.original.entry_price ?? 0).toFixed(0)}</Text></Box>,
       },
       {
         id: "level_high",
@@ -209,7 +209,7 @@ export function TradeHistoryTable({
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.or_high ?? row.original.r1 ?? row.original["52w_high"] ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{val.toFixed(2)}</Text></Box>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{val.toFixed(2)}</Text></Box>;
         },
       },
     ];
@@ -222,7 +222,7 @@ export function TradeHistoryTable({
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.or_low ?? row.original.s1 ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{val.toFixed(2)}</Text></Box>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{val.toFixed(2)}</Text></Box>;
         },
       });
     }
@@ -233,7 +233,7 @@ export function TradeHistoryTable({
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("exit_price")} style={{ cursor: "pointer" }}>Exit Price</span></Box>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">₹{(row.original.exit_price ?? 0).toFixed(0)}</Text></Box>,
       },
       {
         id: "net_pnl",
@@ -242,7 +242,7 @@ export function TradeHistoryTable({
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const val = row.original.net_pnl ?? 0;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" fw={600} c={getPnLTextColor(val)} ta="center" data-pnl-sign={val >= 0 ? "pos" : "neg"}>₹{val.toFixed(0)}</Text></Box>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" fw={600} c={getPnLTextColor(val)} ta="center" data-pnl-sign={val >= 0 ? "pos" : "neg"}>₹{val.toFixed(0)}</Text></Box>;
         },
       },
       {
@@ -252,7 +252,7 @@ export function TradeHistoryTable({
         meta: { align: "center" } as any,
         cell: ({ row }) => {
           const pnlPct = row.original.net_pnl_pct || (row.original.net_pnl / (row.original.entry_price * row.original.quantity)) * 100;
-          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c={getPnLTextColor(pnlPct)} ta="center">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text></Box>;
+          return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" c={getPnLTextColor(pnlPct)} ta="center">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text></Box>;
         },
       },
       {
@@ -260,7 +260,7 @@ export function TradeHistoryTable({
         header: () => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><span onClick={() => handleHeaderClick("hold_duration_minutes")} style={{ cursor: "pointer" }}>Hold</span></Box>,
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" ta="center">{formatDuration(row.original.hold_duration_minutes ?? 0)}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{formatDuration(row.original.hold_duration_minutes ?? 0)}</Text></Box>,
       },
       {
         id: "exit_reason",
@@ -271,7 +271,7 @@ export function TradeHistoryTable({
           const reason = row.original.exit_reason ?? "EOD";
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-              <Badge size="sm" variant="filled" color={reason === "TP" ? "success" : reason === "SL" ? "error" : reason === "TRAILING_STOP" ? "warning" : "secondary"}>
+              <Badge size="xs" variant="filled" color={reason === "TP" ? "success" : reason === "SL" ? "error" : reason === "TRAILING_STOP" ? "warning" : "secondary"}>
                 {reason}
               </Badge>
             </Box>
@@ -290,31 +290,28 @@ export function TradeHistoryTable({
       className="trade-history-panel"
       data-testid="trade-history-panel"
       h="100%"
-      spacing={1}
-      sx={{ minHeight: 0, overflow: "hidden", gap: 1, p: 1 }}
+      sx={{ minHeight: 0, overflow: "hidden", gap: 0, p: 0 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} data-testid="trade-history-header">
-        <Text fw={600} size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
-          📋 {symbol} Trades ({trades.length})
+      <Box sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 1, px: 1, py: "2px", borderBottom: "1px solid var(--mui-palette-divider)" }} data-testid="trade-history-header">
+        <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>
+          {symbol} Trades ({trades.length})
         </Text>
-        <ActionIcon variant="subtle" color="secondary" size="sm" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
-          <IconX size={14} />
+        <Box sx={{ flex: 1 }} />
+        <ActionIcon variant="subtle" color="secondary" size="xs" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
+          <IconX size={12} />
         </ActionIcon>
       </Box>
 
-      <Group gap={1} align="center" p="xs" data-testid="trade-history-summary" sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>P&L</Text>
-          <Text size="sm" fw={600} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" sx={{ flex: 1, textAlign: "right" }}>₹{totalPnl.toFixed(0)}</Text>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>WR</Text>
-          <Text size="sm" data-testid="trade-summary-wr" sx={{ flex: 1, textAlign: "right" }}>{winRate}%</Text>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}>
-          <Text size="sm" data-testid="trade-summary-wins" sx={{ flex: 1, textAlign: "right" }}>Wins: {wins}/{trades.length}</Text>
-        </Box>
-      </Group>
+      <Box
+        data-testid="trade-history-summary"
+        sx={{ flex: "0 0 auto", display: "flex", alignItems: "center", gap: 1, px: 1, py: "2px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+      >
+        <Text size="xs" c="dimmed">P&L</Text>
+        <Text size="xs" fw={700} c={getPnLTextColor(totalPnl)} data-testid="trade-summary-pnl" sx={{ fontVariantNumeric: "tabular-nums" }}>₹{totalPnl.toFixed(0)}</Text>
+        <Text size="xs" c="dimmed" sx={{ ml: 1 }}>WR</Text>
+        <Text size="xs" data-testid="trade-summary-wr" sx={{ fontVariantNumeric: "tabular-nums" }}>{winRate}%</Text>
+        <Text size="xs" c="dimmed" data-testid="trade-summary-wins" sx={{ ml: 1 }}>Wins: {wins}/{trades.length}</Text>
+      </Box>
 
       <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} className="trade-history-scroll">
         <TanStackTable<Trade>
