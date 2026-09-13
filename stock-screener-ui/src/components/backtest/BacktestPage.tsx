@@ -1,14 +1,14 @@
-import { Alert, Box, FloatingWindow, Text } from "@/ui";
+import { Alert, Box, Text } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
-import { BacktestConfig, BacktestProgress } from ".";
+import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
 import { BacktestLeftPanel } from "./BacktestPanels";
 import { BacktestToolbar } from "./BacktestToolbar";
-import { BacktestWindowTaskbar } from "./BacktestWindowTaskbar";
-import { BacktestTradesDock } from "./BacktestTradesDock";
-import { useBacktestWindows, WINDOW_MIN_SIZES } from "./useBacktestWindows";
+import { BacktestRightRail } from "./BacktestRightRail";
+import { CollapsiblePanel } from "./CollapsiblePanel";
+import { useBacktestLayout } from "./useBacktestLayout";
 import { zoomToTrade } from "./BacktestChart";
 import { BacktestChartTabs } from "./BacktestChartTabs";
 import {
@@ -61,26 +61,20 @@ function sortResults(results: any[] | null, column: string, direction: "asc" | "
 function useSortHandlers() {
   const [column, setColumn] = useState("net_pnl");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
-  const handleSort = useCallback(
-    (col: string) => {
-      if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
-      else { setColumn(col); setDirection("desc"); }
-    },
-    [column],
-  );
+  const handleSort = useCallback((col: string) => {
+    if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
+    else { setColumn(col); setDirection("desc"); }
+  }, [column]);
   return { column, direction, handleSort };
 }
 
 function useTradeSortHandlers() {
   const [column, setColumn] = useState("entry_time");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
-  const handleSort = useCallback(
-    (col: string) => {
-      if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
-      else { setColumn(col); setDirection("desc"); }
-    },
-    [column],
-  );
+  const handleSort = useCallback((col: string) => {
+    if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
+    else { setColumn(col); setDirection("desc"); }
+  }, [column]);
   return { column, direction, handleSort };
 }
 
@@ -165,33 +159,30 @@ function useBacktestActions(state: any) {
   };
 }
 
+function EmptyPanel({ children }: { children: string }) {
+  return (
+    <Box sx={{ p: 1.5, color: "text.secondary", fontSize: 11 }}>{children}</Box>
+  );
+}
+
 export function BacktestPage() {
   useStoreSubscription(subscribe);
   useStoreSubscription(subscribeToHolidays);
   useBacktestQueryParams();
   const state = getBacktestState();
   const holidayState = getHolidayState();
-  const [activeTab, setActiveTab] = useState<string | null>("results");
+  const [activeTab, setActiveTab] = useState<string>("results");
   const actions = useBacktestActions(state);
   useBacktestEffects(state);
-  const win = useBacktestWindows();
-  const {
-    open: openWindow, focus: focusWindow, close: closeWindow, minimize: minimizeWindow,
-    toggle: toggleWindow, setGeometry, reset: resetLayout,
-    openDock, closeDock, toggleDock, setDockWidth,
-  } = win;
+  const layout = useBacktestLayout();
+  const { panels, togglePanel, openPanel } = layout;
 
   const symbols = state.results?.map((r: any) => r.symbol) ?? [];
   const hasResults = Boolean(state.results && state.results.length > 0);
   const hasTrades = Boolean(state.tradeHistory && state.tradeHistorySymbol);
 
-  // auto-open windows as data arrives
-  useEffect(() => {
-    if (hasResults) openWindow("results");
-  }, [hasResults, openWindow]);
-  useEffect(() => {
-    if (hasTrades) openDock();
-  }, [hasTrades, openDock]);
+  useEffect(() => { if (hasResults) openPanel("results"); }, [hasResults, openPanel]);
+  useEffect(() => { if (hasTrades) openPanel("trades"); }, [hasTrades, openPanel]);
 
   const strategyLabel = useMemo(() => {
     const v = state.variations.find((x: any) => x.id === state.selectedVariation);
@@ -210,19 +201,14 @@ export function BacktestPage() {
         days={state.days}
         isRunning={state.isRunning}
         canRun={state.selectedSymbols.length > 0}
-        windowState={{
-          config: { open: win.windows.config.open, minimized: win.windows.config.minimized },
-          results: { open: win.windows.results.open, minimized: win.windows.results.minimized },
-        }}
-        tradesOpen={win.dock.open}
-        onToggleWindow={toggleWindow}
-        onToggleTrades={toggleDock}
+        panels={panels}
+        onTogglePanel={togglePanel}
         onRun={actions.handleRunBacktest}
-        onReset={resetLayout}
+        onReset={layout.reset}
       />
 
-      {/* Full-bleed chart row: chart fills, Trades docks fixed on the right */}
       <Box sx={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
+        {/* Full-bleed chart */}
         <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
           {hasResults ? (
             <BacktestChartTabs
@@ -267,100 +253,87 @@ export function BacktestPage() {
               </Alert>
             </Box>
           )}
-
-          <BacktestWindowTaskbar
-            items={(["config", "results"] as const)
-              .filter((id) => win.windows[id].open && win.windows[id].minimized)
-              .map((id) => ({ id, title: id === "config" ? "Config" : "Results" }))}
-            onRestore={openWindow}
-            onClose={closeWindow}
-          />
         </Box>
 
-        {hasTrades && win.dock.open && (
-          <BacktestTradesDock
-            width={win.dock.width}
-            symbol={state.tradeHistorySymbol!}
-            trades={state.tradeHistory!}
-            sortColumn={actions.tradeSort.column}
-            sortDirection={actions.tradeSort.direction}
-            onSort={actions.tradeSort.handleSort}
-            onRowClick={actions.handleZoomToTrade}
-            onClose={closeDock}
-            onWidthChange={setDockWidth}
-          />
-        )}
+        {/* Right rail — collapsible panels */}
+        <BacktestRightRail width={layout.railWidth} onWidthChange={layout.setRailWidth}>
+          <CollapsiblePanel id="config" title="Config" open={panels.config} onToggle={() => togglePanel("config")}>
+            <BacktestConfig
+              strategies={state.strategies}
+              variations={state.variations}
+              selectedStrategy={state.selectedStrategy}
+              selectedVariation={state.selectedVariation}
+              params={state.params}
+              selectedSymbols={state.selectedSymbols}
+              days={state.days}
+              includeCosts={state.includeCosts}
+              isRunning={state.isRunning}
+              onStrategyChange={setSelectedStrategy}
+              onVariationChange={setSelectedVariation}
+              onParamChange={setParam}
+              onDaysChange={setDays}
+              onIncludeCostsChange={setIncludeCosts}
+              onSymbolsChange={setSelectedSymbols}
+              onReset={resetBacktestState}
+              onRun={actions.handleRunBacktest}
+              onRunAndSave={actions.handleRunAndSave}
+              saveToHistory={actions.saveToHistory}
+              onSaveToHistoryChange={actions.setSaveToHistory}
+            />
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            id="results"
+            title="Results"
+            open={panels.results}
+            onToggle={() => togglePanel("results")}
+            badge={hasResults ? <Box component="span" sx={{ fontSize: 10, color: paletteMuted }}>{state.results!.length}</Box> : undefined}
+          >
+            {hasResults ? (
+              <BacktestLeftPanel
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                isRunning={state.isRunning}
+                progress={state.progress}
+                results={state.results}
+                totals={state.totals}
+                selectedChartSymbol={state.selectedChartSymbol}
+                sortedResults={actions.sortedResults}
+                resultsSortColumn={actions.resultsSort.column}
+                resultsSortDirection={actions.resultsSort.direction}
+                onRowClick={actions.handleViewChartAndTrades}
+                onSort={actions.resultsSort.handleSort}
+              />
+            ) : (
+              <EmptyPanel>Run a backtest to see results.</EmptyPanel>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            id="trades"
+            title={state.tradeHistorySymbol ? `Trades — ${state.tradeHistorySymbol}` : "Trades"}
+            open={panels.trades}
+            onToggle={() => togglePanel("trades")}
+            badge={hasTrades ? <Box component="span" sx={{ fontSize: 10, color: paletteMuted }}>{state.tradeHistory!.length}</Box> : undefined}
+          >
+            {hasTrades ? (
+              <TradeHistoryTable
+                symbol={state.tradeHistorySymbol!}
+                trades={state.tradeHistory!}
+                sortColumn={actions.tradeSort.column}
+                sortDirection={actions.tradeSort.direction}
+                onSort={actions.tradeSort.handleSort}
+                onRowClick={actions.handleZoomToTrade}
+                onClose={() => setTradeHistory(null, null)}
+              />
+            ) : (
+              <EmptyPanel>Select a symbol to see its trades.</EmptyPanel>
+            )}
+          </CollapsiblePanel>
+        </BacktestRightRail>
       </Box>
-
-      {/* Floating windows */}
-      <FloatingWindow
-        title="Config"
-        testid="window-config"
-        geometry={win.windows.config.geometry}
-        zIndex={1000 + win.windows.config.z}
-        minimized={win.windows.config.minimized}
-        minWidth={WINDOW_MIN_SIZES.config.w}
-        minHeight={WINDOW_MIN_SIZES.config.h}
-        onFocus={() => focusWindow("config")}
-        onClose={() => closeWindow("config")}
-        onMinimize={() => minimizeWindow("config")}
-        onGeometryChange={(g) => setGeometry("config", g)}
-      >
-        <BacktestConfig
-          strategies={state.strategies}
-          variations={state.variations}
-          selectedStrategy={state.selectedStrategy}
-          selectedVariation={state.selectedVariation}
-          params={state.params}
-          selectedSymbols={state.selectedSymbols}
-          days={state.days}
-          includeCosts={state.includeCosts}
-          isRunning={state.isRunning}
-          onStrategyChange={setSelectedStrategy}
-          onVariationChange={setSelectedVariation}
-          onParamChange={setParam}
-          onDaysChange={setDays}
-          onIncludeCostsChange={setIncludeCosts}
-          onSymbolsChange={setSelectedSymbols}
-          onReset={resetBacktestState}
-          onRun={actions.handleRunBacktest}
-          onRunAndSave={actions.handleRunAndSave}
-          saveToHistory={actions.saveToHistory}
-          onSaveToHistoryChange={actions.setSaveToHistory}
-        />
-      </FloatingWindow>
-
-      {hasResults && (
-        <FloatingWindow
-          title="Results"
-          testid="window-results"
-          geometry={win.windows.results.geometry}
-          zIndex={1000 + win.windows.results.z}
-          minimized={win.windows.results.minimized}
-          minWidth={WINDOW_MIN_SIZES.results.w}
-          minHeight={WINDOW_MIN_SIZES.results.h}
-          onFocus={() => focusWindow("results")}
-          onClose={() => closeWindow("results")}
-          onMinimize={() => minimizeWindow("results")}
-          onGeometryChange={(g) => setGeometry("results", g)}
-        >
-          <BacktestLeftPanel
-            activeTab={activeTab}
-            setActiveTab={setActiveTab}
-            isRunning={state.isRunning}
-            progress={state.progress}
-            results={state.results}
-            totals={state.totals}
-            selectedChartSymbol={state.selectedChartSymbol}
-            sortedResults={actions.sortedResults}
-            resultsSortColumn={actions.resultsSort.column}
-            resultsSortDirection={actions.resultsSort.direction}
-            onRowClick={actions.handleViewChartAndTrades}
-            onSort={actions.resultsSort.handleSort}
-          />
-        </FloatingWindow>
-      )}
-
     </Box>
   );
 }
+
+const paletteMuted = "var(--mui-palette-text-secondary)";

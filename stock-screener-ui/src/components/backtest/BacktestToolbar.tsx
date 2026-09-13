@@ -1,7 +1,8 @@
 // BacktestToolbar — always-visible control strip above the full-bleed chart.
-// Owns window toggles + a quick Run / Reset so the chart is never blocked.
+// Panel toggles expand/collapse the right-rail panels; Run/Reset are always here.
 import { Box, Button, Text } from "@/ui";
 import { IconPlayerPlay, IconLayoutGrid, IconAdjustments, IconTable, IconList } from "@tabler/icons-react";
+import type { BacktestPanelId } from "./useBacktestLayout";
 
 interface BacktestToolbarProps {
   strategyLabel: string;
@@ -9,17 +10,16 @@ interface BacktestToolbarProps {
   days: number;
   isRunning: boolean;
   canRun: boolean;
-  windowState: Record<"config" | "results", { open: boolean; minimized: boolean }>;
-  tradesOpen: boolean;
-  onToggleWindow: (id: "config" | "results") => void;
-  onToggleTrades: () => void;
+  panels: Record<BacktestPanelId, boolean>;
+  onTogglePanel: (id: BacktestPanelId) => void;
   onRun: () => void;
   onReset: () => void;
 }
 
-const TOGGLES: { id: "config" | "results"; label: string; icon: React.ReactNode }[] = [
+const TOGGLES: { id: BacktestPanelId; label: string; icon: React.ReactNode }[] = [
   { id: "config", label: "Config", icon: <IconAdjustments size={12} /> },
   { id: "results", label: "Results", icon: <IconTable size={12} /> },
+  { id: "trades", label: "Trades", icon: <IconList size={12} /> },
 ];
 
 export function BacktestToolbar({
@@ -28,10 +28,8 @@ export function BacktestToolbar({
   days,
   isRunning,
   canRun,
-  windowState,
-  tradesOpen,
-  onToggleWindow,
-  onToggleTrades,
+  panels,
+  onTogglePanel,
   onRun,
   onReset,
 }: BacktestToolbarProps) {
@@ -52,36 +50,23 @@ export function BacktestToolbar({
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
         {TOGGLES.map((t) => {
-          const st = windowState[t.id];
-          const active = st.open && !st.minimized;
-          const minimized = st.open && st.minimized;
+          const open = panels[t.id];
           return (
             <Button
               key={t.id}
               size="sm"
-              variant={active ? "filled" : minimized ? "outline" : "subtle"}
-              color={active ? "primary" : minimized ? "warning" : "secondary"}
-              onClick={() => onToggleWindow(t.id)}
+              variant={open ? "filled" : "subtle"}
+              color={open ? "primary" : "secondary"}
+              onClick={() => onTogglePanel(t.id)}
               leftSection={t.icon}
               data-testid={`toolbar-toggle-${t.id}`}
-              data-state={active ? "open" : minimized ? "minimized" : "closed"}
-              title={minimized ? `${t.label} minimized — click to restore` : undefined}
+              data-state={open ? "open" : "closed"}
+              title={open ? `Collapse ${t.label}` : `Expand ${t.label}`}
             >
-              {minimized ? `${t.label} –` : t.label}
+              {t.label}
             </Button>
           );
         })}
-        <Button
-          size="sm"
-          variant={tradesOpen ? "filled" : "subtle"}
-          color={tradesOpen ? "primary" : "secondary"}
-          onClick={onToggleTrades}
-          leftSection={<IconList size={12} />}
-          data-testid="toolbar-toggle-trades"
-          data-state={tradesOpen ? "open" : "closed"}
-        >
-          Trades
-        </Button>
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1.5, px: 1 }}>

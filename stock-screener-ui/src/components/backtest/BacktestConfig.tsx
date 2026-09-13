@@ -99,7 +99,7 @@ export function BacktestConfig({
       id="config-form"
       radius="sm"
       data-testid="strategy-config"
-      sx={{ p: "8px 10px", display: "flex", flexDirection: "column", gap: "8px" }}
+      sx={{ p: "6px 8px", display: "flex", flexDirection: "column", gap: "6px" }}
     >
       {/* Row 1 — strategy + symbols */}
       <Box sx={{ display: "flex", gap: 1.5, alignItems: "flex-end", flexWrap: "wrap" }}>
