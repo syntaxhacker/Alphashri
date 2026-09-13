@@ -34,6 +34,15 @@ describe("useBacktestLayout", () => {
     expect(saved.panels.results).toBe(false);
   });
 
+  test("chart mode defaults to all and persists a change", () => {
+    const { result } = renderHook(() => useBacktestLayout());
+    expect(result.current.chartMode).toBe("all");
+    act(() => result.current.setChartMode("trades"));
+    expect(result.current.chartMode).toBe("trades");
+    const saved = JSON.parse(localStorage.getItem("alphashri.backtest.layout.v1") || "{}");
+    expect(saved.chartMode).toBe("trades");
+  });
+
   test("reset restores defaults", () => {
     const { result } = renderHook(() => useBacktestLayout());
     act(() => result.current.setPanelOpen("trades", true));

@@ -167,7 +167,7 @@ function buildLevelLines(chartData: SymbolChartData): MarkLineData[] {
   return lines;
 }
 
-function mapTrades(chartData: SymbolChartData): ReplayTrade[] {
+export function mapTrades(chartData: SymbolChartData): ReplayTrade[] {
   const entries = new Map<number, ChartTrade>();
   const exits = new Map<number, ChartTrade>();
   for (const t of chartData.trades) {

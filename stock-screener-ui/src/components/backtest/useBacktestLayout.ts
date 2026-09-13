@@ -4,10 +4,12 @@
 import { useCallback, useState, useEffect } from "react";
 
 export type BacktestPanelId = "config" | "results" | "trades";
+export type BacktestChartMode = "all" | "trades";
 
 export interface BacktestLayoutState {
   railWidth: number;
   panels: Record<BacktestPanelId, boolean>;
+  chartMode: BacktestChartMode;
 }
 
 const STORAGE_KEY = "alphashri.backtest.layout.v1";
@@ -27,7 +29,7 @@ function clampWidth(w: number): number {
 }
 
 function defaultState(): BacktestLayoutState {
-  return { railWidth: RAIL_DEFAULT_WIDTH, panels: { ...DEFAULT_PANELS } };
+  return { railWidth: RAIL_DEFAULT_WIDTH, panels: { ...DEFAULT_PANELS }, chartMode: "all" };
 }
 
 function loadState(): BacktestLayoutState {
@@ -43,6 +45,7 @@ function loadState(): BacktestLayoutState {
         if (typeof saved.panels?.[id] === "boolean") base.panels[id] = saved.panels[id] as boolean;
       });
     }
+    if (saved.chartMode === "all" || saved.chartMode === "trades") base.chartMode = saved.chartMode;
   } catch {
     /* ignore corrupt storage */
   }
@@ -52,10 +55,12 @@ function loadState(): BacktestLayoutState {
 export interface BacktestLayoutApi {
   railWidth: number;
   panels: Record<BacktestPanelId, boolean>;
+  chartMode: BacktestChartMode;
   togglePanel: (id: BacktestPanelId) => void;
   setPanelOpen: (id: BacktestPanelId, open: boolean) => void;
   openPanel: (id: BacktestPanelId) => void;
   setRailWidth: (w: number) => void;
+  setChartMode: (mode: BacktestChartMode) => void;
   reset: () => void;
 }
 
@@ -87,15 +92,21 @@ export function useBacktestLayout(): BacktestLayoutApi {
     setState((p) => ({ ...p, railWidth: clampWidth(w) }));
   }, []);
 
+  const setChartMode = useCallback((mode: BacktestChartMode) => {
+    setState((p) => (p.chartMode === mode ? p : { ...p, chartMode: mode }));
+  }, []);
+
   const reset = useCallback(() => setState(defaultState()), []);
 
   return {
     railWidth: state.railWidth,
     panels: state.panels,
+    chartMode: state.chartMode,
     togglePanel,
     setPanelOpen,
     openPanel,
     setRailWidth,
+    setChartMode,
     reset,
   };
 }

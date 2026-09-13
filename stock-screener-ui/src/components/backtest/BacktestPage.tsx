@@ -8,6 +8,7 @@ import { BacktestLeftPanel } from "./BacktestPanels";
 import { BacktestToolbar } from "./BacktestToolbar";
 import { BacktestRightRail } from "./BacktestRightRail";
 import { CollapsiblePanel } from "./CollapsiblePanel";
+import { BacktestTradeCharts } from "./BacktestTradeCharts";
 import { useBacktestLayout } from "./useBacktestLayout";
 import { zoomToTrade } from "./BacktestChart";
 import { BacktestChartTabs } from "./BacktestChartTabs";
@@ -178,7 +179,6 @@ export function BacktestPage() {
   useBacktestEffects(state);
   const layout = useBacktestLayout();
   const { panels, togglePanel, openPanel } = layout;
-
   const symbols = state.results?.map((r: any) => r.symbol) ?? [];
   const hasResults = Boolean(state.results && state.results.length > 0);
   const hasTrades = Boolean(state.tradeHistory && state.tradeHistorySymbol);
@@ -190,6 +190,11 @@ export function BacktestPage() {
     const v = state.variations.find((x: any) => x.id === state.selectedVariation);
     return v ? `${v.name} (${v.strategy_type})` : state.selectedStrategy;
   }, [state.variations, state.selectedVariation, state.selectedStrategy]);
+
+  const activeChartData = useMemo(() => {
+    const sym = state.selectedChartSymbol ?? symbols[0];
+    return sym ? state.chartData.get(sym) : undefined;
+  }, [state.chartData, state.selectedChartSymbol, symbols]);
 
   return (
     <Box
@@ -204,7 +209,9 @@ export function BacktestPage() {
         isRunning={state.isRunning}
         canRun={state.selectedSymbols.length > 0}
         panels={panels}
+        chartMode={layout.chartMode}
         onTogglePanel={togglePanel}
+        onChartModeChange={layout.setChartMode}
         onRun={actions.handleRunBacktest}
         onReset={layout.reset}
       />
@@ -213,19 +220,23 @@ export function BacktestPage() {
         {/* Full-bleed chart */}
         <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
           {hasResults ? (
-            <BacktestChartTabs
-              symbols={symbols}
-              selectedSymbol={state.selectedChartSymbol}
-              onSymbolSelect={setSelectedChartSymbol}
-              zoomValue={state.chartOptions.date_range}
-              onZoomChange={(value) => setChartOptions({ date_range: value as any })}
-              chartDataMap={state.chartData}
-              chartLoading={state.chartLoading}
-              onTradeClick={actions.handleZoomToTrade}
-              holidays={holidayState.holidays}
-              selectedTf={actions.selectedTf}
-              onTfChange={actions.handleTfChange}
-            />
+            layout.chartMode === "trades" ? (
+              <BacktestTradeCharts chartData={activeChartData} />
+            ) : (
+              <BacktestChartTabs
+                symbols={symbols}
+                selectedSymbol={state.selectedChartSymbol}
+                onSymbolSelect={setSelectedChartSymbol}
+                zoomValue={state.chartOptions.date_range}
+                onZoomChange={(value) => setChartOptions({ date_range: value as any })}
+                chartDataMap={state.chartData}
+                chartLoading={state.chartLoading}
+                onTradeClick={actions.handleZoomToTrade}
+                holidays={holidayState.holidays}
+                selectedTf={actions.selectedTf}
+                onTfChange={actions.handleTfChange}
+              />
+            )
           ) : (
             <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "background.default" }}>
               <Text c="dimmed" size="sm">

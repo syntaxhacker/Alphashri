@@ -11,7 +11,9 @@ interface BacktestToolbarProps {
   isRunning: boolean;
   canRun: boolean;
   panels: Record<BacktestPanelId, boolean>;
+  chartMode: "all" | "trades";
   onTogglePanel: (id: BacktestPanelId) => void;
+  onChartModeChange: (mode: "all" | "trades") => void;
   onRun: () => void;
   onReset: () => void;
 }
@@ -29,7 +31,9 @@ export function BacktestToolbar({
   isRunning,
   canRun,
   panels,
+  chartMode,
   onTogglePanel,
+  onChartModeChange,
   onRun,
   onReset,
 }: BacktestToolbarProps) {
@@ -67,6 +71,29 @@ export function BacktestToolbar({
             </Button>
           );
         })}
+      </Box>
+
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 1, borderLeft: "1px solid", borderColor: "divider" }}>
+        <Button
+          size="sm"
+          variant={chartMode === "all" ? "filled" : "subtle"}
+          color={chartMode === "all" ? "primary" : "secondary"}
+          onClick={() => onChartModeChange("all")}
+          data-testid="chart-mode-all"
+          data-state={chartMode === "all" ? "active" : "inactive"}
+        >
+          All trades
+        </Button>
+        <Button
+          size="sm"
+          variant={chartMode === "trades" ? "filled" : "subtle"}
+          color={chartMode === "trades" ? "primary" : "secondary"}
+          onClick={() => onChartModeChange("trades")}
+          data-testid="chart-mode-trades"
+          data-state={chartMode === "trades" ? "active" : "inactive"}
+        >
+          Per trade
+        </Button>
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1.5, px: 1 }}>
