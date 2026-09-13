@@ -3,10 +3,11 @@ import { IconAlertCircle } from "@tabler/icons-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
-import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
+import { BacktestConfig, BacktestProgress } from ".";
 import { BacktestLeftPanel } from "./BacktestPanels";
 import { BacktestToolbar } from "./BacktestToolbar";
 import { BacktestWindowTaskbar } from "./BacktestWindowTaskbar";
+import { BacktestTradesDock } from "./BacktestTradesDock";
 import { useBacktestWindows, WINDOW_MIN_SIZES } from "./useBacktestWindows";
 import { zoomToTrade } from "./BacktestChart";
 import { BacktestChartTabs } from "./BacktestChartTabs";
@@ -174,7 +175,11 @@ export function BacktestPage() {
   const actions = useBacktestActions(state);
   useBacktestEffects(state);
   const win = useBacktestWindows();
-  const { open: openWindow, focus: focusWindow, close: closeWindow, minimize: minimizeWindow, toggle: toggleWindow, setGeometry, reset: resetLayout } = win;
+  const {
+    open: openWindow, focus: focusWindow, close: closeWindow, minimize: minimizeWindow,
+    toggle: toggleWindow, setGeometry, reset: resetLayout,
+    openDock, closeDock, toggleDock, setDockWidth,
+  } = win;
 
   const symbols = state.results?.map((r: any) => r.symbol) ?? [];
   const hasResults = Boolean(state.results && state.results.length > 0);
@@ -185,8 +190,8 @@ export function BacktestPage() {
     if (hasResults) openWindow("results");
   }, [hasResults, openWindow]);
   useEffect(() => {
-    if (hasTrades) openWindow("trades");
-  }, [hasTrades, openWindow]);
+    if (hasTrades) openDock();
+  }, [hasTrades, openDock]);
 
   const strategyLabel = useMemo(() => {
     const v = state.variations.find((x: any) => x.id === state.selectedVariation);
@@ -208,57 +213,82 @@ export function BacktestPage() {
         windowState={{
           config: { open: win.windows.config.open, minimized: win.windows.config.minimized },
           results: { open: win.windows.results.open, minimized: win.windows.results.minimized },
-          trades: { open: win.windows.trades.open, minimized: win.windows.trades.minimized },
         }}
+        tradesOpen={win.dock.open}
         onToggleWindow={toggleWindow}
+        onToggleTrades={toggleDock}
         onRun={actions.handleRunBacktest}
         onReset={resetLayout}
       />
 
-      {/* Full-bleed chart layer — never resizes when windows move */}
-      <Box sx={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0 }}>
-        {hasResults ? (
-          <BacktestChartTabs
-            symbols={symbols}
-            selectedSymbol={state.selectedChartSymbol}
-            onSymbolSelect={setSelectedChartSymbol}
-            zoomValue={state.chartOptions.date_range}
-            onZoomChange={(value) => setChartOptions({ date_range: value as any })}
-            chartDataMap={state.chartData}
-            chartLoading={state.chartLoading}
-            onTradeClick={actions.handleZoomToTrade}
-            holidays={holidayState.holidays}
-            selectedTf={actions.selectedTf}
-            onTfChange={actions.handleTfChange}
+      {/* Full-bleed chart row: chart fills, Trades docks fixed on the right */}
+      <Box sx={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
+        <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
+          {hasResults ? (
+            <BacktestChartTabs
+              symbols={symbols}
+              selectedSymbol={state.selectedChartSymbol}
+              onSymbolSelect={setSelectedChartSymbol}
+              zoomValue={state.chartOptions.date_range}
+              onZoomChange={(value) => setChartOptions({ date_range: value as any })}
+              chartDataMap={state.chartData}
+              chartLoading={state.chartLoading}
+              onTradeClick={actions.handleZoomToTrade}
+              holidays={holidayState.holidays}
+              selectedTf={actions.selectedTf}
+              onTfChange={actions.handleTfChange}
+            />
+          ) : (
+            <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "background.default" }}>
+              <Text c="dimmed" size="sm">
+                {state.isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
+              </Text>
+            </Box>
+          )}
+
+          {state.isRunning && (
+            <Box sx={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 5 }}>
+              <BacktestProgress progress={{ current: state.progress.current, total: state.progress.total, message: state.progress.message }} />
+            </Box>
+          )}
+
+          {state.error && (
+            <Box sx={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 6, maxWidth: 560 }}>
+              <Alert
+                icon={<IconAlertCircle size={16} />}
+                title="Error"
+                color="error"
+                variant="filled"
+                data-testid="backtest-error"
+                withCloseButton
+                onClose={() => setError(null)}
+              >
+                {state.error}
+              </Alert>
+            </Box>
+          )}
+
+          <BacktestWindowTaskbar
+            items={(["config", "results"] as const)
+              .filter((id) => win.windows[id].open && win.windows[id].minimized)
+              .map((id) => ({ id, title: id === "config" ? "Config" : "Results" }))}
+            onRestore={openWindow}
+            onClose={closeWindow}
           />
-        ) : (
-          <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "background.default" }}>
-            <Text c="dimmed" size="sm">
-              {state.isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
-            </Text>
-          </Box>
-        )}
+        </Box>
 
-        {state.isRunning && (
-          <Box sx={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 5 }}>
-            <BacktestProgress progress={{ current: state.progress.current, total: state.progress.total, message: state.progress.message }} />
-          </Box>
-        )}
-
-        {state.error && (
-          <Box sx={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 6, maxWidth: 560 }}>
-            <Alert
-              icon={<IconAlertCircle size={16} />}
-              title="Error"
-              color="error"
-              variant="filled"
-              data-testid="backtest-error"
-              withCloseButton
-              onClose={() => setError(null)}
-            >
-              {state.error}
-            </Alert>
-          </Box>
+        {hasTrades && win.dock.open && (
+          <BacktestTradesDock
+            width={win.dock.width}
+            symbol={state.tradeHistorySymbol!}
+            trades={state.tradeHistory!}
+            sortColumn={actions.tradeSort.column}
+            sortDirection={actions.tradeSort.direction}
+            onSort={actions.tradeSort.handleSort}
+            onRowClick={actions.handleZoomToTrade}
+            onClose={closeDock}
+            onWidthChange={setDockWidth}
+          />
         )}
       </Box>
 
@@ -331,42 +361,6 @@ export function BacktestPage() {
         </FloatingWindow>
       )}
 
-      {hasTrades && (
-        <FloatingWindow
-          title={`Trades — ${state.tradeHistorySymbol}`}
-          testid="window-trades"
-          geometry={win.windows.trades.geometry}
-          zIndex={1000 + win.windows.trades.z}
-          minimized={win.windows.trades.minimized}
-          minWidth={WINDOW_MIN_SIZES.trades.w}
-          minHeight={WINDOW_MIN_SIZES.trades.h}
-          onFocus={() => focusWindow("trades")}
-          onClose={() => closeWindow("trades")}
-          onMinimize={() => minimizeWindow("trades")}
-          onGeometryChange={(g) => setGeometry("trades", g)}
-        >
-          <TradeHistoryTable
-            symbol={state.tradeHistorySymbol!}
-            trades={state.tradeHistory!}
-            sortColumn={actions.tradeSort.column}
-            sortDirection={actions.tradeSort.direction}
-            onSort={actions.tradeSort.handleSort}
-            onRowClick={actions.handleZoomToTrade}
-            onClose={() => setTradeHistory(null, null)}
-          />
-        </FloatingWindow>
-      )}
-
-      <BacktestWindowTaskbar
-        items={(["config", "results", "trades"] as const)
-          .filter((id) => win.windows[id].open && win.windows[id].minimized)
-          .map((id) => ({
-            id,
-            title: id === "config" ? "Config" : id === "results" ? "Results" : `Trades${state.tradeHistorySymbol ? ` — ${state.tradeHistorySymbol}` : ""}`,
-          }))}
-        onRestore={openWindow}
-        onClose={closeWindow}
-      />
     </Box>
   );
 }

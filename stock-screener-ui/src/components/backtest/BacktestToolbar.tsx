@@ -2,7 +2,6 @@
 // Owns window toggles + a quick Run / Reset so the chart is never blocked.
 import { Box, Button, Text } from "@/ui";
 import { IconPlayerPlay, IconLayoutGrid, IconAdjustments, IconTable, IconList } from "@tabler/icons-react";
-import type { BacktestWindowId } from "./useBacktestWindows";
 
 interface BacktestToolbarProps {
   strategyLabel: string;
@@ -10,16 +9,17 @@ interface BacktestToolbarProps {
   days: number;
   isRunning: boolean;
   canRun: boolean;
-  windowState: Record<BacktestWindowId, { open: boolean; minimized: boolean }>;
-  onToggleWindow: (id: BacktestWindowId) => void;
+  windowState: Record<"config" | "results", { open: boolean; minimized: boolean }>;
+  tradesOpen: boolean;
+  onToggleWindow: (id: "config" | "results") => void;
+  onToggleTrades: () => void;
   onRun: () => void;
   onReset: () => void;
 }
 
-const TOGGLES: { id: BacktestWindowId; label: string; icon: React.ReactNode }[] = [
+const TOGGLES: { id: "config" | "results"; label: string; icon: React.ReactNode }[] = [
   { id: "config", label: "Config", icon: <IconAdjustments size={12} /> },
   { id: "results", label: "Results", icon: <IconTable size={12} /> },
-  { id: "trades", label: "Trades", icon: <IconList size={12} /> },
 ];
 
 export function BacktestToolbar({
@@ -29,7 +29,9 @@ export function BacktestToolbar({
   isRunning,
   canRun,
   windowState,
+  tradesOpen,
   onToggleWindow,
+  onToggleTrades,
   onRun,
   onReset,
 }: BacktestToolbarProps) {
@@ -69,6 +71,17 @@ export function BacktestToolbar({
             </Button>
           );
         })}
+        <Button
+          size="sm"
+          variant={tradesOpen ? "filled" : "subtle"}
+          color={tradesOpen ? "primary" : "secondary"}
+          onClick={onToggleTrades}
+          leftSection={<IconList size={12} />}
+          data-testid="toolbar-toggle-trades"
+          data-state={tradesOpen ? "open" : "closed"}
+        >
+          Trades
+        </Button>
       </Box>
 
       <Box sx={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: 1.5, px: 1 }}>

@@ -1,11 +1,11 @@
-// useBacktestWindows — floating-window layout state for the backtest page.
-// Open/close, z-order, and geometry persisted to localStorage. Geometry is
-// committed only when a drag/resize gesture ends (see FloatingWindow), so this
-// state changes at most a few times per interaction.
+// useBacktestWindows — layout state for the backtest page.
+//  • Config + Results are floating windows (draggable/resizable), persisted.
+//  • Trades is a fixed right-side dock (always visible, collapsible, resizable)
+//    so the blotter can never be lost off-screen.
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { FloatingWindowGeometry } from "@/ui";
 
-export type BacktestWindowId = "config" | "results" | "trades";
+export type BacktestWindowId = "config" | "results";
 
 interface WindowState {
   open: boolean;
@@ -16,13 +16,26 @@ interface WindowState {
 
 type WindowsState = Record<BacktestWindowId, WindowState>;
 
-const STORAGE_KEY = "alphashri.backtest.windows.v3";
+export interface TradesDock {
+  open: boolean;
+  width: number;
+}
+
+export interface BacktestLayout {
+  windows: WindowsState;
+  dock: TradesDock;
+}
+
+const STORAGE_KEY = "alphashri.backtest.windows.v4";
 
 export const WINDOW_MIN_SIZES: Record<BacktestWindowId, { w: number; h: number }> = {
   config: { w: 420, h: 240 },
   results: { w: 320, h: 220 },
-  trades: { w: 560, h: 160 },
 };
+
+export const DOCK_MIN_WIDTH = 300;
+export const DOCK_MAX_WIDTH = 760;
+export const DOCK_DEFAULT_WIDTH = 420;
 
 function viewportW(): number {
   return typeof window !== "undefined" && window.innerWidth ? window.innerWidth : 1440;
@@ -32,7 +45,6 @@ function viewportH(): number {
   return typeof window !== "undefined" && window.innerHeight ? window.innerHeight : 900;
 }
 
-/** Keep a window reachable: enforce min size and clamp inside the viewport. */
 function clampGeometry(id: BacktestWindowId, g: FloatingWindowGeometry): FloatingWindowGeometry {
   const min = WINDOW_MIN_SIZES[id];
   const width = Math.max(min.w, Math.round(g.width) || min.w);
@@ -42,39 +54,48 @@ function clampGeometry(id: BacktestWindowId, g: FloatingWindowGeometry): Floatin
   return { x, y, width, height };
 }
 
-function defaultState(): WindowsState {
+function clampDockWidth(w: number): number {
+  return Math.min(DOCK_MAX_WIDTH, Math.max(DOCK_MIN_WIDTH, Math.round(w) || DOCK_DEFAULT_WIDTH));
+}
+
+function defaultLayout(): BacktestLayout {
   const h = viewportH();
-  const contentH = Math.max(400, h - 110); // header + toolbar approx
+  const contentH = Math.max(400, h - 110);
   return {
-    config: { open: true, minimized: false, geometry: { x: 12, y: 48, width: 660, height: 360 }, z: 1 },
-    results: { open: false, minimized: false, geometry: { x: 12, y: 420, width: 500, height: 360 }, z: 2 },
-    trades: { open: false, minimized: false, geometry: { x: 12, y: Math.max(150, contentH - 234), width: 980, height: 212 }, z: 3 },
+    windows: {
+      config: { open: true, minimized: false, geometry: { x: 12, y: 48, width: 660, height: 360 }, z: 1 },
+      results: { open: false, minimized: false, geometry: { x: 12, y: 420, width: 520, height: 360 }, z: 2 },
+    },
+    dock: { open: false, width: DOCK_DEFAULT_WIDTH },
   };
 }
 
-function loadState(): WindowsState {
-  const base = defaultState();
+function loadLayout(): BacktestLayout {
+  const base = defaultLayout();
   if (typeof localStorage === "undefined") return base;
   try {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return base;
-    const saved = JSON.parse(raw) as Partial<WindowsState>;
-    (Object.keys(base) as BacktestWindowId[]).forEach((id) => {
-      const s = saved[id];
+    const saved = JSON.parse(raw) as Partial<BacktestLayout>;
+    (Object.keys(base.windows) as BacktestWindowId[]).forEach((id) => {
+      const s = saved.windows?.[id];
       if (s && s.geometry) {
-        base[id] = {
+        base.windows[id] = {
           open: Boolean(s.open),
           minimized: Boolean(s.minimized),
           geometry: clampGeometry(id, {
-            x: Number(s.geometry.x) || base[id].geometry.x,
-            y: Number(s.geometry.y) || base[id].geometry.y,
-            width: Number(s.geometry.width) || base[id].geometry.width,
-            height: Number(s.geometry.height) || base[id].geometry.height,
+            x: Number(s.geometry.x) || base.windows[id].geometry.x,
+            y: Number(s.geometry.y) || base.windows[id].geometry.y,
+            width: Number(s.geometry.width) || base.windows[id].geometry.width,
+            height: Number(s.geometry.height) || base.windows[id].geometry.height,
           }),
-          z: Number(s.z) || base[id].z,
+          z: Number(s.z) || base.windows[id].z,
         };
       }
     });
+    if (saved.dock) {
+      base.dock = { open: Boolean(saved.dock.open), width: clampDockWidth(Number(saved.dock.width)) };
+    }
   } catch {
     /* ignore corrupt storage */
   }
@@ -83,71 +104,89 @@ function loadState(): WindowsState {
 
 export interface BacktestWindowsApi {
   windows: WindowsState;
+  dock: TradesDock;
   open: (id: BacktestWindowId) => void;
   close: (id: BacktestWindowId) => void;
   toggle: (id: BacktestWindowId) => void;
   minimize: (id: BacktestWindowId) => void;
   focus: (id: BacktestWindowId) => void;
   setGeometry: (id: BacktestWindowId, g: FloatingWindowGeometry) => void;
+  openDock: () => void;
+  closeDock: () => void;
+  toggleDock: () => void;
+  setDockWidth: (w: number) => void;
   reset: () => void;
 }
 
 export function useBacktestWindows(): BacktestWindowsApi {
-  const [windows, setWindows] = useState<WindowsState>(loadState);
-  const zCounter = useRef(Math.max(...Object.values(windows).map((w) => w.z)));
+  const [layout, setLayout] = useState<BacktestLayout>(loadLayout);
+  const zCounter = useRef(Math.max(...Object.values(layout.windows).map((w) => w.z)));
 
   useEffect(() => {
     if (typeof localStorage === "undefined") return;
     try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(windows));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(layout));
     } catch {
       /* storage full / unavailable */
     }
-  }, [windows]);
+  }, [layout]);
 
   const focus = useCallback((id: BacktestWindowId) => {
-    setWindows((prev) => {
+    setLayout((prev) => {
       const top = ++zCounter.current;
-      if (prev[id].z === top) return prev;
-      return { ...prev, [id]: { ...prev[id], z: top } };
+      if (prev.windows[id].z === top) return prev;
+      return { ...prev, windows: { ...prev.windows, [id]: { ...prev.windows[id], z: top } } };
     });
   }, []);
 
   const open = useCallback((id: BacktestWindowId) => {
     focus(id);
-    setWindows((prev) => {
-      const w = prev[id];
+    setLayout((prev) => {
+      const w = prev.windows[id];
       const restored = clampGeometry(id, w.geometry);
-      if (w.open && !w.minimized && restored === w.geometry) return prev;
-      return { ...prev, [id]: { ...w, open: true, minimized: false, geometry: restored } };
+      if (w.open && !w.minimized) return prev;
+      return { ...prev, windows: { ...prev.windows, [id]: { ...w, open: true, minimized: false, geometry: restored } } };
     });
   }, [focus]);
 
   const close = useCallback((id: BacktestWindowId) => {
-    setWindows((prev) => (prev[id].open ? { ...prev, [id]: { ...prev[id], open: false } } : prev));
+    setLayout((prev) => {
+      if (!prev.windows[id].open) return prev;
+      return { ...prev, windows: { ...prev.windows, [id]: { ...prev.windows[id], open: false } } };
+    });
   }, []);
 
   const toggle = useCallback((id: BacktestWindowId) => {
-    setWindows((prev) => {
-      const w = prev[id];
-      if (w.open && !w.minimized) return { ...prev, [id]: { ...w, open: false } };
+    setLayout((prev) => {
+      const w = prev.windows[id];
+      if (w.open && !w.minimized) return { ...prev, windows: { ...prev.windows, [id]: { ...w, open: false } } };
       const top = ++zCounter.current;
-      return { ...prev, [id]: { ...w, open: true, minimized: false, z: top } };
+      return { ...prev, windows: { ...prev.windows, [id]: { ...w, open: true, minimized: false, z: top } } };
     });
   }, []);
 
   const minimize = useCallback((id: BacktestWindowId) => {
-    setWindows((prev) => ({ ...prev, [id]: { ...prev[id], minimized: true } }));
+    setLayout((prev) => ({ ...prev, windows: { ...prev.windows, [id]: { ...prev.windows[id], minimized: true } } }));
   }, []);
 
   const setGeometry = useCallback((id: BacktestWindowId, g: FloatingWindowGeometry) => {
-    setWindows((prev) => ({ ...prev, [id]: { ...prev[id], geometry: clampGeometry(id, g) } }));
+    setLayout((prev) => ({ ...prev, windows: { ...prev.windows, [id]: { ...prev.windows[id], geometry: clampGeometry(id, g) } } }));
   }, []);
+
+  const openDock = useCallback(() => setLayout((p) => (p.dock.open ? p : { ...p, dock: { ...p.dock, open: true } })), []);
+  const closeDock = useCallback(() => setLayout((p) => (p.dock.open ? { ...p, dock: { ...p.dock, open: false } } : p)), []);
+  const toggleDock = useCallback(() => setLayout((p) => ({ ...p, dock: { ...p.dock, open: !p.dock.open } })), []);
+  const setDockWidth = useCallback((w: number) => setLayout((p) => ({ ...p, dock: { ...p.dock, width: clampDockWidth(w) } })), []);
 
   const reset = useCallback(() => {
-    zCounter.current = 3;
-    setWindows(defaultState());
+    zCounter.current = 2;
+    setLayout(defaultLayout());
   }, []);
 
-  return { windows, open, close, toggle, minimize, focus, setGeometry, reset };
+  return {
+    windows: layout.windows,
+    dock: layout.dock,
+    open, close, toggle, minimize, focus, setGeometry,
+    openDock, closeDock, toggleDock, setDockWidth, reset,
+  };
 }
