@@ -107,8 +107,10 @@ function TradeChartRow({
     const total = barSecs.length;
     const entryIdx = findIdx(barSecs, toSec(trade.entry_time));
     const exitIdx = findIdx(barSecs, toSec(trade.exit_time));
+    // Show a wider window around the trade (≈60+ bars) so more candles are visible.
+    const pad = 30;
     const timer = setTimeout(() => {
-      ref.current?.zoomToIndexRange(Math.max(0, entryIdx - 4), Math.min(total - 1, exitIdx + 4), total);
+      ref.current?.zoomToIndexRange(Math.max(0, entryIdx - pad), Math.min(total - 1, exitIdx + pad), total);
     }, 140);
     return () => clearTimeout(timer);
   }, [barSecs, trade, inView]);
@@ -116,7 +118,11 @@ function TradeChartRow({
   const pnlColor = trade.pnl >= 0 ? palette.POSITIVE : palette.NEGATIVE;
 
   return (
-    <Card elevation={0} sx={{ flex: "0 0 auto", border: `1px solid ${palette.BORDER}`, bgcolor: palette.NT_BG, overflow: "hidden" }}>
+    <Card
+      elevation={0}
+      data-trade-number={index + 1}
+      sx={{ flex: "0 0 auto", border: `1px solid ${palette.BORDER}`, bgcolor: palette.NT_BG, overflow: "hidden" }}
+    >
       <Stack direction="row" alignItems="center" spacing={1} sx={{ px: 1, py: "4px", borderBottom: `1px solid ${palette.BORDER}` }}>
         <Chip size="small" label={`#${index + 1}`} sx={{ height: 16, fontSize: 10, bgcolor: palette.SURFACE_ALT, color: palette.TEXT }} />
         <Chip size="small" label={trade.side} color={trade.side === "SHORT" ? "error" : "success"} sx={{ height: 16, fontSize: 10, fontWeight: 700 }} />

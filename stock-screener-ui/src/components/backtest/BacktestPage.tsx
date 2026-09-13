@@ -108,7 +108,7 @@ function useBacktestEffects(state: any) {
   }, [state.results, state.selectedChartSymbol, state.chartData]);
 }
 
-function useBacktestActions(state: any) {
+function useBacktestActions(state: any, chartMode: "all" | "trades") {
   const [saveToHistory, setSaveToHistory] = useState(true);
   const [selectedTf, setSelectedTf] = useState<string>("");
   const resultsSort = useSortHandlers();
@@ -133,13 +133,22 @@ function useBacktestActions(state: any) {
 
   const handleZoomToTrade = useCallback(
     (tradeNumber: number) => {
+      if (chartMode === "trades") {
+        // Per-trade view: scroll the matching trade row into view.
+        const el = document.querySelector(
+          `[data-testid="trade-charts"] [data-trade-number="${tradeNumber}"]`,
+        ) as HTMLElement | null;
+        el?.scrollIntoView({ behavior: "smooth", block: "start" });
+        highlightTradeRow(tradeNumber);
+        return;
+      }
       const chartData = state.selectedChartSymbol
         ? state.chartData.get(state.selectedChartSymbol)
         : undefined;
       zoomToTrade(state.selectedChartSymbol || "", tradeNumber, chartData);
       highlightTradeRow(tradeNumber);
     },
-    [state.selectedChartSymbol, state.chartData],
+    [state.selectedChartSymbol, state.chartData, chartMode],
   );
 
   const handleTfChange = useCallback(
@@ -175,9 +184,9 @@ export function BacktestPage() {
   const state = getBacktestState();
   const holidayState = getHolidayState();
   const [activeTab, setActiveTab] = useState<string>("results");
-  const actions = useBacktestActions(state);
-  useBacktestEffects(state);
   const layout = useBacktestLayout();
+  const actions = useBacktestActions(state, layout.chartMode);
+  useBacktestEffects(state);
   const { panels, togglePanel, openPanel } = layout;
   const symbols = state.results?.map((r: any) => r.symbol) ?? [];
   const hasResults = Boolean(state.results && state.results.length > 0);

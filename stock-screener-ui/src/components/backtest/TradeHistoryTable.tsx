@@ -143,7 +143,14 @@ export function TradeHistoryTable({
   const has52w =
     (safeTrades[0]?.["52w_high"] !== undefined && safeTrades[0]?.["52w_high"] !== null);
 
-  const getTradeIndex = (trade: Trade) => safeTrades.indexOf(trade);
+  // Stable 1-based trade numbers by original (unsorted) order. A Map keyed by the
+  // trade object avoids `indexOf` stale-closure bugs when the list identity changes.
+  const numberByTrade = useMemo(() => {
+    const m = new Map<Trade, number>();
+    safeTrades.forEach((t, i) => m.set(t, i + 1));
+    return m;
+  }, [safeTrades]);
+  const numberOf = (trade: Trade) => numberByTrade.get(trade) ?? 1;
 
   const handleHeaderClick = (column: string) => {
     onSort(column);
@@ -156,7 +163,7 @@ export function TradeHistoryTable({
         header: "#",
         enableSorting: false,
         meta: { align: "center" } as any,
-        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{getTradeIndex(row.original) + 1}</Text></Box>,
+        cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" ta="center">{numberOf(row.original)}</Text></Box>,
       },
       {
         id: "entry_time",
@@ -280,7 +287,7 @@ export function TradeHistoryTable({
       },
     );
     return cols;
-  }, [has52w, sortColumn, sortDirection, onSort]);
+  }, [has52w, sortColumn, sortDirection, onSort, numberByTrade]);
 
   if (!trades || trades.length === 0) return null;
 
@@ -338,8 +345,8 @@ export function TradeHistoryTable({
             backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
           })}
           getRowTestId={(_row, index) => `trade-history-row-${index}`}
-          getRowAttributes={(trade) => ({ "data-trade-number": safeTrades.indexOf(trade) + 1 })}
-          onRowClick={(row) => onRowClick(safeTrades.indexOf(row) + 1)}
+          getRowAttributes={(trade) => ({ "data-trade-number": numberOf(trade) })}
+          onRowClick={(row) => onRowClick(numberOf(row))}
         />
       </Box>
     </Stack>
