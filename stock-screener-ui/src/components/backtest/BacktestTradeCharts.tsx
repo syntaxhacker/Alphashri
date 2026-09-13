@@ -129,7 +129,7 @@ function TradeChartRow({
           {trade.pnl >= 0 ? "+" : ""}{trade.pnl.toFixed(0)}
         </Typography>
       </Stack>
-      <Box ref={containerRef} sx={{ height: 200, display: "flex" }}>
+      <Box ref={containerRef} sx={{ height: 340, minHeight: 340, flex: "0 0 auto", display: "flex" }}>
         {inView ? (
           <TradingViewChart
             ref={ref}
