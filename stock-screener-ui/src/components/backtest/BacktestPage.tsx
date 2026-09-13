@@ -6,7 +6,8 @@ import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
 import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
 import { BacktestLeftPanel } from "./BacktestPanels";
 import { BacktestToolbar } from "./BacktestToolbar";
-import { useBacktestWindows } from "./useBacktestWindows";
+import { BacktestWindowTaskbar } from "./BacktestWindowTaskbar";
+import { useBacktestWindows, WINDOW_MIN_SIZES } from "./useBacktestWindows";
 import { zoomToTrade } from "./BacktestChart";
 import { BacktestChartTabs } from "./BacktestChartTabs";
 import {
@@ -204,7 +205,11 @@ export function BacktestPage() {
         days={state.days}
         isRunning={state.isRunning}
         canRun={state.selectedSymbols.length > 0}
-        openWindows={{ config: win.windows.config.open, results: win.windows.results.open, trades: win.windows.trades.open }}
+        windowState={{
+          config: { open: win.windows.config.open, minimized: win.windows.config.minimized },
+          results: { open: win.windows.results.open, minimized: win.windows.results.minimized },
+          trades: { open: win.windows.trades.open, minimized: win.windows.trades.minimized },
+        }}
         onToggleWindow={toggleWindow}
         onRun={actions.handleRunBacktest}
         onReset={resetLayout}
@@ -264,6 +269,8 @@ export function BacktestPage() {
         geometry={win.windows.config.geometry}
         zIndex={1000 + win.windows.config.z}
         minimized={win.windows.config.minimized}
+        minWidth={WINDOW_MIN_SIZES.config.w}
+        minHeight={WINDOW_MIN_SIZES.config.h}
         onFocus={() => focusWindow("config")}
         onClose={() => closeWindow("config")}
         onMinimize={() => minimizeWindow("config")}
@@ -300,6 +307,8 @@ export function BacktestPage() {
           geometry={win.windows.results.geometry}
           zIndex={1000 + win.windows.results.z}
           minimized={win.windows.results.minimized}
+          minWidth={WINDOW_MIN_SIZES.results.w}
+          minHeight={WINDOW_MIN_SIZES.results.h}
           onFocus={() => focusWindow("results")}
           onClose={() => closeWindow("results")}
           onMinimize={() => minimizeWindow("results")}
@@ -329,6 +338,8 @@ export function BacktestPage() {
           geometry={win.windows.trades.geometry}
           zIndex={1000 + win.windows.trades.z}
           minimized={win.windows.trades.minimized}
+          minWidth={WINDOW_MIN_SIZES.trades.w}
+          minHeight={WINDOW_MIN_SIZES.trades.h}
           onFocus={() => focusWindow("trades")}
           onClose={() => closeWindow("trades")}
           onMinimize={() => minimizeWindow("trades")}
@@ -345,6 +356,17 @@ export function BacktestPage() {
           />
         </FloatingWindow>
       )}
+
+      <BacktestWindowTaskbar
+        items={(["config", "results", "trades"] as const)
+          .filter((id) => win.windows[id].open && win.windows[id].minimized)
+          .map((id) => ({
+            id,
+            title: id === "config" ? "Config" : id === "results" ? "Results" : `Trades${state.tradeHistorySymbol ? ` — ${state.tradeHistorySymbol}` : ""}`,
+          }))}
+        onRestore={openWindow}
+        onClose={closeWindow}
+      />
     </Box>
   );
 }

@@ -10,7 +10,7 @@ interface BacktestToolbarProps {
   days: number;
   isRunning: boolean;
   canRun: boolean;
-  openWindows: Record<BacktestWindowId, boolean>;
+  windowState: Record<BacktestWindowId, { open: boolean; minimized: boolean }>;
   onToggleWindow: (id: BacktestWindowId) => void;
   onRun: () => void;
   onReset: () => void;
@@ -28,7 +28,7 @@ export function BacktestToolbar({
   days,
   isRunning,
   canRun,
-  openWindows,
+  windowState,
   onToggleWindow,
   onRun,
   onReset,
@@ -50,18 +50,22 @@ export function BacktestToolbar({
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
         {TOGGLES.map((t) => {
-          const active = openWindows[t.id];
+          const st = windowState[t.id];
+          const active = st.open && !st.minimized;
+          const minimized = st.open && st.minimized;
           return (
             <Button
               key={t.id}
               size="sm"
-              variant={active ? "filled" : "subtle"}
-              color={active ? "primary" : "secondary"}
+              variant={active ? "filled" : minimized ? "outline" : "subtle"}
+              color={active ? "primary" : minimized ? "warning" : "secondary"}
               onClick={() => onToggleWindow(t.id)}
               leftSection={t.icon}
               data-testid={`toolbar-toggle-${t.id}`}
+              data-state={active ? "open" : minimized ? "minimized" : "closed"}
+              title={minimized ? `${t.label} minimized — click to restore` : undefined}
             >
-              {t.label}
+              {minimized ? `${t.label} –` : t.label}
             </Button>
           );
         })}

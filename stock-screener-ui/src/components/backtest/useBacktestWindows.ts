@@ -18,8 +18,28 @@ type WindowsState = Record<BacktestWindowId, WindowState>;
 
 const STORAGE_KEY = "alphashri.backtest.windows.v3";
 
+export const WINDOW_MIN_SIZES: Record<BacktestWindowId, { w: number; h: number }> = {
+  config: { w: 420, h: 240 },
+  results: { w: 320, h: 220 },
+  trades: { w: 560, h: 160 },
+};
+
+function viewportW(): number {
+  return typeof window !== "undefined" && window.innerWidth ? window.innerWidth : 1440;
+}
+
 function viewportH(): number {
   return typeof window !== "undefined" && window.innerHeight ? window.innerHeight : 900;
+}
+
+/** Keep a window reachable: enforce min size and clamp inside the viewport. */
+function clampGeometry(id: BacktestWindowId, g: FloatingWindowGeometry): FloatingWindowGeometry {
+  const min = WINDOW_MIN_SIZES[id];
+  const width = Math.max(min.w, Math.round(g.width) || min.w);
+  const height = Math.max(min.h, Math.round(g.height) || min.h);
+  const x = Math.min(Math.max(-width + 80, Math.round(g.x) || 0), Math.max(0, viewportW() - 80));
+  const y = Math.min(Math.max(0, Math.round(g.y) || 0), Math.max(0, viewportH() - 28));
+  return { x, y, width, height };
 }
 
 function defaultState(): WindowsState {
@@ -45,12 +65,12 @@ function loadState(): WindowsState {
         base[id] = {
           open: Boolean(s.open),
           minimized: Boolean(s.minimized),
-          geometry: {
+          geometry: clampGeometry(id, {
             x: Number(s.geometry.x) || base[id].geometry.x,
             y: Number(s.geometry.y) || base[id].geometry.y,
             width: Number(s.geometry.width) || base[id].geometry.width,
             height: Number(s.geometry.height) || base[id].geometry.height,
-          },
+          }),
           z: Number(s.z) || base[id].z,
         };
       }
@@ -95,7 +115,12 @@ export function useBacktestWindows(): BacktestWindowsApi {
 
   const open = useCallback((id: BacktestWindowId) => {
     focus(id);
-    setWindows((prev) => (prev[id].open && !prev[id].minimized ? prev : { ...prev, [id]: { ...prev[id], open: true, minimized: false } }));
+    setWindows((prev) => {
+      const w = prev[id];
+      const restored = clampGeometry(id, w.geometry);
+      if (w.open && !w.minimized && restored === w.geometry) return prev;
+      return { ...prev, [id]: { ...w, open: true, minimized: false, geometry: restored } };
+    });
   }, [focus]);
 
   const close = useCallback((id: BacktestWindowId) => {
@@ -116,7 +141,7 @@ export function useBacktestWindows(): BacktestWindowsApi {
   }, []);
 
   const setGeometry = useCallback((id: BacktestWindowId, g: FloatingWindowGeometry) => {
-    setWindows((prev) => ({ ...prev, [id]: { ...prev[id], geometry: g } }));
+    setWindows((prev) => ({ ...prev, [id]: { ...prev[id], geometry: clampGeometry(id, g) } }));
   }, []);
 
   const reset = useCallback(() => {

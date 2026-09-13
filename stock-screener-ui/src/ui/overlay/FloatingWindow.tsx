@@ -158,12 +158,12 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
     window.addEventListener("pointerup", up);
   };
 
-  if (minimized) return null;
-
   return (
     <Box
       ref={rootRef}
       data-testid={testid}
+      data-minimized={minimized || undefined}
+      aria-hidden={minimized || undefined}
       role="dialog"
       aria-label={title}
       onPointerDownCapture={() => onFocus?.()}
@@ -175,7 +175,7 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
         height: geometry.height,
         transform: `translate3d(${geometry.x}px, ${geometry.y}px, 0)`,
         zIndex,
-        display: "flex",
+        display: minimized ? "none" : "flex",
         flexDirection: "column",
         bgcolor: palette.SURFACE,
         border: `1px solid ${palette.BORDER}`,

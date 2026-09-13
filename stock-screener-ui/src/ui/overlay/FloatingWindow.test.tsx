@@ -57,8 +57,11 @@ describe("FloatingWindow", () => {
     expect(g.y).toBe(60); // 20 + 40
   });
 
-  test("minimized windows render nothing", () => {
-    const { queryByTestId } = renderWindow({ minimized: true });
-    expect(queryByTestId("fw")).toBeNull();
+  test("minimized windows stay mounted but hidden", () => {
+    const { getByTestId } = renderWindow({ minimized: true });
+    const el = getByTestId("fw");
+    expect(el).toBeInTheDocument();
+    expect(el.getAttribute("data-minimized")).toBe("true");
+    expect(getComputedStyle(el).display).toBe("none");
   });
 });
