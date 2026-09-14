@@ -160,6 +160,7 @@ def run_timeless_reversion(
     rearm_low: float | None = None
     pivot_low: float | None = None
     pivot_broken = False
+    short_zone = fair_price + cfg.min_distance
 
     for index, bar in enumerate(bars):
         bar_ticks = ticks_by_bar.get(bar["time"], [])
@@ -189,22 +190,23 @@ def run_timeless_reversion(
             if bar_ticks and len(trades) < cfg.max_trades:
                 first = bar_ticks[0]
                 entry = float(first["bidPrice"])
-                risk = cfg.stop_points
-                position = {
-                    "entry": entry,
-                    "entry_ts_ms": int(first["timestamp"]),
-                    "sl": entry + risk,
-                    "tp": entry - risk * cfg.target_r,
-                    "risk": risk,
-                    "fair_price": fair_price,
-                    "signal_price": pending_signal["signal_price"],
-                    "bos_level": pending_signal["bos_level"],
-                    "signal_bar": pending_signal["signal_bar"],
-                    "contracts": cfg.contracts,
-                    "point_value": cfg.point_value,
-                }
-                # The fill tick cannot also be an exit tick.
-                bar_ticks = bar_ticks[1:]
+                if entry >= short_zone:
+                    risk = cfg.stop_points
+                    position = {
+                        "entry": entry,
+                        "entry_ts_ms": int(first["timestamp"]),
+                        "sl": entry + risk,
+                        "tp": entry - risk * cfg.target_r,
+                        "risk": risk,
+                        "fair_price": fair_price,
+                        "signal_price": pending_signal["signal_price"],
+                        "bos_level": pending_signal["bos_level"],
+                        "signal_bar": pending_signal["signal_bar"],
+                        "contracts": cfg.contracts,
+                        "point_value": cfg.point_value,
+                    }
+                    # The fill tick cannot also be an exit tick.
+                    bar_ticks = bar_ticks[1:]
             pending_signal = None
 
         # Tick-level management: ask crosses the short stop; bid crosses target.
@@ -229,6 +231,18 @@ def run_timeless_reversion(
                     position = None
                     break
 
+        # Once the current bar has been processed, a close back below fair
+        # invalidates the old zone. A valid next-bar fill above the zone is
+        # allowed to happen first, even if that bar later closes below fair.
+        if float(bar["close"]) < fair_price:
+            zone_armed = False
+            pending_signal = None
+            rearm_required = False
+            rearm_low = None
+            zone_entries = 0
+            pivot_low = None
+            pivot_broken = False
+
         if position is not None or pending_signal is not None or rearm_required:
             continue
         if index < cfg.bos_lookback or len(trades) >= cfg.max_trades:
@@ -236,7 +250,7 @@ def run_timeless_reversion(
         if not _inside_entry_window(bar["time"], cfg):
             continue
 
-        if float(bar["high"]) >= fair_price + cfg.min_distance:
+        if float(bar["close"]) >= fair_price and float(bar["high"]) >= short_zone:
             zone_armed = True
         if not zone_armed:
             continue
@@ -248,6 +262,7 @@ def run_timeless_reversion(
         # Both the wick and close must break structure; this avoids entering on
         # a one-tick probe that immediately closes back above the wick.
         if pivot_low is not None and not pivot_broken and \
+                float(bar["close"]) >= short_zone and \
                 float(bar["low"]) < pivot_low and float(bar["close"]) < pivot_low:
             pivot_broken = True
             pending_signal = {
