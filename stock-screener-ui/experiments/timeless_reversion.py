@@ -7,9 +7,12 @@ The strategy is intentionally small and explicit:
   fair price;
 * entry requires a bearish wick/BOS break: the current bar's low and close both
   break the prior structure low;
-* the short fills at the first tick of the next bar;
+* confirmation mode can wait for one bar to hold below BOS, then fill at the
+  first tick of the following bar;
 * the default exit bracket is a 25-point stop and 1.5R target;
 * exits are resolved from bid/ask ticks, with stop loss winning on ambiguity.
+* an optional opening-drive gate can block shorts after a strong bullish first
+  15-minute move.
 
 The module is usable with the repository's existing ``build_1m_bars`` output
 and Dukascopy tick shape. The CLI fetches Dukascopy ticks and applies the same
@@ -52,6 +55,13 @@ class ReversionConfig:
     max_trades: int = 20
     max_entries_per_zone: int = 2
     rearm_points: float = 20.0
+    # Keep the screenshot-matching behavior by default. Set to 1 to require
+    # one full bar to hold below BOS before entering the next bar.
+    bos_confirmation_bars: int = 0
+    # None keeps the original behavior. A value such as 25.0 blocks shorts
+    # when the first 15-minute close is more than 25 points above fair price.
+    opening_drive_max_points: float | None = None
+    opening_drive_minutes: int = 15
     contracts: int = 6
     point_value: float = 2.0
     entry_start: str | None = None
@@ -89,6 +99,32 @@ def _inside_entry_window(timestamp: int, config: ReversionConfig) -> bool:
     if start <= end:
         return start <= current <= end
     return current >= start or current <= end
+
+
+def _opening_drive_summary(
+    bars: list[dict[str, Any]], fair_price: float, minutes: int
+) -> tuple[int, int, float] | None:
+    """Return (open_time, ready_time, close_minus_fair) for the opening drive."""
+
+    if minutes < 1:
+        raise ValueError("opening_drive_minutes must be at least 1")
+    open_bar = next(
+        (
+            bar
+            for bar in bars
+            if _et_minutes(int(bar["time"])) == 9 * 60 + 30
+            and abs(float(bar["open"]) - fair_price) < 1e-6
+        ),
+        None,
+    )
+    if open_bar is None:
+        return None
+    open_time = int(open_bar["time"])
+    ready_time = open_time + minutes * 60
+    drive_bars = [bar for bar in bars if open_time <= int(bar["time"]) < ready_time]
+    if not drive_bars:
+        return None
+    return open_time, ready_time, float(drive_bars[-1]["close"]) - fair_price
 
 
 def fair_price_at_et_open(bars: list[dict[str, Any]], session_date: str, open_clock: str = "09:30") -> float:
@@ -146,6 +182,10 @@ def run_timeless_reversion(
     cfg = config or ReversionConfig()
     if cfg.bos_lookback < 1:
         raise ValueError("bos_lookback must be at least 1")
+    if cfg.bos_confirmation_bars < 0:
+        raise ValueError("bos_confirmation_bars cannot be negative")
+    if cfg.opening_drive_minutes < 1:
+        raise ValueError("opening_drive_minutes must be at least 1")
     if cfg.stop_points <= 0 or cfg.target_r <= 0:
         raise ValueError("stop_points and target_r must be positive")
 
@@ -161,6 +201,11 @@ def run_timeless_reversion(
     pivot_low: float | None = None
     pivot_broken = False
     short_zone = fair_price + cfg.min_distance
+    opening_drive = (
+        _opening_drive_summary(bars, fair_price, cfg.opening_drive_minutes)
+        if cfg.opening_drive_max_points is not None
+        else None
+    )
 
     for index, bar in enumerate(bars):
         bar_ticks = ticks_by_bar.get(bar["time"], [])
@@ -185,9 +230,20 @@ def run_timeless_reversion(
                 pivot_low = float(candidate["low"])
                 pivot_broken = False
 
-        # A BOS is confirmed at bar close; fill only on the next bar's first tick.
+        # A BOS is confirmed at bar close. The following bar must hold below the
+        # broken structure level before the next bar can be used for entry. This
+        # avoids treating a one-bar liquidity break as an accepted reversal.
         if pending_signal is not None and index == pending_signal["entry_index"]:
-            if bar_ticks and len(trades) < cfg.max_trades:
+            confirmation_start = index - cfg.bos_confirmation_bars
+            confirmation_bars = bars[confirmation_start:index]
+            confirmed = (
+                len(confirmation_bars) == cfg.bos_confirmation_bars
+                and all(
+                    float(confirmation_bar["close"]) <= pending_signal["bos_level"]
+                    for confirmation_bar in confirmation_bars
+                )
+            )
+            if confirmed and bar_ticks and len(trades) < cfg.max_trades:
                 first = bar_ticks[0]
                 entry = float(first["bidPrice"])
                 if entry >= short_zone:
@@ -256,6 +312,14 @@ def run_timeless_reversion(
             continue
         if bar["time"] * 1000 < cooldown_until_ms:
             continue
+        if cfg.opening_drive_max_points is not None:
+            if opening_drive is None:
+                continue
+            _, opening_drive_ready_time, opening_drive_delta = opening_drive
+            if bar["time"] < opening_drive_ready_time:
+                continue
+            if opening_drive_delta > cfg.opening_drive_max_points:
+                continue
         if index + 1 >= len(bars):
             continue
 
@@ -266,7 +330,7 @@ def run_timeless_reversion(
                 float(bar["low"]) < pivot_low and float(bar["close"]) < pivot_low:
             pivot_broken = True
             pending_signal = {
-                "entry_index": index + 1,
+                "entry_index": index + cfg.bos_confirmation_bars + 1,
                 "signal_bar": int(bar["time"]),
                 "signal_price": float(bar["close"]),
                 "bos_level": pivot_low,
@@ -361,6 +425,8 @@ def main() -> None:
     parser.add_argument("--date", default="2026-09-14")
     parser.add_argument("--entry-start", default="09:30")
     parser.add_argument("--entry-end", default="11:00")
+    parser.add_argument("--bos-confirmation-bars", type=int, default=0)
+    parser.add_argument("--opening-drive-max-points", type=float, default=None)
     args = parser.parse_args()
 
     from scripts.smc_tick_eval import build_1m_bars
@@ -368,7 +434,12 @@ def main() -> None:
     ticks, basis, source = load_nq_ticks_for_date(args.date)
     bars = build_1m_bars(ticks)
     fair = fair_price_at_et_open(bars, args.date)
-    config = ReversionConfig(entry_start=args.entry_start, entry_end=args.entry_end)
+    config = ReversionConfig(
+        entry_start=args.entry_start,
+        entry_end=args.entry_end,
+        bos_confirmation_bars=args.bos_confirmation_bars,
+        opening_drive_max_points=args.opening_drive_max_points,
+    )
     trades = run_timeless_reversion(bars, ticks, fair_price=fair, config=config)
 
     print(f"date={args.date} source={source} ticks={len(ticks):,} bars={len(bars)} basis={basis:+.2f}")

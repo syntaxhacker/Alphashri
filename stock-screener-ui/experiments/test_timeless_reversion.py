@@ -1,4 +1,7 @@
-from timeless_reversion import ReversionConfig, run_timeless_reversion
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+from timeless_reversion import ReversionConfig, _opening_drive_summary, run_timeless_reversion
 
 
 def bar(t, open_, high, low, close):
@@ -7,6 +10,18 @@ def bar(t, open_, high, low, close):
 
 def tick(ts_ms, bid, ask):
     return {"timestamp": ts_ms, "bidPrice": bid, "askPrice": ask}
+
+
+def test_opening_drive_summary_uses_only_the_completed_first_window():
+    open_time = int(datetime(2026, 9, 14, 9, 30, tzinfo=ZoneInfo("America/New_York")).timestamp())
+    bars = [
+        bar(open_time + i * 60, 100 + i, 101 + i, 99 + i, 100 + i)
+        for i in range(15)
+    ]
+
+    summary = _opening_drive_summary(bars, fair_price=100, minutes=15)
+
+    assert summary == (open_time, open_time + 15 * 60, 14.0)
 
 
 def test_short_enters_on_next_bar_after_overextended_wick_break_and_hits_target():
@@ -31,7 +46,13 @@ def test_short_enters_on_next_bar_after_overextended_wick_break_and_hits_target(
         bars,
         ticks,
         fair_price=100,
-        config=ReversionConfig(min_distance=30, stop_points=25, target_r=1.5, cooldown_minutes=15),
+        config=ReversionConfig(
+            min_distance=30,
+            stop_points=25,
+            target_r=1.5,
+            cooldown_minutes=15,
+            bos_confirmation_bars=0,
+        ),
     )
 
     assert len(trades) == 1
@@ -41,6 +62,64 @@ def test_short_enters_on_next_bar_after_overextended_wick_break_and_hits_target(
     assert trade["sl"] == 155.4
     assert trade["tp"] == 92.9
     assert trade["result"] == "TP"
+
+
+def test_confirmation_mode_waits_for_bos_confirmation_bar_before_entry():
+    bars = [
+        bar(0, 100, 101, 99, 100),
+        bar(60, 100, 102, 98, 101),
+        bar(120, 101, 103, 99, 102),
+        bar(180, 102, 132, 131, 131),
+        bar(240, 131, 132, 130.5, 131),
+        bar(300, 131, 132.5, 131, 131.5),
+        bar(360, 131.5, 132, 130.25, 130.4),  # BOS below 130.5
+        bar(420, 130.4, 131, 129.8, 130.2),   # confirms the break
+        bar(480, 130.2, 131, 100, 101),        # entry bar
+        bar(540, 101, 102, 92, 94),
+    ]
+    ticks = [
+        tick(480_000, 130.4, 130.65),
+        tick(481_000, 129, 129.25),
+        tick(540_000, 92.9, 93.15),
+    ]
+
+    trades = run_timeless_reversion(
+        bars,
+        ticks,
+        fair_price=100,
+        config=ReversionConfig(min_distance=30, bos_confirmation_bars=1),
+    )
+
+    assert len(trades) == 1
+    assert trades[0]["time"] == 480
+    assert trades[0]["result"] == "TP"
+
+
+def test_confirmation_mode_rejects_bos_when_confirmation_bar_reclaims_structure():
+    bars = [
+        bar(0, 100, 101, 99, 100),
+        bar(60, 100, 102, 98, 101),
+        bar(120, 101, 103, 99, 102),
+        bar(180, 102, 132, 131, 131),
+        bar(240, 131, 132, 130.5, 131),
+        bar(300, 131, 132.5, 131, 131.5),
+        bar(360, 131.5, 132, 130.25, 130.4),  # BOS below 130.5
+        bar(420, 130.4, 132, 130, 131),        # reclaims the BOS level
+        bar(480, 131, 132, 100, 101),
+    ]
+    ticks = [
+        tick(480_000, 130.4, 130.65),
+        tick(481_000, 129, 155.5),
+    ]
+
+    trades = run_timeless_reversion(
+        bars,
+        ticks,
+        fair_price=100,
+        config=ReversionConfig(min_distance=30, bos_confirmation_bars=1),
+    )
+
+    assert trades == []
 
 
 def test_stop_is_checked_before_target_on_an_ambiguous_tick():
@@ -61,7 +140,7 @@ def test_stop_is_checked_before_target_on_an_ambiguous_tick():
         bars,
         ticks,
         fair_price=100,
-        config=ReversionConfig(min_distance=0, stop_points=25, target_r=1.5),
+        config=ReversionConfig(min_distance=0, stop_points=25, target_r=1.5, bos_confirmation_bars=0),
     )
 
     assert len(trades) == 1
@@ -100,7 +179,13 @@ def test_cooldown_blocks_a_second_break_until_the_next_setup():
         bars,
         ticks,
         fair_price=0,
-        config=ReversionConfig(min_distance=0, stop_points=25, target_r=1.5, cooldown_minutes=5),
+        config=ReversionConfig(
+            min_distance=0,
+            stop_points=25,
+            target_r=1.5,
+            cooldown_minutes=5,
+            bos_confirmation_bars=0,
+        ),
     )
 
     assert len(trades) == 2
@@ -127,7 +212,7 @@ def test_zone_is_reset_after_price_crosses_back_below_fair_price():
         bars,
         ticks,
         fair_price=100,
-        config=ReversionConfig(min_distance=30),
+        config=ReversionConfig(min_distance=30, bos_confirmation_bars=0),
     )
 
     assert trades == []
@@ -151,7 +236,7 @@ def test_pending_bos_is_cancelled_if_next_tick_is_below_short_zone():
         bars,
         ticks,
         fair_price=100,
-        config=ReversionConfig(min_distance=30),
+        config=ReversionConfig(min_distance=30, bos_confirmation_bars=0),
     )
 
     assert trades == []
