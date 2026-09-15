@@ -19,8 +19,9 @@ from __future__ import annotations
 import argparse
 import os
 import sys
-from dataclasses import dataclass
-from datetime import datetime, timezone
+from bisect import bisect_right
+from dataclasses import dataclass, replace
+from datetime import datetime, timedelta, timezone
 from typing import Any
 from zoneinfo import ZoneInfo
 
@@ -44,10 +45,35 @@ class IFVGConfig:
     max_bars_after_inversion: int = 12
     max_trades: int = 20
     require_directional_retest: bool = True
+    # Optional quality/context gates. They default off to preserve the raw
+    # chart-derived baseline until a broader replay promotes a variant.
+    htf_timeframe_minutes: int | None = None
+    htf_fast_period: int = 20
+    htf_slow_period: int = 50
+    require_htf_alignment: bool = False
+    sweep_lookback: int = 0
+    min_inversion_body_points: float = 0.0
+    min_retest_body_points: float = 0.0
+    cooldown_minutes: float = 0.0
+    max_consecutive_losses: int | None = None
+    allow_longs: bool = True
+    allow_shorts: bool = True
     entry_start: str | None = "09:30"
     entry_end: str | None = "16:00"
     contracts: int = 2
     point_value: float = 20.0
+
+
+def strict_ifvg_config() -> IFVGConfig:
+    """Return the best measured, still-configurable research profile."""
+
+    return IFVGConfig(
+        htf_timeframe_minutes=15,
+        require_htf_alignment=True,
+        sweep_lookback=3,
+        min_stop_points=25.0,
+        min_gap_points=1.0,
+    )
 
 
 @dataclass(frozen=True)
@@ -117,8 +143,83 @@ def aggregate_bars(
     return [grouped[key] for key in sorted(grouped)]
 
 
+def _ema(values: list[float], period: int) -> list[float]:
+    if period < 1:
+        raise ValueError("EMA period must be positive")
+    if not values:
+        return []
+    alpha = 2.0 / (period + 1.0)
+    result = [values[0]]
+    for value in values[1:]:
+        result.append(alpha * value + (1.0 - alpha) * result[-1])
+    return result
+
+
+def _htf_state(
+    htf_bars: list[dict[str, Any]],
+    signal_bar_time: int,
+    signal_timeframe_minutes: int,
+    config: IFVGConfig,
+) -> str:
+    """Return HTF direction using only completed bars before the signal entry."""
+
+    if config.htf_timeframe_minutes is None:
+        return "MIXED"
+    width = config.htf_timeframe_minutes * 60
+    signal_end = signal_bar_time + signal_timeframe_minutes * 60
+    completed = [bar for bar in htf_bars if int(bar["time"]) + width <= signal_end]
+    if len(completed) < config.htf_slow_period + 3:
+        return "MIXED"
+    closes = [float(bar["close"]) for bar in completed]
+    fast = _ema(closes, config.htf_fast_period)
+    slow = _ema(closes, config.htf_slow_period)
+    rising = fast[-1] > fast[-4]
+    falling = fast[-1] < fast[-4]
+    if closes[-1] > fast[-1] > slow[-1] and rising:
+        return "BULL"
+    if closes[-1] < fast[-1] < slow[-1] and falling:
+        return "BEAR"
+    return "MIXED"
+
+
+def _htf_states_for_bars(
+    htf_bars: list[dict[str, Any]],
+    signal_bars: list[dict[str, Any]],
+    signal_timeframe_minutes: int,
+    config: IFVGConfig,
+) -> dict[int, str]:
+    """Build HTF states in one pass instead of rescanning history per bar."""
+
+    if config.htf_timeframe_minutes is None:
+        return {int(bar["time"]): "MIXED" for bar in signal_bars}
+    width = config.htf_timeframe_minutes * 60
+    closes = [float(bar["close"]) for bar in htf_bars]
+    fast = _ema(closes, config.htf_fast_period)
+    slow = _ema(closes, config.htf_slow_period)
+    completion_times = [int(bar["time"]) + width for bar in htf_bars]
+    states: dict[int, str] = {}
+    for bar in signal_bars:
+        signal_end = int(bar["time"]) + signal_timeframe_minutes * 60
+        last = bisect_right(completion_times, signal_end) - 1
+        if last < config.htf_slow_period + 2:
+            states[int(bar["time"])] = "MIXED"
+            continue
+        rising = fast[last] > fast[last - 3]
+        falling = fast[last] < fast[last - 3]
+        if closes[last] > fast[last] > slow[last] and rising:
+            states[int(bar["time"])] = "BULL"
+        elif closes[last] < fast[last] < slow[last] and falling:
+            states[int(bar["time"])] = "BEAR"
+        else:
+            states[int(bar["time"])] = "MIXED"
+    return states
+
+
 def detect_ifvg_signals(
-    bars: list[dict[str, Any]], config: IFVGConfig | None = None
+    bars: list[dict[str, Any]],
+    config: IFVGConfig | None = None,
+    *,
+    htf_states: dict[int, str] | None = None,
 ) -> list[IFVGSignal]:
     """Find confirmed iFVG retests using completed bars only."""
 
@@ -127,6 +228,10 @@ def detect_ifvg_signals(
         raise ValueError("gap and retest tolerances cannot be negative")
     if cfg.max_bars_after_inversion < 1:
         raise ValueError("max_bars_after_inversion must be positive")
+    if cfg.sweep_lookback < 0:
+        raise ValueError("sweep_lookback cannot be negative")
+    if cfg.min_inversion_body_points < 0 or cfg.min_retest_body_points < 0:
+        raise ValueError("body thresholds cannot be negative")
 
     ordered = sorted(bars, key=lambda item: int(item["time"]))
     zones: list[IFVGZone] = []
@@ -157,9 +262,13 @@ def detect_ifvg_signals(
             if zone in inverted:
                 continue
             if zone.kind == "BEARISH_FVG" and close > zone.high:
+                if abs(close - open_) < cfg.min_inversion_body_points:
+                    continue
                 active.append((zone, "LONG", index))
                 inverted.add(zone)
             elif zone.kind == "BULLISH_FVG" and close < zone.low:
+                if abs(close - open_) < cfg.min_inversion_body_points:
+                    continue
                 active.append((zone, "SHORT", index))
                 inverted.add(zone)
 
@@ -176,12 +285,49 @@ def detect_ifvg_signals(
                 retested = low <= zone.high + cfg.retest_tolerance_points
                 confirmed = close > zone.high
                 directional = close > open_
+                swept = (
+                    cfg.sweep_lookback == 0
+                    or (
+                        index >= cfg.sweep_lookback
+                        and low
+                        < min(
+                            float(item["low"])
+                            for item in ordered[index - cfg.sweep_lookback:index]
+                        )
+                    )
+                )
             else:
                 retested = high >= zone.low - cfg.retest_tolerance_points
                 confirmed = close < zone.low
                 directional = close < open_
+                swept = (
+                    cfg.sweep_lookback == 0
+                    or (
+                        index >= cfg.sweep_lookback
+                        and high
+                        > max(
+                            float(item["high"])
+                            for item in ordered[index - cfg.sweep_lookback:index]
+                        )
+                    )
+                )
 
-            if retested and confirmed and (directional or not cfg.require_directional_retest):
+            body_ok = abs(close - open_) >= cfg.min_retest_body_points
+            htf_state = (htf_states or {}).get(int(bar["time"]), "MIXED")
+            htf_ok = (
+                not cfg.require_htf_alignment
+                or htf_state == ("BULL" if side == "LONG" else "BEAR")
+            )
+            direction_allowed = cfg.allow_longs if side == "LONG" else cfg.allow_shorts
+            if (
+                direction_allowed
+                and retested
+                and confirmed
+                and swept
+                and body_ok
+                and htf_ok
+                and (directional or not cfg.require_directional_retest)
+            ):
                 signals.append(
                     IFVGSignal(
                         side=side,
@@ -243,6 +389,8 @@ def run_ifvg_reversion(
     ticks: list[dict[str, Any]],
     *,
     config: IFVGConfig | None = None,
+    history_bars: list[dict[str, Any]] | None = None,
+    htf_context_bars: list[dict[str, Any]] | None = None,
 ) -> list[dict[str, Any]]:
     """Replay iFVG signals with bid/ask-aware tick exits."""
 
@@ -253,13 +401,35 @@ def run_ifvg_reversion(
         raise ValueError("invalid stop or target configuration")
     if cfg.max_trades < 1:
         raise ValueError("max_trades must be positive")
+    if cfg.htf_fast_period < 1 or cfg.htf_slow_period <= cfg.htf_fast_period:
+        raise ValueError("HTF slow period must be greater than fast period")
+    if cfg.cooldown_minutes < 0:
+        raise ValueError("cooldown_minutes cannot be negative")
+    if cfg.max_consecutive_losses is not None and cfg.max_consecutive_losses < 1:
+        raise ValueError("max_consecutive_losses must be positive")
 
     five_minute_bars = aggregate_bars(bars, cfg.timeframe_minutes)
-    signals = detect_ifvg_signals(five_minute_bars, cfg)
+    context_source = history_bars if history_bars is not None else bars
+    htf_bars = (
+        htf_context_bars
+        if htf_context_bars is not None
+        else (
+            aggregate_bars(context_source, cfg.htf_timeframe_minutes)
+            if cfg.htf_timeframe_minutes is not None
+            else []
+        )
+    )
+    htf_states = _htf_states_for_bars(
+        htf_bars, five_minute_bars, cfg.timeframe_minutes, cfg
+    )
+    signals = detect_ifvg_signals(five_minute_bars, cfg, htf_states=htf_states)
     ordered_ticks = sorted(ticks, key=lambda item: int(item["timestamp"]))
     trades: list[dict[str, Any]] = []
     signal_index = 0
     position: dict[str, Any] | None = None
+    cooldown_until_ms = 0
+    consecutive_losses = 0
+    halted = False
 
     for tick in ordered_ticks:
         timestamp_ms = int(tick["timestamp"])
@@ -278,6 +448,8 @@ def run_ifvg_reversion(
             if len(trades) >= cfg.max_trades or not _within_window(
                 signal_end, cfg.entry_start, cfg.entry_end
             ):
+                continue
+            if halted or timestamp_ms < cooldown_until_ms:
                 continue
             if signal.side == "LONG":
                 entry = float(tick["askPrice"])
@@ -327,6 +499,16 @@ def run_ifvg_reversion(
                     cfg,
                 )
             )
+            if result == "SL":
+                consecutive_losses += 1
+                if (
+                    cfg.max_consecutive_losses is not None
+                    and consecutive_losses >= cfg.max_consecutive_losses
+                ):
+                    halted = True
+            else:
+                consecutive_losses = 0
+            cooldown_until_ms = timestamp_ms + int(cfg.cooldown_minutes * 60_000)
             position = None
 
     if position is not None and ordered_ticks:
@@ -356,6 +538,8 @@ def run_ifvg_reversion(
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--date", default="2026-09-14")
+    parser.add_argument("--profile", choices=["strict", "baseline"], default="strict")
+    parser.add_argument("--history-days", type=int, default=5)
     parser.add_argument("--entry-start", default="09:30")
     parser.add_argument("--entry-end", default="16:00")
     parser.add_argument("--target-r", type=float, default=1.5)
@@ -370,7 +554,9 @@ def main() -> None:
 
     ticks, basis, source = load_nq_ticks_for_date(args.date)
     bars = build_1m_bars(ticks)
-    config = IFVGConfig(
+    base_config = strict_ifvg_config() if args.profile == "strict" else IFVGConfig()
+    config = replace(
+        base_config,
         entry_start=args.entry_start,
         entry_end=args.entry_end,
         target_r=args.target_r,
@@ -379,15 +565,42 @@ def main() -> None:
         contracts=args.contracts,
         point_value=args.point_value,
     )
+    history_bars: list[dict[str, Any]] = []
+    if config.htf_timeframe_minutes is not None and args.history_days > 0:
+        session_date = datetime.strptime(args.date, "%Y-%m-%d").date()
+        for offset in range(args.history_days, 0, -1):
+            previous_date = (session_date - timedelta(days=offset)).isoformat()
+            try:
+                previous_ticks, _, _ = load_nq_ticks_for_date(previous_date)
+            except (OSError, RuntimeError, ValueError):
+                continue
+            history_bars.extend(build_1m_bars(previous_ticks))
+    htf_context = (
+        aggregate_bars(history_bars + bars, config.htf_timeframe_minutes)
+        if config.htf_timeframe_minutes is not None
+        else None
+    )
     five_minute_bars = aggregate_bars(bars, config.timeframe_minutes)
-    signals = detect_ifvg_signals(five_minute_bars, config)
-    trades = run_ifvg_reversion(bars, ticks, config=config)
+    signals = detect_ifvg_signals(
+        five_minute_bars,
+        config,
+        htf_states=_htf_states_for_bars(
+            htf_context or [], five_minute_bars, config.timeframe_minutes, config
+        ),
+    )
+    trades = run_ifvg_reversion(
+        bars,
+        ticks,
+        config=config,
+        htf_context_bars=htf_context,
+    )
     points = sum(float(trade["pnl"]) for trade in trades)
     print(
         f"date={args.date} source={source} ticks={len(ticks):,} "
-        f"1m_bars={len(bars)} 5m_bars={len(five_minute_bars)} basis={basis:+.2f}"
+        f"1m_bars={len(bars)} 5m_bars={len(five_minute_bars)} "
+        f"history_bars={len(history_bars)} basis={basis:+.2f}"
     )
-    print(f"signals={len(signals)} trades={len(trades)}")
+    print(f"profile={args.profile} signals={len(signals)} trades={len(trades)}")
     print(f"gross_pnl={points:+.2f} points / ${points * config.contracts * config.point_value:+,.2f}")
     for trade in trades:
         entry = datetime.fromtimestamp(trade["time"], tz=UTC).astimezone(ET)

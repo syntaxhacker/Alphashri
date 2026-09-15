@@ -1,4 +1,10 @@
-from ifvg_reversion import IFVGConfig, aggregate_bars, detect_ifvg_signals, run_ifvg_reversion
+from ifvg_reversion import (
+    IFVGConfig,
+    aggregate_bars,
+    detect_ifvg_signals,
+    run_ifvg_reversion,
+    strict_ifvg_config,
+)
 
 
 def bar(timestamp, open_, high, low, close):
@@ -7,6 +13,16 @@ def bar(timestamp, open_, high, low, close):
 
 def tick(timestamp_ms, bid, ask):
     return {"timestamp": timestamp_ms, "bidPrice": bid, "askPrice": ask}
+
+
+def test_strict_profile_encodes_the_measured_context_gates():
+    config = strict_ifvg_config()
+
+    assert config.htf_timeframe_minutes == 15
+    assert config.require_htf_alignment is True
+    assert config.sweep_lookback == 3
+    assert config.min_stop_points == 25
+    assert config.min_gap_points == 1
 
 
 def test_aggregate_bars_builds_five_minute_ohlc():
