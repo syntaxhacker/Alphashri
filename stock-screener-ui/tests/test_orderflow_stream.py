@@ -10,6 +10,13 @@ from api import orderflow_stream
 from api.orderflow_stream import _normalize_tick, _normalize_market_status, _num
 
 
+@pytest.fixture(autouse=True)
+def _disable_journal(monkeypatch):
+    """Keep tests from reading/writing the real session journal."""
+    monkeypatch.setenv("ORDERFLOW_JOURNAL", "0")
+    yield
+
+
 def _make_client() -> TestClient:
     app = FastAPI()
     app.include_router(orderflow_stream.router)
@@ -191,8 +198,12 @@ class TestOrderFlowWs:
         }
 
         class FakeStream:
-            def __init__(self, token, instrument_key, q):
+            def __init__(self, token, instrument_key, q, symbol=""):
                 self.q = q
+                self.symbol = symbol
+
+            def warm_start(self):
+                pass
 
             def start(self):
                 self.q.put_nowait(tick)
@@ -216,6 +227,43 @@ def test_upstox_stream_push_drops_on_full_queue():
     q.put_nowait({"first": True})
     stream._push({"second": True})  # must not raise
     assert q.qsize() == 1
+
+
+class TestBuildHistory:
+    def _entries(self, n=10):
+        return [
+            {"ts": i * 1000, "kind": "tick", "data": {"ltt": i * 1000, "ltp": 100 + i}}
+            for i in range(n)
+        ]
+
+    def test_windows_to_latest(self, monkeypatch):
+        entries = self._entries()
+        signals = [{"ts": 1, "kind": "signal", "data": {"side": "BUY", "score": 0.5}}]
+        monkeypatch.setattr(orderflow_stream.orderflow_journal, "is_enabled", lambda: True)
+        monkeypatch.setattr(
+            orderflow_stream.orderflow_journal,
+            "read",
+            lambda symbol, day=None, kind=None: entries if kind == "tick" else signals,
+        )
+        hist = orderflow_stream._build_history("RELIANCE", window_sec=3, max_ticks=100)
+        # latest ltt = 9000, cutoff 6000 -> ticks with ltt 6000..9000
+        assert [t["ltp"] for t in hist["ticks"]] == [106, 107, 108, 109]
+        assert hist["signals"] == [{"side": "BUY", "score": 0.5}]
+
+    def test_caps_tick_count(self, monkeypatch):
+        entries = self._entries(100)
+        monkeypatch.setattr(orderflow_stream.orderflow_journal, "is_enabled", lambda: True)
+        monkeypatch.setattr(
+            orderflow_stream.orderflow_journal,
+            "read",
+            lambda symbol, day=None, kind=None: entries if kind == "tick" else [],
+        )
+        hist = orderflow_stream._build_history("X", window_sec=10_000, max_ticks=5)
+        assert len(hist["ticks"]) == 5
+
+    def test_disabled_returns_empty(self, monkeypatch):
+        monkeypatch.setattr(orderflow_stream.orderflow_journal, "is_enabled", lambda: False)
+        assert orderflow_stream._build_history("X") == {"ticks": [], "signals": []}
 
 
 class TestSymbolResolution:

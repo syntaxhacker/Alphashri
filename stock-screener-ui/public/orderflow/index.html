@@ -1279,6 +1279,12 @@ function connectLive(){
       return;
     }
 
+    // Session restore (journal replay) sent once on subscribe
+    if(msg.type === 'history'){
+      applyHistory(msg.ticks, msg.signals);
+      return;
+    }
+
     // Confluence signal from the bridge
     if(msg.type === 'signal'){
       setSignal(msg);
@@ -1319,12 +1325,12 @@ function disconnectLive(){
   setConnStatus('off','Disconnected');
 }
 
-function processLiveData(data){
+function processLiveData(data, silent){
   if(!data || data.ltp === undefined) return;
 
   if(data.day) liveDay = data.day;
   if(data.cp) livePrevClose = data.cp;
-  updateOptionPanel(data);
+  if(!silent) updateOptionPanel(data);
 
   const currentLtp = data.ltp;
   const currentVolume = data.volume || 0;
@@ -1435,9 +1441,28 @@ function processLiveData(data){
   // Trim history
   trimHistory(exchangeTime);
 
-  // Render
+  // Render (deferred during history replay)
+  if(silent) return;
   applySeriesData();
   updateUI();
+}
+
+/* ==================== SESSION RESTORE ====================
+   Replays the server-side journal so a reloaded page rebuilds the same
+   bars/depth/trades/CVD instead of starting from empty. */
+function applyHistory(ticks, signals){
+  const list = Array.isArray(ticks) ? ticks : [];
+  if(list.length){
+    for(const t of list) processLiveData(t, true);
+    updateOptionPanel(list[list.length-1]);
+    applySeriesData();
+    updateUI();
+    if(MODE === 'live') chart.timeScale().fitContent();
+    connLog(`Restored ${list.length} ticks from session journal`,'ok');
+  }
+  const sigs = Array.isArray(signals) ? signals : [];
+  for(const s of sigs) feedSignal(s);
+  if(sigs.length) connLog(`Restored ${sigs.length} signals`,'info');
 }
 
 /* ==================== MODE SWITCHING ==================== */

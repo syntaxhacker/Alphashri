@@ -31,6 +31,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 from api.auth import decode_token
 from api.paper.live_stream import _get_upstox_token
+from api import orderflow_journal
 from api.orderflow_signals import OrderFlowSignalEngine
 
 router = APIRouter(tags=["Order Flow"])
@@ -213,6 +214,55 @@ def _normalize_greeks(mff: dict) -> Optional[dict]:
     return {name: _num(og.get(name)) for name in ("delta", "gamma", "theta", "vega", "rho")}
 
 
+_HISTORY_WINDOW_SEC = 600
+_HISTORY_MAX_TICKS = 3000
+_HISTORY_MAX_SIGNALS = 20
+
+
+def _tick_ts(entry: dict) -> int:
+    data = entry.get("data") or {}
+    try:
+        return int(data.get("ltt") or entry.get("ts") or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _build_history(
+    symbol: str,
+    window_sec: int = _HISTORY_WINDOW_SEC,
+    max_ticks: int = _HISTORY_MAX_TICKS,
+) -> dict:
+    """Bounded replay of today's journaled session for a symbol.
+
+    Returns the most recent ``window_sec`` of ticks (capped at ``max_ticks``)
+    plus the last few signals, so a reloaded client can rebuild the chart.
+    """
+    empty = {"ticks": [], "signals": []}
+    if not symbol or not orderflow_journal.is_enabled():
+        return empty
+
+    entries = orderflow_journal.read(symbol, kind="tick")
+    ticks: list[dict] = []
+    if entries:
+        latest = max(_tick_ts(e) for e in entries)
+        cutoff = latest - window_sec * 1000
+        ticks = [
+            e["data"]
+            for e in entries
+            if isinstance(e.get("data"), dict) and _tick_ts(e) >= cutoff
+        ]
+        if len(ticks) > max_ticks:
+            ticks = ticks[-max_ticks:]
+
+    signals = [
+        e["data"]
+        for e in orderflow_journal.read(symbol, kind="signal")
+        if isinstance(e.get("data"), dict)
+    ][-_HISTORY_MAX_SIGNALS:]
+
+    return {"ticks": ticks, "signals": signals}
+
+
 def _normalize_market_status(feed_response: dict) -> Optional[dict]:
     """Extract the ``market_info`` segment-status message from the feed."""
     if feed_response.get("type") != "market_info":
@@ -231,13 +281,31 @@ def _normalize_market_status(feed_response: dict) -> Optional[dict]:
 class _UpstoxOrderFlowStream:
     """Owns a single Upstox full-mode streamer for one instrument key."""
 
-    def __init__(self, token: str, instrument_key: str, q: thr_queue.Queue):
+    def __init__(self, token: str, instrument_key: str, q: thr_queue.Queue, symbol: str = ""):
         self.token = token
         self.instrument_key = instrument_key
         self.q = q
+        self.symbol = (symbol or "").strip().upper()
         self._streamer = None
         self._closed = False
         self._engine = OrderFlowSignalEngine()
+
+    def warm_start(self) -> None:
+        """Replay today's journaled ticks into a fresh engine (session CVD)."""
+        try:
+            if not self.symbol or not orderflow_journal.is_enabled():
+                return
+            entries = orderflow_journal.read(self.symbol, kind="tick")
+            if not entries:
+                return
+            engine = OrderFlowSignalEngine()
+            for entry in entries:
+                data = entry.get("data")
+                if isinstance(data, dict):
+                    engine.update(data)
+            self._engine = engine
+        except Exception:  # noqa: BLE001 - warm start must never break the bridge
+            return
 
     def start(self) -> None:
         import upstox_client
@@ -284,9 +352,11 @@ class _UpstoxOrderFlowStream:
         if not tick:
             return
         self._push(tick)
+        orderflow_journal.append(self.symbol, "tick", tick["data"])
         signal = self._engine.update(tick["data"])
         if signal:
             self._push(signal)
+            orderflow_journal.append(self.symbol, "signal", signal)
 
     def _push(self, payload: dict) -> None:
         try:
@@ -387,8 +457,18 @@ async def orderflow_ws(websocket: WebSocket):
                     )
                     continue
 
-                stream = _UpstoxOrderFlowStream(token, instrument_key, q)
+                stream = _UpstoxOrderFlowStream(token, instrument_key, q, symbol=symbol)
                 stream_ref["stream"] = stream
+                try:
+                    await asyncio.to_thread(stream.warm_start)
+                except Exception:  # noqa: BLE001 - warm start is best-effort
+                    pass
+                try:
+                    history = await asyncio.to_thread(_build_history, symbol)
+                    if history["ticks"] or history["signals"]:
+                        stream._push({"type": "history", "symbol": symbol, **history})
+                except Exception:  # noqa: BLE001 - history is best-effort
+                    pass
                 try:
                     await asyncio.to_thread(stream.start)
                 except Exception as exc:  # noqa: BLE001
