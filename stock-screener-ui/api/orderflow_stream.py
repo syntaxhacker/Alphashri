@@ -49,12 +49,51 @@ def _num(value, default: float = 0.0) -> float:
         return default
 
 
+_INSTRUMENTS_JSON_CACHE: Optional[dict] = None
+
+
+def _load_instruments_json() -> dict:
+    """Lazily load the local NSE instruments JSON (includes NSE_FO contracts).
+
+    Used as a fallback when a symbol is not in the DB — enables resolving
+    option/futures trading symbols like ``NIFTY 23250 PE 22 SEP 26``.
+    """
+    global _INSTRUMENTS_JSON_CACHE
+    if _INSTRUMENTS_JSON_CACHE is not None:
+        return _INSTRUMENTS_JSON_CACHE
+
+    mapping: dict = {}
+    try:
+        import config
+        from pathlib import Path
+        import json as _json
+
+        path = (
+            Path(config.BASE_DIR).parent
+            / "upstox_trader"
+            / "config_and_utils"
+            / "nse_instruments.json"
+        )
+        if path.exists():
+            with open(path) as f:
+                for item in _json.load(f):
+                    ts = item.get("trading_symbol")
+                    key = item.get("instrument_key")
+                    if ts and key:
+                        mapping[ts.strip().upper()] = key
+    except Exception:
+        pass
+
+    _INSTRUMENTS_JSON_CACHE = mapping
+    return mapping
+
+
 def _resolve_instrument_key(symbol: str, exchange: str = "NSE") -> Optional[str]:
     """Resolve a user symbol to an Upstox instrument key.
 
     Accepts an already-formatted key (``NSE_EQ|INE002A01018``) verbatim,
-    otherwise looks it up in the local ``instruments`` table. Falls back to an
-    index key guess (``NSE_INDEX|<symbol>``) for names not held locally.
+    otherwise looks it up in the local ``instruments`` table, then the local
+    instruments JSON (which covers NSE_FO option/futures contracts).
     """
     symbol = (symbol or "").strip().upper()
     exchange = (exchange or "NSE").strip().upper()
@@ -81,11 +120,15 @@ def _resolve_instrument_key(symbol: str, exchange: str = "NSE") -> Optional[str]
                 or query.filter(Instrument.segment == "BSE_EQ").first()
                 or query.first()
             )
-            return row.instrument_key if row else None
+            if row:
+                return row.instrument_key
         finally:
             db.close()
     except Exception:
-        return None
+        pass
+
+    # Fallback: local instruments JSON (covers NSE_FO contracts, indices, etc.)
+    return _load_instruments_json().get(symbol)
 
 
 def _day_ohlc(mff: dict) -> Optional[dict]:
@@ -152,11 +195,22 @@ def _normalize_tick(feed_map: dict) -> Optional[dict]:
                 "tsq": _num(mff.get("tsq")),         # total sell quantity (all levels)
                 "oi": _num(mff.get("oi")),           # open interest (F&O)
                 "iv": _num(mff.get("iv")),           # implied volatility (F&O)
+                "greeks": _normalize_greeks(mff),    # F&O only (None for equity)
                 "day": _day_ohlc(mff),
                 "depth": {"buy": bids, "sell": asks},
             },
         }
     return None
+
+
+def _normalize_greeks(mff: dict) -> Optional[dict]:
+    """Extract option greeks when present (F&O instruments only)."""
+    og = mff.get("optionGreeks")
+    if not isinstance(og, dict) or not og:
+        return None
+    if not any(k in og for k in ("delta", "gamma", "theta", "vega")):
+        return None
+    return {name: _num(og.get(name)) for name in ("delta", "gamma", "theta", "vega", "rho")}
 
 
 def _normalize_market_status(feed_response: dict) -> Optional[dict]:

@@ -84,6 +84,18 @@ class TestNormalizeTick:
             "open": 2400.0, "high": 2470.0, "low": 2380.0, "close": 2450.5, "volume": 779400.0,
         }
 
+    def test_extracts_option_greeks(self):
+        payload = self._full_payload()
+        mff = payload["NSE_EQ|INE002A01018"]["fullFeed"]["marketFF"]
+        mff["optionGreeks"] = {
+            "delta": 0.5, "gamma": 0.0007, "theta": -8.5, "vega": 16.7, "rho": 3.9,
+        }
+        greeks = _normalize_tick(payload)["data"]["greeks"]
+        assert greeks == {"delta": 0.5, "gamma": 0.0007, "theta": -8.5, "vega": 16.7, "rho": 3.9}
+
+    def test_equity_has_no_greeks(self):
+        assert _normalize_tick(self._full_payload())["data"]["greeks"] is None
+
     def test_vwap_defaults_to_zero_without_atp(self):
         payload = self._full_payload()
         del payload["NSE_EQ|INE002A01018"]["fullFeed"]["marketFF"]["atp"]
@@ -204,6 +216,25 @@ def test_upstox_stream_push_drops_on_full_queue():
     q.put_nowait({"first": True})
     stream._push({"second": True})  # must not raise
     assert q.qsize() == 1
+
+
+class TestSymbolResolution:
+    def test_passes_through_instrument_key(self):
+        assert orderflow_stream._resolve_instrument_key("NSE_FO|56984") == "NSE_FO|56984"
+
+    def test_falls_back_to_instruments_json_for_fno(self, monkeypatch):
+        monkeypatch.setattr(
+            orderflow_stream,
+            "_load_instruments_json",
+            lambda: {"NIFTY 23250 PE 22 SEP 26": "NSE_FO|56984"},
+        )
+        assert (
+            orderflow_stream._resolve_instrument_key("nifty 23250 pe 22 sep 26", "NFO")
+            == "NSE_FO|56984"
+        )
+
+    def test_empty_symbol_returns_none(self):
+        assert orderflow_stream._resolve_instrument_key("") is None
 
 
 class TestStreamMessageHandling:

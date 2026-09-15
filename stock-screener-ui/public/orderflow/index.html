@@ -307,6 +307,18 @@
         </div>
       </div>
 
+      <div class="group" id="optGroup" style="display:none">
+        <h4>Option · Greeks <span style="color:#f5c542">●</span></h4>
+        <div class="group-body">
+          <div class="row"><label>Open Interest</label><b id="optOI">—</b></div>
+          <div class="row"><label>IV</label><b id="optIV">—</b></div>
+          <div class="row"><label>Delta</label><b id="optDelta">—</b></div>
+          <div class="row"><label>Gamma</label><b id="optGamma">—</b></div>
+          <div class="row"><label>Theta</label><b id="optTheta">—</b></div>
+          <div class="row"><label>Vega</label><b id="optVega">—</b></div>
+        </div>
+      </div>
+
       <div class="group">
         <h4>Heatmap <span style="color:#3aa0ff">●</span></h4>
         <div class="group-body">
@@ -1116,6 +1128,8 @@ function clearAllData(){
   if(sigEl){ sigEl.className = 'signal-badge neutral'; sigEl.textContent = 'Signal —'; sigEl.title = ''; }
   const dayEl = document.getElementById('dayChg');
   if(dayEl){ dayEl.textContent = '—'; }
+  const optGrp = document.getElementById('optGroup');
+  if(optGrp){ optGrp.style.display = 'none'; }
   heatmap.requestUpdate();
 }
 
@@ -1262,6 +1276,7 @@ function processLiveData(data){
 
   if(data.day) liveDay = data.day;
   if(data.cp) livePrevClose = data.cp;
+  updateOptionPanel(data);
 
   const currentLtp = data.ltp;
   const currentVolume = data.volume || 0;
@@ -1656,6 +1671,25 @@ function applyMarketStatus(msg){
   if(seg){
     el.textContent = String(seg).replace(/_/g,' ');
     el.style.color = String(seg).includes('OPEN') ? '#7fdcd0' : '#ff8a87';
+  }
+}
+
+/* ==================== OPTION PANEL (F&O) ==================== */
+function updateOptionPanel(data){
+  const g = data.greeks;
+  const hasOI = data.oi && data.oi > 0;
+  const hasIV = data.iv && data.iv > 0;
+  if(!g && !hasOI && !hasIV) return;
+  const grp = document.getElementById('optGroup');
+  if(grp) grp.style.display = '';
+  const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
+  if(hasOI) set('optOI', Math.round(data.oi).toLocaleString('en-IN'));
+  if(hasIV) set('optIV', (data.iv*100).toFixed(2) + '%');
+  if(g){
+    set('optDelta', Number(g.delta).toFixed(4));
+    set('optGamma', Number(g.gamma).toFixed(6));
+    set('optTheta', Number(g.theta).toFixed(3));
+    set('optVega', Number(g.vega).toFixed(3));
   }
 }
 
