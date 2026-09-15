@@ -1,6 +1,7 @@
 import os
 import json
-from datetime import datetime, timedelta
+import hashlib
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
 import httpx
@@ -14,6 +15,7 @@ from db.models import get_shared_broker_token, save_broker_token, delete_broker_
 router = APIRouter(prefix="/api/brokers", tags=["brokers"])
 
 UPSTOX_BASE = "https://api.upstox.com/v2"
+FYERS_BASE = "https://api-t1.fyers.in/api/v3"
 # Use project root from config if needed, or stick to local for token file
 TOKEN_FILE = config.BASE_DIR / ".upstox_token.json"
 
@@ -105,11 +107,10 @@ def _get_token_status() -> dict:
 
 
 @router.get("/status")
-async def get_broker_status():
-    """
-    Returns broker connection status.
-    Checks DB first, then .upstox_token.json file, then UPSTOX_ACCESS_TOKEN env var.
-    """
+async def get_broker_status(broker: str = Query("upstox")):
+    """Broker connection status. ``?broker=upstox`` (default) or ``fyers``."""
+    if (broker or "").strip().lower() == "fyers":
+        return _get_fyers_status()
     return _get_token_status()
 
 
@@ -228,4 +229,127 @@ async def upstox_disconnect(user: User = Depends(get_current_user)):
     os.environ.pop("UPSTOX_ACCESS_TOKEN", None)
     config.UPSTOX_ACCESS_TOKEN = None
 
+    return {"success": True}
+
+
+# ---------------------------------------------------------------------------
+# Fyers (API v3)
+# ---------------------------------------------------------------------------
+
+def _get_fyers_credentials():
+    """Fyers app credentials from centralized config."""
+    return config.FYERS_CLIENT_ID, config.FYERS_SECRET_ID
+
+
+def _fyers_app_hash(app_id: str, secret: str) -> str:
+    return hashlib.sha256(f"{app_id}:{secret}".encode()).hexdigest()
+
+
+def _get_fyers_status() -> dict:
+    token_data = get_shared_broker_token("fyers")
+    if not token_data or not token_data.get("access_token"):
+        return {
+            "connected": False,
+            "broker": "fyers",
+            "expires_in_hours": None,
+            "expires_at": None,
+            "source": None,
+        }
+
+    expires_in_hours = None
+    expires_at = None
+    ts = token_data.get("token_timestamp")
+    if ts:
+        try:
+            token_time = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
+            if token_time.tzinfo is None:
+                token_time = token_time.replace(tzinfo=timezone.utc)
+            # Fyers access tokens are valid for ~1 day
+            expires = token_time + timedelta(hours=24)
+            now = datetime.now(timezone.utc)
+            expires_in_hours = round((expires - now).total_seconds() / 3600, 2)
+            expires_at = expires.isoformat()
+        except Exception:
+            pass
+
+    return {
+        "connected": True,
+        "broker": "fyers",
+        "expires_in_hours": expires_in_hours,
+        "expires_at": expires_at,
+        "source": "database",
+    }
+
+
+@router.get("/fyers/auth")
+async def fyers_auth():
+    """Redirect to the Fyers v3 OAuth authorization URL."""
+    app_id, secret = _get_fyers_credentials()
+    if not app_id or not secret:
+        raise HTTPException(
+            status_code=500,
+            detail="FYERS_CLIENT_ID and FYERS_SECRET_ID must be set in environment",
+        )
+
+    redirect_uri = f"{config.API_BASE_URL}/api/brokers/fyers/callback"
+    auth_url = (
+        f"{FYERS_BASE}/generate-authcode?client_id={app_id}"
+        f"&redirect_uri={redirect_uri}&response_type=code&state=alphashri"
+    )
+    return RedirectResponse(url=auth_url)
+
+
+@router.get("/fyers/callback")
+async def fyers_callback(
+    auth_code: str = Query(None),
+    code: str = Query(None),
+    state: str = Query(None),
+):
+    """Exchange the Fyers auth_code for an access token and store it."""
+    token_code = auth_code or code
+    if not token_code:
+        raise HTTPException(status_code=400, detail="Missing auth_code")
+
+    app_id, secret = _get_fyers_credentials()
+    if not app_id or not secret:
+        raise HTTPException(
+            status_code=500,
+            detail="FYERS_CLIENT_ID and FYERS_SECRET_ID must be set in environment",
+        )
+
+    payload = {
+        "grant_type": "authorization_code",
+        "appIdHash": _fyers_app_hash(app_id, secret),
+        "code": token_code,
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            response = await client.post(
+                f"{FYERS_BASE}/validate-authcode", json=payload
+            )
+    except httpx.RequestError as e:
+        raise HTTPException(status_code=500, detail=f"Request error: {str(e)}")
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Failed to exchange code for token: {response.text}",
+        )
+
+    data = response.json()
+    access_token = data.get("access_token")
+    if not access_token:
+        raise HTTPException(
+            status_code=400, detail=f"No access_token in response: {data}"
+        )
+
+    save_broker_token("fyers", access_token, user_id=None)
+    return RedirectResponse(url=f"{config.FRONTEND_URL}/settings?fyers=connected")
+
+
+@router.post("/fyers/disconnect")
+async def fyers_disconnect(user: User = Depends(get_current_user)):
+    """Clear the stored Fyers token."""
+    delete_broker_token("fyers", user_id=None)
     return {"success": True}

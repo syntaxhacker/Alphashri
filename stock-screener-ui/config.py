@@ -74,6 +74,15 @@ UPSTOX_CONFIG = {
 }
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 
+# --- Fyers (API v3) ---
+FYERS_CLIENT_ID = os.getenv("FYERS_CLIENT_ID") or os.getenv("FYERS_APP_ID")
+FYERS_SECRET_ID = os.getenv("FYERS_SECRET_ID") or os.getenv("FYERS_SECRET_KEY")
+FYERS_ACCESS_TOKEN = os.getenv("FYERS_ACCESS_TOKEN")
+FYERS_CONFIG = {
+    "client_id": FYERS_CLIENT_ID or "",
+    "secret_id": FYERS_SECRET_ID or "",
+}
+
 # --- Application URLs ---
 API_BASE_URL = os.getenv("API_BASE_URL", f"http://localhost:{PORT}")
 FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")

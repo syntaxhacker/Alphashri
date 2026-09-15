@@ -13,6 +13,8 @@ import {
   getBrokerStatus,
   connectUpstox,
   disconnectUpstox,
+  connectFyers,
+  disconnectFyers,
   type BrokerStatus,
 } from "../../api/brokers";
 import { useAppDispatch } from "../../state/store/hooks";
@@ -25,6 +27,7 @@ import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
 export function SettingsPage() {
   useStoreSubscription(subscribeToHolidays);
   const [status, setStatus] = useState<BrokerStatus | null>(null);
+  const [fyersStatus, setFyersStatus] = useState<BrokerStatus | null>(null);
   const [loading, setLoading] = useState(false);
   const [searchParams, setSearchParams] = useSearchParams();
   const dispatch = useAppDispatch();
@@ -33,10 +36,12 @@ export function SettingsPage() {
   const fetchStatus = useCallback(async () => {
     setLoading(true);
     try {
-      const data = await getBrokerStatus();
-      setStatus(data);
-    } catch (error) {
-      console.error("Failed to fetch broker status:", error);
+      const [upstox, fyers] = await Promise.allSettled([
+        getBrokerStatus("upstox"),
+        getBrokerStatus("fyers"),
+      ]);
+      if (upstox.status === "fulfilled") setStatus(upstox.value);
+      if (fyers.status === "fulfilled") setFyersStatus(fyers.value);
     } finally {
       setLoading(false);
     }
@@ -52,7 +57,9 @@ export function SettingsPage() {
   }, [fetchStatus]);
 
   useEffect(() => {
-    if (searchParams.get("upstox") === "connected") {
+    const connected = searchParams.get("upstox") === "connected";
+    const fyersConnected = searchParams.get("fyers") === "connected";
+    if (connected) {
       dispatch(
         addNotification({
           type: "success",
@@ -60,6 +67,17 @@ export function SettingsPage() {
           duration: 5000,
         }),
       );
+    }
+    if (fyersConnected) {
+      dispatch(
+        addNotification({
+          type: "success",
+          message: "Fyers connected successfully!",
+          duration: 5000,
+        }),
+      );
+    }
+    if (connected || fyersConnected) {
       setSearchParams({});
       fetchStatus();
     }
@@ -67,6 +85,35 @@ export function SettingsPage() {
 
   const handleConnect = () => {
     connectUpstox();
+  };
+
+  const handleFyersConnect = () => {
+    connectFyers();
+  };
+
+  const handleFyersDisconnect = async () => {
+    setLoading(true);
+    try {
+      await disconnectFyers();
+      dispatch(
+        addNotification({
+          type: "success",
+          message: "Fyers disconnected successfully",
+          duration: 5000,
+        }),
+      );
+      await fetchStatus();
+    } catch {
+      dispatch(
+        addNotification({
+          type: "error",
+          message: "Failed to disconnect Fyers",
+          duration: 5000,
+        }),
+      );
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleDisconnect = async () => {
@@ -114,6 +161,19 @@ export function SettingsPage() {
                         loading={loading}
                         onConnect={handleConnect}
                         onDisconnect={handleDisconnect}
+                        onRefresh={fetchStatus}
+                      />
+                    </Box>
+
+                    <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
+                      <BrokerConnectionCard
+                        broker="fyers"
+                        title="Fyers Connection"
+                        hint="Connect your Fyers account to enable Fyers order flow (5-level depth)"
+                        status={fyersStatus}
+                        loading={loading}
+                        onConnect={handleFyersConnect}
+                        onDisconnect={handleFyersDisconnect}
                         onRefresh={fetchStatus}
                       />
                     </Box>
