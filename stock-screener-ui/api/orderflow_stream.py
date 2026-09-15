@@ -1,0 +1,364 @@
+"""
+Order Flow live bridge (WebSocket).
+
+Speaks the OpenAlgo-style protocol that the vendored OrderFlowMap visualizer
+expects, but streams data from Upstox MarketDataStreamerV3 in ``full`` mode
+(5-level depth + cumulative traded volume).
+
+Protocol
+--------
+Client -> ``{"action": "authenticate", "api_key": "<alphashri JWT>"}``
+Server -> ``{"message": "Authentication successful"}``
+Client -> ``{"action": "subscribe", "symbol": "RELIANCE", "exchange": "NSE",
+            "mode": 3, "depth": 5}``
+Server -> ``{"type": "subscribe", "status": "success"}``
+Server -> ``{"type": "market_data", "data": {ltp, volume, ltt,
+            depth: {buy: [{price, quantity, orders}], sell: [...]}}}``
+
+Notes
+-----
+Upstox V3 does not expose per-level order counts, so ``orders`` is always 0.
+Trade prints are reconstructed client-side from ``volume`` (``vtt``) deltas,
+which is exactly how OrderFlowMap already works.
+"""
+
+import asyncio
+import json
+import queue as thr_queue
+from typing import Optional
+
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+
+from api.auth import decode_token
+from api.paper.live_stream import _get_upstox_token
+from api.orderflow_signals import OrderFlowSignalEngine
+
+router = APIRouter(tags=["Order Flow"])
+
+# Upstox full mode emits 5 depth levels per quote list.
+_DEPTH_LEVELS = 5
+
+
+def _num(value, default: float = 0.0) -> float:
+    """Coerce protobuf JSON values (int64 arrives as string) to float."""
+    if value is None:
+        return default
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _resolve_instrument_key(symbol: str, exchange: str = "NSE") -> Optional[str]:
+    """Resolve a user symbol to an Upstox instrument key.
+
+    Accepts an already-formatted key (``NSE_EQ|INE002A01018``) verbatim,
+    otherwise looks it up in the local ``instruments`` table. Falls back to an
+    index key guess (``NSE_INDEX|<symbol>``) for names not held locally.
+    """
+    symbol = (symbol or "").strip().upper()
+    exchange = (exchange or "NSE").strip().upper()
+    if not symbol:
+        return None
+
+    if "|" in symbol:
+        return symbol
+
+    try:
+        from db.database import SessionLocal
+        from db.models import Instrument
+
+        db = SessionLocal()
+        try:
+            query = db.query(Instrument).filter(Instrument.trading_symbol == symbol)
+            if exchange in ("NSE", "NFO", "BSE", "BFO", "MCX", "CDS"):
+                pref = query.filter(Instrument.exchange == exchange).first()
+                if pref:
+                    return pref.instrument_key
+            # Prefer cash equities when no exchange preference matches.
+            row = (
+                query.filter(Instrument.segment == "NSE_EQ").first()
+                or query.filter(Instrument.segment == "BSE_EQ").first()
+                or query.first()
+            )
+            return row.instrument_key if row else None
+        finally:
+            db.close()
+    except Exception:
+        return None
+
+
+def _day_ohlc(mff: dict) -> Optional[dict]:
+    """Extract the daily OHLC entry from the full feed's ``marketOHLC``."""
+    for ohlc in (mff.get("marketOHLC") or {}).get("ohlc") or []:
+        if not isinstance(ohlc, dict):
+            continue
+        if ohlc.get("interval") == "1d":
+            return {
+                "open": _num(ohlc.get("open")),
+                "high": _num(ohlc.get("high")),
+                "low": _num(ohlc.get("low")),
+                "close": _num(ohlc.get("close")),
+                "volume": _num(ohlc.get("vol")),
+            }
+    return None
+
+
+def _normalize_tick(feed_map: dict) -> Optional[dict]:
+    """Map an Upstox ``fullFeed.marketFF`` payload to the OrderFlowMap shape."""
+    if not isinstance(feed_map, dict):
+        return None
+
+    for feed in feed_map.values():
+        if not isinstance(feed, dict):
+            continue
+        mff = (feed.get("fullFeed") or {}).get("marketFF")
+        if not mff:
+            continue
+
+        ltpc = mff.get("ltpc") or {}
+        ltp = ltpc.get("ltp")
+        if ltp is None:
+            continue
+
+        bids: list[dict] = []
+        asks: list[dict] = []
+        quotes = (mff.get("marketLevel") or {}).get("bidAskQuote") or []
+        for level in quotes[:_DEPTH_LEVELS]:
+            if not isinstance(level, dict):
+                continue
+            bp, bq = _num(level.get("bidP")), _num(level.get("bidQ"))
+            ap, aq = _num(level.get("askP")), _num(level.get("askQ"))
+            if bp > 0 and bq > 0:
+                bids.append({"price": bp, "quantity": bq, "orders": 0})
+            if ap > 0 and aq > 0:
+                asks.append({"price": ap, "quantity": aq, "orders": 0})
+
+        if not bids and not asks:
+            continue
+
+        return {
+            "type": "market_data",
+            "data": {
+                "ltp": _num(ltp),
+                "volume": _num(mff.get("vtt")),
+                # Upstox `atp` = average traded price for the day → true session VWAP.
+                "vwap": _num(mff.get("atp")),
+                "ltt": int(_num(ltpc.get("ltt"))),
+                # Extra full-feed fields (free — no extra API calls).
+                "cp": _num(ltpc.get("cp")),          # previous close
+                "ltq": _num(ltpc.get("ltq")),        # last traded quantity
+                "tbq": _num(mff.get("tbq")),         # total buy quantity (all levels)
+                "tsq": _num(mff.get("tsq")),         # total sell quantity (all levels)
+                "oi": _num(mff.get("oi")),           # open interest (F&O)
+                "iv": _num(mff.get("iv")),           # implied volatility (F&O)
+                "day": _day_ohlc(mff),
+                "depth": {"buy": bids, "sell": asks},
+            },
+        }
+    return None
+
+
+def _normalize_market_status(feed_response: dict) -> Optional[dict]:
+    """Extract the ``market_info`` segment-status message from the feed."""
+    if feed_response.get("type") != "market_info":
+        return None
+    info = feed_response.get("marketInfo") or {}
+    segments = info.get("segmentStatus")
+    if not segments:
+        return None
+    return {
+        "type": "market_status",
+        "segments": segments,
+        "ts": int(_num(feed_response.get("currentTs"))),
+    }
+
+
+class _UpstoxOrderFlowStream:
+    """Owns a single Upstox full-mode streamer for one instrument key."""
+
+    def __init__(self, token: str, instrument_key: str, q: thr_queue.Queue):
+        self.token = token
+        self.instrument_key = instrument_key
+        self.q = q
+        self._streamer = None
+        self._closed = False
+        self._engine = OrderFlowSignalEngine()
+
+    def start(self) -> None:
+        import upstox_client
+        from upstox_client import MarketDataStreamerV3
+
+        cfg = upstox_client.Configuration()
+        cfg.access_token = self.token
+        client = upstox_client.ApiClient(cfg)
+
+        streamer = MarketDataStreamerV3(client, [], mode="full")
+        self._streamer = streamer
+
+        def on_open():
+            try:
+                streamer.subscribe([self.instrument_key], "full")
+            except Exception as exc:  # noqa: BLE001
+                self._push({"type": "error", "message": f"subscribe failed: {exc}"})
+
+        def on_message(data):
+            self.handle_feed_message(data)
+
+        def on_error(err):
+            self._push({"type": "error", "message": str(err)})
+
+        streamer.on("open", on_open)
+        streamer.on("message", on_message)
+        streamer.on("error", on_error)
+        streamer.connect()
+
+    def handle_feed_message(self, data) -> None:
+        """Process one decoded feed message: status, tick, and signal."""
+        if self._closed or not isinstance(data, dict):
+            return
+
+        status = _normalize_market_status(data)
+        if status:
+            self._push(status)
+            return
+
+        feeds = data.get("feeds")
+        if not feeds:
+            return
+        tick = _normalize_tick(feeds)
+        if not tick:
+            return
+        self._push(tick)
+        signal = self._engine.update(tick["data"])
+        if signal:
+            self._push(signal)
+
+    def _push(self, payload: dict) -> None:
+        try:
+            self.q.put_nowait(payload)
+        except thr_queue.Full:
+            pass
+
+    def stop(self) -> None:
+        self._closed = True
+        if self._streamer is not None:
+            try:
+                self._streamer.disconnect()
+            except Exception:
+                pass
+            self._streamer = None
+
+
+@router.websocket("/ws/orderflow")
+async def orderflow_ws(websocket: WebSocket):
+    await websocket.accept()
+
+    q: thr_queue.Queue = thr_queue.Queue(maxsize=20000)
+    stream_ref: dict = {"stream": None}
+
+    def stop_stream() -> None:
+        current = stream_ref.get("stream")
+        if current is not None:
+            try:
+                current.stop()
+            except Exception:
+                pass
+        stream_ref["stream"] = None
+
+    pump_task: Optional[asyncio.Task] = None
+
+    try:
+        raw = await websocket.receive_text()
+        try:
+            auth_msg = json.loads(raw)
+        except json.JSONDecodeError:
+            await websocket.send_json({"message": "Authentication failed: invalid JSON"})
+            await websocket.close()
+            return
+
+        if auth_msg.get("action") != "authenticate":
+            await websocket.send_json({"message": "Authentication failed: expected authenticate"})
+            await websocket.close()
+            return
+
+        payload = decode_token(auth_msg.get("api_key") or "")
+        if not payload or payload.get("type") != "access":
+            await websocket.send_json({"message": "Authentication failed: invalid or expired token"})
+            await websocket.close()
+            return
+
+        await websocket.send_json({"message": "Authentication successful"})
+
+        async def pump() -> None:
+            try:
+                while True:
+                    item = await asyncio.to_thread(q.get)
+                    if item is None:
+                        return
+                    await websocket.send_json(item)
+            except Exception:  # noqa: BLE001 - socket closed mid-send
+                return
+
+        pump_task = asyncio.create_task(pump())
+
+        while True:
+            raw = await websocket.receive_text()
+            try:
+                msg = json.loads(raw)
+            except json.JSONDecodeError:
+                continue
+
+            action = msg.get("action")
+            if action == "subscribe":
+                symbol = msg.get("symbol") or ""
+                exchange = msg.get("exchange") or "NSE"
+
+                stop_stream()
+                instrument_key = await asyncio.to_thread(_resolve_instrument_key, symbol, exchange)
+                if not instrument_key:
+                    await websocket.send_json(
+                        {"type": "subscribe", "status": "error", "message": f"Symbol not found: {symbol}"}
+                    )
+                    continue
+
+                token = await asyncio.to_thread(_get_upstox_token)
+                if not token:
+                    await websocket.send_json(
+                        {
+                            "type": "subscribe",
+                            "status": "error",
+                            "message": "No Upstox access token. Connect broker via Settings.",
+                        }
+                    )
+                    continue
+
+                stream = _UpstoxOrderFlowStream(token, instrument_key, q)
+                stream_ref["stream"] = stream
+                try:
+                    await asyncio.to_thread(stream.start)
+                except Exception as exc:  # noqa: BLE001
+                    stop_stream()
+                    await websocket.send_json(
+                        {"type": "subscribe", "status": "error", "message": f"Upstox connect failed: {exc}"}
+                    )
+                    continue
+
+                await websocket.send_json({"type": "subscribe", "status": "success"})
+
+            elif action == "unsubscribe":
+                stop_stream()
+                await websocket.send_json({"type": "subscribe", "status": "success"})
+
+    except WebSocketDisconnect:
+        pass
+    except Exception:  # noqa: BLE001
+        pass
+    finally:
+        stop_stream()
+        try:
+            q.put_nowait(None)
+        except thr_queue.Full:
+            pass
+        if pump_task is not None:
+            pump_task.cancel()

@@ -13,6 +13,7 @@ import {
   IconShield,
   IconPlayerPlay,
   IconLayoutGrid,
+  IconChartCandle,
   IconAdjustments,
   IconFlask,
 } from "@tabler/icons-react";
@@ -38,6 +39,7 @@ const navItems = [
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
+  { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },

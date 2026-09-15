@@ -951,6 +951,13 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load POC NQ API: {e}")
 
+try:
+    from api.orderflow_stream import router as orderflow_router
+    app.include_router(orderflow_router)
+    print("✅ Order Flow bridge loaded at /ws/orderflow")
+except Exception as e:
+    print(f"⚠️ Could not load Order Flow bridge: {e}")
+
 if __name__ == '__main__':
     port = config.PORT
     print(f'🚀 Alphashri FastAPI running on http://localhost:{port}')
