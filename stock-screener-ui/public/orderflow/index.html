@@ -648,6 +648,39 @@ chart.panes()[1].setHeight(110);
 
 const markers = createSeriesMarkers(midSeries, []);
 
+/* ==================== SIGNAL MARKERS ====================
+   Confluence BUY/SELL calls are merged into the same marker array as the
+   per-trade arrows (they need a data-backed series to position against). */
+const SIGNAL_MARKER_MAX = 40;
+const chartSignals = [];
+function currentPrice(){
+  const last = bars[bars.length-1];
+  if(last && isFinite(last.mid)) return last.mid;
+  const v = parseFloat(document.getElementById('lastPrice')?.textContent);
+  return isFinite(v) ? v : null;
+}
+function signalMarker(sig){
+  const isBuy = sig.side.indexOf('BUY') !== -1;
+  const strong = sig.side.indexOf('STRONG') === 0;
+  return {
+    time: sig.time,
+    position: isBuy ? 'belowBar' : 'aboveBar',
+    color: isBuy ? (strong ? '#16a34a' : '#4fd1a5') : (strong ? '#dc2626' : '#ff9d9a'),
+    shape: isBuy ? 'arrowUp' : 'arrowDown',
+    text: isBuy ? (strong ? 'STRONG BUY' : 'BUY') : (strong ? 'STRONG SELL' : 'SELL'),
+    size: strong ? 2 : 1.5,
+  };
+}
+function addChartSignal(sig, price){
+  if(!sig || !sig.side || sig.side === 'NEUTRAL') return;
+  const raw = (typeof sig.ts === 'number') ? sig.ts : Date.parse(sig.ts);
+  if(!raw || isNaN(raw)) return;
+  if(price == null || !(price > 0)) return;
+  chartSignals.push({ time: Math.floor(raw/1000), price, side: sig.side, score: sig.score });
+  if(chartSignals.length > SIGNAL_MARKER_MAX) chartSignals.shift();
+  applySeriesData();
+}
+
 /* ==================== HEATMAP PRIMITIVE ==================== */
 class HeatmapRenderer{
   constructor(view){ this.v = view; }
@@ -1173,6 +1206,7 @@ function clearAllData(){
   cvdSeries.setData([]); markers.setMarkers([]);
   const sigEl = document.getElementById('sigBadge');
   if(sigEl){ sigEl.className = 'signal-badge neutral'; sigEl.textContent = 'Signal —'; sigEl.title = ''; }
+  chartSignals.length = 0;
   const dayEl = document.getElementById('dayChg');
   if(dayEl){ dayEl.textContent = '—'; }
   const optGrp = document.getElementById('optGroup');
@@ -1461,7 +1495,13 @@ function applyHistory(ticks, signals){
     connLog(`Restored ${list.length} ticks from session journal`,'ok');
   }
   const sigs = Array.isArray(signals) ? signals : [];
-  for(const s of sigs) feedSignal(s);
+  for(const s of sigs){
+    feedSignal(s);
+    const raw = (typeof s.ts === 'number') ? s.ts : Date.parse(s.ts);
+    const t = isFinite(raw) ? Math.floor(raw/1000) : null;
+    const bar = (t != null && bars.find(b => b.time >= t)) || bars[bars.length-1];
+    addChartSignal(s, bar ? bar.mid : null);
+  }
   if(sigs.length) connLog(`Restored ${sigs.length} signals`,'info');
 }
 
@@ -1543,11 +1583,12 @@ function applySeriesData(){
   vwapSeries.setData(ui.showVWAP? vwapData : []);
   cvdSeries.setData(ui.showCVD? cvdBars : []);
 
+  const mks=[];
   if(ui.showLargeMarkers){
     // Arrow shape only — the quantity text is drawn bold by
     // TradeLabelsPrimitive (series markers cannot be bold).
     const recent = trades.filter(t=>t.qty>=ui.largeQty).slice(-80);
-    const seen = new Set(); const mks=[];
+    const seen = new Set();
     for(const t of recent){
       if(seen.has(t.time)) continue; seen.add(t.time);
       mks.push({ time:t.time,
@@ -1556,8 +1597,10 @@ function applySeriesData(){
         shape: t.side==='B'?'arrowUp':'arrowDown',
         size: 1.6});
     }
-    markers.setMarkers(mks);
-  } else markers.setMarkers([]);
+  }
+  for(const s of chartSignals) mks.push(signalMarker(s));
+  mks.sort((a,b) => a.time - b.time);
+  markers.setMarkers(mks);
 
   heatmap.requestUpdate();
 }
@@ -1792,6 +1835,7 @@ function setSignal(sig){
   connLog(`Signal ${side} (${pct>0?'+':''}${pct}) — ${(sig.reasons||[]).join('; ')}`,
           side.includes('BUY') ? 'ok' : (side.includes('SELL') ? 'err' : 'info'));
   feedSignal(sig);
+  addChartSignal(sig, currentPrice());
 }
 
 function applyMarketStatus(msg){
