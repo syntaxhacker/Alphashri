@@ -1,5 +1,8 @@
 """Tests for the order-flow signal engine (api/orderflow_signals.py)."""
 
+import datetime
+
+import config
 from api.orderflow_signals import OrderFlowSignalEngine
 
 
@@ -127,3 +130,72 @@ class TestCooldownAndReset:
         assert eng.tick_count == 0
         assert eng.snapshot()["label"] == "NEUTRAL"
         assert eng.snapshot()["cvd"] == 0
+
+
+class TestVwapEvent:
+    def test_below_vwap_is_not_a_permanent_bearish_vote(self):
+        eng = OrderFlowSignalEngine()
+        # price persistently BELOW vwap, balanced book, no flow
+        for i in range(40):
+            eng.update(make_tick(1000 + i, 100.0, 1000 * i, 99.95, 100.05, 100_000, 100_000, 110.0))
+        _, _, comp = eng._score(
+            make_tick(1040, 100.0, 40_000, 99.95, 100.05, 100_000, 100_000, 110.0), 100.0, 1040
+        )
+        assert abs(comp["s_vwap"]) < 0.2  # no constant VWAP bias
+
+    def test_reclaim_fires_a_positive_event(self):
+        eng = OrderFlowSignalEngine()
+        for i in range(20):
+            eng.update(make_tick(1000 + i, 99.0, 1000 * i, 98.95, 99.05, 100_000, 100_000, 100.0))
+        eng.update(make_tick(1021, 101.0, 21_000, 100.95, 101.05, 100_000, 100_000, 100.0))
+        assert eng.vwap_event > 0.5
+
+
+class TestAbsorption:
+    def test_sellers_absorbed_contributes_bullishly(self):
+        eng = OrderFlowSignalEngine()
+        # trades hit the bid (sell) but price does not fall -> absorbed
+        for i in range(40):
+            eng.update(make_tick(1000 + i, 100.0, 1000 * i, 100.0, 100.05, 100_000, 100_000, 100.0))
+        assert eng._absorption(100.0, 1039) == 1.0
+
+    def test_no_absorption_without_one_sided_flow(self):
+        eng = OrderFlowSignalEngine()
+        for i in range(40):
+            eng.update(make_tick(1000 + i, 100.0, 1000 * i, 100.0, 100.05, 100_000, 100_000, 100.0))
+        # no flow recorded at all -> no absorption signal
+        eng.agg_flow.clear()
+        assert eng._absorption(100.0, 1039) == 0.0
+
+
+class TestRegimeGate:
+    def test_damps_near_close(self):
+        eng = OrderFlowSignalEngine()
+        dt = datetime.datetime(2026, 9, 15, 15, 20, 0, tzinfo=config.IST)
+        ts = dt.timestamp()
+        tick = make_tick(ts, 100.0, 1000, 99.95, 100.05, 100_000, 100_000, 100.0)
+        assert eng._regime_gate(tick, 100.0, ts) == 0.5
+
+    def test_damps_after_large_intraday_move(self):
+        eng = OrderFlowSignalEngine()
+        tick = make_tick(1000, 100.0, 1000, 99.95, 100.05, 100_000, 100_000, 100.0)
+        tick["day"] = {"open": 90.0}  # +11% from open
+        assert eng._regime_gate(tick, 100.0, 1000) == 0.6
+
+    def test_normal_time_gate_is_one(self):
+        eng = OrderFlowSignalEngine()
+        dt = datetime.datetime(2026, 9, 15, 11, 0, 0, tzinfo=config.IST)
+        ts = dt.timestamp()
+        tick = make_tick(ts, 100.0, 1000, 99.95, 100.05, 100_000, 100_000, 100.0)
+        assert eng._regime_gate(tick, 100.0, ts) == 1.0
+
+
+class TestComponents:
+    def test_signal_carries_components_and_weights(self):
+        eng = OrderFlowSignalEngine()
+        signals = feed_buy_pressure(eng)
+        strong = next(s for s in signals if s["side"] == "STRONG_BUY")
+        comp = strong["components"]
+        for key in ("s_imb", "s_imb_raw", "absorb", "s_cvd", "s_vwap", "s_sweep", "s_mom", "raw", "gate", "weights"):
+            assert key in comp
+        assert abs(sum(comp["weights"].values()) - 1.0) < 1e-9

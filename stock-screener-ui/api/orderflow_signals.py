@@ -16,7 +16,10 @@ The class is pure/stateful with no I/O so it can be unit-tested directly.
 """
 
 from collections import deque
+from datetime import datetime
 from typing import Optional
+
+import config
 
 
 def clampleft(x: float, lo: float = -1.0, hi: float = 1.0) -> float:
@@ -39,8 +42,16 @@ class OrderFlowSignalEngine:
     WINDOW_SEC = 60.0
     SWEEP_SEC = 3.0
     SWEEP_MIN_QTY = 2000.0
-    VWAP_FULL_PCT = 0.25  # 0.25% from VWAP == full weight
-    MOM_FULL_PCT = 0.20   # 0.20% move over window == full weight
+    IMB_WINDOW_SEC = 300.0     # rolling window for the imbalance z-score
+    MOM_FULL_PCT = 0.20        # 0.20% move over window == full weight
+    VWAP_EVENT_DECAY = 0.92    # decay of a VWAP reclaim/reject event per tick
+    ABSORB_WINDOW_SEC = 30.0   # aggressive-flow window for absorption
+    ABSORB_RATIO = 1.5         # one-sided flow multiple that flags absorption
+    CLOSE_DAWN_MIN = 20.0      # start damping this many minutes before close
+    BIG_MOVE_PCT = 4.0         # intraday move that triggers a conviction damper
+
+    # composite weights (sum = 1.0)
+    WEIGHTS = {"imb": 0.34, "cvd": 0.28, "vwap": 0.16, "sweep": 0.14, "mom": 0.08}
 
     def __init__(self) -> None:
         self.reset()
@@ -55,6 +66,10 @@ class OrderFlowSignalEngine:
         self.cvd_series: deque = deque()
         self.price_series: deque = deque()
         self.agg_flow: deque = deque()  # (ts, side, qty)
+        self.imb_series: deque = deque()  # (ts, imbalance)
+        self.vwap_event = 0.0
+        self.prev_vwap_side: Optional[int] = None
+        self.last_components: dict = {}
         self.last_signal = "NEUTRAL"
         self.last_signal_ts = -1e12
         self.last_score = 0.0
@@ -137,13 +152,15 @@ class OrderFlowSignalEngine:
         self.cvd_series.append((ts, self.cvd))
         self.price_series.append((ts, ltp))
         self._prune(ts)
+        self._update_market_state(tick, ltp, ts)
 
         elapsed = ts - self.first_ts
         if self.tick_count < self.MIN_TICKS or elapsed < self.MIN_ELAPSED_SEC:
             return None
 
-        score, reasons = self._score(tick, ltp, ts)
+        score, reasons, components = self._score(tick, ltp, ts)
         self.last_score = score
+        self.last_components = components
         label = self._label(score)
 
         if label == self.last_signal:
@@ -162,24 +179,100 @@ class OrderFlowSignalEngine:
             "score": round(score, 3),
             "cvd": int(self.cvd),
             "reasons": reasons,
+            "components": components,
             "ts": int(ts * 1000),
         }
+
+    # --------------------------------------------------------- rolling state
+    def _update_market_state(self, tick: dict, ltp: float, ts: float) -> None:
+        """Per-tick state for the VWAP event and the imbalance z-score."""
+        # VWAP reclaim/reject as a decaying event (not a permanent position bias)
+        vwap = float(tick.get("vwap") or 0.0)
+        if vwap > 0 and ltp != vwap:
+            side = 1 if ltp > vwap else -1
+            if self.prev_vwap_side is not None and side != self.prev_vwap_side:
+                self.vwap_event = float(side)
+            self.prev_vwap_side = side
+        self.vwap_event *= self.VWAP_EVENT_DECAY
+
+        tbq = float(tick.get("tbq") or 0.0)
+        tsq = float(tick.get("tsq") or 0.0)
+        if tbq + tsq > 0:
+            self.imb_series.append((ts, (tbq - tsq) / (tbq + tsq)))
+        cutoff = ts - self.IMB_WINDOW_SEC
+        while self.imb_series and self.imb_series[0][0] < cutoff:
+            self.imb_series.popleft()
+
+    def _absorption(self, ltp: float, ts: float) -> float:
+        """+1 when sellers are absorbed (price holds despite sell flow), -1 vice versa."""
+        recent = [(s, q) for t, s, q in self.agg_flow if t >= ts - self.ABSORB_WINDOW_SEC]
+        buy = sum(q for s, q in recent if s == "B")
+        sell = sum(q for s, q in recent if s == "S")
+        prev_price = None
+        for t, p in reversed(self.price_series):
+            if t <= ts - self.ABSORB_WINDOW_SEC:
+                prev_price = p
+                break
+        if prev_price is None or prev_price <= 0:
+            return 0.0
+        move = (ltp - prev_price) / prev_price * 100.0
+        if sell > buy * self.ABSORB_RATIO and move > -0.02:
+            return 1.0
+        if buy > sell * self.ABSORB_RATIO and move < 0.02:
+            return -1.0
+        return 0.0
+
+    def _imbalance_score(self) -> float:
+        """z-score of the current imbalance vs its own rolling history."""
+        if not self.imb_series:
+            return 0.0
+        values = [v for _, v in self.imb_series]
+        current = values[-1]
+        n = len(values)
+        mean = sum(values) / n
+        var = sum((v - mean) ** 2 for v in values) / n
+        std = var ** 0.5
+        if std < 1e-6:
+            return clampleft(current * 1.6)
+        return clampleft((current - mean) / std / 2.0)
+
+    def _regime_gate(self, tick: dict, ltp: float, ts: float) -> float:
+        """Damp conviction near the close and after large intraday moves."""
+        gate = 1.0
+        try:
+            dt = datetime.fromtimestamp(ts, config.IST)
+            close = dt.replace(hour=15, minute=30, second=0, microsecond=0)
+            minutes_left = (close - dt).total_seconds() / 60.0
+            if minutes_left <= self.CLOSE_DAWN_MIN:
+                gate = 0.5
+        except (OverflowError, OSError, ValueError):
+            pass
+        day = tick.get("day") or {}
+        open_px = float(day.get("open") or 0.0)
+        if open_px > 0:
+            move = abs((ltp - open_px) / open_px * 100.0)
+            if move >= self.BIG_MOVE_PCT:
+                gate = min(gate, 0.6)
+        return gate
 
     # ------------------------------------------------------------------ score
     def _score(self, tick: dict, ltp: float, ts: float):
         reasons: list[str] = []
 
-        # 1) total book imbalance across all levels (tbq vs tsq)
+        # 1) book imbalance: z-scored vs its own history, plus absorption flip
         tbq = float(tick.get("tbq") or 0.0)
         tsq = float(tick.get("tsq") or 0.0)
-        if tbq + tsq > 0:
-            s_imb = clampleft((tbq - tsq) / (tbq + tsq) * 1.6)
-        else:
-            s_imb = 0.0
-        if abs(s_imb) >= 0.15:
+        s_imb_raw = self._imbalance_score()
+        absorb = self._absorption(ltp, ts)
+        s_imb = clampleft(0.7 * s_imb_raw + 0.3 * absorb)
+        if abs(s_imb_raw) >= 0.15:
             reasons.append(
-                f"{'Bid' if s_imb > 0 else 'Ask'}-heavy book ({tbq:,.0f} vs {tsq:,.0f})"
+                f"{'Bid' if s_imb_raw > 0 else 'Ask'}-heavy book ({tbq:,.0f} vs {tsq:,.0f})"
             )
+        if absorb > 0:
+            reasons.append("Sellers absorbed (price held)")
+        elif absorb < 0:
+            reasons.append("Buyers absorbed (price stalled)")
 
         # 2) CVD slope over the window, normalised by traded volume
         s_cvd = 0.0
@@ -194,16 +287,10 @@ class OrderFlowSignalEngine:
                 f"CVD {'rising' if d_cvd > 0 else 'falling'} {d_cvd:+,.0f} ({int(self.WINDOW_SEC)}s)"
             )
 
-        # 3) VWAP position (day average traded price)
-        vwap = float(tick.get("vwap") or 0.0)
-        s_vwap = 0.0
-        if vwap > 0:
-            pct = (ltp - vwap) / vwap * 100.0
-            s_vwap = clampleft(pct / self.VWAP_FULL_PCT)
+        # 3) VWAP reclaim/reject event (decaying) — no permanent position bias
+        s_vwap = clampleft(self.vwap_event)
         if abs(s_vwap) >= 0.2:
-            reasons.append(
-                f"{'Above' if s_vwap > 0 else 'Below'} VWAP ({ltp:,.2f} vs {vwap:,.2f})"
-            )
+            reasons.append("VWAP reclaim" if s_vwap > 0 else "VWAP rejection")
 
         # 4) sweep / aggression burst in the last few seconds
         recent = [(s, q) for t, s, q in self.agg_flow if t >= ts - self.SWEEP_SEC]
@@ -226,14 +313,31 @@ class OrderFlowSignalEngine:
         if abs(s_mom) >= 0.5:
             reasons.append(f"Momentum {s_mom:+.2f}")
 
-        score = clampleft(
-            0.34 * s_imb
-            + 0.28 * s_cvd
-            + 0.16 * s_vwap
-            + 0.14 * s_sweep
-            + 0.08 * s_mom
+        raw = (
+            self.WEIGHTS["imb"] * s_imb
+            + self.WEIGHTS["cvd"] * s_cvd
+            + self.WEIGHTS["vwap"] * s_vwap
+            + self.WEIGHTS["sweep"] * s_sweep
+            + self.WEIGHTS["mom"] * s_mom
         )
-        return score, reasons
+        gate = self._regime_gate(tick, ltp, ts)
+        score = clampleft(raw * gate)
+        if gate < 1.0:
+            reasons.append(f"Late/large-move damper x{gate:.2f}")
+
+        components = {
+            "s_imb": round(s_imb, 3),
+            "s_imb_raw": round(s_imb_raw, 3),
+            "absorb": round(absorb, 3),
+            "s_cvd": round(s_cvd, 3),
+            "s_vwap": round(s_vwap, 3),
+            "s_sweep": round(s_sweep, 3),
+            "s_mom": round(s_mom, 3),
+            "raw": round(raw, 3),
+            "gate": round(gate, 3),
+            "weights": dict(self.WEIGHTS),
+        }
+        return score, reasons, components
 
     # --------------------------------------------------------------- snapshot
     def snapshot(self) -> dict:
@@ -243,4 +347,5 @@ class OrderFlowSignalEngine:
             "label": self.last_signal,
             "cvd": int(self.cvd),
             "ticks": self.tick_count,
+            "components": self.last_components,
         }

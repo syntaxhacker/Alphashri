@@ -57,6 +57,7 @@ from api.news_routes import (
 )
 from api.news.news_poller import _init_news_modules
 from api.bots_api.bot_operations import bot_auto_recovery_task
+from api.orderflow_recorder import recorder_task
 
 _news_available = False
 _llm_available = False
@@ -329,6 +330,7 @@ async def lifespan(app: FastAPI):
     _prefetch_task = None
     _recovery_task = None
     _db_backup_task = None
+    _orderflow_recorder_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -399,6 +401,13 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ DB backup task failed: {e}")
                 _db_backup_task = None
+
+            try:
+                _orderflow_recorder_task = asyncio.create_task(recorder_task())
+                print("🎙️ Order-flow recorder task started")
+            except Exception as e:
+                print(f"⚠️ Order-flow recorder task failed: {e}")
+                _orderflow_recorder_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -417,6 +426,8 @@ async def lifespan(app: FastAPI):
         _recovery_task.cancel()
     if _db_backup_task:
         _db_backup_task.cancel()
+    if _orderflow_recorder_task:
+        _orderflow_recorder_task.cancel()
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes
