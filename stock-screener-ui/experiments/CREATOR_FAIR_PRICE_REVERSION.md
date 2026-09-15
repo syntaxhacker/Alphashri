@@ -69,11 +69,32 @@ now supports such a gate with `--min-session-ticks` and
 an independent sample.
 
 The 08:30 news-anchor test also does not match every creator example. For
-September 10 the copy produced -50 points and for September 11 it produced
-0 points, while the creator describes different outcomes. The remaining gap
-is the creator's manual fair-price re-anchoring, exact volume/session
-selection, and any unrecorded execution discretion—not the 25-point/1.5R
-bracket.
+September 10 the copy produced -50 points (-2R) and for September 11 it
+produced +25 points (+1R), while the creator describes approximately +0.5R
+and +1.5R respectively. The remaining gap is the creator's manual
+fair-price re-anchoring, exact volume/session selection, and any unrecorded
+execution discretion—not the 25-point/1.5R bracket.
+
+Using the same matched New York research profile on the other dated examples
+gives this comparison:
+
+| Date | Creator transcript | Copied replay | Match |
+|---|---:|---:|---|
+| Aug 31 | +1.5R | -2R | No |
+| Sep 1 | +1.5R | -1R | No |
+| Sep 2 | -0.5R | +0.5R | No |
+| Sep 3 | +1.5R | -0.5R | No |
+| Sep 8 | 0R (2 wins, 3 losses) | 0R (no trades) | Net only |
+| Sep 9 | +2R | +1R | No |
+| Sep 10 | +0.5R default | -2R | No |
+| Sep 11 | +1.5R | +1R | No |
+| Sep 14 | +2R, 2 wins/1 loss | +2R, 2 wins/1 loss | Exact |
+
+This is not a failure of the bracket arithmetic; it shows that the
+transcript's discretionary session selection, volume qualification, and
+manual fair-price changes materially determine which trades are taken. The
+copy should therefore remain a research variant until those decisions are
+made mechanical and validated out of sample.
 
 ## Safety boundary
 
