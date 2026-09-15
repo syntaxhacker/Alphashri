@@ -218,7 +218,7 @@ async def get_expiries(underlying: str):
                 expiry_str = contract.get("expiry")
                 if expiry_str and expiry_str not in seen_dates:
                     seen_dates.add(expiry_str)
-                    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d")
+                    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").replace(tzinfo=config.IST)
                     days = (expiry_date - today).days
                     if days >= 0:
                         expiries.append({
