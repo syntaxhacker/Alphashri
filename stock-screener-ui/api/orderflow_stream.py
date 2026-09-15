@@ -24,7 +24,9 @@ which is exactly how OrderFlowMap already works.
 
 import asyncio
 import json
+import os
 import queue as thr_queue
+import threading
 from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -263,6 +265,35 @@ def _build_history(
     return {"ticks": ticks, "signals": signals}
 
 
+# Upstox allows 2 WebSocket connections per user (5 with Upstox Plus). Cap how
+# many this process opens so we surface a clear message instead of a raw 403.
+_conn_lock = threading.Lock()
+_active_connections = 0
+
+
+def _max_connections() -> int:
+    try:
+        return max(1, int(os.getenv("ORDERFLOW_MAX_CONNECTIONS", "5")))
+    except (TypeError, ValueError):
+        return 5
+
+
+def _acquire_connection() -> bool:
+    global _active_connections
+    with _conn_lock:
+        if _active_connections >= _max_connections():
+            return False
+        _active_connections += 1
+        return True
+
+
+def _release_connection() -> None:
+    global _active_connections
+    with _conn_lock:
+        if _active_connections > 0:
+            _active_connections -= 1
+
+
 def _normalize_market_status(feed_response: dict) -> Optional[dict]:
     """Extract the ``market_info`` segment-status message from the feed."""
     if feed_response.get("type") != "market_info":
@@ -328,7 +359,14 @@ class _UpstoxOrderFlowStream:
             self.handle_feed_message(data)
 
         def on_error(err):
-            self._push({"type": "error", "message": str(err)})
+            msg = str(err)
+            if "403" in msg:
+                msg = (
+                    f"Upstox rejected the connection (403) — per-user connection "
+                    f"limit reached (max {_max_connections()}). Close another Order "
+                    f"Flow tab and reconnect, or upgrade your Upstox plan."
+                )
+            self._push({"type": "error", "message": msg})
 
         streamer.on("open", on_open)
         streamer.on("message", on_message)
@@ -388,6 +426,7 @@ async def orderflow_ws(websocket: WebSocket):
                 current.stop()
             except Exception:
                 pass
+            _release_connection()
         stream_ref["stream"] = None
 
     pump_task: Optional[asyncio.Task] = None
@@ -453,6 +492,19 @@ async def orderflow_ws(websocket: WebSocket):
                             "type": "subscribe",
                             "status": "error",
                             "message": "No Upstox access token. Connect broker via Settings.",
+                        }
+                    )
+                    continue
+
+                if not _acquire_connection():
+                    await websocket.send_json(
+                        {
+                            "type": "subscribe",
+                            "status": "error",
+                            "message": (
+                                f"Upstox connection limit reached (max {_max_connections()} per "
+                                f"user). Close another Order Flow tab or upgrade your plan."
+                            ),
                         }
                     )
                     continue

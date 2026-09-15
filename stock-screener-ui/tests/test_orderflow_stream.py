@@ -229,6 +229,24 @@ def test_upstox_stream_push_drops_on_full_queue():
     assert q.qsize() == 1
 
 
+class TestConnectionLimiter:
+    def test_cap_and_release(self, monkeypatch):
+        monkeypatch.setenv("ORDERFLOW_MAX_CONNECTIONS", "2")
+        monkeypatch.setattr(orderflow_stream, "_active_connections", 0)
+        assert orderflow_stream._acquire_connection() is True
+        assert orderflow_stream._acquire_connection() is True
+        assert orderflow_stream._acquire_connection() is False  # capped
+        orderflow_stream._release_connection()
+        assert orderflow_stream._acquire_connection() is True
+        orderflow_stream._release_connection()
+        orderflow_stream._release_connection()
+        assert orderflow_stream._active_connections == 0
+
+    def test_default_is_five(self, monkeypatch):
+        monkeypatch.delenv("ORDERFLOW_MAX_CONNECTIONS", raising=False)
+        assert orderflow_stream._max_connections() == 5
+
+
 class TestBuildHistory:
     def _entries(self, n=10):
         return [
