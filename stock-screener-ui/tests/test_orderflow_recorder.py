@@ -242,3 +242,90 @@ class TestGaps:
             rec.check_gaps(now=1000.0)
             rec.check_gaps(now=1001.0)
         assert len([r for r in caplog.records if "no tick" in r.getMessage()]) == 1
+
+
+class FakeAdapter:
+    """Minimal order-flow adapter double for the recorder's adapter path."""
+
+    name = "fake"
+
+    def __init__(self, *args, **kwargs):
+        self.connected_symbols = None
+        self.on_tick = None
+        self.disconnected = False
+
+    def broker_symbol(self, symbol):
+        return f"X:{symbol}"
+
+    def connect(self, symbols, on_tick, on_error=None):
+        self.connected_symbols = list(symbols)
+        self.on_tick = on_tick
+
+    def disconnect(self):
+        self.disconnected = True
+
+
+class TestRecorderBrokerSelection:
+    def test_recorder_broker_default_and_env(self, monkeypatch):
+        monkeypatch.delenv("ORDERFLOW_BROKER", raising=False)
+        assert orderflow_recorder.recorder_broker() == "upstox"
+        monkeypatch.setenv("ORDERFLOW_BROKER", "Fyers_TBT")
+        assert orderflow_recorder.recorder_broker() == "fyers_tbt"
+
+    def test_recorder_token_prepends_fyers_app_id(self, monkeypatch):
+        import config
+
+        monkeypatch.setattr(config, "FYERS_CLIENT_ID", "APP-100")
+        monkeypatch.setattr(
+            "db.models.get_shared_broker_token", lambda name: {"access_token": "TOK"}
+        )
+        assert orderflow_recorder.recorder_token("fyers") == "APP-100:TOK"
+        assert orderflow_recorder.recorder_token("fyers_tbt") == "APP-100:TOK"
+
+    def test_recorder_token_none_without_fyers_token(self, monkeypatch):
+        monkeypatch.setattr("db.models.get_shared_broker_token", lambda name: None)
+        assert orderflow_recorder.recorder_token("fyers") is None
+
+
+class TestRecorderAdapterPath:
+    def _recorder(self, monkeypatch):
+        monkeypatch.setattr(
+            orderflow_recorder, "get_adapter", lambda name: FakeAdapter
+        )
+        return OrderFlowRecorder(["RELIANCE", "TCS"], "tok", broker="fyers")
+
+    def test_builds_broker_symbol_map_and_engines(self, monkeypatch):
+        rec = self._recorder(monkeypatch)
+        assert rec._adapter is not None
+        assert set(rec._engines) == {"RELIANCE", "TCS"}
+        assert rec._broker_to_symbol == {"X:RELIANCE": "RELIANCE", "X:TCS": "TCS"}
+
+    def test_start_connects_adapter_and_routes_ticks(self, monkeypatch):
+        rec = self._recorder(monkeypatch)
+        journaled = []
+        monkeypatch.setattr(
+            orderflow_recorder.orderflow_journal, "append",
+            lambda symbol, kind, payload: journaled.append((symbol, kind)),
+        )
+        rec.start()
+        assert rec._adapter.connected_symbols == ["RELIANCE", "TCS"]
+        rec.on_tick_adapter("X:TCS", {"ltp": 1.0})
+        assert ("TCS", "tick") in journaled
+
+    def test_unknown_broker_has_no_adapter(self, monkeypatch):
+        monkeypatch.setattr(orderflow_recorder, "get_adapter", lambda name: None)
+        rec = OrderFlowRecorder(["RELIANCE"], "tok", broker="nope")
+        assert rec._adapter is None
+        rec.start()  # must not raise
+
+
+class TestRecorderSymbolsCase:
+    def test_env_preserves_index_key_case_but_uppercases_names(self, monkeypatch):
+        monkeypatch.setenv(
+            "ORDERFLOW_RECORDER_SYMBOLS", "reliance,nse_index|Nifty 50"
+        )
+        symbols = recorder_symbols()
+        assert "RELIANCE" in symbols
+        assert "nse_index|Nifty 50" in symbols  # key left verbatim
+
+

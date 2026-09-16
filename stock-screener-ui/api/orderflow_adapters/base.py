@@ -86,6 +86,10 @@ class OrderFlowAdapter(ABC):
         """Tear down the feed (broker-specific)."""
         raise NotImplementedError(f"{self.name} adapter does not implement disconnect()")
 
+    def broker_symbol(self, symbol: str) -> str:
+        """Map an app symbol to this broker's symbol format (default: identity)."""
+        return symbol
+
     def capabilities(self) -> dict:
         return {
             "name": self.name,

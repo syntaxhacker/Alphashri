@@ -98,13 +98,16 @@ def _resolve_instrument_key(symbol: str, exchange: str = "NSE") -> Optional[str]
     otherwise looks it up in the local ``instruments`` table, then the local
     instruments JSON (which covers NSE_FO option/futures contracts).
     """
-    symbol = (symbol or "").strip().upper()
-    exchange = (exchange or "NSE").strip().upper()
-    if not symbol:
+    raw = (symbol or "").strip()
+    if not raw:
         return None
+    # Already-formatted keys are case-sensitive (e.g. "NSE_INDEX|Nifty 50",
+    # option contracts) — return them verbatim, never upper-cased.
+    if "|" in raw:
+        return raw
 
-    if "|" in symbol:
-        return symbol
+    symbol = raw.upper()
+    exchange = (exchange or "NSE").strip().upper()
 
     try:
         from db.database import SessionLocal
@@ -158,9 +161,35 @@ def _normalize_tick(feed_map: dict) -> Optional[dict]:
     for feed in feed_map.values():
         if not isinstance(feed, dict):
             continue
-        mff = (feed.get("fullFeed") or {}).get("marketFF")
+        full_feed = feed.get("fullFeed") or {}
+        mff = full_feed.get("marketFF")
         if not mff:
-            continue
+            # Indices carry no order book (indexFF): emit price + OHLC only.
+            index_ff = full_feed.get("indexFF")
+            if not index_ff:
+                continue
+            ltpc = index_ff.get("ltpc") or {}
+            ltp = ltpc.get("ltp")
+            if ltp is None:
+                continue
+            return {
+                "type": "market_data",
+                "data": {
+                    "ltp": _num(ltp),
+                    "volume": 0.0,
+                    "vwap": 0.0,
+                    "ltt": int(_num(ltpc.get("ltt"))),
+                    "ltq": _num(ltpc.get("ltq")),
+                    "cp": _num(ltpc.get("cp")),
+                    "tbq": 0.0,
+                    "tsq": 0.0,
+                    "oi": 0.0,
+                    "iv": 0.0,
+                    "greeks": None,
+                    "day": _day_ohlc(index_ff),
+                    "depth": {"buy": [], "sell": []},
+                },
+            }
 
         ltpc = mff.get("ltpc") or {}
         ltp = ltpc.get("ltp")

@@ -17,6 +17,7 @@ import time
 from typing import Optional
 
 from api import orderflow_journal
+from api.orderflow_adapters import get_adapter
 from api.orderflow_signals import OrderFlowSignalEngine
 from api.orderflow_stream import (
     _normalize_market_status,
@@ -41,7 +42,12 @@ def recorder_symbols() -> list[str]:
     if raw is None or not raw.strip():
         candidates = [*_DEFAULT_SYMBOLS, _NIFTY_INDEX_KEY]
     else:
-        candidates = [s.strip().upper() for s in raw.split(",") if s.strip()]
+        # Preserve case for already-formatted keys ("NSE_INDEX|Nifty 50").
+        candidates = []
+        for part in raw.split(","):
+            part = part.strip()
+            if part:
+                candidates.append(part if "|" in part else part.upper())
 
     seen: set[str] = set()
     out: list[str] = []
@@ -50,6 +56,34 @@ def recorder_symbols() -> list[str]:
             seen.add(symbol)
             out.append(symbol)
     return out
+
+
+def recorder_broker() -> str:
+    """Recorder broker from ``ORDERFLOW_BROKER`` (default ``upstox``)."""
+    return (os.getenv("ORDERFLOW_BROKER") or "upstox").strip().lower()
+
+
+def recorder_token(broker: str) -> Optional[str]:
+    """Resolve the access token for the recorder's broker.
+
+    Upstox uses the OAuth token directly; Fyers APIs need
+    ``"<APP_ID>:<ACCESS_TOKEN>"``.
+    """
+    broker = (broker or "upstox").strip().lower()
+    if broker == "upstox":
+        from api.paper.live_stream import _get_upstox_token
+
+        return _get_upstox_token()
+
+    import config
+    from db.models import get_shared_broker_token
+
+    token = (get_shared_broker_token("fyers") or {}).get("access_token")
+    if not token:
+        return None
+    if broker.startswith("fyers") and config.FYERS_CLIENT_ID:
+        return f"{config.FYERS_CLIENT_ID}:{token}"
+    return token
 
 
 def _default_streamer_factory(token: str):
@@ -64,31 +98,47 @@ def _default_streamer_factory(token: str):
 
 
 class OrderFlowRecorder:
-    """Headless recorder for a fixed symbol list using one Upstox stream."""
+    """Headless recorder for a fixed symbol list on a chosen broker feed."""
 
-    def __init__(self, symbols, token: str, streamer_factory=None):
+    def __init__(self, symbols, token: str, broker: str = "upstox", streamer_factory=None):
         self.symbols = [s for s in (symbols or []) if s]
         self.token = token
+        self.broker = (broker or "upstox").strip().lower()
         self._streamer_factory = streamer_factory or _default_streamer_factory
         self._streamer = None
+        self._adapter = None
         self._running = False
-        # instrument_key -> symbol, and symbol -> per-symbol engine.
+        # Upstox path: instrument_key -> symbol.  Adapter path: broker symbol -> symbol.
         self._keys: dict[str, str] = {}
+        self._broker_to_symbol: dict[str, str] = {}
         self._engines: dict[str, OrderFlowSignalEngine] = {}
         self._last_tick: dict[str, float] = {}
         self._last_gap_warn: dict[str, float] = {}
 
-        for symbol in self.symbols:
-            key = _resolve_instrument_key(symbol, "NSE")
-            if not key:
-                logger.warning("orderflow recorder: unresolved symbol %s", symbol)
-                continue
-            self._keys[key] = symbol
-            self._engines[symbol] = OrderFlowSignalEngine()
+        if self.broker == "upstox":
+            for symbol in self.symbols:
+                key = _resolve_instrument_key(symbol, "NSE")
+                if not key:
+                    logger.warning("orderflow recorder: unresolved symbol %s", symbol)
+                    continue
+                self._keys[key] = symbol
+                self._engines[symbol] = OrderFlowSignalEngine()
+        else:
+            adapter_cls = get_adapter(self.broker)
+            if adapter_cls is None:
+                logger.warning("orderflow recorder: unknown broker %s", self.broker)
+            else:
+                self._adapter = adapter_cls()
+                for symbol in self.symbols:
+                    self._broker_to_symbol[self._adapter.broker_symbol(symbol)] = symbol
+                    self._engines[symbol] = OrderFlowSignalEngine()
 
     # ------------------------------------------------------------------ lifecycle
     def start(self) -> None:
         if self._running:
+            return
+        if self._adapter is not None:
+            self._start_adapter()
             return
         if not self._keys:
             logger.warning("orderflow recorder: no resolved symbols; not starting")
@@ -118,6 +168,13 @@ class OrderFlowRecorder:
 
     def stop(self) -> None:
         self._running = False
+        if self._adapter is not None:
+            try:
+                self._adapter.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            logger.info("orderflow recorder stopped")
+            return
         streamer, self._streamer = self._streamer, None
         if streamer is not None:
             try:
@@ -125,6 +182,38 @@ class OrderFlowRecorder:
             except Exception:  # noqa: BLE001
                 pass
         logger.info("orderflow recorder stopped")
+
+    # ---------------------------------------------------------- adapter path
+    def _start_adapter(self) -> None:
+        if not self._broker_to_symbol:
+            logger.warning("orderflow recorder: no symbols for broker %s", self.broker)
+            return
+        now = time.monotonic()
+        self._last_tick = {symbol: now for symbol in self._engines}
+        self._last_gap_warn = dict(self._last_tick)
+        self._running = True
+        logger.info(
+            "orderflow recorder starting broker=%s: %d symbols",
+            self.broker,
+            len(self._engines),
+        )
+        try:
+            self._adapter.connect(
+                self.symbols,
+                on_tick=self.on_tick_adapter,
+                on_error=lambda err: logger.warning(
+                    "orderflow recorder adapter error: %s", err
+                ),
+            )
+        except Exception as exc:  # noqa: BLE001 - start must not crash the caller
+            logger.warning("orderflow recorder adapter connect failed: %s", exc)
+
+    def on_tick_adapter(self, broker_symbol, tick) -> None:
+        """Adapter callback: map the broker symbol back to our symbol + record."""
+        symbol = self._broker_to_symbol.get(str(broker_symbol))
+        if not symbol or not isinstance(tick, dict):
+            return
+        self._record_tick(symbol, tick)
 
     # ------------------------------------------------------------------- handlers
     def _on_open(self) -> None:
@@ -195,14 +284,15 @@ class OrderFlowRecorder:
 
 def run_recorder(stop_event=None) -> None:
     """Blocking convenience loop used by the standalone runner / threads."""
-    from api.paper.live_stream import _get_upstox_token
-
-    token = _get_upstox_token()
+    broker = recorder_broker()
+    token = recorder_token(broker)
     if not token:
-        logger.error("orderflow recorder: no Upstox access token; not starting")
+        logger.error(
+            "orderflow recorder: no access token for broker %s; not starting", broker
+        )
         return
 
-    recorder = OrderFlowRecorder(recorder_symbols(), token)
+    recorder = OrderFlowRecorder(recorder_symbols(), token, broker=broker)
     recorder.start()
     try:
         while not (stop_event is not None and stop_event.is_set()):
@@ -231,22 +321,25 @@ async def recorder_task() -> None:
         logger.info("orderflow recorder: CI_MODE — not starting")
         return
 
-    from api.paper.live_stream import _get_upstox_token
     from trading.utils import is_market_open
 
+    broker = recorder_broker()
     recorder: Optional[OrderFlowRecorder] = None
     try:
         while True:
             try:
                 if is_market_open():
                     if recorder is None:
-                        token = await asyncio.to_thread(_get_upstox_token)
+                        token = await asyncio.to_thread(recorder_token, broker)
                         if not token:
                             logger.warning(
-                                "orderflow recorder: no Upstox token; will retry"
+                                "orderflow recorder: no token for broker %s; will retry",
+                                broker,
                             )
                         else:
-                            recorder = OrderFlowRecorder(recorder_symbols(), token)
+                            recorder = OrderFlowRecorder(
+                                recorder_symbols(), token, broker=broker
+                            )
                             await asyncio.to_thread(recorder.start)
                 elif recorder is not None:
                     await asyncio.to_thread(recorder.stop)

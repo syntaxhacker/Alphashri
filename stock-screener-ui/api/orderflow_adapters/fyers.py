@@ -135,6 +135,9 @@ class FyersAdapter(OrderFlowAdapter):
         """Map ``"RELIANCE"`` → ``"NSE:RELIANCE-EQ"``; pass through ``NSE:...``."""
         return fyers_symbol(symbol)
 
+    def broker_symbol(self, symbol: str) -> str:
+        return fyers_symbol(symbol)
+
     def normalize(self, raw: dict) -> list[tuple[str, dict]]:
         if not isinstance(raw, dict):
             return []
@@ -328,6 +331,9 @@ class FyersTbtAdapter(OrderFlowAdapter):
         if not symbol or depth is None:
             return []
         return [self.normalize_depth(str(symbol), depth)]
+
+    def broker_symbol(self, symbol: str) -> str:
+        return fyers_symbol(symbol)
 
     # -- quote merge ---------------------------------------------------------
     def remember_quote(self, message: dict) -> None:

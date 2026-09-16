@@ -7,7 +7,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api import orderflow_stream
-from api.orderflow_stream import _normalize_tick, _normalize_market_status, _num
+from api.orderflow_stream import (
+    _normalize_tick,
+    _normalize_market_status,
+    _num,
+    _resolve_instrument_key,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -365,3 +370,51 @@ class TestStreamMessageHandling:
         )
         assert q.empty()
 
+
+
+class TestIndexFeed:
+    def test_index_feed_yields_price_without_depth(self):
+        payload = {
+            "NSE_INDEX|Nifty 50": {
+                "fullFeed": {
+                    "indexFF": {
+                        "ltpc": {"ltp": 23180.5, "ltt": "1713345678000", "ltq": "0", "cp": 23100.0},
+                        "marketOHLC": {
+                            "ohlc": [
+                                {"interval": "1d", "open": 23150, "high": 23240, "low": 23080, "close": 23180.5, "vol": "0"}
+                            ]
+                        },
+                    }
+                }
+            }
+        }
+        tick = _normalize_tick(payload)
+        assert tick is not None
+        data = tick["data"]
+        assert data["ltp"] == 23180.5
+        assert data["depth"] == {"buy": [], "sell": []}
+        assert data["day"]["high"] == 23240.0
+
+    def test_market_feed_still_requires_depth(self):
+        payload = {
+            "NSE_EQ|X": {
+                "fullFeed": {
+                    "marketFF": {
+                        "ltpc": {"ltp": 100.0, "ltt": "1713345678000"},
+                        "marketLevel": {"bidAskQuote": []},
+                        "vtt": "10",
+                    }
+                }
+            }
+        }
+        assert _normalize_tick(payload) is None
+
+
+class TestResolveInstrumentKeyCase:
+    def test_instrument_key_is_case_preserved(self):
+        assert _resolve_instrument_key("NSE_INDEX|Nifty 50") == "NSE_INDEX|Nifty 50"
+        assert _resolve_instrument_key("NSE_FO|56984") == "NSE_FO|56984"
+
+    def test_empty_symbol_returns_none(self):
+        assert _resolve_instrument_key("") is None
+        assert _resolve_instrument_key("   ") is None

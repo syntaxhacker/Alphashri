@@ -264,9 +264,13 @@ def _get_fyers_status() -> dict:
             token_time = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
             if token_time.tzinfo is None:
                 token_time = token_time.replace(tzinfo=timezone.utc)
-            # Fyers access tokens are valid for ~1 day
-            expires = token_time + timedelta(hours=24)
-            now = datetime.now(timezone.utc)
+            # Fyers access tokens expire the next morning (~06:00 IST).
+            ist = timezone(timedelta(hours=5, minutes=30))
+            token_ist = token_time.astimezone(ist)
+            expires = (token_ist + timedelta(days=1)).replace(
+                hour=6, minute=0, second=0, microsecond=0
+            )
+            now = datetime.now(ist)
             expires_in_hours = round((expires - now).total_seconds() / 3600, 2)
             expires_at = expires.isoformat()
         except Exception:
