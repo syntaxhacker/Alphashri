@@ -466,7 +466,7 @@ class _AdapterOrderFlowStream:
         self.symbol = (symbol or "").strip().upper()
         self.token = token
         self.q = q
-        self._adapter = None
+        self._sub = None
         self._closed = False
         self._engine = OrderFlowSignalEngine()
 
@@ -487,24 +487,25 @@ class _AdapterOrderFlowStream:
             return
 
     def start(self) -> None:
-        from api.orderflow_adapters import get_adapter
+        # Subscriptions go through the process-wide hub so a broker keeps ONE
+        # connection. The Fyers SDK shares socket state at module scope, so a
+        # per-tab adapter silently mixed instruments (RAYMOND's book paired with
+        # RELIANCE's price/volume); growing the shared connection avoids that.
+        from api.orderflow_adapter_hub import get_hub
 
-        adapter_cls = get_adapter(self.broker)
-        if adapter_cls is None:
-            self._push({"type": "error", "message": f"Unknown broker: {self.broker}"})
-            return
         try:
-            self._adapter = adapter_cls(access_token=self.token)
-        except TypeError:
-            self._adapter = adapter_cls()
+            self._sub = get_hub().subscribe(
+                self.broker,
+                self.token,
+                self.symbol,
+                on_tick=self._handle_tick,
+                on_error=lambda err: self._push({"type": "error", "message": str(err)}),
+            )
+        except Exception as exc:  # noqa: BLE001 - surfaced to the UI
+            self._push({"type": "error", "message": f"{self.broker} connect failed: {exc}"})
 
-        self._adapter.connect(
-            [self.symbol],
-            on_tick=self._handle_tick,
-            on_error=lambda err: self._push({"type": "error", "message": str(err)}),
-        )
-
-    def _handle_tick(self, broker_symbol, tick) -> None:
+    def _handle_tick(self, symbol, tick) -> None:
+        # The hub routes by symbol, so a tick here is always this stream's symbol.
         if self._closed or not isinstance(tick, dict):
             return
         self._push({"type": "market_data", "data": tick})
@@ -524,12 +525,12 @@ class _AdapterOrderFlowStream:
 
     def stop(self) -> None:
         self._closed = True
-        if self._adapter is not None:
+        sub, self._sub = self._sub, None
+        if sub is not None:
             try:
-                self._adapter.disconnect()
+                sub.release()
             except Exception:  # noqa: BLE001
                 pass
-            self._adapter = None
 
 
 def _bridge_broker() -> str:

@@ -55,3 +55,35 @@ imported from `api/orderflow_adapters/__init__.py`.
    `tests/test_orderflow_adapter_<broker>.py` covering the registry,
    `capabilities()`, depth/quote normalization, symbol mapping, and
    `connect()` via a fake socket (no network).
+
+## One connection per broker (the adapter hub)
+
+Symbol mapping lives in a single module, `api/orderflow_symbols.py` — every
+adapter resolves app <-> broker symbols through it, both directions
+(`to_broker_symbol` / `from_broker_symbol`). The reverse direction is what routes
+ticks to subscribers; dropping it is how one instrument's price gets attributed
+to another.
+
+Connection ownership lives in `api/orderflow_adapter_hub.py`. There is exactly
+**one adapter instance and one connection per broker per process**; extra
+subscribers grow that connection via `OrderFlowAdapter.subscribe_symbol()` and
+ticks are fanned out by app symbol. The bridge (`_AdapterOrderFlowStream`) goes
+through the hub, so opening a second browser tab never opens a second socket.
+
+This is not an optimisation — it is a correctness requirement:
+
+> The Fyers SDK shares socket/callback state at module scope. Two adapters in one
+> process cross-deliver each other's payloads, producing ticks whose
+> `ltp`/`volume`/`cp` belong to a *different* instrument than the 50-level depth.
+> Observed live: RAYMOND's book (top 989.4/989.9, `vwap` 981.5) paired with
+> RELIANCE's `ltp` 1250.3 / `vol` 7143314, which the UI rendered as
+> `Day +25.46%` and a `-13,275,788` CVD.
+
+Verified server-side with two concurrent bridge subscriptions (RAYMOND +
+RELIANCE): the API worker held exactly **2** Fyers sockets (1 TBT + 1 quote), and
+each symbol reported only its own `cp` (995.95 vs 1235.3), monotonic volume, and
+a CVD under 0.1% of day volume. The headless recorder stays a **separate
+process** for the same reason.
+
+If an adapter cannot add symbols in place, the hub fails loudly rather than
+opening a second connection.

@@ -3,6 +3,8 @@
 import sys
 from unittest import mock
 
+import pytest
+
 from api.orderflow_adapters import available_adapters, get_adapter
 from api.orderflow_adapters.fyers import (
     FyersAdapter,
@@ -406,3 +408,78 @@ class _FakeTbt:
 
     def close_connection(self):
         pass
+
+
+class TestInPlaceSubscribe:
+    """Growing the existing connection is required, not a nicety.
+
+    A second adapter instance in one process makes the Fyers SDK cross-deliver
+    payloads between instruments, so the hub must be able to add a symbol to the
+    live socket instead of constructing another adapter.
+    """
+
+    def test_data_socket_adapter_subscribes_new_symbol_in_place(self):
+        adapter = get_adapter("fyers")(access_token="APP:TOK")
+        sock = _FakeSocket()
+        adapter.connect(
+            ["SBIN"],
+            on_tick=lambda s, t: None,
+            socket_factory=lambda **kw: _with_kwargs(sock, kw),
+        )
+        assert sock.subscribed == (["NSE:SBIN-EQ"], "DepthUpdate")
+
+        assert adapter.subscribe_symbol("itc") is True
+        assert sock.subscribed == (["NSE:ITC-EQ"], "DepthUpdate")
+
+    def test_data_socket_adapter_rejects_subscribe_before_connect(self):
+        adapter = get_adapter("fyers")(access_token="APP:TOK")
+        with pytest.raises(RuntimeError):
+            adapter.subscribe_symbol("ITC")
+
+    def test_tbt_adapter_subscribes_new_symbol_on_both_sockets(self):
+        adapter = get_adapter("fyers_tbt")(access_token="APP:TOK")
+        fake_tbt = _FakeTbt()
+        data_sock = _FakeSocket()
+        adapter.connect(
+            ["SBIN"],
+            on_tick=lambda s, t: None,
+            tbt_factory=lambda **kw: _with_kwargs(fake_tbt, kw),
+            data_factory=lambda **kw: _with_kwargs(data_sock, kw),
+        )
+        tbt_calls = len(fake_tbt.subscribed)
+
+        assert adapter.subscribe_symbol("ITC") is True
+        assert len(fake_tbt.subscribed) == tbt_calls + 1
+        assert fake_tbt.subscribed[-1]["symbol_tickers"] == {"NSE:ITC-EQ"}
+        assert data_sock.subscribed == (["NSE:ITC-EQ"], "SymbolUpdate")
+
+    def test_tbt_adapter_subscribe_is_idempotent(self):
+        adapter = get_adapter("fyers_tbt")(access_token="APP:TOK")
+        fake_tbt = _FakeTbt()
+        adapter.connect(
+            ["ITC"],
+            on_tick=lambda s, t: None,
+            tbt_factory=lambda **kw: _with_kwargs(fake_tbt, kw),
+            data_factory=lambda **kw: _with_kwargs(_FakeSocket(), kw),
+        )
+        tbt_calls = len(fake_tbt.subscribed)
+
+        assert adapter.subscribe_symbol("ITC") is True
+        assert len(fake_tbt.subscribed) == tbt_calls
+
+    def test_tbt_adapter_rejects_subscribe_before_connect(self):
+        adapter = get_adapter("fyers_tbt")(access_token="APP:TOK")
+        with pytest.raises(RuntimeError):
+            adapter.subscribe_symbol("ITC")
+
+    def test_base_adapter_refuses_in_place_subscribe_by_default(self):
+        from api.orderflow_adapters.base import OrderFlowAdapter
+
+        class Minimal(OrderFlowAdapter):
+            name = "minimal"
+
+            def normalize(self, raw):
+                return []
+
+        with pytest.raises(NotImplementedError):
+            Minimal().subscribe_symbol("ITC")

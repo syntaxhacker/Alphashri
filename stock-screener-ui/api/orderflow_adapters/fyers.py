@@ -19,6 +19,7 @@ import os
 from typing import Callable, Optional
 
 from api.orderflow_adapters.base import OrderFlowAdapter, make_depth, register_adapter
+from api.orderflow_symbols import fyers_symbol  # noqa: F401  (re-exported)
 
 _DEPTH_TYPE = "dp"
 _QUOTE_TYPE = "sf"
@@ -66,14 +67,6 @@ def _f(value, default: float = 0.0) -> float:
 
 def _has(value) -> bool:
     return value is not None and value != ""
-
-
-def fyers_symbol(symbol: str) -> str:
-    """Map ``"RELIANCE"`` -> ``"NSE:RELIANCE-EQ"``; pass through ``NSE:...``."""
-    text = (symbol or "").strip().upper()
-    if ":" in text:
-        return text
-    return f"NSE:{text}-EQ"
 
 
 def _circuit(raw: dict) -> Optional[dict]:
@@ -269,6 +262,13 @@ class FyersAdapter(OrderFlowAdapter):
         if callable(close):
             close()
 
+    def subscribe_symbol(self, symbol: str) -> bool:
+        """Add one symbol to the existing socket (no second connection)."""
+        if self._socket is None:
+            raise RuntimeError("FyersAdapter.subscribe_symbol() before connect()")
+        self._socket.subscribe(symbols=[self.fyers_symbol(symbol)], data_type="DepthUpdate")
+        return True
+
 
 @register_adapter
 class FyersTbtAdapter(OrderFlowAdapter):
@@ -457,6 +457,42 @@ class FyersTbtAdapter(OrderFlowAdapter):
             )
         except Exception:  # noqa: BLE001 - best effort
             pass
+
+    def subscribe_symbol(self, symbol: str) -> bool:
+        """Add one symbol to the existing TBT + quote sockets.
+
+        A second adapter instance in the same process is what corrupts the feed
+        (the Fyers SDK shares socket state), so growing the existing connection
+        is the only safe way to serve another symbol.
+        """
+        broker_symbol = fyers_symbol(symbol)
+        if broker_symbol in self._subscribed:
+            return True
+        if self._tbt is None:
+            raise RuntimeError("FyersTbtAdapter.subscribe_symbol() before connect()")
+
+        self._subscribed.add(broker_symbol)
+        self._quote_symbols = sorted(self._subscribed)
+
+        if self._data is not None:
+            try:
+                self._data.subscribe(symbols=[broker_symbol], data_type="SymbolUpdate")
+            except Exception:  # noqa: BLE001 - quotes are best effort
+                pass
+
+        try:
+            channel = str(len(self._quote_symbols))
+            self._tbt.subscribe(
+                symbol_tickers={broker_symbol},
+                channelNo=channel,
+                mode=_tbt_depth_mode(),
+            )
+            self._tbt.switchChannel(resume_channels={channel}, pause_channels=set())
+        except Exception as exc:  # noqa: BLE001 - undo the bookkeeping on failure
+            self._subscribed.discard(broker_symbol)
+            self._quote_symbols = sorted(self._subscribed)
+            raise RuntimeError(f"TBT subscribe failed for {broker_symbol}: {exc}") from exc
+        return True
 
     def disconnect(self) -> None:
         for sock in (self._tbt, self._data):

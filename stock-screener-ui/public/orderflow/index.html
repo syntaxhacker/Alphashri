@@ -287,7 +287,7 @@
     <div class="stat"><span class="lbl">Ask</span><b id="baV" class="dn">—</b></div>
     <div class="divider"></div>
     <div class="stat"><span class="lbl">CVD</span><b id="cvdV">0</b></div>
-    <div class="stat"><span class="lbl">Imbalance</span><b id="imbV">—</b></div>
+    <div class="stat"><span class="lbl" title="Top-5 levels, bid vs ask">Imbalance ·5</span><b id="imbV">—</b></div>
     <div class="stat"><span class="lbl">Δ 1m</span><b id="delta1m">—</b></div>
     <div class="stat"><span class="lbl">Day</span><b id="dayChg">—</b></div>
     <div class="stat"><span class="lbl">Mkt</span><b id="mktStatus">—</b></div>
@@ -1687,8 +1687,16 @@ function updateUI(){
 
   const d = depth[depth.length-1];
   if(d && d.bids.length > 0 && d.asks.length > 0){
-    const tb=d.bids[0].q, ta=d.asks[0].q;
-    const im=(tb-ta)/(tb+ta);
+    // Aggregate the top levels: level-1 size is a handful of lots on a
+    // 50-level book, so a touch-only ratio swings between ±100% and reads as
+    // a fake wall. Top-5 keeps it comparable across 5-level and 50-level feeds.
+    const N = 5;
+    let tb=0, ta=0;
+    for(let i=0;i<N;i++){
+      if(d.bids[i]) tb += d.bids[i].q;
+      if(d.asks[i]) ta += d.asks[i].q;
+    }
+    const im=(tb-ta)/(tb+ta || 1);
     const el=document.getElementById('imbV');
     el.textContent = (im*100).toFixed(0)+'%';
     el.style.color = im>0.15?'#7fdcd0':(im<-0.15?'#ff8a87':'#cfd6e1');

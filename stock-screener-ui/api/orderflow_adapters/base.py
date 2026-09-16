@@ -90,6 +90,16 @@ class OrderFlowAdapter(ABC):
         """Map an app symbol to this broker's symbol format (default: identity)."""
         return symbol
 
+    def subscribe_symbol(self, symbol: str) -> bool:
+        """Add one symbol to an already-connected feed.
+
+        Returns ``True`` when the symbol now streams on the existing connection.
+        The default refuses, which tells callers to open a new connection; feeds
+        that share process-global socket state (Fyers) must override this rather
+        than let a second connection exist.
+        """
+        raise NotImplementedError(f"{self.name} adapter cannot add symbols in place")
+
     def capabilities(self) -> dict:
         return {
             "name": self.name,
