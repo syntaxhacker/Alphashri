@@ -16,6 +16,7 @@ class FakeAdapter:
     """Records connect/subscribe calls and exposes a manual tick injector."""
 
     name = "fake"
+    max_symbols_per_connection = 5
 
     def __init__(self):
         self.connected_symbols: list[str] = []
@@ -239,3 +240,74 @@ class TestFailureHandling:
         hub, _ = harness
         with pytest.raises(ValueError):
             hub.subscribe("fyers_tbt", "tok", "   ", on_tick=lambda s, t: None)
+
+
+class TestConnectionSymbolLimit:
+    """One connection has a hard symbol ceiling (Fyers TBT: 5).
+
+    Exceeding it makes the broker drop subscriptions, so the hub must refuse
+    instead of silently streaming fewer symbols than were asked for.
+    """
+
+    def _hub_with_limit(self, limit):
+        created = {}
+
+        def factory(broker, token):
+            adapter = FakeAdapter()
+            adapter.max_symbols_per_connection = limit
+            created[broker] = adapter
+            return adapter
+
+        return AdapterHub(adapter_factory=factory), created
+
+    def test_symbols_up_to_the_limit_are_accepted(self):
+        hub, created = self._hub_with_limit(3)
+        for symbol in ("A", "B", "C"):
+            hub.subscribe("fyers_tbt", "tok", symbol, on_tick=lambda s, t: None)
+
+        assert created["fyers_tbt"].added == ["B", "C"]
+        assert hub.subscriber_count("fyers_tbt") == 3
+
+    def test_symbol_beyond_the_limit_is_rejected(self):
+        hub, created = self._hub_with_limit(2)
+        errors = []
+        hub.subscribe("fyers_tbt", "tok", "A", on_tick=lambda s, t: None)
+        hub.subscribe("fyers_tbt", "tok", "B", on_tick=lambda s, t: None)
+        hub.subscribe("fyers_tbt", "tok", "C", on_tick=lambda s, t: None, on_error=errors.append)
+
+        assert len(errors) == 1
+        assert "allows 2 symbols per connection" in str(errors[0])
+        assert created["fyers_tbt"].added == ["B"], "C must never reach the adapter"
+        assert hub.subscriber_count("fyers_tbt") == 2, "rejected listener must be dropped"
+
+    def test_extra_subscriber_for_an_existing_symbol_is_not_blocked(self):
+        hub, created = self._hub_with_limit(1)
+        hub.subscribe("fyers_tbt", "tok", "A", on_tick=lambda s, t: None)
+        # Same symbol, second tab: reuses the existing subscription, no new symbol.
+        hub.subscribe("fyers_tbt", "tok", "A", on_tick=lambda s, t: None)
+
+        assert created["fyers_tbt"].added == []
+        assert hub.subscriber_count("fyers_tbt") == 2
+
+    def test_raise_when_no_error_handler_supplied(self):
+        hub, created = self._hub_with_limit(1)
+        hub.subscribe("fyers_tbt", "tok", "A", on_tick=lambda s, t: None)
+
+        with pytest.raises(RuntimeError):
+            hub.subscribe("fyers_tbt", "tok", "B", on_tick=lambda s, t: None)
+        assert hub.subscriber_count("fyers_tbt") == 1
+
+    def test_unlimited_adapter_is_unaffected(self):
+        created = {}
+
+        def factory(broker, token):
+            adapter = FakeAdapter()
+            adapter.max_symbols_per_connection = None
+            created[broker] = adapter
+            return adapter
+
+        hub = AdapterHub(adapter_factory=factory)
+        for symbol in ("A", "B", "C", "D", "E", "F", "G"):
+            hub.subscribe("fyers_tbt", "tok", symbol, on_tick=lambda s, t: None)
+
+        assert hub.subscriber_count("fyers_tbt") == 7

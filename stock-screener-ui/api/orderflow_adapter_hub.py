@@ -175,21 +175,45 @@ class AdapterHub:
         """
         if len(entry.listeners[symbol]) > 1:
             return
+
+        # One connection has a hard symbol ceiling (Fyers TBT: 5). Exceeding it
+        # would make the broker drop subscriptions silently, so refuse loudly.
+        # ``symbol`` is already in listeners at this point (and is the only entry
+        # for it, since a repeat subscriber returned above).
+        limit = getattr(entry.adapter, "max_symbols_per_connection", None)
+        existing = len(entry.listeners) - 1
+        if limit and existing >= limit:
+            self._reject(
+                listener,
+                RuntimeError(
+                    f"{broker} allows {limit} symbols per connection; "
+                    f"cannot add {symbol}. Close another Order Flow tab."
+                ),
+                entry,
+                symbol,
+            )
+            return
+
         try:
             entry.adapter.subscribe_symbol(symbol)
         except BaseException as exc:  # noqa: BLE001 - surface, don't leak a phantom subscriber
-            entry.listeners[symbol] = [
-                item for item in entry.listeners[symbol] if item is not listener
-            ]
-            if not entry.listeners[symbol]:
-                entry.listeners.pop(symbol, None)
-            sink = listener.on_error
-            if callable(sink):
-                sink(exc)
-            else:
-                raise
+            self._reject(listener, exc, entry, symbol)
             return
         _ = broker  # reserved for per-broker routing policies
+
+    @staticmethod
+    def _reject(listener: _Listener, exc: BaseException, entry: _Entry, symbol: str) -> None:
+        """Undo a listener's registration and hand it the failure."""
+        entry.listeners[symbol] = [
+            item for item in entry.listeners.get(symbol, []) if item is not listener
+        ]
+        if not entry.listeners[symbol]:
+            entry.listeners.pop(symbol, None)
+        sink = listener.on_error
+        if callable(sink):
+            sink(exc)
+        else:
+            raise exc
 
     def _make_sink(self, broker: str) -> TickCallback:
         def sink(broker_symbol, tick) -> None:
