@@ -529,8 +529,7 @@
   </div>
 
   <footer>
-    <div><span class="live" id="liveDot"></span><span id="status">Streaming…</span></div>
-    <div>Mode <b id="footMode">SIM</b></div>
+    <div><span class="live" id="liveDot"></span><span id="status">Idle</span></div>
     <div>Tick <b id="tickV">0.10</b></div>
     <div>Msgs <b id="msgCount">0</b></div>
     <div style="margin-left:auto">
@@ -1225,9 +1224,22 @@ function connLog(msg, cls='info'){
   while(el.children.length > 30) el.removeChild(el.lastChild);
 }
 
-function setConnStatus(dot, text){
-  document.getElementById('connDot').className = 'status-dot ' + dot;
-  document.getElementById('connText').textContent = text;
+/* Single source of truth for connection state. The sidebar row (next to the
+   Connect button) reports the lifecycle; the footer reports data flow. Both
+   render from this map so the two can never drift or repeat the same word. */
+const CONN = {
+  on:     { cls:'status-dot on',   dot:'live',        text:'Connected',     flow:'Streaming' },
+  wait:   { cls:'status-dot wait', dot:'live paused', text:'Waiting',       flow:'Waiting'   },
+  paused: { cls:'status-dot wait', dot:'live paused', text:'Paused',        flow:'Paused'    },
+  err:    { cls:'status-dot err',  dot:'live off',    text:'Error',         flow:'Idle'      },
+  off:    { cls:'status-dot off',  dot:'live off',    text:'Disconnected',  flow:'Idle'      },
+};
+function setConnStatus(state, text){
+  const c = CONN[state] || CONN.off;
+  document.getElementById('connDot').className = c.cls;
+  document.getElementById('connText').textContent = text || c.text;
+  document.getElementById('liveDot').className = c.dot;
+  document.getElementById('status').textContent = c.flow;
 }
 
 function clearAllData(){
@@ -1333,9 +1345,7 @@ function connectLive(){
     if(msg.type === 'subscribe'){
       if(msg.status === 'success'){
         connLog(`Subscribed to ${symbol}@${exchange} ✓`,'ok');
-        setConnStatus('on','Streaming');
-        document.getElementById('status').textContent = 'Live · ' + symbol;
-        document.getElementById('liveDot').className = 'live';
+        setConnStatus('on','Connected');
         setSourceBadge(msg);
       } else {
         connLog('Subscribe failed: ' + (msg.message||''), 'err');
@@ -1383,8 +1393,6 @@ function connectLive(){
   liveWs.onclose = (e) => {
     connLog(`Disconnected (code ${e.code})`,'err');
     setConnStatus('off','Disconnected');
-    document.getElementById('liveDot').className = 'live off';
-    document.getElementById('status').textContent = 'Disconnected';
     liveWs = null;
   };
 }
@@ -1559,7 +1567,6 @@ function switchMode(mode){
   document.getElementById('simPanel').style.display = isLive ? 'none' : 'block';
   document.getElementById('modeBadge').className = 'mode-badge ' + (isLive?'live':'sim');
   document.getElementById('modeBadge').textContent = isLive ? 'LIVE' : 'SIM';
-  document.getElementById('footMode').textContent = isLive ? 'LIVE' : 'SIM';
   document.getElementById('srcDot').style.color = isLive ? '#ef5350' : '#3acf6f';
 
   // Show/hide sim controls
@@ -1570,8 +1577,7 @@ function switchMode(mode){
     // Stop simulation
     if(loopHandle){ clearInterval(loopHandle); loopHandle = null; }
     clearAllData();
-    document.getElementById('status').textContent = 'Ready to connect';
-    document.getElementById('liveDot').className = 'live off';
+    setConnStatus('off','Ready to connect');
   } else {
     // Stop live
     disconnectLive();
@@ -1587,8 +1593,7 @@ function switchMode(mode){
     // Restart sim
     RUNNING = true;
     document.getElementById('playBtn').textContent = '⏸ Pause';
-    document.getElementById('status').textContent = 'Streaming…';
-    document.getElementById('liveDot').className = 'live';
+    setConnStatus('on','Streaming');
     seedHistory();
     restartLoop();
   }
@@ -2146,8 +2151,7 @@ document.getElementById('histLimit').addEventListener('change', e => {
 document.getElementById('playBtn').addEventListener('click',e=>{
   RUNNING=!RUNNING;
   e.target.textContent = RUNNING ? '⏸ Pause' : '▶ Play';
-  document.getElementById('status').textContent = RUNNING ? 'Streaming…' : 'Paused';
-  document.getElementById('liveDot').classList.toggle('paused', !RUNNING);
+  setConnStatus(RUNNING ? 'on' : 'paused', RUNNING ? 'Streaming' : 'Paused');
 });
 document.getElementById('speed').addEventListener('change',e=>{
   SIM_DT=parseInt(e.target.value,10); restartLoop();

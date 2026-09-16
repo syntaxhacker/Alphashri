@@ -54,12 +54,13 @@ export const BROKER_OPTIONS = [
   { value: "fyers_tbt", label: "Fyers TBT · 50 lv" },
 ] as const;
 
-export const DEFAULT_BROKER = "upstox";
+export const DEFAULT_BROKER = "fyers_tbt";
 
+/** Only the capability caveat — broker name lives in the select + source badge. */
 export const BROKER_NOTES: Record<string, string> = {
-  upstox: "Live via Upstox · 5-level depth · order counts unavailable",
-  fyers: "Live via Fyers · 5-level depth · order counts available",
-  fyers_tbt: "Live via Fyers TBT · 50-level depth · order counts available",
+  upstox: "5-level depth · no order counts",
+  fyers: "5-level depth · order counts",
+  fyers_tbt: "50-level depth · order counts",
 };
 
 /** Chart overlays / panels that can be toggled from the app toolbar. */
@@ -90,6 +91,8 @@ export function OrderFlowPage() {
   const [reloadKey, setReloadKey] = useState(0);
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
   const [broker, setBroker] = useState<string>(DEFAULT_BROKER);
+  // The Upstox OAuth gate only applies when Upstox is the selected feed.
+  const needsUpstox = broker === "upstox";
   const [view, setView] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(VIEW_ITEMS.map((item) => [item.key, true])),
   );
@@ -269,13 +272,14 @@ export function OrderFlowPage() {
       ws: bridgeUrl,
       symbol: activeSymbol,
       tick: activeTick,
-      autoconnect: brokerConnected ? "1" : "0",
+      // Only the Upstox feed depends on the OAuth session; adapters carry their own token.
+      autoconnect: needsUpstox && !brokerConnected ? "0" : "1",
     });
     params.set("broker", broker);
     return `/orderflow/index.html?${params.toString()}`;
     // reloadKey forces the iframe to remount on reconnect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeUrl, activeSymbol, activeTick, brokerConnected, broker, reloadKey]);
+  }, [bridgeUrl, activeSymbol, activeTick, brokerConnected, broker, needsUpstox, reloadKey]);
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="orderflow-page">
@@ -421,7 +425,7 @@ export function OrderFlowPage() {
         </Box>
       )}
 
-      {brokerConnected === false && (
+      {needsUpstox && brokerConnected === false && (
         <Box sx={{ px: 2, pt: 1 }} data-testid="orderflow-broker-warning">
           <Alert color="warning" variant="light">
             <Group gap={8} align="center" wrap="wrap">
@@ -438,7 +442,7 @@ export function OrderFlowPage() {
       )}
 
       <Box sx={{ flex: 1, minHeight: 0, position: "relative" }}>
-        {brokerConnected === null ? (
+        {needsUpstox && brokerConnected === null ? (
           <Center>
             <Loader size="sm" />
           </Center>

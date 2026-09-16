@@ -99,9 +99,24 @@ describe("OrderFlowPage", () => {
     expect((await iframeParams()).get("symbol")).toBe("TCS");
   });
 
-  test("disables autoconnect and offers broker connect when disconnected", async () => {
+  test("defaults to the Fyers TBT feed without gating on the Upstox session", async () => {
     mockStatus.mockResolvedValue({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
     render(<OrderFlowPage />);
+
+    const params = await iframeParams();
+    expect(params.get("broker")).toBe("fyers_tbt");
+    expect(params.get("autoconnect")).toBe("1");
+    expect(screen.queryByTestId("orderflow-broker-warning")).not.toBeInTheDocument();
+  });
+
+  test("disables autoconnect and offers broker connect for the Upstox feed when disconnected", async () => {
+    mockStatus.mockResolvedValue({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
+    const user = userEvent.setup();
+    render(<OrderFlowPage />);
+    await screen.findByTestId("orderflow-iframe");
+
+    await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Upstox · 5 lv" }));
 
     expect(await screen.findByTestId("orderflow-broker-warning")).toBeInTheDocument();
     expect(screen.getByTestId("orderflow-connect-broker")).toBeInTheDocument();
