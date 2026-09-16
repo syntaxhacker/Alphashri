@@ -249,6 +249,16 @@ _HISTORY_WINDOW_SEC = 600
 _HISTORY_MAX_TICKS = 3000
 _HISTORY_MAX_SIGNALS = 20
 
+# The headless recorder is the canonical capture; bridge journaling can be
+# disabled (ORDERFLOW_BRIDGE_JOURNAL=0) so browser tabs don't mix brokers into
+# the same journal file.
+_BRIDGE_JOURNAL = os.getenv("ORDERFLOW_BRIDGE_JOURNAL", "1").strip().lower() not in (
+    "0",
+    "false",
+    "no",
+    "off",
+)
+
 
 def _tick_ts(entry: dict) -> int:
     data = entry.get("data") or {}
@@ -419,11 +429,13 @@ class _UpstoxOrderFlowStream:
         if not tick:
             return
         self._push(tick)
-        orderflow_journal.append(self.symbol, "tick", tick["data"])
+        if _BRIDGE_JOURNAL:
+            orderflow_journal.append(self.symbol, "tick", tick["data"])
         signal = self._engine.update(tick["data"])
         if signal:
             self._push(signal)
-            orderflow_journal.append(self.symbol, "signal", signal)
+            if _BRIDGE_JOURNAL:
+                orderflow_journal.append(self.symbol, "signal", signal)
 
     def _push(self, payload: dict) -> None:
         try:

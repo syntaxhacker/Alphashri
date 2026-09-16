@@ -128,7 +128,10 @@ class OrderFlowRecorder:
             if adapter_cls is None:
                 logger.warning("orderflow recorder: unknown broker %s", self.broker)
             else:
-                self._adapter = adapter_cls()
+                try:
+                    self._adapter = adapter_cls(access_token=self.token)
+                except TypeError:
+                    self._adapter = adapter_cls()
                 for symbol in self.symbols:
                     self._broker_to_symbol[self._adapter.broker_symbol(symbol)] = symbol
                     self._engines[symbol] = OrderFlowSignalEngine()
