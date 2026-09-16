@@ -172,7 +172,11 @@ class _FakeSocket:
         self.on_error = kwargs.get("on_error")
         self.subscribed = None
         self.kept_running = False
+        self.connected = False
         self.closed = False
+
+    def connect(self):
+        self.connected = True
 
     def subscribe(self, symbols=None, data_type=None):
         self.subscribed = (symbols, data_type)
@@ -197,8 +201,8 @@ class TestRegistry:
         assert caps["max_connections"] == 3
         assert caps["has_order_counts"] is True
 
-    def test_tbt_adapter_is_not_registered(self):
-        assert "fyers_tbt" not in available_adapters()
+    def test_tbt_adapter_is_registered(self):
+        assert "fyers_tbt" in available_adapters()
         assert FyersTbtAdapter().capabilities()["depth_levels"] == 50
 
 
@@ -266,3 +270,76 @@ def _with_kwargs(socket, kwargs):
     socket.on_message = kwargs.get("on_message")
     socket.on_error = kwargs.get("on_error")
     return socket
+
+
+class TestFyersTbtAdapter:
+    def _depth(self, n=50):
+        return {
+            "bidprice": [100.0 - i * 0.1 for i in range(n)],
+            "bidqty": [10 + i for i in range(n)],
+            "bidordn": [1 + i for i in range(n)],
+            "askprice": [100.1 + i * 0.1 for i in range(n)],
+            "askqty": [20 + i for i in range(n)],
+            "askordn": [2 + i for i in range(n)],
+            "tbq": 566578,
+            "tsq": 681658,
+            "sendtime": 1789538203,
+            "seqNo": 15421,
+        }
+
+    def test_registered_with_50_levels(self):
+        assert "fyers_tbt" in available_adapters()
+        caps = get_adapter("fyers_tbt")().capabilities()
+        assert caps["depth_levels"] == 50
+        assert caps["max_symbols_per_connection"] == 5
+        assert caps["max_connections"] == 3
+        assert caps["has_order_counts"] is True
+
+    def test_normalizes_50_level_depth(self):
+        adapter = get_adapter("fyers_tbt")()
+        symbol, tick = adapter.normalize_depth("NSE:SBIN-EQ", self._depth())
+        assert symbol == "NSE:SBIN-EQ"
+        assert len(tick["depth"]["buy"]) == 50
+        assert len(tick["depth"]["sell"]) == 50
+        assert tick["depth"]["buy"][0] == {"price": 100.0, "quantity": 10.0, "orders": 1}
+        assert tick["tbq"] == 566578.0 and tick["tsq"] == 681658.0
+        # sendtime is epoch seconds -> ms
+        assert tick["ltt"] == 1789538203 * 1000
+
+    def test_drops_zero_price_or_qty_levels(self):
+        adapter = get_adapter("fyers_tbt")()
+        depth = self._depth(n=3)
+        depth["bidqty"][1] = 0  # level 2 has no quantity
+        _, tick = adapter.normalize_depth("NSE:SBIN-EQ", depth)
+        assert len(tick["depth"]["buy"]) == 2
+
+    def test_quote_fields_are_merged_into_depth(self):
+        adapter = get_adapter("fyers_tbt")()
+        adapter.remember_quote(
+            {
+                "symbol": "NSE:SBIN-EQ",
+                "ltp": 982.65,
+                "vol_traded_today": 1234567,
+                "avg_trade_price": 980.1,
+                "last_traded_time": 1789538200,
+                "prev_close_price": 990.0,
+                "tot_buy_qty": 111,
+                "tot_sell_qty": 222,
+                "open_price": 985.0,
+                "high_price": 991.0,
+                "low_price": 978.0,
+            }
+        )
+        _, tick = adapter.normalize_depth("NSE:SBIN-EQ", self._depth(n=2))
+        assert tick["ltp"] == 982.65
+        assert tick["volume"] == 1234567.0
+        assert tick["vwap"] == 980.1
+        assert tick["cp"] == 990.0
+        assert tick["day"]["open"] == 985.0
+
+    def test_normalize_contract_entry(self):
+        adapter = get_adapter("fyers_tbt")()
+        out = adapter.normalize({"symbol": "NSE:SBIN-EQ", "depth": self._depth(n=2)})
+        assert len(out) == 1 and out[0][0] == "NSE:SBIN-EQ"
+        assert adapter.normalize({}) == []
+        assert adapter.normalize("nope") == []

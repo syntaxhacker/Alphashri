@@ -25,10 +25,16 @@ imported from `api/orderflow_adapters/__init__.py`.
   `last_traded_time` is epoch **seconds**; it is normalized to epoch **milliseconds**.
   Access token format is `"<APP_ID>:<ACCESS_TOKEN>"`.
   Symbols are `"NSE:SBIN-EQ"`; indices are `"NSE:NIFTY50-INDEX"`.
-- **Fyers TBT** — a separate protobuf endpoint (not the data socket), 3
-  connections/user, 5 symbols/connection, channels 1-50 via `switchChannel(...)`.
-  `FyersTbtAdapter` documents this path but is intentionally **not registered**;
-  its `connect()` raises `NotImplementedError` until a protobuf decoder is wired.
+- **Fyers TBT** — the 50-level feed, implemented by `FyersTbtAdapter`. It uses the
+  separate protobuf endpoint (`wss://rtsocket-api.fyers.in/versova`), 3
+  connections/user, **5 symbols/connection**, channels 1-50 via `switchChannel(...)`.
+  The TBT socket carries **depth only** (no LTP/volume/VWAP), so the adapter also
+  subscribes the data socket's `SymbolUpdate` quotes and **merges** them per symbol
+  into one normalized tick. Verified live: `bidprice/bidqty/bidordn`,
+  `askprice/askqty/askordn` are 50-element arrays; `tbq`/`tsq` come from TBT.
+  The SDK callback is `on_depth_update(symbol: str, depth: Depth)`.
+  Requirements: TBT is limited to NSE equity + NFO, and the token must be
+  re-authenticated daily (Fyers tokens expire ~6 AM).
 - **Dhan** — planned; 200-level depth, not yet implemented.
 
 ## How to add a broker adapter

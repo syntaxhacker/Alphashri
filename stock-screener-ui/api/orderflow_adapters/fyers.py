@@ -68,6 +68,55 @@ def _has(value) -> bool:
     return value is not None and value != ""
 
 
+def fyers_symbol(symbol: str) -> str:
+    """Map ``"RELIANCE"`` -> ``"NSE:RELIANCE-EQ"``; pass through ``NSE:...``."""
+    text = (symbol or "").strip().upper()
+    if ":" in text:
+        return text
+    return f"NSE:{text}-EQ"
+
+
+def _data_available() -> bool:
+    try:
+        import fyers_apiv3  # noqa: F401
+        return True
+    except ImportError:
+        return False
+
+
+def _default_tbt_socket_factory(
+    access_token: str,
+    on_depth_update: Callable,
+    on_error: Callable,
+    reconnect: bool = False,
+):
+    """Construct a real Fyers TBT socket; raises a clear error if SDK missing."""
+    try:
+        from fyers_apiv3.FyersWebsocket import tbt_ws
+    except ImportError as exc:
+        raise RuntimeError(
+            "fyers_apiv3 is required for the Fyers TBT (50-level) adapter; "
+            "install it with `uv pip install fyers-apiv3`."
+        ) from exc
+    return tbt_ws.FyersTbtSocket(
+        access_token=access_token,
+        log_path="",
+        write_to_file=False,
+        on_depth_update=on_depth_update,
+        on_error=on_error,
+        reconnect=reconnect,
+        diff_only=False,
+    )
+
+
+def _tbt_depth_mode():
+    try:
+        from fyers_apiv3.FyersWebsocket.tbt_ws import SubscriptionModes
+        return SubscriptionModes.DEPTH
+    except Exception:  # noqa: BLE001 - fall back to the enum's value
+        return "depth"
+
+
 @register_adapter
 class FyersAdapter(OrderFlowAdapter):
     """Fyers v3 data socket, ``DepthUpdate`` mode (5-level depth + order counts)."""
@@ -84,10 +133,7 @@ class FyersAdapter(OrderFlowAdapter):
 
     def fyers_symbol(self, symbol: str) -> str:
         """Map ``"RELIANCE"`` → ``"NSE:RELIANCE-EQ"``; pass through ``NSE:...``."""
-        text = (symbol or "").strip().upper()
-        if ":" in text:
-            return text
-        return f"NSE:{text}-EQ"
+        return fyers_symbol(symbol)
 
     def normalize(self, raw: dict) -> list[tuple[str, dict]]:
         if not isinstance(raw, dict):
@@ -185,6 +231,7 @@ class FyersAdapter(OrderFlowAdapter):
             on_error=_on_error,
             on_close=lambda *a, **k: None,
         )
+        self._socket.connect()
         self._socket.subscribe(symbols=fyers_symbols, data_type="DepthUpdate")
         self._socket.keep_running()
 
@@ -197,12 +244,16 @@ class FyersAdapter(OrderFlowAdapter):
             close()
 
 
+@register_adapter
 class FyersTbtAdapter(OrderFlowAdapter):
-    """Fyers 50-level TBT feed (protobuf over ``wss://rtsocket-api.fyers.in/versova``).
+    """Fyers 50-level TBT feed, optionally merged with the quote socket.
 
-    Not registered: it uses a distinct socket (3 connections/user, 5 symbols
-    each, channels 1-50 via ``switchChannel(...)``) and requires a protobuf
-    decoder, so :meth:`connect` is intentionally unimplemented.
+    The TBT socket (protobuf over ``wss://rtsocket-api.fyers.in/versova``) ships
+    a 50-level book only — no last price / volume / VWAP. To produce a tick the
+    rest of the pipeline can use (journal + signal engine), this adapter also
+    subscribes the data socket's quote updates and merges the two per symbol.
+
+    Limits: TBT is 5 symbols per connection, 3 connections per user.
     """
 
     name = "fyers_tbt"
@@ -213,15 +264,168 @@ class FyersTbtAdapter(OrderFlowAdapter):
 
     def __init__(self, access_token: Optional[str] = None):
         self.access_token = access_token
-        self._socket = None
+        self._tbt = None
+        self._data = None
+        self._quotes: dict[str, dict] = {}
+        self._quote_symbols: list[str] = []
+
+    # -- normalized depth ----------------------------------------------------
+    @staticmethod
+    def _get(obj, name):
+        if isinstance(obj, dict):
+            return obj.get(name)
+        return getattr(obj, name, None)
+
+    def _side(self, depth, price_key: str, qty_key: str, order_key: str) -> list[dict]:
+        prices = self._get(depth, price_key) or []
+        qtys = self._get(depth, qty_key) or []
+        orders = self._get(depth, order_key) or []
+        levels = [
+            {"price": p, "quantity": q, "orders": o}
+            for p, q, o in zip(prices, qtys, orders)
+        ]
+        return make_depth(levels)
+
+    def normalize_depth(self, symbol: str, depth) -> tuple[str, dict]:
+        """Map a TBT ``Depth`` (object or dict) to a normalized 50-level tick."""
+        ltt = self._get(depth, "sendtime") or self._get(depth, "timestamp") or 0
+        try:
+            ltt_ms = int(float(ltt) * 1000) if float(ltt) < 1e12 else int(float(ltt))
+        except (TypeError, ValueError):
+            ltt_ms = 0
+
+        bids = self._side(depth, "bidprice", "bidqty", "bidordn")
+        asks = self._side(depth, "askprice", "askqty", "askordn")
+
+        quote = self._quotes.get(symbol) or {}
+        ltp = quote.get("ltp") or 0.0
+        if not ltp and bids and asks:
+            ltp = (bids[0]["price"] + asks[0]["price"]) / 2.0
+
+        tick = {
+            "ltp": ltp,
+            "volume": quote.get("volume", 0.0),
+            "vwap": quote.get("vwap", 0.0),
+            "ltt": ltt_ms or quote.get("ltt", 0),
+            "ltq": quote.get("ltq", 0.0),
+            "cp": quote.get("cp", 0.0),
+            "tbq": float(self._get(depth, "tbq") or quote.get("tbq", 0.0)),
+            "tsq": float(self._get(depth, "tsq") or quote.get("tsq", 0.0)),
+            "oi": quote.get("oi", 0.0),
+            "iv": quote.get("iv", 0.0),
+            "greeks": None,
+            "day": quote.get("day"),
+            "depth": {"buy": bids, "sell": asks},
+        }
+        return str(symbol), tick
 
     def normalize(self, raw: dict) -> list[tuple[str, dict]]:
-        raise NotImplementedError(
-            "Fyers TBT messages are protobuf-encoded; decode them before normalize()"
-        )
+        """Base-contract entry: ``{"symbol": str, "depth": Depth|dict}``."""
+        if not isinstance(raw, dict):
+            return []
+        symbol = raw.get("symbol")
+        depth = raw.get("depth")
+        if not symbol or depth is None:
+            return []
+        return [self.normalize_depth(str(symbol), depth)]
 
-    def connect(self, symbols, on_tick, on_error=None) -> None:
-        raise NotImplementedError(
-            "Fyers TBT requires the protobuf TBT client and channel switching "
-            "(wss://rtsocket-api.fyers.in/versova, 5 symbols/connection)"
+    # -- quote merge ---------------------------------------------------------
+    def remember_quote(self, message: dict) -> None:
+        """Cache the tradable fields from a data-socket quote message."""
+        if not isinstance(message, dict):
+            return
+        symbol = message.get("symbol")
+        if not symbol:
+            return
+        ltt = _f(message.get("last_traded_time"))
+        self._quotes[str(symbol)] = {
+            "ltp": _f(message.get("ltp")),
+            "volume": _f(message.get("vol_traded_today")),
+            "vwap": _f(message.get("avg_trade_price")),
+            "ltt": int(ltt * 1000) if ltt > 0 else 0,
+            "ltq": _f(message.get("last_traded_qty")),
+            "cp": _f(message.get("prev_close_price")),
+            "tbq": _f(message.get("tot_buy_qty")),
+            "tsq": _f(message.get("tot_sell_qty")),
+            "day": {
+                "open": _f(message.get("open_price")),
+                "high": _f(message.get("high_price")),
+                "low": _f(message.get("low_price")),
+                "close": _f(message.get("ltp")),
+                "volume": _f(message.get("vol_traded_today")),
+            }
+            if any(_has(message.get(k)) for k in ("open_price", "high_price", "low_price"))
+            else None,
+        }
+
+    # -- lifecycle -----------------------------------------------------------
+    def connect(
+        self,
+        symbols,
+        on_tick: Callable[[str, dict], None],
+        on_error=None,
+        tbt_factory: Optional[Callable[..., object]] = None,
+        data_factory: Optional[Callable[..., object]] = None,
+    ) -> None:
+        token = self.access_token or os.getenv("FYERS_ACCESS_TOKEN")
+        if not token:
+            raise ValueError("Fyers access_token is required ('<APP_ID>:<ACCESS_TOKEN>')")
+        fyers_symbols = {fyers_symbol(s) for s in symbols}
+        self._quote_symbols = sorted(fyers_symbols)
+
+        # quote socket (best-effort: gives ltp/volume/vwap). `keep_running()`
+        # blocks, so it runs on a daemon thread and connect() stays non-blocking.
+        if data_factory is not None or _data_available():
+            factory = data_factory or _default_socket_factory
+            try:
+                self._data = factory(
+                    access_token=token,
+                    on_connect=self._subscribe_quotes,
+                    on_message=self.remember_quote,
+                    on_error=lambda *a, **k: None,
+                    on_close=lambda *a, **k: None,
+                )
+                self._data.connect()
+                self._data.keep_running()
+            except Exception as exc:  # noqa: BLE001 - quotes are optional
+                if on_error is not None:
+                    on_error(f"fyers quote socket unavailable: {exc}")
+
+        # TBT socket (50-level depth)
+        tbt = tbt_factory or _default_tbt_socket_factory
+        self._tbt = tbt(
+            access_token=token,
+            on_depth_update=lambda symbol, depth: on_tick(
+                *self.normalize_depth(symbol, depth)
+            ),
+            on_error=(lambda *a: on_error(" ".join(str(x) for x in a))) if on_error else None,
+            reconnect=False,
         )
+        self._tbt.connect()
+        for channel, symbol in enumerate(sorted(fyers_symbols), start=1):
+            self._tbt.subscribe(
+                symbol_tickers={symbol}, channelNo=str(channel), mode=_tbt_depth_mode()
+            )
+            self._tbt.switchChannel(resume_channels={str(channel)}, pause_channels=set())
+
+    def _subscribe_quotes(self, *_args) -> None:
+        if self._data is None:
+            return
+        try:
+            self._data.subscribe(
+                symbols=list(self._quote_symbols), data_type="SymbolUpdate"
+            )
+        except Exception:  # noqa: BLE001 - best effort
+            pass
+
+    def disconnect(self) -> None:
+        for sock in (self._tbt, self._data):
+            if sock is not None:
+                close = getattr(sock, "close_connection", None)
+                if callable(close):
+                    try:
+                        close()
+                    except Exception:  # noqa: BLE001
+                        pass
+        self._tbt = None
+        self._data = None
