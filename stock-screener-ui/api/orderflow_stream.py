@@ -265,14 +265,15 @@ _HISTORY_WINDOW_SEC = 600
 _HISTORY_MAX_TICKS = 3000
 _HISTORY_MAX_SIGNALS = 20
 
-# The headless recorder is the canonical capture; bridge journaling can be
-# disabled (ORDERFLOW_BRIDGE_JOURNAL=0) so browser tabs don't mix brokers into
-# the same journal file.
-_BRIDGE_JOURNAL = os.getenv("ORDERFLOW_BRIDGE_JOURNAL", "1").strip().lower() not in (
-    "0",
-    "false",
-    "no",
-    "off",
+# The headless recorder is the canonical capture. Bridge journaling is OFF by
+# default and must be opted into (ORDERFLOW_BRIDGE_JOURNAL=1): with it on, every
+# browser tab appends its own broker's ticks to the same per-symbol file, so a
+# day recorded from one feed silently collects another feed's ticks.
+_BRIDGE_JOURNAL = os.getenv("ORDERFLOW_BRIDGE_JOURNAL", "0").strip().lower() in (
+    "1",
+    "true",
+    "yes",
+    "on",
 )
 
 

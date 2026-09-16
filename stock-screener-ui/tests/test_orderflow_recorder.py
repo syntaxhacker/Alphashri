@@ -340,3 +340,175 @@ class TestRecorderSymbolsCase:
         assert "nse_index|Nifty 50" in symbols  # key left verbatim
 
 
+
+
+class _StopMain(Exception):
+    """Raised from the fake recorder so main() returns immediately.
+
+    main() blocks on ``stop.wait(GAP_WARN_SEC)`` after start(), which would hang
+    a unit test; aborting from start() keeps the assertions on the setup path.
+    """
+
+
+class TestUnknownBrokerToken:
+    """An unknown broker must not fall through to another broker's credentials.
+
+    Regression: ``recorder_token`` treated anything that was not "upstox" as
+    Fyers, so a typo'd broker name quietly spent the Fyers token.
+    """
+
+    def test_unknown_broker_returns_none(self, monkeypatch):
+        called = []
+        monkeypatch.setattr(
+            "db.models.get_shared_broker_token",
+            lambda name: called.append(name) or {"access_token": "TOK"},
+        )
+        assert orderflow_recorder.recorder_token("nope") is None
+        assert called == [], "must not touch the token store for an unknown broker"
+
+    def test_upstox_still_resolves_via_oauth(self, monkeypatch):
+        monkeypatch.setattr("api.paper.live_stream._get_upstox_token", lambda: "UPTOK")
+        assert orderflow_recorder.recorder_token("upstox") == "UPTOK"
+
+
+class TestRecorderScriptMain:
+    """The entrypoint must honour ORDERFLOW_RECORDER_BROKER.
+
+    Regression: scripts/orderflow_recorder.py hardcoded the Upstox token and
+    never passed ``broker=``, so a full trading day was journaled from Upstox
+    while the journal looked healthy.
+    """
+
+    def _patch(self, monkeypatch, *, token="TOK", market_open=True, stop_on_start=True):
+        from scripts import orderflow_recorder as script
+
+        captured = {}
+
+        class FakeRecorder:
+            def __init__(self, symbols, tok, broker="upstox"):
+                captured["symbols"] = list(symbols)
+                captured["token"] = tok
+                captured["broker"] = broker
+                self._keys = {"k": "RELIANCE"}
+                self._adapter = None
+
+            def start(self):
+                captured["started"] = True
+                if stop_on_start:
+                    raise _StopMain
+
+            def stop(self):
+                captured["stopped"] = True
+
+            def check_gaps(self):
+                pass
+
+        monkeypatch.setattr("api.orderflow_recorder.OrderFlowRecorder", FakeRecorder)
+        monkeypatch.setattr("api.orderflow_recorder.recorder_token", lambda broker: token)
+        monkeypatch.setattr("trading.utils.is_market_open", lambda: market_open)
+        monkeypatch.setattr("api.orderflow_journal.close_all", lambda: None)
+        return script, captured
+
+    def test_uses_broker_from_env(self, monkeypatch):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_BROKER", "fyers_tbt")
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE,TCS")
+        script, captured = self._patch(monkeypatch)
+
+        with pytest.raises(_StopMain):
+            script.main([])
+        assert captured["broker"] == "fyers_tbt", "env broker must reach the recorder"
+        assert captured["symbols"] == ["RELIANCE", "TCS"]
+
+    def test_flag_overrides_env(self, monkeypatch):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_BROKER", "upstox")
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script, captured = self._patch(monkeypatch)
+
+        with pytest.raises(_StopMain):
+            script.main(["--broker", "fyers_tbt"])
+        assert captured["broker"] == "fyers_tbt"
+
+    def test_defaults_to_upstox_when_unset(self, monkeypatch):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script, captured = self._patch(monkeypatch)
+
+        with pytest.raises(_StopMain):
+            script.main([])
+        assert captured["broker"] == "upstox"
+
+    def test_unknown_broker_exits_nonzero_without_starting(self, monkeypatch, capsys):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script, captured = self._patch(monkeypatch)
+
+        assert script.main(["--broker", "nope"]) == 1
+        assert "Unknown broker 'nope'" in capsys.readouterr().out
+        assert captured == {}, "must not construct a recorder for an unknown broker"
+
+    def test_missing_token_exits_zero_for_that_broker(self, monkeypatch, capsys):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script, captured = self._patch(monkeypatch, token=None)
+
+        assert script.main(["--broker", "fyers_tbt"]) == 0
+        assert "No fyers_tbt access token" in capsys.readouterr().out
+        assert "started" not in captured
+
+    def test_market_closed_exits_without_starting_recorder(self, monkeypatch, capsys):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script, captured = self._patch(monkeypatch, market_open=False)
+
+        assert script.main([]) == 0
+        assert "Market is closed" in capsys.readouterr().out
+        assert "started" not in captured
+
+    def test_dry_run_reports_broker_without_starting(self, monkeypatch, capsys):
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script, captured = self._patch(monkeypatch, market_open=False)
+
+        assert script.main(["--broker", "fyers_tbt", "--dry-run"]) == 0
+        out = capsys.readouterr().out
+        assert "broker=fyers_tbt" in out and "Dry run" in out
+        assert "started" not in captured
+
+
+class TestBridgeJournalDefault:
+    def test_bridge_journaling_is_off_unless_opted_in(self, monkeypatch):
+        import importlib
+
+        import api.orderflow_stream as stream
+
+        monkeypatch.delenv("ORDERFLOW_BRIDGE_JOURNAL", raising=False)
+        reloaded = importlib.reload(stream)
+        try:
+            assert reloaded._BRIDGE_JOURNAL is False, (
+                "tabs must not append their broker's ticks to the canonical journal"
+            )
+        finally:
+            monkeypatch.undo()
+            importlib.reload(stream)
+
+    def test_bridge_journaling_can_be_opted_in(self, monkeypatch):
+        import importlib
+
+        import api.orderflow_stream as stream
+
+        monkeypatch.setenv("ORDERFLOW_BRIDGE_JOURNAL", "1")
+        reloaded = importlib.reload(stream)
+        try:
+            assert reloaded._BRIDGE_JOURNAL is True
+        finally:
+            monkeypatch.undo()
+            importlib.reload(stream)
+
+    def test_symbol_count_above_connection_limit_fails_fast(self, monkeypatch, capsys):
+        from scripts import orderflow_recorder as script
+
+        monkeypatch.setattr("api.orderflow_recorder.recorder_token", lambda broker: "TOK")
+        monkeypatch.setattr("trading.utils.is_market_open", lambda: True)
+
+        rc = script.main([
+            "--broker", "fyers_tbt",
+            "--symbols", "A,B,C,D,E,F",
+        ])
+        out = capsys.readouterr().out
+        assert rc == 1
+        assert "allows 5 symbols per connection but 6 were requested" in out

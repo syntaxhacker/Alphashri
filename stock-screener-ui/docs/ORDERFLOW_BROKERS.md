@@ -87,3 +87,60 @@ process** for the same reason.
 
 If an adapter cannot add symbols in place, the hub fails loudly rather than
 opening a second connection.
+
+## Which broker is actually being recorded?
+
+`scripts/orderflow_recorder.py` resolves its feed from
+`ORDERFLOW_RECORDER_BROKER` (overridable with `--broker`) and passes it all the
+way through to `OrderFlowRecorder(..., broker=...)`. It used to hardcode the
+Upstox token and never pass `broker=`, so a full trading day could be journaled
+from Upstox while the journal looked perfectly healthy and the configured
+`ORDERFLOW_RECORDER_BROKER=fyers_tbt` was silently ignored.
+
+Two guards now prevent that class of mistake:
+
+* `recorder_token(broker)` validates the name against the adapter registry and
+  returns `None` for anything unknown, so a typo can never spend another
+  broker's credentials.
+* The entrypoint fails fast when the symbol list exceeds the adapter's
+  `max_symbols_per_connection` (5 for Fyers TBT) instead of quietly recording
+  fewer symbols than requested.
+
+Use `--dry-run` to see what a run *would* do, without opening a feed. It works
+outside market hours:
+
+```bash
+python scripts/orderflow_recorder.py --dry-run
+# Order-flow recorder: broker=fyers_tbt symbols=RELIANCE,TCS,INFY,SBIN,ICICIBANK
+# Dry run: token resolved for fyers_tbt, market_open=False. Exiting.
+```
+
+### Verifying a journal file's feed
+
+Journal filenames are per symbol per day and do **not** encode the broker, so
+inspect a record. Depth shape is the tell:
+
+| broker | depth levels | `seq`/`snapshot` | per-level `orders` |
+| --- | --- | --- | --- |
+| Upstox (V3 `full`) | 5 | absent | none |
+| Fyers `DepthUpdate` | 5 | absent | present |
+| Fyers TBT | 50 | present | present |
+
+```bash
+python - <<'PY'
+import json, collections
+levels, seq = collections.Counter(), 0
+for line in open("experiments/data/orderflow_journal/RELIANCE_$(date +%F).jsonl"):
+    d = (json.loads(line).get("data") or {})
+    dep = d.get("depth") or {}
+    levels[(len(dep.get("buy") or []), len(dep.get("sell") or []))] += 1
+    seq += d.get("seq") is not None
+print("depth shapes:", dict(levels.most_common(4)), "| records with seq:", seq)
+PY
+```
+
+A single file containing *both* a 5-level and a 50-level shape means two brokers
+wrote to it. That happens when bridge journaling is on while a browser tab is
+streaming a different broker than the recorder. `ORDERFLOW_BRIDGE_JOURNAL`
+therefore defaults to **off** and must be explicitly set to `1` to enable the
+bridge as a second writer; the headless recorder is the canonical capture.
