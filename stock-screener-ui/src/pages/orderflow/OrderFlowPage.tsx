@@ -55,6 +55,7 @@ export function OrderFlowPage() {
   const [activeTick, setActiveTick] = useState("0.05");
   const [reloadKey, setReloadKey] = useState(0);
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
+  const [broker, setBroker] = useState<string>("auto");
 
   const [mode, setMode] = useState<Mode>("manual");
   const [underlyings, setUnderlyings] = useState<Underlying[]>([]);
@@ -218,10 +219,11 @@ export function OrderFlowPage() {
       tick: activeTick,
       autoconnect: brokerConnected ? "1" : "0",
     });
+    if (broker !== "auto") params.set("broker", broker);
     return `/orderflow/index.html?${params.toString()}`;
     // reloadKey forces the iframe to remount on reconnect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeUrl, activeSymbol, activeTick, brokerConnected, reloadKey]);
+  }, [bridgeUrl, activeSymbol, activeTick, brokerConnected, broker, reloadKey]);
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="orderflow-page">
@@ -242,6 +244,19 @@ export function OrderFlowPage() {
           value={mode}
           onChange={(value) => setMode(value as Mode)}
           data-testid="orderflow-mode"
+        />
+        <Select
+          size="sm"
+          w={150}
+          data={[
+            { value: "auto", label: "Auto broker" },
+            { value: "upstox", label: "Upstox (5)" },
+            { value: "fyers", label: "Fyers (5+ord)" },
+            { value: "fyers_tbt", label: "Fyers TBT (50)" },
+          ]}
+          value={broker}
+          onChange={(value) => setBroker(value ?? "auto")}
+          data-testid="orderflow-broker"
         />
         {mode === "manual" && (
           <>

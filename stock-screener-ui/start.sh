@@ -11,6 +11,7 @@ UI_PORT="${UI_PORT:-5173}"
 API_LOG="${API_LOG:-logs/alphashri.log}"
 API_PID="/tmp/alphashri-api.pid"
 UI_PID="/tmp/alphashri-ui.pid"
+RECORDER_PID="/tmp/alphashri-recorder.pid"
 START_BOTS="${START_BOTS:-false}"
 QA_EMAIL="${QA_EMAIL:-qa@test.com}"
 QA_PASS="${QA_PASS:-qa123}"
@@ -127,6 +128,27 @@ start_frontend() {
   wait_for "UI" "http://${UI_HOST}:${UI_PORT}" 30
 }
 
+start_recorder() {
+  # The headless order-flow recorder runs in its OWN process so the Fyers SDK
+  # isn't shared with the API's bridge sockets (it cross-talks across sockets
+  # in one process, giving the wrong symbol's book).
+  if is_running "$RECORDER_PID"; then
+    echo "  Recorder already running (PID $(cat "$RECORDER_PID"))"
+    return
+  fi
+  echo "  Starting order-flow recorder..."
+  nohup python scripts/orderflow_recorder.py >> "$API_LOG" 2>&1 &
+  echo $! > "$RECORDER_PID"
+}
+
+stop_recorder() {
+  if is_running "$RECORDER_PID"; then
+    kill "$(cat "$RECORDER_PID")" 2>/dev/null || true
+    cleanup_pid "$RECORDER_PID"
+    echo "  Recorder stopped."
+  fi
+}
+
 stop_bots() {
   echo "  Stopping running bots..."
   if ! curl -s -X POST "http://localhost:${API_PORT}/api/bots/internal/stop-all" > /dev/null 2>&1; then
@@ -220,6 +242,7 @@ case "${1:-status}" in
   start)
     start_backend
     start_frontend
+    start_recorder
     $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
@@ -227,6 +250,7 @@ case "${1:-status}" in
     ;;
   stop)
     echo "Stopping services..."
+    stop_recorder
     stop_frontend
     stop_backend
     echo "All stopped."
@@ -235,16 +259,19 @@ case "${1:-status}" in
     mode="${2:-dev}"
     [ "$mode" = "prod" ] && RELOAD_FLAG=""
     echo "Restarting in $mode mode..."
+    stop_recorder
     stop_frontend
     stop_backend
     sleep 1
     start_backend
     start_frontend
+    start_recorder
     show_status
     ;;
   dev)
     start_backend
     start_frontend
+    start_recorder
     $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
@@ -256,6 +283,7 @@ case "${1:-status}" in
     echo "Starting in production mode (no reload)..."
     start_backend
     start_frontend
+    start_recorder
     $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"

@@ -453,6 +453,93 @@ class _UpstoxOrderFlowStream:
             self._streamer = None
 
 
+class _AdapterOrderFlowStream:
+    """Bridge stream backed by a broker adapter (Fyers, Fyers TBT, ...).
+
+    Mirrors :class:`_UpstoxOrderFlowStream` (journal, per-symbol signal engine,
+    history warm-start) but delegates the feed to a registered adapter, so the
+    UI can consume any broker — including the 50-level Fyers TBT book.
+    """
+
+    def __init__(self, broker: str, symbol: str, token: str, q: thr_queue.Queue):
+        self.broker = (broker or "").strip().lower()
+        self.symbol = (symbol or "").strip().upper()
+        self.token = token
+        self.q = q
+        self._adapter = None
+        self._closed = False
+        self._engine = OrderFlowSignalEngine()
+
+    def warm_start(self) -> None:
+        try:
+            if not self.symbol or not orderflow_journal.is_enabled():
+                return
+            entries = orderflow_journal.read(self.symbol, kind="tick")
+            if not entries:
+                return
+            engine = OrderFlowSignalEngine()
+            for entry in entries:
+                data = entry.get("data")
+                if isinstance(data, dict):
+                    engine.update(data)
+            self._engine = engine
+        except Exception:  # noqa: BLE001
+            return
+
+    def start(self) -> None:
+        from api.orderflow_adapters import get_adapter
+
+        adapter_cls = get_adapter(self.broker)
+        if adapter_cls is None:
+            self._push({"type": "error", "message": f"Unknown broker: {self.broker}"})
+            return
+        try:
+            self._adapter = adapter_cls(access_token=self.token)
+        except TypeError:
+            self._adapter = adapter_cls()
+
+        self._adapter.connect(
+            [self.symbol],
+            on_tick=self._handle_tick,
+            on_error=lambda err: self._push({"type": "error", "message": str(err)}),
+        )
+
+    def _handle_tick(self, broker_symbol, tick) -> None:
+        if self._closed or not isinstance(tick, dict):
+            return
+        self._push({"type": "market_data", "data": tick})
+        if _BRIDGE_JOURNAL:
+            orderflow_journal.append(self.symbol, "tick", tick)
+        signal = self._engine.update(tick)
+        if signal:
+            self._push(signal)
+            if _BRIDGE_JOURNAL:
+                orderflow_journal.append(self.symbol, "signal", signal)
+
+    def _push(self, payload: dict) -> None:
+        try:
+            self.q.put_nowait(payload)
+        except thr_queue.Full:
+            pass
+
+    def stop(self) -> None:
+        self._closed = True
+        if self._adapter is not None:
+            try:
+                self._adapter.disconnect()
+            except Exception:  # noqa: BLE001
+                pass
+            self._adapter = None
+
+
+def _bridge_broker() -> str:
+    # Bridge can use a different broker than the headless recorder; the Fyers
+    # SDK is not safe with two sockets in one process, so keep them separate.
+    return (
+        os.getenv("ORDERFLOW_BRIDGE_BROKER") or os.getenv("ORDERFLOW_BROKER") or "upstox"
+    ).strip().lower()
+
+
 @router.websocket("/ws/orderflow")
 async def orderflow_ws(websocket: WebSocket):
     await websocket.accept()
@@ -519,6 +606,55 @@ async def orderflow_ws(websocket: WebSocket):
                 exchange = msg.get("exchange") or "NSE"
 
                 stop_stream()
+
+                # Per-tab broker override (UI switch); falls back to env default.
+                requested = (msg.get("broker") or "").strip().lower()
+                broker = requested or _bridge_broker()
+                if broker != "upstox":
+                    from api.orderflow_recorder import recorder_token
+
+                    token = await asyncio.to_thread(recorder_token, broker)
+                    if not token:
+                        await websocket.send_json(
+                            {
+                                "type": "subscribe",
+                                "status": "error",
+                                "message": f"No {broker} access token. Connect broker via Settings.",
+                            }
+                        )
+                        continue
+                    if not _acquire_connection():
+                        await websocket.send_json(
+                            {
+                                "type": "subscribe",
+                                "status": "error",
+                                "message": "Connection limit reached. Close another Order Flow tab.",
+                            }
+                        )
+                        continue
+                    stream = _AdapterOrderFlowStream(broker, symbol, token, q)
+                    stream_ref["stream"] = stream
+                    try:
+                        await asyncio.to_thread(stream.warm_start)
+                    except Exception:  # noqa: BLE001
+                        pass
+                    try:
+                        history = await asyncio.to_thread(_build_history, symbol)
+                        if history["ticks"] or history["signals"]:
+                            stream._push({"type": "history", "symbol": symbol, **history})
+                    except Exception:  # noqa: BLE001
+                        pass
+                    try:
+                        await asyncio.to_thread(stream.start)
+                    except Exception as exc:  # noqa: BLE001
+                        stop_stream()
+                        await websocket.send_json(
+                            {"type": "subscribe", "status": "error", "message": f"{broker} connect failed: {exc}"}
+                        )
+                        continue
+                    await websocket.send_json({"type": "subscribe", "status": "success"})
+                    continue
+
                 instrument_key = await asyncio.to_thread(_resolve_instrument_key, symbol, exchange)
                 if not instrument_key:
                     await websocket.send_json(

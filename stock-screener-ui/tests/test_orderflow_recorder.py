@@ -5,6 +5,17 @@ import pytest
 from api import orderflow_recorder
 from api.orderflow_recorder import OrderFlowRecorder, recorder_symbols
 
+import pytest as _pytest
+
+
+@_pytest.fixture(autouse=True)
+def _clean_broker_env(monkeypatch):
+    monkeypatch.delenv("ORDERFLOW_BROKER", raising=False)
+    monkeypatch.delenv("ORDERFLOW_RECORDER_BROKER", raising=False)
+    monkeypatch.delenv("ORDERFLOW_RECORDER_IN_API", raising=False)
+    yield
+
+
 IKEY_RELIANCE = "NSE_EQ|INE002A01018"
 IKEY_TCS = "NSE_EQ|INE467B01029"
 

@@ -267,8 +267,8 @@ class TestConnect:
 
 
 def _with_kwargs(socket, kwargs):
-    socket.on_message = kwargs.get("on_message")
-    socket.on_error = kwargs.get("on_error")
+    for key, value in kwargs.items():
+        setattr(socket, key, value)
     return socket
 
 
@@ -343,3 +343,66 @@ class TestFyersTbtAdapter:
         assert len(out) == 1 and out[0][0] == "NSE:SBIN-EQ"
         assert adapter.normalize({}) == []
         assert adapter.normalize("nope") == []
+
+
+class TestFyersExtraFields:
+    def test_quote_carries_circuit_and_feed_time(self):
+        adapter = FyersAdapter()
+        out = adapter.normalize({
+            "type": "sf", "symbol": "NSE:SBIN-EQ", "ltp": 981.2,
+            "prev_close_price": 968.0, "upper_ckt": 1064.8, "lower_ckt": 871.2,
+            "last_traded_time": 1789538200, "exch_feed_time": 1789538201,
+        })
+        _, tick = out[0]
+        assert tick["circuit"] == {"upper": 1064.8, "lower": 871.2}
+        assert tick["feed_ts"] == 1789538201 * 1000
+
+    def test_tbt_depth_carries_sequence_and_snapshot(self):
+        adapter = get_adapter("fyers_tbt")()
+        depth = {
+            "bidprice": [100.0], "bidqty": [10], "bidordn": [1],
+            "askprice": [100.1], "askqty": [20], "askordn": [2],
+            "tbq": 5, "tsq": 6, "sendtime": 1789538200, "seqNo": 15421, "snapshot": False,
+        }
+        _, tick = adapter.normalize_depth("NSE:SBIN-EQ", depth)
+        assert tick["seq"] == 15421
+        assert tick["snapshot"] is False
+        assert tick["feed_ts"] == 1789538200 * 1000
+        assert tick["circuit"] is None
+
+
+class TestFyersTbtSymbolFilter:
+    def test_mismatched_symbol_updates_are_dropped(self):
+        adapter = get_adapter("fyers_tbt")(access_token="APP:TOK")
+        seen = []
+        fake_tbt = _FakeTbt()
+        adapter.connect(
+            ["ITC"],
+            on_tick=lambda s, t: seen.append(s),
+            tbt_factory=lambda **kw: _with_kwargs(fake_tbt, kw),
+            data_factory=lambda **kw: _with_kwargs(_FakeSocket(), kw),
+        )
+        # SDK mis-maps and delivers RELIANCE for our ITC subscription
+        fake_tbt.on_depth_update("NSE:RELIANCE-EQ", {"bidprice":[1],"bidqty":[1],"askprice":[2],"askqty":[1]})
+        assert seen == []
+        # correct symbol passes through
+        fake_tbt.on_depth_update("NSE:ITC-EQ", {"bidprice":[1],"bidqty":[1],"askprice":[2],"askqty":[1]})
+        assert seen == ["NSE:ITC-EQ"]
+
+
+class _FakeTbt:
+    def __init__(self):
+        self.depth_handler = None
+        self.subscribed = []
+
+    def connect(self):
+        pass
+
+    def subscribe(self, **kw):
+        self.subscribed.append(kw)
+
+    def switchChannel(self, **kw):
+        pass
+
+    def close_connection(self):
+        pass

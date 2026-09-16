@@ -59,8 +59,12 @@ def recorder_symbols() -> list[str]:
 
 
 def recorder_broker() -> str:
-    """Recorder broker from ``ORDERFLOW_BROKER`` (default ``upstox``)."""
-    return (os.getenv("ORDERFLOW_BROKER") or "upstox").strip().lower()
+    """Recorder broker: ``ORDERFLOW_RECORDER_BROKER`` then ``ORDERFLOW_BROKER``."""
+    return (
+        os.getenv("ORDERFLOW_RECORDER_BROKER")
+        or os.getenv("ORDERFLOW_BROKER")
+        or "upstox"
+    ).strip().lower()
 
 
 def recorder_token(broker: str) -> Optional[str]:
@@ -322,6 +326,9 @@ async def recorder_task() -> None:
     """
     if _ci_mode():
         logger.info("orderflow recorder: CI_MODE — not starting")
+        return
+    if (os.getenv("ORDERFLOW_RECORDER_IN_API", "1").strip().lower()) in ("0", "false", "no", "off"):
+        logger.info("orderflow recorder: in-API recorder disabled (runs as its own process)")
         return
 
     from trading.utils import is_market_open

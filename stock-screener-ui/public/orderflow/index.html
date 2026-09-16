@@ -184,9 +184,22 @@
   .sf-row.new{animation:sfIn .35s ease-out}
   @keyframes sfIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
 
+  /* ============ BOOK ANALYTICS ============ */
+  .imb-row{display:flex;align-items:center;gap:6px;font-size:10px;margin:3px 0}
+  .imb-l{width:16px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
+  .imb-bar{position:relative;flex:1;height:11px;background:#0e141d;border:1px solid var(--border);border-radius:2px;overflow:hidden}
+  .imb-bar:after{content:'';position:absolute;left:50%;top:0;bottom:0;width:1px;background:#26303d}
+  .imb-bar i{position:absolute;left:50%;top:0;bottom:0;width:0;background:#4fd1a5}
+  .imb-bar b{position:absolute;right:50%;top:0;bottom:0;width:0;background:#ff9d9a}
+  .imb-v{width:40px;text-align:right;font-variant-numeric:tabular-nums;color:#cfd6e1}
+  .depth-curve-wrap{margin-top:6px;border:1px solid var(--border);border-radius:3px;background:#0a0f17}
+  #depthCurve{display:block;width:100%}
+  .book-meta{display:flex;justify-content:space-between;gap:4px;margin-top:5px;font-size:9px;color:var(--muted);font-variant-numeric:tabular-nums}
+  .book-meta span{white-space:nowrap}
+
   /* ============ DOM LADDER ============ */
   .dom{font-variant-numeric:tabular-nums;font-size:11px;border:1px solid var(--border);
-    border-radius:4px;overflow:hidden;background:#0a0f17}
+    border-radius:4px;overflow-y:auto;overflow-x:hidden;background:#0a0f17;max-height:340px}
   .dom .head{display:grid;grid-template-columns:1fr 78px 1fr;color:var(--muted);
     font-size:9px;text-transform:uppercase;letter-spacing:.6px;
     padding:5px 0;background:#0d121a;text-align:center;font-weight:700}
@@ -464,7 +477,7 @@
     <!-- RIGHT: DOM + MICRO + TAPE -->
     <aside class="side right">
       <div class="group">
-        <h4>L2 Depth · 5</h4>
+        <h4>L2 Depth <span id="l2Head">· 5</span></h4>
         <div class="group-body" style="padding:6px">
           <div class="dom" id="dom"><div class="empty-dom">Waiting for data…</div></div>
         </div>
@@ -478,6 +491,24 @@
             <div class="stat-card"><div class="l">Avg size</div><div class="v" id="m_avg">0</div></div>
             <div class="stat-card"><div class="l">Buy %</div><div class="v up" id="m_buyp">0%</div></div>
             <div class="stat-card"><div class="l">Sell %</div><div class="v dn" id="m_sellp">0%</div></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="group">
+        <h4>Book Analytics</h4>
+        <div class="group-body" style="padding:6px">
+          <div id="imbRows">
+            <div class="imb-row" data-n="5"><span class="imb-l">5</span><span class="imb-bar"><i id="imbF5"></i><b id="imbF5b"></b></span><span class="imb-v" id="imbV5">—</span></div>
+            <div class="imb-row" data-n="10"><span class="imb-l">10</span><span class="imb-bar"><i id="imbF10"></i><b id="imbF10b"></b></span><span class="imb-v" id="imbV10">—</span></div>
+            <div class="imb-row" data-n="20"><span class="imb-l">20</span><span class="imb-bar"><i id="imbF20"></i><b id="imbF20b"></b></span><span class="imb-v" id="imbV20">—</span></div>
+            <div class="imb-row" data-n="50"><span class="imb-l">50</span><span class="imb-bar"><i id="imbF50"></i><b id="imbF50b"></b></span><span class="imb-v" id="imbV50">—</span></div>
+          </div>
+          <div class="depth-curve-wrap"><canvas id="depthCurve" height="70"></canvas></div>
+          <div class="book-meta">
+            <span id="bkFresh">fresh: —</span>
+            <span id="bkSeq">seq: —</span>
+            <span id="bkCkt">ckt: —</span>
           </div>
         </div>
       </div>
@@ -533,6 +564,7 @@ let MID          = 24500.00;
 let SIM_DT       = 250;
 let RUNNING      = true;
 let MODE         = 'sim';  // 'sim' | 'live'
+let BROKER       = '';     // '' = server default | 'upstox' | 'fyers' | 'fyers_tbt'
 
 /* ==================== STATE ==================== */
 const bars = [], depth = [], trades = [], cvdBars = [];
@@ -1212,6 +1244,7 @@ function clearAllData(){
   const optGrp = document.getElementById('optGroup');
   if(optGrp){ optGrp.style.display = 'none'; }
   resetSignalFeed();
+  resetBookAnalytics();
   heatmap.requestUpdate();
 }
 
@@ -1280,7 +1313,8 @@ function connectLive(){
         symbol: symbol,
         exchange: exchange,
         mode: 3,
-        depth: 5
+        depth: 5,
+        broker: BROKER || undefined
       }));
       return;
     }
@@ -1364,6 +1398,7 @@ function processLiveData(data, silent){
 
   if(data.day) liveDay = data.day;
   if(data.cp) livePrevClose = data.cp;
+  lastLiveData = data;
   if(!silent) updateOptionPanel(data);
 
   const currentLtp = data.ltp;
@@ -1389,8 +1424,9 @@ function processLiveData(data, silent){
   let tradeQty = 0;
   let tradeSide = prevTick.lastSide || 'B';
 
-  if(prevTick.volume === null){
-    // First tick — initialize, no trade
+  if(prevTick.volume === null || prevTick.volume === 0){
+    // First tick, or the quote socket just started reporting cumulative volume
+    // (0 -> day total). Baseline it, don't fabricate one giant trade.
     prevTick.volume = currentVolume;
     prevTick.ltp = currentLtp;
   } else {
@@ -1670,6 +1706,7 @@ function updateUI(){
 
   renderDOM();
   renderTape();
+  renderBookAnalytics();
 }
 
 /* ==================== DOM LADDER ==================== */
@@ -1722,6 +1759,121 @@ function renderDOM(){
     </div>`;
   });
   root.innerHTML = html;
+  const h = document.getElementById('l2Head');
+  if(h) h.textContent = '· ' + Math.max(d.bids.length, d.asks.length);
+}
+
+/* ==================== BOOK ANALYTICS ====================
+   Multi-depth imbalance (5/10/20/50), cumulative depth curve, feed freshness,
+   depth sequence-gap detection and circuit-limit proximity. These use the deep
+   book (Fyers TBT 50 levels) and are impossible on 5-level-only brokers. */
+let lastLiveData = null;
+let lastSeq = null;
+let seqGaps = 0;
+function depthImbalanceLevels(levels){
+  const d = depth.length ? depth[depth.length-1] : null;
+  if(!d) return null;
+  let b=0, a=0, have=0;
+  for(let i=0;i<levels;i++){
+    if(d.bids[i]){ b += d.bids[i].q; have++; }
+    if(d.asks[i]){ a += d.asks[i].q; have++; }
+  }
+  if(have===0) return null;
+  const t=b+a;
+  return t>0 ? (b-a)/t : 0;
+}
+function renderBookAnalytics(){
+  for(const n of [5,10,20,50]){
+    const v = depthImbalanceLevels(n);
+    const pos = document.getElementById('imbF'+n);
+    const neg = document.getElementById('imbF'+n+'b');
+    const val = document.getElementById('imbV'+n);
+    if(v===null){
+      if(pos) pos.style.width='0';
+      if(neg) neg.style.width='0';
+      if(val) val.textContent='—';
+      continue;
+    }
+    if(v>=0){ if(pos) pos.style.width=(v*50)+'%'; if(neg) neg.style.width='0'; }
+    else { if(neg) neg.style.width=(-v*50)+'%'; if(pos) pos.style.width='0'; }
+    if(val){
+      const pct = Math.round(v*100);
+      val.textContent = (pct>0?'+':'')+pct+'%';
+      val.style.color = v>0.15 ? '#7fdcd0' : (v<-0.15 ? '#ff8a87' : '#cfd6e1');
+    }
+  }
+  drawDepthCurve();
+
+  const d = lastLiveData;
+  const freshEl = document.getElementById('bkFresh');
+  if(freshEl && d){
+    const ref = d.feed_ts || d.ltt || 0;
+    if(ref){
+      const age = Math.max(0, Date.now() - ref);
+      freshEl.textContent = 'fresh: ' + age + 'ms';
+      freshEl.style.color = age>3000 ? '#ff8a87' : (age>1000 ? '#f5c542' : '#7fdcd0');
+    }
+  }
+  const seqEl = document.getElementById('bkSeq');
+  if(seqEl && d && d.seq){
+    const gap = (lastSeq !== null) ? (d.seq - lastSeq) : 0;
+    // only count small forward jumps; TBT seqNo resets across snapshots/channels
+    if(gap > 1 && gap <= 100) seqGaps += (gap - 1);
+    lastSeq = d.seq;
+    seqEl.textContent = 'seq: ' + d.seq + (seqGaps ? ' gap -'+seqGaps : '');
+    seqEl.style.color = seqGaps ? '#ff8a87' : '#7fdcd0';
+  }
+  const ckEl = document.getElementById('bkCkt');
+  if(ckEl && d && d.circuit && d.ltp){
+    const up = d.circuit.upper, lo = d.circuit.lower;
+    if(up>0 || lo>0){
+      const du = up>0 ? ((up-d.ltp)/d.ltp*100) : 0;
+      const dl = lo>0 ? ((d.ltp-lo)/d.ltp*100) : 0;
+      ckEl.textContent = `ckt: +${du.toFixed(1)}% / -${dl.toFixed(1)}%`;
+    }
+  }
+}
+function drawDepthCurve(){
+  const c = document.getElementById('depthCurve');
+  if(!c) return;
+  const wrap = c.parentElement;
+  if(wrap && c.width !== wrap.clientWidth){ c.width = Math.max(60, wrap.clientWidth); }
+  const ctx = c.getContext('2d');
+  const W=c.width, H=c.height;
+  ctx.clearRect(0,0,W,H);
+  const d = depth.length ? depth[depth.length-1] : null;
+  if(!d || (!d.bids.length && !d.asks.length)) return;
+
+  const bids=[], asks=[];
+  let cb=0; for(const l of d.bids.slice(0,50)){ cb+=l.q; bids.push([l.p, cb]); }
+  let ca=0; for(const l of d.asks.slice(0,50)){ ca+=l.q; asks.push([l.p, ca]); }
+  const maxQ = Math.max(cb, ca, 1);
+  const prices = [...bids.map(x=>x[0]), ...asks.map(x=>x[0])];
+  const pmin = Math.min(...prices), pmax = Math.max(...prices);
+  const xOf = p => pmax>pmin ? ((p-pmin)/(pmax-pmin))*(W-10)+5 : W/2;
+  const yOf = q => H-4 - (q/maxQ)*(H-12);
+
+  ctx.strokeStyle = '#4fd1a5'; ctx.lineWidth = 1.5; ctx.beginPath();
+  bids.forEach(([p,q],i)=>{ const x=xOf(p), y=yOf(q); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+  ctx.stroke();
+  ctx.strokeStyle = '#ff9d9a'; ctx.beginPath();
+  asks.forEach(([p,q],i)=>{ const x=xOf(p), y=yOf(q); i?ctx.lineTo(x,y):ctx.moveTo(x,y); });
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(170,179,193,.35)'; ctx.lineWidth = 1;
+  const midX = xOf((bids.length? bids[0][0]:pmin) + (asks.length? asks[0][0]-bids[0][0] : 0)/2);
+  ctx.beginPath(); ctx.moveTo(midX, 2); ctx.lineTo(midX, H-2); ctx.stroke();
+}
+function resetBookAnalytics(){
+  lastLiveData = null; lastSeq = null; seqGaps = 0;
+  for(const n of [5,10,20,50]){
+    const pos=document.getElementById('imbF'+n), neg=document.getElementById('imbF'+n+'b'), val=document.getElementById('imbV'+n);
+    if(pos) pos.style.width='0';
+    if(neg) neg.style.width='0';
+    if(val){ val.textContent='—'; val.style.color='#cfd6e1'; }
+  }
+  const fr=document.getElementById('bkFresh'); if(fr) fr.textContent='fresh: —';
+  const sq=document.getElementById('bkSeq'); if(sq) sq.textContent='seq: —';
+  const ck=document.getElementById('bkCkt'); if(ck) ck.textContent='ckt: —';
 }
 
 /* ==================== TAPE ==================== */
@@ -2075,6 +2227,10 @@ window.addEventListener('resize',()=>heatmap.requestUpdate());
 
   var sym = params.get('symbol');
   if (sym) symbolEl.value = sym.toUpperCase();
+
+  // Data-source broker passed from the app (empty = bridge default).
+  var brk = params.get('broker');
+  if (brk) BROKER = brk.toLowerCase();
 
   var tick = params.get('tick');
   if (tick) {

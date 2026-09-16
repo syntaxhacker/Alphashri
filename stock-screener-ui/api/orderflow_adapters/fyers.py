@@ -76,6 +76,13 @@ def fyers_symbol(symbol: str) -> str:
     return f"NSE:{text}-EQ"
 
 
+def _circuit(raw: dict) -> Optional[dict]:
+    """Circuit-limit band, when the broker supplies it."""
+    if not (_has(raw.get("upper_ckt")) or _has(raw.get("lower_ckt"))):
+        return None
+    return {"upper": _f(raw.get("upper_ckt")), "lower": _f(raw.get("lower_ckt"))}
+
+
 def _data_available() -> bool:
     try:
         import fyers_apiv3  # noqa: F401
@@ -150,6 +157,17 @@ class FyersAdapter(OrderFlowAdapter):
 
         ltp = _f(raw.get("ltp"))
         ltt_sec = _f(raw.get("last_traded_time"))
+        feed_sec = _f(raw.get("exch_feed_time")) or ltt_sec
+        depth = self._depth(raw)
+        if not ltp:
+            # DepthUpdate messages carry no LTP — derive it from the touch.
+            bids, asks = depth.get("buy") or [], depth.get("sell") or []
+            if bids and asks:
+                ltp = (bids[0]["price"] + asks[0]["price"]) / 2.0
+            elif bids:
+                ltp = bids[0]["price"]
+            elif asks:
+                ltp = asks[0]["price"]
         tick = {
             "ltp": ltp,
             "volume": _f(raw.get("vol_traded_today")),
@@ -163,11 +181,16 @@ class FyersAdapter(OrderFlowAdapter):
             "iv": 0.0,
             "greeks": None,
             "day": self._day(raw, ltp),
-            "depth": self._depth(raw),
+            "depth": depth,
+            "circuit": _circuit(raw),
+            "feed_ts": int(feed_sec * 1000) if feed_sec > 0 else 0,
+            "seq": None,
+            "snapshot": None,
         }
         return [(str(symbol), tick)]
 
-    def _day(self, raw: dict, ltp: float) -> Optional[dict]:
+    @staticmethod
+    def _day(raw: dict, ltp: float) -> Optional[dict]:
         if not any(
             _has(raw.get(k))
             for k in ("open_price", "high_price", "low_price", "vol_traded_today")
@@ -271,6 +294,7 @@ class FyersTbtAdapter(OrderFlowAdapter):
         self._data = None
         self._quotes: dict[str, dict] = {}
         self._quote_symbols: list[str] = []
+        self._subscribed: set[str] = set()
 
     # -- normalized depth ----------------------------------------------------
     @staticmethod
@@ -319,6 +343,10 @@ class FyersTbtAdapter(OrderFlowAdapter):
             "greeks": None,
             "day": quote.get("day"),
             "depth": {"buy": bids, "sell": asks},
+            "circuit": quote.get("circuit"),
+            "feed_ts": ltt_ms,
+            "seq": int(self._get(depth, "seqNo") or 0) or None,
+            "snapshot": bool(self._get(depth, "snapshot")),
         }
         return str(symbol), tick
 
@@ -353,6 +381,7 @@ class FyersTbtAdapter(OrderFlowAdapter):
             "cp": _f(message.get("prev_close_price")),
             "tbq": _f(message.get("tot_buy_qty")),
             "tsq": _f(message.get("tot_sell_qty")),
+            "circuit": _circuit(message),
             "day": {
                 "open": _f(message.get("open_price")),
                 "high": _f(message.get("high_price")),
@@ -378,6 +407,13 @@ class FyersTbtAdapter(OrderFlowAdapter):
             raise ValueError("Fyers access_token is required ('<APP_ID>:<ACCESS_TOKEN>')")
         fyers_symbols = {fyers_symbol(s) for s in symbols}
         self._quote_symbols = sorted(fyers_symbols)
+        self._subscribed = set(fyers_symbols)
+
+        def _on_depth(symbol, depth):
+            # The Fyers TBT SDK can mis-map symbols; only accept the ones we
+            # actually subscribed to (the callback carries the symbol).
+            if str(symbol) in self._subscribed:
+                on_tick(*self.normalize_depth(symbol, depth))
 
         # quote socket (best-effort: gives ltp/volume/vwap). `keep_running()`
         # blocks, so it runs on a daemon thread and connect() stays non-blocking.
@@ -401,9 +437,7 @@ class FyersTbtAdapter(OrderFlowAdapter):
         tbt = tbt_factory or _default_tbt_socket_factory
         self._tbt = tbt(
             access_token=token,
-            on_depth_update=lambda symbol, depth: on_tick(
-                *self.normalize_depth(symbol, depth)
-            ),
+            on_depth_update=_on_depth,
             on_error=(lambda *a: on_error(" ".join(str(x) for x in a))) if on_error else None,
             reconnect=False,
         )

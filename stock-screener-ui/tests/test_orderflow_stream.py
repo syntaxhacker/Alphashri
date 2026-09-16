@@ -19,6 +19,9 @@ from api.orderflow_stream import (
 def _disable_journal(monkeypatch):
     """Keep tests from reading/writing the real session journal."""
     monkeypatch.setenv("ORDERFLOW_JOURNAL", "0")
+    # force the Upstox path regardless of the developer's .env
+    monkeypatch.delenv("ORDERFLOW_BROKER", raising=False)
+    monkeypatch.delenv("ORDERFLOW_BRIDGE_BROKER", raising=False)
     yield
 
 
