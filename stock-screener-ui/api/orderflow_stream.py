@@ -540,6 +540,18 @@ def _bridge_broker() -> str:
     ).strip().lower()
 
 
+def _adapter_caps(broker: str) -> tuple:
+    """(depth_levels, has_order_counts) for a broker (5/False for Upstox)."""
+    from api.orderflow_adapters import get_adapter
+
+    cls = get_adapter(broker)
+    if cls is None:
+        return _DEPTH_LEVELS, False
+    return int(getattr(cls, "depth_levels", _DEPTH_LEVELS)), bool(
+        getattr(cls, "has_order_counts", False)
+    )
+
+
 @router.websocket("/ws/orderflow")
 async def orderflow_ws(websocket: WebSocket):
     await websocket.accept()
@@ -652,7 +664,16 @@ async def orderflow_ws(websocket: WebSocket):
                             {"type": "subscribe", "status": "error", "message": f"{broker} connect failed: {exc}"}
                         )
                         continue
-                    await websocket.send_json({"type": "subscribe", "status": "success"})
+                    levels, order_counts = _adapter_caps(broker)
+                    await websocket.send_json(
+                        {
+                            "type": "subscribe",
+                            "status": "success",
+                            "broker": broker,
+                            "depth_levels": levels,
+                            "order_counts": order_counts,
+                        }
+                    )
                     continue
 
                 instrument_key = await asyncio.to_thread(_resolve_instrument_key, symbol, exchange)
@@ -707,7 +728,15 @@ async def orderflow_ws(websocket: WebSocket):
                     )
                     continue
 
-                await websocket.send_json({"type": "subscribe", "status": "success"})
+                await websocket.send_json(
+                    {
+                        "type": "subscribe",
+                        "status": "success",
+                        "broker": "upstox",
+                        "depth_levels": _DEPTH_LEVELS,
+                        "order_counts": False,
+                    }
+                )
 
             elif action == "unsubscribe":
                 stop_stream()

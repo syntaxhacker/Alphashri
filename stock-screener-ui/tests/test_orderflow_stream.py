@@ -225,7 +225,9 @@ class TestOrderFlowWs:
             ws.send_json({"action": "authenticate", "api_key": "tok"})
             ws.receive_json()
             ws.send_json({"action": "subscribe", "symbol": "RELIANCE", "exchange": "NSE"})
-            assert ws.receive_json() == {"type": "subscribe", "status": "success"}
+            sub = ws.receive_json()
+            assert sub["type"] == "subscribe" and sub["status"] == "success"
+            assert sub["broker"] == "upstox" and sub["depth_levels"] == 5
             assert ws.receive_json() == tick
 
 

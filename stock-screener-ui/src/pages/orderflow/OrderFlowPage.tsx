@@ -1,13 +1,18 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Alert,
   Box,
   Button,
   Center,
+  Checkbox,
   Group,
   Loader,
+  Popover,
+  PopoverDropdown,
+  PopoverTarget,
   SegmentedControl,
   Select,
+  Stack,
   Text,
   TextInput,
   ToolbarRow,
@@ -42,6 +47,35 @@ function resolveBridgeWsUrl(): string {
 type Mode = "manual" | "options";
 type OptionType = "CE" | "PE";
 
+/** Data-source brokers and their capability labels (single source of truth). */
+export const BROKER_OPTIONS = [
+  { value: "upstox", label: "Upstox · 5 lv" },
+  { value: "fyers", label: "Fyers · 5 lv + orders" },
+  { value: "fyers_tbt", label: "Fyers TBT · 50 lv" },
+] as const;
+
+export const DEFAULT_BROKER = "upstox";
+
+export const BROKER_NOTES: Record<string, string> = {
+  upstox: "Live via Upstox · 5-level depth · order counts unavailable",
+  fyers: "Live via Fyers · 5-level depth · order counts available",
+  fyers_tbt: "Live via Fyers TBT · 50-level depth · order counts available",
+};
+
+/** Chart overlays / panels that can be toggled from the app toolbar. */
+export const VIEW_ITEMS = [
+  { key: "showVWAP", label: "VWAP" },
+  { key: "showCVD", label: "CVD" },
+  { key: "showVP", label: "Volume profile" },
+  { key: "showHM", label: "Heatmap" },
+  { key: "showBubbles", label: "Trade bubbles" },
+  { key: "showWalls", label: "Liquidity walls" },
+  { key: "l2", label: "L2 Depth panel" },
+  { key: "book", label: "Book Analytics panel" },
+  { key: "micro", label: "Microstructure panel" },
+  { key: "tape", label: "Time & Sales panel" },
+] as const;
+
 function nearestStrike(strikes: number[], spot: number | null | undefined): number | null {
   if (strikes.length === 0) return null;
   const target = typeof spot === "number" && Number.isFinite(spot) ? spot : strikes[Math.floor(strikes.length / 2)];
@@ -55,7 +89,25 @@ export function OrderFlowPage() {
   const [activeTick, setActiveTick] = useState("0.05");
   const [reloadKey, setReloadKey] = useState(0);
   const [brokerConnected, setBrokerConnected] = useState<boolean | null>(null);
-  const [broker, setBroker] = useState<string>("auto");
+  const [broker, setBroker] = useState<string>(DEFAULT_BROKER);
+  const [view, setView] = useState<Record<string, boolean>>(() =>
+    Object.fromEntries(VIEW_ITEMS.map((item) => [item.key, true])),
+  );
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+
+  const pushView = useCallback((key: string, value: boolean) => {
+    iframeRef.current?.contentWindow?.postMessage({ type: "ofm-view", key, value }, "*");
+  }, []);
+  const syncView = useCallback(() => {
+    VIEW_ITEMS.forEach((item) => pushView(item.key, view[item.key]));
+  }, [pushView, view]);
+  const toggleView = useCallback(
+    (key: string, value: boolean) => {
+      setView((v) => ({ ...v, [key]: value }));
+      pushView(key, value);
+    },
+    [pushView],
+  );
 
   const [mode, setMode] = useState<Mode>("manual");
   const [underlyings, setUnderlyings] = useState<Underlying[]>([]);
@@ -219,7 +271,7 @@ export function OrderFlowPage() {
       tick: activeTick,
       autoconnect: brokerConnected ? "1" : "0",
     });
-    if (broker !== "auto") params.set("broker", broker);
+    params.set("broker", broker);
     return `/orderflow/index.html?${params.toString()}`;
     // reloadKey forces the iframe to remount on reconnect
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -245,17 +297,33 @@ export function OrderFlowPage() {
           onChange={(value) => setMode(value as Mode)}
           data-testid="orderflow-mode"
         />
+        <Popover>
+          <PopoverTarget>
+            <Button size="sm" variant="outline" data-testid="orderflow-view">
+              View
+            </Button>
+          </PopoverTarget>
+          <PopoverDropdown>
+            <Stack gap={2} style={{ padding: 8, minWidth: 220 }}>
+              {VIEW_ITEMS.map((item) => (
+                <Checkbox
+                  key={item.key}
+                  size="sm"
+                  label={item.label}
+                  checked={view[item.key]}
+                  onChange={(e) => toggleView(item.key, (e.target as HTMLInputElement).checked)}
+                  data-testid={`orderflow-view-${item.key}`}
+                />
+              ))}
+            </Stack>
+          </PopoverDropdown>
+        </Popover>
         <Select
           size="sm"
-          w={150}
-          data={[
-            { value: "auto", label: "Auto broker" },
-            { value: "upstox", label: "Upstox (5)" },
-            { value: "fyers", label: "Fyers (5+ord)" },
-            { value: "fyers_tbt", label: "Fyers TBT (50)" },
-          ]}
+          w={170}
+          data={[...BROKER_OPTIONS]}
           value={broker}
-          onChange={(value) => setBroker(value ?? "auto")}
+          onChange={(value) => setBroker(value ?? DEFAULT_BROKER)}
           data-testid="orderflow-broker"
         />
         {mode === "manual" && (
@@ -284,8 +352,8 @@ export function OrderFlowPage() {
             </Button>
           </>
         )}
-        <Text size="xs" c="dimmed">
-          Live via Upstox · 5-level depth · order counts unavailable
+        <Text size="xs" c="dimmed" data-testid="orderflow-broker-note">
+          {BROKER_NOTES[broker] ?? BROKER_NOTES[DEFAULT_BROKER]}
         </Text>
       </ToolbarRow>
 
@@ -377,6 +445,8 @@ export function OrderFlowPage() {
         ) : (
           <iframe
             key={reloadKey}
+            ref={iframeRef}
+            onLoad={syncView}
             title="Order Flow Map"
             src={src}
             style={{ position: "absolute", inset: 0, width: "100%", height: "100%", border: "none" }}

@@ -37,6 +37,8 @@
   .signal-badge.strong-buy{background:#0e4a35;color:#eafff6;border-color:#16a34a;box-shadow:0 0 10px rgba(22,163,74,.55);animation:pulse 1.1s infinite}
   .signal-badge.sell{background:#2a1618;color:#ff9d9a;border-color:#5a2326}
   .signal-badge.strong-sell{background:#4a1214;color:#ffeceb;border-color:#dc2626;box-shadow:0 0 10px rgba(220,38,38,.55);animation:pulse 1.1s infinite}
+  .src-badge{padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid #26303d;background:#0e141d;color:#8b97a8;white-space:nowrap}
+  .src-badge.strong{border-color:#2563EB;color:#9ec1ff;background:#0f1a2e}
   .price{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;min-width:78px}
   .stat{color:var(--muted);font-size:11px;display:flex;flex-direction:column;line-height:1.15}
   .stat .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -277,6 +279,7 @@
     <div class="sym" id="symLabel">NIFTY</div>
     <div class="mode-badge sim" id="modeBadge">SIM</div>
     <div class="signal-badge neutral" id="sigBadge" title="Confluence signal (needs ≥30s of data)">Signal —</div>
+    <div class="src-badge" id="srcBadge" title="Active data source">—</div>
     <div class="price" id="lastPrice">—</div>
     <div class="divider"></div>
     <div class="stat"><span class="lbl">Spread</span><b id="spreadV">—</b></div>
@@ -476,14 +479,14 @@
 
     <!-- RIGHT: DOM + MICRO + TAPE -->
     <aside class="side right">
-      <div class="group">
+      <div class="group" id="l2Group">
         <h4>L2 Depth <span id="l2Head">· 5</span></h4>
         <div class="group-body" style="padding:6px">
           <div class="dom" id="dom"><div class="empty-dom">Waiting for data…</div></div>
         </div>
       </div>
 
-      <div class="group">
+      <div class="group" id="microGroup">
         <h4>Microstructure · 60s</h4>
         <div class="group-body" style="padding:6px">
           <div class="stats-grid">
@@ -495,7 +498,7 @@
         </div>
       </div>
 
-      <div class="group">
+      <div class="group" id="bookGroup">
         <h4>Book Analytics</h4>
         <div class="group-body" style="padding:6px">
           <div id="imbRows">
@@ -513,7 +516,7 @@
         </div>
       </div>
 
-      <div class="group flex-fill">
+      <div class="group flex-fill" id="tapeGroup">
         <h4>Time & Sales</h4>
         <div class="group-body" style="padding:6px">
           <div class="tape" id="tape">
@@ -1333,6 +1336,7 @@ function connectLive(){
         setConnStatus('on','Streaming');
         document.getElementById('status').textContent = 'Live · ' + symbol;
         document.getElementById('liveDot').className = 'live';
+        setSourceBadge(msg);
       } else {
         connLog('Subscribe failed: ' + (msg.message||''), 'err');
         setConnStatus('err','Subscribe failed');
@@ -1972,6 +1976,45 @@ function initSignalFeedToggle(){
 }
 
 /* ==================== SIGNAL BADGE ==================== */
+const BROKER_LABELS = { upstox: 'Upstox', fyers: 'Fyers', fyers_tbt: 'Fyers TBT' };
+function setSourceBadge(msg){
+  const el = document.getElementById('srcBadge');
+  if(!el) return;
+  const label = BROKER_LABELS[msg.broker] || (msg.broker || '—');
+  const lv = msg.depth_levels || 0;
+  el.textContent = `${label} · ${lv} lv${msg.order_counts ? ' + ord' : ''}`;
+  el.classList.toggle('strong', lv >= 50);
+  el.title = msg.order_counts
+    ? 'Per-level order counts available'
+    : 'This broker does not provide per-level order counts';
+}
+
+/* ==================== VIEW TOGGLES (from the app toolbar) ====================
+   The parent app posts {type:'ofm-view', key, value}; keys are either overlay
+   flags in `ui` (showVWAP, showCVD, ...) or right-panel ids. */
+const VIEW_PANELS = { l2: 'l2Group', book: 'bookGroup', micro: 'microGroup', tape: 'tapeGroup' };
+function applyView(key, value){
+  if(key in ui){
+    ui[key] = !!value;
+    const el = document.getElementById(key);
+    if(el) el.checked = !!value;
+    applySeriesData();
+    drawColorBar();
+    heatmap.requestUpdate();
+    return;
+  }
+  const panelId = VIEW_PANELS[key];
+  if(panelId){
+    const g = document.getElementById(panelId);
+    if(g) g.style.display = value ? '' : 'none';
+  }
+}
+window.addEventListener('message', (e) => {
+  const d = e.data;
+  if(!d || d.type !== 'ofm-view' || typeof d.key !== 'string') return;
+  applyView(d.key, d.value);
+});
+
 function setSignal(sig){
   const el = document.getElementById('sigBadge');
   if(!el) return;
