@@ -158,3 +158,51 @@ class TestEvaluate:
         assert result["evaluated"] == 0
         assert result["overall"]["count"] == 0
         assert result["overall"]["win_rate"] == 0.0
+
+
+class TestBufferedWrites:
+    """Handles are pooled and buffered, so durability semantics are pinned.
+
+    Reusing one append handle per file removed an open/write/close cycle per
+    tick; these tests make sure that did not quietly make records unreadable.
+    """
+
+    def test_handle_is_reused_across_appends(self, journal_tmp):
+        orderflow_journal.append("SBIN", "tick", {"ltp": 1.0})
+        first = orderflow_journal._handles[str(orderflow_journal.journal_path("SBIN"))]
+        orderflow_journal.append("SBIN", "tick", {"ltp": 2.0})
+        second = orderflow_journal._handles[str(orderflow_journal.journal_path("SBIN"))]
+        assert first is second
+
+    def test_records_are_readable_without_an_explicit_flush(self, journal_tmp):
+        for price in (1.0, 2.0, 3.0):
+            orderflow_journal.append("SBIN", "tick", {"ltp": price})
+        assert [r["data"]["ltp"] for r in orderflow_journal.read("SBIN")] == [1.0, 2.0, 3.0]
+
+    def test_signal_is_flushed_immediately(self, journal_tmp):
+        orderflow_journal.flush()
+        orderflow_journal.append("SBIN", "signal", {"side": "SELL", "score": -0.5})
+        path = orderflow_journal.journal_path("SBIN")
+        # Bypass read()'s flush to prove the signal is already on disk.
+        with path.open("r", encoding="utf-8") as fh:
+            assert "SELL" in fh.read()
+
+    def test_close_all_flushes_and_releases_handles(self, journal_tmp):
+        orderflow_journal.append("SBIN", "tick", {"ltp": 9.0})
+        orderflow_journal.close_all()
+        assert orderflow_journal._handles == {}
+        assert [r["data"]["ltp"] for r in orderflow_journal.read("SBIN")] == [9.0]
+
+    def test_handle_pool_is_bounded(self, journal_tmp):
+        for i in range(orderflow_journal._MAX_OPEN_HANDLES + 8):
+            orderflow_journal.append(f"SYM{i}", "tick", {"ltp": float(i)})
+        assert len(orderflow_journal._handles) <= orderflow_journal._MAX_OPEN_HANDLES
+        orderflow_journal.close_all()
+
+    def test_day_rollover_closes_previous_day_handles(self, journal_tmp):
+        orderflow_journal.append("SBIN", "tick", {"ltp": 1.0})
+        yesterday = orderflow_journal.journal_path("SBIN", day="2020-01-01")
+        yesterday.write_text("", encoding="utf-8")
+        orderflow_journal._roll_day_locked(yesterday)
+        assert str(orderflow_journal.journal_path("SBIN")) not in orderflow_journal._handles
+        orderflow_journal.close_all()

@@ -73,6 +73,12 @@ def main(argv=None) -> int:
             recorder.check_gaps()
     finally:
         recorder.stop()
+        # Flush pooled journal handles so a buffered tail is never lost.
+        try:
+            from api import orderflow_journal
+            orderflow_journal.close_all()
+        except Exception:
+            pass
     print("Recorder stopped.")
     return 0
 

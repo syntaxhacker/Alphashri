@@ -36,6 +36,22 @@ from api.paper.live_stream import _get_upstox_token
 from api import orderflow_journal
 from api.orderflow_signals import OrderFlowSignalEngine
 
+try:  # orjson serializes a 50-level tick ~9x faster than stdlib json
+    import orjson as _fastjson
+
+    def _dumps(payload) -> str:
+        return _fastjson.dumps(payload, default=str).decode("utf-8")
+
+except ImportError:  # pragma: no cover - fallback keeps the module importable
+    def _dumps(payload) -> str:
+        return json.dumps(payload, separators=(",", ":"), default=str)
+
+
+#: Max queued messages folded into one WebSocket frame. A burst of depth
+#: updates then costs one thread hop + one encode + one frame instead of one
+#: per tick, which is what the event loop was spending its time on.
+_PUMP_BATCH_MAX = 256
+
 router = APIRouter(tags=["Order Flow"])
 
 # Upstox full mode emits 5 depth levels per quote list.
@@ -600,7 +616,20 @@ async def orderflow_ws(websocket: WebSocket):
                     item = await asyncio.to_thread(q.get)
                     if item is None:
                         return
-                    await websocket.send_json(item)
+                    batch = [item]
+                    # Drain what is already queued so a burst is amortised.
+                    while len(batch) < _PUMP_BATCH_MAX:
+                        try:
+                            nxt = q.get_nowait()
+                        except thr_queue.Empty:
+                            break
+                        if nxt is None:
+                            break
+                        batch.append(nxt)
+                    if len(batch) == 1:
+                        await websocket.send_text(_dumps(batch[0]))
+                    else:
+                        await websocket.send_text(_dumps(batch))
             except Exception:  # noqa: BLE001 - socket closed mid-send
                 return
 

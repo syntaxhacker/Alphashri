@@ -423,3 +423,71 @@ class TestResolveInstrumentKeyCase:
     def test_empty_symbol_returns_none(self):
         assert _resolve_instrument_key("") is None
         assert _resolve_instrument_key("   ") is None
+
+
+class TestPumpBatching:
+    """Queued messages are folded into one frame instead of one send per tick.
+
+    The event loop used to pay a thread hop + a json encode + a frame for every
+    depth update; batching amortises all three without dropping any message.
+    """
+
+    def _install(self, monkeypatch, ticks):
+        monkeypatch.setattr(orderflow_stream, "decode_token", lambda _t: {"type": "access"})
+        monkeypatch.setattr(orderflow_stream, "_resolve_instrument_key", lambda *a, **k: "NSE_EQ|X")
+        monkeypatch.setattr(orderflow_stream, "_get_upstox_token", lambda: "uptoken")
+
+        class FakeStream:
+            def __init__(self, token, instrument_key, q, symbol=""):
+                self.q = q
+                self.symbol = symbol
+
+            def warm_start(self):
+                pass
+
+            def start(self):
+                for t in ticks:
+                    self.q.put_nowait(t)
+
+            def stop(self):
+                pass
+
+        monkeypatch.setattr(orderflow_stream, "_UpstoxOrderFlowStream", FakeStream)
+
+    def test_burst_is_delivered_in_one_frame_without_loss(self, monkeypatch):
+        ticks = [
+            {
+                "type": "market_data",
+                "data": {"ltp": 100.0 + i, "volume": i, "ltt": 1713345678000,
+                         "depth": {"buy": [], "sell": []}},
+            }
+            for i in range(5)
+        ]
+        self._install(monkeypatch, ticks)
+
+        with _make_client().websocket_connect("/ws/orderflow") as ws:
+            ws.send_json({"action": "authenticate", "api_key": "tok"})
+            ws.receive_json()
+            ws.send_json({"action": "subscribe", "symbol": "RELIANCE", "exchange": "NSE"})
+            assert ws.receive_json()["status"] == "success"
+
+            received, frames = [], 0
+            while len(received) < len(ticks) and frames < 10:
+                frame = ws.receive_json()
+                frames += 1
+                received.extend(frame if isinstance(frame, list) else [frame])
+
+        assert received == ticks, "every queued tick must arrive, in order"
+        assert frames == 1, f"expected one batched frame, got {frames}"
+
+    def test_single_message_stays_a_bare_object(self, monkeypatch):
+        tick = {"type": "market_data", "data": {"ltp": 1.0, "volume": 1, "ltt": 1,
+                                                "depth": {"buy": [], "sell": []}}}
+        self._install(monkeypatch, [tick])
+
+        with _make_client().websocket_connect("/ws/orderflow") as ws:
+            ws.send_json({"action": "authenticate", "api_key": "tok"})
+            ws.receive_json()
+            ws.send_json({"action": "subscribe", "symbol": "RELIANCE", "exchange": "NSE"})
+            assert ws.receive_json()["status"] == "success"
+            assert ws.receive_json() == tick

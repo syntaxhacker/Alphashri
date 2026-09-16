@@ -556,6 +556,25 @@
 const LWC = LightweightCharts;
 const { createChart, LineSeries, BaselineSeries, createSeriesMarkers, CrosshairMode } = LWC;
 
+/* ==================== HOT-PATH FORMATTERS ====================
+   `toLocaleTimeString(locale, {options})` builds a fresh Intl.DateTimeFormat on
+   every call, and `Number.prototype.toLocaleString()` does the same work each
+   time. The tape did one per row and the ladder two per row, per tick — tens of
+   thousands of formatter constructions a minute. One cached formatter (or plain
+   digit maths) is byte-identical output for a fraction of the cost. */
+const NUM_FMT = new Intl.NumberFormat('en-IN');
+
+function fmtNum(v){
+  return NUM_FMT.format(v);
+}
+
+function fmtClock(sec){
+  const d = new Date(sec * 1000);
+  const p = n => (n < 10 ? '0' : '') + n;
+  return p(d.getHours()) + ':' + p(d.getMinutes()) + ':' + p(d.getSeconds());
+}
+
+
 /* ==================== CONFIG ==================== */
 let TICK         = 0.10;
 const SPREAD_PT  = 5.0;
@@ -573,6 +592,9 @@ const bars = [], depth = [], trades = [], cvdBars = [];
 let cvd = 0;
 const tradeVolByPrice = new Map();
 let liveWs = null;
+/* Subscription details for the active socket. ``handleLiveMessage`` is a
+   top-level function, so it reads them here instead of a connectLive() closure. */
+const liveCtx = { symbol: '', exchange: 'NSE', broker: '' };
 let liveMsgCount = 0;
 
 // Live mode: previous tick tracking for trade detection
@@ -637,15 +659,10 @@ const chart = createChart(chartEl, {
     entireTextOnly:true, ticksVisible:true },
   timeScale:{ borderColor:'#1c2533', timeVisible:true, secondsVisible:true,
     rightOffset:3, barSpacing:6, minBarSpacing:0.5,
-    tickMarkFormatter: (time, tickMarkType, locale) => {
-      const date = new Date(time * 1000);
-      return date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    }
+    tickMarkFormatter: (time /*, tickMarkType, locale */) => fmtClock(time)
   },
   localization: {
-    timeFormatter: (time) => {
-      return new Date(time * 1000).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false });
-    }
+    timeFormatter: (time) => fmtClock(time)
   },
   autoSize:true,
 });
@@ -712,7 +729,7 @@ function addChartSignal(sig, price){
   if(price == null || !(price > 0)) return;
   chartSignals.push({ time: Math.floor(raw/1000), price, side: sig.side, score: sig.score });
   if(chartSignals.length > SIGNAL_MARKER_MAX) chartSignals.shift();
-  applySeriesData();
+  applyMarkers();
 }
 
 /* ==================== HEATMAP PRIMITIVE ==================== */
@@ -1080,7 +1097,7 @@ class TradeLabelsRenderer{
         if(xPx < -40 || xPx > bitmapSize.width+40) continue;
         // place label below buys / above sells so it doesn't sit on the bubble
         const yPx = y*vpr + (tr.side==='B' ? 30*vpr : -30*vpr);
-        const label = tr.qty.toLocaleString();
+        const label = fmtNum(tr.qty);
         const w = ctx.measureText(label).width;
         const h = 13*hpr;
         // skip labels that would collide with an already-placed one
@@ -1207,10 +1224,68 @@ function simulateTick(now){
 
 function trimHistory(nowSec){
   const tooOld = nowSec - HISTORY_SEC;
-  while(bars.length    && bars[0].time   <tooOld) bars.shift();
+  // A shift removes points the chart still holds, so the series must be
+  // re-pushed in full (the incremental path can only append/amend a tail).
+  while(bars.length    && bars[0].time   <tooOld){ bars.shift();    seriesNeedsFull = true; }
   while(depth.length   && depth[0].time  <tooOld) depth.shift();
-  while(cvdBars.length && cvdBars[0].time<tooOld) cvdBars.shift();
+  while(cvdBars.length && cvdBars[0].time<tooOld){ cvdBars.shift(); seriesNeedsFull = true; }
   while(trades.length  && trades[0].time <tooOld) trades.shift();
+}
+
+/* ==================== RENDER SCHEDULER ====================
+   Ticks arrive far faster than the display refreshes (a 50-level TBT symbol
+   pushes many updates per second). Every tick is still folded into
+   bars/depth/trades/cvdBars the moment it lands, so nothing is dropped; only
+   PAINTING is coalesced. A burst of N updates now costs one repaint instead of
+   N full-chart setData + N innerHTML rebuilds of the 50-level ladder. */
+let renderQueued = false;
+let seriesNeedsFull = true;
+let lastTableSig = null;
+let lastTapeLen = -1;
+
+function requestRender(full){
+  if(full) seriesNeedsFull = true;
+  if(renderQueued) return;
+  renderQueued = true;
+  if(typeof requestAnimationFrame === 'function') requestAnimationFrame(flushRender);
+  else setTimeout(flushRender, 16);
+}
+
+function flushRender(){
+  renderQueued = false;
+  // Hidden tab: keep accumulating, skip the paint. One catch-up on return.
+  if(typeof document !== 'undefined' && document.hidden) return;
+  renderChart();
+  updateUI();
+}
+
+if(typeof document !== 'undefined' && document.addEventListener){
+  document.addEventListener('visibilitychange', () => {
+    if(!document.hidden) requestRender(true);
+  });
+}
+
+/* Incremental chart paint: amend the last point instead of re-pushing every
+   bar. ``update()`` overwrites the tail when the time matches and appends when
+   it advances, so this is O(1) per frame either way. */
+function renderChart(){
+  const lastBar = bars.length ? bars[bars.length-1] : null;
+  if(seriesNeedsFull || !lastBar){
+    applySeriesData();
+    seriesNeedsFull = false;
+    return;
+  }
+  midSeries.update({time:lastBar.time, value:lastBar.mid});
+  if(ui.showBBA){
+    bidSeries.update({time:lastBar.time, value:lastBar.bbid});
+    askSeries.update({time:lastBar.time, value:lastBar.bask});
+  }
+  if(ui.showVWAP) vwapSeries.update({time:lastBar.time, value:lastBar.vwap});
+  const lastCvd = cvdBars.length ? cvdBars[cvdBars.length-1] : null;
+  if(ui.showCVD && lastCvd) cvdSeries.update(lastCvd);
+
+  // Markers only move when a trade large enough to draw has been added.
+  if(ui.showLargeMarkers && trades.length !== lastTapeLen) applyMarkers();
 }
 
 /* ==================== LIVE WEBSOCKET ==================== */
@@ -1218,7 +1293,7 @@ function connLog(msg, cls='info'){
   const el = document.getElementById('connLog');
   const d = document.createElement('div');
   d.className = cls;
-  const now = new Date().toLocaleTimeString('en-IN',{hour12:false});
+  const now = fmtClock(Date.now()/1000);
   d.textContent = `[${now}] ${msg}`;
   el.prepend(d);
   while(el.children.length > 30) el.removeChild(el.lastChild);
@@ -1251,6 +1326,10 @@ function clearAllData(){
   liveMsgCount = 0;
   midSeries.setData([]); bidSeries.setData([]); askSeries.setData([]); vwapSeries.setData([]);
   cvdSeries.setData([]); markers.setMarkers([]);
+  // Chart is now in sync with the emptied arrays; force the next paint to
+  // re-push rather than amend a tail that no longer exists.
+  seriesNeedsFull = true;
+  lastTableSig = null; lastTapeLen = -1;
   const sigEl = document.getElementById('sigBadge');
   if(sigEl){ sigEl.className = 'signal-badge neutral'; sigEl.textContent = 'Signal —'; sigEl.title = ''; }
   chartSignals.length = 0;
@@ -1272,6 +1351,12 @@ function connectLive(){
   if(!url){ connLog('URL required','err'); return; }
   if(!apiKey){ connLog('API key required','err'); return; }
   if(!symbol){ connLog('Symbol required','err'); return; }
+
+  // The message handler is a top-level function (it also unwraps batched
+  // frames), so the subscription details must live outside this closure.
+  liveCtx.symbol = symbol;
+  liveCtx.exchange = exchange;
+  liveCtx.broker = BROKER;
 
   // Update tick size from user input
   TICK = parseFloat(document.getElementById('wsTick').value) || 0.05;
@@ -1318,6 +1403,29 @@ function connectLive(){
       return;
     }
 
+    // The bridge batches queued ticks into one frame (an array) so a burst
+    // costs one send instead of one per tick. Unwrap and handle each in order;
+    // the render scheduler still collapses the resulting repaints.
+    if(Array.isArray(msg)){
+      for(const item of msg) handleLiveMessage(item);
+      return;
+    }
+    handleLiveMessage(msg);
+  };
+
+  liveWs.onerror = (e) => {
+    connLog('WebSocket error','err');
+    setConnStatus('err','Error');
+  };
+
+  liveWs.onclose = (e) => {
+    connLog(`Disconnected (code ${e.code})`,'err');
+    setConnStatus('off','Disconnected');
+    liveWs = null;
+  };
+}
+
+function handleLiveMessage(msg){
     // Authentication response
     if(msg.message === 'Authentication successful'){
       connLog('Authenticated ✓','ok');
@@ -1325,11 +1433,11 @@ function connectLive(){
       // Subscribe
       liveWs.send(JSON.stringify({
         action: 'subscribe',
-        symbol: symbol,
-        exchange: exchange,
+        symbol: liveCtx.symbol,
+        exchange: liveCtx.exchange,
         mode: 3,
         depth: 5,
-        broker: BROKER || undefined
+        broker: liveCtx.broker || undefined
       }));
       return;
     }
@@ -1344,7 +1452,7 @@ function connectLive(){
     // Subscription confirmation
     if(msg.type === 'subscribe'){
       if(msg.status === 'success'){
-        connLog(`Subscribed to ${symbol}@${exchange} ✓`,'ok');
+        connLog(`Subscribed to ${liveCtx.symbol}@${liveCtx.exchange} ✓`,'ok');
         setConnStatus('on','Connected');
         setSourceBadge(msg);
       } else {
@@ -1383,18 +1491,6 @@ function connectLive(){
     if(msg.type === 'error' || msg.status === 'error'){
       connLog('Error: ' + (msg.message || JSON.stringify(msg)), 'err');
     }
-  };
-
-  liveWs.onerror = (e) => {
-    connLog('WebSocket error','err');
-    setConnStatus('err','Error');
-  };
-
-  liveWs.onclose = (e) => {
-    connLog(`Disconnected (code ${e.code})`,'err');
-    setConnStatus('off','Disconnected');
-    liveWs = null;
-  };
 }
 
 function disconnectLive(){
@@ -1523,10 +1619,9 @@ function processLiveData(data, silent){
   // Trim history
   trimHistory(exchangeTime);
 
-  // Render (deferred during history replay)
+  // Render (deferred during history replay; coalesced to one paint per frame)
   if(silent) return;
-  applySeriesData();
-  updateUI();
+  requestRender();
 }
 
 /* ==================== SESSION RESTORE ====================
@@ -1537,7 +1632,8 @@ function applyHistory(ticks, signals){
   if(list.length){
     for(const t of list) processLiveData(t, true);
     updateOptionPanel(list[list.length-1]);
-    applySeriesData();
+    seriesNeedsFull = true; lastTableSig = null; lastTapeLen = -1;
+    renderChart();
     updateUI();
     if(MODE === 'live') chart.timeScale().fitContent();
     connLog(`Restored ${list.length} ticks from session journal`,'ok');
@@ -1606,8 +1702,7 @@ function pushFrame(){
   if(!RUNNING || MODE !== 'sim') return;
   lastTickTime += 1;
   simulateTick(lastTickTime);
-  applySeriesData();
-  updateUI();
+  requestRender();
   frameCount++;
   const now = performance.now();
   if(now-fpsT0>=1000){
@@ -1628,6 +1723,14 @@ function applySeriesData(){
   vwapSeries.setData(ui.showVWAP? vwapData : []);
   cvdSeries.setData(ui.showCVD? cvdBars : []);
 
+  applyMarkers();
+
+  heatmap.requestUpdate();
+}
+
+/* Markers are derived from the trade tape, so they only need recomputing when
+   the tape grows or the view settings change — not on every frame. */
+function applyMarkers(){
   const mks=[];
   if(ui.showLargeMarkers){
     // Arrow shape only — the quantity text is drawn bold by
@@ -1646,8 +1749,6 @@ function applySeriesData(){
   for(const s of chartSignals) mks.push(signalMarker(s));
   mks.sort((a,b) => a.time - b.time);
   markers.setMarkers(mks);
-
-  heatmap.requestUpdate();
 }
 
 function updateUI(){
@@ -1660,7 +1761,7 @@ function updateUI(){
   document.getElementById('bbV').textContent = last.bbid.toFixed(2);
   document.getElementById('baV').textContent = last.bask.toFixed(2);
   const cvdEl = document.getElementById('cvdV');
-  cvdEl.textContent = cvd.toLocaleString();
+  cvdEl.textContent = fmtNum(cvd);
   cvdEl.className = cvd>=0?'up':'dn';
 
   // 1-min delta
@@ -1671,7 +1772,7 @@ function updateUI(){
     d1m += trades[i].side==='B' ? trades[i].qty : -trades[i].qty;
   }
   const d1mEl = document.getElementById('delta1m');
-  d1mEl.textContent = (d1m>=0?'+':'')+d1m.toLocaleString();
+  d1mEl.textContent = (d1m>=0?'+':'')+fmtNum(d1m);
   d1mEl.className = d1m>=0?'up':'dn';
 
   // Day change % (vs previous close, fallback to day open)
@@ -1721,9 +1822,24 @@ function updateUI(){
   document.getElementById('m_buyp').textContent  = totSide? Math.round(buyQ/totSide*100)+'%':'0%';
   document.getElementById('m_sellp').textContent = totSide? Math.round(sellQ/totSide*100)+'%':'0%';
 
-  renderDOM();
-  renderTape();
-  renderBookAnalytics();
+  renderTables();
+}
+
+/* The ladder / tape / analytics are views of the newest snapshot, so rebuilding
+   them is only worth it when that snapshot actually moved. Signatures are cheap
+   and keep a 60 fps tick stream from re-parsing a 50-row table 60 times. */
+function renderTables(force){
+  const d = depth[depth.length-1];
+  const domSig = d ? `${depth.length}|${d.time}|${d.bids[0]?.p}|${d.bids[0]?.q}|${d.asks[0]?.p}|${d.asks[0]?.q}` : 'none';
+  if(force || domSig !== lastTableSig){
+    lastTableSig = domSig;
+    renderDOM();
+    renderBookAnalytics();
+  }
+  if(force || trades.length !== lastTapeLen){
+    lastTapeLen = trades.length;
+    renderTape();
+  }
 }
 
 /* ==================== DOM LADDER ==================== */
@@ -1753,7 +1869,7 @@ function renderDOM(){
     html += `<div class="lvl ${isBest?'best ask':''} ${isCross?'cross':''}">
       <div></div>
       <div class="px">${lv.p.toFixed(decimals)}</div>
-      <div class="askc">${lv.q.toLocaleString()}<span class="ord">×${lv.o}</span></div>
+      <div class="askc">${fmtNum(lv.q)}<span class="ord">×${lv.o}</span></div>
       <div class="bar ask" style="width:${w}%"></div>
     </div>`;
   });
@@ -1769,7 +1885,7 @@ function renderDOM(){
     const isBest = i===0;
     const isCross = cross && Math.abs(cross-lv.p)<TICK*0.5;
     html += `<div class="lvl ${isBest?'best bid':''} ${isCross?'cross':''}">
-      <div class="bidc">${lv.q.toLocaleString()}<span class="ord">×${lv.o}</span></div>
+      <div class="bidc">${fmtNum(lv.q)}<span class="ord">×${lv.o}</span></div>
       <div class="px">${lv.p.toFixed(decimals)}</div>
       <div></div>
       <div class="bar bid" style="width:${w}%"></div>
@@ -1903,8 +2019,8 @@ function renderTape(){
   let html='';
   for(const t of recent){
     const cls = (t.side==='B'?'buy':'sell') + (t.qty>=ui.largeQty?' large':'');
-    const time = new Date(t.time*1000).toLocaleTimeString('en-IN',{hour12:false,hour:'2-digit',minute:'2-digit',second:'2-digit'});
-    html += `<div class="t ${cls}"><div>${time}</div><div>${t.price.toFixed(decimals)}</div><div>${t.qty.toLocaleString()}</div></div>`;
+    const time = fmtClock(t.time);
+    html += `<div class="t ${cls}"><div>${time}</div><div>${t.price.toFixed(decimals)}</div><div>${fmtNum(t.qty)}</div></div>`;
   }
   root.innerHTML = html;
 }
@@ -1946,8 +2062,8 @@ function feedSignal(sig){
   const ts = (typeof sig.ts === 'number') ? sig.ts : Date.parse(sig.ts);
   const when = new Date(ts || Date.now());
   const time = isNaN(when.getTime())
-    ? new Date().toLocaleTimeString('en-IN',{hour12:false})
-    : when.toLocaleTimeString('en-IN',{hour12:false});
+    ? fmtClock(Date.now()/1000)
+    : fmtClock(when.getTime()/1000);
   const row = document.createElement('div');
   row.className = 'sf-row ' + cls + ' new';
   const top = document.createElement('div');
@@ -2011,7 +2127,7 @@ function applyView(key, value){
     ui[key] = !!value;
     const el = document.getElementById(key);
     if(el) el.checked = !!value;
-    applySeriesData();
+    requestRender(true);
     drawColorBar();
     heatmap.requestUpdate();
     return;
@@ -2065,7 +2181,7 @@ function updateOptionPanel(data){
   const grp = document.getElementById('optGroup');
   if(grp) grp.style.display = '';
   const set = (id, txt) => { const el = document.getElementById(id); if(el) el.textContent = txt; };
-  if(hasOI) set('optOI', Math.round(data.oi).toLocaleString('en-IN'));
+  if(hasOI) set('optOI', fmtNum(Math.round(data.oi)));
   if(hasIV) set('optIV', (data.iv*100).toFixed(2) + '%');
   if(g){
     set('optDelta', Number(g.delta).toFixed(4));
@@ -2088,14 +2204,14 @@ chart.subscribeCrosshairMove(param => {
     if(depth[i].time<=param.time){ snap=depth[i]; break; }
   }
   const decimals = TICK < 0.1 ? 2 : (TICK < 1 ? 1 : 0);
-  let html = `<b>${price.toFixed(decimals)}</b> @ ${new Date(param.time*1000).toLocaleTimeString('en-IN',{hour12:false})}`;
+  let html = `<b>${price.toFixed(decimals)}</b> @ ${fmtClock(param.time)}`;
   if(snap){
     let best=null, bestD=Infinity;
     for(const lv of snap.bids){ const dd=Math.abs(lv.p-price); if(dd<bestD){bestD=dd; best={...lv,side:'bid'};} }
     for(const lv of snap.asks){ const dd=Math.abs(lv.p-price); if(dd<bestD){bestD=dd; best={...lv,side:'ask'};} }
     if(best && bestD<TICK*LEVEL_SPACE*1.2){
       const c = best.side==='bid'?'#7fdcd0':'#ffb4b1';
-      html += ` · <span style="color:${c}">${best.side.toUpperCase()} ${best.q.toLocaleString()} (${best.o} ord)</span>`;
+      html += ` · <span style="color:${c}">${best.side.toUpperCase()} ${fmtNum(best.q)} (${best.o} ord)</span>`;
     }
   }
   xinfo.innerHTML = html;
@@ -2118,15 +2234,15 @@ function bindRange(id,key,fmt=(v)=>v){
 }
 function bindCheck(id,key){
   const el=document.getElementById(id); el.checked=ui[key];
-  el.addEventListener('change',()=>{ ui[key]=el.checked; applySeriesData(); });
+  el.addEventListener('change',()=>{ ui[key]=el.checked; requestRender(true); });
 }
 function bindNumber(id,key){
   const el=document.getElementById(id); el.value=ui[key];
-  el.addEventListener('input',()=>{ ui[key]=parseFloat(el.value)||0; applySeriesData(); });
+  el.addEventListener('input',()=>{ ui[key]=parseFloat(el.value)||0; requestRender(true); });
 }
 function bindSelect(id,key){
   const el=document.getElementById(id); el.value=ui[key];
-  el.addEventListener('change',()=>{ ui[key]=el.value; drawColorBar(); applySeriesData(); });
+  el.addEventListener('change',()=>{ ui[key]=el.value; drawColorBar(); requestRender(true); });
 }
 
 bindRange('hmIntensity','hmIntensity', v=>v.toFixed(2));
@@ -2219,7 +2335,7 @@ document.querySelectorAll('[data-preset]').forEach(b=>b.addEventListener('click'
     const el=document.getElementById(k); if(el) el.checked = !!ui[k];
   });
   ['largeQty'].forEach(k=>{ const el=document.getElementById(k); if(el) el.value=ui[k]; });
-  drawColorBar(); applySeriesData();
+  drawColorBar(); requestRender(true);
   flashAlert(`Preset: ${b.dataset.preset.toUpperCase()}`);
 }));
 
@@ -2242,6 +2358,7 @@ function seedHistory(){
   lastTickTime = now - 180;
   for(let i=0;i<180;i++){ lastTickTime++; simulateTick(lastTickTime); }
   applySeriesData();
+  seriesNeedsFull = false;
   chart.timeScale().fitContent();
 }
 let loopHandle=null;

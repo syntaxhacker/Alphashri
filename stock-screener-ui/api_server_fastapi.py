@@ -428,6 +428,11 @@ async def lifespan(app: FastAPI):
         _db_backup_task.cancel()
     if _orderflow_recorder_task:
         _orderflow_recorder_task.cancel()
+    try:
+        from api import orderflow_journal
+        orderflow_journal.close_all()
+    except Exception:
+        pass
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes
