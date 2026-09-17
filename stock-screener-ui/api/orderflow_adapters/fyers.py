@@ -18,7 +18,12 @@ indices already in ``NSE:<NAME>-INDEX`` form (see :meth:`FyersAdapter.fyers_symb
 import os
 from typing import Callable, Optional
 
-from api.orderflow_adapters.base import OrderFlowAdapter, make_depth, register_adapter
+from api.orderflow_adapters.base import (
+    OrderFlowAdapter,
+    make_depth,
+    register_adapter,
+    sanitize_adapter_error,
+)
 from api.orderflow_symbols import fyers_symbol  # noqa: F401  (re-exported)
 
 _DEPTH_TYPE = "dp"
@@ -241,7 +246,7 @@ class FyersAdapter(OrderFlowAdapter):
 
         def _on_error(error):
             if on_error is not None:
-                on_error(error)
+                on_error(sanitize_adapter_error(self.name, error))
 
         self._socket = factory(
             access_token=token,
@@ -431,14 +436,18 @@ class FyersTbtAdapter(OrderFlowAdapter):
                 self._data.keep_running()
             except Exception as exc:  # noqa: BLE001 - quotes are optional
                 if on_error is not None:
-                    on_error(f"fyers quote socket unavailable: {exc}")
+                    on_error(sanitize_adapter_error(self.name, f"fyers quote socket unavailable: {exc}"))
 
         # TBT socket (50-level depth)
         tbt = tbt_factory or _default_tbt_socket_factory
         self._tbt = tbt(
             access_token=token,
             on_depth_update=_on_depth,
-            on_error=(lambda *a: on_error(" ".join(str(x) for x in a))) if on_error else None,
+            on_error=(
+                lambda *a: on_error(sanitize_adapter_error(self.name, " ".join(str(x) for x in a)))
+            )
+            if on_error
+            else None,
             reconnect=False,
         )
         self._tbt.connect()

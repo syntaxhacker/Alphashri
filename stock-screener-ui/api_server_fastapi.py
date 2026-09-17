@@ -413,6 +413,14 @@ async def lifespan(app: FastAPI):
         print(f"❌ Startup failed: {e}")
         print(traceback.format_exc())
         _52w_task = None
+    # Scrub credential-adjacent values from broker/transport error logs. Called
+    # here (not at import) because uvicorn configures its handlers first.
+    try:
+        from api.orderflow_logging import install_error_redaction
+
+        install_error_redaction()
+    except Exception as e:
+        print(f"⚠️ Log redaction not installed: {e}")
     yield
     if prewarm:
         prewarm.cancel()

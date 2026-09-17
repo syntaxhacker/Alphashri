@@ -516,10 +516,29 @@ class _AdapterOrderFlowStream:
                 self.token,
                 self.symbol,
                 on_tick=self._handle_tick,
-                on_error=lambda err: self._push({"type": "error", "message": str(err)}),
+                on_error=self._push_adapter_error,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced to the UI
-            self._push({"type": "error", "message": f"{self.broker} connect failed: {exc}"})
+            self._push_adapter_error(exc)
+
+    def _push_adapter_error(self, error) -> None:
+        """Forward a sanitized adapter error, flagged as auth when relevant.
+
+        The raw broker text carries the HTTP response (Set-Cookie, cf-ray), so
+        it is reduced to one line first; auth failures become their own message
+        type so the UI can offer a route back to the broker settings instead of
+        printing a status code into a log panel.
+        """
+        from api.orderflow_adapters.base import is_auth_error, sanitize_adapter_error
+
+        message = sanitize_adapter_error(self.broker, error)
+        self._push(
+            {
+                "type": "auth_error" if is_auth_error(f"{error} {message}") else "error",
+                "broker": self.broker,
+                "message": message,
+            }
+        )
 
     def _handle_tick(self, symbol, tick) -> None:
         # The hub routes by symbol, so a tick here is always this stream's symbol.

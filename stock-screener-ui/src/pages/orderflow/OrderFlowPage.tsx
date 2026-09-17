@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Alert,
   Box,
@@ -7,6 +8,7 @@ import {
   Checkbox,
   Group,
   Loader,
+  Modal,
   Popover,
   PopoverDropdown,
   PopoverTarget,
@@ -56,6 +58,21 @@ export const BROKER_OPTIONS = [
 
 export const DEFAULT_BROKER = "fyers_tbt";
 
+/** Human names for dialogs and notes. */
+export const BROKER_LABELS: Record<string, string> = {
+  upstox: "Upstox",
+  fyers: "Fyers",
+  fyers_tbt: "Fyers TBT",
+};
+
+/** Message the embedded visualizer posts when the broker rejects our session. */
+export const AUTH_ERROR_MESSAGE = "ofm-auth-error";
+
+export interface AuthError {
+  broker: string;
+  message: string;
+}
+
 /** Only the capability caveat — broker name lives in the select + source badge. */
 export const BROKER_NOTES: Record<string, string> = {
   upstox: "5-level depth · no order counts",
@@ -93,6 +110,8 @@ export function OrderFlowPage() {
   const [broker, setBroker] = useState<string>(DEFAULT_BROKER);
   // The Upstox OAuth gate only applies when Upstox is the selected feed.
   const needsUpstox = broker === "upstox";
+  const [authError, setAuthError] = useState<AuthError | null>(null);
+  const navigate = useNavigate();
   const [view, setView] = useState<Record<string, boolean>>(() =>
     Object.fromEntries(VIEW_ITEMS.map((item) => [item.key, true])),
   );
@@ -148,6 +167,22 @@ export function OrderFlowPage() {
       alive = false;
     };
   }, []);
+
+  // The embedded visualizer reports broker rejections (expired/revoked session)
+  // so we can offer a route to the broker settings instead of leaving a blank
+  // chart with a status code in the log.
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const data = event.data as { type?: string; broker?: string; message?: string } | null;
+      if (!data || data.type !== AUTH_ERROR_MESSAGE) return;
+      setAuthError({
+        broker: data.broker || broker,
+        message: typeof data.message === "string" ? data.message : "",
+      });
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [broker]);
 
   const refreshBrokerStatus = useCallback(() => {
     setBrokerConnected(null);
@@ -458,6 +493,57 @@ export function OrderFlowPage() {
           />
         )}
       </Box>
+
+      <Modal
+        opened={authError !== null}
+        onClose={() => setAuthError(null)}
+        title={`${BROKER_LABELS[authError?.broker ?? broker] ?? authError?.broker ?? "Broker"} session expired`}
+        size="sm"
+        centered
+        data-testid="orderflow-auth-error-modal"
+      >
+        <Stack spacing={1}>
+          <Text size="sm">
+            <b>{BROKER_LABELS[authError?.broker ?? broker] ?? authError?.broker}</b> rejected the live
+            order-flow feed because the session token is no longer valid. Broker sessions expire
+            daily and must be re-authenticated.
+          </Text>
+          <Text size="sm" c="dimmed">
+            Reconnect the broker, then retry — the feed subscribes with the fresh session, so no
+            restart is needed for this tab.
+          </Text>
+          {authError?.message && (
+            <Text size="xs" c="dimmed" data-testid="orderflow-auth-error-detail">
+              {authError.message}
+            </Text>
+          )}
+          <Group gap={8} align="center">
+            <Button
+              size="sm"
+              variant="filled"
+              color="success"
+              onClick={() => {
+                setAuthError(null);
+                navigate("/settings");
+              }}
+              data-testid="orderflow-auth-error-settings"
+            >
+              Open broker settings
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setAuthError(null);
+                setReloadKey((k) => k + 1);
+              }}
+              data-testid="orderflow-auth-error-retry"
+            >
+              Retry
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 }

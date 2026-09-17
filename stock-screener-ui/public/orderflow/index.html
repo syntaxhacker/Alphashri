@@ -1487,9 +1487,26 @@ function handleLiveMessage(msg){
       return;
     }
 
+    // Broker rejected our session (expired token, 403...). The server has
+    // already stripped the raw HTTP response, so this is a single safe line.
+    // Hand it to the host app, which can route the user to the broker settings
+    // instead of leaving a dead feed on screen.
+    if(msg.type === 'auth_error'){
+      const text = msg.message || 'Broker session rejected';
+      connLog('Auth: ' + text, 'err');
+      setConnStatus('err','Reconnect broker');
+      if(window.parent && window.parent !== window){
+        window.parent.postMessage(
+          { type:'ofm-auth-error', broker: msg.broker || liveCtx.broker || '', message: text },
+          '*'
+        );
+      }
+      return;
+    }
+
     // Catch-all for other messages
     if(msg.type === 'error' || msg.status === 'error'){
-      connLog('Error: ' + (msg.message || JSON.stringify(msg)), 'err');
+      connLog('Error: ' + (msg.message || 'Feed error'), 'err');
     }
 }
 

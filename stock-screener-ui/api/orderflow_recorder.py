@@ -18,6 +18,7 @@ from typing import Optional
 
 from api import orderflow_journal
 from api.orderflow_adapters import get_adapter
+from api.orderflow_adapters.base import sanitize_adapter_error
 from api.orderflow_signals import OrderFlowSignalEngine
 from api.orderflow_stream import (
     _normalize_market_status,
@@ -244,7 +245,9 @@ class OrderFlowRecorder:
             logger.warning("orderflow recorder subscribe failed: %s", exc)
 
     def _on_error(self, err) -> None:
-        logger.warning("orderflow recorder stream error: %s", err)
+        logger.warning(
+            "orderflow recorder stream error: %s", sanitize_adapter_error(self.broker, err)
+        )
 
     def _on_close(self, *args) -> None:
         logger.warning("orderflow recorder stream closed: %s", args)

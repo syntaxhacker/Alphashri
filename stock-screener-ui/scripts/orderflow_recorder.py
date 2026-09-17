@@ -27,6 +27,16 @@ logging.basicConfig(
 )
 
 
+def _install_log_redaction() -> None:
+    """Scrub credential-adjacent values from broker/transport error logs."""
+    try:
+        from api.orderflow_logging import install_error_redaction
+
+        install_error_redaction()
+    except Exception:
+        pass
+
+
 def main(argv=None) -> int:
     from api.orderflow_recorder import (
         GAP_WARN_SEC,
@@ -57,6 +67,8 @@ def main(argv=None) -> int:
     # resolved first and honoured all the way through. Hardcoding Upstox here
     # silently recorded the wrong feed no matter what ORDERFLOW_RECORDER_BROKER
     # said — the journal looked healthy while containing another broker's ticks.
+    _install_log_redaction()
+
     broker = (args.broker or recorder_broker()).strip().lower()
     symbols = (
         [s.strip().upper() for s in args.symbols.split(",") if s.strip()]

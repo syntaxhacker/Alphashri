@@ -491,3 +491,47 @@ class TestPumpBatching:
             ws.send_json({"action": "subscribe", "symbol": "RELIANCE", "exchange": "NSE"})
             assert ws.receive_json()["status"] == "success"
             assert ws.receive_json() == tick
+
+
+class TestAdapterErrorFraming:
+    """Adapter errors are sanitized and flagged so the UI can act on them."""
+
+    RAW_403 = (
+        "Handshake status 403 Forbidden -+-+- {'set-cookie': '__cf_bm=SECRET; Path=/', "
+        "'cf-ray': 'abc-MAA'} -+-+- b''"
+    )
+
+    def _stream(self):
+        q: thr_queue.Queue = thr_queue.Queue()
+        stream = orderflow_stream._AdapterOrderFlowStream("fyers_tbt", "RELIANCE", "tok", q)
+        return stream, q
+
+    def test_auth_failure_is_sent_as_auth_error_without_the_header_blob(self):
+        stream, q = self._stream()
+
+        stream._push_adapter_error(self.RAW_403)
+
+        payload = q.get_nowait()
+        assert payload["type"] == "auth_error"
+        assert payload["broker"] == "fyers_tbt"
+        assert "SECRET" not in payload["message"]
+        assert "cf-ray" not in payload["message"]
+        assert "Settings" in payload["message"]
+
+    def test_non_auth_failure_is_sent_as_a_plain_error(self):
+        stream, q = self._stream()
+
+        stream._push_adapter_error("connection reset by peer")
+
+        payload = q.get_nowait()
+        assert payload["type"] == "error"
+        assert payload["message"] == "connection reset by peer"
+
+    def test_exception_objects_are_sanitized_too(self):
+        stream, q = self._stream()
+
+        stream._push_adapter_error(RuntimeError(self.RAW_403))
+
+        payload = q.get_nowait()
+        assert payload["type"] == "auth_error"
+        assert "-+-+-" not in payload["message"]

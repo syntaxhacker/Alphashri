@@ -1,5 +1,7 @@
 """Tests for the order-flow adapter base + registry + Upstox adapter."""
 
+import pytest
+
 from api.orderflow_adapters import (
     OrderFlowAdapter,
     available_adapters,
@@ -77,3 +79,99 @@ class TestUpstoxNormalize:
         assert caps["name"] == "upstox"
         assert caps["depth_levels"] == 5
         assert caps["has_order_counts"] is False
+
+
+class TestErrorSanitization:
+    """Broker SDK errors must never leak the raw HTTP response.
+
+    A Fyers 403 arrives as::
+
+        Handshake status 403 Forbidden -+-+- {'set-cookie': '__cf_bm=...',
+        'cf-ray': '...'} -+-+- b''
+
+    That blob was logged and pushed to the browser verbatim. It carries
+    credential-adjacent values and buries the one fact the user needs.
+    """
+
+    RAW_403 = (
+        "Handshake status 403 Forbidden -+-+- {'date': 'Thu, 17 Sep 2026 07:31:03 GMT', "
+        "'set-cookie': '__cf_bm=SECRETCOOKIEVALUE; HttpOnly; Secure; Path=/; Domain=fyers.in', "
+        "'cf-ray': 'a3c668b7db28aa6a-MAA', 'server': 'cloudflare'} -+-+- b''"
+    )
+
+    def test_strips_header_blob_and_cookie(self):
+        from api.orderflow_adapters.base import strip_error_noise
+
+        cleaned = strip_error_noise(self.RAW_403)
+        assert cleaned == "Handshake status 403 Forbidden"
+        assert "SECRETCOOKIEVALUE" not in cleaned
+        assert "cf-ray" not in cleaned
+        assert "set-cookie" not in cleaned
+
+    def test_truncates_unknown_long_tails(self):
+        from api.orderflow_adapters.base import strip_error_noise
+
+        cleaned = strip_error_noise("x" * 5000)
+        assert len(cleaned) == 200
+
+    def test_plain_messages_pass_through(self):
+        from api.orderflow_adapters.base import strip_error_noise
+
+        assert strip_error_noise("fyers quote socket unavailable: timeout") == (
+            "fyers quote socket unavailable: timeout"
+        )
+
+    @pytest.mark.parametrize(
+        "message",
+        [
+            "Handshake status 403 Forbidden",
+            "HTTP 401 Unauthorized",
+            "token expired",
+            "invalid token",
+            "authentication failed",
+            "no access token",
+        ],
+    )
+    def test_auth_errors_detected(self, message):
+        from api.orderflow_adapters.base import is_auth_error
+
+        assert is_auth_error(message) is True
+
+    def test_non_auth_errors_not_flagged(self):
+        from api.orderflow_adapters.base import is_auth_error
+
+        assert is_auth_error("connection reset by peer") is False
+        assert is_auth_error("") is False
+
+    def test_auth_error_becomes_an_instruction(self):
+        from api.orderflow_adapters.base import sanitize_adapter_error
+
+        out = sanitize_adapter_error("fyers_tbt", self.RAW_403)
+        assert "Fyers TBT session expired" in out
+        assert "FYERS TBT" not in out
+        assert "Settings" in out
+        assert "SECRETCOOKIEVALUE" not in out
+        assert "-+-+-" not in out
+
+    def test_non_auth_error_is_returned_clean(self):
+        from api.orderflow_adapters.base import sanitize_adapter_error
+
+        assert sanitize_adapter_error("fyers", "quote socket unavailable: timeout") == (
+            "quote socket unavailable: timeout"
+        )
+
+    def test_empty_error_still_yields_a_line(self):
+        from api.orderflow_adapters.base import sanitize_adapter_error
+
+        assert sanitize_adapter_error("fyers", "") != ""
+
+    def test_sanitizer_is_idempotent(self):
+        """Adapters sanitize, then the hub/bridge does — it must not nest."""
+        from api.orderflow_adapters.base import sanitize_adapter_error
+
+        once = sanitize_adapter_error("fyers_tbt", self.RAW_403)
+        twice = sanitize_adapter_error("fyers_tbt", once)
+        assert twice == once
+        assert twice.count("session expired or rejected") == 1
+        assert twice.count("Settings") == 1
+

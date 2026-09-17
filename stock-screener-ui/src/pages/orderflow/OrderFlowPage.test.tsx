@@ -3,6 +3,7 @@ import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { OrderFlowPage } from "./OrderFlowPage";
 import { getBrokerStatus } from "@/api/brokers";
 import { getExpiries, getOptionChain, getUnderlyings } from "@/api/upstoxOptions";
@@ -68,6 +69,24 @@ async function iframeParams(): Promise<URLSearchParams> {
   return url.searchParams;
 }
 
+/** useNavigate() needs a Router, so every render goes through one. */
+function renderPage(initialEntry = "/orderflow") {
+  return render(
+    <MemoryRouter initialEntries={[initialEntry]}>
+      <Routes>
+        <Route path="/orderflow" element={<OrderFlowPage />} />
+        <Route path="/settings" element={<div data-testid="settings-route" />} />
+      </Routes>
+    </MemoryRouter>,
+  );
+}
+
+function postAuthError(broker = "fyers_tbt", message = "Fyers TBT session expired (403 Forbidden).") {
+  window.dispatchEvent(
+    new MessageEvent("message", { data: { type: "ofm-auth-error", broker, message } }),
+  );
+}
+
 async function switchToOptions() {
   const user = userEvent.setup();
   await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Options" }));
@@ -76,7 +95,7 @@ async function switchToOptions() {
 
 describe("OrderFlowPage", () => {
   test("embeds the visualizer with bridge url, symbol and autoconnect", async () => {
-    render(<OrderFlowPage />);
+    renderPage();
     const iframe = await screen.findByTestId("orderflow-iframe");
     expect(iframe.getAttribute("src")).toContain("/orderflow/index.html");
 
@@ -89,7 +108,7 @@ describe("OrderFlowPage", () => {
 
   test("connect reloads the iframe with the entered symbol", async () => {
     const user = userEvent.setup();
-    render(<OrderFlowPage />);
+    renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     await user.clear(screen.getByTestId("orderflow-symbol"));
@@ -101,7 +120,7 @@ describe("OrderFlowPage", () => {
 
   test("defaults to the Fyers TBT feed without gating on the Upstox session", async () => {
     mockStatus.mockResolvedValue({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
-    render(<OrderFlowPage />);
+    renderPage();
 
     const params = await iframeParams();
     expect(params.get("broker")).toBe("fyers_tbt");
@@ -112,7 +131,7 @@ describe("OrderFlowPage", () => {
   test("disables autoconnect and offers broker connect for the Upstox feed when disconnected", async () => {
     mockStatus.mockResolvedValue({ connected: false, broker: "upstox", expires_in_hours: null, expires_at: null });
     const user = userEvent.setup();
-    render(<OrderFlowPage />);
+    renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
@@ -124,7 +143,7 @@ describe("OrderFlowPage", () => {
   });
 
   test("options mode loads underlyings, expiries and chain with ATM strike default", async () => {
-    render(<OrderFlowPage />);
+    renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     await switchToOptions();
@@ -138,7 +157,7 @@ describe("OrderFlowPage", () => {
   });
 
   test("Use contract connects the PE contract with its tick size", async () => {
-    render(<OrderFlowPage />);
+    renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     const user = await switchToOptions();
@@ -156,11 +175,76 @@ describe("OrderFlowPage", () => {
 
   test("shows an error when the option chain fails to load", async () => {
     mockOptionChain.mockRejectedValue(new Error("boom"));
-    render(<OrderFlowPage />);
+    renderPage();
     await screen.findByTestId("orderflow-iframe");
 
     await switchToOptions();
 
     expect(await screen.findByTestId("orderflow-options-error")).toBeInTheDocument();
+  });
+});
+
+describe("OrderFlowPage auth failures", () => {
+  test("shows a modal with a route to broker settings when the feed rejects the session", async () => {
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    postAuthError("fyers_tbt", "Fyers TBT session expired or rejected (Handshake status 403 Forbidden).");
+
+    const modal = await screen.findByTestId("orderflow-auth-error-modal");
+    expect(
+      within(modal).getByRole("heading", { name: /session expired/i }),
+    ).toBeInTheDocument();
+    expect(within(modal).getByText(/Broker sessions expire\s+daily/i)).toBeInTheDocument();
+    expect(screen.getByTestId("orderflow-auth-error-detail")).toHaveTextContent("403 Forbidden");
+    expect(screen.getByTestId("orderflow-auth-error-settings")).toBeInTheDocument();
+    expect(screen.getByTestId("orderflow-auth-error-retry")).toBeInTheDocument();
+  });
+
+  test("routes to the settings page from the modal", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    postAuthError();
+    await user.click(await screen.findByTestId("orderflow-auth-error-settings"));
+
+    expect(await screen.findByTestId("settings-route")).toBeInTheDocument();
+  });
+
+  test("modal can be dismissed without navigating", async () => {
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    postAuthError();
+    await screen.findByTestId("orderflow-auth-error-modal");
+    await user.click(screen.getByTestId("orderflow-auth-error-retry"));
+
+    await waitFor(() =>
+      expect(screen.queryByTestId("orderflow-auth-error-modal")).not.toBeInTheDocument(),
+    );
+    expect(screen.queryByTestId("settings-route")).not.toBeInTheDocument();
+  });
+
+  test("plain feed errors do not open the modal", async () => {
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    window.dispatchEvent(
+      new MessageEvent("message", { data: { type: "error", message: "transient socket hiccup" } }),
+    );
+
+    expect(screen.queryByTestId("orderflow-auth-error-modal")).not.toBeInTheDocument();
+  });
+
+  test("ignores unrelated postMessage traffic", async () => {
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    window.dispatchEvent(new MessageEvent("message", { data: { type: "ofm-view", key: "x" } }));
+    window.dispatchEvent(new MessageEvent("message", { data: "not-an-object" }));
+
+    expect(screen.queryByTestId("orderflow-auth-error-modal")).not.toBeInTheDocument();
   });
 });
