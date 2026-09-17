@@ -137,7 +137,12 @@ export function OrderFlowPage() {
   const [journalFiles, setJournalFiles] = useState<JournalFile[]>([]);
   const [replayDay, setReplayDay] = useState<string | null>(null);
   const [replayFile, setReplayFile] = useState<string | null>(null);
+  // `replayDraft` is what the inputs hold; `replayRange` is what was actually
+  // applied. Keeping them apart stops the iframe navigating on every keystroke,
+  // which fired loads for half-typed times ("1", "15") that the API rejects.
+  const [replayDraft, setReplayDraft] = useState<{ from: string; to: string }>({ from: "", to: "" });
   const [replayRange, setReplayRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
+  const [replayError, setReplayError] = useState<string | null>(null);
   const [journalError, setJournalError] = useState<string | null>(null);
   const [underlyings, setUnderlyings] = useState<Underlying[]>([]);
   const [underlying, setUnderlying] = useState<string | null>(null);
@@ -346,6 +351,44 @@ export function OrderFlowPage() {
     [journalFiles, replayFile],
   );
 
+  // Accept 9:5, 09:05, 0905, 09.05 — reject anything else loudly instead of
+  // sending the API a value it answers with a bare 400.
+  const applyReplayRange = useCallback(() => {
+    const norm = (raw: string): string | null => {
+      const text = raw.trim();
+      if (!text) return "";
+      const compact = text.replace(/[^0-9]/g, "");
+      let hour: number;
+      let minute: number;
+      if (/^[0-9]{1,2}[:.][0-9]{1,2}$/.test(text)) {
+        const [h, m] = text.split(/[:.]/);
+        hour = Number(h);
+        minute = Number(m);
+      } else if (/^[0-9]{3,4}$/.test(compact)) {
+        hour = Number(compact.slice(0, compact.length - 2));
+        minute = Number(compact.slice(-2));
+      } else {
+        return null;
+      }
+      if (hour > 23 || minute > 59) return null;
+      return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    };
+
+    const from = norm(replayDraft.from);
+    const to = norm(replayDraft.to);
+    if (from === null || to === null) {
+      setReplayError("Times must be HH:MM (e.g. 09:15).");
+      return;
+    }
+    if (from && to && from >= to) {
+      setReplayError("From must be earlier than To.");
+      return;
+    }
+    setReplayError(null);
+    setReplayRange({ from, to });
+    setReloadKey((k) => k + 1);
+  }, [replayDraft]);
+
   const src = useMemo(() => {
     // Replay is a separate branch in the visualiser: it opens no socket, so
     // autoconnect must never be set here.
@@ -494,8 +537,8 @@ export function OrderFlowPage() {
             w={90}
             label="From"
             placeholder="09:15"
-            value={replayRange.from}
-            onChange={(v) => setReplayRange((r) => ({ ...r, from: v }))}
+            value={replayDraft.from}
+            onChange={(v) => setReplayDraft((r) => ({ ...r, from: v }))}
             data-testid="orderflow-replay-from"
           />
           <TextInput
@@ -503,22 +546,22 @@ export function OrderFlowPage() {
             w={90}
             label="To"
             placeholder="15:15"
-            value={replayRange.to}
-            onChange={(v) => setReplayRange((r) => ({ ...r, to: v }))}
+            value={replayDraft.to}
+            onChange={(v) => setReplayDraft((r) => ({ ...r, to: v }))}
             data-testid="orderflow-replay-to"
           />
           <Button
             size="sm"
             variant="filled"
-            onClick={() => setReloadKey((k) => k + 1)}
+            onClick={applyReplayRange}
             disabled={!replayFile}
             data-testid="orderflow-replay-load"
           >
             Load
           </Button>
-          {journalError && (
+          {(journalError || replayError) && (
             <Text size="xs" c="red" data-testid="orderflow-replay-error">
-              {journalError}
+              {journalError ?? replayError}
             </Text>
           )}
           <Text size="xs" c="dimmed">

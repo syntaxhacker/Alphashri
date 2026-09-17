@@ -280,7 +280,7 @@ describe("OrderFlowPage replay mode", () => {
     expect(params.get("autoconnect")).toBeNull();
   });
 
-  test("replay passes an optional time range through to the visualiser", async () => {
+  test("replay only reloads when Load is clicked, not while typing", async () => {
     mockJournalFiles.mockResolvedValue([
       { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
     ]);
@@ -291,15 +291,68 @@ describe("OrderFlowPage replay mode", () => {
     await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
     await screen.findByTestId("orderflow-replay-row");
 
+    // Regression: these inputs used to sit in the iframe-src dependencies, so
+    // every keystroke navigated the iframe and fired a load for a half-typed
+    // time ("1", "15") that the API rejects.
     await user.type(screen.getByTestId("orderflow-replay-from"), "09:15");
     await user.type(screen.getByTestId("orderflow-replay-to"), "15:15");
+
+    let params = await iframeParams();
+    expect(params.get("start")).toBeNull();
+    expect(params.get("end")).toBeNull();
+
+    await user.click(screen.getByTestId("orderflow-replay-load"));
+
+    await waitFor(async () => {
+      params = await iframeParams();
+      expect(params.get("start")).toBe("09:15");
+      expect(params.get("end")).toBe("15:15");
+    });
+  });
+
+  test("accepts loose time formats and normalises them", async () => {
+    mockJournalFiles.mockResolvedValue([
+      { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    await screen.findByTestId("orderflow-replay-row");
+
+    await user.type(screen.getByTestId("orderflow-replay-from"), "915");     // -> 09:15
+    await user.type(screen.getByTestId("orderflow-replay-to"), "9.5");       // -> 09:05
+    // 9.5 is earlier than 09:15, so this is a range error, not a load
+    await user.click(screen.getByTestId("orderflow-replay-load"));
+    expect(await screen.findByTestId("orderflow-replay-error")).toHaveTextContent("earlier than To");
+
+    await user.clear(screen.getByTestId("orderflow-replay-to"));
+    await user.type(screen.getByTestId("orderflow-replay-to"), "1505");      // -> 15:05
     await user.click(screen.getByTestId("orderflow-replay-load"));
 
     await waitFor(async () => {
       const params = await iframeParams();
       expect(params.get("start")).toBe("09:15");
-      expect(params.get("end")).toBe("15:15");
+      expect(params.get("end")).toBe("15:05");
     });
+  });
+
+  test("rejects an unparseable time instead of sending it to the API", async () => {
+    mockJournalFiles.mockResolvedValue([
+      { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
+    ]);
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    await screen.findByTestId("orderflow-replay-row");
+
+    await user.type(screen.getByTestId("orderflow-replay-from"), "abc");
+    await user.click(screen.getByTestId("orderflow-replay-load"));
+
+    expect(await screen.findByTestId("orderflow-replay-error")).toHaveTextContent("must be HH:MM");
+    const params = await iframeParams();
+    expect(params.get("start")).toBeNull();
   });
 
   test("surfaces a journal listing failure", async () => {
