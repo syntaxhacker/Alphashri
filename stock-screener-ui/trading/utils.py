@@ -16,7 +16,12 @@ PRE_MARKET = (9, 0)
 MARKET_OPEN = (9, 15)
 OR_END = (10, 0)
 MARKET_CLOSE = (15, 30)
-FORCE_EXIT = (15, 30)
+# Safety-net exit. Was 15:30, set when 15:30 was continuous trading — since the
+# Closing Auction Session it is not, so a forced market order at 15:30 would
+# execute in the auction instead of the live book. Kept inside continuous
+# trading (which ends at CONTINUOUS_CLOSE) so a forced exit is always fillable.
+# A strategy's own `eod_exit_hour/minute` still takes precedence.
+FORCE_EXIT = (15, 10)
 
 #: End of *continuous* cash-market trading. NSE's Closing Auction Session (CAS,
 #: introduced Aug 2026) runs from here to MARKET_CLOSE and determines the
@@ -108,7 +113,22 @@ def is_trading_hours(dt: Optional[datetime] = None) -> bool:
     return or_end <= dt <= force_exit
 
 
+def minutes_of_day(dt: datetime) -> int:
+    """Minutes since midnight — the only safe way to compare times of day."""
+    return dt.hour * 60 + dt.minute
+
+
+def at_or_after(dt: datetime, hhmm: tuple) -> bool:
+    """True when ``dt`` has reached ``hhmm`` (hour, minute).
+
+    Comparing ``hour`` and ``minute`` separately is a trap: ``hour >= 15 and
+    minute >= 30`` is False at 16:05, so the guard silently stops firing just
+    after the hour it was meant to trigger in.
+    """
+    return minutes_of_day(dt) >= hhmm[0] * 60 + hhmm[1]
+
+
 def is_force_exit_time(dt: Optional[datetime] = None) -> bool:
     if dt is None:
         dt = datetime.now(IST)
-    return dt.hour > FORCE_EXIT[0] or (dt.hour == FORCE_EXIT[0] and dt.minute >= FORCE_EXIT[1])
+    return at_or_after(dt, FORCE_EXIT)

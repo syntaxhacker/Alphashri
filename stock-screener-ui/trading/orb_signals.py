@@ -29,7 +29,7 @@ except ImportError:
 # Import shared ORB utilities (single source of truth for OR calculations)
 from trading.orb_utils import calculate_or_levels as utils_calculate_or_levels
 from trading.base_signals import BaseSignalGenerator
-from trading.utils import MARKET_OPEN, OR_END, MARKET_CLOSE, FORCE_EXIT
+from trading.utils import MARKET_OPEN, OR_END, MARKET_CLOSE, FORCE_EXIT, at_or_after
 
 console = Console()
 
@@ -293,8 +293,9 @@ class ORBSignalGenerator(BaseSignalGenerator):
         """
         now = kwargs.get("timestamp", datetime.now(config.IST))
 
-        # Check force exit time (14:45)
-        if now.hour >= self.FORCE_EXIT[0] and now.minute >= self.FORCE_EXIT[1]:
+        # Force exit. Compared as minutes-of-day: the previous hour/minute pair
+        # test was False after 15:59, so late positions never force-exited.
+        if at_or_after(now, self.FORCE_EXIT):
             pnl_pct = self._calc_pnl_pct(position_side, entry_price, current_price)
             return ORBSignal(
                 symbol=symbol,
