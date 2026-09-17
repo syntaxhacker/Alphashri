@@ -18,7 +18,7 @@ from typing import Optional
 
 from api import orderflow_journal
 from api.orderflow_adapters import get_adapter
-from api.orderflow_adapters.base import sanitize_adapter_error
+from api.orderflow_adapters.base import is_auth_error, sanitize_adapter_error
 from api.orderflow_signals import OrderFlowSignalEngine
 from api.orderflow_stream import (
     _normalize_market_status,
@@ -125,6 +125,8 @@ class OrderFlowRecorder:
         self._streamer = None
         self._adapter = None
         self._running = False
+        #: set when the broker rejects our session (terminal, not transient)
+        self.auth_failed = False
         # Upstox path: instrument_key -> symbol.  Adapter path: broker symbol -> symbol.
         self._keys: dict[str, str] = {}
         self._broker_to_symbol: dict[str, str] = {}
@@ -245,9 +247,17 @@ class OrderFlowRecorder:
             logger.warning("orderflow recorder subscribe failed: %s", exc)
 
     def _on_error(self, err) -> None:
-        logger.warning(
-            "orderflow recorder stream error: %s", sanitize_adapter_error(self.broker, err)
-        )
+        message = sanitize_adapter_error(self.broker, err)
+        logger.warning("orderflow recorder stream error: %s", message)
+        # An auth failure is terminal: the feed will never deliver ticks, and
+        # looping on it just buries the reason in gap warnings.
+        if is_auth_error(f"{err} {message}"):
+            self.auth_failed = True
+            logger.error(
+                "orderflow recorder: %s rejected our session; stopping so this is not "
+                "mistaken for a quiet market. Re-authenticate and restart.",
+                self.broker,
+            )
 
     def _on_close(self, *args) -> None:
         logger.warning("orderflow recorder stream closed: %s", args)

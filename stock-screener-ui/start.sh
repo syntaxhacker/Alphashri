@@ -143,10 +143,31 @@ start_recorder() {
 
 stop_recorder() {
   if is_running "$RECORDER_PID"; then
-    kill "$(cat "$RECORDER_PID")" 2>/dev/null || true
+    local pid
+    pid="$(cat "$RECORDER_PID")"
+    kill "$pid" 2>/dev/null || true
+    # Broker SDK teardown can hang on a dead socket, so escalate instead of
+    # leaving an orphan that keeps a broker connection open.
+    for _ in $(seq 1 10); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "  Recorder ignored SIGTERM; sending SIGKILL."
+      kill -9 "$pid" 2>/dev/null || true
+    fi
     cleanup_pid "$RECORDER_PID"
     echo "  Recorder stopped."
   fi
+  # Adopt leftovers: a hung recorder never released its pid file, so earlier
+  # restarts could quietly stack multiple recorders on the same broker account.
+  local orphans
+  orphans="$(pgrep -f 'scripts/orderflow_recorder\.py' 2>/dev/null || true)"
+  if [ -n "$orphans" ]; then
+    kill -9 $orphans 2>/dev/null || true
+    echo "  Reaped orphan recorder(s): ${orphans// /,}"
+  fi
+  rm -f "$RECORDER_PID"
 }
 
 stop_bots() {

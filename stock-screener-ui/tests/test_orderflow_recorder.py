@@ -385,6 +385,8 @@ class TestRecorderScriptMain:
         captured = {}
 
         class FakeRecorder:
+            auth_failed = False
+
             def __init__(self, symbols, tok, broker="upstox"):
                 captured["symbols"] = list(symbols)
                 captured["token"] = tok
@@ -470,6 +472,42 @@ class TestRecorderScriptMain:
         assert "started" not in captured
 
 
+    def test_exits_when_the_broker_rejects_the_session(self, monkeypatch, capsys):
+        """auth_failed must end the run instead of looping on gap warnings."""
+        from scripts import orderflow_recorder as script
+
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script_inst, captured = self._patch(monkeypatch, stop_on_start=False)
+
+        class AuthFailingRecorder:
+            auth_failed = True
+
+            def __init__(self, symbols, tok, broker="upstox"):
+                captured["broker"] = broker
+                self._keys = {"k": "RELIANCE"}
+                self._adapter = None
+
+            def start(self):
+                captured["started"] = True
+
+            def stop(self):
+                captured["stopped"] = True
+
+            def check_gaps(self):
+                captured["gaps_checked"] = True
+
+        monkeypatch.setattr("api.orderflow_recorder.OrderFlowRecorder", AuthFailingRecorder)
+        # main() hard-exits after teardown; intercept it so pytest survives.
+        monkeypatch.setattr(script.os, "_exit", lambda code: (_ for _ in ()).throw(_StopMain()))
+
+        with pytest.raises(_StopMain):
+            script_inst.main([])
+
+        assert "rejected the session" in capsys.readouterr().out
+        assert captured.get("gaps_checked") is None, "must not keep gap-polling"
+        assert captured.get("stopped") is True, "teardown must still run"
+
+
 class TestBridgeJournalDefault:
     def test_bridge_journaling_is_off_unless_opted_in(self, monkeypatch):
         import importlib
@@ -512,3 +550,38 @@ class TestBridgeJournalDefault:
         out = capsys.readouterr().out
         assert rc == 1
         assert "allows 5 symbols per connection but 6 were requested" in out
+
+
+class TestAuthFailureIsTerminal:
+    """A rejected session must not look like a quiet market.
+
+    Without this the recorder looped forever emitting "no tick for X in Ns"
+    gap warnings while never capturing anything, and the reason was buried.
+    """
+
+    RAW_403 = (
+        "Handshake status 403 Forbidden -+-+- {'set-cookie': '__cf_bm=SECRET; Path=/', "
+        "'cf-ray': 'abc-MAA'} -+-+- b''"
+    )
+
+    def _recorder(self):
+        return OrderFlowRecorder(["RELIANCE"], "tok", streamer_factory=FakeStreamer)
+
+    def test_auth_error_sets_the_flag(self):
+        rec = self._recorder()
+        rec._on_error(self.RAW_403)
+        assert rec.auth_failed is True
+
+    def test_transient_error_does_not_set_the_flag(self):
+        rec = self._recorder()
+        rec._on_error("connection reset by peer")
+        assert rec.auth_failed is False
+
+    def test_flag_starts_clear(self):
+        assert self._recorder().auth_failed is False
+
+    def test_auth_error_log_does_not_leak_the_blob(self, caplog):
+        rec = self._recorder()
+        with caplog.at_level("WARNING", logger="orderflow.recorder"):
+            rec._on_error(self.RAW_403)
+        assert all("SECRET" not in r.getMessage() for r in caplog.records)

@@ -14,6 +14,7 @@ Usage:
 
 import argparse
 import logging
+import os
 import signal
 import sys
 import threading
@@ -33,6 +34,18 @@ def _install_log_redaction() -> None:
         from api.orderflow_logging import install_error_redaction
 
         install_error_redaction()
+    except Exception:
+        pass
+
+
+#: How long broker/SDK teardown may take before the process exits regardless.
+_TEARDOWN_TIMEOUT_SEC = 5.0
+
+
+def _safe_stop(recorder) -> None:
+    """Stop the recorder without letting a hung SDK teardown escape."""
+    try:
+        recorder.stop()
     except Exception:
         pass
 
@@ -126,15 +139,30 @@ def main(argv=None) -> int:
     print(f"Recording {len(symbols)} symbols via {broker}. Press Ctrl+C to stop.")
     try:
         while not stop.wait(GAP_WARN_SEC):
+            if recorder.auth_failed:
+                print(f"Stopping: {broker} rejected the session. Re-authenticate, then restart.")
+                break
             recorder.check_gaps()
+        if recorder.auth_failed:
+            print(f"Stopping: {broker} rejected the session. Re-authenticate, then restart.")
     finally:
-        recorder.stop()
-        # Flush pooled journal handles so a buffered tail is never lost.
+        # Flush the journal BEFORE any teardown: a broker SDK disconnect() can
+        # block on a dead socket (observed as a process stuck in futex_wait that
+        # ignored SIGTERM), which used to leave an orphan holding broker
+        # connections on every restart.
         try:
             from api import orderflow_journal
+
             orderflow_journal.close_all()
         except Exception:
             pass
+        teardown = threading.Thread(target=_safe_stop, args=(recorder,), daemon=True)
+        teardown.start()
+        teardown.join(timeout=_TEARDOWN_TIMEOUT_SEC)
+        if teardown.is_alive():
+            print(f"Recorder teardown did not finish in {_TEARDOWN_TIMEOUT_SEC:.0f}s; exiting anyway.")
+        sys.stdout.flush()
+        os._exit(0)
     print("Recorder stopped.")
     return 0
 
