@@ -23,6 +23,8 @@ function row(overrides: Partial<OrderFlowJournalRow> = {}): OrderFlowJournalRow 
     symbol: "RELIANCE",
     file: "RELIANCE_2026-09-17.jsonl",
     broker: "fyers_tbt",
+    named_broker: "fyers_tbt",
+    broker_mismatch: false,
     brokers_seen: ["fyers_tbt"],
     bytes: 26 * 1048576,
     records: 5485,
@@ -157,5 +159,35 @@ describe("orderflow journal helpers", () => {
     expect(BROKER_BADGE.fyers_tbt.label).toContain("50 lv");
     expect(BROKER_BADGE.upstox.label).toContain("5 lv");
     expect(BROKER_BADGE.mixed.label).toMatch(/MIXED/);
+  });
+});
+
+describe("OrderFlowJournalPanel broker-name verification", () => {
+  it("flags a file whose name promises one feed but holds another", async () => {
+    fetchWithAuthMock.mockImplementation(() =>
+      mockResponse(
+        summary({
+          rows: [
+            row({ broker: "upstox", named_broker: "fyers_tbt", broker_mismatch: true }),
+          ],
+        }),
+      ),
+    );
+    renderWithProviders(<OrderFlowJournalPanel />);
+
+    const flag = await screen.findByTestId("ofj-broker-mismatch");
+    expect(flag).toHaveTextContent("name says fyers_tbt");
+    // the content badge still tells the truth about what is inside
+    expect(screen.getByTestId("ofj-broker-upstox")).toHaveTextContent("Upstox");
+  });
+
+  it("does not flag a correctly named file", async () => {
+    fetchWithAuthMock.mockImplementation(() =>
+      mockResponse(summary({ rows: [row({ broker: "fyers_tbt", named_broker: "fyers_tbt" })] })),
+    );
+    renderWithProviders(<OrderFlowJournalPanel />);
+
+    await screen.findByTestId("ofj-broker-fyers_tbt");
+    expect(screen.queryByTestId("ofj-broker-mismatch")).not.toBeInTheDocument();
   });
 });

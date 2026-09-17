@@ -466,10 +466,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     symbol = args.symbol.strip().upper()
     horizons = _parse_horizons(args.horizons)
 
-    entries = orderflow_journal.read(symbol, day=day, kind="tick")
+    # Files are broker-scoped, so read every file for the day and say which
+    # feeds it spans — a day that changed feed is data-quality relevant here.
+    entries = orderflow_journal.read_all(symbol, day=day, kind="tick")
     if not entries:
         print(f"No tick journal found for {symbol} on {day}.")
         return 0
+    feeds = orderflow_journal.sources(symbol, day=day)
+    print(f"{symbol} {day}: {len(entries)} ticks from {", ".join(feeds)}")
 
     ticks = [entry.get("data") for entry in entries if isinstance(entry.get("data"), dict)]
     features = forward_returns(build_features(ticks), horizons)

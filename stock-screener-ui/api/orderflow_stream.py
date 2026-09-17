@@ -289,6 +289,7 @@ def _build_history(
     symbol: str,
     window_sec: int = _HISTORY_WINDOW_SEC,
     max_ticks: int = _HISTORY_MAX_TICKS,
+    broker: Optional[str] = None,
 ) -> dict:
     """Bounded replay of today's journaled session for a symbol.
 
@@ -299,7 +300,7 @@ def _build_history(
     if not symbol or not orderflow_journal.is_enabled():
         return empty
 
-    entries = orderflow_journal.read(symbol, kind="tick")
+    entries = orderflow_journal.read(symbol, kind="tick", broker=broker)
     ticks: list[dict] = []
     if entries:
         latest = max(_tick_ts(e) for e in entries)
@@ -314,7 +315,7 @@ def _build_history(
 
     signals = [
         e["data"]
-        for e in orderflow_journal.read(symbol, kind="signal")
+        for e in orderflow_journal.read(symbol, kind="signal", broker=broker)
         if isinstance(e.get("data"), dict)
     ][-_HISTORY_MAX_SIGNALS:]
 
@@ -382,7 +383,7 @@ class _UpstoxOrderFlowStream:
         try:
             if not self.symbol or not orderflow_journal.is_enabled():
                 return
-            entries = orderflow_journal.read(self.symbol, kind="tick")
+            entries = orderflow_journal.read(self.symbol, kind="tick", broker="upstox")
             if not entries:
                 return
             engine = OrderFlowSignalEngine()
@@ -447,12 +448,12 @@ class _UpstoxOrderFlowStream:
             return
         self._push(tick)
         if _BRIDGE_JOURNAL:
-            orderflow_journal.append(self.symbol, "tick", tick["data"])
+            orderflow_journal.append(self.symbol, "tick", tick["data"], broker="upstox")
         signal = self._engine.update(tick["data"])
         if signal:
             self._push(signal)
             if _BRIDGE_JOURNAL:
-                orderflow_journal.append(self.symbol, "signal", signal)
+                orderflow_journal.append(self.symbol, "signal", signal, broker="upstox")
 
     def _push(self, payload: dict) -> None:
         try:
@@ -491,7 +492,7 @@ class _AdapterOrderFlowStream:
         try:
             if not self.symbol or not orderflow_journal.is_enabled():
                 return
-            entries = orderflow_journal.read(self.symbol, kind="tick")
+            entries = orderflow_journal.read(self.symbol, kind="tick", broker=self.broker)
             if not entries:
                 return
             engine = OrderFlowSignalEngine()
@@ -546,12 +547,12 @@ class _AdapterOrderFlowStream:
             return
         self._push({"type": "market_data", "data": tick})
         if _BRIDGE_JOURNAL:
-            orderflow_journal.append(self.symbol, "tick", tick)
+            orderflow_journal.append(self.symbol, "tick", tick, broker=self.broker)
         signal = self._engine.update(tick)
         if signal:
             self._push(signal)
             if _BRIDGE_JOURNAL:
-                orderflow_journal.append(self.symbol, "signal", signal)
+                orderflow_journal.append(self.symbol, "signal", signal, broker=self.broker)
 
     def _push(self, payload: dict) -> None:
         try:
@@ -701,7 +702,7 @@ async def orderflow_ws(websocket: WebSocket):
                     except Exception:  # noqa: BLE001
                         pass
                     try:
-                        history = await asyncio.to_thread(_build_history, symbol)
+                        history = await asyncio.to_thread(_build_history, symbol, broker=broker)
                         if history["ticks"] or history["signals"]:
                             stream._push({"type": "history", "symbol": symbol, **history})
                     except Exception:  # noqa: BLE001
@@ -764,7 +765,7 @@ async def orderflow_ws(websocket: WebSocket):
                 except Exception:  # noqa: BLE001 - warm start is best-effort
                     pass
                 try:
-                    history = await asyncio.to_thread(_build_history, symbol)
+                    history = await asyncio.to_thread(_build_history, symbol, broker=broker)
                     if history["ticks"] or history["signals"]:
                         stream._push({"type": "history", "symbol": symbol, **history})
                 except Exception:  # noqa: BLE001 - history is best-effort

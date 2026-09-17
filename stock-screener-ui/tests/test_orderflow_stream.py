@@ -271,7 +271,7 @@ class TestBuildHistory:
         monkeypatch.setattr(
             orderflow_stream.orderflow_journal,
             "read",
-            lambda symbol, day=None, kind=None: entries if kind == "tick" else signals,
+            lambda symbol, day=None, kind=None, broker=None: entries if kind == "tick" else signals,
         )
         hist = orderflow_stream._build_history("RELIANCE", window_sec=3, max_ticks=100)
         # latest ltt = 9000, cutoff 6000 -> ticks with ltt 6000..9000
@@ -284,7 +284,7 @@ class TestBuildHistory:
         monkeypatch.setattr(
             orderflow_stream.orderflow_journal,
             "read",
-            lambda symbol, day=None, kind=None: entries if kind == "tick" else [],
+            lambda symbol, day=None, kind=None, broker=None: entries if kind == "tick" else [],
         )
         hist = orderflow_stream._build_history("X", window_sec=10_000, max_ticks=5)
         assert len(hist["ticks"]) == 5

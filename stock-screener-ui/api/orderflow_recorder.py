@@ -289,7 +289,8 @@ class OrderFlowRecorder:
             self._record_tick(symbol, tick["data"])
 
     def _record_tick(self, symbol: str, tick: dict) -> None:
-        orderflow_journal.append(symbol, "tick", tick)
+        # The broker is part of the file name, so one file never holds two feeds.
+        orderflow_journal.append(symbol, "tick", tick, broker=self.broker)
         self._last_tick[symbol] = time.monotonic()
 
         engine = self._engines.get(symbol)
@@ -297,7 +298,7 @@ class OrderFlowRecorder:
             return
         signal = engine.update(tick)
         if signal:
-            orderflow_journal.append(symbol, "signal", signal)
+            orderflow_journal.append(symbol, "signal", signal, broker=self.broker)
 
     # -------------------------------------------------------------------- health
     def check_gaps(self, now: Optional[float] = None) -> None:

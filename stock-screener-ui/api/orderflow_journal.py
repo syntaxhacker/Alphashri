@@ -82,12 +82,83 @@ def _today() -> str:
     return datetime.now(config.IST).strftime("%Y-%m-%d")
 
 
-def journal_path(symbol: str, day: Optional[str] = None) -> Path:
-    symbol = (symbol or "").strip().upper()
-    # instrument keys contain '|' which is illegal on some filesystems
-    safe = symbol.replace("|", "_").replace("/", "_").replace("\\", "_")
+def _sanitize(symbol: str) -> str:
+    # instrument keys contain '|' and index names contain spaces, both awkward
+    # on the filesystem
+    return (
+        (symbol or "")
+        .strip()
+        .upper()
+        .replace("|", "_")
+        .replace("/", "_")
+        .replace("\\", "_")
+    )
+
+
+def _safe_symbol(symbol: str) -> str:
+    return _sanitize(symbol).replace(" ", "_")
+
+
+#: Broker prefixes recognised in a journal file name. Longest first so a file
+#: named ``fyers_tbt_...`` is not mistaken for a ``fyers`` one.
+_KNOWN_BROKER_PREFIXES = ("fyers_tbt", "fyers", "upstox")
+
+
+def journal_name(symbol: str, day: str, broker: Optional[str] = None) -> str:
+    """``<broker>_<SYMBOL>_<day>.jsonl`` when a broker is given, else the legacy name."""
+    if broker:
+        return f"{broker.strip().lower()}_{_safe_symbol(symbol)}_{day}.jsonl"
+    return f"{_safe_symbol(symbol)}_{day}.jsonl"
+
+
+def journal_path(
+    symbol: str, day: Optional[str] = None, broker: Optional[str] = None
+) -> Path:
+    """Resolve a journal file.
+
+    New days are written as ``<broker>_<SYMBOL>_<day>.jsonl`` so a file can only
+    ever hold one feed. A day that is already being written under the legacy
+    ``<SYMBOL>_<day>.jsonl`` name keeps using it, so enabling the prefix never
+    splits an in-progress session across two files.
+    """
     day = day or _today()
-    return journal_dir() / f"{safe}_{day}.jsonl"
+    if broker:
+        path = journal_dir() / journal_name(symbol, day, broker)
+        if path.exists():
+            return path
+        # Keep an already-started day on its original file.
+        if legacy_path(symbol, day).exists():
+            return legacy_path(symbol, day)
+        return path
+    return legacy_path(symbol, day)
+
+
+def legacy_path(symbol: str, day: str) -> Path:
+    return journal_dir() / journal_name(symbol, day, broker=None)
+
+
+def split_journal_name(path: Path) -> tuple[Optional[str], str, str]:
+    """``(broker|None, symbol, day)`` parsed from a journal file name."""
+    stem = path.stem
+    parts = stem.rsplit("_", 1)
+    day = parts[-1] if len(parts) == 2 else ""
+    head = parts[0] if len(parts) == 2 else stem
+    for candidate in _KNOWN_BROKER_PREFIXES:
+        prefix = f"{candidate}_"
+        if head.startswith(prefix):
+            return candidate, head[len(prefix) :], day
+    return None, head, day
+
+
+def journal_files(symbol: str, day: Optional[str] = None) -> list[Path]:
+    """Every file for a symbol/day, broker-specific first (newest scheme first)."""
+    day = day or _today()
+    specific = sorted(journal_dir().glob(f"*_{_safe_symbol(symbol)}_{day}.jsonl"))
+    legacy = legacy_path(symbol, day)
+    out = [p for p in specific if p.name != legacy.name]
+    if legacy.exists():
+        out.append(legacy)
+    return out
 
 
 def _acquire(path: Path):
@@ -145,14 +216,14 @@ def close_all() -> None:
         _handle_order.clear()
 
 
-def append(symbol: str, kind: str, payload: dict) -> None:
+def append(symbol: str, kind: str, payload: dict, broker: Optional[str] = None) -> None:
     if not is_enabled():
         return
     symbol = (symbol or "").strip()
     if not symbol or not isinstance(payload, dict):
         return
     try:
-        path = journal_path(symbol)
+        path = journal_path(symbol, broker=broker)
         record = {"ts": int(time.time() * 1000), "kind": kind, "data": payload}
         line = _encode(record) + "\n"
         with _lock:
@@ -244,7 +315,7 @@ def summarize_day(
 
     rows: list[dict] = []
     for path in sorted(directory.glob(f"*_{day}.jsonl")):
-        symbol = path.name[: -len(f"_{day}.jsonl")].replace("_", "|", 0)
+        named_broker, symbol, _ = split_journal_name(path)
         records = 0
         ticks = 0
         signals = 0
@@ -283,11 +354,18 @@ def summarize_day(
         # must not turn a clean file into "mixed".
         known = sorted(b for b in brokers if b != "unknown")
         broker_label = "mixed" if len(known) > 1 else (known[0] if known else "unknown")
+        # A broker-named file that contains another feed means the prefix is
+        # lying — surface it rather than trusting the name.
+        broker_mismatch = bool(
+            named_broker and known and named_broker not in known
+        )
         rows.append(
             {
                 "symbol": symbol,
                 "file": path.name,
                 "broker": broker_label,
+                "named_broker": named_broker,
+                "broker_mismatch": broker_mismatch,
                 "brokers_seen": sorted(brokers),
                 "bytes": path.stat().st_size,
                 "records": records,
@@ -351,17 +429,56 @@ def available_days(limit: int = 30) -> list[str]:
     return sorted(days, reverse=True)[:limit]
 
 
-def read(symbol: str, day: Optional[str] = None, kind: Optional[str] = None) -> list[dict]:
+def read(
+    symbol: str,
+    day: Optional[str] = None,
+    kind: Optional[str] = None,
+    broker: Optional[str] = None,
+) -> list[dict]:
     # Reading is a cold path; flush first so a caller in this process always
     # sees records it just appended (warm-start relies on that).
     flush()
-    try:
-        path = journal_path(symbol, day)
-    except Exception:
-        return []
+    if broker:
+        # Prefer this broker's file, but include a legacy one for the same day
+        # so a session that started before the prefix was introduced still
+        # replays in full.
+        paths = journal_files(symbol, day)
+    else:
+        legacy = legacy_path(symbol, day or _today())
+        paths = [legacy] if legacy.exists() else []
+    out: list[dict] = []
+    for path in paths:
+        for record in _read_file(path, kind):
+            out.append(record)
+    return out
+
+
+def read_all(symbol: str, day: Optional[str] = None, kind: Optional[str] = None) -> list[dict]:
+    """Every record for a symbol/day across all files, newest broker first.
+
+    Tools that analyse a day rather than replay one feed want this. Files are
+    single-broker by construction, so the only mixing here is a day that
+    changed feeds — call :func:`sources` to see which.
+    """
+    flush()
+    out: list[dict] = []
+    for path in journal_files(symbol, day):
+        out.extend(_read_file(path, kind))
+    return out
+
+
+def sources(symbol: str, day: Optional[str] = None) -> list[str]:
+    """Brokers that wrote a symbol's data for a day (from file names)."""
+    found = []
+    for path in journal_files(symbol, day):
+        broker, _, _ = split_journal_name(path)
+        found.append(broker or "legacy")
+    return found
+
+
+def _read_file(path: Path, kind: Optional[str]) -> list[dict]:
     if not path.exists():
         return []
-
     out: list[dict] = []
     try:
         with path.open("r", encoding="utf-8") as fh:

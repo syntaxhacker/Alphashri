@@ -79,7 +79,7 @@ def capture_journal(monkeypatch):
     monkeypatch.setattr(
         orderflow_recorder.orderflow_journal,
         "append",
-        lambda symbol, kind, payload: calls.append((symbol, kind, payload)),
+        lambda symbol, kind, payload, broker=None: calls.append((symbol, kind, payload, broker)),
     )
     return calls
 
@@ -316,12 +316,13 @@ class TestRecorderAdapterPath:
         journaled = []
         monkeypatch.setattr(
             orderflow_recorder.orderflow_journal, "append",
-            lambda symbol, kind, payload: journaled.append((symbol, kind)),
+            lambda symbol, kind, payload, broker=None: journaled.append((symbol, kind, broker)),
         )
         rec.start()
         assert rec._adapter.connected_symbols == ["RELIANCE", "TCS"]
         rec.on_tick_adapter("X:TCS", {"ltp": 1.0})
-        assert ("TCS", "tick") in journaled
+        # The broker is part of the write so one file can never hold two feeds.
+        assert ("TCS", "tick", "fyers") in journaled
 
     def test_unknown_broker_has_no_adapter(self, monkeypatch):
         monkeypatch.setattr(orderflow_recorder, "get_adapter", lambda name: None)

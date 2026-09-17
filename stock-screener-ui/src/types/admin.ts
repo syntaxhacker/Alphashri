@@ -106,14 +106,17 @@ export interface OrderFlowJournalGap {
 export interface OrderFlowJournalRow {
   symbol: string;
   file: string;
-  /** "fyers_tbt" | "fyers" | "upstox" | "mixed" | "unknown" */
+  /** "fyers_tbt" | "fyers" | "upstox" | "mixed" | "unknown" — from the data */
   broker: string;
+  /** Broker in the file name, or null for pre-prefix (legacy) files. */
+  named_broker: string | null;
+  /** True when the name promises one feed but the content holds another. */
+  broker_mismatch: boolean;
   brokers_seen: string[];
   bytes: number;
   records: number;
   ticks: number;
   signals: number;
-  malformed: number;
   first_ts: number | null;
   last_ts: number | null;
   covered_minutes: number;

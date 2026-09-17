@@ -2,6 +2,7 @@
 
 import json
 import queue as thr_queue
+from pathlib import Path
 from datetime import datetime
 
 import pytest
@@ -356,3 +357,168 @@ class TestAvailableDays:
         row = orderflow_journal.summarize_day("2026-09-17", session_start=(9, 15),
                                               session_close=(9, 35))["rows"][0]
         assert row["covered_minutes"] == 1
+
+
+class TestBrokerScopedNames:
+    """One file must hold one broker's data.
+
+    File names carry the broker so a mixed file is impossible by construction,
+    while the changeover keeps an in-progress day on its original file.
+    """
+
+    def test_name_carries_the_broker(self):
+        assert orderflow_journal.journal_name("RELIANCE", "2026-09-18", "fyers_tbt") == (
+            "fyers_tbt_RELIANCE_2026-09-18.jsonl"
+        )
+
+    def test_name_without_a_broker_is_the_legacy_shape(self):
+        assert orderflow_journal.journal_name("RELIANCE", "2026-09-18") == (
+            "RELIANCE_2026-09-18.jsonl"
+        )
+
+    def test_instrument_keys_and_spaces_are_safe(self):
+        name = orderflow_journal.journal_name("NSE_INDEX|Nifty 50", "2026-09-18", "fyers_tbt")
+        assert "|" not in name and " " not in name
+        assert name == "fyers_tbt_NSE_INDEX_NIFTY_50_2026-09-18.jsonl"
+
+    def test_new_day_uses_the_prefixed_file(self, journal_tmp):
+        path = orderflow_journal.journal_path("RELIANCE", "2026-09-18", broker="fyers_tbt")
+        assert path.name == "fyers_tbt_RELIANCE_2026-09-18.jsonl"
+
+    def test_started_day_keeps_its_legacy_file(self, journal_tmp):
+        """Enabling the prefix must not split today's session in two."""
+        legacy = orderflow_journal.legacy_path("RELIANCE", "2026-09-17")
+        legacy.write_text("", encoding="utf-8")
+
+        path = orderflow_journal.journal_path("RELIANCE", "2026-09-17", broker="fyers_tbt")
+        assert path == legacy
+
+    def test_existing_prefixed_file_wins_over_legacy(self, journal_tmp):
+        prefixed = journal_tmp / "fyers_tbt_RELIANCE_2026-09-18.jsonl"
+        prefixed.write_text("", encoding="utf-8")
+        assert orderflow_journal.journal_path("RELIANCE", "2026-09-18", broker="fyers_tbt") == prefixed
+
+    def test_append_with_broker_writes_the_prefixed_file(self, journal_tmp):
+        orderflow_journal.append("TCS", "tick", {"ltp": 1.0}, broker="fyers_tbt")
+        names = sorted(p.name for p in journal_tmp.glob("*.jsonl"))
+        assert names == ["fyers_tbt_TCS_2026-09-17.jsonl"] or names == [
+            f"fyers_tbt_TCS_{datetime.now(config.IST).strftime('%Y-%m-%d')}.jsonl"
+        ]
+
+    def test_append_without_broker_keeps_the_legacy_name(self, journal_tmp):
+        orderflow_journal.append("SBIN", "tick", {"ltp": 1.0})
+        assert (journal_tmp / f"SBIN_{datetime.now(config.IST).strftime('%Y-%m-%d')}.jsonl").exists()
+
+
+class TestSplitJournalName:
+    @pytest.mark.parametrize(
+        ("name", "expected"),
+        [
+            ("fyers_tbt_RELIANCE_2026-09-17.jsonl", ("fyers_tbt", "RELIANCE", "2026-09-17")),
+            ("fyers_TCS_2026-09-17.jsonl", ("fyers", "TCS", "2026-09-17")),
+            ("upstox_SBIN_2026-09-17.jsonl", ("upstox", "SBIN", "2026-09-17")),
+            ("RELIANCE_2026-09-17.jsonl", (None, "RELIANCE", "2026-09-17")),
+            # sorted longest-prefix-first: fyers_tbt must not read as fyers
+            ("fyers_tbt_NSE_INDEX_NIFTY_50_2026-09-17.jsonl",
+             ("fyers_tbt", "NSE_INDEX_NIFTY_50", "2026-09-17")),
+        ],
+    )
+    def test_parses_both_schemes(self, name, expected):
+        assert orderflow_journal.split_journal_name(Path(name)) == expected
+
+
+class TestReadAcrossTheChangeover:
+    def test_broker_read_prefers_its_own_file_but_still_includes_legacy(self, journal_tmp):
+        """A day recorded before the prefix existed must still replay."""
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        legacy = journal_tmp / "RELIANCE_2026-09-17.jsonl"
+        legacy.write_text(
+            json.dumps({"ts": _ms(day, 9, 15), "kind": "tick", "data": TBT_TICK}) + "\n",
+            encoding="utf-8",
+        )
+        prefixed = journal_tmp / "fyers_tbt_RELIANCE_2026-09-17.jsonl"
+        prefixed.write_text(
+            json.dumps({"ts": _ms(day, 9, 16), "kind": "tick", "data": TBT_TICK}) + "\n",
+            encoding="utf-8",
+        )
+
+        records = orderflow_journal.read("RELIANCE", day="2026-09-17", broker="fyers_tbt")
+        assert len(records) == 2, "both halves of the session must be readable"
+
+    def test_read_without_a_broker_uses_only_the_legacy_file(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        (journal_tmp / "RELIANCE_2026-09-17.jsonl").write_text(
+            json.dumps({"ts": _ms(day, 9, 15), "kind": "tick", "data": TBT_TICK}) + "\n",
+            encoding="utf-8",
+        )
+        (journal_tmp / "fyers_tbt_RELIANCE_2026-09-17.jsonl").write_text(
+            json.dumps({"ts": _ms(day, 9, 16), "kind": "tick", "data": TBT_TICK}) + "\n",
+            encoding="utf-8",
+        )
+
+        assert len(orderflow_journal.read("RELIANCE", day="2026-09-17")) == 1
+
+
+class TestBrokerNameVerification:
+    """The prefix is a promise; the summary checks the content keeps it."""
+
+    def test_summary_reports_the_named_broker(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal_named(journal_tmp, "fyers_tbt", "RELIANCE", day, [(_ms(day, 9, 15), TBT_TICK)])
+
+        row = orderflow_journal.summarize_day("2026-09-17")["rows"][0]
+        assert row["named_broker"] == "fyers_tbt"
+        assert row["symbol"] == "RELIANCE"
+        assert row["broker"] == "fyers_tbt"
+        assert row["broker_mismatch"] is False
+
+    def test_flags_a_named_file_holding_another_feed(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal_named(journal_tmp, "fyers_tbt", "RELIANCE", day, [(_ms(day, 9, 15), UPSTOX_TICK)])
+
+        row = orderflow_journal.summarize_day("2026-09-17")["rows"][0]
+        assert row["named_broker"] == "fyers_tbt"
+        assert row["broker"] == "upstox"
+        assert row["broker_mismatch"] is True
+
+    def test_legacy_files_report_no_named_broker(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "RELIANCE", day, [(_ms(day, 9, 15), TBT_TICK)])
+
+        row = orderflow_journal.summarize_day("2026-09-17")["rows"][0]
+        assert row["named_broker"] is None
+        assert row["broker_mismatch"] is False
+
+
+def _write_journal_named(tmp_path, broker, symbol, day, entries):
+    path = tmp_path / f"{broker}_{symbol}_{day.strftime('%Y-%m-%d')}.jsonl"
+    with path.open("w", encoding="utf-8") as fh:
+        for ts, tick in entries:
+            fh.write(json.dumps({"ts": ts, "kind": "tick", "data": tick}) + "\n")
+    return path
+
+
+class TestReadAllAndSources:
+    """Analysis tools need the whole day, and to know which feeds it spans."""
+
+    def test_read_all_spans_every_broker_file(self, journal_tmp):
+        day = datetime(2026, 9, 18, tzinfo=config.IST)
+        _write_journal_named(journal_tmp, "fyers_tbt", "RELIANCE", day, [(_ms(day, 9, 15), TBT_TICK)])
+        _write_journal_named(journal_tmp, "upstox", "RELIANCE", day, [(_ms(day, 9, 16), UPSTOX_TICK)])
+
+        records = orderflow_journal.read_all("RELIANCE", day="2026-09-18", kind="tick")
+        assert len(records) == 2
+        assert set(orderflow_journal.sources("RELIANCE", day="2026-09-18")) == {
+            "fyers_tbt", "upstox"
+        }
+
+    def test_sources_reports_legacy_for_unprefixed_files(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "SBIN", day, [(_ms(day, 9, 15), TBT_TICK)])
+
+        assert orderflow_journal.sources("SBIN", day="2026-09-17") == ["legacy"]
+        assert len(orderflow_journal.read_all("SBIN", day="2026-09-17", kind="tick")) == 1
+
+    def test_read_all_is_empty_for_an_unknown_symbol(self, journal_tmp):
+        assert orderflow_journal.read_all("NOPE") == []
+        assert orderflow_journal.sources("NOPE") == []

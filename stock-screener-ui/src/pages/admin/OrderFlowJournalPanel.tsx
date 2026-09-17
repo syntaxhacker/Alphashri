@@ -119,12 +119,18 @@ export function OrderFlowJournalPanel() {
         cell: (info) => {
           const key = info.getValue<string>();
           const badge = BROKER_BADGE[key] ?? BROKER_BADGE.unknown;
+          const row = info.row.original;
           return (
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1, p: 1 }}>
               <Badge color={badge.color} variant={key === "mixed" ? "filled" : "light"} size="sm"
                 data-testid={`ofj-broker-${key}`}>
                 {badge.label}
               </Badge>
+              {row.broker_mismatch && (
+                <Badge color="red" variant="filled" size="sm" data-testid="ofj-broker-mismatch">
+                  name says {row.named_broker}
+                </Badge>
+              )}
             </Box>
           );
         },
