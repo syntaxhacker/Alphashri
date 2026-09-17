@@ -301,6 +301,18 @@ class OrderFlowRecorder:
             orderflow_journal.append(symbol, "signal", signal, broker=self.broker)
 
     # -------------------------------------------------------------------- health
+    def staleness(self, now: Optional[float] = None) -> float:
+        """Seconds since the *oldest* symbol last ticked (0 when unwatched).
+
+        A whole-feed stall (dropped socket, expired session) looks exactly like a
+        quiet market in the logs — this is what lets the runner tell them apart
+        and exit so it can be restarted.
+        """
+        if not self._last_tick:
+            return 0.0
+        now = time.monotonic() if now is None else now
+        return max(0.0, now - min(self._last_tick.values()))
+
     def check_gaps(self, now: Optional[float] = None) -> None:
         """Log a warning for symbols with no tick within ``GAP_WARN_SEC``."""
         now = time.monotonic() if now is None else now

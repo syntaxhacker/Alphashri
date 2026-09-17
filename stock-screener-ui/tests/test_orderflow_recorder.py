@@ -509,6 +509,49 @@ class TestRecorderScriptMain:
         assert captured.get("stopped") is True, "teardown must still run"
 
 
+    def test_stalled_recorder_exits_two_so_a_supervisor_restarts_it(self, monkeypatch, capsys):
+        from scripts import orderflow_recorder as script
+
+        monkeypatch.setenv("ORDERFLOW_RECORDER_SYMBOLS", "RELIANCE")
+        script_inst, captured = self._patch(monkeypatch, stop_on_start=False)
+        captured["exit_code"] = None
+
+        class StalledRecorder:
+            auth_failed = False
+
+            def __init__(self, symbols, tok, broker="upstox"):
+                captured["broker"] = broker
+                self._keys = {"k": "RELIANCE"}
+                self._adapter = None
+
+            def start(self):
+                captured["started"] = True
+
+            def stop(self):
+                captured["stopped"] = True
+
+            def check_gaps(self):
+                pass
+
+            def staleness(self, now=None):
+                return 999.0     # well past any threshold
+
+        monkeypatch.setattr("api.orderflow_recorder.OrderFlowRecorder", StalledRecorder)
+        monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+        monkeypatch.setattr(
+            script.os, "_exit", lambda code: captured.__setitem__("exit_code", code)
+        )
+        # One poll is enough: the stall breaks the loop. Keep that poll instant
+        # (patching threading internals here corrupts Thread.start/join).
+        monkeypatch.setattr("api.orderflow_recorder.GAP_WARN_SEC", 0.05)
+        # os._exit is intercepted, so main() falls through to its normal return.
+        assert script_inst.main([]) == 0
+
+        assert captured["exit_code"] == 2, "a stall must be reported as a failure"
+        assert "no ticks for" in capsys.readouterr().out
+
+
+
 class TestBridgeJournalDefault:
     def test_bridge_journaling_is_off_unless_opted_in(self, monkeypatch):
         import importlib
@@ -586,3 +629,38 @@ class TestAuthFailureIsTerminal:
         with caplog.at_level("WARNING", logger="orderflow.recorder"):
             rec._on_error(self.RAW_403)
         assert all("SECRET" not in r.getMessage() for r in caplog.records)
+
+
+class TestStallWatchdog:
+    """A silent feed must not look like a quiet market.
+
+    A dropped socket or an expired session produces exactly the same logs as a
+    market with no trades, so the runner needs to detect the stall itself.
+    """
+
+    def _recorder(self):
+        return OrderFlowRecorder(["RELIANCE", "TCS"], "tok", streamer_factory=FakeStreamer)
+
+    def test_staleness_is_the_oldest_tick_across_symbols(self):
+        rec = self._recorder()
+        rec._last_tick = {"RELIANCE": 100.0, "TCS": 140.0}
+
+        assert rec.staleness(now=160.0) == 60.0    # driven by the oldest
+
+    def test_fresh_feed_reports_zero(self):
+        rec = self._recorder()
+        rec._last_tick = {"RELIANCE": 100.0, "TCS": 100.0}
+
+        assert rec.staleness(now=100.0) == 0.0
+
+    def test_never_negative(self):
+        rec = self._recorder()
+        rec._last_tick = {"RELIANCE": 200.0}
+
+        assert rec.staleness(now=100.0) == 0.0
+
+    def test_empty_watchlist_is_zero(self):
+        rec = self._recorder()
+        rec._last_tick = {}
+
+        assert rec.staleness(now=999.0) == 0.0

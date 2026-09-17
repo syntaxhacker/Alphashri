@@ -136,8 +136,22 @@ start_recorder() {
     echo "  Recorder already running (PID $(cat "$RECORDER_PID"))"
     return
   fi
-  echo "  Starting order-flow recorder..."
-  nohup python scripts/orderflow_recorder.py >> "$API_LOG" 2>&1 &
+  echo "  Starting order-flow recorder (supervised)..."
+  # Supervised: a dropped socket, an expired session or a stall exits non-zero
+  # and gets restarted, so capture no longer dies silently for the rest of the
+  # day. Exit 0 means "nothing to do" (market closed) and stops the loop.
+  nohup bash -c '
+    while true; do
+      .venv/bin/python scripts/orderflow_recorder.py
+      rc=$?
+      if [ "$rc" -eq 0 ]; then
+        echo "[recorder-supervisor] recorder finished normally; not restarting"
+        break
+      fi
+      echo "[recorder-supervisor] recorder exited rc=$rc; restarting in 60s"
+      sleep 60
+    done
+  ' >> "$API_LOG" 2>&1 &
   echo $! > "$RECORDER_PID"
 }
 

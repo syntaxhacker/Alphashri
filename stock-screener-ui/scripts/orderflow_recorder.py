@@ -41,6 +41,11 @@ def _install_log_redaction() -> None:
 #: How long broker/SDK teardown may take before the process exits regardless.
 _TEARDOWN_TIMEOUT_SEC = 5.0
 
+#: Exit (non-zero, so a supervisor restarts) after this long with no tick from
+#: any symbol while the market is open. A dropped socket or expired session
+#: otherwise just looks like a quiet market for the rest of the day.
+_STALL_EXIT_SEC = float(os.getenv("ORDERFLOW_RECORDER_STALL_SEC", "300"))
+
 
 def _safe_stop(recorder) -> None:
     """Stop the recorder without letting a hung SDK teardown escape."""
@@ -137,12 +142,21 @@ def main(argv=None) -> int:
 
     recorder.start()
     print(f"Recording {len(symbols)} symbols via {broker}. Press Ctrl+C to stop.")
+    stalled = False
     try:
         while not stop.wait(GAP_WARN_SEC):
             if recorder.auth_failed:
                 print(f"Stopping: {broker} rejected the session. Re-authenticate, then restart.")
                 break
             recorder.check_gaps()
+            # Watchdog: a silent feed must not be mistaken for a quiet market.
+            if is_market_open() and recorder.staleness() >= _STALL_EXIT_SEC:
+                print(
+                    f"Stopping: no ticks for {recorder.staleness():.0f}s "
+                    f"(>= {_STALL_EXIT_SEC:.0f}s). Restarting usually recovers the feed."
+                )
+                stalled = True
+                break
         if recorder.auth_failed:
             print(f"Stopping: {broker} rejected the session. Re-authenticate, then restart.")
     finally:
@@ -162,7 +176,8 @@ def main(argv=None) -> int:
         if teardown.is_alive():
             print(f"Recorder teardown did not finish in {_TEARDOWN_TIMEOUT_SEC:.0f}s; exiting anyway.")
         sys.stdout.flush()
-        os._exit(0)
+        # Non-zero tells a supervisor this was a failure, not "nothing to do".
+        os._exit(2 if stalled else 0)
     print("Recorder stopped.")
     return 0
 
