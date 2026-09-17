@@ -206,3 +206,153 @@ class TestBufferedWrites:
         orderflow_journal._roll_day_locked(yesterday)
         assert str(orderflow_journal.journal_path("SBIN")) not in orderflow_journal._handles
         orderflow_journal.close_all()
+
+
+class TestInferBroker:
+    """Broker is inferred from the stored tick's shape — the only reliable tell.
+
+    File names are per symbol per day and do not carry the broker, which is how
+    two feeds previously ended up in one file unnoticed.
+    """
+
+    def test_50_level_depth_is_fyers_tbt(self):
+        tick = {"depth": {"buy": [{"price": 1, "quantity": 1, "orders": 1}] * 50, "sell": []}}
+        assert orderflow_journal.infer_broker(tick) == "fyers_tbt"
+
+    def test_sequence_number_alone_is_enough(self):
+        tick = {"seq": 123, "depth": {"buy": [{"price": 1, "quantity": 1, "orders": 0}], "sell": []}}
+        assert orderflow_journal.infer_broker(tick) == "fyers_tbt"
+
+    def test_order_counts_without_depth_size_is_fyers(self):
+        tick = {"depth": {"buy": [{"price": 1, "quantity": 5, "orders": 7}], "sell": []}}
+        assert orderflow_journal.infer_broker(tick) == "fyers"
+
+    def test_plain_five_level_is_upstox(self):
+        tick = {"depth": {"buy": [{"price": 1, "quantity": 5, "orders": 0}], "sell": []}}
+        assert orderflow_journal.infer_broker(tick) == "upstox"
+
+    def test_no_depth_is_unknown(self):
+        assert orderflow_journal.infer_broker({"ltp": 1.0}) == "unknown"
+        assert orderflow_journal.infer_broker(None) == "unknown"
+
+
+def _ms(day, hour, minute):
+    return int(datetime(day.year, day.month, day.day, hour, minute, tzinfo=config.IST).timestamp() * 1000)
+
+
+def _write_journal(tmp_path, symbol, day, entries):
+    path = tmp_path / f"{symbol}_{day.strftime('%Y-%m-%d')}.jsonl"
+    with path.open("w", encoding="utf-8") as fh:
+        for ts, tick in entries:
+            fh.write(json.dumps({"ts": ts, "kind": "tick", "data": tick}) + "\n")
+    return path
+
+
+TBT_TICK = {"seq": 1, "depth": {"buy": [{"price": 1, "quantity": 1, "orders": 1}] * 50, "sell": []}}
+UPSTOX_TICK = {"depth": {"buy": [{"price": 1, "quantity": 1, "orders": 0}] * 5, "sell": []}}
+
+
+class TestSummarizeDay:
+    def test_reports_broker_records_and_coverage(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "RELIANCE", day, [
+            (_ms(day, 9, 15), TBT_TICK),
+            (_ms(day, 9, 15), TBT_TICK),
+            (_ms(day, 9, 17), TBT_TICK),
+        ])
+
+        out = orderflow_journal.summarize_day("2026-09-17")
+
+        assert out["session_minutes"] == 375
+        row = out["rows"][0]
+        assert row["symbol"] == "RELIANCE"
+        assert row["broker"] == "fyers_tbt"
+        assert row["records"] == 3
+        assert row["covered_minutes"] == 2
+        assert row["coverage_pct"] == round(2 / 375 * 100, 1)
+
+    def test_zero_depth_ticks_do_not_make_a_file_mixed(self, journal_tmp):
+        """A depth-less tick is not a second broker."""
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "TCS", day, [
+            (_ms(day, 9, 15), TBT_TICK),
+            (_ms(day, 9, 15), {"ltp": 1.0}),  # no depth
+        ])
+
+        row = orderflow_journal.summarize_day("2026-09-17")["rows"][0]
+        assert row["broker"] == "fyers_tbt"
+        assert row["brokers_seen"] == ["fyers_tbt", "unknown"]
+
+    def test_two_feeds_in_one_file_is_flagged_mixed(self, journal_tmp):
+        """Exactly the failure that hid a whole session of the wrong feed."""
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        entries = [(_ms(day, 9, 15 + i), TBT_TICK) for i in range(3)]
+        entries += [(_ms(day, 9, 30 + i), UPSTOX_TICK) for i in range(3)]
+        _write_journal(journal_tmp, "SBIN", day, entries)
+
+        row = orderflow_journal.summarize_day("2026-09-17")["rows"][0]
+        assert row["broker"] == "mixed"
+        assert set(row["brokers_seen"]) == {"fyers_tbt", "upstox"}
+
+    def test_reports_the_largest_gap_first(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "INFY", day, [
+            (_ms(day, 9, 15), TBT_TICK),
+            (_ms(day, 9, 20), TBT_TICK),   # 09:16-09:19 missing (4m)
+            (_ms(day, 9, 30), TBT_TICK),   # 09:21-09:29 missing (9m)
+        ])
+
+        # Narrow window, otherwise the run to 15:30 is the biggest gap by far.
+        row = orderflow_journal.summarize_day(
+            "2026-09-17", session_start=(9, 15), session_close=(9, 35)
+        )["rows"][0]
+        assert row["gaps"][0]["minutes"] == 9
+        assert row["gaps"][0]["from"] == "09:21"
+
+    def test_empty_day_is_safe(self, journal_tmp):
+        out = orderflow_journal.summarize_day("2026-09-17")
+        assert out["rows"] == []
+        assert out["overall_coverage_pct"] == 0.0
+        assert out["total_bytes"] == 0
+
+    def test_malformed_lines_are_counted_not_fatal(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        path = _write_journal(journal_tmp, "WIPRO", day, [(_ms(day, 9, 15), TBT_TICK)])
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write("not json at all\n")
+
+        out = orderflow_journal.summarize_day("2026-09-17")
+        assert out["rows"][0]["records"] >= 1
+        assert out["rows"][0]["broker"] == "fyers_tbt"
+
+
+class TestAvailableDays:
+    def test_lists_days_newest_first(self, journal_tmp):
+        for day in ("2026-09-15", "2026-09-17", "2026-09-16"):
+            (journal_tmp / f"RELIANCE_{day}.jsonl").write_text("", encoding="utf-8")
+        assert orderflow_journal.available_days() == ["2026-09-17", "2026-09-16", "2026-09-15"]
+
+    def test_ignores_non_journal_files(self, journal_tmp):
+        (journal_tmp / "notes.txt").write_text("x", encoding="utf-8")
+        assert orderflow_journal.available_days() == []
+
+    def test_infer_broker_from_line_matches_dict_version(self, journal_tmp):
+        """The fast line probe must agree with the parsed-tick version."""
+        ticks = [TBT_TICK, UPSTOX_TICK, {"ltp": 1.0}, {"seq": 9, "depth": {"buy": [], "sell": []}}]
+        for tick in ticks:
+            line = json.dumps({"ts": 1, "kind": "tick", "data": tick})
+            assert orderflow_journal.infer_broker_from_line(line) == (
+                orderflow_journal.infer_broker(tick)
+            ), line[:80]
+
+    def test_whitespace_in_json_does_not_break_coverage(self, journal_tmp):
+        """Real journals use compact separators; tolerate spaced JSON too."""
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        path = journal_tmp / "SPACED_2026-09-17.jsonl"
+        path.write_text(
+            json.dumps({"ts": _ms(day, 9, 15), "kind": "tick", "data": TBT_TICK}) + "\n",
+            encoding="utf-8",
+        )
+        row = orderflow_journal.summarize_day("2026-09-17", session_start=(9, 15),
+                                              session_close=(9, 35))["rows"][0]
+        assert row["covered_minutes"] == 1

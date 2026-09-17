@@ -614,3 +614,38 @@ async def process_news_queue(body: NewsQueueProcessRequest, current_user=Depends
 
     result_data["queue"] = _news_queue_stats()["queue"]
     return result_data
+
+
+@router.get("/api/admin/orderflow-journal")
+async def get_orderflow_journal(
+    day: Optional[str] = Query(default=None, description="YYYY-MM-DD; defaults to today (IST)"),
+    current_user=Depends(get_current_user),
+):
+    """What order-flow data is on disk, per symbol, with session coverage.
+
+    Coverage is the share of session minutes that contain at least one stored
+    record, so a day that stopped early — or a file that mixes two brokers —
+    is visible instead of looking like a normal file.
+    """
+    _require_admin(current_user)
+
+    from api import orderflow_journal
+    from trading.utils import MARKET_CLOSE, MARKET_OPEN
+
+    if day is not None:
+        try:
+            datetime.strptime(day, "%Y-%m-%d")
+        except ValueError:
+            raise HTTPException(status_code=400, detail="day must be YYYY-MM-DD")
+
+    try:
+        summary = orderflow_journal.summarize_day(
+            day, session_start=MARKET_OPEN, session_close=MARKET_CLOSE
+        )
+    except Exception as exc:  # noqa: BLE001 - surface, don't 500 blindly
+        raise HTTPException(status_code=500, detail=f"journal scan failed: {exc}")
+
+    summary["available_days"] = orderflow_journal.available_days()
+    summary["broker_available"] = orderflow_journal.is_enabled()
+    summary["fetched_at"] = datetime.now().isoformat()
+    return _sanitize_for_json(summary)

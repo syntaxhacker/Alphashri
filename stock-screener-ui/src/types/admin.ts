@@ -94,3 +94,43 @@ export interface NewsAnalysisQueueStatusResponse {
   recent_failures: NewsQueueFailure[];
   error?: string;
 }
+
+/** Session-minute gap with no stored order-flow data. */
+export interface OrderFlowJournalGap {
+  from: string;
+  to: string;
+  minutes: number;
+}
+
+/** One symbol's stored order-flow data for a day (one journal file). */
+export interface OrderFlowJournalRow {
+  symbol: string;
+  file: string;
+  /** "fyers_tbt" | "fyers" | "upstox" | "mixed" | "unknown" */
+  broker: string;
+  brokers_seen: string[];
+  bytes: number;
+  records: number;
+  ticks: number;
+  signals: number;
+  malformed: number;
+  first_ts: number | null;
+  last_ts: number | null;
+  covered_minutes: number;
+  coverage_pct: number;
+  gaps: OrderFlowJournalGap[];
+}
+
+export interface OrderFlowJournalSummary {
+  day: string;
+  session_start: string;
+  session_close: string;
+  session_minutes: number;
+  rows: OrderFlowJournalRow[];
+  total_bytes: number;
+  total_records: number;
+  overall_coverage_pct: number;
+  available_days: string[];
+  broker_available: boolean;
+  fetched_at: string;
+}
