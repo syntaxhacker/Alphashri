@@ -44,6 +44,8 @@
   .phase-badge{padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px;
     text-transform:uppercase;border:1px solid #4a3f1a;background:#1c1707;color:#f5c542;white-space:nowrap}
   .phase-badge.closed{border-color:#2a3340;background:#0e141d;color:#8b97a8}
+  .replay-badge{padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px;
+    text-transform:uppercase;border:1px solid #2f6f52;background:#0d1c14;color:#7fe0a8;white-space:nowrap}
   .price{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;min-width:78px}
   .stat{color:var(--muted);font-size:11px;display:flex;flex-direction:column;line-height:1.15}
   .stat .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -286,6 +288,7 @@
     <div class="signal-badge neutral" id="sigBadge" title="Confluence signal (needs ≥30s of data)">Signal —</div>
     <div class="src-badge" id="srcBadge" title="Active data source">—</div>
     <div class="phase-badge" id="phaseBadge" style="display:none"></div>
+    <div class="replay-badge" id="replayBadge" style="display:none"></div>
     <div class="price" id="lastPrice">—</div>
     <div class="divider"></div>
     <div class="stat"><span class="lbl">Spread</span><b id="spreadV">—</b></div>
@@ -1327,6 +1330,7 @@ const CONN = {
   paused: { cls:'status-dot wait', dot:'live paused', text:'Paused',        flow:'Paused'    },
   err:    { cls:'status-dot err',  dot:'live off',    text:'Error',         flow:'Idle'      },
   off:    { cls:'status-dot off',  dot:'live off',    text:'Disconnected',  flow:'Idle'      },
+  replay: { cls:'status-dot on',   dot:'live paused', text:'Replay',        flow:'Replay'    },
 };
 function setConnStatus(state, text){
   const c = CONN[state] || CONN.off;
@@ -1806,6 +1810,7 @@ function marketPhase(sec){
 function renderMarketPhase(){
   const el = document.getElementById('phaseBadge');
   if(!el) return;
+  if(REPLAY){ el.style.display = 'none'; return; }   // stored data has no live phase
   // The phase is a property of the session, not of the data, so use the wall
   // clock: driving it off the last tick left the badge stuck on "CAS" after
   // close, long after the auction had ended.
@@ -2448,6 +2453,142 @@ window.addEventListener('resize',()=>heatmap.requestUpdate());
      ?ws=<websocket url>  ?symbol=<TICKER>  ?autoconnect=1
    Token is read from the same-origin localStorage key used by the app.
 */
+/* ==================== REPLAY (stored journal, no socket) ====================
+   Loads a stored session over plain HTTP and renders it statically. This is a
+   separate branch from the live path: no WebSocket is opened, nothing is
+   journalled, and the render pipeline is fed exactly what the bridge's history
+   replay feeds it, so CVD/VWAP/L2/signals behave identically.
+
+   A whole session is ~180 MB, so the endpoint streams NDJSON and we consume it
+   record by record — one 180 MB JSON body would otherwise be buffered twice. */
+let REPLAY = null;
+
+/* HTTP base for journal fetches, derived from the configured bridge URL so it
+   always targets the same backend the socket would have used. */
+function apiHttpBase(){
+  const raw = (document.getElementById('wsUrl').value || '').trim();
+  try {
+    const u = new URL(raw);
+    return (u.protocol === 'wss:' ? 'https://' : 'http://') + u.host;
+  } catch(e){ return ''; }
+}
+
+async function loadReplay(opts){
+  const symbol = (opts.symbol || '').trim().toUpperCase();
+  const day = opts.day || '';
+  const start = opts.start || '';
+  const end = opts.end || '';
+  if(!symbol){ connLog('Replay: no symbol','err'); return; }
+
+  const token = (document.getElementById('apiKey').value || '').trim();
+  if(!token){ connLog('Replay: no session token','err'); return; }
+
+  // Live-mode UI (no sim controls) without opening a socket. switchMode() only
+  // arranges the UI here — connecting is connectLive(), which we never call.
+  switchMode('live');
+  disconnectLive();
+  clearAllData();
+
+  // connectLive() normally does these; replay bypasses it, so mirror them or the
+  // header keeps the previous symbol and the price precision is wrong.
+  TICK = parseFloat(document.getElementById('wsTick').value) || 0.05;
+  document.getElementById('tickV').textContent = TICK.toFixed(2);
+  document.getElementById('symLabel').textContent = symbol;
+  const replayDecimals = Math.max(0, -Math.floor(Math.log10(TICK)));
+  const replayPriceOpts = { type:'price', precision:replayDecimals, minMove:TICK };
+  midSeries.applyOptions({ priceFormat: replayPriceOpts });
+  bidSeries.applyOptions({ priceFormat: replayPriceOpts });
+  askSeries.applyOptions({ priceFormat: replayPriceOpts });
+  vwapSeries.applyOptions({ priceFormat: replayPriceOpts });
+
+  setConnStatus('wait','Loading replay…');
+
+  REPLAY = { symbol, day, start, end, records: 0, signals: 0 };
+  showReplayBadge(REPLAY);
+
+  // Nothing may be trimmed away while loading a whole session.
+  const savedHistorySec = HISTORY_SEC;
+  HISTORY_SEC = 7 * 24 * 3600;
+
+  const params = new URLSearchParams({ symbol, day });
+  if(opts.broker) params.set('broker', opts.broker);
+  if(start) params.set('start', start);
+  if(end) params.set('end', end);
+
+  try {
+    const res = await fetch(`${apiHttpBase()}/api/orderflow/journal/session?${params}`, {
+      headers: { Authorization: 'Bearer ' + token }
+    });
+    if(!res.ok){
+      const body = await res.text().catch(() => '');
+      throw new Error(`HTTP ${res.status} ${body.slice(0,120)}`);
+    }
+    if(!res.body || !res.body.getReader){
+      // Fallback for browsers without streaming bodies.
+      const text = await res.text();
+      text.split('\n').forEach(l => consumeReplayLine(l));
+    } else {
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = '';
+      for(;;){
+        const { done, value } = await reader.read();
+        if(done) break;
+        buf += decoder.decode(value, { stream: true });
+        let nl;
+        while((nl = buf.indexOf('\n')) >= 0){
+          consumeReplayLine(buf.slice(0, nl));
+          buf = buf.slice(nl + 1);
+        }
+        setConnStatus('replay', `Loading replay… ${REPLAY.records.toLocaleString()} records`);
+      }
+      if(buf.trim()) consumeReplayLine(buf);
+    }
+  } catch(err){
+    setConnStatus('err','Replay failed');
+    connLog('Replay failed: ' + (err && err.message ? err.message : err), 'err');
+    HISTORY_SEC = savedHistorySec;
+    return;
+  }
+
+  // Same finish the live history replay performs.
+  seriesNeedsFull = true; lastTableSig = null; lastTapeLen = -1;
+  renderChart();
+  updateUI();
+  chart.timeScale().fitContent();
+  setConnStatus('replay', `Replay · ${REPLAY.records.toLocaleString()} records`);
+  connLog(`Replay: ${REPLAY.records.toLocaleString()} records, ${REPLAY.signals} signals from ${symbol} ${day}`, 'ok');
+}
+
+function consumeReplayLine(line){
+  const text = (line || '').trim();
+  if(!text) return;
+  let rec;
+  try { rec = JSON.parse(text); } catch(e){ return; }
+  if(rec.type === 'meta') return;              // header line
+  const data = rec.data;
+  if(!data || typeof data !== 'object') return;
+  if(rec.kind === 'signal'){
+    REPLAY.signals++;
+    feedSignal(data);
+    return;
+  }
+  REPLAY.records++;
+  processLiveData(data, true);                 // silent: one render at the end
+}
+
+function showReplayBadge(info){
+  const el = document.getElementById('replayBadge');
+  if(!el) return;
+  const range = info.start && info.end ? ` ${info.start}–${info.end}` : '';
+  el.style.display = '';
+  el.textContent = `Replay · ${info.symbol} ${info.day}${range}`;
+  const phase = document.getElementById('phaseBadge');
+  if(phase) phase.style.display = 'none';       // phase is meaningless for stored data
+  const mode = document.getElementById('modeBadge');
+  if(mode){ mode.className = 'mode-badge sim'; mode.textContent = 'REPLAY'; }
+}
+
 (function () {
   var params = new URLSearchParams(window.location.search);
   var wsUrlEl = document.getElementById('wsUrl');
@@ -2479,7 +2620,16 @@ window.addEventListener('resize',()=>heatmap.requestUpdate());
     if (tickEl) tickEl.value = tick;
   }
 
-  if (params.get('autoconnect') === '1' && token) {
+  if (params.get('replay') === '1') {
+    // Replay branch: no WebSocket, no autoconnect — just load stored records.
+    loadReplay({
+      symbol: params.get('symbol') || '',
+      day: params.get('day') || '',
+      start: params.get('start') || '',
+      end: params.get('end') || '',
+      broker: params.get('broker') || ''
+    });
+  } else if (params.get('autoconnect') === '1' && token) {
     document.getElementById('modeLiveBtn').click();
     document.getElementById('connectBtn').click();
   }

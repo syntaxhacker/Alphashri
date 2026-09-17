@@ -20,6 +20,7 @@ import {
   ToolbarRow,
 } from "@/ui";
 import { connectUpstox, getBrokerStatus } from "@/api/brokers";
+import { listJournalFiles, type JournalFile } from "@/api/orderflowJournal";
 import {
   getExpiries,
   getOptionChain,
@@ -46,7 +47,7 @@ function resolveBridgeWsUrl(): string {
   }
 }
 
-type Mode = "manual" | "options";
+type Mode = "manual" | "options" | "replay";
 type OptionType = "CE" | "PE";
 
 /** Data-source brokers and their capability labels (single source of truth). */
@@ -132,6 +133,12 @@ export function OrderFlowPage() {
   );
 
   const [mode, setMode] = useState<Mode>("manual");
+  // Replay: the stored journals to choose from, and the chosen one.
+  const [journalFiles, setJournalFiles] = useState<JournalFile[]>([]);
+  const [replayDay, setReplayDay] = useState<string | null>(null);
+  const [replayFile, setReplayFile] = useState<string | null>(null);
+  const [replayRange, setReplayRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
+  const [journalError, setJournalError] = useState<string | null>(null);
   const [underlyings, setUnderlyings] = useState<Underlying[]>([]);
   const [underlying, setUnderlying] = useState<string | null>(null);
   const [expiries, setExpiries] = useState<Expiry[]>([]);
@@ -183,6 +190,38 @@ export function OrderFlowPage() {
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, [broker]);
+
+  // Fetch the stored-file list lazily, only when Replay is opened — the live
+  // modes never touch the journal.
+  useEffect(() => {
+    if (mode !== "replay" || journalFiles.length > 0) return;
+    let alive = true;
+    listJournalFiles()
+      .then((files) => {
+        if (!alive) return;
+        setJournalFiles(files);
+        setJournalError(null);
+        if (files.length > 0) {
+          setReplayFile((current) => current ?? files[0].file);
+          setReplayDay((current) => current ?? files[0].day);
+        }
+      })
+      .catch((err) => {
+        if (alive) setJournalError(err instanceof Error ? err.message : "Failed to list journals");
+      });
+    return () => {
+      alive = false;
+    };
+  }, [mode, journalFiles.length]);
+
+  const replayDays = useMemo(
+    () => Array.from(new Set(journalFiles.map((f) => f.day))).sort().reverse(),
+    [journalFiles],
+  );
+  const replayFilesForDay = useMemo(
+    () => journalFiles.filter((f) => !replayDay || f.day === replayDay),
+    [journalFiles, replayDay],
+  );
 
   const refreshBrokerStatus = useCallback(() => {
     setBrokerConnected(null);
@@ -302,7 +341,26 @@ export function OrderFlowPage() {
     [chain],
   );
 
+  const activeJournal = useMemo(
+    () => journalFiles.find((f) => f.file === replayFile) ?? null,
+    [journalFiles, replayFile],
+  );
+
   const src = useMemo(() => {
+    // Replay is a separate branch in the visualiser: it opens no socket, so
+    // autoconnect must never be set here.
+    if (mode === "replay" && activeJournal) {
+      const params = new URLSearchParams({
+        ws: bridgeUrl,
+        replay: "1",
+        symbol: activeJournal.symbol,
+        day: activeJournal.day,
+        broker: activeJournal.broker,
+      });
+      if (replayRange.from) params.set("start", replayRange.from);
+      if (replayRange.to) params.set("end", replayRange.to);
+      return `/orderflow/index.html?${params.toString()}`;
+    }
     const params = new URLSearchParams({
       ws: bridgeUrl,
       symbol: activeSymbol,
@@ -314,7 +372,10 @@ export function OrderFlowPage() {
     return `/orderflow/index.html?${params.toString()}`;
     // reloadKey forces the iframe to remount on reconnect
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bridgeUrl, activeSymbol, activeTick, brokerConnected, broker, needsUpstox, reloadKey]);
+  }, [
+    bridgeUrl, activeSymbol, activeTick, brokerConnected, broker, needsUpstox,
+    reloadKey, mode, activeJournal, replayRange,
+  ]);
 
   return (
     <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="orderflow-page">
@@ -331,6 +392,7 @@ export function OrderFlowPage() {
           data={[
             { value: "manual", label: "Manual" },
             { value: "options", label: "Options" },
+            { value: "replay", label: "Replay" },
           ]}
           value={mode}
           onChange={(value) => setMode(value as Mode)}
@@ -395,6 +457,75 @@ export function OrderFlowPage() {
           {BROKER_NOTES[broker] ?? BROKER_NOTES[DEFAULT_BROKER]}
         </Text>
       </ToolbarRow>
+
+      {mode === "replay" && (
+        <ToolbarRow
+          gap={8}
+          style={{ padding: "8px 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+          data-testid="orderflow-replay-row"
+        >
+          <Select
+            size="sm"
+            w={130}
+            label="Day"
+            data={replayDays.map((d) => ({ value: d, label: d }))}
+            value={replayDay}
+            onChange={(value) => {
+              setReplayDay(value);
+              const first = journalFiles.find((f) => f.day === value);
+              setReplayFile(first ? first.file : null);
+            }}
+            data-testid="orderflow-replay-day"
+          />
+          <Select
+            size="sm"
+            w={230}
+            label="File"
+            data={replayFilesForDay.map((f) => ({
+              value: f.file,
+              label: `${f.symbol} · ${f.broker} · ${(f.bytes / 1048576).toFixed(1)} MB`,
+            }))}
+            value={replayFile}
+            onChange={setReplayFile}
+            data-testid="orderflow-replay-file"
+          />
+          <TextInput
+            size="sm"
+            w={90}
+            label="From"
+            placeholder="09:15"
+            value={replayRange.from}
+            onChange={(v) => setReplayRange((r) => ({ ...r, from: v }))}
+            data-testid="orderflow-replay-from"
+          />
+          <TextInput
+            size="sm"
+            w={90}
+            label="To"
+            placeholder="15:15"
+            value={replayRange.to}
+            onChange={(v) => setReplayRange((r) => ({ ...r, to: v }))}
+            data-testid="orderflow-replay-to"
+          />
+          <Button
+            size="sm"
+            variant="filled"
+            onClick={() => setReloadKey((k) => k + 1)}
+            disabled={!replayFile}
+            data-testid="orderflow-replay-load"
+          >
+            Load
+          </Button>
+          {journalError && (
+            <Text size="xs" c="red" data-testid="orderflow-replay-error">
+              {journalError}
+            </Text>
+          )}
+          <Text size="xs" c="dimmed">
+            Loads stored data only — no live stream is opened.
+          </Text>
+        </ToolbarRow>
+      )}
 
       {mode === "options" && (
         <ToolbarRow

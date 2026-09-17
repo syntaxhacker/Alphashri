@@ -13,6 +13,12 @@ vi.mock("@/api/brokers", () => ({
   connectUpstox: vi.fn(),
 }));
 
+const mockJournalFiles = vi.fn();
+
+vi.mock("@/api/orderflowJournal", () => ({
+  listJournalFiles: (...args: unknown[]) => mockJournalFiles(...args),
+}));
+
 vi.mock("@/api/upstoxOptions", () => ({
   getUnderlyings: vi.fn(),
   getExpiries: vi.fn(),
@@ -37,6 +43,7 @@ function contract(instrumentKey: string, type: "CE" | "PE", strike: number, tick
 
 beforeEach(() => {
   vi.clearAllMocks();
+  mockJournalFiles.mockResolvedValue([]);
   mockStatus.mockResolvedValue({ connected: true, broker: "upstox", expires_in_hours: 12, expires_at: null });
   mockUnderlyings.mockResolvedValue([
     { symbol: "NIFTY", name: "Nifty 50", instrument_key: "NSE_INDEX|Nifty 50", lot_size: 50, tick_size: 0.05 },
@@ -246,5 +253,68 @@ describe("OrderFlowPage auth failures", () => {
     window.dispatchEvent(new MessageEvent("message", { data: "not-an-object" }));
 
     expect(screen.queryByTestId("orderflow-auth-error-modal")).not.toBeInTheDocument();
+  });
+});
+
+describe("OrderFlowPage replay mode", () => {
+  test("replay mode lists stored journals and loads the chosen one without autoconnect", async () => {
+    mockJournalFiles.mockResolvedValue([
+      { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 55 * 1048576, modified: 1 },
+      { file: "fyers_tbt_TCS_2026-09-16.jsonl", day: "2026-09-16", symbol: "TCS", broker: "fyers_tbt", bytes: 8 * 1048576, modified: 2 },
+    ]);
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    await screen.findByTestId("orderflow-replay-row");
+
+    // newest day first, and the newest file is selected by default
+    await waitFor(() => expect(mockJournalFiles).toHaveBeenCalled());
+    const params = await iframeParams();
+    expect(params.get("replay")).toBe("1");
+    expect(params.get("symbol")).toBe("RELIANCE");
+    expect(params.get("day")).toBe("2026-09-17");
+    // a replay must never open a live socket
+    expect(params.get("autoconnect")).toBeNull();
+  });
+
+  test("replay passes an optional time range through to the visualiser", async () => {
+    mockJournalFiles.mockResolvedValue([
+      { file: "RELIANCE_2026-09-17.jsonl", day: "2026-09-17", symbol: "RELIANCE", broker: "fyers_tbt", bytes: 1, modified: 1 },
+    ]);
+
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    await screen.findByTestId("orderflow-replay-row");
+
+    await user.type(screen.getByTestId("orderflow-replay-from"), "09:15");
+    await user.type(screen.getByTestId("orderflow-replay-to"), "15:15");
+    await user.click(screen.getByTestId("orderflow-replay-load"));
+
+    await waitFor(async () => {
+      const params = await iframeParams();
+      expect(params.get("start")).toBe("09:15");
+      expect(params.get("end")).toBe("15:15");
+    });
+  });
+
+  test("surfaces a journal listing failure", async () => {
+    mockJournalFiles.mockRejectedValue(new Error("journal listing failed"));
+    const user = userEvent.setup();
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+
+    await user.click(within(screen.getByTestId("orderflow-mode")).getByRole("button", { name: "Replay" }));
+    expect(await screen.findByTestId("orderflow-replay-error")).toHaveTextContent("journal listing failed");
+  });
+
+  test("live modes do not fetch the journal", async () => {
+    renderPage();
+    await screen.findByTestId("orderflow-iframe");
+    expect(mockJournalFiles).not.toHaveBeenCalled();
   });
 });

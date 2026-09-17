@@ -29,9 +29,10 @@ import queue as thr_queue
 import threading
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.responses import StreamingResponse
 
-from api.auth import decode_token
+from api.auth import decode_token, get_current_user
 from api.paper.live_stream import _get_upstox_token
 from api import orderflow_journal
 from api.orderflow_signals import OrderFlowSignalEngine
@@ -805,3 +806,86 @@ async def orderflow_ws(websocket: WebSocket):
             pass
         if pump_task is not None:
             pump_task.cancel()
+
+
+# --------------------------------------------------------------------------- #
+# Journal browsing / replay (read-only)
+#
+# The recorded journal is shared market data, so these are authenticated but not
+# admin-gated: the Order Flow tab is available to any signed-in user while the
+# admin panel is not. Nothing here writes, and none of it touches the live
+# bridge or the recorder.
+# --------------------------------------------------------------------------- #
+
+@router.get("/api/orderflow/journal/files")
+async def list_journal_files_route(days: int = 30, _user=Depends(get_current_user)):
+    """Stored journal files, newest first — powers the replay picker."""
+    try:
+        files = await asyncio.to_thread(orderflow_journal.list_journal_files, days)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=500, detail=f"journal listing failed: {exc}")
+    return {"files": files, "count": len(files)}
+
+
+def _parse_hhmm(value: Optional[str]) -> Optional[int]:
+    if not value:
+        return None
+    try:
+        hour, minute = value.split(":")
+        return int(hour) * 60 + int(minute)
+    except (ValueError, AttributeError):
+        raise HTTPException(status_code=400, detail=f"bad time '{value}', expected HH:MM")
+
+
+@router.get("/api/orderflow/journal/session")
+async def get_journal_session(
+    symbol: str,
+    day: Optional[str] = None,
+    broker: Optional[str] = None,
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+    _user=Depends(get_current_user),
+):
+    """Stream one day's stored records as NDJSON.
+
+    A whole session is ~180 MB, so a single JSON body would mean buffering it
+    twice in the browser. Streaming one record per line keeps memory flat on
+    both sides and lets the client feed its pipeline as it arrives.
+
+    Line 1 is a ``meta`` object; every later line is the stored record shape
+    (``{"ts", "kind", "data"}``) — identical to the bridge's history replay, so
+    consumers need no new parsing logic.
+    """
+    if not symbol:
+        raise HTTPException(status_code=400, detail="symbol is required")
+    start_minute = _parse_hhmm(start)
+    end_minute = _parse_hhmm(end)
+    resolved_day = day or orderflow_journal._today()
+    resolved_broker = (broker or "").strip().lower() or None
+
+    meta = {
+        "type": "meta",
+        "symbol": symbol.strip().upper(),
+        "day": resolved_day,
+        "broker": resolved_broker,
+        "start": start,
+        "end": end,
+        "enabled": orderflow_journal.is_enabled(),
+    }
+
+    def generate():
+        yield json.dumps(meta) + "\n"
+        for line in orderflow_journal.iter_session(
+            symbol,
+            day=resolved_day,
+            broker=resolved_broker,
+            start_minute=start_minute,
+            end_minute=end_minute,
+        ):
+            yield line + "\n"
+
+    return StreamingResponse(
+        generate(),
+        media_type="application/x-ndjson",
+        headers={"Cache-Control": "no-store", "X-Accel-Buffering": "no"},
+    )

@@ -524,3 +524,80 @@ def _read_file(path: Path, kind: Optional[str]) -> list[dict]:
     except Exception:
         return out
     return out
+
+
+def list_journal_files(days: Optional[int] = 30) -> list[dict]:
+    """Every stored journal file, newest day first — for the replay picker.
+
+    Reads names and stat only (no content scan), so it stays fast regardless of
+    how much has been recorded.
+    """
+    directory = journal_dir()
+    if not directory.exists():
+        return []
+    rows: list[dict] = []
+    for path in directory.glob("*.jsonl"):
+        broker, symbol, day = split_journal_name(path)
+        if not day:
+            continue
+        try:
+            stat = path.stat()
+        except OSError:
+            continue
+        rows.append(
+            {
+                "file": path.name,
+                "day": day,
+                "symbol": symbol,
+                "broker": broker or "legacy",
+                "bytes": stat.st_size,
+                "modified": int(stat.st_mtime * 1000),
+            }
+        )
+    rows.sort(key=lambda r: (r["day"], r["symbol"]), reverse=True)
+    if days and days > 0:
+        keep = sorted({r["day"] for r in rows}, reverse=True)[:days]
+        rows = [r for r in rows if r["day"] in keep]
+    return rows
+
+
+def iter_session(
+    symbol: str,
+    day: Optional[str] = None,
+    broker: Optional[str] = None,
+    start_minute: Optional[int] = None,
+    end_minute: Optional[int] = None,
+):
+    """Yield one stored record at a time for a symbol/day (memory-flat).
+
+    Records come out in stored order with their original ``kind`` and ``data``,
+    which is exactly the shape the bridge's history replay uses, so a consumer
+    can feed them straight into the existing pipeline. ``start_minute`` and
+    ``end_minute`` are minutes-of-day in IST for range filtering.
+    """
+    day = day or _today()
+    paths = journal_files(symbol, day) if broker else (
+        [legacy_path(symbol, day)] if legacy_path(symbol, day).exists() else []
+    )
+    for path in paths:
+        if not path.exists():
+            continue
+        try:
+            handle = path.open("r", encoding="utf-8")
+        except OSError:
+            continue
+        with handle:
+            for line in handle:
+                line = line.strip()
+                if not line:
+                    continue
+                if start_minute is not None or end_minute is not None:
+                    match = _TS_RE.search(line)
+                    if match:
+                        moment = datetime.fromtimestamp(int(match.group(1)) / 1000, tz=config.IST)
+                        minute = moment.hour * 60 + moment.minute
+                        if start_minute is not None and minute < start_minute:
+                            continue
+                        if end_minute is not None and minute >= end_minute:
+                            continue
+                yield line

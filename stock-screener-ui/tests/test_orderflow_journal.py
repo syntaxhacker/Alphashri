@@ -569,3 +569,69 @@ class TestAuctionWindow:
         )
         assert out["rows"][0]["covered_minutes"] == 1
         assert out["rows"][0]["gaps"][0]["minutes"] == 359
+
+
+class TestListJournalFiles:
+    """The replay picker reads names + stat only, so it stays fast."""
+
+    def test_lists_files_newest_day_first(self, journal_tmp):
+        _write_journal_named(journal_tmp, "fyers_tbt", "RELIANCE", datetime(2026, 9, 18, tzinfo=config.IST), [])
+        _write_journal_named(journal_tmp, "upstox", "TCS", datetime(2026, 9, 17, tzinfo=config.IST), [])
+
+        rows = orderflow_journal.list_journal_files()
+        assert [r["day"] for r in rows] == ["2026-09-18", "2026-09-17"]
+        assert rows[0]["broker"] == "fyers_tbt" and rows[0]["symbol"] == "RELIANCE"
+        assert rows[1]["broker"] == "upstox" and rows[1]["symbol"] == "TCS"
+
+    def test_reports_legacy_files_without_a_broker_prefix(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "SBIN", day, [(_ms(day, 9, 15), TBT_TICK)])
+
+        row = orderflow_journal.list_journal_files()[0]
+        assert row["broker"] == "legacy"
+        assert row["bytes"] > 0
+
+    def test_day_limit_keeps_only_the_newest(self, journal_tmp):
+        for day in ("2026-09-14", "2026-09-15", "2026-09-16"):
+            _write_journal_named(journal_tmp, "fyers_tbt", "RELIANCE",
+                                 datetime.strptime(day, "%Y-%m-%d").replace(tzinfo=config.IST), [])
+        assert [r["day"] for r in orderflow_journal.list_journal_files(days=2)] == [
+            "2026-09-16", "2026-09-15"
+        ]
+
+    def test_empty_directory_is_safe(self, journal_tmp):
+        assert orderflow_journal.list_journal_files() == []
+
+
+class TestIterSession:
+    """Streams stored records one at a time, in the shape the bridge replays."""
+
+    def test_yields_raw_stored_lines(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "RELIANCE", day, [
+            (_ms(day, 9, 15), TBT_TICK),
+            (_ms(day, 9, 16), TBT_TICK),
+        ])
+
+        lines = list(orderflow_journal.iter_session("RELIANCE", day="2026-09-17"))
+        assert len(lines) == 2
+        record = json.loads(lines[0])
+        assert set(record) == {"ts", "kind", "data"}   # same shape the bridge sends
+        assert orderflow_journal.infer_broker(record["data"]) == "fyers_tbt"
+
+    def test_window_filters_by_minute_of_day(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "RELIANCE", day, [
+            (_ms(day, 9, 15), TBT_TICK),
+            (_ms(day, 12, 0), TBT_TICK),
+            (_ms(day, 15, 20), TBT_TICK),
+        ])
+
+        # inclusive start, exclusive end, minutes-of-day in IST
+        lines = list(orderflow_journal.iter_session(
+            "RELIANCE", day="2026-09-17", start_minute=9 * 60 + 15, end_minute=13 * 60
+        ))
+        assert len(lines) == 2
+
+    def test_unknown_symbol_yields_nothing(self, journal_tmp):
+        assert list(orderflow_journal.iter_session("NOPE", day="2026-09-17")) == []
