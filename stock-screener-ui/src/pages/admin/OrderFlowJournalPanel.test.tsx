@@ -43,8 +43,11 @@ function summary(overrides: Partial<OrderFlowJournalSummary> = {}): OrderFlowJou
   return {
     day: "2026-09-17",
     session_start: "09:15",
-    session_close: "15:30",
-    session_minutes: 375,
+    session_close: "15:15",
+    session_minutes: 360,
+    full_session_close: "15:30",
+    full_session_minutes: 375,
+    auction_minutes: 15,
     rows: [row()],
     total_bytes: 122 * 1048576,
     total_records: 25817,
@@ -100,7 +103,7 @@ describe("OrderFlowJournalPanel", () => {
     renderWithProviders(<OrderFlowJournalPanel />);
     // "13.1%" appears in both the summary stat and the row, so assert on the
     // unique session hint and the stat label instead.
-    expect(await screen.findByText(/09:15–15:30 · 375 min/)).toBeInTheDocument();
+    expect(await screen.findByText(/09:15–15:15 · 360 min/)).toBeInTheDocument();
     expect(screen.getByText("Session coverage")).toBeInTheDocument();
     expect(screen.getAllByText("13.1%").length).toBeGreaterThan(0);
   });
@@ -189,5 +192,28 @@ describe("OrderFlowJournalPanel broker-name verification", () => {
 
     await screen.findByTestId("ofj-broker-fyers_tbt");
     expect(screen.queryByTestId("ofj-broker-mismatch")).not.toBeInTheDocument();
+  });
+});
+
+describe("OrderFlowJournalPanel closing-auction window", () => {
+  it("explains that coverage is measured to the continuous close, not the full session", async () => {
+    renderWithProviders(<OrderFlowJournalPanel />);
+
+    const note = await screen.findByTestId("ofj-cas-note");
+    expect(note).toHaveTextContent("Measured to");
+    expect(note).toHaveTextContent("15:15");
+    expect(note).toHaveTextContent("closing auction");
+    expect(note).toHaveTextContent("15:30");
+    expect(note).toHaveTextContent("15 min");
+  });
+
+  it("hides the auction note when the window has no auction tail", async () => {
+    fetchWithAuthMock.mockImplementation(() =>
+      mockResponse(summary({ auction_minutes: 0, full_session_close: "15:15", full_session_minutes: 360 })),
+    );
+    renderWithProviders(<OrderFlowJournalPanel />);
+
+    await screen.findByTestId("orderflow-journal-table");
+    expect(screen.queryByTestId("ofj-cas-note")).not.toBeInTheDocument();
   });
 });

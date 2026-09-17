@@ -522,3 +522,50 @@ class TestReadAllAndSources:
     def test_read_all_is_empty_for_an_unknown_symbol(self, journal_tmp):
         assert orderflow_journal.read_all("NOPE") == []
         assert orderflow_journal.sources("NOPE") == []
+
+
+class TestAuctionWindow:
+    """NSE's closing auction starts at 15:15 and prints no trades.
+
+    Coverage must therefore be measured to the continuous close, or a flawless
+    day can never reach 100% and every summary looks 4% short.
+    """
+
+    def test_continuous_close_is_the_coverage_denominator(self, journal_tmp):
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "RELIANCE", day, [(_ms(day, 9, 15), TBT_TICK)])
+
+        out = orderflow_journal.summarize_day(
+            "2026-09-17",
+            session_start=(9, 15),
+            session_close=(15, 15),
+            full_session_close=(15, 30),
+        )
+        assert out["session_start"] == "09:15"
+        assert out["session_close"] == "15:15"
+        assert out["session_minutes"] == 360
+        assert out["full_session_close"] == "15:30"
+        assert out["full_session_minutes"] == 375
+        assert out["auction_minutes"] == 15
+
+    def test_no_auction_tail_when_the_window_already_ends_at_the_close(self, journal_tmp):
+        out = orderflow_journal.summarize_day("2026-09-17")
+        assert out["auction_minutes"] == 0
+        assert out["full_session_close"] == out["session_close"]
+
+    def test_coverage_ignores_auction_minutes(self, journal_tmp):
+        """A record at 15:20 is inside the auction, so it must not count."""
+        day = datetime(2026, 9, 17, tzinfo=config.IST)
+        _write_journal(journal_tmp, "RELIANCE", day, [
+            (_ms(day, 9, 15), TBT_TICK),   # during continuous trading
+            (_ms(day, 15, 20), TBT_TICK),  # during the closing auction
+        ])
+
+        out = orderflow_journal.summarize_day(
+            "2026-09-17",
+            session_start=(9, 15),
+            session_close=(15, 15),
+            full_session_close=(15, 30),
+        )
+        assert out["rows"][0]["covered_minutes"] == 1
+        assert out["rows"][0]["gaps"][0]["minutes"] == 359

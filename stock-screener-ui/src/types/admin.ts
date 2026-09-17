@@ -127,8 +127,14 @@ export interface OrderFlowJournalRow {
 export interface OrderFlowJournalSummary {
   day: string;
   session_start: string;
+  /** End of continuous trading — coverage is measured against this. */
   session_close: string;
   session_minutes: number;
+  /** Wall-clock end of the session including the closing auction (e.g. 15:30). */
+  full_session_close: string;
+  full_session_minutes: number;
+  /** Minutes between the continuous close and the full close (the CAS window). */
+  auction_minutes: number;
   rows: OrderFlowJournalRow[];
   total_bytes: number;
   total_records: number;

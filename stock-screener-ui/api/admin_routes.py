@@ -630,7 +630,7 @@ async def get_orderflow_journal(
     _require_admin(current_user)
 
     from api import orderflow_journal
-    from trading.utils import MARKET_CLOSE, MARKET_OPEN
+    from trading.utils import CONTINUOUS_CLOSE, MARKET_CLOSE, MARKET_OPEN
 
     if day is not None:
         try:
@@ -639,8 +639,14 @@ async def get_orderflow_journal(
             raise HTTPException(status_code=400, detail="day must be YYYY-MM-DD")
 
     try:
+        # Coverage is measured against the *continuous* session: from 15:15 the
+        # closing auction takes over and no trades print, so including 15:15-15:30
+        # would cap a perfect day below 100%.
         summary = orderflow_journal.summarize_day(
-            day, session_start=MARKET_OPEN, session_close=MARKET_CLOSE
+            day,
+            session_start=MARKET_OPEN,
+            session_close=CONTINUOUS_CLOSE,
+            full_session_close=MARKET_CLOSE,
         )
     except Exception as exc:  # noqa: BLE001 - surface, don't 500 blindly
         raise HTTPException(status_code=500, detail=f"journal scan failed: {exc}")

@@ -241,6 +241,13 @@ export function OrderFlowJournalPanel() {
             <Text size="xs" c="dimmed">
               Coverage = share of session minutes with at least one stored record. Auto-refreshes every 60s.
             </Text>
+            {summary.auction_minutes > 0 && (
+              <Text size="xs" c="dimmed" data-testid="ofj-cas-note">
+                Measured to <b>{summary.session_close}</b> — continuous cash trading ends there
+                (NSE closing auction runs until {summary.full_session_close}, so no trades print
+                in the last {summary.auction_minutes} min).
+              </Text>
+            )}
           </Group>
 
           <CompactPanel title={`Stored data — ${summary.day}`}>

@@ -297,6 +297,7 @@ def summarize_day(
     day: Optional[str] = None,
     session_start: tuple = (9, 15),
     session_close: tuple = (15, 30),
+    full_session_close: Optional[tuple] = None,
 ) -> dict:
     """Per-file summary of one day's journal: size, records, broker, coverage.
 
@@ -341,7 +342,9 @@ def summarize_day(
                         last_ms = ms
                     key, moment = _minute_key(ms, config.IST)
                     minutes_in_day = moment.hour * 60 + moment.minute
-                    if start_minutes <= minutes_in_day <= end_minutes:
+                    # Half-open [start, end): exactly session_minutes slots, so
+                    # covered + uncovered always adds up to the session length.
+                    if start_minutes <= minutes_in_day < end_minutes:
                         minutes.add(key)
                 if _SIGNAL_RE.search(line):
                     signals += 1
@@ -384,6 +387,29 @@ def summarize_day(
         "session_start": f"{session_start[0]:02d}:{session_start[1]:02d}",
         "session_close": f"{session_close[0]:02d}:{session_close[1]:02d}",
         "session_minutes": session_minutes,
+        # The measured window ends at the continuous close; the full session
+        # (incl. the closing auction) is reported separately so nothing is hidden.
+        "full_session_close": (
+            f"{full_session_close[0]:02d}:{full_session_close[1]:02d}"
+            if full_session_close
+            else f"{session_close[0]:02d}:{session_close[1]:02d}"
+        ),
+        "full_session_minutes": (
+            max(
+                1,
+                (full_session_close[0] * 60 + full_session_close[1]) - start_minutes,
+            )
+            if full_session_close
+            else session_minutes
+        ),
+        "auction_minutes": (
+            max(
+                0,
+                (full_session_close[0] * 60 + full_session_close[1]) - end_minutes,
+            )
+            if full_session_close
+            else 0
+        ),
         "rows": rows,
         "total_bytes": sum(r["bytes"] for r in rows),
         "total_records": sum(r["records"] for r in rows),
@@ -402,19 +428,19 @@ def _gaps(minutes: set[str], day: str, session_start: tuple, session_close: tupl
     gaps: list[dict] = []
     run_start = None
     cursor = start
-    while cursor <= end:
+    while cursor < end:
         key = cursor.strftime("%Y-%m-%dT%H:%M")
-        present = key in minutes
-        if not present and run_start is None:
-            run_start = cursor
-        elif present and run_start is not None:
+        if key not in minutes:
+            if run_start is None:
+                run_start = cursor
+        elif run_start is not None:
             gaps.append({"from": run_start.strftime("%H:%M"), "to": cursor.strftime("%H:%M"),
                          "minutes": int((cursor - run_start).total_seconds() // 60)})
             run_start = None
         cursor += timedelta(minutes=1)
     if run_start is not None:
         gaps.append({"from": run_start.strftime("%H:%M"), "to": end.strftime("%H:%M"),
-                     "minutes": int((end - run_start).total_seconds() // 60) + 1})
+                     "minutes": int((end - run_start).total_seconds() // 60)})
     gaps.sort(key=lambda g: g["minutes"], reverse=True)
     return gaps[:5]
 

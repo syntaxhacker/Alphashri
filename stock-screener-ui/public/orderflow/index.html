@@ -39,6 +39,11 @@
   .signal-badge.strong-sell{background:#4a1214;color:#ffeceb;border-color:#dc2626;box-shadow:0 0 10px rgba(220,38,38,.55);animation:pulse 1.1s infinite}
   .src-badge{padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px;text-transform:uppercase;border:1px solid #26303d;background:#0e141d;color:#8b97a8;white-space:nowrap}
   .src-badge.strong{border-color:#2563EB;color:#9ec1ff;background:#0f1a2e}
+  /* Session phase: from 15:15 NSE's closing auction takes over, so no trades
+     print. Without saying so, a frozen tape/CVD reads as a broken feed. */
+  .phase-badge{padding:3px 8px;border-radius:4px;font-size:9px;font-weight:700;letter-spacing:.5px;
+    text-transform:uppercase;border:1px solid #4a3f1a;background:#1c1707;color:#f5c542;white-space:nowrap}
+  .phase-badge.closed{border-color:#2a3340;background:#0e141d;color:#8b97a8}
   .price{font-variant-numeric:tabular-nums;font-weight:700;font-size:14px;min-width:78px}
   .stat{color:var(--muted);font-size:11px;display:flex;flex-direction:column;line-height:1.15}
   .stat .lbl{font-size:9px;text-transform:uppercase;letter-spacing:.6px;color:var(--muted)}
@@ -280,6 +285,7 @@
     <div class="mode-badge sim" id="modeBadge">SIM</div>
     <div class="signal-badge neutral" id="sigBadge" title="Confluence signal (needs ≥30s of data)">Signal —</div>
     <div class="src-badge" id="srcBadge" title="Active data source">—</div>
+    <div class="phase-badge" id="phaseBadge" style="display:none"></div>
     <div class="price" id="lastPrice">—</div>
     <div class="divider"></div>
     <div class="stat"><span class="lbl">Spread</span><b id="spreadV">—</b></div>
@@ -1265,6 +1271,19 @@ if(typeof document !== 'undefined' && document.addEventListener){
   });
 }
 
+/* The session phase changes with the clock, not with the feed, so refresh it
+   on a timer too — otherwise it only moves when a tick arrives. */
+if(typeof setInterval === 'function'){
+  setInterval(() => { try { renderMarketPhase(); } catch(e){} }, 30000);
+}
+// Render once at load so the phase is right before any tick arrives (e.g. a
+// page opened after the close would otherwise show nothing for up to 30s).
+if(typeof document !== 'undefined' && document.readyState !== 'loading'){
+  renderMarketPhase();
+} else if(typeof document !== 'undefined' && document.addEventListener){
+  document.addEventListener('DOMContentLoaded', renderMarketPhase);
+}
+
 /* Incremental chart paint: amend the last point instead of re-pushing every
    bar. ``update()`` overwrites the tail when the time matches and appends when
    it advances, so this is O(1) per frame either way. */
@@ -1768,8 +1787,41 @@ function applyMarkers(){
   markers.setMarkers(mks);
 }
 
+/* NSE cash session phases. Continuous trading ends at 15:15 when the closing
+   auction (CAS) takes over: depth keeps updating but volume and prints stop. */
+const PHASE_OPEN_MIN = 9 * 60 + 15;
+const PHASE_CONTINUOUS_CLOSE_MIN = 15 * 60 + 15;
+const PHASE_CLOSE_MIN = 15 * 60 + 30;
+
+function marketPhase(sec){
+  if(!isFinite(sec)) return null;
+  const d = new Date(sec * 1000);
+  const mins = d.getHours() * 60 + d.getMinutes();
+  if(mins < PHASE_OPEN_MIN) return { key:'pre', label:'Pre-open', cls:'' };
+  if(mins < PHASE_CONTINUOUS_CLOSE_MIN) return null;          // normal session
+  if(mins < PHASE_CLOSE_MIN) return { key:'cas', label:'CAS · closing auction — no trades', cls:'' };
+  return { key:'closed', label:'Closed', cls:'closed' };
+}
+
+function renderMarketPhase(){
+  const el = document.getElementById('phaseBadge');
+  if(!el) return;
+  // The phase is a property of the session, not of the data, so use the wall
+  // clock: driving it off the last tick left the badge stuck on "CAS" after
+  // close, long after the auction had ended.
+  const phase = marketPhase(Date.now() / 1000);
+  if(!phase){ el.style.display = 'none'; el.textContent = ''; return; }
+  el.style.display = '';
+  el.className = 'phase-badge' + (phase.cls ? ' ' + phase.cls : '');
+  el.textContent = phase.label;
+  el.title = phase.key === 'cas'
+    ? 'NSE closing auction: continuous trading stopped at 15:15, so volume, prints and CVD stop updating while depth continues.'
+    : '';
+}
+
 function updateUI(){
   const last = bars[bars.length-1]; if(!last) return;
+  renderMarketPhase();
   const prev = bars[bars.length-2];
   const lp = document.getElementById('lastPrice');
   lp.textContent = last.mid.toFixed(TICK < 0.1 ? 2 : 1);
