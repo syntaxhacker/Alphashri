@@ -8,6 +8,7 @@ export interface OptionGreeks {
   vega: number;
   theta: number;
   iv: number;
+  pop?: number;
 }
 
 export interface MarketData {
@@ -17,6 +18,9 @@ export interface MarketData {
   bid_price: number;
   ask_price: number;
   prev_oi: number;
+  close_price?: number;
+  bid_qty?: number;
+  ask_qty?: number;
 }
 
 export interface OptionContract {
@@ -62,6 +66,14 @@ export interface OptionChainSummary {
   total_ce_oi: number;
   total_pe_oi: number;
   dte: number;
+  atm_iv?: number;
+}
+
+export interface StrikeRow {
+  strike: number;
+  ce: OptionContract | null;
+  pe: OptionContract | null;
+  pcr?: number | null;
 }
 
 export interface OptionChainResponse {
@@ -70,11 +82,7 @@ export interface OptionChainResponse {
   expiry: string;
   spot: number;
   timestamp?: string;
-  chain: Array<{
-    strike: number;
-    ce: OptionContract | null;
-    pe: OptionContract | null;
-  }>;
+  chain: StrikeRow[];
   summary?: OptionChainSummary;
 }
 

@@ -42,6 +42,9 @@ class MarketData(BaseModel):
     bid_price: float
     ask_price: float
     prev_oi: int
+    close_price: float = 0.0
+    bid_qty: int = 0
+    ask_qty: int = 0
 
 
 class OptionContract(BaseModel):
@@ -253,10 +256,10 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
     oi = market_data.get("oi", 0)
     prev_oi = market_data.get("prev_oi", 0)
     bid = market_data.get("bid_price", 0)
-    
+
     oi_change = oi - prev_oi
-    price_change = ltp - bid 
-    
+    price_change = ltp - bid
+
     sentiment = get_option_sentiment(price_change, oi_change)
 
     return {
@@ -272,6 +275,9 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
             "bid_price": bid,
             "ask_price": market_data.get("ask_price", 0),
             "prev_oi": prev_oi,
+            "close_price": market_data.get("close_price", 0),
+            "bid_qty": market_data.get("bid_qty", 0),
+            "ask_qty": market_data.get("ask_qty", 0),
         },
         "option_greeks": {
             "delta": greeks.get("delta", 0),
@@ -279,6 +285,7 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
             "vega": greeks.get("vega", 0),
             "theta": greeks.get("theta", 0),
             "iv": greeks.get("iv", 0),
+            "pop": greeks.get("pop", 0),
         } if greeks else None,
         "sentiment": sentiment
     }
@@ -321,7 +328,7 @@ async def get_option_chain(
         for item in contracts:
             strike = item.get("strike_price")
             if strike not in strike_map:
-                strike_map[strike] = {"strike": strike, "ce": None, "pe": None}
+                strike_map[strike] = {"strike": strike, "ce": None, "pe": None, "pcr": item.get("pcr")}
 
             if item.get("call_options"):
                 # Reliability fix: some fields might be at parent level in some API versions

@@ -144,6 +144,51 @@ describe("getOptionChain", () => {
       "Failed to fetch option chain",
     );
   });
+
+  it("passes through quote depth, pop, atm_iv and per-strike pcr fields", async () => {
+    const response = {
+      status: "ok",
+      underlying: "NIFTY",
+      expiry: "2024-02-29",
+      spot: 22000,
+      chain: [
+        {
+          strike: 22000,
+          pcr: 1.25,
+          ce: {
+            instrument_key: "key",
+            trading_symbol: "NIFTY24000CE",
+            strike_price: 22000,
+            expiry: "2024-02-29",
+            instrument_type: "CE",
+            market_data: {
+              ltp: 100, volume: 1000, oi: 5000, bid_price: 99, ask_price: 101,
+              prev_oi: 4000, close_price: 98.5, bid_qty: 1125, ask_qty: 2150,
+            },
+            option_greeks: { delta: 0.5, gamma: 0.01, vega: 10, theta: -2, iv: 15, pop: 40.56 },
+          },
+          pe: null,
+        },
+      ],
+      summary: {
+        pcr: 1.1, max_pain: 22000, expected_move: null,
+        total_ce_oi: 5000, total_pe_oi: 5500, dte: 7, atm_iv: 14.2,
+      },
+    };
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => response,
+    } as Response);
+
+    const result = await getOptionChain("NIFTY", "2024-02-29");
+
+    expect(result.chain[0].pcr).toBe(1.25);
+    expect(result.chain[0].ce?.market_data?.close_price).toBe(98.5);
+    expect(result.chain[0].ce?.market_data?.bid_qty).toBe(1125);
+    expect(result.chain[0].ce?.market_data?.ask_qty).toBe(2150);
+    expect(result.chain[0].ce?.option_greeks?.pop).toBe(40.56);
+    expect(result.summary?.atm_iv).toBe(14.2);
+  });
 });
 
 describe("getSpotPrice", () => {

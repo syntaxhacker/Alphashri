@@ -247,6 +247,21 @@ describe("ChainSummary computation", () => {
     });
   });
 
+  describe("atm iv passthrough", () => {
+    test("returns atm_iv from summary when provided", () => {
+      const summary: Summary = { ...defaultSummary, atm_iv: 14.2 };
+      expect(computeStats([], summary).atmIv).toBe(14.2);
+    });
+
+    test("returns 0 when atm_iv is absent (old payloads)", () => {
+      expect(computeStats([], defaultSummary).atmIv).toBe(0);
+    });
+
+    test("returns 0 when no summary is provided", () => {
+      expect(computeStats([], undefined).atmIv).toBe(0);
+    });
+  });
+
   describe("fallback without summary", () => {
     test("returns all zeros when summary is undefined", () => {
       const stats = computeStats([makeStrike(24000, 5000, 3000)], undefined);
