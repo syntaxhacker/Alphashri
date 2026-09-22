@@ -12,7 +12,15 @@ Normalized tick ``data`` shape:
       "oi": float, "iv": float, "greeks": dict | None,
       "day": {"open","high","low","close","volume"} | None,
       "depth": {"buy": [{"price","quantity","orders"}], "sell": [...]},
+      # optional — present only when the feed supplies them (no defaults):
+      "52w_high": float, "52w_low": float,   # 52-week band (e.g. Fyers eq.yh/yl)
+      "ticksize": float,                     # minimum price increment
     }
+
+    Depth levels may also carry ``"num"`` next to ``"orders"`` when the feed
+    reports a distinct per-level count (Fyers TBT ``MarketLevel.num``); it is
+    attached by the adapter after :func:`make_depth` filtering, so levels
+    without it keep the exact ``{price, quantity, orders}`` shape.
 """
 
 import re

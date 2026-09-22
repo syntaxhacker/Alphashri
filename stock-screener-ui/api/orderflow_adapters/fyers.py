@@ -81,6 +81,131 @@ def _circuit(raw: dict) -> Optional[dict]:
     return {"upper": _f(raw.get("upper_ckt")), "lower": _f(raw.get("lower_ckt"))}
 
 
+def _unwrap(value):
+    """Unwrap protobuf scalar wrappers (``Int64Value`` et al expose ``.value``).
+
+    Plain dicts, lists, strings and numbers pass through unchanged.
+    """
+    if value is None or isinstance(value, (dict, list, tuple, str, bytes, bool)):
+        return value
+    inner = getattr(value, "value", None)
+    if isinstance(inner, (int, float)):
+        return inner
+    return value
+
+
+def _field(obj, name):
+    """Read ``name`` from a dict, a plain object, or a protobuf message."""
+    if obj is None:
+        return None
+    if isinstance(obj, dict):
+        return _unwrap(obj.get(name))
+    return _unwrap(getattr(obj, name, None))
+
+
+def _first_present(values):
+    """First value that is neither ``None`` nor ``""`` (else ``None``)."""
+    for value in values:
+        unwrapped = _unwrap(value)
+        if _has(unwrapped):
+            return unwrapped
+    return None
+
+
+def _feed_oi(feed):
+    """Open interest when the feed carries it, else ``None`` (never a default)."""
+    quote = feed.get("quote") if isinstance(feed, dict) else getattr(feed, "quote", None)
+    return _first_present(
+        (
+            _field(quote, "oi"),
+            _field(feed, "oi"),
+            _field(feed, "open_interest"),
+            _field(feed, "OI"),
+        )
+    )
+
+
+def _feed_52w(feed) -> dict:
+    """52-week band from ExtendedQuote (``yh``/``yl``) or flat aliases.
+
+    Returns ``{}`` when the feed carries neither bound, so callers can
+    ``tick.update(...)`` without adding bogus defaults.
+    """
+    eq = feed.get("eq") if isinstance(feed, dict) else getattr(feed, "eq", None)
+    out: dict = {}
+    for key, candidates in (
+        ("52w_high", (_field(eq, "yh"), _field(feed, "52w_high"), _field(feed, "Yhigh"))),
+        ("52w_low", (_field(eq, "yl"), _field(feed, "52w_low"), _field(feed, "Ylow"))),
+    ):
+        value = _first_present(candidates)
+        if value is None:
+            continue
+        try:
+            number = float(value)
+        except (TypeError, ValueError):
+            continue
+        if number > 0:
+            out[key] = number
+    return out
+
+
+def _feed_ticksize(feed) -> Optional[float]:
+    """Tick size from SymDetail (or a flat alias); ``None`` when absent."""
+    sym = (
+        feed.get("symdetail") if isinstance(feed, dict) else getattr(feed, "symdetail", None)
+    )
+    value = _first_present((_field(sym, "ticksize"), _field(feed, "ticksize")))
+    if value is None:
+        return None
+    try:
+        number = float(value)
+    except (TypeError, ValueError):
+        return None
+    return number if number > 0 else None
+
+
+def _day_from_dq(dq, volume: float = 0.0) -> Optional[dict]:
+    """Day OHLC from a DailyQuote (``do``/``dh``/``dl``/``dc``); ``None`` if absent."""
+    if dq is None:
+        return None
+    vals = {key: _field(dq, key) for key in ("do", "dh", "dl", "dc")}
+    if not any(_has(value) for value in vals.values()):
+        return None
+    return {
+        "open": _f(vals["do"]),
+        "high": _f(vals["dh"]),
+        "low": _f(vals["dl"]),
+        "close": _f(vals["dc"]),
+        "volume": _f(volume),
+    }
+
+
+def _attach_num(filtered: list, raw_levels: list) -> list:
+    """Re-attach optional per-level ``num`` after :func:`make_depth` filtering.
+
+    ``make_depth`` normalizes to exactly ``{price, quantity, orders}``; this
+    copies ``num`` back onto the surviving levels by filter order, so the
+    filtering semantics stay in one place.
+    """
+    nums = []
+    for level in raw_levels or []:
+        try:
+            get = level.get if isinstance(level, dict) else lambda k: _field(level, k)
+            keep = float(get("price") or 0.0) > 0 and float(get("quantity") or 0.0) > 0
+        except (TypeError, ValueError, AttributeError):
+            keep = False
+        if keep:
+            nums.append(get("num"))
+    for out, num in zip(filtered, nums):
+        if num is None or num == "":
+            continue
+        try:
+            out["num"] = int(num)
+        except (TypeError, ValueError):
+            continue
+    return filtered
+
+
 def _data_available() -> bool:
     try:
         import fyers_apiv3  # noqa: F401
@@ -166,6 +291,7 @@ class FyersAdapter(OrderFlowAdapter):
                 ltp = bids[0]["price"]
             elif asks:
                 ltp = asks[0]["price"]
+        oi_raw = _feed_oi(raw)
         tick = {
             "ltp": ltp,
             "volume": _f(raw.get("vol_traded_today")),
@@ -175,7 +301,7 @@ class FyersAdapter(OrderFlowAdapter):
             "cp": _f(raw.get("prev_close_price")),
             "tbq": _f(raw.get("tot_buy_qty")),
             "tsq": _f(raw.get("tot_sell_qty")),
-            "oi": 0.0,
+            "oi": _f(oi_raw) if oi_raw is not None else 0.0,
             "iv": 0.0,
             "greeks": None,
             "day": self._day(raw, ltp),
@@ -185,6 +311,14 @@ class FyersAdapter(OrderFlowAdapter):
             "seq": None,
             "snapshot": None,
         }
+        if tick["day"] is None:
+            dq_day = _day_from_dq(raw.get("dq"), raw.get("vol_traded_today"))
+            if dq_day is not None:
+                tick["day"] = dq_day
+        tick.update(_feed_52w(raw))
+        ticksize = _feed_ticksize(raw)
+        if ticksize is not None:
+            tick["ticksize"] = ticksize
         return [(str(symbol), tick)]
 
     @staticmethod
@@ -211,18 +345,20 @@ class FyersAdapter(OrderFlowAdapter):
                 "price": raw.get(f"{prefix}_price{i}"),
                 "quantity": raw.get(f"{prefix}_size{i}"),
                 "orders": raw.get(f"{prefix}_order{i}"),
+                "num": raw.get(f"{prefix}_num{i}"),
             }
             for i in range(1, self.depth_levels + 1)
         ]
         built = make_depth(levels)
         if built:
-            return built
+            return _attach_num(built, levels)
         best = {
             "price": raw.get(f"{prefix}_price"),
             "quantity": raw.get(f"{prefix}_size"),
             "orders": raw.get(f"{prefix}_order"),
+            "num": raw.get(f"{prefix}_num"),
         }
-        return make_depth([best])
+        return _attach_num(make_depth([best]), [best])
 
     def connect(
         self,
@@ -308,31 +444,113 @@ class FyersTbtAdapter(OrderFlowAdapter):
             return obj.get(name)
         return getattr(obj, name, None)
 
-    def _side(self, depth, price_key: str, qty_key: str, order_key: str) -> list[dict]:
+    def _side(
+        self, depth, price_key: str, qty_key: str, order_key: str, num_key: Optional[str] = None
+    ) -> list[dict]:
         prices = self._get(depth, price_key) or []
         qtys = self._get(depth, qty_key) or []
         orders = self._get(depth, order_key) or []
-        levels = [
-            {"price": p, "quantity": q, "orders": o}
-            for p, q, o in zip(prices, qtys, orders)
-        ]
-        return make_depth(levels)
+        nums = self._get(depth, num_key) if num_key else None
+        if prices or qtys or orders or nums:
+            levels = []
+            for i, (p, q, o) in enumerate(zip(prices, qtys, orders)):
+                entry: dict = {"price": p, "quantity": q, "orders": o}
+                if nums is not None and i < len(nums or []):
+                    entry["num"] = nums[i]
+                levels.append(entry)
+            return _attach_num(make_depth(levels), levels)
+        # Repeated ``MarketLevel`` shape (a raw protobuf book exposes `bids` /
+        # `asks` instead of parallel arrays). The SDK divides wire prices by
+        # 100 when building its Depth object, so do the same for non-dict
+        # levels; plain-dict levels are already scaled.
+        seq_attr = "bids" if price_key.startswith("bid") else "asks"
+        seq = self._get(depth, seq_attr)
+        if seq:
+            levels = []
+            for entry in seq:
+                mapping = isinstance(entry, dict)
+                price = _field(entry, "price")
+                if not mapping and price is not None:
+                    try:
+                        price = float(price) / 100
+                    except (TypeError, ValueError):
+                        pass
+                levels.append(
+                    {
+                        "price": price,
+                        "quantity": _field(entry, "qty"),
+                        "orders": _field(entry, "nord"),
+                        "num": _field(entry, "num"),
+                    }
+                )
+            return _attach_num(make_depth(levels), levels)
+        return []
+
+    @staticmethod
+    def _split_feed(depth):
+        """Split ``(book, feed)`` for MarketFeed-shaped input.
+
+        The TBT SDK hands us its stripped ``Depth`` object, but callers may
+        also pass the whole ``MarketFeed`` (dict or protobuf), which nests the
+        book under ``depth`` next to ``quote``/``eq``/``dq``/``symdetail``.
+        A plain book maps to ``(depth, depth)`` so sibling lookups find
+        nothing and the previous tick shape is preserved.
+        """
+        inner = (
+            depth.get("depth") if isinstance(depth, dict) else getattr(depth, "depth", None)
+        )
+        if inner is not None and inner is not depth:
+            if isinstance(inner, dict):
+                has_book = any(
+                    k in inner
+                    for k in ("bidprice", "askprice", "bidqty", "askqty", "bids", "asks")
+                )
+            else:
+                has_book = any(
+                    hasattr(inner, k)
+                    for k in ("bidprice", "askprice", "bids", "asks")
+                )
+            if has_book:
+                return inner, depth
+        return depth, depth
 
     def normalize_depth(self, symbol: str, depth) -> tuple[str, dict]:
-        """Map a TBT ``Depth`` (object or dict) to a normalized 50-level tick."""
-        ltt = self._get(depth, "sendtime") or self._get(depth, "timestamp") or 0
+        """Map a TBT ``Depth`` (object or dict) to a normalized 50-level tick.
+
+        Also accepts a MarketFeed-shaped envelope (dict or protobuf): the book
+        is read from ``depth`` while ``quote``/``eq``/``dq``/``symdetail``
+        supply OI, the 52-week band, day OHLC and tick size. Feed values win
+        over the quote-socket merge; anything absent leaves the previous tick
+        shape untouched.
+        """
+        book, feed = self._split_feed(depth)
+        ltt = _first_present(
+            (
+                _field(book, "sendtime"),
+                _field(book, "timestamp"),
+                _field(feed, "send_time"),
+                _field(feed, "feed_time"),
+            )
+        )
         try:
             ltt_ms = int(float(ltt) * 1000) if float(ltt) < 1e12 else int(float(ltt))
         except (TypeError, ValueError):
             ltt_ms = 0
 
-        bids = self._side(depth, "bidprice", "bidqty", "bidordn")
-        asks = self._side(depth, "askprice", "askqty", "askordn")
+        bids = self._side(book, "bidprice", "bidqty", "bidordn", "bidnum")
+        asks = self._side(book, "askprice", "askqty", "askordn", "asknum")
 
         quote = self._quotes.get(symbol) or {}
         ltp = quote.get("ltp") or 0.0
         if not ltp and bids and asks:
             ltp = (bids[0]["price"] + asks[0]["price"]) / 2.0
+
+        oi_raw = _feed_oi(feed)
+        day = quote.get("day")
+        if day is None:
+            dq_day = _day_from_dq(_field(feed, "dq"), quote.get("volume", 0.0))
+            if dq_day is not None:
+                day = dq_day
 
         tick = {
             "ltp": ltp,
@@ -341,18 +559,22 @@ class FyersTbtAdapter(OrderFlowAdapter):
             "ltt": ltt_ms or quote.get("ltt", 0),
             "ltq": quote.get("ltq", 0.0),
             "cp": quote.get("cp", 0.0),
-            "tbq": float(self._get(depth, "tbq") or quote.get("tbq", 0.0)),
-            "tsq": float(self._get(depth, "tsq") or quote.get("tsq", 0.0)),
-            "oi": quote.get("oi", 0.0),
+            "tbq": float(_field(book, "tbq") or quote.get("tbq", 0.0)),
+            "tsq": float(_field(book, "tsq") or quote.get("tsq", 0.0)),
+            "oi": _f(oi_raw) if oi_raw is not None else quote.get("oi", 0.0),
             "iv": quote.get("iv", 0.0),
             "greeks": None,
-            "day": quote.get("day"),
+            "day": day,
             "depth": {"buy": bids, "sell": asks},
             "circuit": quote.get("circuit"),
             "feed_ts": ltt_ms,
-            "seq": int(self._get(depth, "seqNo") or 0) or None,
-            "snapshot": bool(self._get(depth, "snapshot")),
+            "seq": int(_field(book, "seqNo") or 0) or None,
+            "snapshot": bool(_field(book, "snapshot")),
         }
+        tick.update(_feed_52w(feed))
+        ticksize = _feed_ticksize(feed)
+        if ticksize is not None:
+            tick["ticksize"] = ticksize
         return str(symbol), tick
 
     def normalize(self, raw: dict) -> list[tuple[str, dict]]:

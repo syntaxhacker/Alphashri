@@ -483,3 +483,230 @@ class TestInPlaceSubscribe:
 
         with pytest.raises(NotImplementedError):
             Minimal().subscribe_symbol("ITC")
+
+
+class TestFyersDepthUpdateExtras:
+    """DepthUpdate/quote dicts now carry OI, 52w band, ticksize and per-level num."""
+
+    def test_oi_mapped_from_oi_key(self):
+        _, tick = FyersAdapter().normalize(_dp_payload(oi=12345))[0]
+        assert tick["oi"] == 12345.0
+
+    def test_oi_mapped_from_open_interest_alias(self):
+        _, tick = FyersAdapter().normalize(_dp_payload(open_interest=999))[0]
+        assert tick["oi"] == 999.0
+
+    def test_oi_defaults_to_zero_when_absent(self):
+        _, tick = FyersAdapter().normalize(_dp_payload())[0]
+        assert tick["oi"] == 0.0
+
+    def test_52w_mapped_from_yhigh_ylow(self):
+        _, tick = FyersAdapter().normalize(_dp_payload(Yhigh=1200.0, Ylow=800.0))[0]
+        assert tick["52w_high"] == 1200.0
+        assert tick["52w_low"] == 800.0
+
+    def test_52w_mapped_from_nested_eq(self):
+        _, tick = FyersAdapter().normalize(
+            _dp_payload(eq={"yh": 1210.0, "yl": 810.0})
+        )[0]
+        assert tick["52w_high"] == 1210.0
+        assert tick["52w_low"] == 810.0
+
+    def test_no_52w_keys_when_absent(self):
+        _, tick = FyersAdapter().normalize(_dp_payload())[0]
+        assert "52w_high" not in tick
+        assert "52w_low" not in tick
+
+    def test_ticksize_mapped(self):
+        _, tick = FyersAdapter().normalize(_dp_payload(ticksize=0.05))[0]
+        assert tick["ticksize"] == 0.05
+
+    def test_no_ticksize_key_when_absent(self):
+        _, tick = FyersAdapter().normalize(_dp_payload())[0]
+        assert "ticksize" not in tick
+
+    def test_per_level_num_preserved(self):
+        payload = _dp_payload()
+        for i in range(1, 6):
+            payload[f"bid_num{i}"] = 100 + i
+            payload[f"ask_num{i}"] = 200 + i
+        _, tick = FyersAdapter().normalize(payload)[0]
+        assert tick["depth"]["buy"][0]["num"] == 101
+        assert tick["depth"]["buy"][4]["num"] == 105
+        assert tick["depth"]["sell"][0]["num"] == 201
+        # orders still mapped alongside num
+        assert tick["depth"]["buy"][0]["orders"] == 1
+
+    def test_no_num_keys_when_absent(self):
+        _, tick = FyersAdapter().normalize(_dp_payload())[0]
+        assert tick["depth"]["buy"][0] == {"price": 799.5, "quantity": 100.0, "orders": 1}
+
+    def test_day_from_dq_when_quote_fields_absent(self):
+        payload = _dp_payload(
+            dq={"do": 796.0, "dh": 805.0, "dl": 794.0, "dc": 800.0}
+        )
+        for key in ("open_price", "high_price", "low_price", "vol_traded_today"):
+            payload.pop(key)
+        _, tick = FyersAdapter().normalize(payload)[0]
+        assert tick["day"] == {
+            "open": 796.0,
+            "high": 805.0,
+            "low": 794.0,
+            "close": 800.0,
+            "volume": 0.0,
+        }
+
+    def test_quote_day_wins_over_dq(self):
+        _, tick = FyersAdapter().normalize(
+            _dp_payload(dq={"do": 1.0, "dh": 2.0, "dl": 0.5, "dc": 1.5})
+        )[0]
+        assert tick["day"]["open"] == 796.0
+
+
+class TestFyersTbtExtras:
+    """TBT path maps quote.oi, eq.yh/yl, dq day, ticksize and per-level num."""
+
+    def _book(self, n=2):
+        return {
+            "bidprice": [100.0 - i * 0.1 for i in range(n)],
+            "bidqty": [10 + i for i in range(n)],
+            "bidordn": [1 + i for i in range(n)],
+            "askprice": [100.1 + i * 0.1 for i in range(n)],
+            "askqty": [20 + i for i in range(n)],
+            "askordn": [2 + i for i in range(n)],
+            "tbq": 100,
+            "tsq": 200,
+            "sendtime": 1789538200,
+            "seqNo": 7,
+        }
+
+    def _feed(self, n=2, **extra):
+        return {"depth": self._book(n), **extra}
+
+    def test_oi_from_quote_submessage(self):
+        adapter = get_adapter("fyers_tbt")()
+        _, tick = adapter.normalize_depth(
+            "NSE:SBIN-EQ", self._feed(quote={"oi": 1500})
+        )
+        assert tick["oi"] == 1500.0
+
+    def test_oi_prefers_feed_over_quote_socket_merge(self):
+        adapter = get_adapter("fyers_tbt")()
+        adapter.remember_quote(
+            {
+                "symbol": "NSE:SBIN-EQ",
+                "ltp": 100.0,
+                "vol_traded_today": 10,
+                "open_price": 99.0,
+                "high_price": 101.0,
+                "low_price": 98.0,
+            }
+        )
+        _, tick = adapter.normalize_depth(
+            "NSE:SBIN-EQ", self._feed(quote={"oi": 1500})
+        )
+        assert tick["oi"] == 1500.0
+
+    def test_oi_falls_back_to_zero_without_feed_or_merge(self):
+        _, tick = get_adapter("fyers_tbt")().normalize_depth(
+            "NSE:SBIN-EQ", self._book()
+        )
+        assert tick["oi"] == 0.0
+
+    def test_52w_from_eq(self):
+        _, tick = get_adapter("fyers_tbt")().normalize_depth(
+            "NSE:SBIN-EQ", self._feed(eq={"yh": 1200.0, "yl": 800.0})
+        )
+        assert tick["52w_high"] == 1200.0
+        assert tick["52w_low"] == 800.0
+
+    def test_day_from_dq_when_no_quote_day(self):
+        _, tick = get_adapter("fyers_tbt")().normalize_depth(
+            "NSE:SBIN-EQ",
+            self._feed(dq={"do": 796.0, "dh": 805.0, "dl": 794.0, "dc": 800.0}),
+        )
+        assert tick["day"] == {
+            "open": 796.0,
+            "high": 805.0,
+            "low": 794.0,
+            "close": 800.0,
+            "volume": 0.0,
+        }
+
+    def test_quote_day_wins_over_dq(self):
+        adapter = get_adapter("fyers_tbt")()
+        adapter.remember_quote(
+            {
+                "symbol": "NSE:SBIN-EQ",
+                "ltp": 100.0,
+                "vol_traded_today": 10,
+                "open_price": 99.0,
+                "high_price": 101.0,
+                "low_price": 98.0,
+            }
+        )
+        _, tick = adapter.normalize_depth(
+            "NSE:SBIN-EQ",
+            self._feed(dq={"do": 1.0, "dh": 2.0, "dl": 0.5, "dc": 1.5}),
+        )
+        assert tick["day"]["open"] == 99.0
+
+    def test_ticksize_from_symdetail(self):
+        _, tick = get_adapter("fyers_tbt")().normalize_depth(
+            "NSE:SBIN-EQ", self._feed(symdetail={"ticksize": 0.05})
+        )
+        assert tick["ticksize"] == 0.05
+
+    def test_per_level_num_from_arrays(self):
+        book = self._book()
+        book["bidnum"] = [7, 8]
+        book["asknum"] = [9, 10]
+        _, tick = get_adapter("fyers_tbt")().normalize_depth("NSE:SBIN-EQ", book)
+        assert tick["depth"]["buy"][0]["num"] == 7
+        assert tick["depth"]["buy"][1]["num"] == 8
+        assert tick["depth"]["sell"][0]["num"] == 9
+        assert tick["depth"]["buy"][0]["orders"] == 1
+
+    def test_plain_book_has_no_new_keys(self):
+        _, tick = get_adapter("fyers_tbt")().normalize_depth(
+            "NSE:SBIN-EQ", self._book()
+        )
+        assert "52w_high" not in tick
+        assert "52w_low" not in tick
+        assert "ticksize" not in tick
+        assert tick["day"] is None
+        assert tick["depth"]["buy"][0] == {
+            "price": 100.0,
+            "quantity": 10.0,
+            "orders": 1,
+        }
+
+    def test_object_shaped_feed_is_accepted(self):
+        from types import SimpleNamespace
+
+        adapter = get_adapter("fyers_tbt")()
+        feed = SimpleNamespace(
+            depth=SimpleNamespace(
+                bidprice=[100.0],
+                bidqty=[10],
+                bidordn=[1],
+                askprice=[100.1],
+                askqty=[20],
+                askordn=[2],
+                tbq=5,
+                tsq=6,
+                sendtime=1789538200,
+                seqNo=3,
+                snapshot=False,
+            ),
+            quote=SimpleNamespace(oi=321),
+            eq=SimpleNamespace(yh=1200.0, yl=800.0),
+            dq=None,
+            symdetail=SimpleNamespace(ticksize=0.05),
+        )
+        _, tick = adapter.normalize_depth("NSE:SBIN-EQ", feed)
+        assert tick["oi"] == 321.0
+        assert tick["52w_high"] == 1200.0
+        assert tick["52w_low"] == 800.0
+        assert tick["ticksize"] == 0.05
+        assert tick["seq"] == 3
