@@ -164,7 +164,7 @@ class AdapterHub:
         """Close every connection (used by tests and on API shutdown)."""
         with self._lock:
             for broker in list(self._entries):
-                self._teardown(broker, self._entries[broker])
+                self._teardown(broker, self._entries[broker], force=True)
 
     # -- internals ----------------------------------------------------------
     def _grow(self, broker: str, entry: _Entry, symbol: str, listener: _Listener) -> None:
@@ -243,10 +243,15 @@ class AdapterHub:
         for listener in listeners:
             listener.on_tick(app_symbol, tick)
 
-    def _teardown(self, broker: str, entry: _Entry) -> None:
+    def _teardown(self, broker: str, entry: _Entry, force: bool = False) -> None:
         self._entries.pop(broker, None)
         adapter = entry.adapter
         if adapter is None:
+            return
+        if not force and getattr(adapter, "persistent", False):
+            # Keep the connection up: its transport cannot be revived once
+            # disconnected, so the next subscribe would get a dead object and
+            # stream nothing. Ticks with no listeners are simply dropped.
             return
         try:
             adapter.disconnect()

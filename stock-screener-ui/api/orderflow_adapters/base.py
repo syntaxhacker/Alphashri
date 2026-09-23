@@ -190,6 +190,11 @@ class OrderFlowAdapter(ABC):
     max_connections: int = 5
     #: whether per-level resting order counts are available
     has_order_counts: bool = False
+    #: The connection must stay up for the process lifetime. Set by feeds whose
+    #: transport cannot be revived after a disconnect (the Fyers TBT socket is a
+    #: process-wide singleton, so a later subscribe would reuse a dead object and
+    #: silently stream nothing). The hub skips teardown for these.
+    persistent: bool = False
 
     @abstractmethod
     def normalize(self, raw: dict) -> list[tuple[str, dict]]:

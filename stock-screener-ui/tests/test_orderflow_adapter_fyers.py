@@ -320,9 +320,9 @@ class TestFyersTbtAdapter:
         adapter.remember_quote(
             {
                 "symbol": "NSE:SBIN-EQ",
-                "ltp": 982.65,
+                "ltp": 100.0,
                 "vol_traded_today": 1234567,
-                "avg_trade_price": 980.1,
+                "avg_trade_price": 99.9,
                 "last_traded_time": 1789538200,
                 "prev_close_price": 990.0,
                 "tot_buy_qty": 111,
@@ -333,9 +333,9 @@ class TestFyersTbtAdapter:
             }
         )
         _, tick = adapter.normalize_depth("NSE:SBIN-EQ", self._depth(n=2))
-        assert tick["ltp"] == 982.65
+        assert tick["ltp"] == 100.0
         assert tick["volume"] == 1234567.0
-        assert tick["vwap"] == 980.1
+        assert tick["vwap"] == 99.9
         assert tick["cp"] == 990.0
         assert tick["day"]["open"] == 985.0
 
@@ -710,3 +710,51 @@ class TestFyersTbtExtras:
         assert tick["52w_low"] == 800.0
         assert tick["ticksize"] == 0.05
         assert tick["seq"] == 3
+
+
+class TestForeignQuoteRejection:
+    """The quote socket shares process-wide state, so its fields can belong to a
+    different instrument than the depth.
+
+    Observed live: NETWEB depth at 4770/4771 paired with ltp 143.7 and volume
+    117,883,870, which rendered as "Day -97.03%" and a 2.3-billion CVD. Depth is
+    the trusted anchor, so such a quote must be discarded.
+    """
+
+    def _adapter(self):
+        from api.orderflow_adapters import get_adapter
+        a = get_adapter("fyers_tbt")()
+        a.remember_quote({
+            "symbol": "NSE:NETWEB-EQ",
+            "ltp": 143.7,
+            "vol_traded_today": 117883870,
+            "avg_trade_price": 128.65,
+            "last_traded_time": 1789538200,
+            "prev_close_price": 4817.0,
+        })
+        return a
+
+    def _book(self):
+        return {"bidprice": [4770.0], "bidqty": [10], "bidordn": [1],
+                "askprice": [4771.0], "askqty": [10], "askordn": [1],
+                "tbq": 1, "tsq": 1, "sendtime": 1789538200, "seqNo": 1}
+
+    def test_foreign_ltp_is_discarded_in_favour_of_the_book(self):
+        _, tick = self._adapter().normalize_depth("NSE:NETWEB-EQ", self._book())
+        assert tick["ltp"] == 4770.5                      # mid of the real book
+        assert 4770.0 <= tick["ltp"] <= 4771.0   # inside the real book, not 143.7
+
+    def test_foreign_volume_is_not_taken(self):
+        _, tick = self._adapter().normalize_depth("NSE:NETWEB-EQ", self._book())
+        assert tick["volume"] != 117883870.0
+
+    def test_book_range_is_respected(self):
+        """A quote inside the book must still be merged."""
+        from api.orderflow_adapters import get_adapter
+        a = get_adapter("fyers_tbt")()
+        a.remember_quote({"symbol": "NSE:NETWEB-EQ", "ltp": 4770.0,
+                          "vol_traded_today": 284455, "avg_trade_price": 4769.0,
+                          "last_traded_time": 1789538200, "prev_close_price": 4817.0})
+        _, tick = a.normalize_depth("NSE:NETWEB-EQ", self._book())
+        assert tick["ltp"] == 4770.0
+        assert tick["volume"] == 284455.0

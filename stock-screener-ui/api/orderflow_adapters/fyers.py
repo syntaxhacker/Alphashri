@@ -15,6 +15,7 @@ Because a bare name cannot be reliably classified as equity vs index, pass
 indices already in ``NSE:<NAME>-INDEX`` form (see :meth:`FyersAdapter.fyers_symbol`).
 """
 
+import logging
 import os
 from typing import Callable, Optional
 
@@ -25,6 +26,8 @@ from api.orderflow_adapters.base import (
     sanitize_adapter_error,
 )
 from api.orderflow_symbols import fyers_symbol  # noqa: F401  (re-exported)
+
+logger = logging.getLogger(__name__)
 
 _DEPTH_TYPE = "dp"
 _QUOTE_TYPE = "sf"
@@ -428,11 +431,13 @@ class FyersTbtAdapter(OrderFlowAdapter):
     max_symbols_per_connection = 5
     max_connections = 3
     has_order_counts = True
+    persistent = True
 
     def __init__(self, access_token: Optional[str] = None):
         self.access_token = access_token
         self._tbt = None
         self._data = None
+        self._tbt_alive = False
         self._quotes: dict[str, dict] = {}
         self._quote_symbols: list[str] = []
         self._subscribed: set[str] = set()
@@ -544,6 +549,18 @@ class FyersTbtAdapter(OrderFlowAdapter):
         ltp = quote.get("ltp") or 0.0
         if not ltp and bids and asks:
             ltp = (bids[0]["price"] + asks[0]["price"]) / 2.0
+
+        # The quote socket shares process-wide state, so its fields can belong to
+        # a DIFFERENT instrument than the depth we just received (observed live:
+        # NETWEB depth at 4770/4771 paired with ltp 143.7 and volume 117M, which
+        # rendered as "Day -97.03%" and a 2.3-billion CVD). Depth is the trusted
+        # anchor, so a quote that cannot belong to this book is discarded.
+        if bids and asks and ltp:
+            best_bid = bids[0]["price"]
+            best_ask = asks[0]["price"]
+            if not (best_bid * 0.90 <= ltp <= best_ask * 1.10):
+                quote = {}
+                ltp = (best_bid + best_ask) / 2.0
 
         oi_raw = _feed_oi(feed)
         day = quote.get("day")
@@ -660,7 +677,19 @@ class FyersTbtAdapter(OrderFlowAdapter):
                 if on_error is not None:
                     on_error(sanitize_adapter_error(self.name, f"fyers quote socket unavailable: {exc}"))
 
-        # TBT socket (50-level depth)
+        # TBT socket (50-level depth).
+        # FyersTbtSocket is a process-wide singleton: constructing it again
+        # returns the FIRST instance and re-runs __init__, which does not rebuild
+        # the websocket or its reader thread. Reusing a disconnected singleton
+        # made subscribe()/switchChannel() silent no-ops — no data, no error.
+        # Drop a stale instance so this connect gets a real socket.
+        try:
+            from fyers_apiv3.FyersWebsocket.tbt_ws import FyersTbtSocket as _Tbt
+
+            if _Tbt._instance is not None and not getattr(self, "_tbt_alive", False):
+                _Tbt._instance = None
+        except Exception:  # noqa: BLE001 - SDK optional / fake factories in tests
+            pass
         tbt = tbt_factory or _default_tbt_socket_factory
         self._tbt = tbt(
             access_token=token,
@@ -673,6 +702,7 @@ class FyersTbtAdapter(OrderFlowAdapter):
             reconnect=False,
         )
         self._tbt.connect()
+        self._tbt_alive = True
         for channel, symbol in enumerate(sorted(fyers_symbols), start=1):
             self._tbt.subscribe(
                 symbol_tickers={symbol}, channelNo=str(channel), mode=_tbt_depth_mode()
