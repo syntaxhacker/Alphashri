@@ -18,6 +18,7 @@ from pathlib import Path
 
 from db.models import get_shared_broker_token
 import config
+from api.fyers_options import resolve_fyers_option_symbol
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
@@ -242,6 +243,35 @@ async def get_expiries(underlying: str):
             })
     
     return {"underlying": underlying, "expiries": expiries}
+
+
+@router.get("/fyers-symbol")
+async def get_fyers_symbol(
+    underlying: str = Query(..., description="Underlying symbol, e.g. NIFTY"),
+    expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
+    strike: float = Query(..., description="Strike price"),
+    option_type: str = Query(..., description="CE or PE"),
+):
+    """Resolve the Fyers-native contract symbol for an option leg.
+
+    The option chain served here is Upstox-native (``NSE_FO|...`` keys) which
+    the Fyers feeds cannot resolve, so Order Flow Options mode asks for the
+    Fyers symbol (``NSE:NIFTY26SEP23400CE``) before subscribing. Returns
+    ``{"symbol", "fyToken", "oi", "oich"}`` or 404 when the contract is not
+    on the Fyers chain. Never changes the ``/chain`` response shape.
+    """
+    result = await asyncio.to_thread(
+        resolve_fyers_option_symbol, underlying, expiry, strike, option_type
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No Fyers contract for {underlying} {strike:g} "
+                f"{(option_type or '').upper()} @ {expiry}"
+            ),
+        )
+    return result
 
 
 def transform_option_contract(option_data: dict, strike: float, option_type: str) -> dict:

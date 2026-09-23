@@ -86,6 +86,13 @@ export interface OptionChainResponse {
   summary?: OptionChainSummary;
 }
 
+export interface FyersSymbolResponse {
+  symbol: string;
+  fyToken: number | string | null;
+  oi?: number | null;
+  oich?: number | null;
+}
+
 export interface SpotPriceResponse {
   status: string;
   underlying: string;
@@ -131,6 +138,23 @@ export async function getOptionChain(
     `${API_BASE}/api/options/chain/${underlying}?expiry=${expiryDate}`,
   );
   if (!res.ok) throw new Error("Failed to fetch option chain");
+  return res.json();
+}
+
+export async function getFyersSymbol(
+  underlying: string,
+  expiry: string,
+  strike: number,
+  optionType: string,
+): Promise<FyersSymbolResponse> {
+  const params = new URLSearchParams({
+    underlying,
+    expiry,
+    strike: String(strike),
+    option_type: optionType,
+  });
+  const res = await fetchWithAuth(`${API_BASE}/api/options/fyers-symbol?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to resolve Fyers symbol");
   return res.json();
 }
 

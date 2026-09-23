@@ -23,6 +23,7 @@ import { connectUpstox, getBrokerStatus } from "@/api/brokers";
 import { listJournalFiles, type JournalFile } from "@/api/orderflowJournal";
 import {
   getExpiries,
+  getFyersSymbol,
   getOptionChain,
   getUnderlyings,
   type Expiry,
@@ -328,10 +329,33 @@ export function OrderFlowPage() {
     connectWith(symbolInput, tickInput);
   }, [symbolInput, tickInput, connectWith]);
 
-  const useContract = useCallback(() => {
+  const useContract = useCallback(async () => {
     if (!selectedContract) return;
-    connectWith(selectedContract.instrument_key, String(selectedContract.tick_size ?? 0.05));
-  }, [selectedContract, connectWith]);
+    const tick = String(selectedContract.tick_size ?? 0.05);
+    // The Upstox instrument key streams as-is on the Upstox feed, but the
+    // Fyers feeds can never resolve it — resolve the Fyers-native contract
+    // symbol first so "Use contract" never connects a dead feed.
+    if (broker !== "fyers" && broker !== "fyers_tbt") {
+      connectWith(selectedContract.instrument_key, tick);
+      return;
+    }
+    if (!underlying || !expiry || strike == null) {
+      setOptionsError("Pick an underlying, expiry and strike first.");
+      return;
+    }
+    const leg = `${underlying} ${strike} ${optionType} @ ${expiry}`;
+    beginLoad();
+    try {
+      const resolved = await getFyersSymbol(underlying, expiry, strike, optionType);
+      connectWith(resolved.symbol, tick);
+    } catch {
+      setOptionsError(
+        `Could not find ${leg} on Fyers — the Upstox contract key cannot stream on the Fyers feed. Retry, or switch the broker to Upstox.`,
+      );
+    } finally {
+      endLoad();
+    }
+  }, [selectedContract, connectWith, broker, underlying, expiry, strike, optionType, beginLoad, endLoad]);
 
   const underlyingOptions = useMemo(
     () => underlyings.map((item) => ({ value: item.symbol, label: item.name || item.symbol })),

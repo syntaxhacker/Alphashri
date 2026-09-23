@@ -535,3 +535,104 @@ class TestAdapterErrorFraming:
         payload = q.get_nowait()
         assert payload["type"] == "auth_error"
         assert "-+-+-" not in payload["message"]
+
+
+class TestSubscribeGuardrail:
+    """The bridge must not report success when the feed can never deliver.
+
+    An Upstox instrument key on a Fyers socket stays silent (no ticks, no
+    errors) — the bridge waits a grace window for the first tick or adapter
+    error before replying.
+    """
+
+    def _install(self, monkeypatch, behavior, grace="5"):
+        import api.orderflow_adapter_hub as hub_module
+        import api.orderflow_recorder as recorder_module
+
+        monkeypatch.setattr(orderflow_stream, "decode_token", lambda _t: {"type": "access"})
+        monkeypatch.setattr(recorder_module, "recorder_token", lambda _b: "APP:TOK")
+        monkeypatch.setenv("ORDERFLOW_SUBSCRIBE_GRACE_SEC", grace)
+
+        class FakeSub:
+            def release(self):
+                pass
+
+        class FakeHub:
+            def subscribe(self, broker, token, symbol, on_tick, on_error):
+                assert token == "APP:TOK"
+                if behavior == "tick":
+                    on_tick(symbol, {"ltp": 100.0, "volume": 10.0, "ltt": 1,
+                                     "depth": {"buy": [], "sell": []}})
+                elif behavior == "error":
+                    on_error("connection reset by peer")
+                return FakeSub()
+
+        monkeypatch.setattr(hub_module, "get_hub", lambda: FakeHub())
+
+    def _subscribe(self, broker="fyers_tbt"):
+        client = _make_client()
+        ws = client.websocket_connect("/ws/orderflow").__enter__()
+        ws.send_json({"action": "authenticate", "api_key": "tok"})
+        assert ws.receive_json()["message"] == "Authentication successful"
+        ws.send_json({"action": "subscribe", "symbol": "NSE:NIFTY26SEP23400CE",
+                      "exchange": "NSE", "broker": broker})
+        return ws
+
+    def test_silent_feed_yields_subscribe_error(self, monkeypatch):
+        self._install(monkeypatch, "silent", grace="0.3")
+        ws = self._subscribe()
+        try:
+            msg = ws.receive_json()
+            assert msg["type"] == "subscribe"
+            assert msg["status"] == "error"
+            assert "no data" in msg["message"]
+        finally:
+            ws.close()
+
+    def test_ticking_feed_still_yields_success(self, monkeypatch):
+        self._install(monkeypatch, "tick", grace="2")
+        ws = self._subscribe()
+        try:
+            frames = [ws.receive_json(), ws.receive_json()]
+            subs = [m for m in frames if isinstance(m, dict) and m.get("type") == "subscribe"]
+            ticks = [m for m in frames if isinstance(m, dict) and m.get("type") == "market_data"]
+            assert len(subs) == 1 and subs[0]["status"] == "success"
+            assert subs[0]["broker"] == "fyers_tbt"
+            assert "depth_levels" in subs[0] and "order_counts" in subs[0]
+            assert len(ticks) == 1
+        finally:
+            ws.close()
+
+    def test_adapter_error_yields_subscribe_error(self, monkeypatch):
+        self._install(monkeypatch, "error", grace="2")
+        ws = self._subscribe()
+        try:
+            msg = ws.receive_json()
+            assert msg["type"] == "subscribe"
+            assert msg["status"] == "error"
+            assert "fyers_tbt" in msg["message"]
+        finally:
+            ws.close()
+
+
+class TestWaitForFirstFeedEvent:
+    def _stream(self):
+        q: thr_queue.Queue = thr_queue.Queue()
+        return orderflow_stream._AdapterOrderFlowStream("fyers_tbt", "X", "tok", q)
+
+    def test_tick_wins_immediately(self, monkeypatch):
+        import asyncio
+
+        stream = self._stream()
+        stream.first_tick.set()
+        assert asyncio.run(orderflow_stream._wait_for_first_feed_event(stream, 5)) == "tick"
+
+    def test_zero_grace_reports_timeout_when_silent(self, monkeypatch):
+        import asyncio
+
+        stream = self._stream()
+        assert asyncio.run(orderflow_stream._wait_for_first_feed_event(stream, 0)) == "timeout"
+
+    def test_bad_grace_env_falls_back_to_default(self, monkeypatch):
+        monkeypatch.setenv("ORDERFLOW_SUBSCRIBE_GRACE_SEC", "not-a-number")
+        assert orderflow_stream._subscribe_grace_sec() == 5.0

@@ -27,6 +27,7 @@ import json
 import os
 import queue as thr_queue
 import threading
+import time
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, WebSocket, WebSocketDisconnect
@@ -488,6 +489,13 @@ class _AdapterOrderFlowStream:
         self._sub = None
         self._closed = False
         self._engine = OrderFlowSignalEngine()
+        # First-tick / first-error signals for the subscribe guardrail: a feed
+        # that can never deliver (e.g. an Upstox instrument key on a Fyers
+        # socket) stays silent, so the bridge waits briefly for one of these
+        # before reporting subscribe success.
+        self.first_tick = threading.Event()
+        self.first_error = threading.Event()
+        self.first_error_message: Optional[str] = None
 
     def warm_start(self) -> None:
         try:
@@ -534,6 +542,9 @@ class _AdapterOrderFlowStream:
         from api.orderflow_adapters.base import is_auth_error, sanitize_adapter_error
 
         message = sanitize_adapter_error(self.broker, error)
+        if self.first_error_message is None:
+            self.first_error_message = message
+        self.first_error.set()
         self._push(
             {
                 "type": "auth_error" if is_auth_error(f"{error} {message}") else "error",
@@ -546,6 +557,7 @@ class _AdapterOrderFlowStream:
         # The hub routes by symbol, so a tick here is always this stream's symbol.
         if self._closed or not isinstance(tick, dict):
             return
+        self.first_tick.set()
         self._push({"type": "market_data", "data": tick})
         if _BRIDGE_JOURNAL:
             orderflow_journal.append(self.symbol, "tick", tick, broker=self.broker)
@@ -589,6 +601,39 @@ def _adapter_caps(broker: str) -> tuple:
     return int(getattr(cls, "depth_levels", _DEPTH_LEVELS)), bool(
         getattr(cls, "has_order_counts", False)
     )
+
+
+def _subscribe_grace_sec() -> float:
+    """How long the bridge waits for a first tick before trusting a feed."""
+    try:
+        return max(0.0, float(os.getenv("ORDERFLOW_SUBSCRIBE_GRACE_SEC", "5")))
+    except (TypeError, ValueError):
+        return 5.0
+
+
+async def _wait_for_first_feed_event(stream: "_AdapterOrderFlowStream", timeout_sec: float) -> str:
+    """Wait for the adapter stream's first tick or error.
+
+    Returns ``"tick"``, ``"error"``, or ``"timeout"``. A silent feed (wrong
+    symbol format for the broker) produces neither, so the caller must treat
+    ``"timeout"`` as a dead feed rather than reporting success.
+    """
+    if timeout_sec <= 0:
+        if stream.first_tick.is_set():
+            return "tick"
+        if stream.first_error.is_set():
+            return "error"
+        return "timeout"
+    deadline = time.monotonic() + timeout_sec
+    while True:
+        if stream.first_tick.is_set():
+            return "tick"
+        if stream.first_error.is_set():
+            return "error"
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return "timeout"
+        await asyncio.sleep(min(remaining, 0.05))
 
 
 @router.websocket("/ws/orderflow")
@@ -717,13 +762,41 @@ async def orderflow_ws(websocket: WebSocket):
                         )
                         continue
                     levels, order_counts = _adapter_caps(broker)
+                    verdict = await _wait_for_first_feed_event(stream, _subscribe_grace_sec())
+                    if verdict == "tick":
+                        await websocket.send_json(
+                            {
+                                "type": "subscribe",
+                                "status": "success",
+                                "broker": broker,
+                                "depth_levels": levels,
+                                "order_counts": order_counts,
+                            }
+                        )
+                        continue
+                    if verdict == "error":
+                        detail = stream.first_error_message or "broker reported an error"
+                        stop_stream()
+                        await websocket.send_json(
+                            {
+                                "type": "subscribe",
+                                "status": "error",
+                                "message": f"{broker} error: {detail}",
+                            }
+                        )
+                        continue
+                    stop_stream()
                     await websocket.send_json(
                         {
                             "type": "subscribe",
-                            "status": "success",
-                            "broker": broker,
-                            "depth_levels": levels,
-                            "order_counts": order_counts,
+                            "status": "error",
+                            "message": (
+                                f"{broker} feed produced no data for '{symbol}' within "
+                                f"{_subscribe_grace_sec():g}s — the symbol may not resolve "
+                                "on this broker. For option contracts, re-pick the contract "
+                                "with this broker selected so the tab resolves the broker's "
+                                "own symbol."
+                            ),
                         }
                     )
                     continue

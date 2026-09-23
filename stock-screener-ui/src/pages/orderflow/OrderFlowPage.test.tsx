@@ -6,7 +6,7 @@ import userEvent from "@testing-library/user-event";
 import { MemoryRouter, Route, Routes } from "react-router-dom";
 import { OrderFlowPage } from "./OrderFlowPage";
 import { getBrokerStatus } from "@/api/brokers";
-import { getExpiries, getOptionChain, getUnderlyings } from "@/api/upstoxOptions";
+import { getExpiries, getFyersSymbol, getOptionChain, getUnderlyings } from "@/api/upstoxOptions";
 
 vi.mock("@/api/brokers", () => ({
   getBrokerStatus: vi.fn(),
@@ -23,12 +23,14 @@ vi.mock("@/api/upstoxOptions", () => ({
   getUnderlyings: vi.fn(),
   getExpiries: vi.fn(),
   getOptionChain: vi.fn(),
+  getFyersSymbol: vi.fn(),
 }));
 
 const mockStatus = vi.mocked(getBrokerStatus);
 const mockUnderlyings = vi.mocked(getUnderlyings);
 const mockExpiries = vi.mocked(getExpiries);
 const mockOptionChain = vi.mocked(getOptionChain);
+const mockFyersSymbol = vi.mocked(getFyersSymbol);
 
 function contract(instrumentKey: string, type: "CE" | "PE", strike: number, tickSize: number) {
   return {
@@ -172,12 +174,17 @@ describe("OrderFlowPage", () => {
       expect(within(screen.getByTestId("orderflow-strike")).getByText("105")).toBeInTheDocument(),
     );
 
+    // The Upstox feed streams the Upstox instrument key verbatim.
+    await user.click(within(screen.getByTestId("orderflow-broker")).getByRole("combobox"));
+    await user.click(await screen.findByRole("option", { name: "Upstox · 5 lv" }));
+
     await user.click(within(screen.getByTestId("orderflow-option-type")).getByRole("button", { name: "PE" }));
     await user.click(screen.getByTestId("orderflow-use-contract"));
 
     const params = await iframeParams();
     expect(params.get("symbol")).toBe("NSE_FO|PE|105");
     expect(params.get("tick")).toBe("0.1");
+    expect(mockFyersSymbol).not.toHaveBeenCalled();
   });
 
   test("shows an error when the option chain fails to load", async () => {
