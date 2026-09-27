@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
 import { PremiumTrackerPanel } from "./PremiumTrackerPanel";
@@ -9,6 +9,10 @@ import { renderWithProviders } from "../../../test-utils/renderWithProviders";
 
 vi.mock("../../../api/premiumTracker", () => ({
   fetchPremiumTracker: vi.fn(),
+}));
+
+vi.mock("./PayoffChart", () => ({
+  PayoffChart: () => <div data-testid="mock-payoff-chart">chart</div>,
 }));
 
 import { fetchPremiumTracker } from "../../../api/premiumTracker";
@@ -33,28 +37,14 @@ const snapshot = {
       verdict: "EXPENSIVE",
       error: null,
     },
-    {
-      underlying: "BANKNIFTY",
-      spot: 55580,
-      atm_strike: 55600,
-      ce_ltp: 300,
-      pe_ltp: 256,
-      straddle_price: 556,
-      straddle_pct: 1.0,
-      ce_iv_pct: 27.3,
-      pe_iv_pct: 20.6,
-      dte_days: 1,
-      hv20_ann_pct: 12.1,
-      hv20_daily_pct: 0.76,
-      avg_range20_pct: 0.92,
-      iv_hv_ratio: 2.26,
-      verdict: "EXPENSIVE",
-      error: null,
-    },
   ],
   as_of: "2026-09-27T00:00:00+00:00",
   cached: false,
 };
+
+const matrix = [
+  { strike: 23150, ce: { market_data: { ltp: 95 } }, pe: { market_data: { ltp: 100 } } },
+];
 
 beforeEach(() => {
   setupBrowserMocks();
@@ -67,29 +57,33 @@ afterEach(() => {
   vi.clearAllMocks();
 });
 
-describe("PremiumTrackerPanel", () => {
-  it("renders both legs with verdicts", async () => {
-    renderWithProviders(<PremiumTrackerPanel />);
+describe("PremiumTrackerPanel v2", () => {
+  it("renders snapshot, both strategy rows, and diary", async () => {
+    renderWithProviders(<PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />);
     expect(await screen.findByTestId("premium-leg-NIFTY")).toBeInTheDocument();
-    expect(screen.getByTestId("premium-leg-BANKNIFTY")).toBeInTheDocument();
-    expect(screen.getAllByText("EXPENSIVE")).toHaveLength(2);
+    expect(screen.getByTestId("strategy-row-BUY")).toBeInTheDocument();
+    expect(screen.getByTestId("strategy-row-SELL")).toBeInTheDocument();
+    expect(screen.getByTestId("diary-strip")).toBeInTheDocument();
+  });
+
+  it("adds a setup and paper-fills it into the diary", async () => {
+    const { container } = renderWithProviders(
+      <PremiumTrackerPanel strikeMatrix={matrix} selectedUnderlying="NIFTY" />,
+    );
+    await screen.findByTestId("strategy-row-BUY");
+    await userEvent.click(screen.getByTestId("strategy-row-add-BUY"));
+    await waitFor(() => {
+      expect(container.querySelector("[data-testid^='setup-card-']")).toBeInTheDocument();
+    });
+    const fillBtn = container.querySelector("[data-testid^='setup-fill-']");
+    expect(fillBtn).toBeInTheDocument();
+    await userEvent.click(fillBtn as Element);
+    expect(await screen.findByText("No closed trades yet")).toBeInTheDocument();
   });
 
   it("shows an error when the snapshot fails", async () => {
     vi.mocked(fetchPremiumTracker).mockRejectedValueOnce(new Error("no token"));
     renderWithProviders(<PremiumTrackerPanel />);
     expect(await screen.findByTestId("premium-error")).toHaveTextContent("no token");
-  });
-
-  it("logs a paper trade and marks pnl on exit", async () => {
-    renderWithProviders(<PremiumTrackerPanel />);
-    await screen.findByTestId("premium-paper-form");
-
-    await userEvent.type(screen.getByTestId("paper-strike"), "23150");
-    await userEvent.type(screen.getByTestId("paper-qty"), "65");
-    await userEvent.type(screen.getByTestId("paper-entry"), "100");
-    await userEvent.click(screen.getByTestId("paper-add"));
-
-    expect(await screen.findByText("No closed trades yet")).toBeInTheDocument();
   });
 });

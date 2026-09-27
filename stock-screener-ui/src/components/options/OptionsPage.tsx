@@ -121,7 +121,7 @@ export function OptionsPage({
                 data-testid="options-premium-tab"
                 sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
               >
-                <PremiumTrackerPanel />
+                <PremiumTrackerPanel strikeMatrix={strikeMatrix} selectedUnderlying={selectedUnderlying} />
               </Box>
             )}
           </ScrollArea>
