@@ -7,6 +7,7 @@ import { ScrollArea } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { GreeksPanel } from "./OptionGreeks/GreeksPanel";
+import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
 import { OptionsNav } from "./OptionsNav";
 
 interface OptionsPageProps {
@@ -110,6 +111,17 @@ export function OptionsPage({
                 sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
               >
                 <GreeksPanel />
+              </Box>
+            )}
+
+            {activeTab === "premium" && (
+              <Box
+                id="premium-container"
+                className="options-tab-content"
+                data-testid="options-premium-tab"
+                sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
+              >
+                <PremiumTrackerPanel />
               </Box>
             )}
           </ScrollArea>

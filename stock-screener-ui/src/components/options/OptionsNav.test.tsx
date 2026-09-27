@@ -12,11 +12,12 @@ afterEach(() => {
 });
 
 describe("OptionsNav", () => {
-  it("renders all three tabs", () => {
+  it("renders all four tabs", () => {
     renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
     expect(screen.getByText("Positions")).toBeInTheDocument();
     expect(screen.getByText("Greeks")).toBeInTheDocument();
+    expect(screen.getByText("Premium")).toBeInTheDocument();
   });
 
   it("renders nav testid", () => {

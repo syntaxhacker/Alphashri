@@ -18,6 +18,10 @@ vi.mock("./OptionGreeks/GreeksPanel", () => ({
   GreeksPanel: () => <div data-testid="options-greeks-panel">Greeks Panel</div>,
 }));
 
+vi.mock("./PremiumTracker/PremiumTrackerPanel", () => ({
+  PremiumTrackerPanel: () => <div data-testid="premium-tracker-panel">Premium Panel</div>,
+}));
+
 beforeEach(() => setupBrowserMocks());
 afterEach(() => {
   cleanup();
@@ -69,6 +73,11 @@ describe("OptionsPage", () => {
   it("hides chain panel when positions tab is active", () => {
     renderWithProviders(<OptionsPage {...defaultProps} activeTab="positions" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
+  });
+
+  it("shows premium panel when activeTab is premium", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="premium" />);
+    expect(screen.getByTestId("premium-tracker-panel")).toBeInTheDocument();
   });
 
   it("hides chain panel when greeks tab is active", () => {
