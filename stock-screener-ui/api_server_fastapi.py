@@ -864,6 +864,13 @@ except Exception as e:
     print(f"⚠️ Could not load options API: {e}")
 
 try:
+    from api.premium_tracker import router as premium_tracker_router
+    app.include_router(premium_tracker_router)
+    print("✅ Premium Tracker API loaded at /api/options/premium-tracker")
+except Exception as e:
+    print(f"⚠️ Could not load premium tracker API: {e}")
+
+try:
     from api.news_charts import router as news_charts_router
     app.include_router(news_charts_router)
     print("✅ News Charts API loaded at /api/news")
