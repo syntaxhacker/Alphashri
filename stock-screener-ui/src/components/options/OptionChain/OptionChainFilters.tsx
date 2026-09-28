@@ -13,6 +13,7 @@ export function OptionChainFilters({
       data-testid="options-chain-filters"
       justify="center"
       gap={8}
+      style={{ width: "100%" }}
     >
       <Select
         w={160}

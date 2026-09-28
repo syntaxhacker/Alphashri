@@ -21,6 +21,7 @@ export function OptionChainHeader({
       data-testid="options-chain-header-controls"
       justify="center"
       gap={8}
+      style={{ width: "100%" }}
     >
       <Select
         w={220}
