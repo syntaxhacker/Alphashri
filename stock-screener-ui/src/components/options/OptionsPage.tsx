@@ -6,7 +6,6 @@ import CardContent from "@mui/material/CardContent";
 import { ScrollArea } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
-import { GreeksPanel } from "./OptionGreeks/GreeksPanel";
 import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
 import { OptionsNav } from "./OptionsNav";
 
@@ -100,17 +99,6 @@ export function OptionsPage({
                 sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
               >
                 <PositionsPanel positions={positions || []} />
-              </Box>
-            )}
-
-            {activeTab === "greeks" && (
-              <Box
-                id="greeks-container"
-                className="options-tab-content"
-                data-testid="options-greeks-tab"
-                sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
-              >
-                <GreeksPanel />
               </Box>
             )}
 

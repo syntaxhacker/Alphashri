@@ -1,6 +1,7 @@
 import { useState } from "react";
 import Box from "@mui/material/Box";
-import { Button, ScrollArea, Select, Text, ToolbarRow } from "@/ui";
+import { Badge, Button, ScrollArea, Select, Text, ToolbarRow } from "@/ui";
+import { FIELD_W, ROW_BUTTON_SX } from "./widths";
 import { SetupCard } from "./SetupCard";
 import {
   BUY_STRATEGIES,
@@ -73,7 +74,7 @@ export function StrategyRow({
         </ToolbarRow>
         <ToolbarRow gap={8}>
           <Select
-            w={150}
+            w={FIELD_W.underlying}
             size="sm"
             value={underlying}
             onChange={(v) => onUnderlyingChange(String(v) as "NIFTY" | "BANKNIFTY")}
@@ -81,14 +82,19 @@ export function StrategyRow({
             data-testid={`strategy-row-underlying-${side}`}
           />
           <Select
-            w={180}
+            w={FIELD_W.template}
             size="sm"
             value={templateId}
             onChange={(v) => setTemplateId(String(v))}
             data={templates.map((t) => ({ value: t.id, label: t.name }))}
             data-testid={`strategy-row-template-${side}`}
           />
-          <Button size="sm" onClick={addSetup} data-testid={`strategy-row-add-${side}`}>
+          <Button
+            size="sm"
+            style={{ ...ROW_BUTTON_SX }}
+            onClick={addSetup}
+            data-testid={`strategy-row-add-${side}`}
+          >
             + Setup
           </Button>
         </ToolbarRow>
@@ -96,9 +102,18 @@ export function StrategyRow({
       <ScrollArea data-testid={`strategy-row-scroll-${side}`}>
         <Box sx={{ display: "flex", gap: 8, py: 1, width: "max-content", minWidth: "100%" }}>
           {rowSetups.length === 0 && (
-            <Text size="xs" c="dimmed" data-testid={`strategy-row-empty-${side}`}>
-              No setups. Pick a template and press + Setup — today's verdict favors this row.
-            </Text>
+            <ToolbarRow gap={8} data-testid={`strategy-row-empty-${side}`}>
+              <Text size="sm">No setups. Pick a template and press + Setup.</Text>
+              {glow ? (
+                <Badge color="success" size="xs">
+                  Favored today
+                </Badge>
+              ) : (
+                <Badge color="default" size="xs">
+                  Neutral
+                </Badge>
+              )}
+            </ToolbarRow>
           )}
           {rowSetups.map((setup) => (
             <SetupCard

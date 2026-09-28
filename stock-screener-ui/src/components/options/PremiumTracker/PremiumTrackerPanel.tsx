@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import { Alert, Badge, Button, Divider, Loader, Text, ToolbarRow } from "@/ui";
+import { Alert, Badge, Button, Divider, Grid, Loader, Text, ToolbarRow } from "@/ui";
 import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
 import { StrategyRow } from "./StrategyRow";
 import { DiaryStrip } from "./DiaryStrip";
@@ -70,14 +70,28 @@ function LegBlock({ leg }: { leg: PremiumLeg }) {
       </ToolbarRow>
       {!leg.error && (
         <CompactStatGrid>
-          <CompactStat label="Straddle" value={`${fmt(leg.straddle_pct, "%")}`} hint={`₹${fmt(leg.straddle_price, "", 0)}`} />
-          <CompactStat label="IV / HV" value={`${fmt(leg.iv_hv_ratio, "x")}`} hint={`IV ${fmt(leg.ce_iv_pct, "%", 1)} / HV ${fmt(leg.hv20_ann_pct, "%", 1)}`} />
-          <CompactStat label="HV daily" value={`${fmt(leg.hv20_daily_pct, "%")}`} hint="20-day realized" />
-          <CompactStat label="Avg range" value={`${fmt(leg.avg_range20_pct, "%")}`} hint="20-day H-L" />
+          <CompactStat label="Straddle" value={`${fmt(leg.straddle_pct, "%")}`} hint={`₹${fmt(leg.straddle_price, "", 0)}`} valueSize="md" />
+          <CompactStat label="IV / HV" value={`${fmt(leg.iv_hv_ratio, "x")}`} hint={`IV ${fmt(leg.ce_iv_pct, "%", 1)} / HV ${fmt(leg.hv20_ann_pct, "%", 1)}`} valueSize="md" />
+          <CompactStat label="HV daily" value={`${fmt(leg.hv20_daily_pct, "%")}`} hint="20-day realized" valueSize="md" />
+          <CompactStat label="Avg range" value={`${fmt(leg.avg_range20_pct, "%")}`} hint="20-day H-L" valueSize="md" />
         </CompactStatGrid>
       )}
     </Box>
   );
+}
+
+const SNAP_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function formatSnapshotTime(isoStr: string | null): string {
+  if (!isoStr) return "—";
+  const date = new Date(isoStr);
+  if (Number.isNaN(date.getTime())) return isoStr;
+  const ist = new Date(date.getTime() + (5 * 60 + 30) * 60 * 1000);
+  const day = ist.getUTCDate();
+  const month = SNAP_MONTHS[ist.getUTCMonth()];
+  const hours = String(ist.getUTCHours()).padStart(2, "0");
+  const minutes = String(ist.getUTCMinutes()).padStart(2, "0");
+  return `${day} ${month}, ${hours}:${minutes} IST`;
 }
 
 const CHECKS = [
@@ -197,7 +211,7 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
     <Stack spacing={1} sx={{ width: "100%" }} data-testid="premium-tracker-panel">
       <CompactPanel
         title="Premium Tracker"
-        description={asOf ? `Snapshot ${asOf}` : "Cheap vs expensive + paper setups"}
+        description={asOf ? `Snapshot ${formatSnapshotTime(asOf)}` : "Cheap vs expensive + paper setups"}
         testId="premium-snapshot-panel"
         action={
           <Button size="sm" onClick={refresh} data-testid="premium-refresh">
@@ -217,12 +231,15 @@ export function PremiumTrackerPanel({ strikeMatrix = [], selectedUnderlying = "N
         {!loading && !error && legs.length === 0 && (
           <Text size="sm" c="dimmed" data-testid="premium-empty">No snapshot data.</Text>
         )}
-        {!loading && !error && legs.map((leg, i) => (
-          <Box key={leg.underlying} sx={{ width: "100%" }}>
-            {i > 0 && <Divider data-testid="premium-leg-divider" />}
-            <LegBlock leg={leg} />
-          </Box>
-        ))}
+        {!loading && !error && legs.length > 0 && (
+          <Grid gutter="sm">
+            {legs.map((leg) => (
+              <Grid.Col key={leg.underlying} size={{ xs: 12, md: 6 }}>
+                <LegBlock leg={leg} />
+              </Grid.Col>
+            ))}
+          </Grid>
+        )}
         <Divider data-testid="premium-checks-divider" />
         <Box component="ul" sx={{ m: 0, pl: 2, width: "100%" }} data-testid="premium-checks">
           {CHECKS.map((check) => (

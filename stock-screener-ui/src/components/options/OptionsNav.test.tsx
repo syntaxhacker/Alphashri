@@ -12,12 +12,12 @@ afterEach(() => {
 });
 
 describe("OptionsNav", () => {
-  it("renders all four tabs", () => {
+  it("renders all three tabs", () => {
     renderWithProviders(<OptionsNav activeTab="chain" onTabChange={vi.fn()} />);
     expect(screen.getByText("Option Chain")).toBeInTheDocument();
     expect(screen.getByText("Positions")).toBeInTheDocument();
-    expect(screen.getByText("Greeks")).toBeInTheDocument();
     expect(screen.getByText("Premium")).toBeInTheDocument();
+    expect(screen.queryByText("Greeks")).not.toBeInTheDocument();
   });
 
   it("renders nav testid", () => {
@@ -31,8 +31,8 @@ describe("OptionsNav", () => {
     await userEvent.click(screen.getByText("Positions"));
     expect(onTabChange).toHaveBeenCalledWith("positions");
 
-    await userEvent.click(screen.getByText("Greeks"));
-    expect(onTabChange).toHaveBeenCalledWith("greeks");
+    await userEvent.click(screen.getByText("Premium"));
+    expect(onTabChange).toHaveBeenCalledWith("premium");
   });
 
   it("marks active tab with correct value", () => {

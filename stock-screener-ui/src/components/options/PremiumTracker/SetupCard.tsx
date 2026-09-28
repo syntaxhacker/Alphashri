@@ -10,6 +10,7 @@ import {
 } from "./payoff";
 import { markSetup, type PaperSetup, type SetupLeg } from "./strategies";
 import type { Conviction } from "./paperTrades";
+import { FIELD_W, ROW_BUTTON_SX } from "./widths";
 
 interface SetupCardProps {
   setup: PaperSetup;
@@ -74,7 +75,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
         </Text>
         <ToolbarRow gap={4}>
           <Badge color="default" size="xs">{setup.underlying}</Badge>
-          <Button size="sm" onClick={() => onDeleteSetup(setup.id)} data-testid={`setup-delete-${setup.id}`}>
+          <Button size="sm" sx={ROW_BUTTON_SX} onClick={() => onDeleteSetup(setup.id)} data-testid={`setup-delete-${setup.id}`}>
             Del
           </Button>
         </ToolbarRow>
@@ -86,31 +87,35 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
           <Box key={leg.legId} data-testid={`setup-leg-${leg.legId}`} sx={{ width: "100%" }}>
             <ToolbarRow gap={4}>
               <Select
-                w={80}
+                w={FIELD_W.action}
                 size="sm"
+                label="Action"
                 value={leg.action}
                 onChange={(v) => onUpdateLeg(setup.id, leg.legId, { action: String(v) as SetupLeg["action"] })}
                 data={["BUY", "SELL"]}
                 data-testid={`setup-leg-action-${leg.legId}`}
               />
               <NumberInput
-                w={120}
+                w={FIELD_W.strike}
                 size="sm"
+                label="Strike"
                 value={leg.strike}
                 onChange={(v) => onUpdateLeg(setup.id, leg.legId, { strike: Number(v) || 0 })}
                 data-testid={`setup-leg-strike-${leg.legId}`}
               />
               <Select
-                w={72}
+                w={FIELD_W.type}
                 size="sm"
+                label="Type"
                 value={leg.optionType}
                 onChange={(v) => onUpdateLeg(setup.id, leg.legId, { optionType: String(v) as SetupLeg["optionType"] })}
                 data={["CE", "PE"]}
                 data-testid={`setup-leg-type-${leg.legId}`}
               />
               <NumberInput
-                w={64}
+                w={FIELD_W.qty}
                 size="sm"
+                label="Qty"
                 value={leg.qty}
                 onChange={(v) => onUpdateLeg(setup.id, leg.legId, { qty: Number(v) || 0 })}
                 data-testid={`setup-leg-qty-${leg.legId}`}
@@ -118,7 +123,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
             </ToolbarRow>
             <ToolbarRow gap={4}>
               <NumberInput
-                w={100}
+                w={FIELD_W.entry}
                 size="sm"
                 label="Entry ₹"
                 value={leg.entry}
@@ -146,7 +151,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
       <Divider />
       <ToolbarRow gap={4}>
         <Select
-          w={110}
+          w={FIELD_W.conviction}
           size="sm"
           label="Conviction"
           value={conviction}
@@ -155,14 +160,14 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
           data-testid={`setup-conviction-${setup.id}`}
         />
         <TextInput
-          w={160}
+          w={FIELD_W.note}
           size="sm"
           label="Plan"
           value={plan}
           onChange={(v) => setPlan(String(v))}
           data-testid={`setup-plan-${setup.id}`}
         />
-        <Button size="sm" onClick={() => onPaperFill(setup, { conviction, plan })} data-testid={`setup-fill-${setup.id}`}>
+        <Button size="sm" sx={ROW_BUTTON_SX} onClick={() => onPaperFill(setup, { conviction, plan })} data-testid={`setup-fill-${setup.id}`}>
           Paper fill
         </Button>
       </ToolbarRow>

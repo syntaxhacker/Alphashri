@@ -1,4 +1,4 @@
-import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, ToolbarRow } from "@/ui";
+import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, ToolbarRow, ActionIcon } from "@/ui";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import {
@@ -91,14 +91,20 @@ export function OptionChainPanel({
           <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
             Guide
           </Button>
-          <Box
-            component={IconRefresh}
-            size={18}
-            style={{ opacity: loading ? 0.5 : 1 }}
-            sx={{ cursor: "pointer" }}
-            onClick={() => !loading && refreshChain()}
-            data-testid="refresh-chain-btn"
-          />
+          <Tooltip label="Refresh chain">
+            <ActionIcon
+              variant="subtle"
+              color="primary"
+              size="sm"
+              loading={loading}
+              disabled={loading}
+              style={{ opacity: loading ? 0.5 : 1 }}
+              onClick={() => !loading && refreshChain()}
+              data-testid="refresh-chain-btn"
+            >
+              <IconRefresh size={18} />
+            </ActionIcon>
+          </Tooltip>
         </ToolbarRow>
       </Box>
 
@@ -158,7 +164,7 @@ export function OptionChainPanel({
                 <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
                   <ChainSummary strikeMatrix={strikeMatrix} spotPrice={spotPrice} selectedExpiry={selectedExpiry} summary={summary} />
                 </Box>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "safe center", gap: 1, p: 1, width: "100%", overflowX: "auto" }}>
                   <OptionChainTable strikeMatrix={strikeMatrix} filters={filters} spotPrice={spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
                 </Box>
               </Stack>

@@ -52,7 +52,7 @@ export function PayoffChart({
         : [
             {
               coord: [spot, payoffAtExpiry(legs, spot)],
-              symbolSize: 8,
+              symbolSize: 12,
               itemStyle: { color: "#38BDF8" },
             },
           ];
@@ -67,9 +67,9 @@ export function PayoffChart({
           return `Spot ${Number(value[0]).toFixed(1)}<br/>P&amp;L ${formatINR(Number(value[1]))}`;
         },
       },
-      grid: { left: 8, right: 8, top: 8, bottom: 20, containLabel: true },
-      xAxis: { type: "value", scale: true },
-      yAxis: { type: "value", scale: true },
+      grid: { left: 8, right: 40, top: 8, bottom: 20, containLabel: true },
+      xAxis: { type: "value", scale: true, name: "Spot", axisLabel: { hideOverlap: true } },
+      yAxis: { type: "value", scale: true, name: "P&L ₹" },
       series: [
         {
           type: "line",

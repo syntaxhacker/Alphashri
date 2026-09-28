@@ -65,7 +65,7 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }} className="live-spot-chart" data-testid="options-live-spot-chart">
-      <Box sx={{ position: "relative" }} className="spot-chart-svg-container">
+      <Box sx={{ display: "flex", flexDirection: "column", alignItems: "center", position: "relative" }} className="spot-chart-svg-container">
         <svg width="200" height="40" style={{ display: "block" }} className="spot-chart-svg">
           <defs>
             <linearGradient id="gradient" x1="0" y1="0" x2="0" y2="1">
@@ -88,6 +88,9 @@ export function LiveSpotChart({ underlying }: { underlying: string }) {
           />
           <path d={`M 0,40 L ${svgParams.points} L 200,40 Z`} fill="url(#gradient)" style={{ opacity: 0, animation: "fadeIn 1s ease-out 1s forwards" }} />
         </svg>
+        <Text size="xs" c="dimmed" className="spot-chart-range" data-testid="options-spot-chart-range">
+          {svgParams.min.toFixed(2)} – {svgParams.max.toFixed(2)}
+        </Text>
         <style>
           {`
             @keyframes dash { to { stroke-dashoffset: 0; } }

@@ -229,6 +229,9 @@ function OptionColumn({
           background: palette.background,
           boxShadow: palette.shadow,
           color: cell.c ? undefined : palette.text,
+          // TABLE_CHECKLIST rule: numeric columns right-align (headers match).
+          justifyContent: "flex-end",
+          textAlign: "right",
         };
 
         return (
@@ -258,9 +261,9 @@ function OptionColumn({
                 />
               )}
 
-              <Stack gap={0} align="center" w="100%" pos="relative" sx={{ zIndex: 1 }}>
-                <Group gap={4} wrap="nowrap" align="center" justify="center">
-                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
+              <Stack gap={0} align="flex-end" w="100%" pos="relative" sx={{ zIndex: 1 }}>
+                <Group gap={4} wrap="nowrap" align="center" justify="flex-end">
+                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="right" lh={1.05}>
                     {cell.value}
                   </Text>
                   {cell.badge && (
@@ -354,12 +357,10 @@ function OptionChainTableInner({
       <ChainSubHeader styles={styles} />
 
       <ScrollArea
-       
         flex={1}
-        type="hover"
-        scrollbars="y"
         viewportRef={viewportRef}
         data-testid="options-chain-table-scrollarea"
+        sx={{ overflowX: "auto", overflowY: "auto" }}
       >
         <Box sx={{ minWidth: 800, pb: 19 }}>
           {strikeMatrix.map(({ strike, ce, pe, pcr }) => {
@@ -417,7 +418,7 @@ function OptionChainTableInner({
                   }}
                   data-testid="strike-cell"
                 >
-                  <Text size="sm" fw={800}>
+                  <Text size="sm" fw={800} ta="center">
                     {strike}
                   </Text>
                 </Box>

@@ -31,9 +31,6 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
           <Tab value="positions" className="options-nav-tab" data-testid="nav-tab-positions">
             Positions
           </Tab>
-          <Tab value="greeks" className="options-nav-tab" data-testid="nav-tab-greeks">
-            Greeks
-          </Tab>
           <Tab value="premium" className="options-nav-tab" data-testid="nav-tab-premium">
             Premium
           </Tab>

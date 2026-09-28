@@ -117,16 +117,16 @@ describe("OptionChainPanel", () => {
     expect(refreshChain).toHaveBeenCalledTimes(1);
   });
 
-  it("disables refresh icon (dimmed) while loading", () => {
+  it("disables refresh button while loading", () => {
     renderWithProviders(<OptionChainPanel {...defaultProps} loading={true} />);
     const refreshBtn = screen.getByTestId("refresh-chain-btn");
-    expect(refreshBtn.style.opacity).toBe("0.5");
+    expect(refreshBtn).toBeDisabled();
   });
 
-  it("enables refresh icon when not loading", () => {
+  it("enables refresh button when not loading", () => {
     renderWithProviders(<OptionChainPanel {...defaultProps} loading={false} />);
     const refreshBtn = screen.getByTestId("refresh-chain-btn");
-    expect(refreshBtn.style.opacity).toBe("1");
+    expect(refreshBtn).toBeEnabled();
   });
 
   it("renders Guide button and opens guide modal on click", async () => {

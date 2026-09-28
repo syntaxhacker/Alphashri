@@ -13,6 +13,7 @@ import {
   type PaperTrade,
 } from "./paperTrades";
 import type { ColumnDef } from "@tanstack/react-table";
+import { FIELD_W, ROW_BUTTON_SX } from "./widths";
 
 interface DiaryStripProps {
   trades: PaperTrade[];
@@ -72,7 +73,7 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
           return (
             <ToolbarRow gap={4}>
               <NumberInput
-                w={90}
+                w={FIELD_W.exit}
                 size="sm"
                 value={draftExits[trade.id] ?? ""}
                 onChange={(v) => setDraftExits((prev) => ({ ...prev, [trade.id]: String(v) }))}
@@ -80,6 +81,7 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
               />
               <Button
                 size="sm"
+                style={{ ...ROW_BUTTON_SX }}
                 onClick={() => {
                   const raw = draftExits[trade.id];
                   if (raw === undefined || raw === "") return;
@@ -138,6 +140,7 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
           <ToolbarRow gap={4}>
             <Button
               size="sm"
+              style={{ ...ROW_BUTTON_SX }}
               onClick={() => {
                 const t = row.original;
                 setReviewId((prev) => (prev === t.id ? null : t.id));
@@ -148,7 +151,12 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
             >
               Review
             </Button>
-            <Button size="sm" onClick={() => onDelete(row.original.id)} data-testid={`diary-delete-${row.original.id}`}>
+            <Button
+              size="sm"
+              style={{ ...ROW_BUTTON_SX }}
+              onClick={() => onDelete(row.original.id)}
+              data-testid={`diary-delete-${row.original.id}`}
+            >
               Del
             </Button>
           </ToolbarRow>
@@ -167,7 +175,7 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
     <Box w="100%" data-testid="diary-strip">
       <ToolbarRow gap={8} justify="space-between" data-testid="diary-day-row">
         <Select
-          w={150}
+          w={FIELD_W.day}
           size="sm"
           label="Day"
           value={day}
@@ -208,7 +216,7 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
               Revisit: {reviewTrade.underlying} {reviewTrade.strike} {reviewTrade.side} @ {reviewTrade.entry}
             </Text>
             <Select
-              w={130}
+              w={FIELD_W.conviction}
               size="sm"
               label="Conviction"
               value={reviewConviction}
@@ -233,6 +241,7 @@ export function DiaryStrip({ trades, onSetExit, onDelete, onUpdateTrade }: Diary
           <ToolbarRow gap={8}>
             <Button
               size="sm"
+              style={{ ...ROW_BUTTON_SX }}
               onClick={() => {
                 onUpdateTrade(reviewTrade.id, { review: reviewText, conviction: reviewConviction });
                 setReviewId(null);
