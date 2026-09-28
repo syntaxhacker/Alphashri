@@ -57,7 +57,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
     <Box
       data-testid={`setup-card-${setup.id}`}
       sx={{
-        width: 340,
+        width: 460,
         flexShrink: 0,
         border: "1px solid",
         borderColor: glow ? "warning.main" : "divider",
@@ -94,7 +94,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
                 data-testid={`setup-leg-action-${leg.legId}`}
               />
               <NumberInput
-                w={100}
+                w={120}
                 size="sm"
                 value={leg.strike}
                 onChange={(v) => onUpdateLeg(setup.id, leg.legId, { strike: Number(v) || 0 })}
@@ -133,7 +133,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
         );
       })}
 
-      <PayoffChart legs={legs} spot={spot} height={140} data-testid={`setup-payoff-${setup.id}`} />
+      <PayoffChart legs={legs} spot={spot} height={180} data-testid={`setup-payoff-${setup.id}`} />
 
       {stats && (
         <Text size="xs" c="dimmed" data-testid={`setup-stats-${setup.id}`}>
@@ -155,7 +155,7 @@ export function SetupCard({ setup, spot, ltpOf, onUpdateLeg, onDeleteSetup, onPa
           data-testid={`setup-conviction-${setup.id}`}
         />
         <TextInput
-          w={120}
+          w={160}
           size="sm"
           label="Plan"
           value={plan}
