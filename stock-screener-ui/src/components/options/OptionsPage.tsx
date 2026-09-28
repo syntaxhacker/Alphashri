@@ -69,8 +69,8 @@ export function OptionsPage({
         </CardContent>
       </Card>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
-        <Box sx={{ width: "100%", maxWidth: 1400, display: "flex", flexDirection: "column", alignItems: "center" }}>
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", justifyContent: "center", alignItems: "stretch" }}>
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
           <ScrollArea h="100%" offsetScrollbars>
             {activeTab === "chain" && (
               <OptionChainPanel

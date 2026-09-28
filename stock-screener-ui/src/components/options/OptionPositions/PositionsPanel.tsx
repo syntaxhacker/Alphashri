@@ -144,7 +144,7 @@ export function PositionsPanel({ positions = [], loading, error }: PositionsPane
 
   return (
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "center", width: "100%", maxWidth: 1000 }}>
+      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "center", width: "100%" }}>
         <Grid size={{ xs: 12 }} sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
           <Stack id="positions-panel" className="positions-panel" spacing={1} sx={{ alignItems: "center", justifyContent: "center", width: "100%" }} data-testid="options-positions-panel">
             <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
