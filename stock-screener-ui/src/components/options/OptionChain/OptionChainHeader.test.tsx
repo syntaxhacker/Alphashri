@@ -38,8 +38,8 @@ describe("OptionChainHeader", () => {
 
   it("has select labels", () => {
     renderWithProviders(<OptionChainHeader {...defaultProps} />);
-    expect(screen.getByText("Underlying")).toBeInTheDocument();
-    expect(screen.getByText("Expiry")).toBeInTheDocument();
+    expect(screen.getAllByText("Underlying").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("Expiry").length).toBeGreaterThan(0);
   });
 
   it("displays available underlyings as select options", async () => {

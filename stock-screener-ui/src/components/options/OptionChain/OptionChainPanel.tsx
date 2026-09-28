@@ -1,4 +1,4 @@
-import { Group, Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip } from "@/ui";
+import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, ToolbarRow } from "@/ui";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import {
@@ -65,42 +65,39 @@ export function OptionChainPanel({
     >
       <OptionChainGuide opened={guideOpened} onClose={close} />
 
-      {/* Header Row - centered */}
-      <Box
+      {/* Header Row - single centered control row */}
+      <ToolbarRow
         id="chain-header"
         data-testid="options-chain-header"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", flexWrap: "wrap", gap: 1, p: 1 }}
+        justify="center"
+        gap={8}
       >
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap" }}>
-          <Text size="md" fw={600} sx={{ whiteSpace: "nowrap", textAlign: "center" }}>
-            Option Chain
-          </Text>
-          <LiveSpotChart underlying={selectedUnderlying} />
-          {timestamp && !loading && (
-            <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
-              <Badge variant="light" color="secondary" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
-                {dayjs(timestamp).format("HH:mm:ss")}
-              </Badge>
-            </Tooltip>
-          )}
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-          <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
-            Guide
-          </Button>
-          <Text size="xs" c="dimmed" data-testid="options-chain-selection" sx={{ textAlign: "center" }}>
-            {selectedUnderlying} · {selectedExpiry}
-          </Text>
-            <Box
-              component={IconRefresh}
-              size={18}
-              style={{ opacity: loading ? 0.5 : 1 }}
-              sx={{ cursor: "pointer" }}
-            onClick={() => !loading && refreshChain()}
-            data-testid="refresh-chain-btn"
-          />
-        </Box>
-      </Box>
+        <Text size="md" fw={600} sx={{ whiteSpace: "nowrap" }}>
+          Option Chain
+        </Text>
+        <LiveSpotChart underlying={selectedUnderlying} />
+        {timestamp && !loading && (
+          <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
+            <Badge variant="light" color="secondary" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
+              {dayjs(timestamp).format("HH:mm:ss")}
+            </Badge>
+          </Tooltip>
+        )}
+        <Text size="xs" c="dimmed" data-testid="options-chain-selection">
+          {selectedUnderlying} · {selectedExpiry}
+        </Text>
+        <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
+          Guide
+        </Button>
+        <Box
+          component={IconRefresh}
+          size={18}
+          style={{ opacity: loading ? 0.5 : 1 }}
+          sx={{ cursor: "pointer" }}
+          onClick={() => !loading && refreshChain()}
+          data-testid="refresh-chain-btn"
+        />
+      </ToolbarRow>
 
       {/* Controls */}
       <OptionChainHeader
