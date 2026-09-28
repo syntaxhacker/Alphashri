@@ -59,9 +59,9 @@ export function OptionsPage({
       spacing={1}
       sx={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}
     >
-      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
+      <Card elevation={1} sx={{ width: "100%", px: 1, py: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <CardContent sx={{ p: 0.5, "&:last-child": { pb: 0.5 }, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Grid container spacing={0} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
             <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
               <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
             </Grid>

@@ -21,10 +21,9 @@ export function OptionChainHeader({
       data-testid="options-chain-header-controls"
       justify="center"
       gap={8}
-      style={{ width: "100%" }}
     >
       <Select
-        w={220}
+        w={170}
         size="sm"
         label="Underlying"
         value={selectedUnderlying}
@@ -33,7 +32,7 @@ export function OptionChainHeader({
         data-testid="underlying-select"
       />
       <Select
-        w={180}
+        w={150}
         size="sm"
         label="Expiry"
         value={selectedExpiry}

@@ -11,7 +11,7 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
     <Box
       id="options-nav-wrapper"
       data-testid="options-nav-wrapper"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", py: 1 }}
+      sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", py: 0 }}
     >
       <Tabs
         id="options-nav-tabs"

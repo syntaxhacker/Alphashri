@@ -102,17 +102,18 @@ export function OptionChainPanel({
         </ToolbarRow>
       </Box>
 
-      {/* Controls */}
-      <OptionChainHeader
-        selectedUnderlying={selectedUnderlying}
-        selectedExpiry={selectedExpiry}
-        setUnderlying={setUnderlying}
-        setExpiry={setExpiry}
-        availableUnderlyings={availableUnderlyings}
-        availableExpiries={availableExpiries}
-      />
-
-      <OptionChainFilters filters={filters} setFilters={setFilters} />
+      {/* Controls + filters share one wrapping row */}
+      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8, width: "100%" }}>
+        <OptionChainHeader
+          selectedUnderlying={selectedUnderlying}
+          selectedExpiry={selectedExpiry}
+          setUnderlying={setUnderlying}
+          setExpiry={setExpiry}
+          availableUnderlyings={availableUnderlyings}
+          availableExpiries={availableExpiries}
+        />
+        <OptionChainFilters filters={filters} setFilters={setFilters} />
+      </Box>
 
       {/* Error State */}
       {error && (

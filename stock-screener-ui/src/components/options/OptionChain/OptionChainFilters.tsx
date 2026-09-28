@@ -13,10 +13,9 @@ export function OptionChainFilters({
       data-testid="options-chain-filters"
       justify="center"
       gap={8}
-      style={{ width: "100%" }}
     >
       <Select
-        w={160}
+        w={130}
         size="sm"
         label="Type"
         value={filters.optionType}
@@ -29,7 +28,7 @@ export function OptionChainFilters({
         data-testid="option-type-select"
       />
       <Select
-        w={140}
+        w={110}
         size="sm"
         label="Moneyness"
         value={filters.moneyness}
@@ -42,7 +41,7 @@ export function OptionChainFilters({
         data-testid="moneyness-select"
       />
       <NumberInput
-        w={130}
+        w={100}
         size="sm"
         label="Strike Min"
         value={filters.strikeRange?.[0] ?? 0}
@@ -52,7 +51,7 @@ export function OptionChainFilters({
         data-testid="strike-min-input"
       />
       <NumberInput
-        w={130}
+        w={100}
         size="sm"
         label="Max"
         value={filters.strikeRange?.[1] ?? 100000}
