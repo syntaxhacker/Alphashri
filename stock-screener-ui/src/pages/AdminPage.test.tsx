@@ -25,6 +25,11 @@ vi.mock("./admin/NewsQueuePanel", () => ({
   NewsQueuePanel: () => React.createElement("div", { "data-testid": "news-queue-panel-mock" }),
 }));
 
+vi.mock("../components/patterns/PatternImageManager", () => ({
+  PatternImageManager: () =>
+    React.createElement("div", { "data-testid": "pattern-image-manager-mock" }),
+}));
+
 describe("AdminPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -64,6 +69,15 @@ describe("AdminPage", () => {
 
   it("renders admin description", () => {
     renderWithProviders(<AdminPage />);
-    expect(screen.getByText("LLM telemetry, 52W range batch, and news analysis queue.")).toBeInTheDocument();
+    expect(
+      screen.getByText("LLM telemetry, 52W range batch, order-flow storage, and news analysis queue."),
+    ).toBeInTheDocument();
+  });
+
+  it("switches to the Pattern images tab", async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<AdminPage />);
+    await user.click(screen.getByTestId("admin-tab-pattern-images"));
+    expect(screen.getByTestId("pattern-image-manager-mock")).toBeInTheDocument();
   });
 });

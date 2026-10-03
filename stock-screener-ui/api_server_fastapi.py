@@ -978,6 +978,13 @@ except Exception as e:
     print(f"⚠️ Could not load chart patterns API: {e}")
 
 try:
+    from api.pattern_images import router as pattern_images_router
+    app.include_router(pattern_images_router)
+    print("✅ Pattern Images API loaded at /api/chart-patterns/images")
+except Exception as e:
+    print(f"⚠️ Could not load pattern images API: {e}")
+
+try:
     from api.heatmap import router as heatmap_router
     app.include_router(heatmap_router)
     print("✅ Heatmap API loaded at /api/heatmap")

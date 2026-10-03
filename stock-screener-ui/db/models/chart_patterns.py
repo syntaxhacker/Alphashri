@@ -145,3 +145,35 @@ class PatternHit(Base):
             "pivots": payload.get("pivots") or [],
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class PatternImage(Base):
+    """Admin-uploaded reference image for a chart pattern (one per pattern).
+
+    Only the stored basename (``<pattern_id>.<ext>``) is persisted; the bytes
+    live under ``experiments/data/pattern_images/``. ``to_dict`` exposes the
+    public serve URL so the frontend never needs to know the disk layout.
+    """
+
+    __tablename__ = "pattern_images"
+
+    pattern_id = Column(String(48), primary_key=True)
+    filename = Column(String(255), nullable=False)
+    content_type = Column(String(64), nullable=False)
+    size = Column(Integer, nullable=False, default=0)
+    updated_by = Column(Integer, nullable=True)
+    updated_at = Column(
+        DateTime,
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    def to_dict(self) -> dict:
+        return {
+            "pattern_id": self.pattern_id,
+            "url": f"/api/chart-patterns/image/{self.pattern_id}",
+            "content_type": self.content_type,
+            "size": self.size or 0,
+            "updated_at": self.updated_at.isoformat() if self.updated_at else None,
+        }
