@@ -114,6 +114,15 @@ let pollToken = 0;
 let inflight = 0;
 
 /**
+ * Monotonic generations for the two background loaders. A response (or failure)
+ * whose generation is no longer the latest is stale and must not touch state —
+ * otherwise a slow earlier request overwrites fresher data (or a slow failure
+ * surfaces an error for a view that already recovered).
+ */
+let resultsGeneration = 0;
+let summaryGeneration = 0;
+
+/**
  * `universe|timeframe` combinations we have already auto-requested a scan for
  * this session. Prevents repeatedly resubmitting a scan while an empty result
  * set is being viewed for a combo that genuinely has no hits yet.
@@ -138,7 +147,10 @@ function toMessage(error: unknown, fallback: string): string {
 
 function startLoading(): void {
   inflight += 1;
-  patch({ loading: true, error: null });
+  // NOTE: never clear `error` here — this runs on every concurrent loader start
+  // and would erase a real failure recorded by an overlapping loader. Actions
+  // clear `error` explicitly at their own start (and on success) instead.
+  patch({ loading: true });
 }
 
 function finishLoading(): void {
@@ -183,14 +195,14 @@ export function setFilter<K extends keyof PatternFilters>(
   key: K,
   value: PatternFilters[K],
 ): void {
-  patch({ filters: { ...state.filters, [key]: value } });
+  patch({ filters: { ...state.filters, [key]: value }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
 
 /** Clear all filters back to defaults and reload results/summary. */
 export function resetFilters(): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS } });
+  patch({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
@@ -200,7 +212,7 @@ export function resetFilters(): void {
  * unspecified keys reset), then reload results/summary. Used by presets.
  */
 export function applyFilters(filters: Partial<PatternFilters>): void {
-  patch({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters } });
+  patch({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters }, error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
 }
@@ -264,6 +276,7 @@ function baseQuery(): PatternsQuery {
 
 /** Load timeframe registry, universes and pattern catalog, then initial data. */
 export async function loadCatalog(): Promise<void> {
+  patch({ error: null });
   startLoading();
   try {
     const [timeframes, universes, catalog] = await Promise.all([
@@ -278,6 +291,7 @@ export async function loadCatalog(): Promise<void> {
       universe: state.universe || universes.default,
       patterns: catalog.patterns,
       families: catalog.families,
+      error: null,
     });
   } catch (error) {
     patch({ error: toMessage(error, "Failed to load chart-pattern catalog") });
@@ -291,6 +305,7 @@ export async function loadCatalog(): Promise<void> {
 
 /** Load the current result page for the active universe/timeframe/filters. */
 export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promise<void> {
+  const generation = ++resultsGeneration;
   startLoading();
   try {
     const data = await fetchResults({
@@ -299,8 +314,10 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
       offset: 0,
       ...overrides,
     });
+    if (generation !== resultsGeneration) return;
     patch({ results: data.items, total: data.total, dataThrough: data.data_through ?? null });
   } catch (error) {
+    if (generation !== resultsGeneration) return;
     patch({ error: toMessage(error, "Failed to load pattern results") });
   } finally {
     finishLoading();
@@ -309,26 +326,42 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
 
 /** Load the aggregate summary for the active universe/timeframe/filters. */
 export async function loadSummary(overrides: Partial<PatternsQuery> = {}): Promise<void> {
+  const generation = ++summaryGeneration;
   startLoading();
   try {
     const summary = await fetchSummary({ ...baseQuery(), ...overrides });
+    if (generation !== summaryGeneration) return;
     patch({ summary, dataThrough: summary.data_through ?? state.dataThrough });
   } catch (error) {
+    if (generation !== summaryGeneration) return;
     patch({ error: toMessage(error, "Failed to load pattern summary") });
   } finally {
     finishLoading();
   }
 }
 
-/** Adopt an in-flight job (if any) after a page reload. */
+/**
+ * Adopt an in-flight job (if any) after a page reload. Prefers a queued/running
+ * job for the current universe+timeframe; a job for another combo is only kept
+ * as a fallback reference and must not flip `scanning` for this view.
+ */
 export async function loadActiveJobs(): Promise<void> {
   try {
     const jobs = await fetchActiveJobs();
-    const active = jobs.find((job) => job.status === "queued" || job.status === "running");
-    if (active) {
-      patch({ job: active, scanning: true });
-      void pollJob(active.job_id);
-    } else if (jobs.length > 0 && !state.job) {
+    const active = jobs.filter((job) => job.status === "queued" || job.status === "running");
+    const matching = active.find(
+      (job) => job.universe === state.universe && job.timeframe === state.timeframe,
+    );
+    if (matching) {
+      patch({ job: matching, scanning: true });
+      void pollJob(matching.job_id);
+      return;
+    }
+    if (active.length > 0) {
+      if (!state.job) patch({ job: active[0] });
+      return;
+    }
+    if (jobs.length > 0 && !state.job) {
       patch({ job: jobs[0] });
     }
   } catch {
@@ -349,6 +382,29 @@ function isScanStale(): boolean {
 }
 
 /**
+ * True when any result-narrowing filter is active. An empty result set under a
+ * restrictive filter is filter-caused, not a missing scan — so it must never
+ * trigger an automatic scan. (`sort` is ordering-only, not restrictive.)
+ */
+export function hasRestrictiveFilter(filters: PatternFilters): boolean {
+  return (
+    filters.family.length > 0 ||
+    filters.pattern_id.length > 0 ||
+    filters.direction.length > 0 ||
+    filters.status.length > 0 ||
+    filters.quality != null ||
+    filters.formed_within_bars != null ||
+    filters.volume_confirmed != null ||
+    filters.min_rr != null ||
+    (filters.symbol != null && filters.symbol !== "") ||
+    filters.symbols.length > 0 ||
+    (filters.q != null && filters.q !== "") ||
+    filters.min_base_days != null ||
+    filters.max_range_pct != null
+  );
+}
+
+/**
  * Auto-submit a scan for the active universe+timeframe when its last completed
  * scan is missing/stale — including when hits are present but were produced by
  * an older detector (those payloads lack trendlines/pivots). Skips while a scan
@@ -361,6 +417,8 @@ function maybeAutoScan(): void {
   if (!universe || !timeframe) return;
   // Results are present and fresh: nothing to refresh.
   if (state.results.length > 0 && !isScanStale()) return;
+  // Empty under a restrictive filter is filter-caused, not a missing scan.
+  if (state.results.length === 0 && hasRestrictiveFilter(state.filters)) return;
   const active = state.job;
   const activeForCombo =
     !!active &&
@@ -370,8 +428,10 @@ function maybeAutoScan(): void {
   if (activeForCombo) return;
   const key = `${universe}|${timeframe}`;
   if (autoScanRequested.has(key)) return;
-  autoScanRequested.add(key);
-  void triggerScan();
+  // The key is recorded only after the scan is successfully enqueued (inside
+  // `triggerScan`), so a 429/network failure leaves the combo retryable.
+  // Capture the combo now: `triggerScan` awaits, and state may move meanwhile.
+  void triggerScan(false, { universe, timeframe, autoKey: key });
 }
 
 function jobFromScan(
@@ -398,24 +458,31 @@ function jobFromScan(
   };
 }
 
-/** Start a scan for the active universe/timeframe and begin polling. */
-export async function triggerScan(force = false): Promise<void> {
+/** Start a scan and begin polling. Defaults to the active combo, but callers
+ * (notably `maybeAutoScan`) may pin an explicit universe/timeframe — the
+ * request must use those, not whatever state holds when the await resolves.
+ * `autoKey` (a `universe|timeframe` once-per-combo key) is recorded only after
+ * the scan is successfully enqueued, so failures stay retryable. */
+export async function triggerScan(
+  force = false,
+  overrides: { universe?: string; timeframe?: string; autoKey?: string } = {},
+): Promise<void> {
+  const universe = overrides.universe ?? state.universe;
+  const timeframe = overrides.timeframe ?? state.timeframe;
   patch({ error: null });
   try {
-    const response = await startScan({
-      universe: state.universe,
-      timeframe: state.timeframe,
-      force,
-    });
+    const response = await startScan({ universe, timeframe, force });
+    if (overrides.autoKey) autoScanRequested.add(overrides.autoKey);
     patch({
       job: jobFromScan(
         response.job_id,
         response.status,
         response.queue_position,
-        state.universe,
-        state.timeframe,
+        universe,
+        timeframe,
       ),
       scanning: true,
+      error: null,
     });
     void pollJob(response.job_id);
   } catch (error) {
@@ -463,7 +530,12 @@ export async function pollJob(jobId: string): Promise<void> {
           patch({ error: job.error });
         }
         if (job.status === "completed") {
-          await Promise.all([loadResults({ offset: 0 }), loadSummary()]);
+          // Reload the combo the job actually scanned. If the user moved to a
+          // different universe/timeframe while it ran, its payload belongs to
+          // the old view — reloading it here would clobber the new combo.
+          if (job.universe === state.universe && job.timeframe === state.timeframe) {
+            await Promise.all([loadResults({ offset: 0 }), loadSummary()]);
+          }
         }
       }
     } catch (error) {
@@ -487,6 +559,7 @@ export async function pollJob(jobId: string): Promise<void> {
 
 /** Re-fetch results + summary, resuming polling if a job is still active. */
 export function refresh(): void {
+  patch({ error: null });
   void loadResults({ offset: 0 });
   void loadSummary();
   if (state.job && (state.job.status === "queued" || state.job.status === "running")) {
@@ -502,17 +575,17 @@ async function reloadSelection(overrides: Partial<PatternsQuery>): Promise<void>
 
 /** Switch timeframe and reload results/summary; clears the open symbol detail. */
 export function selectTimeframe(timeframe: string): void {
-  const changed = timeframe !== state.timeframe;
-  patch({ timeframe, selectedSymbol: null, detail: null, detailChart: null });
-  if (!changed) return;
+  // No-op first: re-selecting the active value must not wipe the open detail.
+  if (timeframe === state.timeframe) return;
+  patch({ timeframe, selectedSymbol: null, detail: null, detailChart: null, error: null });
   void reloadSelection({ timeframe });
 }
 
 /** Switch universe and reload results/summary; clears the open symbol detail. */
 export function selectUniverse(universe: string): void {
-  const changed = universe !== state.universe;
-  patch({ universe, selectedSymbol: null, detail: null, detailChart: null });
-  if (!changed) return;
+  // No-op first: re-selecting the active value must not wipe the open detail.
+  if (universe === state.universe) return;
+  patch({ universe, selectedSymbol: null, detail: null, detailChart: null, error: null });
   void reloadSelection({ universe });
 }
 
@@ -527,7 +600,7 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
       fetchSymbolChart(symbol, tf),
     ]);
     if (state.selectedSymbol !== symbol) return;
-    patch({ detail, detailChart: chart });
+    patch({ detail, detailChart: chart, error: null });
   } catch (error) {
     patch({ error: toMessage(error, `Failed to load ${symbol}`) });
   } finally {
@@ -539,6 +612,8 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
 export function resetChartPatternsState(): void {
   stopPolling();
   inflight = 0;
+  resultsGeneration = 0;
+  summaryGeneration = 0;
   autoScanRequested.clear();
   state = createInitialState();
   notify();

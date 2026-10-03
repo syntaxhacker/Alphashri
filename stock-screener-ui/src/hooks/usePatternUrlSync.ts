@@ -4,11 +4,15 @@
  *
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
- *   status (repeat), quality, within, base, range, sort, symbol (repeat), q.
+ *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
+ *   sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   `symbol=` values are the multi-symbol filter), q.
  *
  * Reads the URL once on mount (so a bookmarked view is restored) and writes
- * non-default state back on change. The screener's `?screener=` param is left
- * untouched — this hook only manages the keys listed above.
+ * non-default state back on change. After hydration it also adopts later URL
+ * changes (back/forward navigation) that differ from what it last wrote. The
+ * screener's `?screener=` param is left untouched — this hook only manages the
+ * keys listed below.
  */
 
 import { useEffect, useRef } from "react";
@@ -45,17 +49,18 @@ function numberOrNull(value: string | null): number | null {
 /**
  * Parse the pattern-related query params into an active selection + filter
  * patch. Unknown/blank params are ignored; repeated keys map to array filters.
+ * Blank `universe`/`tf` parse as null (no selection), never as "".
  */
 export function parsePatternParams(params: URLSearchParams): ParsedPatternParams {
   const filters: Partial<PatternFilters> = {};
 
-  const pattern = params.getAll("pattern");
+  const pattern = params.getAll("pattern").filter((v) => v !== "");
   if (pattern.length > 0) filters.pattern_id = pattern;
-  const family = params.getAll("family");
+  const family = params.getAll("family").filter((v) => v !== "");
   if (family.length > 0) filters.family = family;
-  const direction = params.getAll("direction");
+  const direction = params.getAll("direction").filter((v) => v !== "");
   if (direction.length > 0) filters.direction = direction;
-  const status = params.getAll("status");
+  const status = params.getAll("status").filter((v) => v !== "");
   if (status.length > 0) filters.status = status;
 
   const quality = params.get("quality");
@@ -63,6 +68,11 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
 
   const formedWithin = numberOrNull(params.get("within"));
   if (formedWithin != null) filters.formed_within_bars = formedWithin;
+  const volumeConfirmed = params.get("volume_confirmed");
+  if (volumeConfirmed === "true") filters.volume_confirmed = true;
+  else if (volumeConfirmed === "false") filters.volume_confirmed = false;
+  const minRr = numberOrNull(params.get("min_rr"));
+  if (minRr != null) filters.min_rr = minRr;
   const minBaseDays = numberOrNull(params.get("base"));
   if (minBaseDays != null) filters.min_base_days = minBaseDays;
   const maxRangePct = numberOrNull(params.get("range"));
@@ -71,15 +81,18 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   const sort = params.get("sort");
   if (sort) filters.sort = sort;
 
-  const symbols = params.getAll("symbol");
-  if (symbols.length > 0) filters.symbols = symbols;
+  // One `symbol=` is the singular symbol filter; several are the multi-symbol
+  // filter (mirrors how the API layer serializes them onto one key).
+  const symbols = params.getAll("symbol").filter((v) => v !== "");
+  if (symbols.length > 1) filters.symbols = symbols;
+  else if (symbols.length === 1) filters.symbol = symbols[0];
 
   const q = params.get("q");
   if (q) filters.q = q;
 
   return {
-    universe: params.get("universe"),
-    timeframe: params.get("tf"),
+    universe: params.get("universe") || null,
+    timeframe: params.get("tf") || null,
     filters,
   };
 }
@@ -106,11 +119,16 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.formed_within_bars != null) {
     params.set("within", String(filters.formed_within_bars));
   }
+  if (filters.volume_confirmed != null) {
+    params.set("volume_confirmed", String(filters.volume_confirmed));
+  }
+  if (filters.min_rr != null) params.set("min_rr", String(filters.min_rr));
   if (filters.min_base_days != null) params.set("base", String(filters.min_base_days));
   if (filters.max_range_pct != null) params.set("range", String(filters.max_range_pct));
   if (filters.sort && filters.sort !== DEFAULT_PATTERN_FILTERS.sort) {
     params.set("sort", filters.sort);
   }
+  if (filters.symbol) params.set("symbol", filters.symbol);
   for (const symbol of filters.symbols ?? []) params.append("symbol", symbol);
   if (filters.q) params.set("q", filters.q);
 
@@ -127,6 +145,8 @@ const PATTERN_PARAM_KEYS = new Set([
   "status",
   "quality",
   "within",
+  "volume_confirmed",
+  "min_rr",
   "base",
   "range",
   "sort",
@@ -141,6 +161,21 @@ function hasAnyPatternParam(parsed: ParsedPatternParams): boolean {
     parsed.timeframe != null ||
     Object.keys(parsed.filters).length > 0
   );
+}
+
+/**
+ * Order-insensitive filter-value comparison: `["TCS","SBIN"]` and
+ * `["SBIN","TCS"]` select the same symbols, so reordered repeats must count as
+ * "already in sync" (otherwise hydration gates stall and writes loop).
+ */
+export function filterValuesEqual(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    if (a.length !== b.length) return false;
+    const sortedA = [...a].map(String).sort();
+    const sortedB = [...b].map(String).sort();
+    return sortedA.every((v, i) => v === sortedB[i]);
+  }
+  return a === b;
 }
 
 /**
@@ -164,6 +199,10 @@ export function usePatternUrlSync({
   const hydratedRef = useRef(false);
   // Skip the very first write commit (initial defaults) — only real changes write.
   const firstRunRef = useRef(true);
+  // Serialized URL this hook last wrote (or last observed). A `searchParams`
+  // change to anything else is external navigation (back/forward, manual edit)
+  // and must be adopted rather than clobbered.
+  const lastWrittenRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (didReadRef.current) return;
@@ -197,10 +236,7 @@ export function usePatternUrlSync({
         const timeframeOk = !parsed.timeframe || timeframe === parsed.timeframe;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
           const current = (filters as Record<string, unknown>)[key];
-          if (Array.isArray(value)) {
-            return Array.isArray(current) && current.join("|") === value.join("|");
-          }
-          return current === value;
+          return filterValuesEqual(current, value);
         });
         if (!(universeOk && timeframeOk && filtersOk)) return; // wait for adoption
         hydratedRef.current = true;
@@ -213,10 +249,36 @@ export function usePatternUrlSync({
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
     }
     const nextString = next.toString();
+    lastWrittenRef.current = nextString;
     if (nextString === searchParams.toString()) return;
     setSearchParams(next, { replace: true });
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [universe, timeframe, filters]);
+
+  // Back/forward (or manual) navigation: once hydrated, adopt a URL that
+  // differs from what this hook last wrote. Setter calls are diffed against
+  // current state so adopting an equivalent URL is a no-op, and the write
+  // effect above converges instead of looping (`next === searchParams`).
+  useEffect(() => {
+    if (!hydratedRef.current) return;
+    const current = searchParams.toString();
+    if (current === lastWrittenRef.current) return;
+    lastWrittenRef.current = current;
+
+    const parsed = parsePatternParams(searchParams);
+    if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
+    if (parsed.timeframe && parsed.timeframe !== timeframe) setTimeframe(parsed.timeframe);
+    const entries = Object.entries(parsed.filters);
+    if (entries.length > 0) {
+      const differs = entries.some(([key, value]) => {
+        const currentValue = (filters as Record<string, unknown>)[key];
+        return !filterValuesEqual(currentValue, value);
+      });
+      if (differs) applyFilters(parsed.filters);
+    }
+    // Intentionally keyed on the URL; state/setters are read imperatively.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
 }

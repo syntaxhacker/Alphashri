@@ -60,6 +60,16 @@ export function useChartPatterns(): UseChartPatternsResult {
     setFilter(key as keyof PatternFilters, value as PatternFilters[keyof PatternFilters]);
   }, []);
 
+  // Same stability requirement for `scan`/`loadSymbol`: consumers list them in
+  // effect deps, so inline closures would re-fire those effects every render.
+  const handleScan = useCallback(() => {
+    void triggerScan();
+  }, []);
+
+  const handleLoadSymbol = useCallback((symbol: string) => {
+    void loadSymbolDetail(symbol);
+  }, []);
+
   return {
     timeframes: state.timeframes,
     universes: state.universes,
@@ -84,12 +94,8 @@ export function useChartPatterns(): UseChartPatternsResult {
     detailChart: state.detailChart,
     loading: state.loading,
     error: state.error,
-    scan: () => {
-      void triggerScan();
-    },
+    scan: handleScan,
     refresh,
-    loadSymbol: (symbol: string) => {
-      void loadSymbolDetail(symbol);
-    },
+    loadSymbol: handleLoadSymbol,
   };
 }

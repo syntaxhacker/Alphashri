@@ -49,11 +49,13 @@ import {
   loadCatalog,
   loadResults,
   loadSummary,
+  loadActiveJobs,
   triggerScan,
   pollJob,
   setScanning,
   setJob,
   loadSymbolDetail,
+  hasRestrictiveFilter,
 } from "./chartPatterns";
 
 const mocked = {
@@ -417,9 +419,188 @@ describe("loaders", () => {
   });
 });
 
+describe("stale async responses", () => {
+  it("ignores a loadResults response that resolves after a newer one", async () => {
+    let resolveSlow!: (value: { items: never[]; total: number; summary: PatternSummary; data_through: string }) => void;
+    mocked.fetchResults
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveSlow = resolve; }),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({ items: [], total: 7, summary: SUMMARY, data_through: "2026-10-01" }),
+      );
+
+    const slow = loadResults();
+    const fast = loadResults();
+    await fast;
+    await flush();
+    expect(getChartPatternsState().total).toBe(7);
+
+    resolveSlow({ items: [], total: 1, summary: SUMMARY, data_through: "2020-01-01" });
+    await slow;
+    await flush();
+    expect(getChartPatternsState().total).toBe(7);
+    expect(getChartPatternsState().dataThrough).toBe("2026-10-01");
+  });
+
+  it("ignores a stale loadResults failure after a newer success", async () => {
+    let rejectSlow!: (reason: unknown) => void;
+    mocked.fetchResults
+      .mockImplementationOnce(
+        () => new Promise((_resolve, reject) => { rejectSlow = reject; }),
+      )
+      .mockImplementationOnce(() =>
+        Promise.resolve({ items: [], total: 3, summary: SUMMARY, data_through: "2026-10-01" }),
+      );
+
+    const slow = loadResults();
+    const fast = loadResults();
+    await fast;
+    await flush();
+    expect(getChartPatternsState().error).toBeNull();
+
+    rejectSlow(new Error("slow boom"));
+    await slow;
+    await flush();
+    expect(getChartPatternsState().error).toBeNull();
+    expect(getChartPatternsState().total).toBe(3);
+  });
+
+  it("ignores a stale loadSummary response that resolves after a newer one", async () => {
+    let resolveSlow!: (value: PatternSummary) => void;
+    mocked.fetchSummary
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveSlow = resolve; }))
+      .mockImplementationOnce(() => Promise.resolve({ ...SUMMARY, scanned: 999 }));
+
+    const slow = loadSummary();
+    const fast = loadSummary();
+    await fast;
+    await flush();
+    expect(getChartPatternsState().summary?.scanned).toBe(999);
+
+    resolveSlow({ ...SUMMARY, scanned: 1 });
+    await slow;
+    await flush();
+    expect(getChartPatternsState().summary?.scanned).toBe(999);
+  });
+});
+
+describe("concurrent error handling", () => {
+  it("a background reload does not erase a recorded failure", async () => {
+    mocked.fetchResults.mockRejectedValueOnce(new Error("results down"));
+    await loadResults();
+    expect(getChartPatternsState().error).toBe("results down");
+
+    // A subsequent background loader succeeds: the earlier failure must stand
+    // (previously `startLoading` wiped it unconditionally on every loader).
+    await loadSummary();
+    expect(getChartPatternsState().summary).toEqual(SUMMARY);
+    expect(getChartPatternsState().error).toBe("results down");
+  });
+
+  it("an explicit action clears a previous error at its start", async () => {
+    mocked.fetchResults.mockRejectedValueOnce(new Error("results down"));
+    await loadResults();
+    expect(getChartPatternsState().error).toBe("results down");
+
+    mocked.fetchResults.mockResolvedValueOnce({ items: [], total: 0, summary: SUMMARY, data_through: null });
+    mocked.fetchSummary.mockResolvedValueOnce(SUMMARY);
+    resetFilters();
+    await flush();
+    expect(getChartPatternsState().error).toBeNull();
+  });
+});
+
+describe("loadActiveJobs", () => {
+  it("prefers the active job matching the current combo", async () => {
+    setUniverse("nifty500");
+    mocked.fetchActiveJobs.mockResolvedValue([
+      makeJob({ job_id: "cpj_other", universe: "nifty50", timeframe: "1h" }),
+      makeJob({ job_id: "cpj_mine", universe: "nifty500", timeframe: "1D" }),
+    ]);
+
+    await loadActiveJobs();
+    expect(getChartPatternsState().job?.job_id).toBe("cpj_mine");
+    expect(getChartPatternsState().scanning).toBe(true);
+  });
+
+  it("adopts a cross-combo job only as a fallback without flipping scanning", async () => {
+    setUniverse("nifty500");
+    mocked.fetchActiveJobs.mockResolvedValue([
+      makeJob({ job_id: "cpj_other", universe: "nifty50", timeframe: "1h" }),
+    ]);
+
+    await loadActiveJobs();
+    expect(getChartPatternsState().job?.job_id).toBe("cpj_other");
+    expect(getChartPatternsState().scanning).toBe(false);
+    expect(mocked.fetchJob).not.toHaveBeenCalled();
+  });
+});
+
+describe("auto-scan bookkeeping", () => {
+  it("retries a combo whose enqueue failed (key added only on success)", async () => {
+    setUniverse("nifty500");
+    mocked.startScan.mockRejectedValueOnce(new Error("boom"));
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+    expect(getChartPatternsState().scanning).toBe(false);
+    expect(getChartPatternsState().error).toBe("boom");
+
+    setScanning(false);
+    setJob(null);
+    selectTimeframe("1D");
+    await flush();
+    setScanning(false);
+    setJob(null);
+    selectTimeframe("15m");
+    await flush();
+    // The failed 15m combo is retried instead of being marked done.
+    expect(mocked.startScan).toHaveBeenCalledTimes(3);
+  });
+
+  it("does not auto-scan when a restrictive filter is active and results are empty", async () => {
+    expect(hasRestrictiveFilter(DEFAULT_PATTERN_FILTERS)).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, q: "bank" })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: "IRCON" })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbols: ["IRCON"] })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, volume_confirmed: true })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_rr: 1.5 })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, pattern_id: ["falling_wedge"] })).toBe(true);
+    // Ordering-only `sort` is not restrictive.
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, sort: "newest" })).toBe(false);
+
+    setUniverse("nifty500");
+    setFilter("q", "bank");
+    await flush();
+    mocked.startScan.mockClear();
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+});
+
+describe("selectTimeframe / selectUniverse detail preservation", () => {
+  it("re-selecting the active timeframe keeps the open symbol detail", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+
+    await loadSymbolDetail("IRCON");
+    expect(getChartPatternsState().detail).toEqual({ symbol: "IRCON" });
+
+    mocked.fetchResults.mockClear();
+    selectTimeframe("1D");
+    expect(getChartPatternsState().detail).toEqual({ symbol: "IRCON" });
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+  });
+});
+
 describe("pollJob", () => {
   it("transitions through running → completed and stops, then refreshes results", async () => {
     mocked.fetchJob.mockResolvedValueOnce(makeJob({ status: "running", queue_position: 1 })).mockResolvedValueOnce(makeJob({ status: "completed", queue_position: null }));
+    setUniverse("nifty500");
     setScanning(true);
 
     await pollJob("cpj_1");
@@ -433,6 +614,20 @@ describe("pollJob", () => {
     expect(getChartPatternsState().scanning).toBe(false);
     expect(mocked.fetchResults).toHaveBeenCalled();
     expect(mocked.fetchSummary).toHaveBeenCalled();
+  });
+
+  it("skips the reload when the combo changed while the job ran", async () => {
+    mocked.fetchJob.mockResolvedValue(makeJob({ status: "completed", universe: "nifty500", timeframe: "1D" }));
+    setUniverse("nifty500");
+    setScanning(true);
+    // The user switched combos mid-scan: the payload belongs to the old view.
+    setUniverse("nifty50");
+
+    await pollJob("cpj_1");
+    expect(getChartPatternsState().job?.status).toBe("completed");
+    expect(getChartPatternsState().scanning).toBe(false);
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+    expect(mocked.fetchSummary).not.toHaveBeenCalled();
   });
 
   it("stops and surfaces the error when a job fails", async () => {
@@ -465,6 +660,24 @@ describe("triggerScan", () => {
     const state = getChartPatternsState();
     expect(state.job?.job_id).toBe("cpj_9");
     expect(state.scanning).toBe(true);
+  });
+
+  it("scans the explicitly requested combo, not current state", async () => {
+    setUniverse("nifty500");
+    mocked.startScan.mockResolvedValue({ job_id: "cpj_x", status: "queued", queue_position: 0, queue_size: 1 });
+    mocked.fetchJob.mockImplementation(() => new Promise(() => {}));
+
+    await triggerScan(false, { universe: "nifty50", timeframe: "15m" });
+    expect(mocked.startScan).toHaveBeenCalledWith({
+      universe: "nifty50",
+      timeframe: "15m",
+      force: false,
+    });
+    const state = getChartPatternsState();
+    expect(state.job?.universe).toBe("nifty50");
+    expect(state.job?.timeframe).toBe("15m");
+    // Current selection is untouched by the pinned request.
+    expect(state.universe).toBe("nifty500");
   });
 
   it("maps a full queue (429) to an error without scanning", async () => {

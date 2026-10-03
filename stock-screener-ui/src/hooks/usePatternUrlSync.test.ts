@@ -5,6 +5,7 @@ import { useSearchParams } from "react-router-dom";
 import {
   parsePatternParams,
   buildPatternParams,
+  filterValuesEqual,
   usePatternUrlSync,
   type UsePatternUrlSyncArgs,
 } from "./usePatternUrlSync";
@@ -44,7 +45,8 @@ describe("parsePatternParams", () => {
     const params = new URLSearchParams(
       "universe=nifty50&tf=15m&pattern=ascending_channel&pattern=double_top" +
         "&family=reversal&direction=bullish&status=confirmed&quality=strong" +
-        "&within=3&base=90&range=20&sort=newest&symbol=SBIN&symbol=TCS&q=bank",
+        "&within=3&volume_confirmed=true&min_rr=1.5&base=90&range=20&sort=newest" +
+        "&symbol=SBIN&symbol=TCS&q=bank",
     );
 
     expect(parsePatternParams(params)).toEqual({
@@ -57,6 +59,8 @@ describe("parsePatternParams", () => {
         status: ["confirmed"],
         quality: "strong",
         formed_within_bars: 3,
+        volume_confirmed: true,
+        min_rr: 1.5,
         min_base_days: 90,
         max_range_pct: 20,
         sort: "newest",
@@ -66,9 +70,34 @@ describe("parsePatternParams", () => {
     });
   });
 
-  it("ignores blank and unknown params", () => {
-    const parsed = parsePatternParams(new URLSearchParams("universe=&tf=&within=&foo=bar"));
-    expect(parsed).toEqual({ universe: "", timeframe: "", filters: {} });
+  it("maps a lone symbol= to the singular symbol filter", () => {
+    const parsed = parsePatternParams(new URLSearchParams("symbol=IRCON"));
+    expect(parsed.filters.symbol).toBe("IRCON");
+    expect(parsed.filters.symbols).toBeUndefined();
+  });
+
+  it("maps volume_confirmed=false and min_rr", () => {
+    const parsed = parsePatternParams(
+      new URLSearchParams("volume_confirmed=false&min_rr=2"),
+    );
+    expect(parsed.filters.volume_confirmed).toBe(false);
+    expect(parsed.filters.min_rr).toBe(2);
+  });
+
+  it("ignores blank and unknown params, with blanks parsing as null", () => {
+    const parsed = parsePatternParams(
+      new URLSearchParams("universe=&tf=&within=&symbol=&foo=bar"),
+    );
+    expect(parsed).toEqual({ universe: null, timeframe: null, filters: {} });
+  });
+});
+
+describe("filterValuesEqual", () => {
+  it("compares arrays order-insensitively", () => {
+    expect(filterValuesEqual(["TCS", "SBIN"], ["SBIN", "TCS"])).toBe(true);
+    expect(filterValuesEqual(["SBIN"], ["SBIN", "TCS"])).toBe(false);
+    expect(filterValuesEqual("a", "a")).toBe(true);
+    expect(filterValuesEqual("a", "b")).toBe(false);
   });
 });
 
@@ -102,13 +131,37 @@ describe("buildPatternParams", () => {
     expect(params.get("sort")).toBe("newest");
     expect(params.get("within")).toBe("3");
   });
+
+  it("round-trips volume_confirmed, min_rr and the singular symbol", () => {
+    const state = {
+      universe: "nifty50",
+      timeframe: "1D",
+      filters: {
+        ...DEFAULT_PATTERN_FILTERS,
+        volume_confirmed: true as boolean | null,
+        min_rr: 1.5,
+        symbol: "IRCON",
+      },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toContain("volume_confirmed=true");
+    expect(serialized).toContain("min_rr=1.5");
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.universe).toBe("nifty50");
+    expect(parsed.timeframe).toBeNull();
+    expect(parsed.filters.volume_confirmed).toBe(true);
+    expect(parsed.filters.min_rr).toBe(1.5);
+    expect(parsed.filters.symbol).toBe("IRCON");
+    // And back again without loss.
+    expect(buildPatternParams(state).toString()).toBe(serialized);
+  });
 });
 
 describe("usePatternUrlSync", () => {
   it("applies URL params to the store once on mount", () => {
     mockedUseSearchParams.mockReturnValue([
       new URLSearchParams(
-        "universe=nifty50&tf=15m&pattern=ascending_channel&within=3&symbol=SBIN&q=bank",
+        "universe=nifty50&tf=15m&pattern=ascending_channel&within=3&symbol=SBIN&symbol=TCS&q=bank",
       ),
       setSearchParams,
     ] as never);
@@ -123,7 +176,7 @@ describe("usePatternUrlSync", () => {
     expect(args.applyFilters).toHaveBeenCalledWith({
       pattern_id: ["ascending_channel"],
       formed_within_bars: 3,
-      symbols: ["SBIN"],
+      symbols: ["SBIN", "TCS"],
       q: "bank",
     });
 
@@ -212,5 +265,49 @@ describe("usePatternUrlSync", () => {
     renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), { initialProps: args });
 
     expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("adopts an externally changed URL (back/forward) after hydration", () => {
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+    // Mount with an empty URL hydrates immediately with no setter calls.
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.applyFilters).not.toHaveBeenCalled();
+
+    // Simulate back/forward navigation to a filtered URL in the same document.
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("direction=bearish"),
+      setSearchParams,
+    ] as never);
+    rerender(args);
+
+    expect(args.applyFilters).toHaveBeenCalledWith({ direction: ["bearish"] });
+  });
+
+  it("ignores a URL change that matches what it last wrote (no loop)", () => {
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    rerender({
+      ...args,
+      universe: "nifty50",
+      filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
+    });
+    expect(setSearchParams).toHaveBeenCalledTimes(1);
+    const written = setSearchParams.mock.calls[0][0] as URLSearchParams;
+
+    // The router now reports the written URL: nothing new to adopt.
+    (args.setUniverse as ReturnType<typeof vi.fn>).mockClear();
+    (args.applyFilters as ReturnType<typeof vi.fn>).mockClear();
+    mockedUseSearchParams.mockReturnValue([written, setSearchParams] as never);
+    rerender({ ...args, universe: "nifty50", filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" } });
+
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.applyFilters).not.toHaveBeenCalled();
+    expect(setSearchParams).toHaveBeenCalledTimes(1);
   });
 });

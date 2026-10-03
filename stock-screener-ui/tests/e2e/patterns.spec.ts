@@ -509,6 +509,46 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
   });
 
+  test("a filter survives navigation away and back", async ({ page }) => {
+    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await expect(page).toHaveURL(/direction=bearish/);
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    const filteredUrl = page.url();
+
+    // Navigate to the clean view: the grid restores to all hits.
+    await page.goto("/patterns");
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
+
+    // Back to the filtered URL: the grid restores the filtered set.
+    await page.goto(filteredUrl);
+    await expect(page).toHaveURL(/direction=bearish/);
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
+  });
+
+  test("history navigation adopts the URL without a reload", async ({ page }) => {
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
+
+    // Simulate back/forward traversal to a filtered URL in the same document
+    // (pushState + popstate, as the browser fires on history navigation).
+    await page.evaluate(() => {
+      window.history.pushState({}, "", "/patterns?direction=bearish");
+      window.dispatchEvent(new PopStateEvent("popstate"));
+    });
+
+    await expect(page).toHaveURL(/direction=bearish/);
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
+  });
+
+  test("volume_confirmed and min_rr round-trip through the URL", async ({ page }) => {
+    await page.goto("/patterns?volume_confirmed=true&min_rr=1.5");
+    await expect(page.locator('[data-testid="patterns-card"]').first()).toBeVisible();
+    // The hook adopts the params and writes them back (nothing dropped).
+    await expect(page).toHaveURL(/volume_confirmed=true/);
+    await expect(page).toHaveURL(/min_rr=1\.5/);
+  });
+
   test("multi-symbol search keeps the typed text while results load", async ({ page }) => {
     const input = page.locator('[data-testid="patterns-symbol-filter"]').getByRole("combobox");
     await input.click();
