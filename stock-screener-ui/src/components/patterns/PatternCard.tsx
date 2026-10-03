@@ -78,6 +78,18 @@ export function PatternCard({ hit, selected = false, onClick, onExpand }: Patter
     <Card
       data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
       onClick={() => onClick?.(hit)}
+      role={onClick ? "button" : undefined}
+      tabIndex={onClick ? 0 : undefined}
+      onKeyDown={
+        onClick
+          ? (e: React.KeyboardEvent) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.preventDefault();
+                onClick(hit);
+              }
+            }
+          : undefined
+      }
       sx={{
         border: "1px solid",
         borderColor: selected ? "primary.main" : "divider",

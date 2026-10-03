@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { Box, Divider, Paper, Text, ToolbarRow } from "@/ui";
 import type { PatternSummary } from "@/types/chartPatterns";
 
@@ -48,6 +49,13 @@ function buildCells(summary: PatternSummary | null): StatCell[] {
 
 /** Top stat strip: scanned / patterns / in view / confirmed / bull-bear / data through. */
 export function ScanStats({ summary }: ScanStatsProps) {
+  // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
+  // the next store update. Re-render every 60s to keep "x min ago" fresh.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick((t) => t + 1), 60_000);
+    return () => clearInterval(id);
+  }, []);
   const cells = buildCells(summary);
   return (
     <Paper

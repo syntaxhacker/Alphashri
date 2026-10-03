@@ -307,7 +307,15 @@ export function PatternFilterRail({
           </Text>
           <NumberInput
             value={formedWithin ?? ""}
-            onChange={(v: number | string) => setFilter("formed_within_bars", v === "" ? null : Number(v))}
+            onChange={(v: number | string) => {
+              if (v === "" || v == null) {
+                setFilter("formed_within_bars", null);
+                return;
+              }
+              const n = Number(v);
+              // Ignore in-progress partials ("-", "1.") — never store NaN.
+              if (!Number.isNaN(n)) setFilter("formed_within_bars", n);
+            }}
             min={1}
             step={1}
             size="sm"
@@ -393,7 +401,15 @@ export function PatternFilterRail({
       <Section title="Range ≤ %">
         <NumberInput
           value={filters.max_range_pct ?? ""}
-          onChange={(v: number | string) => setFilter("max_range_pct", v === "" ? null : Number(v))}
+          onChange={(v: number | string) => {
+            if (v === "" || v == null) {
+              setFilter("max_range_pct", null);
+              return;
+            }
+            const n = Number(v);
+            // Ignore in-progress partials ("-", "1.") — never store NaN.
+            if (!Number.isNaN(n)) setFilter("max_range_pct", n);
+          }}
           min={0}
           step={1}
           size="sm"

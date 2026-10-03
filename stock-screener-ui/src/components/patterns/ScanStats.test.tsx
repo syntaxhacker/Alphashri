@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { act, cleanup, render, screen, within } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import type { PatternSummary } from "@/types/chartPatterns";
 import { ScanStats } from "./ScanStats";
@@ -57,5 +57,26 @@ describe("ScanStats", () => {
     cleanup();
     r(<ScanStats summary={{ ...SUMMARY, last_scan_at: null }} />);
     expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("—");
+  });
+
+  test("refreshes the relative age on a 60s interval without store updates", () => {
+    vi.useFakeTimers();
+    try {
+      const base = Date.now();
+      vi.setSystemTime(base - 61_000);
+      const stamp = new Date().toISOString();
+      vi.setSystemTime(base);
+      r(<ScanStats summary={{ ...SUMMARY, last_scan_at: stamp }} />);
+      expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("1 min ago");
+
+      // A minute passes with no prop change — the tick re-renders the age.
+      // (advanceTimersByTime also moves the mocked clock forward.)
+      act(() => {
+        vi.advanceTimersByTime(60_000);
+      });
+      expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("2 min ago");
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

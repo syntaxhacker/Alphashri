@@ -18,7 +18,7 @@ export function PatternGrid({ hits, onSelect, onExpand }: PatternGridProps) {
     <SimpleGrid cols={cols} spacing={16} data-testid="patterns-grid">
       {hits.map((hit) => (
         <PatternCard
-          key={`${hit.symbol}-${hit.pattern_id}-${hit.timeframe}`}
+          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.timeframe}-${hit.start_date}`}
           hit={hit}
           onClick={onSelect}
           onExpand={onExpand}

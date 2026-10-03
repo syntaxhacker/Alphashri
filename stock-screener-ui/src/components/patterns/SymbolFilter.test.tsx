@@ -97,4 +97,18 @@ describe("SymbolFilter", () => {
 
     expect(setFilter).toHaveBeenCalledWith("symbols", []);
   });
+
+  test("chip remove is a labelled button reachable by keyboard", async () => {
+    const user = userEvent.setup();
+    const setFilter = vi.fn();
+    r(<SymbolFilter filters={makeFilters({ symbols: ["TCS"] })} setFilter={setFilter} />);
+
+    const remove = screen.getByRole("button", { name: "Remove TCS" });
+    expect(remove).toBeInTheDocument();
+
+    remove.focus();
+    expect(remove).toHaveFocus();
+    await user.keyboard("{Enter}");
+    expect(setFilter).toHaveBeenCalledWith("symbols", []);
+  });
 });

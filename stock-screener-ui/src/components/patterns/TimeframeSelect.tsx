@@ -40,7 +40,12 @@ export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelect
       label="Timeframe"
       data={data}
       value={value}
-      onChange={(v) => onChange(v ?? "")}
+      onChange={(v) => {
+        // Never commit an empty selection (clearing the control must not wipe
+        // the active timeframe to "").
+        if (v == null || v === "") return;
+        onChange(v);
+      }}
       w={150}
       size="sm"
       searchable

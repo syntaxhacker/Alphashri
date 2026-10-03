@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ActionIcon, Box, Button, Chip, Select, TextInput, Tooltip } from "@/ui";
+import { ActionIcon, Box, Button, Chip, Select, Text, TextInput, Tooltip } from "@/ui";
 import { Close as CloseIcon } from "@mui/icons-material";
 import { BUILTIN_PRESETS, type PatternPreset } from "@/config/patternCatalog";
 import type { PatternFilters } from "@/types/chartPatterns";
@@ -61,7 +61,9 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
   const handleSave = (): void => {
     const trimmed = name.trim();
     if (!trimmed) return;
-    const preset: PatternPreset = { id: newPresetId(), name: trimmed, filters: { ...filters } };
+    // Deep-clone so later filter-rail edits can't mutate the saved snapshot.
+    const snapshot = JSON.parse(JSON.stringify(filters)) as PatternFilters;
+    const preset: PatternPreset = { id: newPresetId(), name: trimmed, filters: snapshot };
     persist([...saved, preset]);
     setName("");
     setNaming(false);
@@ -145,18 +147,44 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
       )}
 
       {naming ? (
-        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
-          <TextInput
-            value={name}
-            onChange={setName}
-            size="sm"
-            placeholder="Preset name"
-            data-testid="patterns-preset-name"
-            w={140}
-          />
-          <Button size="xs" onClick={handleSave} data-testid="patterns-preset-name-save">
-            Save
-          </Button>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+            <label
+              htmlFor="patterns-preset-name-input"
+              style={{
+                position: "absolute",
+                width: 1,
+                height: 1,
+                overflow: "hidden",
+                clip: "rect(0 0 0 0)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              Preset name
+            </label>
+            <TextInput
+              id="patterns-preset-name-input"
+              value={name}
+              onChange={setName}
+              size="sm"
+              placeholder="Preset name"
+              data-testid="patterns-preset-name"
+              w={140}
+            />
+            <Button
+              size="xs"
+              onClick={handleSave}
+              disabled={name.trim().length === 0}
+              data-testid="patterns-preset-name-save"
+            >
+              Save
+            </Button>
+          </Box>
+          {name.trim().length === 0 ? (
+            <Text size="xs" c="dimmed" data-testid="patterns-preset-name-hint">
+              Enter a name to save this preset.
+            </Text>
+          ) : null}
         </Box>
       ) : (
         <Button

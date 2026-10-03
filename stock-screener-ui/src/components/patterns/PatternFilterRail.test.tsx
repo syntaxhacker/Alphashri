@@ -295,4 +295,12 @@ describe("PatternFilterRail", () => {
     fireEvent.change(input, { target: { value: "20" } });
     expect(props.setFilter).toHaveBeenLastCalledWith("max_range_pct", 20);
   });
+
+  test("ignores partial numeric input instead of storing NaN", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-max-range")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("max_range_pct", expect.anything());
+  });
 });

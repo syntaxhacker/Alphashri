@@ -224,4 +224,25 @@ describe("useECharts", () => {
     expect(getChartInstance().on).toHaveBeenCalledWith("click", mockOnClick);
     expect(getChartInstance().on).toHaveBeenCalledTimes(1);
   });
+
+  it("does not init after unmount while the echarts import is in flight", async () => {
+    const { result, unmount } = renderHook(() => useECharts({ isDark: false }));
+
+    const mockDiv = document.createElement("div");
+    Object.defineProperty(result.current.chartRef, "current", {
+      value: mockDiv,
+      configurable: true,
+    });
+
+    let pending: Promise<void> | undefined;
+    act(() => {
+      pending = result.current.setChartOption({ series: [] });
+    });
+    unmount();
+    await act(async () => {
+      await pending;
+    });
+
+    expect(mockEcharts.init).not.toHaveBeenCalled();
+  });
 });

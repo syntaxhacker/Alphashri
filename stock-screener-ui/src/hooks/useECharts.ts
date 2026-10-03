@@ -25,14 +25,19 @@ export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
   const isDarkRef = useRef(options.isDark);
   const onChartClickRef = useRef(options.onChartClick);
   const { onChartClick } = options;
+  // Set on unmount so an in-flight `loadEcharts()` import can't init a chart
+  // against a detached node.
+  const cancelledRef = useRef(false);
 
   isDarkRef.current = options.isDark;
   onChartClickRef.current = onChartClick;
 
   const setChartOption = useCallback(async (option: any) => {
-    if (!chartRef.current) return;
+    if (!chartRef.current || cancelledRef.current) return;
     const echartsLib = await loadEcharts();
-    if (!echartsLib) return;
+    // Re-check after the await: the component may have unmounted (or the ref
+    // detached) while the dynamic import was in flight.
+    if (!chartRef.current || cancelledRef.current || !echartsLib) return;
 
     if (!chartInstance.current) {
       chartInstance.current = echartsLib.init(chartRef.current, null);
@@ -46,6 +51,7 @@ export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
   }, []);
 
   useEffect(() => {
+    cancelledRef.current = false;
     const handleResize = () => chartInstance.current?.resize();
     window.addEventListener("resize", handleResize);
 
@@ -56,6 +62,7 @@ export function useECharts(options: UseEChartsOptions): UseEChartsReturn {
     }
 
     return () => {
+      cancelledRef.current = true;
       window.removeEventListener("resize", handleResize);
       ro?.disconnect();
       if (chartInstance.current) {

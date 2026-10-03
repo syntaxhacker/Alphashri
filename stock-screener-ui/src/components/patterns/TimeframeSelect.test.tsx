@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { TFSpec } from "@/types/chartPatterns";
@@ -56,5 +56,13 @@ describe("TimeframeSelect", () => {
     r(<TimeframeSelect timeframes={SERVER_TFS} value="1D" onChange={onChange} />);
     await userEvent.selectOptions(screen.getByTestId("patterns-timeframe-select"), "1m");
     expect(onChange).toHaveBeenCalledWith("1m");
+  });
+
+  test("never commits an empty selection", async () => {
+    const onChange = vi.fn();
+    r(<TimeframeSelect timeframes={SERVER_TFS} value="1D" onChange={onChange} />);
+    // Simulate the select widget clearing to null/empty.
+    fireEvent.change(screen.getByTestId("patterns-timeframe-select"), { target: { value: "" } });
+    expect(onChange).not.toHaveBeenCalled();
   });
 });

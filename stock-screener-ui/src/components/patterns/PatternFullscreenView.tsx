@@ -42,6 +42,7 @@ function FullscreenCanvas({
         hit: chartHit,
         overlays,
         selectedPatternId: hit?.pattern_id,
+        selectedStartDate: hit?.start_date,
         compact: false,
         showZoom: true,
         large: true,

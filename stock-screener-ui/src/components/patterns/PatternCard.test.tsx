@@ -99,6 +99,26 @@ describe("PatternCard", () => {
     expect(onClick).toHaveBeenCalledWith(HIT);
   });
 
+  test("card is keyboard-operable with role=button", async () => {
+    const onClick = vi.fn();
+    r(<PatternCard hit={HIT} onClick={onClick} />);
+    const card = screen.getByTestId("patterns-card-IRCON-falling_wedge");
+    expect(card).toHaveAttribute("role", "button");
+    expect(card).toHaveAttribute("tabIndex", "0");
+
+    card.focus();
+    expect(card).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    expect(onClick).toHaveBeenCalledTimes(1);
+    await userEvent.keyboard(" ");
+    expect(onClick).toHaveBeenCalledTimes(2);
+  });
+
+  test("card without onClick has no button role", () => {
+    r(<PatternCard hit={HIT} />);
+    expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).not.toHaveAttribute("role");
+  });
+
   test("renders the base length line when base_days is present", () => {
     r(<PatternCard hit={{ ...HIT, base_days: 120, range_pct: 13 }} />);
     expect(screen.getByText("Base 120d · 13%")).toBeInTheDocument();

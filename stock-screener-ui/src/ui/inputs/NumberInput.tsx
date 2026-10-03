@@ -5,6 +5,19 @@ function mapSize(size?: UINumberInputProps["size"]): "small" | "medium" {
   return size === "xs" || size === "sm" ? "small" : "medium";
 }
 
+/**
+ * Coerce raw input text to the `onChange` payload. In-progress keystrokes
+ * ("-", "1.", "1e-") are not complete numbers: `Number("1.")` truncates to 1
+ * and `Number("-")` is NaN — so they pass through as raw text and numeric
+ * callers never see a truncated number or NaN.
+ */
+export function coerceNumberInput(raw: string): number | string {
+  if (raw === "") return "";
+  if (/[.]$|[eE][+-]?$/.test(raw)) return raw;
+  const num = Number(raw);
+  return Number.isNaN(num) ? raw : num;
+}
+
 export function NumberInput({
   value,
   defaultValue,
@@ -50,13 +63,7 @@ export function NumberInput({
     : (description as string | undefined);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const raw = e.target.value;
-    if (raw === "") {
-      onChange?.("");
-      return;
-    }
-    const num = Number(raw);
-    onChange?.(Number.isNaN(num) ? raw : num);
+    onChange?.(coerceNumberInput(e.target.value));
   };
 
   const startAdornment = prefix || leftSection ? (

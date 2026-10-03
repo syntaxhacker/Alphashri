@@ -75,6 +75,14 @@ function formatPatternTooltip(params: unknown): string {
   return [header, ...rows].join("<br/>");
 }
 
+/** An overlay trendline bundle, optionally carrying instance identity. */
+export type SiblingOverlay = PatternOverlay & {
+  /** Instance start date — distinguishes two instances of the same pattern. */
+  start_date?: string | null;
+  /** Opaque instance key, when the backend supplies one. */
+  instanceKey?: string | null;
+};
+
 export interface PatternChartOptionInput {
   candles: ChartCandle[];
   trendlines?: Trendline[];
@@ -84,9 +92,17 @@ export interface PatternChartOptionInput {
    * drawn dashed so the full sequence of structures is visible (the selected one
    * stays solid in the highlighted colours).
    */
-  overlays?: PatternOverlay[];
+  overlays?: SiblingOverlay[];
   /** Pattern id of the selected hit, excluded from the dashed siblings. */
   selectedPatternId?: string;
+  /**
+   * Instance identity of the selected hit. Siblings are skipped only when they
+   * match the selected pattern id *and* the selected instance — without this,
+   * every other instance of the same pattern was hidden as a "duplicate".
+   */
+  selectedStartDate?: string | null;
+  /** Opaque selected instance key (preferred when the backend supplies one). */
+  selectedInstanceKey?: string | null;
   /** Compact = card sparkline (no axes/tooltip/legend/zoom). */
   compact?: boolean;
   /** Full = drill-down / fullscreen (axes, tooltip, legend, level guides). */
@@ -107,6 +123,8 @@ export function buildPatternChartOption({
   hit,
   overlays,
   selectedPatternId,
+  selectedStartDate,
+  selectedInstanceKey,
   compact = false,
   showZoom = false,
   large = false,
@@ -160,6 +178,22 @@ export function buildPatternChartOption({
   // hides that whole pattern. The selected pattern is solid + thicker; the
   // symbol's other patterns are dashed.
   const selectedId = selectedPatternId ?? hit?.pattern_id;
+  // Instance identity of the selected hit: only the overlay that matches both
+  // the pattern id and this instance is treated as "the selected one". Siblings
+  // that share the pattern id but are a different instance stay visible.
+  const selectedStart = selectedStartDate ?? hit?.start_date ?? null;
+  const selectedKey = selectedInstanceKey ?? null;
+  const isSelectedOverlay = (overlay: SiblingOverlay): boolean => {
+    if (!selectedId || overlay.pattern_id !== selectedId) return false;
+    if (selectedKey != null) return overlay.instanceKey === selectedKey;
+    const overlayStart = overlay.start_date ?? null;
+    // Both sides carry a start date → skip only the matching instance.
+    if (selectedStart != null && overlayStart != null) return overlayStart === selectedStart;
+    // Selected side has identity but the overlay doesn't (legacy payload):
+    // keep the sibling visible rather than hiding a possibly different instance.
+    if (selectedStart != null && overlayStart == null) return false;
+    return true;
+  };
   const groups: Array<{ id?: string; name: string; lines: Trendline[]; selected: boolean }> = [];
   if ((trendlines?.length ?? 0) > 0) {
     groups.push({
@@ -172,7 +206,7 @@ export function buildPatternChartOption({
   if (!compact && overlays?.length) {
     overlays.forEach((overlay) => {
       if (!overlay?.trendlines?.length) return;
-      if (selectedId && overlay.pattern_id === selectedId) return;
+      if (isSelectedOverlay(overlay)) return;
       groups.push({
         id: overlay.pattern_id,
         name: overlay.pattern_name || overlay.pattern_id || "Pattern",
@@ -183,15 +217,27 @@ export function buildPatternChartOption({
   }
 
   const legendData: string[] = [];
+  // Two sibling instances can share a display name ("Rising Wedge" twice). ECharts
+  // merges same-named series in the legend/tooltip, so disambiguate repeats with
+  // a suffix while the first instance keeps the clean readable name.
+  const nameCounts = new Map<string, number>();
   groups.forEach((group, index) => {
     const mapped = mapTrendlines(group.lines, times);
     if (mapped.length === 0) return;
     const color = PATTERN_COLORS[index % PATTERN_COLORS.length];
+    const seen = nameCounts.get(group.name) ?? 0;
+    nameCounts.set(group.name, seen + 1);
+    const seriesName = seen === 0 ? group.name : `${group.name} (${seen + 1})`;
     mapped.forEach((points, lineIndex) => {
+      // A degenerate single-point trendline draws nothing as a line — dot-mark
+      // it so the structure is still visible instead of silently vanishing.
+      const singlePoint = points.length <= 1;
       series.push({
         type: "line",
-        name: group.name,
-        showSymbol: false,
+        name: seriesName,
+        showSymbol: singlePoint ? true : false,
+        symbol: singlePoint ? "circle" : undefined,
+        symbolSize: singlePoint ? 6 : undefined,
         connectNulls: true,
         silent: true,
         data: pointsToSeriesData(points, times.length),
@@ -199,7 +245,7 @@ export function buildPatternChartOption({
           width: group.selected ? (large ? 3 : 2.5) : large ? 2 : 1.5,
           color,
           type: group.selected ? "solid" : "dashed",
-          opacity: group.selected ? 1 : 0.8,
+          opacity: singlePoint ? 0 : group.selected ? 1 : 0.8,
         },
         // Inline pattern name at the end of the first boundary line, so each
         // dashed/solid line is labelled on the chart itself (not just the legend).
@@ -207,7 +253,7 @@ export function buildPatternChartOption({
           !compact && lineIndex === 0
             ? {
                 show: true,
-                formatter: group.name,
+                formatter: seriesName,
                 color,
                 fontSize: large ? 12 : 10,
                 fontWeight: group.selected ? 600 : 400,
@@ -217,10 +263,13 @@ export function buildPatternChartOption({
                 backgroundColor: CHART_OVERLAY,
               }
             : undefined,
+        // Overlapping end labels (sibling instances close together) hide
+        // instead of painting over each other.
+        labelLayout: !compact && lineIndex === 0 ? { hideOverlap: true } : undefined,
         z: group.selected ? 3 : 2,
       });
     });
-    if (!legendData.includes(group.name)) legendData.push(group.name);
+    if (!legendData.includes(seriesName)) legendData.push(seriesName);
   });
 
   // Swing pivots that define the pattern: up/down triangles at their real
@@ -279,7 +328,7 @@ export function buildPatternChartOption({
     animation: false,
     grid: compact
       ? { left: 2, right: 2, top: 6, bottom: 2 }
-      : { left: large ? 64 : 54, right: large ? 96 : 64, top: large ? 36 : 12, bottom: showZoom ? (large ? 64 : 52) : 42 },
+      : { left: large ? 64 : 54, right: large ? 96 : 64, top: large ? 48 : 32, bottom: showZoom ? (large ? 64 : 52) : 42 },
     tooltip: compact
       ? { show: false }
       : {

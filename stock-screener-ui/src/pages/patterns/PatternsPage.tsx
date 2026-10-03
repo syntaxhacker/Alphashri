@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Box, Button, Loader, Text, ToolbarRow } from "@/ui";
+import { useRef, useState } from "react";
+import { Alert, Box, Button, Loader, LoadingOverlay, Text, ToolbarRow } from "@/ui";
 import type {
   ChartCandle,
   JobDTO,
@@ -76,16 +76,28 @@ export function PatternsPage({
     candles: ChartCandle[];
     overlays: PatternOverlay[];
   } | null>(null);
+  // Monotonic request token: clicking two cards of the same symbol in quick
+  // succession must not let the stale fetch overwrite the newer selection.
+  const chartRequestRef = useRef(0);
+
+  /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
+  const hitIdentity = (hit: PatternHitDTO): string =>
+    `${hit.id ?? `${hit.symbol}|${hit.timeframe}|${hit.pattern_id}|${hit.start_date}`}`;
 
   // On open, load every detected pattern for the symbol so the fullscreen can
   // draw the whole sequence (the clicked one solid, siblings dashed) rather than
   // a single structure. Falls back to the card's own candles if the fetch fails.
   const openFromCard = (hit: PatternHitDTO) => {
+    const token = chartRequestRef.current + 1;
+    chartRequestRef.current = token;
+    const identity = hitIdentity(hit);
     setFullscreen({ hit, candles: hit.candles ?? [], overlays: [] });
     void fetchSymbolChart(hit.symbol, hit.timeframe)
       .then((chart) => {
+        // Drop stale responses: only the latest request may update the view.
+        if (chartRequestRef.current !== token) return;
         setFullscreen((prev) =>
-          prev && prev.hit.symbol === hit.symbol && prev.hit.timeframe === hit.timeframe
+          prev && hitIdentity(prev.hit) === identity
             ? {
                 ...prev,
                 candles: chart.candles?.length ? chart.candles : prev.candles,
@@ -168,7 +180,13 @@ export function PatternsPage({
           </ToolbarRow>
         </ToolbarRow>
 
-        {loading ? (
+        {error ? (
+          <Alert color="error" data-testid="patterns-error">
+            {error}
+          </Alert>
+        ) : null}
+
+        {loading && results.length === 0 ? (
           <Box
             data-testid="patterns-loading"
             sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, py: 6 }}
@@ -218,7 +236,12 @@ export function PatternsPage({
             </Box>
           </Box>
         ) : (
-          <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} />
+          // Keep the grid mounted while a refresh loads: the overlay spinner
+          // signals progress without remounting every mini-chart.
+          <Box sx={{ position: "relative", minWidth: 0 }}>
+            <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} />
+            <LoadingOverlay visible={loading} data-testid="patterns-refreshing" />
+          </Box>
         )}
       </Box>
 

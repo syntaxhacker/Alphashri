@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Badge, Box, Button, MultiSelect, Text, useDebouncedValue } from "@/ui";
+import { ActionIcon, Badge, Box, Button, MultiSelect, Text, useDebouncedValue } from "@/ui";
 import { IconX } from "@tabler/icons-react";
 import { searchSymbols } from "@/api/symbols";
 import type { PatternFilters } from "@/types/chartPatterns";
@@ -115,7 +115,17 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
               variant="light"
               color="secondary"
               data-testid={`patterns-symbol-chip-${symbol}`}
-              rightSection={<IconX size={10} onClick={() => removeSymbol(symbol)} />}
+              rightSection={
+                <ActionIcon
+                  size="xs"
+                  variant="subtle"
+                  aria-label={`Remove ${symbol}`}
+                  data-testid={`patterns-symbol-remove-${symbol}`}
+                  onClick={() => removeSymbol(symbol)}
+                >
+                  <IconX size={10} />
+                </ActionIcon>
+              }
             >
               {symbol}
             </Badge>

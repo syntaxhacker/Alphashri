@@ -116,4 +116,37 @@ describe("PatternPresets", () => {
 
     expect(props.applyFilters).toHaveBeenCalledWith(savedFilters);
   });
+
+  test("save is disabled with blank name and shows guidance", async () => {
+    r(<PatternPresets {...makeProps()} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-save"));
+
+    const save = screen.getByTestId("patterns-preset-name-save");
+    expect(save).toBeDisabled();
+    expect(screen.getByTestId("patterns-preset-name-hint")).toBeInTheDocument();
+    // Accessible name for the preset input.
+    expect(screen.getByLabelText("Preset name")).toBeInTheDocument();
+
+    await userEvent.type(screen.getByTestId("patterns-preset-name"), "My setup");
+    expect(screen.getByTestId("patterns-preset-name-save")).not.toBeDisabled();
+  });
+
+  test("saved filters are deep-cloned from the rail state", async () => {
+    const nested = { ...FILTERS, family: ["reversal"], direction: ["bullish"] };
+    const props = makeProps({ filters: nested });
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-save"));
+    await userEvent.type(screen.getByTestId("patterns-preset-name"), "Clone check");
+    await userEvent.click(screen.getByTestId("patterns-preset-name-save"));
+
+    const stored = JSON.parse(localStorage.getItem(PATTERN_PRESETS_STORAGE_KEY) ?? "[]");
+    expect(stored).toHaveLength(1);
+    // Mutating the source arrays must not touch the snapshot.
+    nested.family.push("continuation");
+    nested.direction.length = 0;
+    const storedAgain = JSON.parse(localStorage.getItem(PATTERN_PRESETS_STORAGE_KEY) ?? "[]");
+    expect(storedAgain[0].filters.family).toEqual(["reversal"]);
+    expect(storedAgain[0].filters.direction).toEqual(["bullish"]);
+    expect(stored[0].filters.family).not.toBe(nested.family);
+  });
 });

@@ -164,3 +164,100 @@ describe("buildPatternChartOption sibling overlays", () => {
     expect(names).not.toContain("Rising Wedge");
   });
 });
+
+describe("buildPatternChartOption instance identity", () => {
+  const CANDLES_IST = [
+    { t: "2026-05-04T09:15:00+05:30", o: 100, h: 104, l: 99, c: 103, v: 1000 },
+    { t: "2026-05-05T09:15:00+05:30", o: 103, h: 106, l: 102, c: 105, v: 1100 },
+    { t: "2026-05-06T09:15:00+05:30", o: 105, h: 107, l: 101, c: 102, v: 900 },
+    { t: "2026-05-07T09:15:00+05:30", o: 102, h: 108, l: 100, c: 107, v: 1200 },
+  ];
+
+  const line = (t: string, price: number) => [
+    { t: "2026-05-04T09:15:00+05:30", price },
+    { t, price: price + 1 },
+  ];
+
+  it("keeps other instances of the same pattern visible", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES_IST,
+      hit: { ...HIT, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", start_date: "2026-05-04" },
+      trendlines: [line("2026-05-07T09:15:00+05:30", 101)],
+      overlays: [
+        {
+          pattern_id: "rising_wedge",
+          pattern_name: "Rising Wedge",
+          start_date: "2026-05-04",
+          trendlines: [line("2026-05-07T09:15:00+05:30", 101)],
+        },
+        {
+          pattern_id: "rising_wedge",
+          pattern_name: "Rising Wedge",
+          start_date: "2026-05-06",
+          trendlines: [line("2026-05-07T09:15:00+05:30", 103)],
+        },
+      ],
+      selectedPatternId: "rising_wedge",
+      selectedStartDate: "2026-05-04",
+      compact: false,
+    });
+    const names = seriesOf(option).map((s) => s.name);
+    // Selected instance (exact start_date match) is skipped as a sibling, the
+    // other instance stays — disambiguated with a suffix.
+    expect(names).toContain("Rising Wedge");
+    expect(names).toContain("Rising Wedge (2)");
+  });
+
+  it("deduplicates repeated pattern names across sibling instances", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      trendlines: [[{ t: "2026-05-04T18:30:00+00:00", price: 104 }]],
+      overlays: [
+        {
+          pattern_id: "rising_wedge",
+          pattern_name: "Rising Wedge",
+          start_date: "2026-05-04",
+          trendlines: [[{ t: "2026-05-04T18:30:00+00:00", price: 101 }]],
+        },
+        {
+          pattern_id: "rising_wedge",
+          pattern_name: "Rising Wedge",
+          start_date: "2026-05-05",
+          trendlines: [[{ t: "2026-05-05T18:30:00+00:00", price: 102 }]],
+        },
+      ],
+      selectedPatternId: "other_pattern",
+      compact: false,
+    });
+    const series = seriesOf(option);
+    const uniqueNames = new Set(series.map((s) => s.name));
+    // No two series share a legend name.
+    expect(uniqueNames.size).toBe(series.length);
+    const legend = option.legend as { data?: string[] } | undefined;
+    expect(new Set(legend?.data).size).toBe(legend?.data?.length);
+  });
+
+  it("dot-marks degenerate single-point trendlines instead of drawing nothing", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      trendlines: [[{ t: "2026-05-04T18:30:00+00:00", price: 104 }]],
+      compact: false,
+    });
+    const line = seriesOf(option).find((s) => s.type === "line");
+    expect(line).toMatchObject({ showSymbol: true, symbol: "circle" });
+  });
+
+  it("hides overlapping end labels and clears the top legend", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      trendlines: [[{ t: "2026-05-04T18:30:00+00:00", price: 104 }]],
+      compact: false,
+    });
+    const withLabel = (seriesOf(option) as Array<Record<string, unknown>>).find((s) => s.endLabel);
+    expect(withLabel?.labelLayout).toMatchObject({ hideOverlap: true });
+    expect((option.grid as { top?: number }).top).toBeGreaterThanOrEqual(32);
+  });
+});

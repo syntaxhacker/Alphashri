@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
@@ -194,5 +194,62 @@ describe("PatternsPage", () => {
     r(<PatternsPage {...props} />);
     await userEvent.click(screen.getByTestId("patterns-family-reversal"));
     expect(props.setFilter).toHaveBeenCalledWith("family", ["reversal"]);
+  });
+
+  test("shows the error alert instead of the generic empty copy when error is set", () => {
+    r(<PatternsPage {...makeProps({ results: [], total: 0, error: "Scan failed: boom" })} />);
+    expect(screen.getByTestId("patterns-error")).toHaveTextContent("Scan failed: boom");
+    expect(screen.getByTestId("patterns-empty")).toBeInTheDocument();
+  });
+
+  test("keeps the grid mounted with a refresh overlay while reloading", () => {
+    r(<PatternsPage {...makeProps({ loading: true })} />);
+    // Existing results stay visible (no mini-chart remount churn)…
+    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    // …with an overlay spinner instead of the full-page loader.
+    expect(screen.getByTestId("patterns-refreshing")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
+  });
+
+  test("stale same-symbol fetches never overwrite the newer selection", async () => {
+    let resolveFirst!: (v: unknown) => void;
+    let resolveSecond!: (v: unknown) => void;
+    fetchSymbolChart
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveFirst = resolve; }),
+      )
+      .mockImplementationOnce(
+        () => new Promise((resolve) => { resolveSecond = resolve; }),
+      );
+    const first = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", start_date: "2026-04-26" });
+    const second = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", start_date: "2026-07-01" });
+    r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
+
+    // Click two cards of the same symbol in quick succession.
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-rising_wedge"));
+    expect(fetchSymbolChart).toHaveBeenCalledTimes(2);
+
+    // Current request resolves with no candles; the stale one resolves last
+    // carrying candles. Without the guard the stale fetch would paint the
+    // first hit's candles into the second hit's fullscreen view.
+    resolveSecond({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge"),
+    );
+    resolveFirst({
+      symbol: "IRCON",
+      timeframe: "1D",
+      candles: [{ t: "2026-05-04T18:30:00+00:00", o: 1, h: 1, l: 1, c: 1, v: 1 }],
+      overlays: [],
+    });
+    // Flush the stale promise chain: without the guard it would paint the
+    // first hit's candles here and remove "No chart data".
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+    });
+    // The newer selection stands: still the second hit, still no chart data.
+    expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge");
+    expect(screen.getByText("No chart data")).toBeInTheDocument();
   });
 });
