@@ -111,8 +111,10 @@ describe("PatternFullscreenView", () => {
       series: Array<{ name?: string; type: string; markLine?: unknown }>;
     };
     const names = option.series.map((s) => s.name);
-    expect(names).toContain("Upper boundary");
-    expect(names).toContain("Lower boundary");
+    // Boundary lines are grouped under the pattern name (not generic upper/lower).
+    expect(names).toContain("Falling Wedge");
+    expect(names).not.toContain("Upper boundary");
+    expect(names).not.toContain("Lower boundary");
     expect(names).toContain("Pivot High");
     expect(names).toContain("Pivot Low");
 

@@ -17,8 +17,21 @@ import { formatCurrency } from "@/utils/ui-helpers";
 
 export const BOUNDARY_COLORS = [PRIMARY, WARNING];
 
-/** Dashed colours for sibling patterns drawn alongside the selected one. */
-const SIBLING_COLORS = [CHART_AVG_ENTRY, CHART_MUTED, CHART_TEXT];
+/**
+ * Distinct colours assigned in order to the patterns drawn on one chart: the
+ * selected pattern takes the first colour, its siblings the next ones. A
+ * pattern's two boundary lines share its colour and legend name, so the legend
+ * answers "which pattern is which" instead of showing generic upper/lower edges.
+ */
+const PATTERN_COLORS = [
+  PRIMARY,
+  WARNING,
+  POSITIVE,
+  CHART_TEXT,
+  NEGATIVE,
+  CHART_AVG_ENTRY,
+  CHART_MUTED,
+];
 
 interface TooltipParam {
   axisValue?: unknown;
@@ -98,7 +111,6 @@ export function buildPatternChartOption({
   large = false,
 }: PatternChartOptionInput): Record<string, unknown> {
   const times = candles.map((c) => c.t);
-  const mapped = mapTrendlines(trendlines, times);
 
   const markData: Array<Record<string, unknown>> = [];
   if (!compact && hit) {
@@ -141,51 +153,58 @@ export function buildPatternChartOption({
     },
   ];
 
-  const legendData = mapped.map((_, i) => (i === 0 ? "Upper boundary" : "Lower boundary"));
-
-  mapped.forEach((points, i) => {
-    series.push({
-      type: "line",
-      name: i === 0 ? "Upper boundary" : "Lower boundary",
-      showSymbol: false,
-      connectNulls: true,
-      silent: true,
-      data: pointsToSeriesData(points, times.length),
-      lineStyle: { width: compact ? 2 : large ? 3 : 2, color: BOUNDARY_COLORS[i % BOUNDARY_COLORS.length] },
-      z: 3,
-    });
-  });
-
-  // Sibling patterns for the same symbol: dashed boundaries so the user can see
-  // structures that formed after (or before) the selected one. Legend entries are
-  // keyed by pattern name, so toggling hides both edges of that pattern.
-  if (!compact && overlays?.length) {
-    let colorIdx = 0;
-    overlays.forEach((overlay) => {
-      if (!overlay?.trendlines?.length) return;
-      if (selectedPatternId && overlay.pattern_id === selectedPatternId) return;
-      const color = SIBLING_COLORS[colorIdx % SIBLING_COLORS.length];
-      colorIdx += 1;
-      const name = overlay.pattern_name || overlay.pattern_id || "Pattern";
-      let drewAny = false;
-      overlay.trendlines.forEach((line) => {
-        const pts = mapTrendlines([line], times)[0];
-        if (!pts || pts.length === 0) return;
-        drewAny = true;
-        series.push({
-          type: "line",
-          name,
-          showSymbol: false,
-          connectNulls: true,
-          silent: true,
-          data: pointsToSeriesData(pts, times.length),
-          lineStyle: { width: large ? 2 : 1.5, color, type: "dashed", opacity: 0.85 },
-          z: 2,
-        });
-      });
-      if (drewAny && !legendData.includes(name)) legendData.push(name);
+  // Every pattern on the chart is a single legend group: both boundary lines
+  // share the pattern's name and colour, so the legend reads
+  // "Double Bottom / Ascending Channel / Rising Wedge …" and toggling a group
+  // hides that whole pattern. The selected pattern is solid + thicker; the
+  // symbol's other patterns are dashed.
+  const selectedId = selectedPatternId ?? hit?.pattern_id;
+  const groups: Array<{ id?: string; name: string; lines: Trendline[]; selected: boolean }> = [];
+  if ((trendlines?.length ?? 0) > 0) {
+    groups.push({
+      id: hit?.pattern_id,
+      name: hit?.pattern_name || "Pattern",
+      lines: trendlines as Trendline[],
+      selected: true,
     });
   }
+  if (!compact && overlays?.length) {
+    overlays.forEach((overlay) => {
+      if (!overlay?.trendlines?.length) return;
+      if (selectedId && overlay.pattern_id === selectedId) return;
+      groups.push({
+        id: overlay.pattern_id,
+        name: overlay.pattern_name || overlay.pattern_id || "Pattern",
+        lines: overlay.trendlines,
+        selected: false,
+      });
+    });
+  }
+
+  const legendData: string[] = [];
+  groups.forEach((group, index) => {
+    const mapped = mapTrendlines(group.lines, times);
+    if (mapped.length === 0) return;
+    const color = PATTERN_COLORS[index % PATTERN_COLORS.length];
+    mapped.forEach((points) => {
+      series.push({
+        type: "line",
+        name: group.name,
+        showSymbol: false,
+        connectNulls: true,
+        silent: true,
+        data: pointsToSeriesData(points, times.length),
+        lineStyle: {
+          width: group.selected ? (large ? 3 : 2.5) : large ? 2 : 1.5,
+          color,
+          type: group.selected ? "solid" : "dashed",
+          opacity: group.selected ? 1 : 0.8,
+        },
+        z: group.selected ? 3 : 2,
+      });
+    });
+    if (!legendData.includes(group.name)) legendData.push(group.name);
+  });
 
   // Swing pivots that define the pattern: up/down triangles at their real
   // timestamp mapped onto the category axis (full charts only — card sparklines

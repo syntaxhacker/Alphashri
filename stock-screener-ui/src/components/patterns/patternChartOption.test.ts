@@ -118,23 +118,37 @@ describe("buildPatternChartOption sibling overlays", () => {
     },
   ];
 
-  it("draws sibling patterns and skips the selected one", () => {
+  it("draws sibling patterns and names every group by pattern", () => {
+    const selectedTrendline = [
+      { t: "2026-05-04T18:30:00+00:00", price: 104 },
+      { t: "2026-05-07T18:30:00+00:00", price: 107 },
+    ];
     const option = buildPatternChartOption({
       candles: CANDLES,
       hit: HIT,
-      trendlines: HIT.trendlines,
+      trendlines: [selectedTrendline],
       overlays: OVERLAYS,
       selectedPatternId: "falling_wedge",
       compact: false,
     });
     const series = seriesOf(option);
     const names = series.map((s) => s.name);
+    // Selected pattern is named (not "Upper/Lower boundary") and drawn solid;
+    // sibling is drawn under its own name.
+    expect(names).toContain("Falling Wedge");
     expect(names).toContain("Rising Wedge");
-    expect(names).not.toContain("Falling Wedge");
-    const sibling = series.find((s) => s.name === "Rising Wedge");
-    expect(sibling?.type).toBe("line");
+    expect(names).not.toContain("Upper boundary");
+    expect(names).not.toContain("Lower boundary");
+
+    const selected = series.filter((s) => s.name === "Falling Wedge");
+    const sibling = series.filter((s) => s.name === "Rising Wedge");
+    expect(selected.length).toBeGreaterThan(0);
+    expect(sibling.length).toBeGreaterThan(0);
+    expect((selected[0] as { lineStyle?: { type?: string } }).lineStyle?.type).toBe("solid");
+    expect((sibling[0] as { lineStyle?: { type?: string } }).lineStyle?.type).toBe("dashed");
 
     const legend = option.legend as { data?: string[] } | undefined;
+    expect(legend?.data).toContain("Falling Wedge");
     expect(legend?.data).toContain("Rising Wedge");
   });
 
