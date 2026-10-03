@@ -15,6 +15,11 @@ vi.mock("@/hooks/useECharts", () => ({
   }),
 }));
 
+const fetchSymbolChart = vi.fn();
+vi.mock("@/api/chartPatterns", () => ({
+  fetchSymbolChart: (...args: unknown[]) => fetchSymbolChart(...args),
+}));
+
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   return {
     id: 1,
@@ -102,7 +107,21 @@ function r(jsx: React.ReactElement) {
 }
 
 describe("PatternsPage", () => {
-  beforeEach(() => vi.clearAllMocks());
+  beforeEach(() => {
+    vi.clearAllMocks();
+    fetchSymbolChart.mockResolvedValue({
+      symbol: "IRCON",
+      timeframe: "1D",
+      candles: [],
+      overlays: [
+        {
+          pattern_id: "rising_wedge",
+          pattern_name: "Rising Wedge",
+          trendlines: [[{ t: "2026-06-10", price: 235 }, { t: "2026-09-15", price: 311 }]],
+        },
+      ],
+    });
+  });
   afterEach(() => cleanup());
 
   test("renders all contract regions and testids", () => {

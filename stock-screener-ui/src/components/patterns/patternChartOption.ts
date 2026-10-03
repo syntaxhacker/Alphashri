@@ -1,7 +1,9 @@
-import type { ChartCandle, PatternHitDTO, Trendline } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline } from "@/types/chartPatterns";
 import {
+  CHART_AVG_ENTRY,
   CHART_MUTED,
   CHART_SPLIT,
+  CHART_TEXT,
   MARKER_SL,
   MARKER_TP,
   NEGATIVE,
@@ -14,6 +16,9 @@ import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatCurrency } from "@/utils/ui-helpers";
 
 export const BOUNDARY_COLORS = [PRIMARY, WARNING];
+
+/** Dashed colours for sibling patterns drawn alongside the selected one. */
+const SIBLING_COLORS = [CHART_AVG_ENTRY, CHART_MUTED, CHART_TEXT];
 
 interface TooltipParam {
   axisValue?: unknown;
@@ -60,6 +65,14 @@ export interface PatternChartOptionInput {
   candles: ChartCandle[];
   trendlines?: Trendline[];
   hit?: PatternHitDTO | null;
+  /**
+   * All detected patterns for the symbol. Every sibling pattern's boundaries are
+   * drawn dashed so the full sequence of structures is visible (the selected one
+   * stays solid in the highlighted colours).
+   */
+  overlays?: PatternOverlay[];
+  /** Pattern id of the selected hit, excluded from the dashed siblings. */
+  selectedPatternId?: string;
   /** Compact = card sparkline (no axes/tooltip/legend/zoom). */
   compact?: boolean;
   /** Full = drill-down / fullscreen (axes, tooltip, legend, level guides). */
@@ -78,6 +91,8 @@ export function buildPatternChartOption({
   candles,
   trendlines,
   hit,
+  overlays,
+  selectedPatternId,
   compact = false,
   showZoom = false,
   large = false,
@@ -140,6 +155,37 @@ export function buildPatternChartOption({
       z: 3,
     });
   });
+
+  // Sibling patterns for the same symbol: dashed boundaries so the user can see
+  // structures that formed after (or before) the selected one. Legend entries are
+  // keyed by pattern name, so toggling hides both edges of that pattern.
+  if (!compact && overlays?.length) {
+    let colorIdx = 0;
+    overlays.forEach((overlay) => {
+      if (!overlay?.trendlines?.length) return;
+      if (selectedPatternId && overlay.pattern_id === selectedPatternId) return;
+      const color = SIBLING_COLORS[colorIdx % SIBLING_COLORS.length];
+      colorIdx += 1;
+      const name = overlay.pattern_name || overlay.pattern_id || "Pattern";
+      let drewAny = false;
+      overlay.trendlines.forEach((line) => {
+        const pts = mapTrendlines([line], times)[0];
+        if (!pts || pts.length === 0) return;
+        drewAny = true;
+        series.push({
+          type: "line",
+          name,
+          showSymbol: false,
+          connectNulls: true,
+          silent: true,
+          data: pointsToSeriesData(pts, times.length),
+          lineStyle: { width: large ? 2 : 1.5, color, type: "dashed", opacity: 0.85 },
+          z: 2,
+        });
+      });
+      if (drewAny && !legendData.includes(name)) legendData.push(name);
+    });
+  }
 
   // Swing pivots that define the pattern: up/down triangles at their real
   // timestamp mapped onto the category axis (full charts only — card sparklines

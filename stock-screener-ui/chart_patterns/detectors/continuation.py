@@ -14,6 +14,7 @@ from .common import (
     envelope_pair,
     fit_window_pair,
     flat_line_points,
+    iso_ts,
     make_hit,
     mean_price as mean_price_fn,
     pivot_markers,
@@ -212,10 +213,17 @@ def _channel_once(df: pd.DataFrame, ctx: dict, start: int, end: int, ascending: 
     # bars_ago reflect the breakout, not a stale window end past it).
     bp = _breakout_pos(df, x1, breakout, direction)
     end_pos = x1 if bp is None else max(x1, bp)
-    trendlines = [
-        segment_points(df, x0, val(eu, x0), x1, val(eu, x1)),
-        segment_points(df, x0, val(el, x0), x1, val(el, x1)),
-    ]
+    def _boundary(env: dict) -> list[dict]:
+        # Structural end (x1) first, then the breakout bar: both edges span the
+        # whole detected range. Keeping x1 as the middle vertex preserves the
+        # "breakout level sits on the drawn boundary" invariant used by audits,
+        # while the extra vertex extends the drawn line through the breakout.
+        pts = segment_points(df, x0, val(env, x0), x1, val(env, x1))
+        if end_pos > x1:
+            pts.append({"t": iso_ts(df.index[int(end_pos)]), "price": round(val(env, end_pos), 4)})
+        return pts
+
+    trendlines = [_boundary(eu), _boundary(el)]
     notes = (
         f"{pid.replace('_', ' ')}; slope {su:.4g}/{sl:.4g}, "
         f"width {w_start:.3g}->{w_end:.3g}, R2 {r2:.2f}"

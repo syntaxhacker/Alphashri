@@ -469,6 +469,30 @@ def test_symbol_detail_and_chart(cp_client, monkeypatch):
     assert c["overlays"] and c["overlays"][0]["pattern_id"] == "falling_wedge"
 
 
+def test_symbol_detail_dedupes_hits_across_universe_jobs(cp_client, monkeypatch):
+    """A symbol in two scanned universes must not list each pattern twice."""
+    store.save_job({
+        "job_id": "cpj_u1", "universe": "nifty50", "timeframe": "1D",
+        "status": "completed", "total": 50, "finished_at": "2026-09-30T10:00:00",
+    })
+    store.save_hits("cpj_u1", [_hit("IRCON")])
+    store.save_job({
+        "job_id": "cpj_u2", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 501, "finished_at": "2026-09-30T11:00:00",
+    })
+    store.save_hits("cpj_u2", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+
+    detail = cp_client.get("/api/chart-patterns/symbol/IRCON", params={"timeframe": "1D"})
+    assert detail.status_code == 200
+    assert len(detail.json()["patterns"]) == 1, "pattern listed once across jobs"
+    assert detail.json()["counts"]["confirmed"] == 1
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    assert len(chart.json()["overlays"]) == 1, "overlay drawn once across jobs"
+
+
 def test_results_filter_multiple_symbols(cp_client):
     store.save_job({
         "job_id": "cpj_syms", "universe": "nifty500", "timeframe": "1D", "status": "completed",

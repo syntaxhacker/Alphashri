@@ -449,8 +449,22 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
         q = session.query(PatternHit).filter(PatternHit.symbol == symbol_u)
         if timeframe:
             q = q.filter(PatternHit.timeframe == timeframe)
-        rows = q.order_by(PatternHit.confidence.desc().nullslast(), PatternHit.id.desc()).all()
-        patterns = [row.to_dict() for row in rows]
+        # A symbol can belong to several scanned universes (e.g. nifty50 and
+        # nifty500), so the same detection is stored once per job. Keep only the
+        # newest row per pattern identity, then sort by confidence for display.
+        rows = q.order_by(PatternHit.id.desc()).all()
+        best: dict[tuple, PatternHit] = {}
+        for row in rows:
+            key = (row.pattern_id, row.start_date, row.end_date)
+            if key not in best:
+                best[key] = row
+        patterns = [row.to_dict() for row in best.values()]
+        patterns.sort(
+            key=lambda p: (
+                p.get("confidence") is None,
+                -(p.get("confidence") or 0.0),
+            )
+        )
         counts = {
             "confirmed": sum(1 for p in patterns if p.get("status") == "confirmed"),
             "forming": sum(1 for p in patterns if p.get("status") == "forming"),

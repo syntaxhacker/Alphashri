@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Box, Modal, Text, ToolbarRow } from "@/ui";
 import { useECharts } from "@/hooks/useECharts";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
-import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay } from "@/types/chartPatterns";
 import { buildPatternChartOption } from "./patternChartOption";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
@@ -13,9 +13,19 @@ export interface PatternFullscreenViewProps {
   onClose: () => void;
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
+  /** All detected patterns for the symbol, drawn as dashed siblings. */
+  overlays?: PatternOverlay[];
 }
 
-function FullscreenCanvas({ hit, candles }: { hit: PatternHitDTO | null; candles: ChartCandle[] }) {
+function FullscreenCanvas({
+  hit,
+  candles,
+  overlays,
+}: {
+  hit: PatternHitDTO | null;
+  candles: ChartCandle[];
+  overlays?: PatternOverlay[];
+}) {
   const { chartRef, setChartOption } = useECharts({ isDark: true });
 
   useEffect(() => {
@@ -30,12 +40,14 @@ function FullscreenCanvas({ hit, candles }: { hit: PatternHitDTO | null; candles
         candles,
         trendlines: hit?.trendlines,
         hit: chartHit,
+        overlays,
+        selectedPatternId: hit?.pattern_id,
         compact: false,
         showZoom: true,
         large: true,
       }) as never,
     );
-  }, [candles, hit, setChartOption]);
+  }, [candles, hit, overlays, setChartOption]);
 
   return (
     <Box
@@ -131,7 +143,13 @@ function FullscreenPanel({ hit }: { hit: PatternHitDTO }) {
  * narrow meta panel on the right. Stacks vertically below `lg`. The chart
  * canvas is mounted only while open so ECharts initialises against a live ref.
  */
-export function PatternFullscreenView({ opened, onClose, hit, candles }: PatternFullscreenViewProps) {
+export function PatternFullscreenView({
+  opened,
+  onClose,
+  hit,
+  candles,
+  overlays,
+}: PatternFullscreenViewProps) {
   const title = hit ? `${hit.symbol} · ${hit.pattern_name}` : "Pattern chart";
 
   return (
@@ -162,7 +180,7 @@ export function PatternFullscreenView({ opened, onClose, hit, candles }: Pattern
             minHeight: 0,
           }}
         >
-          <FullscreenCanvas hit={hit} candles={candles} />
+          <FullscreenCanvas hit={hit} candles={candles} overlays={overlays} />
         </Box>
 
         <Box

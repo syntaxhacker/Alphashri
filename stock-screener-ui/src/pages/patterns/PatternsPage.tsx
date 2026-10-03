@@ -6,10 +6,12 @@ import type {
   PatternDef,
   PatternFilters,
   PatternHitDTO,
+  PatternOverlay,
   PatternSummary,
   TFSpec,
   Universe,
 } from "@/types/chartPatterns";
+import { fetchSymbolChart } from "@/api/chartPatterns";
 import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
 import { PatternFilterRail } from "@/components/patterns/PatternFilterRail";
@@ -69,8 +71,33 @@ export function PatternsPage({
   scan,
   refresh,
 }: PatternsPageProps) {
-  const [fullscreen, setFullscreen] = useState<{ hit: PatternHitDTO; candles: ChartCandle[] } | null>(null);
-  const openFromCard = (hit: PatternHitDTO) => setFullscreen({ hit, candles: hit.candles ?? [] });
+  const [fullscreen, setFullscreen] = useState<{
+    hit: PatternHitDTO;
+    candles: ChartCandle[];
+    overlays: PatternOverlay[];
+  } | null>(null);
+
+  // On open, load every detected pattern for the symbol so the fullscreen can
+  // draw the whole sequence (the clicked one solid, siblings dashed) rather than
+  // a single structure. Falls back to the card's own candles if the fetch fails.
+  const openFromCard = (hit: PatternHitDTO) => {
+    setFullscreen({ hit, candles: hit.candles ?? [], overlays: [] });
+    void fetchSymbolChart(hit.symbol, hit.timeframe)
+      .then((chart) => {
+        setFullscreen((prev) =>
+          prev && prev.hit.symbol === hit.symbol && prev.hit.timeframe === hit.timeframe
+            ? {
+                ...prev,
+                candles: chart.candles?.length ? chart.candles : prev.candles,
+                overlays: chart.overlays ?? [],
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        /* non-fatal: keep the card's pattern + candles */
+      });
+  };
 
   return (
     <Box
@@ -200,6 +227,7 @@ export function PatternsPage({
         onClose={() => setFullscreen(null)}
         hit={fullscreen?.hit ?? null}
         candles={fullscreen?.candles ?? []}
+        overlays={fullscreen?.overlays ?? []}
       />
     </Box>
   );

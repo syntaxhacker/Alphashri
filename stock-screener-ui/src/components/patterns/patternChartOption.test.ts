@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import type { ChartCandle, PatternHitDTO } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay } from "@/types/chartPatterns";
 import { buildPatternChartOption } from "./patternChartOption";
 
 const CANDLES: ChartCandle[] = [
@@ -91,5 +91,62 @@ describe("buildPatternChartOption pivot markers", () => {
     ]);
     expect(html).toContain("05 May 2026");
     expect(html).toContain("Pivot High: ₹104.00");
+  });
+});
+
+describe("buildPatternChartOption sibling overlays", () => {
+  const OVERLAYS: PatternOverlay[] = [
+    {
+      pattern_id: "falling_wedge",
+      pattern_name: "Falling Wedge",
+      trendlines: [
+        [
+          { t: "2026-05-04T18:30:00+00:00", price: 104 },
+          { t: "2026-05-07T18:30:00+00:00", price: 107 },
+        ],
+      ],
+    },
+    {
+      pattern_id: "rising_wedge",
+      pattern_name: "Rising Wedge",
+      trendlines: [
+        [
+          { t: "2026-05-04T18:30:00+00:00", price: 101 },
+          { t: "2026-05-07T18:30:00+00:00", price: 110 },
+        ],
+      ],
+    },
+  ];
+
+  it("draws sibling patterns and skips the selected one", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      trendlines: HIT.trendlines,
+      overlays: OVERLAYS,
+      selectedPatternId: "falling_wedge",
+      compact: false,
+    });
+    const series = seriesOf(option);
+    const names = series.map((s) => s.name);
+    expect(names).toContain("Rising Wedge");
+    expect(names).not.toContain("Falling Wedge");
+    const sibling = series.find((s) => s.name === "Rising Wedge");
+    expect(sibling?.type).toBe("line");
+
+    const legend = option.legend as { data?: string[] } | undefined;
+    expect(legend?.data).toContain("Rising Wedge");
+  });
+
+  it("omits sibling overlays on compact sparklines", () => {
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      hit: HIT,
+      overlays: OVERLAYS,
+      selectedPatternId: "falling_wedge",
+      compact: true,
+    });
+    const names = seriesOf(option).map((s) => s.name);
+    expect(names).not.toContain("Rising Wedge");
   });
 });

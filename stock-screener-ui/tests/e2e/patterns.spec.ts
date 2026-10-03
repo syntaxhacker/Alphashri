@@ -474,7 +474,9 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("clicking a specific card opens its fullscreen chart", async ({ page }) => {
-    await page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]').click();
+    const card = page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]');
+    await expect(card).toBeVisible();
+    await card.click();
     const modal = page.locator('[data-testid="patterns-fullscreen-modal"]');
     await expect(modal).toBeVisible();
     await expect(modal).toContainText("IRCON");
@@ -482,7 +484,9 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("clicking the expand icon opens the fullscreen chart", async ({ page }) => {
-    await page.locator('[data-testid="patterns-card-expand-IRCON-falling_wedge"]').click();
+    const expand = page.locator('[data-testid="patterns-card-expand-IRCON-falling_wedge"]');
+    await expect(expand).toBeVisible();
+    await expand.click();
     await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
   });

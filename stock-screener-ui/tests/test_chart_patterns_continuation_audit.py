@@ -509,6 +509,25 @@ def test_channel_end_reaches_breakout_bar():
         assert float(d["close"].iloc[end_pos]) > hit.breakout_level + 1e-9
 
 
+@pytest.mark.parametrize("pattern_id", ["ascending_channel", "descending_channel"])
+def test_channel_lines_extend_through_breakout(pattern_id):
+    """Both drawn edges reach the pattern end (breakout bar), not the last pivot.
+
+    Regression: the boundaries stopped at the final swing pivot, so the channel
+    lines looked cut off well before the range they described.
+    """
+    d = F.normalize_ohlcv(GEOMETRIES[pattern_id]())
+    hit = detector(pattern_id)(d, {})[0]
+    pos = _pos_map(d)
+    end_pos = pos[hit.end_date]
+    for line in hit.trendlines[:2]:
+        assert len(line) >= 2
+        assert pos[line[-1]["t"]] == end_pos, f"{pattern_id}: edge stops before pattern end"
+    # The structural end remains the shared middle vertex (when the line is
+    # extended), so the breakout level still sits on the drawn boundary.
+    assert hit.trendlines[0][1]["t"] == hit.trendlines[1][1]["t"]
+
+
 def test_channel_boundaries_bound_price_and_target_sides():
     """Every channel edge stays a real envelope and levels point the right way."""
     for pattern_id in ("ascending_channel", "descending_channel"):
