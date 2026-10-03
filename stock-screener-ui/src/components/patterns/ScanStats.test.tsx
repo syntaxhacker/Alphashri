@@ -42,5 +42,20 @@ describe("ScanStats", () => {
     expect(screen.getByTestId("patterns-stats")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-stat-scanned")).toHaveTextContent("—");
     expect(screen.getByTestId("patterns-stat-data_through")).toHaveTextContent("—");
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("—");
+  });
+
+  test("shows the relative age of the last scan", () => {
+    const twelveMinAgo = new Date(Date.now() - 12 * 60_000).toISOString();
+    r(<ScanStats summary={{ ...SUMMARY, last_scan_at: twelveMinAgo }} />);
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("12 min ago");
+  });
+
+  test("shows 'just now' for a fresh scan and placeholders for a missing one", () => {
+    r(<ScanStats summary={{ ...SUMMARY, last_scan_at: new Date().toISOString() }} />);
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("just now");
+    cleanup();
+    r(<ScanStats summary={{ ...SUMMARY, last_scan_at: null }} />);
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("—");
   });
 });

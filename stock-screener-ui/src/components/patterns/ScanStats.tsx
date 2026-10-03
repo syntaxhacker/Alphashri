@@ -6,7 +6,7 @@ export interface ScanStatsProps {
 }
 
 interface StatCell {
-  key: "scanned" | "patterns" | "in_view" | "confirmed" | "bull_bear" | "data_through";
+  key: "scanned" | "patterns" | "in_view" | "confirmed" | "bull_bear" | "data_through" | "last_scan";
   label: string;
   value: string;
   tone?: string;
@@ -14,6 +14,19 @@ interface StatCell {
 
 function num(value: number | null | undefined): string {
   return value == null ? "—" : value.toLocaleString("en-IN");
+}
+
+/** Compact relative age of the last completed scan ("12 min ago", "2 h ago"). */
+function relativeAge(iso: string | null | undefined): string {
+  if (!iso) return "—";
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return "—";
+  const mins = Math.floor((Date.now() - ts) / 60_000);
+  if (mins <= 0) return "just now";
+  if (mins < 60) return `${mins} min ago`;
+  const hours = Math.floor(mins / 60);
+  if (hours < 24) return `${hours} h ago`;
+  return `${Math.floor(hours / 24)} d ago`;
 }
 
 function buildCells(summary: PatternSummary | null): StatCell[] {
@@ -29,6 +42,7 @@ function buildCells(summary: PatternSummary | null): StatCell[] {
       tone: "primary",
     },
     { key: "data_through", label: "Data through", value: summary?.data_through ?? "—" },
+    { key: "last_scan", label: "Last scan", value: relativeAge(summary?.last_scan_at) },
   ];
 }
 

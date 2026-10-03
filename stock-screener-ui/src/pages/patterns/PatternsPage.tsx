@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Box, Button, Loader, Text } from "@/ui";
+import { Box, Button, Loader, Text, ToolbarRow } from "@/ui";
 import type {
   ChartCandle,
   JobDTO,
@@ -13,6 +13,8 @@ import type {
 import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
 import { PatternFilterRail } from "@/components/patterns/PatternFilterRail";
+import { SymbolFilter } from "@/components/patterns/SymbolFilter";
+import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 
@@ -125,11 +127,19 @@ export function PatternsPage({
       </Box>
 
       <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
+        <ToolbarRow
+          justify="space-between"
+          data-testid="patterns-results-toolbar"
+          style={{ rowGap: 8 }}
+        >
           <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
             {total > 0 ? `${total} patterns` : "Patterns"}
           </Text>
-        </Box>
+          <ToolbarRow gap={8} justify="flex-end">
+            <SymbolFilter filters={filters} setFilter={setFilter} />
+            <ResultsSearch filters={filters} setFilter={setFilter} />
+          </ToolbarRow>
+        </ToolbarRow>
 
         {loading ? (
           <Box

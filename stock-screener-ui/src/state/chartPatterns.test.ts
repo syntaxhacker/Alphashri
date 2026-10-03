@@ -35,6 +35,7 @@ import {
 import {
   POLL_INTERVAL_MS,
   DEFAULT_PATTERN_FILTERS,
+  STALE_SCAN_MINUTES,
   getChartPatternsState,
   subscribe,
   resetChartPatternsState,
@@ -138,6 +139,8 @@ describe("initial state", () => {
     expect(state.universe).toBe("");
     expect(state.filters).toEqual(DEFAULT_PATTERN_FILTERS);
     expect(DEFAULT_PATTERN_FILTERS.pattern_id).toEqual([]);
+    expect(DEFAULT_PATTERN_FILTERS.symbols).toEqual([]);
+    expect(DEFAULT_PATTERN_FILTERS.q).toBe("");
     expect(DEFAULT_PATTERN_FILTERS.min_base_days).toBeNull();
     expect(DEFAULT_PATTERN_FILTERS.max_range_pct).toBeNull();
     expect(DEFAULT_PATTERN_FILTERS.sort).toBe("confidence");
@@ -224,18 +227,65 @@ describe("auto-scan on empty universe|timeframe", () => {
     expect(mocked.startScan).not.toHaveBeenCalled();
   });
 
-  it("does not auto-scan when results are already present", async () => {
-    setUniverse("nifty500");
+  /** Stub a combo that has hits and a completed scan at ``lastScanAt``. */
+  function stubPopulatedResults(lastScanAt: string | null) {
     mocked.fetchResults.mockResolvedValue({
       items: [{ id: 1, symbol: "IRCON", pattern_id: "falling_wedge" } as never],
       total: 1,
       summary: SUMMARY,
       data_through: "2026-09-30",
     });
+    mocked.fetchSummary.mockResolvedValue({ ...SUMMARY, last_scan_at: lastScanAt });
+  }
+
+  it("does not auto-scan when results exist and the last scan is fresh", async () => {
+    setUniverse("nifty500");
+    const recent = new Date(Date.now() - 5 * 60_000).toISOString();
+    stubPopulatedResults(recent);
 
     selectTimeframe("15m");
     await flush();
     expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+
+  it("auto-scans when results exist but the last scan is stale", async () => {
+    setUniverse("nifty500");
+    const stale = new Date(Date.now() - (STALE_SCAN_MINUTES + 5) * 60_000).toISOString();
+    stubPopulatedResults(stale);
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("auto-scans when results exist but last_scan_at is missing", async () => {
+    setUniverse("nifty500");
+    stubPopulatedResults(null);
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not rescan a stale combo twice in one session", async () => {
+    setUniverse("nifty500");
+    const stale = new Date(Date.now() - (STALE_SCAN_MINUTES + 5) * 60_000).toISOString();
+    stubPopulatedResults(stale);
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+
+    // Finish the scan, then return to the same (still stale) combo: guard holds.
+    setScanning(false);
+    setJob(null);
+    selectTimeframe("1D");
+    await flush();
+    setScanning(false);
+    setJob(null);
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(2);
   });
 
   it("does not auto-scan when only a filter changes", async () => {
@@ -274,6 +324,19 @@ describe("filters", () => {
     );
     expect(mocked.fetchSummary).toHaveBeenCalledWith(
       expect.objectContaining({ sort: "newest" }),
+    );
+  });
+
+  it("setFilter symbols + q persist and forward to results + summary", () => {
+    setFilter("symbols", ["SBIN", "TCS"]);
+    setFilter("q", "bank");
+    expect(getChartPatternsState().filters.symbols).toEqual(["SBIN", "TCS"]);
+    expect(getChartPatternsState().filters.q).toBe("bank");
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ symbols: ["SBIN", "TCS"], q: "bank" }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ symbols: ["SBIN", "TCS"], q: "bank" }),
     );
   });
 

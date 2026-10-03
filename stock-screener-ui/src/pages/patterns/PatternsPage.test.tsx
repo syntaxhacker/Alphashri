@@ -117,6 +117,12 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
+  test("renders symbol filter and results search controls", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.getByTestId("patterns-symbol-filter")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-results-search")).toBeInTheDocument();
+  });
+
   test("renders every required stat key", () => {
     r(<PatternsPage {...makeProps()} />);
     for (const key of ["scanned", "patterns", "in_view", "confirmed", "bull_bear", "data_through"]) {

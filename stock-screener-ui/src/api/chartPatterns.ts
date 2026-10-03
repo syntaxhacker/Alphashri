@@ -132,6 +132,8 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
     params.set("max_range_pct", String(query.max_range_pct));
   }
   if (query.symbol) params.set("symbol", query.symbol);
+  for (const symbol of query.symbols ?? []) params.append("symbol", symbol);
+  if (query.q) params.set("q", query.q);
   if (query.sort && query.sort !== "confidence") params.set("sort", query.sort);
   if (query.limit != null) params.set("limit", String(query.limit));
   if (query.offset != null) params.set("offset", String(query.offset));

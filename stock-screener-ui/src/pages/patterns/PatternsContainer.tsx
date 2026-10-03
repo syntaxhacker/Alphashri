@@ -1,5 +1,6 @@
 import { useEffect } from "react";
 import { useChartPatterns } from "@/hooks/useChartPatterns";
+import { usePatternUrlSync } from "@/hooks/usePatternUrlSync";
 import { loadCatalog } from "@/state/chartPatterns";
 import type { PatternFilters } from "@/types/chartPatterns";
 import { PatternsPage } from "./PatternsPage";
@@ -11,6 +12,16 @@ let catalogRequested = false;
 /** Route entry for `/patterns` — wires the store hook to the presentational page. */
 export function PatternsContainer() {
   const vm = useChartPatterns();
+
+  // Mirror universe/timeframe/filters to the URL so a filtered view is shareable.
+  usePatternUrlSync({
+    universe: vm.universe,
+    timeframe: vm.timeframe,
+    filters: vm.filters,
+    setUniverse: vm.setUniverse,
+    setTimeframe: vm.setTimeframe,
+    applyFilters: vm.applyFilters,
+  });
 
   useEffect(() => {
     if (catalogRequested) return;

@@ -116,6 +116,11 @@ export interface PatternSummary {
   bullish: number;
   bearish: number;
   data_through: string | null;
+  /**
+   * ISO timestamp of the latest completed scan for the active universe+timeframe
+   * (null when none / no combo in the query). Drives the stale-scan auto-refresh.
+   */
+  last_scan_at?: string | null;
   /** Hit count per `pattern_id` across the whole filtered set (no page limit). */
   pattern_counts?: Record<string, number>;
   /** Hit count per family across the whole filtered set (no page limit). */
@@ -186,6 +191,10 @@ export interface PatternFilters {
   volume_confirmed: boolean | null;
   min_rr: number | null;
   symbol: string | null;
+  /** Multi-symbol filter (repeat `symbol` params); empty = any. */
+  symbols: string[];
+  /** Free-text symbol/name search (`q` param); empty = any. */
+  q: string;
   /** Minimum consolidation base length in bars/days (null = any). */
   min_base_days: number | null;
   /** Maximum consolidation range as % of price (null = any). */

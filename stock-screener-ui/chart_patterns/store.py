@@ -237,8 +237,16 @@ def _apply_filters(query, filters: dict):
         query = query.filter(PatternComputeJob.universe == filters["universe"])
     if filters.get("timeframe"):
         query = query.filter(PatternHit.timeframe == filters["timeframe"])
-    if filters.get("symbol"):
-        query = query.filter(PatternHit.symbol == str(filters["symbol"]).upper())
+    symbols = filters.get("symbol")
+    if symbols:
+        if isinstance(symbols, str):
+            symbols = [symbols]
+        query = query.filter(PatternHit.symbol.in_([str(s).upper() for s in symbols]))
+    if filters.get("q"):
+        like = f"%{filters['q']}%"
+        query = query.filter(
+            PatternHit.symbol.ilike(like) | PatternHit.name.ilike(like)
+        )
     pattern_ids = filters.get("pattern_id")
     if pattern_ids:
         if isinstance(pattern_ids, str):
@@ -339,9 +347,38 @@ def _summary_for(session, filters: dict, base, total: int) -> dict:
         "bullish": bullish,
         "bearish": bearish,
         "data_through": data_through,
+        "last_scan_at": _last_scan_at(session, filters),
         "pattern_counts": _counts_by(base, PatternHit.pattern_id),
         "family_counts": _counts_by(base, PatternHit.family),
     }
+
+
+def _last_scan_at(session, filters: dict) -> Optional[str]:
+    """ISO timestamp of the latest *completed* job for the combo, else ``None``.
+
+    The Patterns UI uses this to decide whether the currently displayed (but
+    possibly stale) hits need a background refresh. Only completed jobs count:
+    queued/running jobs have no meaningful ``finished_at`` yet, and failed jobs
+    produced no usable hit set.
+    """
+    if not filters.get("universe") and not filters.get("timeframe"):
+        return None
+    try:
+        q = session.query(func.max(PatternComputeJob.finished_at)).filter(
+            PatternComputeJob.status == "completed"
+        )
+        if filters.get("universe"):
+            q = q.filter(PatternComputeJob.universe == filters["universe"])
+        if filters.get("timeframe"):
+            q = q.filter(PatternComputeJob.timeframe == filters["timeframe"])
+        value = q.scalar()
+        if value is None:
+            return None
+        if hasattr(value, "isoformat"):
+            return value.isoformat()
+        return str(value)
+    except Exception:
+        return None
 
 
 def _scanned_count(session, filters: dict, base) -> int:
@@ -378,6 +415,7 @@ def _empty_summary() -> dict:
         "bullish": 0,
         "bearish": 0,
         "data_through": None,
+        "last_scan_at": None,
         "pattern_counts": {},
         "family_counts": {},
     }

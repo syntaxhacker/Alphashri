@@ -38,6 +38,12 @@ import {
 export const POLL_INTERVAL_MS = 2000;
 export const DEFAULT_TIMEFRAME = "1D";
 export const DEFAULT_RESULTS_LIMIT = 200;
+/**
+ * A combo whose last completed scan is older than this (or that has never been
+ * scanned) is considered stale and gets an automatic background refresh, even
+ * when it currently has hits. Keeps stored payloads (trendlines/pivots) fresh.
+ */
+export const STALE_SCAN_MINUTES = 30;
 
 export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   family: [],
@@ -49,6 +55,8 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   volume_confirmed: null,
   min_rr: null,
   symbol: null,
+  symbols: [],
+  q: "",
   min_base_days: null,
   max_range_pct: null,
   sort: "confidence",
@@ -242,6 +250,8 @@ function baseQuery(): PatternsQuery {
     volume_confirmed: state.filters.volume_confirmed,
     min_rr: state.filters.min_rr,
     symbol: state.filters.symbol,
+    symbols: state.filters.symbols,
+    q: state.filters.q,
     min_base_days: state.filters.min_base_days,
     max_range_pct: state.filters.max_range_pct,
     sort: state.filters.sort,
@@ -327,14 +337,30 @@ export async function loadActiveJobs(): Promise<void> {
 }
 
 /**
- * Auto-submit a scan when the active universe+timeframe has no results yet and
- * no scan is already in flight — at most once per combination this session.
+ * True when the active combo's last completed scan is missing, unparseable, or
+ * older than `STALE_SCAN_MINUTES`.
+ */
+function isScanStale(): boolean {
+  const last = state.summary?.last_scan_at;
+  if (!last) return true;
+  const ts = Date.parse(last);
+  if (Number.isNaN(ts)) return true;
+  return Date.now() - ts > STALE_SCAN_MINUTES * 60_000;
+}
+
+/**
+ * Auto-submit a scan for the active universe+timeframe when its last completed
+ * scan is missing/stale — including when hits are present but were produced by
+ * an older detector (those payloads lack trendlines/pivots). Skips while a scan
+ * is already in flight and at most once per combination this session.
  * Only universe/timeframe transitions call this; filter-only changes never do.
  */
 function maybeAutoScan(): void {
-  if (state.scanning || state.results.length > 0) return;
+  if (state.scanning) return;
   const { universe, timeframe } = state;
   if (!universe || !timeframe) return;
+  // Results are present and fresh: nothing to refresh.
+  if (state.results.length > 0 && !isScanStale()) return;
   const active = state.job;
   const activeForCombo =
     !!active &&

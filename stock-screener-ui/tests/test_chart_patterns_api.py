@@ -192,6 +192,49 @@ def test_results_and_summary(cp_client):
     assert s["bullish"] == 2
 
 
+def test_summary_last_scan_at(cp_client):
+    """`last_scan_at` reflects the latest *completed* job for the combo."""
+    store.save_job({
+        "job_id": "cpj_old", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "finished_at": "2026-09-20T10:00:00",
+    })
+    store.save_hits("cpj_old", [_hit("AAA")])
+    store.save_job({
+        "job_id": "cpj_new", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 12, "finished_at": "2026-09-30T15:30:00",
+    })
+    store.save_hits("cpj_new", [_hit("BBB", name="B Co")])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert resp.status_code == 200
+    assert resp.json()["last_scan_at"].startswith("2026-09-30T15:30:00")
+
+    # A newer queued/running job must not count (no usable result set yet).
+    store.save_job({
+        "job_id": "cpj_running", "universe": "nifty500", "timeframe": "1D",
+        "status": "running", "finished_at": "2026-10-01T09:15:00",
+    })
+    again = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert again.json()["last_scan_at"].startswith("2026-09-30T15:30:00")
+
+    # A different timeframe has no completed scan.
+    other = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"universe": "nifty500", "timeframe": "15m"},
+    )
+    assert other.json()["last_scan_at"] is None
+
+    # No universe/timeframe in the query → null.
+    unscoped = cp_client.get("/api/chart-patterns/summary")
+    assert unscoped.json()["last_scan_at"] is None
+
+
 def test_results_filters(cp_client):
     store.save_job({
         "job_id": "cpj_flt", "universe": "nifty500", "timeframe": "1D", "status": "completed",
@@ -391,3 +434,102 @@ def test_symbol_detail_and_chart(cp_client, monkeypatch):
     assert len(c["candles"]) == 50
     assert c["candles"][0]["t"] and "o" in c["candles"][0]
     assert c["overlays"] and c["overlays"][0]["pattern_id"] == "falling_wedge"
+
+
+def test_results_filter_multiple_symbols(cp_client):
+    store.save_job({
+        "job_id": "cpj_syms", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_syms", [
+        _hit("AAA", name="Alpha Co"),
+        _hit("BBB", name="Beta Co"),
+        _hit("CCC", name="Gamma Co"),
+    ])
+
+    # Repeated ?symbol= returns only those (order-independent).
+    repeated = cp_client.get(
+        "/api/chart-patterns/results",
+        params=[("job_id", "cpj_syms"), ("symbol", "AAA"), ("symbol", "CCC")],
+    )
+    assert repeated.status_code == 200
+    body = repeated.json()
+    assert body["total"] == 2
+    assert {item["symbol"] for item in body["items"]} == {"AAA", "CCC"}
+
+    # Single value still works (FastAPI coerces to a 1-element list).
+    single = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_syms", "symbol": "BBB"},
+    )
+    assert single.status_code == 200
+    single_body = single.json()
+    assert single_body["total"] == 1
+    assert single_body["items"][0]["symbol"] == "BBB"
+
+    # Lowercase input is uppercased before matching.
+    lower = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_syms", "symbol": "aaa"},
+    )
+    assert lower.status_code == 200
+    assert lower.json()["total"] == 1
+
+    # /summary honors the same multi-symbol filter.
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params=[("job_id", "cpj_syms"), ("symbol", "AAA"), ("symbol", "CCC")],
+    )
+    assert summary.status_code == 200
+    assert summary.json()["patterns"] == 2
+
+
+def test_results_filter_text_query(cp_client):
+    store.save_job({
+        "job_id": "cpj_q", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_q", [
+        _hit("IRCON", name="Ircon International"),
+        _hit("TCS", name="Tata Consultancy Services"),
+        _hit("WIPRO", name="Wipro Ltd"),
+    ])
+
+    # Match by symbol fragment, case-insensitive.
+    by_symbol = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_q", "q": "ircon"},
+    )
+    assert by_symbol.status_code == 200
+    body = by_symbol.json()
+    assert body["total"] == 1
+    assert body["items"][0]["symbol"] == "IRCON"
+
+    # Match by name fragment, case-insensitive.
+    by_name = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_q", "q": "CONSULTANCY"},
+    )
+    assert by_name.status_code == 200
+    name_body = by_name.json()
+    assert name_body["total"] == 1
+    assert name_body["items"][0]["symbol"] == "TCS"
+
+    # No match → empty.
+    none = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_q", "q": "zzz-nope"},
+    )
+    assert none.status_code == 200
+    none_body = none.json()
+    assert none_body["total"] == 0
+    assert none_body["items"] == []
+
+    # /summary respects the text query.
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_q", "q": "a"},
+    )
+    assert summary.status_code == 200
+    # "Ircon International" (name has 'a') and "Tata Consultancy Services" both
+    # contain 'a'; "Wipro Ltd" has none.
+    assert summary.json()["patterns"] == 2
+

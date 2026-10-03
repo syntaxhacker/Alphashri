@@ -171,6 +171,21 @@ describe("results + summary query building", () => {
     expect(new URLSearchParams(query.slice(1)).getAll("pattern_id")).toEqual(["a", "b"]);
   });
 
+  it("buildPatternsQuery repeats symbol for each symbol and sets q", () => {
+    const query = buildPatternsQuery({ symbols: ["SBIN", "TCS"], q: "bank" });
+    const params = new URLSearchParams(query.slice(1));
+    expect(params.getAll("symbol")).toEqual(["SBIN", "TCS"]);
+    expect(params.get("q")).toBe("bank");
+    expect(query).toContain("symbol=SBIN&symbol=TCS");
+    expect(query).toContain("q=bank");
+  });
+
+  it("buildPatternsQuery omits empty symbols and q", () => {
+    const query = buildPatternsQuery({ symbols: [], q: "" });
+    expect(query).not.toContain("symbol");
+    expect(query).not.toContain("q=");
+  });
+
   it("buildPatternsQuery returns an empty string for no filters", () => {
     expect(buildPatternsQuery({})).toBe("");
   });
