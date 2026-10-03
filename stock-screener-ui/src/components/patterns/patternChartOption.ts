@@ -2,6 +2,7 @@ import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline } from "@/ty
 import {
   CHART_AVG_ENTRY,
   CHART_MUTED,
+  CHART_OVERLAY,
   CHART_SPLIT,
   CHART_TEXT,
   MARKER_SL,
@@ -186,7 +187,7 @@ export function buildPatternChartOption({
     const mapped = mapTrendlines(group.lines, times);
     if (mapped.length === 0) return;
     const color = PATTERN_COLORS[index % PATTERN_COLORS.length];
-    mapped.forEach((points) => {
+    mapped.forEach((points, lineIndex) => {
       series.push({
         type: "line",
         name: group.name,
@@ -200,6 +201,22 @@ export function buildPatternChartOption({
           type: group.selected ? "solid" : "dashed",
           opacity: group.selected ? 1 : 0.8,
         },
+        // Inline pattern name at the end of the first boundary line, so each
+        // dashed/solid line is labelled on the chart itself (not just the legend).
+        endLabel:
+          !compact && lineIndex === 0
+            ? {
+                show: true,
+                formatter: group.name,
+                color,
+                fontSize: large ? 12 : 10,
+                fontWeight: group.selected ? 600 : 400,
+                distance: 6,
+                padding: [2, 4],
+                borderRadius: 3,
+                backgroundColor: CHART_OVERLAY,
+              }
+            : undefined,
         z: group.selected ? 3 : 2,
       });
     });
@@ -262,7 +279,7 @@ export function buildPatternChartOption({
     animation: false,
     grid: compact
       ? { left: 2, right: 2, top: 6, bottom: 2 }
-      : { left: large ? 64 : 54, right: large ? 28 : 16, top: large ? 36 : 12, bottom: showZoom ? (large ? 64 : 52) : 42 },
+      : { left: large ? 64 : 54, right: large ? 96 : 64, top: large ? 36 : 12, bottom: showZoom ? (large ? 64 : 52) : 42 },
     tooltip: compact
       ? { show: false }
       : {
