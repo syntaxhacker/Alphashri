@@ -100,7 +100,8 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(mockGetBrokerStatus).toHaveBeenCalledTimes(1);
+      // One card per broker (upstox + fyers).
+      expect(mockGetBrokerStatus).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -120,7 +121,8 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Connected")).toBeInTheDocument();
+      // Both broker cards report Connected.
+      expect(screen.getAllByText("Connected").length).toBeGreaterThan(0);
     });
   });
 
@@ -135,7 +137,7 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Disconnected")).toBeInTheDocument();
+      expect(screen.getAllByText("Disconnected").length).toBeGreaterThan(0);
     });
   });
 

@@ -180,7 +180,7 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
         bgcolor: palette.SURFACE,
         border: `1px solid ${palette.BORDER}`,
         borderRadius: 1,
-        boxShadow: "0 8px 28px rgba(0,0,0,0.45)",
+        boxShadow: 8,
         overflow: "hidden",
         contain: "layout paint style",
       }}
@@ -221,7 +221,7 @@ const FloatingWindow = forwardRef<FloatingWindowHandle, FloatingWindowProps>(fun
           aria-label={`Close ${title}`}
           onPointerDown={(e) => e.stopPropagation()}
           onClick={() => onClose?.()}
-          sx={{ width: 18, height: 18, display: "grid", placeItems: "center", borderRadius: 0.5, color: palette.TEXT_MUTED, cursor: "pointer", fontSize: 13, lineHeight: 1, "&:hover": { bgcolor: palette.NEGATIVE, color: "#fff" } }}
+          sx={{ width: 18, height: 18, display: "grid", placeItems: "center", borderRadius: 0.5, color: palette.TEXT_MUTED, cursor: "pointer", fontSize: 13, lineHeight: 1, "&:hover": { bgcolor: palette.NEGATIVE, color: palette.MARKER_BORDER } }}
         >
           ✕
         </Box>
