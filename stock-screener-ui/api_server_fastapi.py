@@ -281,6 +281,57 @@ async def compute_52w_ranges_task():
             await asyncio.sleep(300)
 
 
+async def chart_patterns_bootstrap_task():
+    """Chart-patterns background bootstrap (CONTRACT.md §5).
+
+    Rehydrates active jobs on startup; during market hours, when no job is
+    active, submits a default ``nifty500`` / ``1D`` scan. Repeats every
+    ``PATTERN_SCAN_INTERVAL_SEC`` (default 900).
+    """
+    import os
+
+    interval = int(os.environ.get("PATTERN_SCAN_INTERVAL_SEC", "900"))
+
+    # Rehydrate queued/running jobs left over from a previous process.
+    try:
+        from chart_patterns import jobs as _cp_jobs
+
+        n = await asyncio.to_thread(_cp_jobs.rehydrate)
+        if n:
+            print(f"[Patterns] Rehydrated {n} active job(s)")
+    except Exception as e:
+        print(f"[Patterns] Rehydrate failed: {e}")
+
+    first = True
+    while True:
+        try:
+            if first:
+                await asyncio.sleep(5)
+                first = False
+            else:
+                await asyncio.sleep(interval)
+
+            if not _is_market_hours():
+                continue
+
+            from chart_patterns import jobs as _cp_jobs
+
+            if _cp_jobs.list_active():
+                continue
+            try:
+                dto = _cp_jobs.submit(
+                    "nifty500", "1D", requested_by=None, params={"bootstrap": True}
+                )
+                print(f"[Patterns] Bootstrap scan queued: {dto['job_id']}")
+            except _cp_jobs.QueueFullError:
+                pass
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Patterns] Bootstrap task error: {e}")
+            await asyncio.sleep(60)
+
+
 async def db_backup_task():
     """Daily local SQLite backup with retention (see scripts/backup_db.py).
 
@@ -331,6 +382,7 @@ async def lifespan(app: FastAPI):
     _recovery_task = None
     _db_backup_task = None
     _orderflow_recorder_task = None
+    _patterns_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -408,6 +460,13 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ Order-flow recorder task failed: {e}")
                 _orderflow_recorder_task = None
+
+            try:
+                _patterns_task = asyncio.create_task(chart_patterns_bootstrap_task())
+                print("📐 Chart-patterns background task started")
+            except Exception as e:
+                print(f"⚠️ Chart-patterns task failed: {e}")
+                _patterns_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -436,6 +495,8 @@ async def lifespan(app: FastAPI):
         _db_backup_task.cancel()
     if _orderflow_recorder_task:
         _orderflow_recorder_task.cancel()
+    if _patterns_task:
+        _patterns_task.cancel()
     try:
         from api import orderflow_journal
         orderflow_journal.close_all()
@@ -908,6 +969,13 @@ try:
     print("✅ Chart API loaded at /api/chart")
 except Exception as e:
     print(f"⚠️ Could not load chart API: {e}")
+
+try:
+    from api.chart_patterns import router as chart_patterns_router
+    app.include_router(chart_patterns_router)
+    print("✅ Chart Patterns API loaded at /api/chart-patterns")
+except Exception as e:
+    print(f"⚠️ Could not load chart patterns API: {e}")
 
 try:
     from api.heatmap import router as heatmap_router

@@ -40,6 +40,7 @@ const navItems = [
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
   { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
+  { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },

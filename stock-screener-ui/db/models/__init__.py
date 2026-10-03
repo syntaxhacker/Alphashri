@@ -19,6 +19,7 @@ from .screener import Screener
 from .price_surge import PriceSurgeEvent
 from .chat import ChatConversation, ChatMessage
 from .replay_saved_config import ReplaySavedConfig
+from .chart_patterns import PatternComputeJob, PatternHit
 
 __all__ = [
     "Base",
@@ -54,4 +55,6 @@ __all__ = [
     "ChatConversation",
     "ChatMessage",
     "ReplaySavedConfig",
+    "PatternComputeJob",
+    "PatternHit",
 ]
