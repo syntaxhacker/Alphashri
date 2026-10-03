@@ -40,8 +40,10 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
       committedRef.current = true;
       return;
     }
+    // No-op guard: never re-commit an unchanged query (avoids redundant reloads).
+    if (debouncedValue === external) return;
     setFilter("q", debouncedValue);
-  }, [debouncedValue, setFilter]);
+  }, [debouncedValue, external, setFilter]);
 
   return (
     <TextInput

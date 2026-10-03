@@ -84,11 +84,9 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
             searchable
             onSearchChange={(v) => {
               // Ignore the empty reset MUI emits right after an input change;
-              // a genuine clear is reflected by selection/`onChange` instead.
-              if (v.trim().length === 0) {
-                setOptions([]);
-                return;
-              }
+              // it arrives after debounced results load and would wipe them.
+              // A genuine clear is reflected by selection/`onChange` instead.
+              if (v.trim().length === 0) return;
               setQuery(v);
             }}
             clearable

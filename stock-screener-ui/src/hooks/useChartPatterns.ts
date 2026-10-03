@@ -4,6 +4,7 @@
  * data; the store is the single source of truth.
  */
 
+import { useCallback } from "react";
 import { useStoreSubscription } from "./useStoreSubscription";
 import type { JobDTO, PatternFilters } from "../types/chartPatterns";
 import {
@@ -53,6 +54,12 @@ export function useChartPatterns(): UseChartPatternsResult {
   useStoreSubscription(subscribe);
   const state = getChartPatternsState();
 
+  // Stable identity: components use `setFilter` in effect dependency arrays, so a
+  // fresh closure per render would re-trigger those effects (and reload loops).
+  const handleSetFilter = useCallback((key: string, value: unknown) => {
+    setFilter(key as keyof PatternFilters, value as PatternFilters[keyof PatternFilters]);
+  }, []);
+
   return {
     timeframes: state.timeframes,
     universes: state.universes,
@@ -62,9 +69,7 @@ export function useChartPatterns(): UseChartPatternsResult {
     universe: state.universe,
     setUniverse: selectUniverse,
     filters: state.filters,
-    setFilter: (key: string, value: unknown) => {
-      setFilter(key as keyof PatternFilters, value as PatternFilters[keyof PatternFilters]);
-    },
+    setFilter: handleSetFilter,
     resetFilters,
     applyFilters,
     job: state.job,

@@ -2,7 +2,6 @@ import { useEffect } from "react";
 import { useChartPatterns } from "@/hooks/useChartPatterns";
 import { usePatternUrlSync } from "@/hooks/usePatternUrlSync";
 import { loadCatalog } from "@/state/chartPatterns";
-import type { PatternFilters } from "@/types/chartPatterns";
 import { PatternsPage } from "./PatternsPage";
 
 // Bootstrap once per app session (StrictMode-safe): load timeframe registry,
@@ -39,7 +38,7 @@ export function PatternsContainer() {
       universe={vm.universe}
       setUniverse={vm.setUniverse}
       filters={vm.filters}
-      setFilter={(key, value) => vm.setFilter(key as keyof PatternFilters, value)}
+      setFilter={vm.setFilter}
       resetFilters={vm.resetFilters}
       applyFilters={vm.applyFilters}
       job={vm.job}

@@ -71,6 +71,9 @@ const summary = {
   bullish: 6,
   bearish: 2,
   data_through: "2026-10-02",
+  // Recent timestamp so the fresh-scan guard (`isScanStale`) does not trigger an
+  // unwanted auto-scan that would mask the cards with the loading state.
+  last_scan_at: new Date().toISOString(),
 };
 
 type Hit = {
@@ -206,6 +209,13 @@ function filteredHits(url: URL): Hit[] {
   if (families.length) hits = hits.filter((h) => families.includes(h.family));
   if (statuses.length) hits = hits.filter((h) => statuses.includes(h.status));
   if (symbols.length) hits = hits.filter((h) => symbols.includes(h.symbol));
+  const q = url.searchParams.get("q");
+  if (q) {
+    const needle = q.toLowerCase();
+    hits = hits.filter(
+      (h) => h.symbol.toLowerCase().includes(needle) || h.name.toLowerCase().includes(needle),
+    );
+  }
   return hits;
 }
 
@@ -273,6 +283,25 @@ async function setupChartPatternsMocks(page: Page) {
 
   await page.route(apiRoute("chart-patterns/summary"), async (route) => {
     await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(summary) });
+  });
+
+  // Symbol search backs the multi-symbol picker.
+  await page.route(apiRoute("symbols/search"), async (route) => {
+    const url = new URL(route.request().url());
+    const q = (url.searchParams.get("q") || "").toUpperCase();
+    const allSymbols = [
+      { symbol: "IRCON", name: "IRCON International Ltd." },
+      { symbol: "TCS", name: "Tata Consultancy Services Ltd." },
+      { symbol: "INFY", name: "Infosys Ltd." },
+    ];
+    const results = allSymbols.filter(
+      (s) => s.symbol.includes(q) || s.name.toUpperCase().includes(q),
+    );
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ results, query: q, total: results.length }),
+    });
   });
 
   // The detail regex is unanchored, so it also matches `/symbol/X/chart`.
@@ -456,5 +485,42 @@ test.describe("Chart Patterns page", () => {
     await page.locator('[data-testid="patterns-card-expand-IRCON-falling_wedge"]').click();
     await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+  });
+
+  test("shows the last completed scan time", async ({ page }) => {
+    const cell = page.locator('[data-testid="patterns-stat-last_scan"]');
+    await expect(cell).toBeVisible();
+    await expect(cell).not.toContainText("—");
+  });
+
+  test("deep-linking restores filters from the URL", async ({ page }) => {
+    await page.goto("/patterns?direction=bearish");
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
+  });
+
+  test("mirrors a filter change into the URL", async ({ page }) => {
+    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await expect(page).toHaveURL(/direction=bearish/);
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+  });
+
+  test("multi-symbol picker narrows the cards to the chosen symbol", async ({ page }) => {
+    const filter = page.locator('[data-testid="patterns-symbol-filter"]');
+    const input = filter.getByRole("combobox");
+    await input.click();
+    await input.pressSequentially("IRCON", { delay: 30 });
+    const option = page.getByRole("option", { name: /IRCON/ });
+    await expect(option).toBeVisible();
+    await option.click();
+
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
+  });
+
+  test("results search filters the cards by symbol or company name", async ({ page }) => {
+    await page.getByPlaceholder("Symbol or company").fill("infy");
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
   });
 });
