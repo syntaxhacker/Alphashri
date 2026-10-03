@@ -14,6 +14,7 @@ import {
   selectUniverse,
   setFilter,
   resetFilters,
+  applyFilters,
   triggerScan,
   refresh,
   setSelectedSymbol,
@@ -30,6 +31,7 @@ export interface UseChartPatternsResult {
   filters: PatternFilters;
   setFilter: (k: string, v: unknown) => void;
   resetFilters: () => void;
+  applyFilters: (filters: Partial<PatternFilters>) => void;
   job: JobDTO | null;
   scanning: boolean;
   queuePosition: number | null;
@@ -64,6 +66,7 @@ export function useChartPatterns(): UseChartPatternsResult {
       setFilter(key as keyof PatternFilters, value as PatternFilters[keyof PatternFilters]);
     },
     resetFilters,
+    applyFilters,
     job: state.job,
     scanning: state.scanning,
     queuePosition: state.job?.queue_position ?? null,

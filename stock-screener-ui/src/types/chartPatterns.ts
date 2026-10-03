@@ -190,6 +190,8 @@ export interface PatternFilters {
   min_base_days: number | null;
   /** Maximum consolidation range as % of price (null = any). */
   max_range_pct: number | null;
+  /** Result ordering: `"confidence"` (default) or `"newest"` (freshest bars first). */
+  sort: string;
 }
 
 /**

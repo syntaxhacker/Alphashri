@@ -44,12 +44,14 @@ import {
   selectUniverse,
   setFilter,
   resetFilters,
+  applyFilters,
   loadCatalog,
   loadResults,
   loadSummary,
   triggerScan,
   pollJob,
   setScanning,
+  setJob,
   loadSymbolDetail,
 } from "./chartPatterns";
 
@@ -102,6 +104,15 @@ function mockDefaults() {
   mocked.fetchActiveJobs.mockResolvedValue([]);
   mocked.fetchResults.mockResolvedValue({ items: [], total: 0, summary: SUMMARY, data_through: "2026-09-30" });
   mocked.fetchSummary.mockResolvedValue(SUMMARY);
+  // Auto-scan may fire when results are empty; keep the scan queue happy and
+  // its poll pending so no timer work runs unexpectedly.
+  mocked.startScan.mockResolvedValue({ job_id: "cpj_auto", status: "queued", queue_position: null, queue_size: 8 });
+  mocked.fetchJob.mockImplementation(() => new Promise(() => {}));
+}
+
+/** Flush the microtask chain produced by the async loaders/auto-scan. */
+async function flush(): Promise<void> {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
 }
 
 beforeEach(() => {
@@ -129,6 +140,7 @@ describe("initial state", () => {
     expect(DEFAULT_PATTERN_FILTERS.pattern_id).toEqual([]);
     expect(DEFAULT_PATTERN_FILTERS.min_base_days).toBeNull();
     expect(DEFAULT_PATTERN_FILTERS.max_range_pct).toBeNull();
+    expect(DEFAULT_PATTERN_FILTERS.sort).toBe("confidence");
     expect(state.job).toBeNull();
     expect(state.scanning).toBe(false);
     expect(state.results).toEqual([]);
@@ -180,6 +192,61 @@ describe("selectTimeframe / selectUniverse", () => {
   });
 });
 
+describe("auto-scan on empty universe|timeframe", () => {
+  it("auto-scans once per universe|timeframe and not again for the same combo", async () => {
+    setUniverse("nifty500");
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+
+    // Simulate the first scan finishing, then switch to a new timeframe.
+    setScanning(false);
+    setJob(null);
+    selectTimeframe("1D");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(2);
+
+    // Returning to an already-requested combo must not rescan.
+    setScanning(false);
+    setJob(null);
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not auto-scan while a scan is already running", async () => {
+    setUniverse("nifty500");
+    setScanning(true);
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-scan when results are already present", async () => {
+    setUniverse("nifty500");
+    mocked.fetchResults.mockResolvedValue({
+      items: [{ id: 1, symbol: "IRCON", pattern_id: "falling_wedge" } as never],
+      total: 1,
+      summary: SUMMARY,
+      data_through: "2026-09-30",
+    });
+
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+
+  it("does not auto-scan when only a filter changes", async () => {
+    setUniverse("nifty500");
+
+    setFilter("family", ["reversal"]);
+    await flush();
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+});
+
 describe("filters", () => {
   it("setFilter persists the value and reloads", () => {
     setFilter("min_rr", 1.5);
@@ -199,12 +266,42 @@ describe("filters", () => {
     );
   });
 
+  it("setFilter sort persists it and forwards it to results + summary", () => {
+    setFilter("sort", "newest");
+    expect(getChartPatternsState().filters.sort).toBe("newest");
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "newest" }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ sort: "newest" }),
+    );
+  });
+
   it("resetFilters restores defaults and reloads", () => {
     setFilter("family", ["reversal"]);
     mocked.fetchResults.mockClear();
     resetFilters();
     expect(getChartPatternsState().filters).toEqual(DEFAULT_PATTERN_FILTERS);
     expect(mocked.fetchResults).toHaveBeenCalled();
+  });
+
+  it("applyFilters merges onto defaults, resets unspecified keys, and reloads", () => {
+    setFilter("family", ["reversal"]);
+    setFilter("direction", ["bullish"]);
+    mocked.fetchResults.mockClear();
+    mocked.fetchSummary.mockClear();
+
+    applyFilters({ pattern_id: ["ascending_channel"], min_base_days: 90 });
+
+    const filters = getChartPatternsState().filters;
+    expect(filters.pattern_id).toEqual(["ascending_channel"]);
+    expect(filters.min_base_days).toBe(90);
+    // Unspecified keys reset to defaults.
+    expect(filters.family).toEqual([]);
+    expect(filters.direction).toEqual([]);
+    expect(filters.sort).toBe("confidence");
+    expect(mocked.fetchResults).toHaveBeenCalled();
+    expect(mocked.fetchSummary).toHaveBeenCalled();
   });
 });
 
@@ -239,7 +336,7 @@ describe("loaders", () => {
 
   it("loadCatalog sets catalog, default universe, then loads data", async () => {
     mocked.fetchTimeframes.mockResolvedValue([
-      { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
+      { id: "1D", label: "1D", minutes: 1440, native: true, source_tf: null, max_lookback_days: 730, min_bars: 60 },
     ]);
     mocked.fetchUniverses.mockResolvedValue({ universes: [{ id: "nifty500", label: "Nifty 500", count: 500 }], default: "nifty500" });
     mocked.fetchPatternCatalog.mockResolvedValue({ families: [{ id: "reversal", label: "Reversal" }], patterns: [{ pattern_id: "falling_wedge", name: "Falling Wedge", family: "reversal", direction: "bullish", description: "" }] });

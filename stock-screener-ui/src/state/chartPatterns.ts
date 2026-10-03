@@ -51,6 +51,7 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   symbol: null,
   min_base_days: null,
   max_range_pct: null,
+  sort: "confidence",
 };
 
 export interface ChartPatternsState {
@@ -103,6 +104,13 @@ let state: ChartPatternsState = createInitialState();
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 let pollToken = 0;
 let inflight = 0;
+
+/**
+ * `universe|timeframe` combinations we have already auto-requested a scan for
+ * this session. Prevents repeatedly resubmitting a scan while an empty result
+ * set is being viewed for a combo that genuinely has no hits yet.
+ */
+const autoScanRequested = new Set<string>();
 
 const { subscribe, notify } = createSubscriber();
 export { subscribe };
@@ -179,6 +187,16 @@ export function resetFilters(): void {
   void loadSummary();
 }
 
+/**
+ * Apply a partial filter patch, merged onto `DEFAULT_PATTERN_FILTERS` (so
+ * unspecified keys reset), then reload results/summary. Used by presets.
+ */
+export function applyFilters(filters: Partial<PatternFilters>): void {
+  patch({ filters: { ...DEFAULT_PATTERN_FILTERS, ...filters } });
+  void loadResults({ offset: 0 });
+  void loadSummary();
+}
+
 export function setJob(job: JobDTO | null): void {
   patch({ job });
 }
@@ -226,6 +244,7 @@ function baseQuery(): PatternsQuery {
     symbol: state.filters.symbol,
     min_base_days: state.filters.min_base_days,
     max_range_pct: state.filters.max_range_pct,
+    sort: state.filters.sort,
   };
 }
 
@@ -257,6 +276,7 @@ export async function loadCatalog(): Promise<void> {
   }
 
   await Promise.all([loadSummary(), loadResults({ offset: 0 }), loadActiveJobs()]);
+  maybeAutoScan();
 }
 
 /** Load the current result page for the active universe/timeframe/filters. */
@@ -304,6 +324,28 @@ export async function loadActiveJobs(): Promise<void> {
   } catch {
     // Non-fatal: the page still works without a known active job.
   }
+}
+
+/**
+ * Auto-submit a scan when the active universe+timeframe has no results yet and
+ * no scan is already in flight — at most once per combination this session.
+ * Only universe/timeframe transitions call this; filter-only changes never do.
+ */
+function maybeAutoScan(): void {
+  if (state.scanning || state.results.length > 0) return;
+  const { universe, timeframe } = state;
+  if (!universe || !timeframe) return;
+  const active = state.job;
+  const activeForCombo =
+    !!active &&
+    (active.status === "queued" || active.status === "running") &&
+    active.universe === universe &&
+    active.timeframe === timeframe;
+  if (activeForCombo) return;
+  const key = `${universe}|${timeframe}`;
+  if (autoScanRequested.has(key)) return;
+  autoScanRequested.add(key);
+  void triggerScan();
 }
 
 function jobFromScan(
@@ -426,13 +468,18 @@ export function refresh(): void {
   }
 }
 
+/** Reload results+summary for a new selection, then auto-scan if still empty. */
+async function reloadSelection(overrides: Partial<PatternsQuery>): Promise<void> {
+  await Promise.all([loadResults({ ...overrides, offset: 0 }), loadSummary(overrides)]);
+  maybeAutoScan();
+}
+
 /** Switch timeframe and reload results/summary; clears the open symbol detail. */
 export function selectTimeframe(timeframe: string): void {
   const changed = timeframe !== state.timeframe;
   patch({ timeframe, selectedSymbol: null, detail: null, detailChart: null });
   if (!changed) return;
-  void loadResults({ timeframe, offset: 0 });
-  void loadSummary({ timeframe });
+  void reloadSelection({ timeframe });
 }
 
 /** Switch universe and reload results/summary; clears the open symbol detail. */
@@ -440,8 +487,7 @@ export function selectUniverse(universe: string): void {
   const changed = universe !== state.universe;
   patch({ universe, selectedSymbol: null, detail: null, detailChart: null });
   if (!changed) return;
-  void loadResults({ universe, offset: 0 });
-  void loadSummary({ universe });
+  void reloadSelection({ universe });
 }
 
 /** Load the symbol drill-down (detail + chart) for the active timeframe. */
@@ -467,6 +513,7 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
 export function resetChartPatternsState(): void {
   stopPolling();
   inflight = 0;
+  autoScanRequested.clear();
   state = createInitialState();
   notify();
 }

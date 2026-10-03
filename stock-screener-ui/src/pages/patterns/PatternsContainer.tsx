@@ -30,6 +30,7 @@ export function PatternsContainer() {
       filters={vm.filters}
       setFilter={(key, value) => vm.setFilter(key as keyof PatternFilters, value)}
       resetFilters={vm.resetFilters}
+      applyFilters={vm.applyFilters}
       job={vm.job}
       scanning={vm.scanning}
       queuePosition={vm.queuePosition}

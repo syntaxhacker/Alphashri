@@ -40,6 +40,7 @@ const FILTERS: PatternFilters = {
   symbol: null,
   min_base_days: null,
   max_range_pct: null,
+  sort: "confidence",
 };
 
 function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilterRailProps {
@@ -102,6 +103,7 @@ function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilt
     filters: { ...FILTERS },
     setFilter: vi.fn(),
     resetFilters: vi.fn(),
+    applyFilters: vi.fn(),
     timeframes: [],
     timeframe: "1D",
     setTimeframe: vi.fn(),
@@ -120,12 +122,18 @@ describe("PatternFilterRail", () => {
   test("renders all control groups", () => {
     r(<PatternFilterRail {...makeProps()} />);
     expect(screen.getByTestId("patterns-filter-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-presets")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-preset-fresh_reversals")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-family-reversal")).toHaveTextContent("Reversal (1)");
     expect(screen.getByTestId("patterns-direction-bullish")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-direction-bearish")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-status-filter-forming")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-formed-within")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-formed-within")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort-confidence")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort-newest")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-volume-confirmed")).toBeInTheDocument();
@@ -232,6 +240,29 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).toHaveBeenCalledWith("quality", "strong");
     await userEvent.click(screen.getByTestId("patterns-formed-within-5"));
     expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 5);
+  });
+
+  test("formed-within presets include 1 and 60", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-formed-within-1"));
+    expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 1);
+    await userEvent.click(screen.getByTestId("patterns-formed-within-60"));
+    expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 60);
+  });
+
+  test("selects the newest-first sort", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-sort-newest"));
+    expect(props.setFilter).toHaveBeenCalledWith("sort", "newest");
+  });
+
+  test("selects the confidence sort", async () => {
+    const props = makeProps({ filters: { ...FILTERS, sort: "newest" } });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-sort-confidence"));
+    expect(props.setFilter).toHaveBeenCalledWith("sort", "confidence");
   });
 
   test("toggles volume confirmed and resets", async () => {

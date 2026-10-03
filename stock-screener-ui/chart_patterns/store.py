@@ -272,13 +272,26 @@ def _apply_filters(query, filters: dict):
 
 
 def query_results(filters: dict, limit: int = 100, offset: int = 0):
-    """Return ``(items, total, summary)`` for the given filters."""
+    """Return ``(items, total, summary)`` for the given filters.
+
+    Ordering is confidence-first by default. ``filters["sort"] == "newest"``
+    instead surfaces the freshest formations first (``bars_ago`` ascending),
+    breaking ties by confidence then insertion order.
+    """
     session = _new_session()
     try:
         base = _apply_filters(session.query(PatternHit), filters)
         total = base.count()
+        if filters.get("sort") == "newest":
+            order_by = (
+                PatternHit.bars_ago.asc(),
+                PatternHit.confidence.desc().nullslast(),
+                PatternHit.id.desc(),
+            )
+        else:
+            order_by = (PatternHit.confidence.desc().nullslast(), PatternHit.id.desc())
         rows = (
-            base.order_by(PatternHit.confidence.desc().nullslast(), PatternHit.id.desc())
+            base.order_by(*order_by)
             .offset(max(0, int(offset)))
             .limit(max(0, int(limit)))
             .all()

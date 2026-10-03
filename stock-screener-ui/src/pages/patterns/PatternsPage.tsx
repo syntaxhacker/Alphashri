@@ -27,6 +27,7 @@ export interface PatternsPageProps {
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
+  applyFilters: (filters: Partial<PatternFilters>) => void;
   job: JobDTO | null;
   scanning: boolean;
   queuePosition: number | null;
@@ -54,6 +55,7 @@ export function PatternsPage({
   filters,
   setFilter,
   resetFilters,
+  applyFilters,
   job,
   scanning,
   queuePosition,
@@ -115,6 +117,7 @@ export function PatternsPage({
           filters={filters}
           setFilter={setFilter}
           resetFilters={resetFilters}
+          applyFilters={applyFilters}
           timeframes={timeframes}
           timeframe={timeframe}
           setTimeframe={setTimeframe}
@@ -159,9 +162,23 @@ export function PatternsPage({
             <Text size="sm" c="dimmed">
               No patterns match the current filters.
             </Text>
-            <Button size="xs" variant="outline" onClick={refresh}>
-              Refresh
-            </Button>
+            <Text size="xs" c="dimmed">
+              No results yet for {universe} · {timeframe} — run a scan.
+            </Text>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+              <Button
+                size="xs"
+                variant="filled"
+                onClick={scan}
+                disabled={scanning}
+                data-testid="patterns-empty-scan"
+              >
+                Scan {timeframe} now
+              </Button>
+              <Button size="xs" variant="outline" onClick={refresh}>
+                Refresh
+              </Button>
+            </Box>
           </Box>
         ) : (
           <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} />

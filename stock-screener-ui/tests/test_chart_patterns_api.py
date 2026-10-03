@@ -95,7 +95,7 @@ def test_universes_endpoint(cp_client):
     resp = cp_client.get("/api/chart-patterns/universes")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["default"] == "nifty500"
+    assert data["default"] == "nifty50"
     assert isinstance(data["universes"], list) and data["universes"]
     assert all({"id", "label", "count"} <= set(u) for u in data["universes"])
 
@@ -208,6 +208,50 @@ def test_results_filters(cp_client):
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["symbol"] == "BBB"
+
+
+def test_results_sort_newest_and_default(cp_client):
+    """`sort=newest` orders by freshness (bars_ago asc); default stays confidence."""
+    store.save_job({
+        "job_id": "cpj_sort", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    fresh_low = dict(_hit("FRESH"), bars_ago=1, confidence=10.0)
+    old_high = dict(_hit("OLD"), bars_ago=50, confidence=99.0)
+    mid = dict(_hit("MID"), bars_ago=5, confidence=50.0)
+    store.save_hits("cpj_sort", [old_high, fresh_low, mid])
+
+    # Default ordering is confidence desc.
+    default = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_sort"})
+    assert default.status_code == 200
+    assert [item["symbol"] for item in default.json()["items"]] == ["OLD", "MID", "FRESH"]
+
+    # `sort=newest` surfaces the freshest formations first.
+    newest = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_sort", "sort": "newest"},
+    )
+    assert newest.status_code == 200
+    bars_ago = [item["bars_ago"] for item in newest.json()["items"]]
+    assert bars_ago == sorted(bars_ago)
+    assert [item["symbol"] for item in newest.json()["items"]] == ["FRESH", "MID", "OLD"]
+
+    # `formed_within_bars` still filters regardless of sort.
+    within = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_sort", "formed_within_bars": 1},
+    )
+    assert within.status_code == 200
+    within_body = within.json()
+    assert within_body["total"] == 1
+    assert within_body["items"][0]["symbol"] == "FRESH"
+
+    # /summary accepts (and ignores) the sort param.
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_sort", "sort": "newest"},
+    )
+    assert summary.status_code == 200
+    assert summary.json()["patterns"] == 3
 
 
 def test_results_filter_single_pattern_id(cp_client):

@@ -82,6 +82,7 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     },
     setFilter: vi.fn(),
     resetFilters: vi.fn(),
+    applyFilters: vi.fn(),
     job: null,
     scanning: false,
     queuePosition: null,
@@ -136,6 +137,16 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-empty")).toBeInTheDocument();
     await userEvent.click(screen.getByRole("button", { name: "Refresh" }));
     expect(props.refresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("empty state offers a scan CTA for the current universe/timeframe", async () => {
+    const props = makeProps({ results: [], total: 0, timeframe: "15m", universe: "nifty500" });
+    r(<PatternsPage {...props} />);
+    const cta = screen.getByTestId("patterns-empty-scan");
+    expect(cta).toHaveTextContent("Scan 15m now");
+    expect(screen.getByTestId("patterns-empty")).toHaveTextContent("nifty500 · 15m");
+    await userEvent.click(cta);
+    expect(props.scan).toHaveBeenCalledTimes(1);
   });
 
   test("clicking a card opens the fullscreen chart", async () => {

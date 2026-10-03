@@ -6,6 +6,8 @@
  * the backend detector registry (`chart_patterns/`).
  */
 
+import type { PatternFilters } from "../types/chartPatterns";
+
 /** One selectable pattern in the catalog. */
 export interface PatternCatalogEntry {
   /** Backend `pattern_id` used as the filter/query value. */
@@ -119,3 +121,48 @@ export const STATUS_INFO: Record<
     description: "Low-confidence detection",
   },
 };
+
+/** A named, reusable combination of result filters. */
+export interface PatternPreset {
+  id: string;
+  name: string;
+  description?: string;
+  filters: Partial<PatternFilters>;
+}
+
+/**
+ * Ready-made filter presets shown in the rail. Applying one merges its
+ * `filters` onto `DEFAULT_PATTERN_FILTERS`, so unspecified fields reset.
+ */
+export const BUILTIN_PRESETS: PatternPreset[] = [
+  {
+    id: "fresh_reversals",
+    name: "Fresh reversals",
+    description: "Reversal patterns formed in the last 3 bars, newest first",
+    filters: { family: ["reversal"], formed_within_bars: 3, sort: "newest" },
+  },
+  {
+    id: "long_bases",
+    name: "Long bases",
+    description: "Consolidations at least 90 days long with a tight range",
+    filters: { pattern_id: ["consolidation"], min_base_days: 90, max_range_pct: 20 },
+  },
+  {
+    id: "channels",
+    name: "Channels",
+    description: "Ascending or descending channels",
+    filters: { pattern_id: ["ascending_channel", "descending_channel"] },
+  },
+  {
+    id: "bullish_setups",
+    name: "Bullish",
+    description: "Bullish-direction patterns",
+    filters: { direction: ["bullish"] },
+  },
+  {
+    id: "bearish_setups",
+    name: "Bearish",
+    description: "Bearish-direction patterns",
+    filters: { direction: ["bearish"] },
+  },
+];

@@ -183,6 +183,12 @@ describe("results + summary query building", () => {
       "min_base_days=90&max_range_pct=20",
     );
   });
+
+  it("buildPatternsQuery serializes sort=newest and omits the default", () => {
+    expect(buildPatternsQuery({ sort: "newest" })).toContain("sort=newest");
+    expect(buildPatternsQuery({ sort: "confidence" })).not.toContain("sort");
+    expect(buildPatternsQuery({})).not.toContain("sort");
+  });
 });
 
 describe("symbol endpoints", () => {

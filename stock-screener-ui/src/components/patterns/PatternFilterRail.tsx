@@ -13,6 +13,7 @@ import {
   STATUS_INFO,
 } from "@/config/patternCatalog";
 import { TimeframeSelect } from "./TimeframeSelect";
+import { PatternPresets } from "./PatternPresets";
 
 const FAMILY_LABELS: Record<string, string> = {
   reversal: "Reversal",
@@ -21,7 +22,7 @@ const FAMILY_LABELS: Record<string, string> = {
 };
 
 const FAMILY_ORDER = ["reversal", "continuation", "curve_cup"];
-const FORMED_PRESETS = [1, 3, 5, 10];
+const FORMED_PRESETS = [1, 3, 5, 10, 20, 30, 60];
 /** Consolidation base-length presets (days); `Any` clears the bound. */
 const BASE_LENGTH_PRESETS = [30, 60, 90, 120, 180];
 
@@ -33,6 +34,8 @@ export interface PatternFilterRailProps {
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
+  /** Apply a partial filter patch (merged onto defaults) and reload; used by presets. */
+  applyFilters: (filters: Partial<PatternFilters>) => void;
   timeframes: TFSpec[];
   timeframe: string;
   setTimeframe: (value: string) => void;
@@ -122,6 +125,7 @@ export function PatternFilterRail({
   filters,
   setFilter,
   resetFilters,
+  applyFilters,
   timeframes,
   timeframe,
   setTimeframe,
@@ -139,6 +143,7 @@ export function PatternFilterRail({
   const selectedStatuses = asArray(filters.status);
   const formedWithin = filters.formed_within_bars ?? null;
   const minBaseDays = filters.min_base_days ?? null;
+  const sort = filters.sort ?? "confidence";
 
   const pagePatternCounts = new Map<string, number>();
   for (const result of results) {
@@ -152,6 +157,12 @@ export function PatternFilterRail({
       data-testid="patterns-filter-rail"
       sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}
     >
+      <Section title="Presets">
+        <PatternPresets filters={filters} applyFilters={applyFilters} />
+      </Section>
+
+      <Divider />
+
       <Section title="Pattern family">
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
           {families.map((f) => (
@@ -286,30 +297,66 @@ export function PatternFilterRail({
 
       <Divider />
 
-      <Section title="Formed within (candles)">
-        <NumberInput
-          value={formedWithin ?? ""}
-          onChange={(v: number | string) => setFilter("formed_within_bars", v === "" ? null : Number(v))}
-          min={1}
-          step={1}
-          size="sm"
-          placeholder="Any"
-          w={110}
-          data-testid="patterns-formed-within"
-        />
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-          {FORMED_PRESETS.map((preset) => (
-            <Chip
-              key={preset}
-              size="xs"
-              variant="light"
-              checked={formedWithin === preset}
-              onChange={() => setFilter("formed_within_bars", formedWithin === preset ? null : preset)}
-              data-testid={`patterns-formed-within-${preset}`}
-            >
-              {preset}
-            </Chip>
-          ))}
+      <Section title="Formed within (bars)">
+        <Box
+          data-testid="patterns-filter-formed-within"
+          sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}
+        >
+          <Text size="xs" c="dimmed">
+            1D: 1 bar = 1 day
+          </Text>
+          <NumberInput
+            value={formedWithin ?? ""}
+            onChange={(v: number | string) => setFilter("formed_within_bars", v === "" ? null : Number(v))}
+            min={1}
+            step={1}
+            size="sm"
+            placeholder="Any"
+            w={110}
+            data-testid="patterns-formed-within"
+          />
+          <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+            {FORMED_PRESETS.map((preset) => (
+              <Chip
+                key={preset}
+                size="xs"
+                variant="light"
+                checked={formedWithin === preset}
+                onChange={() => setFilter("formed_within_bars", formedWithin === preset ? null : preset)}
+                data-testid={`patterns-formed-within-${preset}`}
+              >
+                {preset}
+              </Chip>
+            ))}
+          </Box>
+        </Box>
+      </Section>
+
+      <Divider />
+
+      <Section title="Sort">
+        <Box
+          data-testid="patterns-filter-sort"
+          sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}
+        >
+          <Chip
+            size="sm"
+            variant="light"
+            checked={sort !== "newest"}
+            onChange={() => setFilter("sort", "confidence")}
+            data-testid="patterns-filter-sort-confidence"
+          >
+            Confidence
+          </Chip>
+          <Chip
+            size="sm"
+            variant="light"
+            checked={sort === "newest"}
+            onChange={() => setFilter("sort", "newest")}
+            data-testid="patterns-filter-sort-newest"
+          >
+            Newest
+          </Chip>
         </Box>
       </Section>
 

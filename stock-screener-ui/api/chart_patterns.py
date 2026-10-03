@@ -363,7 +363,7 @@ async def get_timeframes():
 
 @router.get("/universes")
 async def get_universes():
-    return _sanitize_for_json({"universes": _universes_payload(), "default": "nifty500"})
+    return _sanitize_for_json({"universes": _universes_payload(), "default": "nifty50"})
 
 
 @router.get("/patterns")
@@ -415,7 +415,7 @@ def _build_filters(
     job_id=None, universe=None, timeframe=None, family=None, direction=None,
     status=None, quality=None, formed_within_bars=None, volume_confirmed=None,
     min_rr=None, symbol=None, pattern_id=None,
-    min_base_days=None, max_range_pct=None,
+    min_base_days=None, max_range_pct=None, sort="confidence",
 ) -> dict:
     return {
         "job_id": job_id,
@@ -432,6 +432,7 @@ def _build_filters(
         "pattern_id": pattern_id,
         "min_base_days": min_base_days,
         "max_range_pct": max_range_pct,
+        "sort": sort,
     }
 
 
@@ -451,13 +452,14 @@ async def get_results(
     pattern_id: Optional[list[str]] = Query(None),
     min_base_days: Optional[int] = Query(None),
     max_range_pct: Optional[float] = Query(None),
+    sort: str = Query("confidence"),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct,
+        min_base_days, max_range_pct, sort=sort,
     )
     items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     _enrich_with_candles(items, timeframe)
@@ -485,11 +487,12 @@ async def get_summary(
     pattern_id: Optional[list[str]] = Query(None),
     min_base_days: Optional[int] = Query(None),
     max_range_pct: Optional[float] = Query(None),
+    sort: str = Query("confidence"),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct,
+        min_base_days, max_range_pct, sort=sort,
     )
     summary = store.compute_summary(filters)
     return _sanitize_for_json({
