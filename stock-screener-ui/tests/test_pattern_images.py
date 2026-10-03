@@ -164,6 +164,26 @@ def test_put_rejects_oversize(api_env):
     assert not (api_env["storage"] / f"{_PATTERN}.png").exists()
 
 
+def test_put_rejects_svg_content_type(api_env):
+    """SVG uploads are rejected: reference images are raster-only (stored XSS)."""
+    assert "image/svg+xml" not in pi_api.CONTENT_TYPE_EXT
+    svg = b'<svg xmlns="http://www.w3.org/2000/svg"><script>alert(1)</script></svg>'
+    resp = _upload(api_env["admin"], _PATTERN, svg, "image/svg+xml", filename="ref.svg")
+    assert resp.status_code == 415
+    assert _rows(api_env) == []
+    assert not (api_env["storage"] / f"{_PATTERN}.svg").exists()
+
+
+def test_get_serves_with_nosniff_and_inline_disposition(api_env):
+    assert _upload(api_env["admin"], _PATTERN, _PNG, "image/png").status_code == 200
+    served = api_env["nonadmin"].get(f"/api/chart-patterns/image/{_PATTERN}")
+    assert served.status_code == 200
+    assert served.headers.get("x-content-type-options") == "nosniff"
+    disposition = served.headers.get("content-disposition", "")
+    assert disposition.startswith("inline;")
+    assert f'filename="{_PATTERN}.png"' in disposition
+
+
 def test_delete_removes_row_and_file(api_env):
     assert _upload(api_env["admin"], _PATTERN, _PNG, "image/png").status_code == 200
     stored = api_env["storage"] / f"{_PATTERN}.png"

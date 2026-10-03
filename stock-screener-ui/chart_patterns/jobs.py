@@ -114,8 +114,20 @@ def _runner_fn() -> Callable[[str], None]:
 
 
 def submit(universe: str, timeframe: str, requested_by=None, params: Optional[dict] = None) -> dict:
-    """Enqueue a job. Raises :class:`QueueFullError` when the queue is full."""
+    """Enqueue a job. Raises :class:`QueueFullError` when the queue is full.
+
+    A ``queued``/``running`` job for the same ``(universe, timeframe)`` combo
+    is coalesced: the existing job is returned instead of enqueuing a second
+    scan (concurrent same-combo scans race in scan.py's delete/save_hits).
+    """
     with _lock:
+        for job in _jobs.values():
+            if (
+                job.get("status") in ("queued", "running")
+                and job.get("universe") == universe
+                and job.get("timeframe") == timeframe
+            ):
+                return dict(job)
         if len(_pending) + len(_running) >= _max_queue():
             raise QueueFullError(
                 f"queue full ({len(_pending) + len(_running)}/{_max_queue()})"

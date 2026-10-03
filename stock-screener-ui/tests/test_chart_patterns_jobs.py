@@ -84,9 +84,26 @@ def test_queue_full_raises(cp_store):
     jobs.configure(max_queue=1, max_workers=1, runner=runner)
     jobs.submit("nifty50", "1D")
 
+    # A *different* combo isn't coalesced, so it must hit the queue cap.
     with pytest.raises(jobs.QueueFullError):
-        jobs.submit("nifty50", "1D")
+        jobs.submit("nifty500", "1D")
 
+    assert jobs.queue_size() == 1
+    release.set()
+
+
+def test_submit_coalesces_same_combo(cp_store):
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+        jobs.update_state(job_id, status="completed")
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    first = jobs.submit("nifty50", "1D")
+    again = jobs.submit("nifty50", "1D")
+
+    assert again["job_id"] == first["job_id"], "same combo must coalesce"
     assert jobs.queue_size() == 1
     release.set()
 
@@ -100,7 +117,7 @@ def test_cancel_queued_job(cp_store):
 
     jobs.configure(max_queue=4, max_workers=1, runner=runner)
     jobs.submit("nifty50", "1D")  # occupies the single worker
-    second = jobs.submit("nifty50", "1D")  # stays queued
+    second = jobs.submit("nifty500", "1D")  # distinct combo stays queued
 
     assert jobs.get_job(second["job_id"])["status"] == "queued"
     cancelled = jobs.cancel(second["job_id"])

@@ -47,6 +47,20 @@ POS_MIN, POS_MAX = 15.0, 85.0
 TOUCH_TOL_ATR = 0.75
 
 
+def _calendar_days(df: pd.DataFrame, start: int, end: int) -> int:
+    """Calendar-day span of the bar window ``[start, end]`` (bar count fallback).
+
+    ``base_days`` is labelled (and filtered) in days, but windows are scanned
+    in bars; on intraday frames a 120-bar base is hours, not days. Mirrors the
+    ``_bar_gap_days`` helper in ``detectors/reversal.py``.
+    """
+    try:
+        span = abs(float((df.index[int(end)] - df.index[int(start)]).days))
+        return int(span)
+    except (AttributeError, TypeError, IndexError, ValueError):
+        return int(abs(int(end) - int(start)))
+
+
 def _tightness(range_pct: float, range_max: float) -> float:
     """Simple tightness score in ``[0.5, 1.0]`` (1.0 = dead-flat base).
 
@@ -136,6 +150,7 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     start, end = best["start"], best["end"]
     hi, lo = best["hi"], best["lo"]
     range_pct, range_pos = best["range_pct"], best["range_pos"]
+    base_days = _calendar_days(df, start, end)
 
     atr_val = F.atr_value(df)
     highs, lows = get_swings(df, ctx)
@@ -149,7 +164,7 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
             + F.count_touches(lows, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR),
         )
 
-    notes = f"consolidation {best['w']}d; range {range_pct:.1f}%, pos {range_pos:.0f}%"
+    notes = f"consolidation {base_days}d; range {range_pct:.1f}%, pos {range_pos:.0f}%"
     return [
         make_hit(
             "consolidation",
@@ -168,7 +183,7 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
             notes=notes,
             direction="neutral",
             pivots=pivot_markers(df, H, L, start, end),
-            base_days=best["w"],
+            base_days=base_days,
             range_pct=range_pct,
             range_pos=range_pos,
         )

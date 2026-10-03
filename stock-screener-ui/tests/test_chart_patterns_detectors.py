@@ -341,6 +341,38 @@ def test_classify_status_failed_after_crossback():
     assert classify_status(df, 103.5, "bullish", end_pos=0) == "failed"
 
 
+def test_classify_status_full_transition_matrix():
+    """Pin every classify_status transition for both directions.
+
+    * crossed beyond the line -> confirmed,
+    * within tolerance on the wrong side -> forming,
+    * crossed before but closed back -> failed (crossback),
+    * never crossed and drifted far past tolerance -> failed (stale drift).
+    """
+    # Bullish -----------------------------------------------------------
+    crossed_up = frame([100, 101, 102, 103, 104, 105])
+    assert classify_status(crossed_up, 104.0, "bullish", end_pos=0) == "confirmed"
+    assert classify_status(crossed_up, 106.0, "bullish", end_pos=0) == "forming"
+    drifted_up = frame([100, 101, 100, 99, 98, 97])
+    assert classify_status(drifted_up, 110.0, "bullish", end_pos=0) == "failed"
+    crossback_up = frame([100, 104, 103, 102, 100, 101])
+    assert classify_status(crossback_up, 103.5, "bullish", end_pos=0) == "failed"
+
+    # Bearish -----------------------------------------------------------
+    crossed_down = frame([110, 109, 108, 107, 106, 105])
+    assert classify_status(crossed_down, 106.0, "bearish", end_pos=0) == "confirmed"
+    assert classify_status(crossed_down, 104.0, "bearish", end_pos=0) == "forming"
+    drifted_down = frame([100, 99, 100, 101, 102, 103])
+    assert classify_status(drifted_down, 90.0, "bearish", end_pos=0) == "failed"
+    crossback_down = frame([100, 96, 97, 98, 100, 99])
+    assert classify_status(crossback_down, 96.5, "bearish", end_pos=0) == "failed"
+
+    # Boundary: exactly at tolerance stays forming, just beyond fails.
+    near = frame([100, 100, 100, 100, 100, 100])
+    assert classify_status(near, 102.0, "bullish", end_pos=0) == "forming"  # -1.96%
+    assert classify_status(near, 103.0, "bullish", end_pos=0) == "failed"  # -2.9%
+
+
 def test_score_quality_monotonic_in_inputs():
     low_q, low_c = score_quality(1, 0.2, False)
     high_q, high_c = score_quality(4, 0.95, True)
@@ -381,6 +413,43 @@ def test_linreg_fit_single_point_degenerate():
 def test_atr_positive():
     df = frame(interp([(0, 100), (20, 120), (40, 90), (60, 130), (79, 110)], 80))
     assert F.atr_value(df) > 0
+
+
+def test_consolidation_base_days_are_calendar_days_not_bars():
+    """``base_days``/notes use the index calendar span, not the bar window."""
+    from chart_patterns.detectors.consolidation import _calendar_days
+
+    daily = frame(np.full(140, 100.0))
+    assert _calendar_days(daily, 20, 139) == 139 - 20  # daily bars: ~1 day each
+
+    intraday_idx = pd.date_range("2024-01-01 09:15", periods=120, freq="5min", tz="UTC")
+    intraday = pd.DataFrame(
+        {
+            "open": np.full(120, 100.0),
+            "high": np.full(120, 100.5),
+            "low": np.full(120, 99.5),
+            "close": np.full(120, 100.0),
+            "volume": np.full(120, 1000.0),
+        },
+        index=intraday_idx,
+    )
+    # 120 bars but under half a calendar day: days must be 0, not 120.
+    assert _calendar_days(intraday, 0, 119) == 0
+
+
+def test_consolidation_hit_labels_days_from_index_span():
+    """A detected base reports the calendar span with a matching ``Nd`` note."""
+    from chart_patterns.detectors.consolidation import detect_consolidation
+
+    hits = detect_consolidation(F.normalize_ohlcv(_consolidation()), {})
+    assert hits, "consolidation geometry must still fire"
+    hit = hits[0]
+    start = pd.Timestamp(hit.start_date)
+    end = pd.Timestamp(hit.end_date)
+    span_days = abs((end - start).days)
+    assert hit.base_days == span_days
+    assert hit.base_days < 250, "days must not be the raw bar window"
+    assert hit.notes.startswith(f"consolidation {span_days}d;")
 
 
 def test_volume_confirmation():

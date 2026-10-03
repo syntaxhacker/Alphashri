@@ -442,7 +442,9 @@ def classify_status(
         return "failed"
     if distance >= -tol:
         return "forming"
-    return "forming"
+    # Never crossed, never broke out, and price has drifted far past the line
+    # on the wrong side: a stale/unconfirmed setup, not a live formation.
+    return "failed"
 
 
 # ---------------------------------------------------------------------------

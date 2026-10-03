@@ -477,6 +477,31 @@ def test_pennant_requires_clear_convergence():
     assert not C.detect_pennant(F.normalize_ohlcv(_pennant(converge=False)), {})
 
 
+def test_stale_drift_away_from_breakout_is_failed():
+    """A setup that never crossed and drifted far past tolerance is failed.
+
+    Pins the ``classify_status`` terminal branch against real continuation
+    levels: take each geometry's own breakout, then place price far on the
+    wrong side with no prior cross — the verdict must be ``failed``, never a
+    perpetual ``forming``.
+    """
+    from chart_patterns.detectors.common import classify_status
+
+    for pattern_id in OWNED:
+        d = F.normalize_ohlcv(GEOMETRIES[pattern_id]())
+        hit = detector(pattern_id)(d, {})[0]
+        line = hit.breakout_level
+        n = len(d)
+        if hit.direction == "bearish":
+            far = np.full(n, line * 1.25)  # far above support, never crossed below
+        else:  # bullish / neutral -> long geometry
+            far = np.full(n, line * 0.75)  # far below resistance, never crossed above
+        drifted = frame(far)
+        assert classify_status(drifted, line, hit.direction, end_pos=0) == "failed", (
+            f"{pattern_id}: stale drift must be failed, not forming"
+        )
+
+
 def test_rectangle_rejects_sloped_range():
     """A horizontal range fires; a downward-sloping 'range' does not."""
     assert C.detect_rectangle(F.normalize_ohlcv(_rectangle()), {})

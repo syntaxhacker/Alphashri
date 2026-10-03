@@ -33,12 +33,13 @@ STORAGE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / 
 
 # Accepted upload content-types -> canonical file extension. The extension is
 # derived from the declared content-type, not the client filename.
+# NOTE: SVG is deliberately excluded — reference images are raster-only, and
+# serving user-supplied SVG inline would allow stored script execution (XSS).
 CONTENT_TYPE_EXT = {
     "image/png": "png",
     "image/jpeg": "jpg",
     "image/jpg": "jpg",
     "image/webp": "webp",
-    "image/svg+xml": "svg",
 }
 
 MAX_IMAGE_BYTES = 2 * 1024 * 1024  # 2 MB
@@ -75,7 +76,15 @@ async def get_image(pattern_id: str, db: Session = Depends(get_db)):
     path = _storage_path(row.filename)
     if not path.exists():
         raise HTTPException(status_code=404, detail="image file missing")
-    return FileResponse(str(path), media_type=row.content_type)
+    safe_name = str(row.filename).replace('"', "_").replace("\n", "_")
+    return FileResponse(
+        str(path),
+        media_type=row.content_type,
+        headers={
+            "X-Content-Type-Options": "nosniff",
+            "Content-Disposition": f'inline; filename="{safe_name}"',
+        },
+    )
 
 
 @router.put("/image/{pattern_id}")

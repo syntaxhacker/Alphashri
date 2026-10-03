@@ -28,6 +28,9 @@ except Exception:  # pragma: no cover - integration env always has it
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
 DEFAULT_MIN_BARS = 60
 _PERSIST_EVERY = 10
+# A non-forced scan for a universe/timeframe with a completed job younger than
+# this is a no-op (results are still fresh); ``force=True`` always recomputes.
+SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
 
 
 def _now() -> str:
@@ -95,8 +98,61 @@ def _detect(df, timeframe: str, symbol: str):
     return engine_mod.detect_patterns(df, timeframe, symbol)
 
 
+def _job_params(job: dict) -> dict:
+    """Params for a job, whether carried in-memory (``params``) or via DB."""
+    params = job.get("params") if isinstance(job, dict) else None
+    if isinstance(params, dict):
+        return dict(params)
+    if isinstance(params, str):
+        try:
+            import json as _json
+
+            parsed = _json.loads(params)
+            return dict(parsed) if isinstance(parsed, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    raw = job.get("params_json") if isinstance(job, dict) else None
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        try:
+            import json as _json
+
+            parsed = _json.loads(raw)
+            return dict(parsed) if isinstance(parsed, dict) else {}
+        except (TypeError, ValueError):
+            return {}
+    return {}
+
+
+def _is_fresh(finished_at, ttl_seconds: int = SCAN_FRESH_SECONDS) -> bool:
+    """True when an ISO ``finished_at`` is younger than ``ttl_seconds``."""
+    if not finished_at:
+        return False
+    try:
+        if isinstance(finished_at, str):
+            finished = datetime.fromisoformat(finished_at)
+        else:
+            finished = finished_at
+        if finished.tzinfo is None:
+            finished = finished.replace(tzinfo=timezone.utc)
+        age = (datetime.now(timezone.utc) - finished).total_seconds()
+        return 0 <= age < max(0, int(ttl_seconds))
+    except (ValueError, TypeError, OverflowError):
+        return False
+
+
+def _is_cancelled(job_id: str) -> bool:
+    try:
+        return bool(jobs_mod.is_cancelled(job_id))
+    except Exception:
+        return False
+
+
 def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict."""
+    if _is_cancelled(job_id):
+        return {"status": "skipped", "data_through": None}
     try:
         df = candles.fetch_for_timeframe(symbol, timeframe)
     except Exception:
@@ -107,6 +163,9 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None) -> dict
 
     data_through = candles.frame_last_date(df)
     if len(df) < _resolve_min_bars(timeframe):
+        return {"status": "skipped", "data_through": data_through}
+
+    if _is_cancelled(job_id):
         return {"status": "skipped", "data_through": data_through}
 
     try:
@@ -154,6 +213,25 @@ def run_job(job_id: str) -> None:
         return
 
     total = len(symbols)
+
+    # Staleness short-circuit: a fresh completed scan already covers this
+    # combo, so a non-forced rescan would just recompute identical hits.
+    # ``force=True`` bypasses this and always recomputes.
+    force = bool(_job_params(job).get("force"))
+    if not force:
+        try:
+            prev = store.latest_completed_job(universe, timeframe)
+        except Exception:
+            prev = None
+        if prev and prev.get("job_id") != job_id and _is_fresh(prev.get("finished_at")):
+            jobs_mod.update_state(
+                job_id, status="completed",
+                total=int(prev.get("total") or 0), done=int(prev.get("done") or 0),
+                failed=int(prev.get("failed") or 0), skipped=int(prev.get("skipped") or 0),
+                data_through=prev.get("data_through"), finished_at=_now(),
+            )
+            return
+
     jobs_mod.update_state(job_id, status="running", total=total)
 
     # Supersede any previous hits for this universe/timeframe so results never

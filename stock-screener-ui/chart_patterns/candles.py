@@ -56,7 +56,16 @@ def _is_today(date_str: str) -> bool:
     return date_str == datetime.now(config.IST).strftime("%Y-%m-%d")
 
 
-def _cache_path(tf_id: str, symbol: str) -> Path:
+def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None) -> Path:
+    """Cache file for a symbol/timeframe, keyed by date when historical.
+
+    An explicitly passed ``as_of_date`` gets its own cache file so historical
+    scans never read (or poison) today's cache; the default (today) path is
+    unchanged.
+    """
+    if as_of_date:
+        safe = "".join(c for c in str(as_of_date) if c.isalnum() or c in ("-", "_"))
+        return CACHE_DIR / str(tf_id) / f"{symbol.upper()}.{safe or 'nodate'}.pkl"
     return CACHE_DIR / str(tf_id) / f"{symbol.upper()}.pkl"
 
 
@@ -97,7 +106,12 @@ def _write_cached(path: Path, df: pd.DataFrame, is_today: bool) -> None:
 
 
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
-    """Resample OHLCV to tf_minutes using a rule map covering non-native targets."""
+    """Resample OHLCV to tf_minutes using a rule map covering non-native targets.
+
+    Bins are anchored to the IST session (Asia/Kolkata midnight), not UTC
+    midnight: the index is converted to IST before ``resample`` and back to its
+    original timezone after, so 2h/3h/3min bins align with the NSE session open.
+    """
     rule = _RESAMPLE_RULE.get(int(tf_minutes))
     if rule is None or df is None or df.empty:
         return df
@@ -111,8 +125,26 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     available = {k: v for k, v in agg.items() if k in df.columns}
     if "close" not in available:
         return df
-    out = df.resample(rule, label="left", closed="left").agg(available)
-    return out.dropna(subset=["close"])
+    orig_tz = df.index.tz
+    try:
+        if orig_tz is None:
+            ist_index = df.index.tz_localize("UTC").tz_convert("Asia/Kolkata")
+        else:
+            ist_index = df.index.tz_convert("Asia/Kolkata")
+    except Exception:
+        ist_index = df.index
+    work = df.copy()
+    work.index = ist_index
+    out = work.resample(rule, label="left", closed="left").agg(available)
+    out = out.dropna(subset=["close"])
+    try:
+        if orig_tz is None:
+            out.index = out.index.tz_convert("UTC").tz_localize(None)
+        else:
+            out.index = out.index.tz_convert(orig_tz)
+    except Exception:
+        pass
+    return out
 
 
 def fetch_for_timeframe(
@@ -145,7 +177,7 @@ def fetch_for_timeframe(
         ).strftime("%Y-%m-%d")
 
     is_today = _is_today(to_date)
-    cache_path = _cache_path(tf_id, symbol)
+    cache_path = _cache_path(tf_id, symbol, as_of_date if as_of_date else None)
     cached = _read_cached(cache_path, is_today)
     if cached is not None:
         return cached
@@ -209,10 +241,12 @@ def candles_to_series(df: pd.DataFrame, limit: int = 300) -> list[dict]:
 
 def _f(value: Any, default: float = 0.0) -> float:
     try:
+        import math
+
         if value is None:
             return default
         out = float(value)
-        if out != out:  # NaN
+        if out != out or math.isinf(out):  # NaN or +/-Inf
             return default
         return out
     except Exception:

@@ -1,4 +1,6 @@
 """API tests for /api/chart-patterns (in-memory DB, mocked V3 fetch)."""
+import threading
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -589,4 +591,116 @@ def test_results_filter_text_query(cp_client):
     # "Ircon International" (name has 'a') and "Tata Consultancy Services" both
     # contain 'a'; "Wipro Ltd" has none.
     assert summary.json()["patterns"] == 2
+
+
+def test_scan_rejects_unknown_universe(cp_client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("submit must not be called for an invalid universe")
+
+    monkeypatch.setattr(cp_api.jobs, "submit", _boom)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nope_universe", "timeframe": "1D"},
+    )
+    assert resp.status_code == 422
+    assert "universe" in resp.json()["detail"].lower()
+
+
+def test_scan_rejects_unknown_timeframe(cp_client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("submit must not be called for an invalid timeframe")
+
+    monkeypatch.setattr(cp_api.jobs, "submit", _boom)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "9D"},
+    )
+    assert resp.status_code == 422
+    assert "timeframe" in resp.json()["detail"].lower()
+
+
+def test_scan_valid_combo_enqueues_with_normalized_ids(cp_client, monkeypatch):
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(universe=universe, timeframe=timeframe)
+        return {
+            "job_id": "cpj_valid", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert resp.status_code == 200
+    assert captured == {"universe": "nifty500", "timeframe": "1D"}
+
+
+def test_scan_alias_all_maps_to_all_equity(cp_client, monkeypatch):
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(universe=universe, timeframe=timeframe)
+        return {
+            "job_id": "cpj_alias", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "all", "timeframe": "1D"},
+    )
+    assert resp.status_code == 200
+    assert captured["universe"] == "all_equity"
+
+
+def test_fallback_universe_ids_match_registry():
+    from chart_patterns import universes as u
+
+    registry = {d["id"] for d in u.list_universes()}
+    fallback = {x["id"] for x in cp_api._FALLBACK_UNIVERSES}
+    assert "all" not in fallback
+    assert fallback <= registry
+
+
+def test_slice_keeps_pattern_head_when_window_exceeds_cap():
+    # Pattern starts on the very first bar: under the old tail(max_bars)
+    # truncation the window head — and with it the pattern start — was cut.
+    df = _make_df(500)
+    start = df.index[0].strftime("%Y-%m-%d")
+    end = df.index[306].strftime("%Y-%m-%d")
+
+    series = cp_api._slice_candles(df, start, end, max_bars=160)
+
+    assert len(series) <= 160
+    times = [bar["t"][:10] for bar in series]
+    assert start in times
+    assert end in times
+
+
+def test_submit_coalesces_duplicate_same_combo(cp_client):
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    try:
+        first = jobs.submit("nifty50", "1D")
+        assert jobs.get_job(first["job_id"])["status"] in ("queued", "running")
+
+        second = jobs.submit("nifty50", "1D")
+        assert second["job_id"] == first["job_id"]
+        assert jobs.queue_size() == 1
+
+        other_tf = jobs.submit("nifty50", "15m")
+        assert other_tf["job_id"] != first["job_id"]
+        other_uni = jobs.submit("nifty500", "1D")
+        assert other_uni["job_id"] != first["job_id"]
+        assert jobs.queue_size() == 3
+    finally:
+        release.set()
 

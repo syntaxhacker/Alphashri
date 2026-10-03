@@ -74,8 +74,12 @@ _FALLBACK_UNIVERSES = [
     {"id": "nifty100", "label": "Nifty 100"},
     {"id": "nifty200", "label": "Nifty 200"},
     {"id": "nifty500", "label": "Nifty 500"},
-    {"id": "all", "label": "All NSE Equities"},
+    {"id": "all_equity", "label": "All NSE Equities"},
 ]
+
+# Legacy alias: older clients request universe "all"; the registry id is
+# "all_equity". Normalized in create_scan before validation/submit.
+_UNIVERSE_ALIASES = {"all": "all_equity"}
 
 _name_cache: Optional[dict] = None
 
@@ -242,6 +246,40 @@ def _universes_payload() -> list[dict]:
     return [dict(x, count=0) for x in _FALLBACK_UNIVERSES]
 
 
+def _valid_universe_ids() -> set:
+    """Universe ids from the real registry, falling back to the frozen list."""
+    try:
+        from chart_patterns import universes as u
+
+        lister = getattr(u, "list_universes", None)
+        if callable(lister):
+            ids = {d["id"] for d in (lister() or []) if isinstance(d, dict) and d.get("id")}
+            if ids:
+                return ids
+    except Exception:
+        pass
+    return {x["id"] for x in _FALLBACK_UNIVERSES}
+
+
+def _valid_timeframe_ids() -> set:
+    """Timeframe ids from the real registry, falling back to the frozen list."""
+    try:
+        from chart_patterns import timeframes as tf
+
+        ids = getattr(tf, "TIMEFRAME_IDS", None)
+        if ids:
+            return set(ids)
+    except Exception:
+        pass
+    return {t["id"] for t in _FALLBACK_TIMEFRAMES}
+
+
+def _normalize_universe(uid: str) -> str:
+    """Map legacy aliases (e.g. "all") to registry ids ("all_equity")."""
+    key = (uid or "").strip().lower()
+    return _UNIVERSE_ALIASES.get(key, uid)
+
+
 def _count_universe(module, uid: str) -> int:
     try:
         raw = module.get_universe(uid)
@@ -296,12 +334,36 @@ def _slice_candles(df, start_date, end_date, max_bars: int = 160):
     length = hi - lo + 1
     if length <= max_bars:
         return candles.candles_to_series(df.iloc[lo:hi + 1], max_bars)
-    # Uniform downsample across the whole window, always keeping pattern endpoints.
-    picked = {lo, hi, si, ei}
-    for k in range(max_bars):
-        picked.add(lo + round(k * (length - 1) / (max_bars - 1)))
-    window = df.iloc[sorted(i for i in picked if lo <= i <= hi)]
-    return candles.candles_to_series(window, max_bars)
+    # Uniform downsample across the whole window, always keeping pattern
+    # endpoints. Exactly max_bars points are picked (lo/hi from the linspace
+    # edges, si/ei swapped in for their nearest non-critical neighbour), so
+    # the follow-up candles_to_series(len(window)) call cannot tail() away
+    # the pattern head.
+    if max_bars < 2:
+        keep = [i for i in (si, ei) if 0 <= i < n][:max(1, max_bars)] if max_bars else []
+        return candles.candles_to_series(df.iloc[keep], max(1, max_bars))
+    grid = {lo + round(k * (length - 1) / (max_bars - 1)) for k in range(max_bars)}
+    grid = {g for g in grid if lo <= g <= hi}
+    grid |= {lo, hi}
+    for must in (si, ei):
+        if not (lo <= must <= hi) or must in grid:
+            continue
+        victims = [g for g in grid if g not in (lo, hi, si, ei)]
+        if victims:
+            grid.remove(min(victims, key=lambda g: abs(g - must)))
+        grid.add(must)
+    ordered = sorted(grid)
+    if len(ordered) > max_bars:
+        # Defensive trim (rounding collisions aside, the swap-in above keeps
+        # the count exact): drop evenly from non-endpoints, never si/ei/lo/hi.
+        keep = {lo, hi, si, ei}
+        rest = [g for g in ordered if g not in keep]
+        drop = len(ordered) - max_bars
+        drop_idx = {round(k * (len(rest) - 1) / (drop - 1)) for k in range(drop)} if drop > 1 else {0}
+        rest = [g for i, g in enumerate(rest) if i not in drop_idx]
+        ordered = sorted(keep | set(rest))
+    window = df.iloc[ordered]
+    return candles.candles_to_series(window, len(window))
 
 
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = 160):
@@ -373,9 +435,20 @@ async def get_patterns():
 
 @router.post("/scan")
 async def create_scan(request: ScanRequest, user: User = Depends(get_current_user)):
+    universe = _normalize_universe(request.universe)
+    if universe not in _valid_universe_ids():
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown universe {request.universe!r}. Known: {sorted(_valid_universe_ids())}",
+        )
+    if request.timeframe not in _valid_timeframe_ids():
+        raise HTTPException(
+            status_code=422,
+            detail=f"unknown timeframe {request.timeframe!r}. Known: {sorted(_valid_timeframe_ids())}",
+        )
     try:
         dto = jobs.submit(
-            request.universe,
+            universe,
             request.timeframe,
             requested_by=getattr(user, "id", None),
             params={"force": request.force},

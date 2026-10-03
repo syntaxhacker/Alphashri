@@ -42,6 +42,26 @@ def _coerce_datetime(value):
         return None
 
 
+def _parse_params(raw) -> dict:
+    """Parse a ``params_json`` column value back into a params dict."""
+    if raw is None:
+        return {}
+    if isinstance(raw, dict):
+        return dict(raw)
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (TypeError, ValueError):
+            return {}
+        return dict(parsed) if isinstance(parsed, dict) else {}
+    return {}
+
+
+def _with_params(row_dict: dict, raw) -> dict:
+    row_dict["params"] = _parse_params(raw)
+    return row_dict
+
+
 def set_session_factory(factory) -> None:
     """Point the store at a different sessionmaker (used by tests)."""
     global _session_factory
@@ -66,6 +86,19 @@ def save_job(job: dict) -> dict:
     job_id = job.get("job_id") or job.get("id")
     if not job_id:
         raise ValueError("job dict requires 'job_id'")
+    job = dict(job)
+    # The API/jobs layer passes ``params`` (a dict); the column is ``params_json``.
+    if "params_json" not in job and "params" in job:
+        params = job.get("params")
+        if params is None:
+            job["params_json"] = None
+        elif isinstance(params, str):
+            job["params_json"] = params
+        else:
+            try:
+                job["params_json"] = json.dumps(params)
+            except (TypeError, ValueError):
+                job["params_json"] = str(params)
     session = _new_session()
     try:
         row = session.query(PatternComputeJob).filter(PatternComputeJob.id == job_id).first()
@@ -87,7 +120,7 @@ def save_job(job: dict) -> dict:
             row.status = job.get("status") or "queued"
         session.commit()
         session.refresh(row)
-        return row.to_dict()
+        return _with_params(row.to_dict(), row.params_json)
     except Exception:
         session.rollback()
         raise
@@ -108,7 +141,7 @@ def update_job(job_id: str, **fields) -> Optional[dict]:
                 setattr(row, key, value)
         session.commit()
         session.refresh(row)
-        return row.to_dict()
+        return _with_params(row.to_dict(), row.params_json)
     except Exception:
         session.rollback()
         return None
@@ -120,7 +153,31 @@ def get_job(job_id: str) -> Optional[dict]:
     session = _new_session()
     try:
         row = session.query(PatternComputeJob).filter(PatternComputeJob.id == job_id).first()
-        return row.to_dict() if row else None
+        return _with_params(row.to_dict(), row.params_json) if row else None
+    except Exception:
+        return None
+    finally:
+        session.close()
+
+
+def latest_completed_job(universe: str, timeframe: str) -> Optional[dict]:
+    """Newest completed job for a universe/timeframe, else ``None``."""
+    session = _new_session()
+    try:
+        row = (
+            session.query(PatternComputeJob)
+            .filter(
+                PatternComputeJob.universe == universe,
+                PatternComputeJob.timeframe == timeframe,
+                PatternComputeJob.status == "completed",
+            )
+            .order_by(
+                PatternComputeJob.finished_at.desc().nullslast(),
+                PatternComputeJob.id.desc(),
+            )
+            .first()
+        )
+        return _with_params(row.to_dict(), row.params_json) if row else None
     except Exception:
         return None
     finally:
@@ -134,7 +191,7 @@ def list_jobs(active_only: bool = False, limit: int = 50) -> list[dict]:
         if active_only:
             q = q.filter(PatternComputeJob.status.in_(("queued", "running")))
         q = q.order_by(PatternComputeJob.created_at.desc())
-        return [row.to_dict() for row in q.limit(limit).all()]
+        return [_with_params(row.to_dict(), row.params_json) for row in q.limit(limit).all()]
     except Exception:
         return []
     finally:
@@ -243,9 +300,13 @@ def _apply_filters(query, filters: dict):
             symbols = [symbols]
         query = query.filter(PatternHit.symbol.in_([str(s).upper() for s in symbols]))
     if filters.get("q"):
-        like = f"%{filters['q']}%"
+        escaped = (
+            str(filters["q"]).replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+        )
+        like = f"%{escaped}%"
         query = query.filter(
-            PatternHit.symbol.ilike(like) | PatternHit.name.ilike(like)
+            PatternHit.symbol.ilike(like, escape="\\")
+            | PatternHit.name.ilike(like, escape="\\")
         )
     pattern_ids = filters.get("pattern_id")
     if pattern_ids:
@@ -279,6 +340,36 @@ def _apply_filters(query, filters: dict):
     return query
 
 
+def _needs_dedupe(filters: dict) -> bool:
+    """True when hits may repeat across jobs (no explicit job/universe scope).
+
+    A symbol can belong to several scanned universes, so the same detection is
+    stored once per job. With an explicit ``job_id`` or ``universe`` the query
+    is already scoped to one job family and keeps its exact behaviour.
+    """
+    return not filters.get("job_id") and not filters.get("universe")
+
+
+def _deduped_base(session, base):
+    """Restrict ``base`` to the newest row per pattern identity.
+
+    Identity is ``(symbol, timeframe, pattern_id, start_date, end_date)`` and
+    newest is the largest autoincrement ``id`` (later jobs insert later rows).
+    """
+    ids_subq = (
+        base.with_entities(func.max(PatternHit.id))
+        .group_by(
+            PatternHit.symbol,
+            PatternHit.timeframe,
+            PatternHit.pattern_id,
+            PatternHit.start_date,
+            PatternHit.end_date,
+        )
+        .subquery()
+    )
+    return session.query(PatternHit).filter(PatternHit.id.in_(ids_subq))
+
+
 def query_results(filters: dict, limit: int = 100, offset: int = 0):
     """Return ``(items, total, summary)`` for the given filters.
 
@@ -289,6 +380,8 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
     session = _new_session()
     try:
         base = _apply_filters(session.query(PatternHit), filters)
+        if _needs_dedupe(filters):
+            base = _deduped_base(session, base)
         total = base.count()
         if filters.get("sort") == "newest":
             order_by = (
@@ -408,6 +501,27 @@ def _scanned_count(session, filters: dict, base) -> int:
             ).first()
             if row and row[0]:
                 return int(row[0])
+            # No completed job matches: fall back to the latest job's total
+            # regardless of status (queued/running/failed/cancelled), else 0.
+            # The distinct-hits count would under-report (hits may be empty or
+            # filtered); the job row is the source of truth for scan size.
+            q_latest = session.query(PatternComputeJob.total)
+            if filters.get("universe"):
+                q_latest = q_latest.filter(
+                    PatternComputeJob.universe == filters["universe"]
+                )
+            if filters.get("timeframe"):
+                q_latest = q_latest.filter(
+                    PatternComputeJob.timeframe == filters["timeframe"]
+                )
+            latest = q_latest.order_by(
+                PatternComputeJob.finished_at.desc().nullslast(),
+                PatternComputeJob.created_at.desc(),
+                PatternComputeJob.id.desc(),
+            ).first()
+            if latest and latest[0]:
+                return int(latest[0])
+            return 0
         return int(base.with_entities(func.count(func.distinct(PatternHit.symbol))).scalar() or 0)
     except Exception:
         return 0
@@ -433,6 +547,8 @@ def compute_summary(filters: dict) -> dict:
     session = _new_session()
     try:
         base = _apply_filters(session.query(PatternHit), filters)
+        if _needs_dedupe(filters):
+            base = _deduped_base(session, base)
         total = base.count()
         return _summary_for(session, filters, base, total)
     except Exception:
@@ -501,9 +617,18 @@ def _num(value: Any) -> Optional[float]:
     if value is None:
         return None
     try:
-        return float(value)
+        out = float(value)
     except (TypeError, ValueError):
         return None
+    try:
+        # Reject NaN/Inf so non-finite floats never reach the DB/JSON layer.
+        import math
+
+        if not math.isfinite(out):
+            return None
+    except Exception:
+        return None
+    return out
 
 
 def _int(value: Any) -> Optional[int]:
