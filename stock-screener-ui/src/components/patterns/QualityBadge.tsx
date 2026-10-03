@@ -1,5 +1,6 @@
-import { Badge } from "@/ui";
+import { Badge, Tooltip } from "@/ui";
 import type { PatternQuality } from "@/types/chartPatterns";
+import { QUALITY_INFO } from "@/config/patternCatalog";
 
 const QUALITY_COLORS: Record<string, string> = {
   textbook: "success",
@@ -8,23 +9,18 @@ const QUALITY_COLORS: Record<string, string> = {
   marginal: "warning",
 };
 
-const QUALITY_LABELS: Record<string, string> = {
-  textbook: "Textbook",
-  strong: "Strong",
-  fair: "Fair",
-  marginal: "Marginal",
-};
-
 export interface QualityBadgeProps {
   quality: PatternQuality | string | null | undefined;
   "data-testid"?: string;
 }
 
-/** Small semantic chip for shape quality. */
+/** Small semantic chip for shape quality, with a help tooltip explaining the tier. */
 export function QualityBadge({ quality, "data-testid": testId }: QualityBadgeProps) {
   const key = String(quality ?? "").toLowerCase();
-  const label = QUALITY_LABELS[key] ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Unknown");
-  return (
+  const info = QUALITY_INFO[key as keyof typeof QUALITY_INFO];
+  const label = info?.label ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Unknown");
+
+  const badge = (
     <Badge
       color={QUALITY_COLORS[key] ?? "default"}
       variant="outline"
@@ -33,5 +29,13 @@ export function QualityBadge({ quality, "data-testid": testId }: QualityBadgePro
     >
       {label}
     </Badge>
+  );
+
+  if (!info) return badge;
+
+  return (
+    <Tooltip label={info.description} position="top" withArrow multiline>
+      {badge}
+    </Tooltip>
   );
 }

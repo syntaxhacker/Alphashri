@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { PatternFilters } from "@/types/chartPatterns";
@@ -30,6 +30,7 @@ vi.mock("@/ui", async (importOriginal) => {
 
 const FILTERS: PatternFilters = {
   family: [],
+  pattern_id: [],
   direction: [],
   status: [],
   quality: null,
@@ -37,6 +38,8 @@ const FILTERS: PatternFilters = {
   volume_confirmed: null,
   min_rr: null,
   symbol: null,
+  min_base_days: null,
+  max_range_pct: null,
 };
 
 function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilterRailProps {
@@ -70,6 +73,31 @@ function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilt
         trendlines: [],
         notes: "",
       },
+      {
+        id: 2,
+        symbol: "TCS",
+        name: null,
+        timeframe: "1D",
+        pattern_id: "ascending_channel",
+        pattern_name: "Ascending Channel",
+        family: "continuation",
+        direction: "bullish",
+        status: "forming",
+        quality: "fair",
+        confidence: 60,
+        start_date: "2026-01-01",
+        end_date: "2026-02-01",
+        start_price: 100,
+        end_price: 110,
+        breakout_level: 110,
+        target: 120,
+        stop: 95,
+        rr: 2,
+        bars_ago: 2,
+        volume_confirmed: false,
+        trendlines: [],
+        notes: "",
+      },
     ],
     filters: { ...FILTERS },
     setFilter: vi.fn(),
@@ -98,8 +126,85 @@ describe("PatternFilterRail", () => {
     expect(screen.getByTestId("patterns-status-filter-forming")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-formed-within")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-volume-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-reset")).toBeInTheDocument();
+  });
+
+  test("renders all 19 catalog pattern sub-filter chips", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    expect(screen.getAllByTestId(/^patterns-filter-pattern-/)).toHaveLength(19);
+    expect(screen.getByTestId("patterns-filter-pattern-ascending_channel")).toHaveTextContent(
+      "Ascending Channel (1)",
+    );
+    expect(screen.getByTestId("patterns-filter-pattern-bull_flag")).toHaveTextContent("Bull Flag (0)");
+  });
+
+  test("prefers summary counts for pattern chips beyond the current page", () => {
+    const props = makeProps({
+      summary: {
+        scanned: 500,
+        patterns: 312,
+        in_view: 312,
+        confirmed: 200,
+        bullish: 150,
+        bearish: 80,
+        data_through: "2026-09-26",
+        pattern_counts: { bull_flag: 12, falling_wedge: 300 },
+        family_counts: { reversal: 300, continuation: 12 },
+      },
+    });
+    r(<PatternFilterRail {...props} />);
+    // Not present in `results` (first page) but counted across the whole set.
+    expect(screen.getByTestId("patterns-filter-pattern-bull_flag")).toHaveTextContent("Bull Flag (12)");
+    // Prefers the summary total over the page-derived count.
+    expect(screen.getByTestId("patterns-filter-pattern-falling_wedge")).toHaveTextContent(
+      "Falling Wedge (300)",
+    );
+  });
+
+  test("prefers summary family counts and falls back to page counts per family", () => {
+    const props = makeProps({
+      summary: {
+        scanned: 500,
+        patterns: 312,
+        in_view: 312,
+        confirmed: 200,
+        bullish: 150,
+        bearish: 80,
+        data_through: "2026-09-26",
+        pattern_counts: { falling_wedge: 300, ascending_channel: 12 },
+        family_counts: { reversal: 300, continuation: 12 },
+      },
+    });
+    r(<PatternFilterRail {...props} />);
+    expect(screen.getByTestId("patterns-family-reversal")).toHaveTextContent("Reversal (300)");
+    expect(screen.getByTestId("patterns-family-continuation")).toHaveTextContent("Continuation (12)");
+    // No summary entry -> falls back to the (zero) page-derived count.
+    expect(screen.getByTestId("patterns-family-curve_cup")).toHaveTextContent("Curve & Cup (0)");
+  });
+
+  test("falls back to page counts when no summary is provided", () => {
+    r(<PatternFilterRail {...makeProps({ summary: null })} />);
+    expect(screen.getByTestId("patterns-family-reversal")).toHaveTextContent("Reversal (1)");
+    expect(screen.getByTestId("patterns-filter-pattern-ascending_channel")).toHaveTextContent(
+      "Ascending Channel (1)",
+    );
+  });
+
+  test("toggles a specific pattern into pattern_id", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-pattern-ascending_channel"));
+    expect(props.setFilter).toHaveBeenCalledWith("pattern_id", ["ascending_channel"]);
+  });
+
+  test("removes an already-selected specific pattern", async () => {
+    const props = makeProps({ filters: { ...FILTERS, pattern_id: ["ascending_channel"] } });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-pattern-ascending_channel"));
+    expect(props.setFilter).toHaveBeenCalledWith("pattern_id", []);
   });
 
   test("toggles family / direction / status filters", async () => {
@@ -136,5 +241,27 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).toHaveBeenCalledWith("volume_confirmed", true);
     await userEvent.click(screen.getByTestId("patterns-reset"));
     expect(props.resetFilters).toHaveBeenCalledTimes(1);
+  });
+
+  test("sets the base-length preset", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-min-base-90"));
+    expect(props.setFilter).toHaveBeenCalledWith("min_base_days", 90);
+  });
+
+  test("clears the base-length preset back to Any", async () => {
+    const props = makeProps({ filters: { ...FILTERS, min_base_days: 90 } });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-min-base-any"));
+    expect(props.setFilter).toHaveBeenCalledWith("min_base_days", null);
+  });
+
+  test("enters a max range percentage", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-max-range")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "20" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("max_range_pct", 20);
   });
 });

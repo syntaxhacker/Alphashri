@@ -96,6 +96,13 @@ def _rectangle():
     return frame(interp(anchors, n))
 
 
+def _consolidation():
+    """Long tight base: 130 bars oscillating in a ~6% box around 102.5."""
+    n = 130
+    close = 102.5 + 2.5 * np.sin(np.arange(n) * 2.0 * np.pi / 20.0)
+    return frame(close)
+
+
 def _ascending_triangle():
     n = 90
     anchors = [(i, 120) for i in (5, 25, 45, 62)]
@@ -178,6 +185,7 @@ GEOMETRIES = {
     "ascending_channel": _ascending_channel,
     "descending_channel": _descending_channel,
     "rectangle": _rectangle,
+    "consolidation": _consolidation,
     "ascending_triangle": _ascending_triangle,
     "descending_triangle": _descending_triangle,
     "bull_flag": _bull_flag,

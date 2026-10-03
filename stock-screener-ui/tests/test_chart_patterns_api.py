@@ -107,9 +107,11 @@ def test_patterns_endpoint(cp_client):
     families = {f["id"] for f in data["families"]}
     assert {"reversal", "continuation", "curve_cup"} <= families
     patterns = {p["pattern_id"]: p for p in data["patterns"]}
-    assert len(patterns) == 18
+    assert len(patterns) == 19
     assert patterns["falling_wedge"]["family"] == "reversal"
     assert patterns["falling_wedge"]["direction"] == "bullish"
+    assert patterns["consolidation"]["family"] == "continuation"
+    assert patterns["consolidation"]["direction"] == "neutral"
 
 
 def test_scan_endpoint_enqueues(cp_client, monkeypatch):
@@ -206,6 +208,123 @@ def test_results_filters(cp_client):
     body = resp.json()
     assert body["total"] == 1
     assert body["items"][0]["symbol"] == "BBB"
+
+
+def test_results_filter_single_pattern_id(cp_client):
+    store.save_job({
+        "job_id": "cpj_pat", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    channel = dict(_hit("AAA"), pattern_id="ascending_channel", pattern_name="Ascending Channel")
+    consolidation = dict(_hit("BBB"), pattern_id="consolidation", pattern_name="Consolidation")
+    store.save_hits("cpj_pat", [channel, consolidation])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_pat", "pattern_id": "ascending_channel"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["pattern_id"] == "ascending_channel"
+    assert body["items"][0]["symbol"] == "AAA"
+
+
+def test_results_filter_multiple_pattern_ids(cp_client):
+    store.save_job({
+        "job_id": "cpj_pat2", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    channel = dict(_hit("AAA"), pattern_id="ascending_channel", pattern_name="Ascending Channel")
+    consolidation = dict(_hit("BBB"), pattern_id="consolidation", pattern_name="Consolidation")
+    wedge = dict(_hit("CCC"), pattern_id="falling_wedge", pattern_name="Falling Wedge")
+    store.save_hits("cpj_pat2", [channel, consolidation, wedge])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params=[
+            ("job_id", "cpj_pat2"),
+            ("pattern_id", "ascending_channel"),
+            ("pattern_id", "consolidation"),
+        ],
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    ids = {item["pattern_id"] for item in body["items"]}
+    assert ids == {"ascending_channel", "consolidation"}
+
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params=[("job_id", "cpj_pat2"), ("pattern_id", "ascending_channel"), ("pattern_id", "consolidation")],
+    )
+    assert summary.status_code == 200
+    assert summary.json()["patterns"] == 2
+
+
+def test_summary_pattern_and_family_counts(cp_client):
+    """Counts must cover the whole filtered set, not just one capped page."""
+    store.save_job({
+        "job_id": "cpj_counts", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    wedges = [dict(_hit(f"W{i:03d}"), pattern_id="falling_wedge", pattern_name="Falling Wedge")
+              for i in range(250)]
+    channels = [dict(_hit(f"C{i:03d}"), pattern_id="ascending_channel",
+                     pattern_name="Ascending Channel", family="continuation")
+                for i in range(40)]
+    store.save_hits("cpj_counts", wedges + channels)
+
+    # A single /results page is capped well below the total.
+    page = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_counts", "limit": 200},
+    )
+    assert page.status_code == 200
+    assert page.json()["total"] == 290
+    assert len(page.json()["items"]) == 200
+
+    summary = cp_client.get("/api/chart-patterns/summary", params={"job_id": "cpj_counts"})
+    assert summary.status_code == 200
+    s = summary.json()
+    assert s["patterns"] == 290
+    assert s["pattern_counts"] == {"falling_wedge": 250, "ascending_channel": 40}
+    assert s["family_counts"] == {"reversal": 250, "continuation": 40}
+
+
+def test_summary_counts_respect_filters(cp_client):
+    """pattern_counts/family_counts use the same filters as the results query."""
+    store.save_job({
+        "job_id": "cpj_counts_f", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_counts_f", [
+        _hit("AAA"),
+        _hit("BBB", name="B Co"),
+        dict(_hit("CCC"), direction="bearish", status="forming", family="continuation"),
+    ])
+
+    bullish = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_counts_f", "direction": "bullish"},
+    )
+    assert bullish.status_code == 200
+    s = bullish.json()
+    assert s["patterns"] == 2
+    assert s["pattern_counts"] == {"falling_wedge": 2}
+    assert s["family_counts"] == {"reversal": 2}
+
+
+def test_results_filter_unknown_pattern_id(cp_client):
+    store.save_job({
+        "job_id": "cpj_pat3", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_pat3", [_hit("AAA"), _hit("BBB", name="B Co")])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_pat3", "pattern_id": "does_not_exist"},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 0
+    assert body["items"] == []
 
 
 def test_symbol_detail_and_chart(cp_client, monkeypatch):

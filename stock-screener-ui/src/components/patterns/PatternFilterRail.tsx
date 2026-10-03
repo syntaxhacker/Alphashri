@@ -1,5 +1,17 @@
-import { Box, Button, Chip, Divider, NumberInput, Select, Switch, Text } from "@/ui";
-import type { PatternDef, PatternFilters, PatternHitDTO, TFSpec } from "@/types/chartPatterns";
+import { Box, Button, Chip, Divider, NumberInput, Select, Switch, Text, ToolbarRow, Tooltip } from "@/ui";
+import type {
+  PatternDef,
+  PatternFilters,
+  PatternHitDTO,
+  PatternSummary,
+  TFSpec,
+} from "@/types/chartPatterns";
+import {
+  PATTERN_FAMILIES,
+  PATTERN_LABELS,
+  QUALITY_INFO,
+  STATUS_INFO,
+} from "@/config/patternCatalog";
 import { TimeframeSelect } from "./TimeframeSelect";
 
 const FAMILY_LABELS: Record<string, string> = {
@@ -10,10 +22,14 @@ const FAMILY_LABELS: Record<string, string> = {
 
 const FAMILY_ORDER = ["reversal", "continuation", "curve_cup"];
 const FORMED_PRESETS = [1, 3, 5, 10];
+/** Consolidation base-length presets (days); `Any` clears the bound. */
+const BASE_LENGTH_PRESETS = [30, 60, 90, 120, 180];
 
 export interface PatternFilterRailProps {
   patterns: PatternDef[];
   results: PatternHitDTO[];
+  /** Aggregate counts for the whole filtered set (chips prefer these over `results`). */
+  summary?: PatternSummary | null;
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
@@ -30,21 +46,79 @@ function toggle(list: string[], value: string): string[] {
   return list.includes(value) ? list.filter((v) => v !== value) : [...list, value];
 }
 
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
+function Section({
+  title,
+  info,
+  children,
+}: {
+  title: string;
+  info?: React.ReactNode;
+  children: React.ReactNode;
+}) {
   return (
     <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-      <Text size="xs" fw={700} style={{ textTransform: "uppercase" }} c="dimmed">
-        {title}
-      </Text>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+        <Text size="xs" fw={700} style={{ textTransform: "uppercase" }} c="dimmed">
+          {title}
+        </Text>
+        {info}
+      </Box>
       {children}
     </Box>
   );
+}
+
+/** Compact `?` help affordance listing a set of `{label, description}` entries. */
+function InfoTip({
+  title,
+  items,
+  testId,
+}: {
+  title: string;
+  items: Array<{ label: string; description: string }>;
+  testId: string;
+}) {
+  return (
+    <Tooltip
+      position="top"
+      multiline
+      withArrow
+      label={
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, maxWidth: 260 }}>
+          <Text size="xs" fw={700}>
+            {title}
+          </Text>
+          {items.map((item) => (
+            <Text key={item.label} size="xs">
+              <strong>{item.label}</strong>: {item.description}
+            </Text>
+          ))}
+        </Box>
+      }
+    >
+      <Text
+        size="xs"
+        c="dimmed"
+        style={{ cursor: "help", userSelect: "none", lineHeight: 1 }}
+        data-testid={testId}
+      >
+        ⓘ
+      </Text>
+    </Tooltip>
+  );
+}
+
+function infoItems(
+  info: Record<string, { label: string; description: string }>,
+): Array<{ label: string; description: string }> {
+  return Object.values(info).map((entry) => ({ label: entry.label, description: entry.description }));
 }
 
 /** Left filter rail: family, direction, timeframe, status, quality, formed-within, volume. */
 export function PatternFilterRail({
   patterns,
   results,
+  summary,
   filters,
   setFilter,
   resetFilters,
@@ -56,13 +130,22 @@ export function PatternFilterRail({
   const families = familyOrder.map((id) => ({
     id,
     label: FAMILY_LABELS[id] ?? id,
-    count: results.filter((r) => r.family === id).length,
+    count: summary?.family_counts?.[id] ?? results.filter((r) => r.family === id).length,
   }));
 
   const selectedFamilies = asArray(filters.family);
+  const selectedPatterns = asArray(filters.pattern_id);
   const selectedDirections = asArray(filters.direction);
   const selectedStatuses = asArray(filters.status);
   const formedWithin = filters.formed_within_bars ?? null;
+  const minBaseDays = filters.min_base_days ?? null;
+
+  const pagePatternCounts = new Map<string, number>();
+  for (const result of results) {
+    pagePatternCounts.set(result.pattern_id, (pagePatternCounts.get(result.pattern_id) ?? 0) + 1);
+  }
+  const patternCountFor = (patternId: string): number =>
+    summary?.pattern_counts?.[patternId] ?? pagePatternCounts.get(patternId) ?? 0;
 
   return (
     <Box
@@ -82,6 +165,41 @@ export function PatternFilterRail({
             >
               {f.label} ({f.count})
             </Chip>
+          ))}
+        </Box>
+      </Section>
+
+      <Divider />
+
+      <Section title="Patterns">
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          {PATTERN_FAMILIES.map((family) => (
+            <Box
+              key={family.id}
+              sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}
+              data-testid={`patterns-filter-family-group-${family.id}`}
+            >
+              <Text size="xs" c="dimmed">
+                {family.label}
+              </Text>
+              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+                {family.patterns.map((pattern) => {
+                  const count = patternCountFor(pattern.id);
+                  return (
+                    <Chip
+                      key={pattern.id}
+                      size="xs"
+                      variant="light"
+                      checked={selectedPatterns.includes(pattern.id)}
+                      onChange={() => setFilter("pattern_id", toggle(selectedPatterns, pattern.id))}
+                      data-testid={`patterns-filter-pattern-${pattern.id}`}
+                    >
+                      {PATTERN_LABELS[pattern.id] ?? pattern.name} ({count})
+                    </Chip>
+                  );
+                })}
+              </Box>
+            </Box>
           ))}
         </Box>
       </Section>
@@ -114,7 +232,16 @@ export function PatternFilterRail({
 
       <Divider />
 
-      <Section title="Status">
+      <Section
+        title="Status"
+        info={
+          <InfoTip
+            title="Detection status"
+            items={infoItems(STATUS_INFO)}
+            testId="patterns-status-info"
+          />
+        }
+      >
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
           {(["forming", "confirmed", "failed", "marginal"] as const).map((status) => (
             <Chip
@@ -133,7 +260,16 @@ export function PatternFilterRail({
 
       <Divider />
 
-      <Section title="Shape quality">
+      <Section
+        title="Shape quality"
+        info={
+          <InfoTip
+            title="Shape quality"
+            items={infoItems(QUALITY_INFO)}
+            testId="patterns-quality-info"
+          />
+        }
+      >
         <Select
           data={[
             { value: "", label: "Any" },
@@ -175,6 +311,49 @@ export function PatternFilterRail({
             </Chip>
           ))}
         </Box>
+      </Section>
+
+      <Divider />
+
+      <Section title="Base length (days)">
+        <ToolbarRow gap={4} data-testid="patterns-filter-min-base">
+          <Chip
+            size="xs"
+            variant="light"
+            checked={minBaseDays == null}
+            onChange={() => setFilter("min_base_days", null)}
+            data-testid="patterns-filter-min-base-any"
+          >
+            Any
+          </Chip>
+          {BASE_LENGTH_PRESETS.map((preset) => (
+            <Chip
+              key={preset}
+              size="xs"
+              variant="light"
+              checked={minBaseDays === preset}
+              onChange={() => setFilter("min_base_days", minBaseDays === preset ? null : preset)}
+              data-testid={`patterns-filter-min-base-${preset}`}
+            >
+              {preset}
+            </Chip>
+          ))}
+        </ToolbarRow>
+      </Section>
+
+      <Divider />
+
+      <Section title="Range ≤ %">
+        <NumberInput
+          value={filters.max_range_pct ?? ""}
+          onChange={(v: number | string) => setFilter("max_range_pct", v === "" ? null : Number(v))}
+          min={0}
+          step={1}
+          size="sm"
+          placeholder="Any"
+          w={110}
+          data-testid="patterns-filter-max-range"
+        />
       </Section>
 
       <Divider />

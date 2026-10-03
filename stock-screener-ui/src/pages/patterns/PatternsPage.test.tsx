@@ -88,15 +88,10 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     summary: SUMMARY,
     results: [makeHit()],
     total: 1,
-    selectedSymbol: null,
-    setSelectedSymbol: vi.fn(),
-    detail: null,
-    detailChart: null,
     loading: false,
     error: null,
     scan: vi.fn(),
     refresh: vi.fn(),
-    loadSymbol: vi.fn(),
     ...overrides,
   };
 }
@@ -117,8 +112,7 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-stats")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-rail")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-detail-pane")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-detail-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
   });
 
@@ -144,11 +138,12 @@ describe("PatternsPage", () => {
     expect(props.refresh).toHaveBeenCalledTimes(1);
   });
 
-  test("clicking a card selects the symbol", async () => {
-    const props = makeProps();
-    r(<PatternsPage {...props} />);
+  test("clicking a card opens the fullscreen chart", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
-    expect(props.setSelectedSymbol).toHaveBeenCalledWith("IRCON");
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
   });
 
   test("scan again triggers scan", async () => {

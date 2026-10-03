@@ -2,13 +2,11 @@ import { useState } from "react";
 import { Box, Button, Loader, Text } from "@/ui";
 import type {
   ChartCandle,
-  ChartPayload,
   JobDTO,
   PatternDef,
   PatternFilters,
   PatternHitDTO,
   PatternSummary,
-  SymbolDetail,
   TFSpec,
   Universe,
 } from "@/types/chartPatterns";
@@ -16,7 +14,6 @@ import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
 import { PatternFilterRail } from "@/components/patterns/PatternFilterRail";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
-import { PatternDetailPane } from "@/components/patterns/PatternDetailPane";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 
 export interface PatternsPageProps {
@@ -36,20 +33,15 @@ export interface PatternsPageProps {
   summary: PatternSummary | null;
   results: PatternHitDTO[];
   total: number;
-  selectedSymbol: string | null;
-  setSelectedSymbol: (symbol: string | null) => void;
-  detail: SymbolDetail | null;
-  detailChart: ChartPayload | null;
   loading: boolean;
   error: string | null;
   scan: () => void;
   refresh: () => void;
-  loadSymbol: (symbol: string) => void;
 }
 
 /**
- * Patterns workspace: universe bar + stat strip on top, then a 3-column layout
- * (filter rail | card grid | detail pane). The detail pane collapses below `lg`.
+ * Patterns workspace: universe bar + stat strip on top, then a 2-column layout
+ * (filter rail | card grid). Clicking a card opens the fullscreen chart.
  */
 export function PatternsPage({
   timeframes,
@@ -68,22 +60,13 @@ export function PatternsPage({
   summary,
   results,
   total,
-  selectedSymbol,
-  setSelectedSymbol,
-  detail,
-  detailChart,
   loading,
   error,
   scan,
   refresh,
 }: PatternsPageProps) {
-  const handleSelect = (hit: PatternHitDTO) => {
-    setSelectedSymbol(hit.symbol);
-  };
-
   const [fullscreen, setFullscreen] = useState<{ hit: PatternHitDTO; candles: ChartCandle[] } | null>(null);
   const openFromCard = (hit: PatternHitDTO) => setFullscreen({ hit, candles: hit.candles ?? [] });
-  const openFromDetail = (hit: PatternHitDTO, candles: ChartCandle[]) => setFullscreen({ hit, candles });
 
   return (
     <Box
@@ -97,7 +80,7 @@ export function PatternsPage({
         gridTemplateColumns: {
           xs: "minmax(0, 1fr)",
           md: "260px minmax(0, 1fr)",
-          lg: "260px minmax(0, 1fr) 380px",
+          lg: "260px minmax(0, 1fr)",
         },
       }}
     >
@@ -128,6 +111,7 @@ export function PatternsPage({
         <PatternFilterRail
           patterns={patterns}
           results={results}
+          summary={summary}
           filters={filters}
           setFilter={setFilter}
           resetFilters={resetFilters}
@@ -180,18 +164,8 @@ export function PatternsPage({
             </Button>
           </Box>
         ) : (
-          <PatternGrid hits={results} selectedSymbol={selectedSymbol} onSelect={handleSelect} onExpand={openFromCard} />
+          <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} />
         )}
-      </Box>
-
-      <Box sx={{ gridColumn: { xs: "1 / -1", md: "1 / -1", lg: "auto" }, minWidth: 0 }}>
-        <PatternDetailPane
-          detail={detail}
-          detailChart={detailChart}
-          loading={loading}
-          selectedSymbol={selectedSymbol}
-          onExpand={openFromDetail}
-        />
       </Box>
 
       <PatternFullscreenView

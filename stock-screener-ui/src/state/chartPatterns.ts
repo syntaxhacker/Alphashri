@@ -41,6 +41,7 @@ export const DEFAULT_RESULTS_LIMIT = 200;
 
 export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   family: [],
+  pattern_id: [],
   direction: [],
   status: [],
   quality: null,
@@ -48,6 +49,8 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   volume_confirmed: null,
   min_rr: null,
   symbol: null,
+  min_base_days: null,
+  max_range_pct: null,
 };
 
 export interface ChartPatternsState {
@@ -213,6 +216,7 @@ function baseQuery(): PatternsQuery {
     universe: state.universe || null,
     timeframe: state.timeframe || null,
     family: state.filters.family,
+    pattern_id: state.filters.pattern_id,
     direction: state.filters.direction,
     status: state.filters.status,
     quality: state.filters.quality,
@@ -220,6 +224,8 @@ function baseQuery(): PatternsQuery {
     volume_confirmed: state.filters.volume_confirmed,
     min_rr: state.filters.min_rr,
     symbol: state.filters.symbol,
+    min_base_days: state.filters.min_base_days,
+    max_range_pct: state.filters.max_range_pct,
   };
 }
 

@@ -50,6 +50,11 @@ class PatternHit:
     timeframe: str = ""
     # Swing points used to define the pattern, for on-chart markers + manual audit.
     pivots: list[dict] = field(default_factory=list)
+    # Consolidation-base metrics (only set by the ``consolidation`` detector).
+    # Trailer fields so the frozen ``PatternHit`` field order above is intact.
+    base_days: int = 0
+    range_pct: float = 0.0
+    range_pos: float = 0.0
 
 
 # pattern_id -> (display name, family, direction)
@@ -72,6 +77,7 @@ PATTERN_CATALOG: dict[str, tuple[str, str, str]] = {
     "descending_triangle": ("Descending Triangle", "continuation", "bearish"),
     "curve_bearish": ("Curve Pattern (Bearish)", "curve_cup", "bearish"),
     "cup_handle": ("Cup & Handle", "curve_cup", "bullish"),
+    "consolidation": ("Consolidation", "continuation", "neutral"),
 }
 
 # pattern_id -> detect(df, ctx) -> list[PatternHit]
@@ -498,10 +504,27 @@ def make_hit(
     quality_bonus: float = 0.0,
     direction: str | None = None,
     status: str | None = None,
+    base_days: int | None = None,
+    range_pct: float | None = None,
+    range_pos: float | None = None,
 ) -> PatternHit:
     """Assemble a fully-computed :class:`PatternHit`."""
     name, family, catalog_direction = PATTERN_CATALOG[pattern_id]
     direction = direction or catalog_direction
+
+    # Consolidation trailer metrics default to 0 for every non-consolidation hit.
+    try:
+        base_days = int(base_days) if base_days is not None else 0
+    except (TypeError, ValueError):
+        base_days = 0
+    try:
+        range_pct = float(range_pct) if range_pct is not None else 0.0
+    except (TypeError, ValueError):
+        range_pct = 0.0
+    try:
+        range_pos = float(range_pos) if range_pos is not None else 0.0
+    except (TypeError, ValueError):
+        range_pos = 0.0
 
     if volume_confirmed is None:
         volume_confirmed = F.is_volume_confirmed(df, int(end_pos), mult=VOLUME_MULT)
@@ -542,4 +565,7 @@ def make_hit(
         trendlines=trendlines or [],
         notes=notes,
         pivots=pivots or [],
+        base_days=int(base_days),
+        range_pct=round(float(range_pct), 3),
+        range_pos=round(float(range_pos), 3),
     )

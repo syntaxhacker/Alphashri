@@ -165,8 +165,23 @@ describe("results + summary query building", () => {
     expect(queryOf(url).get("universe")).toBe("nifty500");
   });
 
+  it("buildPatternsQuery repeats pattern_id for each selected pattern", () => {
+    const query = buildPatternsQuery({ pattern_id: ["a", "b"] });
+    expect(query).toContain("pattern_id=a&pattern_id=b");
+    expect(new URLSearchParams(query.slice(1)).getAll("pattern_id")).toEqual(["a", "b"]);
+  });
+
   it("buildPatternsQuery returns an empty string for no filters", () => {
     expect(buildPatternsQuery({})).toBe("");
+  });
+
+  it("buildPatternsQuery serializes consolidation params", () => {
+    const params = new URLSearchParams(buildPatternsQuery({ min_base_days: 90, max_range_pct: 20 }).slice(1));
+    expect(params.get("min_base_days")).toBe("90");
+    expect(params.get("max_range_pct")).toBe("20");
+    expect(buildPatternsQuery({ min_base_days: 90, max_range_pct: 20 })).toContain(
+      "min_base_days=90&max_range_pct=20",
+    );
   });
 });
 

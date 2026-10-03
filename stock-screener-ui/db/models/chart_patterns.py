@@ -95,6 +95,9 @@ class PatternHit(Base):
     rr = Column(Float, nullable=True)
     bars_ago = Column(Integer, nullable=True)
     volume_confirmed = Column(Boolean, nullable=False, default=False)
+    base_days = Column(Integer, nullable=True)
+    range_pct = Column(Float, nullable=True)
+    range_pos = Column(Float, nullable=True)
     payload_json = Column(Text, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
@@ -134,6 +137,9 @@ class PatternHit(Base):
             "rr": self.rr,
             "bars_ago": self.bars_ago,
             "volume_confirmed": bool(self.volume_confirmed),
+            "base_days": self.base_days,
+            "range_pct": self.range_pct,
+            "range_pos": self.range_pos,
             "trendlines": payload.get("trendlines") or [],
             "notes": payload.get("notes") or "",
             "pivots": payload.get("pivots") or [],

@@ -4,7 +4,7 @@ import { afterEach, describe, expect, test } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import { PivotList } from "./PatternDetailPane";
+import { PivotList } from "./PatternPivotList";
 
 function r(jsx: React.ReactElement) {
   return render(jsx, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });

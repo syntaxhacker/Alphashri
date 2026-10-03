@@ -99,6 +99,12 @@ export interface PatternHitDTO {
   last_close?: number | null;
   /** Latest bar change % for the symbol/timeframe (enriched). */
   day_change_pct?: number | null;
+  /** Consolidation base length in bars/days (`consolidation` pattern only). */
+  base_days?: number;
+  /** Consolidation range as a percentage of price (`consolidation` pattern only). */
+  range_pct?: number;
+  /** Position within the consolidation range, 0..1 (`consolidation` pattern only). */
+  range_pos?: number;
 }
 
 /** Aggregate counts (`GET /summary`). */
@@ -110,6 +116,10 @@ export interface PatternSummary {
   bullish: number;
   bearish: number;
   data_through: string | null;
+  /** Hit count per `pattern_id` across the whole filtered set (no page limit). */
+  pattern_counts?: Record<string, number>;
+  /** Hit count per family across the whole filtered set (no page limit). */
+  family_counts?: Record<string, number>;
 }
 
 /**
@@ -167,6 +177,8 @@ export interface ChartPayload {
 /** User-facing result filters (the filter rail). */
 export interface PatternFilters {
   family: string[];
+  /** Specific pattern ids (verified sub-filters within a family); empty = any. */
+  pattern_id: string[];
   direction: string[];
   status: string[];
   quality: string | null;
@@ -174,6 +186,10 @@ export interface PatternFilters {
   volume_confirmed: boolean | null;
   min_rr: number | null;
   symbol: string | null;
+  /** Minimum consolidation base length in bars/days (null = any). */
+  min_base_days: number | null;
+  /** Maximum consolidation range as % of price (null = any). */
+  max_range_pct: number | null;
 }
 
 /**

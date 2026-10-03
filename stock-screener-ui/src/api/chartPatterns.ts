@@ -114,6 +114,7 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
   if (query.universe) params.set("universe", query.universe);
   if (query.timeframe) params.set("timeframe", query.timeframe);
   for (const family of query.family ?? []) params.append("family", family);
+  for (const patternId of query.pattern_id ?? []) params.append("pattern_id", patternId);
   for (const direction of query.direction ?? []) params.append("direction", direction);
   for (const status of query.status ?? []) params.append("status", status);
   if (query.quality) params.set("quality", query.quality);
@@ -124,6 +125,12 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
     params.set("volume_confirmed", String(query.volume_confirmed));
   }
   if (query.min_rr != null) params.set("min_rr", String(query.min_rr));
+  if (query.min_base_days != null) {
+    params.set("min_base_days", String(query.min_base_days));
+  }
+  if (query.max_range_pct != null) {
+    params.set("max_range_pct", String(query.max_range_pct));
+  }
   if (query.symbol) params.set("symbol", query.symbol);
   if (query.limit != null) params.set("limit", String(query.limit));
   if (query.offset != null) params.set("offset", String(query.offset));

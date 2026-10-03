@@ -210,6 +210,9 @@ def save_hits(job_id: str, hits: Iterable[dict]) -> int:
                 rr=_num(hit.get("rr")),
                 bars_ago=_int(hit.get("bars_ago")),
                 volume_confirmed=bool(hit.get("volume_confirmed")),
+                base_days=_int(hit.get("base_days")),
+                range_pct=_num(hit.get("range_pct")),
+                range_pos=_num(hit.get("range_pos")),
                 payload_json=json.dumps(payload),
             )
             session.add(row)
@@ -236,8 +239,12 @@ def _apply_filters(query, filters: dict):
         query = query.filter(PatternHit.timeframe == filters["timeframe"])
     if filters.get("symbol"):
         query = query.filter(PatternHit.symbol == str(filters["symbol"]).upper())
-    if filters.get("pattern_id"):
-        query = query.filter(PatternHit.pattern_id == filters["pattern_id"])
+    pattern_ids = filters.get("pattern_id")
+    if pattern_ids:
+        if isinstance(pattern_ids, str):
+            query = query.filter(PatternHit.pattern_id == pattern_ids)
+        else:
+            query = query.filter(PatternHit.pattern_id.in_(list(pattern_ids)))
 
     for key, column in (
         ("family", PatternHit.family),
@@ -255,6 +262,10 @@ def _apply_filters(query, filters: dict):
         query = query.filter(PatternHit.bars_ago <= int(filters["formed_within_bars"]))
     if filters.get("min_rr") is not None:
         query = query.filter(PatternHit.rr >= float(filters["min_rr"]))
+    if filters.get("min_base_days") is not None:
+        query = query.filter(PatternHit.base_days >= int(filters["min_base_days"]))
+    if filters.get("max_range_pct") is not None:
+        query = query.filter(PatternHit.range_pct <= float(filters["max_range_pct"]))
     if filters.get("volume_confirmed") is not None:
         query = query.filter(PatternHit.volume_confirmed.is_(bool(filters["volume_confirmed"])))
     return query
@@ -282,6 +293,23 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
         session.close()
 
 
+def _counts_by(base, column) -> dict[str, int]:
+    """Group the *unlimited* filtered base query by ``column`` into counts.
+
+    Powers the filter-rail chips, which must reflect the whole filtered result
+    set rather than just the current (capped) page.
+    """
+    try:
+        rows = (
+            base.with_entities(column, func.count(PatternHit.id))
+            .group_by(column)
+            .all()
+        )
+        return {str(key): int(count) for key, count in rows if key}
+    except Exception:
+        return {}
+
+
 def _summary_for(session, filters: dict, base, total: int) -> dict:
     confirmed = base.filter(PatternHit.status == "confirmed").count()
     forming = base.filter(PatternHit.status == "forming").count()
@@ -298,6 +326,8 @@ def _summary_for(session, filters: dict, base, total: int) -> dict:
         "bullish": bullish,
         "bearish": bearish,
         "data_through": data_through,
+        "pattern_counts": _counts_by(base, PatternHit.pattern_id),
+        "family_counts": _counts_by(base, PatternHit.family),
     }
 
 
@@ -335,6 +365,8 @@ def _empty_summary() -> dict:
         "bullish": 0,
         "bearish": 0,
         "data_through": None,
+        "pattern_counts": {},
+        "family_counts": {},
     }
 
 

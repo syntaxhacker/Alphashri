@@ -17,9 +17,14 @@ function price(value: number | null | undefined): string {
   return value == null ? "—" : formatCurrency(value, 2);
 }
 
-function Level({ label, value }: { label: string; value: string }) {
+/** Render a range percentage with at most one decimal (`13` not `13.0`). */
+function rangePct(value: number): string {
+  return Number.isInteger(value) ? String(value) : value.toFixed(1);
+}
+
+function Level({ label, value, testId }: { label: string; value: string; testId?: string }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}>
+    <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}>
       <Text size="xs" c="dimmed" style={{ textTransform: "uppercase" }} fw={700} truncate>
         {label}
       </Text>
@@ -30,12 +35,44 @@ function Level({ label, value }: { label: string; value: string }) {
   );
 }
 
+/**
+ * Box edges for the neutral `consolidation` pattern. The detector stores the
+ * upper edge as `breakout_level` and draws the two flat box edges as the
+ * boundary trendlines (upper first, lower second). Prefer the lower trendline
+ * price, then the lowest pivot low, then the (ATR-capped) stop, so older
+ * persisted hits without trendlines still show a sensible range.
+ */
+function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: number | null } {
+  const prices = (hit.trendlines ?? [])
+    .filter((line) => line.length > 0)
+    .map((line) => line[0]?.price)
+    .filter((p): p is number => typeof p === "number" && Number.isFinite(p));
+
+  const hi =
+    hit.breakout_level > 0 ? hit.breakout_level : prices.length > 0 ? Math.max(...prices) : null;
+  const below = hi == null ? prices : prices.filter((p) => p < hi);
+  const pivotLows = (hit.pivots ?? [])
+    .filter((p) => p.kind !== "high")
+    .map((p) => p.price)
+    .filter((p): p is number => typeof p === "number" && Number.isFinite(p) && (hi == null || p < hi));
+
+  let lo: number | null = null;
+  if (below.length > 0) lo = Math.min(...below);
+  else if (pivotLows.length > 0) lo = Math.min(...pivotLows);
+  else if (hit.stop > 0 && (hi == null || hit.stop < hi)) lo = hit.stop;
+
+  return { lo, hi };
+}
+
 /** One pattern result card in the grid. */
 export function PatternCard({ hit, selected = false, onClick, onExpand }: PatternCardProps) {
   const sinceStart = hit.start_price !== 0 ? ((hit.end_price - hit.start_price) / hit.start_price) * 100 : 0;
   const lastPrice = hit.last_close ?? hit.end_price;
   const changePct = hit.day_change_pct ?? sinceStart;
   const barsLabel = `${hit.bars_ago} ${hit.timeframe} candle${hit.bars_ago === 1 ? "" : "s"} ago`;
+  const baseDays = hit.base_days ?? 0;
+  const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
+  const bounds = isConsolidation ? consolidationBounds(hit) : null;
 
   return (
     <Card
@@ -85,12 +122,55 @@ export function PatternCard({ hit, selected = false, onClick, onExpand }: Patter
           <PatternMiniChart hit={hit} />
         </Box>
 
-        <ToolbarRow gap={1.5} justify="space-between" wrap={false}>
-          <Level label="Breakout" value={price(hit.breakout_level)} />
-          <Level label="Target" value={price(hit.target)} />
-          <Level label="Stop" value={price(hit.stop)} />
-          <Level label="R:R" value={hit.rr > 0 ? hit.rr.toFixed(2) : "—"} />
-        </ToolbarRow>
+        {isConsolidation && bounds ? (
+          <ToolbarRow gap={1.5} justify="space-between" wrap={false}>
+            <Level
+              testId={`patterns-card-range-${hit.symbol}`}
+              label="Range"
+              value={
+                bounds.lo != null && bounds.hi != null
+                  ? `${price(bounds.lo)} – ${price(bounds.hi)}`
+                  : "—"
+              }
+            />
+            <Box
+              data-testid={`patterns-card-breakout-both-${hit.symbol}`}
+              sx={{ display: "flex", flexDirection: "column", gap: 0.25, minWidth: 0 }}
+            >
+              <Text size="xs" c="dimmed" style={{ textTransform: "uppercase" }} fw={700} truncate>
+                Breakout
+              </Text>
+              <ToolbarRow gap={6} wrap={false}>
+                <Text size="sm" fw={600} c="success" truncate>
+                  ↑ {price(bounds.hi)}
+                </Text>
+                <Text size="sm" fw={600} c="error" truncate>
+                  ↓ {price(bounds.lo)}
+                </Text>
+              </ToolbarRow>
+            </Box>
+          </ToolbarRow>
+        ) : (
+          <ToolbarRow gap={1.5} justify="space-between" wrap={false}>
+            <Level label="Breakout" value={price(hit.breakout_level)} />
+            <Level label="Target" value={price(hit.target)} />
+            <Level label="Stop" value={price(hit.stop)} />
+            <Level label="R:R" value={hit.rr > 0 ? hit.rr.toFixed(2) : "—"} />
+          </ToolbarRow>
+        )}
+
+        {baseDays > 0 ? (
+          <Text
+            size="xs"
+            c="dimmed"
+            truncate
+            data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
+          >
+            {hit.range_pct != null
+              ? `Base ${baseDays}d · ${rangePct(hit.range_pct)}%`
+              : `Base ${baseDays}d`}
+          </Text>
+        ) : null}
 
         <ToolbarRow justify="space-between" gap={1}>
           <Text size="xs" c="dimmed" truncate>

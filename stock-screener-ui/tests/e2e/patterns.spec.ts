@@ -436,19 +436,25 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
   });
 
-  test("clicking a card opens the detail pane with a chart", async ({ page }) => {
+  test("clicking a card opens the fullscreen chart", async ({ page }) => {
     const card = page.locator('[data-testid="patterns-card"]').first();
     await expect(card).toBeVisible();
     await card.click();
-    await expect(page.locator('[data-testid="patterns-detail-pane"]')).toBeVisible();
-    await expect(page.locator('[data-testid="patterns-detail-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
   });
 
-  test("clicking a specific card shows its symbol detail", async ({ page }) => {
+  test("clicking a specific card opens its fullscreen chart", async ({ page }) => {
     await page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]').click();
-    const pane = page.locator('[data-testid="patterns-detail-pane"]');
-    await expect(pane).toBeVisible();
-    await expect(pane).toContainText("IRCON");
-    await expect(page.locator('[data-testid="patterns-detail-chart"]')).toBeVisible();
+    const modal = page.locator('[data-testid="patterns-fullscreen-modal"]');
+    await expect(modal).toBeVisible();
+    await expect(modal).toContainText("IRCON");
+    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+  });
+
+  test("clicking the expand icon opens the fullscreen chart", async ({ page }) => {
+    await page.locator('[data-testid="patterns-card-expand-IRCON-falling_wedge"]').click();
+    await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
   });
 });

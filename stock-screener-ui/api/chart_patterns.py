@@ -415,6 +415,7 @@ def _build_filters(
     job_id=None, universe=None, timeframe=None, family=None, direction=None,
     status=None, quality=None, formed_within_bars=None, volume_confirmed=None,
     min_rr=None, symbol=None, pattern_id=None,
+    min_base_days=None, max_range_pct=None,
 ) -> dict:
     return {
         "job_id": job_id,
@@ -429,6 +430,8 @@ def _build_filters(
         "min_rr": min_rr,
         "symbol": symbol,
         "pattern_id": pattern_id,
+        "min_base_days": min_base_days,
+        "max_range_pct": max_range_pct,
     }
 
 
@@ -445,13 +448,16 @@ async def get_results(
     volume_confirmed: Optional[bool] = Query(None),
     min_rr: Optional[float] = Query(None),
     symbol: Optional[str] = Query(None),
-    pattern_id: Optional[str] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
     limit: int = Query(100, ge=1, le=1000),
     offset: int = Query(0, ge=0),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+        min_base_days, max_range_pct,
     )
     items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     _enrich_with_candles(items, timeframe)
@@ -476,11 +482,14 @@ async def get_summary(
     volume_confirmed: Optional[bool] = Query(None),
     min_rr: Optional[float] = Query(None),
     symbol: Optional[str] = Query(None),
-    pattern_id: Optional[str] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+        min_base_days, max_range_pct,
     )
     summary = store.compute_summary(filters)
     return _sanitize_for_json({
@@ -491,6 +500,8 @@ async def get_summary(
         "bullish": summary.get("bullish", 0),
         "bearish": summary.get("bearish", 0),
         "data_through": summary.get("data_through"),
+        "pattern_counts": summary.get("pattern_counts", {}),
+        "family_counts": summary.get("family_counts", {}),
     })
 
 

@@ -126,6 +126,9 @@ describe("initial state", () => {
     expect(state.timeframe).toBe("1D");
     expect(state.universe).toBe("");
     expect(state.filters).toEqual(DEFAULT_PATTERN_FILTERS);
+    expect(DEFAULT_PATTERN_FILTERS.pattern_id).toEqual([]);
+    expect(DEFAULT_PATTERN_FILTERS.min_base_days).toBeNull();
+    expect(DEFAULT_PATTERN_FILTERS.max_range_pct).toBeNull();
     expect(state.job).toBeNull();
     expect(state.scanning).toBe(false);
     expect(state.results).toEqual([]);
@@ -183,6 +186,17 @@ describe("filters", () => {
     expect(getChartPatternsState().filters.min_rr).toBe(1.5);
     expect(mocked.fetchResults).toHaveBeenCalled();
     expect(mocked.fetchSummary).toHaveBeenCalled();
+  });
+
+  it("setFilter pattern_id persists it and includes it in the reload query", () => {
+    setFilter("pattern_id", ["ascending_channel"]);
+    expect(getChartPatternsState().filters.pattern_id).toEqual(["ascending_channel"]);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ pattern_id: ["ascending_channel"] }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ pattern_id: ["ascending_channel"] }),
+    );
   });
 
   it("resetFilters restores defaults and reloads", () => {
