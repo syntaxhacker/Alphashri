@@ -77,18 +77,13 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
           <MultiSelect
             data={options}
             value={selected}
+            searchValue={query}
             onChange={(vals) => {
               setFilter("symbols", vals);
               setQuery("");
             }}
             searchable
-            onSearchChange={(v) => {
-              // Ignore the empty reset MUI emits right after an input change;
-              // it arrives after debounced results load and would wipe them.
-              // A genuine clear is reflected by selection/`onChange` instead.
-              if (v.trim().length === 0) return;
-              setQuery(v);
-            }}
+            onSearchChange={(v) => setQuery(v)}
             clearable
             hidePickedOptions
             size="xs"

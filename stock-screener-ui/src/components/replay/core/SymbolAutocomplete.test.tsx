@@ -33,4 +33,25 @@ describe("SymbolAutocomplete", () => {
 
     expect(onChange).toHaveBeenCalledWith("RELIANCE");
   });
+
+  test("keeps typed text after async options resolve", async () => {
+    const user = userEvent.setup();
+    render(<SymbolAutocomplete value="" onChange={vi.fn()} />);
+    const input = screen.getByLabelText("Symbol");
+
+    await user.type(input, "RELI");
+    await waitFor(() => expect(searchSymbols).toHaveBeenCalledWith("RELI", 10));
+    await screen.findByText("RELIANCE");
+
+    // Regression: MUI's reset on options load used to wipe the uncontrolled input.
+    expect(input).toHaveValue("RELI");
+  });
+
+  test("syncs the input to an external value change", () => {
+    const { rerender } = render(<SymbolAutocomplete value="NETWEB" onChange={vi.fn()} />);
+    expect(screen.getByLabelText("Symbol")).toHaveValue("NETWEB");
+
+    rerender(<SymbolAutocomplete value="INFY" onChange={vi.fn()} />);
+    expect(screen.getByLabelText("Symbol")).toHaveValue("INFY");
+  });
 });

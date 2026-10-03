@@ -26,7 +26,16 @@ export default function SymbolAutocomplete({
 
   useEffect(() => () => window.clearTimeout(timer.current), []);
 
-  const handleInput = (_e: unknown, v: string) => {
+  // Converge to an external value change (param load / form reset) without
+  // clobbering text the user is actively typing (the prop only changes on commit).
+  useEffect(() => {
+    setInput(value ?? "");
+  }, [value]);
+
+  const handleInput = (_e: unknown, v: string, reason?: string) => {
+    // MUI fires reason "reset"/"blur" with "" when async options resolve or the
+    // field blurs; those are not user edits and must not wipe the typed text.
+    if (reason === "reset" || reason === "blur") return;
     setInput(v);
     window.clearTimeout(timer.current);
     const q = v.trim();

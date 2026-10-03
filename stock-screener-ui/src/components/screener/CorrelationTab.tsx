@@ -3,7 +3,7 @@ import { useSearchParams } from "react-router-dom";
 import Grid from "@mui/material/Grid";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
-import { MultiSelect, SegmentedControl, Select, Button, Alert, Text } from "@/ui";
+import { MultiSelect, SegmentedControl, Select, Button, Alert, Text, useDebouncedValue } from "@/ui";
 import { IconAlertCircle, IconChartLine } from "@tabler/icons-react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
@@ -51,6 +51,8 @@ export function CorrelationTab() {
   const [searchParams, setSearchParams] = useSearchParams();
 
   const [searchData, setSearchData] = useState<SymbolResult[]>([]);
+  const [searchText, setSearchText] = useState("");
+  const [debouncedSearch] = useDebouncedValue(searchText, 250);
   const [localSymbols, setLocalSymbols] = useState<string[]>(
     () => searchParams.get("symbols")?.split(",").filter(Boolean) || symbols,
   );
@@ -75,14 +77,27 @@ export function CorrelationTab() {
     }
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const handleSearch = useCallback(async (query: string) => {
-    if (!query || query.length < 2) {
+  // Debounced, race-guarded symbol search. The query is held in React state
+  // (`searchText`) and passed as the controlled `searchValue`, so a late response
+  // or a store re-render cannot wipe what the user typed.
+  useEffect(() => {
+    const q = debouncedSearch.trim();
+    if (q.length < 2) {
       setSearchData([]);
       return;
     }
-    const results = await searchSymbols(query, 10);
-    setSearchData(results);
-  }, []);
+    let active = true;
+    searchSymbols(q, 10)
+      .then((results) => {
+        if (active) setSearchData(results);
+      })
+      .catch(() => {
+        if (active) setSearchData([]);
+      });
+    return () => {
+      active = false;
+    };
+  }, [debouncedSearch]);
 
   const handleTimeframeChange = useCallback((value: string) => {
     setTimeframe(value as "daily" | "intraday");
@@ -134,7 +149,8 @@ export function CorrelationTab() {
                   data={searchData.map((s) => ({ value: s.symbol, label: s.symbol }))}
                   value={localSymbols}
                   onChange={setLocalSymbols}
-                  onSearchChange={handleSearch}
+                  searchValue={searchText}
+                  onSearchChange={setSearchText}
                   searchable
                   size="sm"
                   w={280}

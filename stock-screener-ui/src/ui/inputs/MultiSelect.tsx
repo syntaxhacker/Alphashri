@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useMemo, useRef } from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
@@ -59,10 +59,33 @@ export function MultiSelect({
       : String(error ?? "")
     : (description as string | undefined);
 
-  const controlledValue = useMemo(() => {
+  const controlledValueRaw = useMemo(() => {
     if (value === undefined) return undefined;
-    return options.filter((o) => value.includes(o.value));
+    // Union the current options with the selected values, so a symbol chosen
+    // earlier is never dropped when the latest async search page doesn't
+    // include it (which used to make chips vanish and reset the input).
+    const byValue = new Map(options.map((o) => [o.value, o]));
+    return value.map((v) => byValue.get(v) ?? { value: v, label: v });
   }, [value, options]);
+
+  // Keep a stable array identity while the content is unchanged: MUI treats a
+  // new `value` reference as a value change and emits `onInputChange("", "reset")`,
+  // which wiped the search text on every async options load.
+  const controlledValueRef = useRef<Option[] | undefined>(undefined);
+  const controlledValue = useMemo(() => {
+    const next = controlledValueRaw;
+    const prev = controlledValueRef.current;
+    if (
+      prev &&
+      next &&
+      prev.length === next.length &&
+      prev.every((o, i) => o.value === next[i].value && o.label === next[i].label)
+    ) {
+      return prev;
+    }
+    controlledValueRef.current = next;
+    return next;
+  }, [controlledValueRaw]);
 
   const defaultVal = useMemo(() => {
     if (defaultValue === undefined) return undefined;
@@ -76,7 +99,14 @@ export function MultiSelect({
       value={controlledValue}
       defaultValue={defaultVal as Option[] | undefined}
       inputValue={searchValue}
-      onInputChange={(_e, v) => onSearchChange?.(v)}
+      onInputChange={(_e, v, reason) => {
+        // Forward only genuine search edits. MUI also fires onInputChange with
+        // an empty string and reasons "reset" (value/options identity change),
+        // "blur" (clearOnBlur), "selectOption"/"removeOption" — forwarding those
+        // wiped callers' typed query.
+        if (reason === "input" || reason === "clear") onSearchChange?.(v, reason);
+      }}
+      filterOptions={(x) => x}
       onChange={(_e, newVal) => {
         let vals = (newVal as Option[]).map((o) => o.value);
         if (maxValues !== undefined && vals.length > maxValues) {

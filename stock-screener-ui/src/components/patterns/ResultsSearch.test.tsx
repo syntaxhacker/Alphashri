@@ -49,4 +49,34 @@ describe("ResultsSearch", () => {
     r(<ResultsSearch filters={makeFilters({ q: "infy" })} setFilter={vi.fn()} />);
     expect(screen.getByLabelText("Search results")).toHaveValue("infy");
   });
+
+  test("keeps characters typed after a commit when the parent echoes q back", async () => {
+    const user = userEvent.setup();
+    const setFilter = vi.fn();
+    const { rerender } = r(<ResultsSearch filters={makeFilters()} setFilter={setFilter} />);
+    const input = screen.getByTestId("patterns-results-search");
+
+    await user.type(input, "bank");
+    await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "bank"));
+
+    // User keeps typing before the store echo lands.
+    await user.type(input, "s");
+    expect(input).toHaveValue("banks");
+
+    // The late echo of our own commit (filters.q === "bank") must NOT clobber it.
+    rerender(<ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />);
+    expect(input).toHaveValue("banks");
+    await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "banks"));
+  });
+
+  test("propagates an external q reset (Clear filters) to the input", () => {
+    const { rerender } = r(
+      <ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={vi.fn()} />,
+    );
+    const input = screen.getByTestId("patterns-results-search");
+    expect(input).toHaveValue("bank");
+
+    rerender(<ResultsSearch filters={makeFilters({ q: "" })} setFilter={vi.fn()} />);
+    expect(input).toHaveValue("");
+  });
 });

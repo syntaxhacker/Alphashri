@@ -509,6 +509,22 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
   });
 
+  test("multi-symbol search keeps the typed text while results load", async ({ page }) => {
+    const input = page.locator('[data-testid="patterns-symbol-filter"]').getByRole("combobox");
+    await input.click();
+    await input.pressSequentially("IRCON", { delay: 30 });
+
+    // Wait for the debounced /api/symbols/search response and options update...
+    await expect(page.getByRole("option", { name: /IRCON/ })).toBeVisible();
+    // ...then assert the text survived the async options load (regression: it
+    // used to be wiped by MUI's uncontrolled reset).
+    await expect(input).toHaveValue("IRCON");
+
+    // A further keystroke survives the next options load too.
+    await input.pressSequentially("X", { delay: 30 });
+    await expect(input).toHaveValue("IRCONX");
+  });
+
   test("multi-symbol picker narrows the cards to the chosen symbol", async ({ page }) => {
     const filter = page.locator('[data-testid="patterns-symbol-filter"]');
     const input = filter.getByRole("combobox");
@@ -520,6 +536,16 @@ test.describe("Chart Patterns page", () => {
 
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]')).toBeVisible();
+  });
+
+  test("results search keeps the typed text across a reload", async ({ page }) => {
+    const input = page.getByPlaceholder("Symbol or company");
+    await input.click();
+    await input.pressSequentially("inf", { delay: 40 });
+    await input.pressSequentially("y", { delay: 40 });
+    // Text must survive the debounced reload (and the q echo back from the store).
+    await expect(input).toHaveValue("infy");
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
   });
 
   test("results search filters the cards by symbol or company name", async ({ page }) => {

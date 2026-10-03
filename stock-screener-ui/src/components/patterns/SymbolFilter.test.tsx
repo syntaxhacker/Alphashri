@@ -73,6 +73,19 @@ describe("SymbolFilter", () => {
     expect(screen.getByText("Show patterns only for these symbols")).toBeInTheDocument();
   });
 
+  test("keeps typed text after async options resolve (controlled searchValue)", async () => {
+    const setFilter = vi.fn();
+    r(<SymbolFilter filters={makeFilters()} setFilter={setFilter} />);
+
+    const combo = within(screen.getByTestId("patterns-symbol-filter")).getByRole("combobox");
+    fireEvent.change(combo, { target: { value: "reli" } });
+
+    // Wait for the debounced search + options state update to land.
+    await screen.findByRole("option", { name: /RELIANCE/ });
+    // Regression: MUI used to reset the uncontrolled input here, wiping "reli".
+    expect(combo).toHaveValue("reli");
+  });
+
   test("clearing empties selected symbols", async () => {
     const user = userEvent.setup();
     const setFilter = vi.fn();

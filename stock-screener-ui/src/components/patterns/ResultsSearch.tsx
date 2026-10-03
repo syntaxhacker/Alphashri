@@ -28,9 +28,13 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
   const [value, setValue] = useState(external);
   const [debouncedValue] = useDebouncedValue(value, 300);
   const committedRef = useRef(false);
+  const lastCommittedRef = useRef<string | null>(null);
 
-  // Keep the input in sync when filters change elsewhere (reset, presets).
+  // Keep the input in sync when filters change elsewhere (reset, presets), but
+  // ignore the echo of our own debounced commit: syncing that back would clobber
+  // any characters typed after the commit landed.
   useEffect(() => {
+    if (external === lastCommittedRef.current) return;
     setValue(external);
   }, [external]);
 
@@ -42,6 +46,7 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
     }
     // No-op guard: never re-commit an unchanged query (avoids redundant reloads).
     if (debouncedValue === external) return;
+    lastCommittedRef.current = debouncedValue;
     setFilter("q", debouncedValue);
   }, [debouncedValue, external, setFilter]);
 

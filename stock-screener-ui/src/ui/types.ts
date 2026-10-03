@@ -345,6 +345,18 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   onChange?: (value: string[]) => void;
   data?: (string | { value: string; label: string; disabled?: boolean })[];
   searchable?: boolean;
+  /**
+   * Controlled search text. Provide this together with `onSearchChange` so the
+   * typed query lives in the caller's state and cannot be wiped by MUI's
+   * internal `reset`/`blur` events.
+   */
+  searchValue?: string;
+  /**
+   * Fired for genuine search changes only: `reason` is `"input"` (typing,
+   * including backspace-to-empty) or `"clear"` (X button / Escape). MUI's
+   * `reset`/`blur`/`selectOption`/`removeOption` empties are not forwarded.
+   */
+  onSearchChange?: (value: string, reason?: string) => void;
   clearable?: boolean;
   placeholder?: string;
   nothingFoundMessage?: string;

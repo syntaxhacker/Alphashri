@@ -130,6 +130,21 @@ describe("CorrelationTab", () => {
     });
   });
 
+  it("keeps the typed symbol query after results resolve", async () => {
+    mockSearchSymbols.mockResolvedValueOnce([
+      { symbol: "RELIANCE", name: "Reliance Industries" },
+    ]);
+    renderWithProvider(<CorrelationTab />);
+    const input = screen.getByPlaceholderText("Search and select symbols");
+    fireEvent.change(input, { target: { value: "REL" } });
+
+    await waitFor(() => expect(mockSearchSymbols).toHaveBeenCalledWith("REL", 10));
+    await screen.findByRole("option", { name: /RELIANCE/ });
+
+    // Regression: the async options update must not wipe the controlled query.
+    expect(input).toHaveValue("REL");
+  });
+
   it("renders timeframe SegmentedControl with Daily / Intraday", () => {
     renderWithProvider(<CorrelationTab />);
     expect(screen.getByTestId("correlation-timeframe")).toBeInTheDocument();
