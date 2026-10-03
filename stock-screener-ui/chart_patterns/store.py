@@ -392,14 +392,22 @@ def _scanned_count(session, filters: dict, base) -> int:
             if row:
                 return int(row.total or row.done or 0)
         if filters.get("universe") or filters.get("timeframe"):
-            q = session.query(func.coalesce(func.sum(PatternComputeJob.total), 0))
+            # Report the symbol count of the latest completed scan for the combo,
+            # not the sum across every historical job (which grows unbounded).
+            q = session.query(PatternComputeJob.total).filter(
+                PatternComputeJob.status == "completed",
+                PatternComputeJob.total.isnot(None),
+            )
             if filters.get("universe"):
                 q = q.filter(PatternComputeJob.universe == filters["universe"])
             if filters.get("timeframe"):
                 q = q.filter(PatternComputeJob.timeframe == filters["timeframe"])
-            val = q.scalar()
-            if val:
-                return int(val)
+            row = q.order_by(
+                PatternComputeJob.finished_at.desc().nullslast(),
+                PatternComputeJob.id.desc(),
+            ).first()
+            if row and row[0]:
+                return int(row[0])
         return int(base.with_entities(func.count(func.distinct(PatternHit.symbol))).scalar() or 0)
     except Exception:
         return 0

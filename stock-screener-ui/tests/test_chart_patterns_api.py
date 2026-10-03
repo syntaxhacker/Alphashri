@@ -235,6 +235,39 @@ def test_summary_last_scan_at(cp_client):
     assert unscoped.json()["last_scan_at"] is None
 
 
+def test_summary_scanned_uses_latest_completed_job(cp_client):
+    """`scanned` is the latest scan's symbol count, not the sum of all jobs."""
+    store.save_job({
+        "job_id": "cpj_s1", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 50, "finished_at": "2026-09-20T10:00:00",
+    })
+    store.save_hits("cpj_s1", [_hit("AAA")])
+    store.save_job({
+        "job_id": "cpj_s2", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 50, "finished_at": "2026-09-30T10:00:00",
+    })
+    store.save_hits("cpj_s2", [_hit("BBB")])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert resp.status_code == 200
+    # Two 50-symbol scans → 50, not 100.
+    assert resp.json()["scanned"] == 50
+
+    # A newer running job must not change the reported count.
+    store.save_job({
+        "job_id": "cpj_s3", "universe": "nifty500", "timeframe": "1D",
+        "status": "running", "total": 50, "finished_at": "2026-10-02T10:00:00",
+    })
+    again = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert again.json()["scanned"] == 50
+
+
 def test_results_filters(cp_client):
     store.save_job({
         "job_id": "cpj_flt", "universe": "nifty500", "timeframe": "1D", "status": "completed",
