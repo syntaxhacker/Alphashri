@@ -26,6 +26,8 @@ export { PatternGrid } from "./PatternGrid";
 export type { PatternGridProps } from "./PatternGrid";
 export { ScanProgress } from "./ScanProgress";
 export type { ScanProgressProps } from "./ScanProgress";
+export { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
+export type { AppliedFiltersProps, AppliedFilterChip } from "./AppliedFilters";
 export { PatternFullscreenView } from "./PatternFullscreenView";
 export type { PatternFullscreenViewProps } from "./PatternFullscreenView";
 export { PatternImage } from "./PatternImage";

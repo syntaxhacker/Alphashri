@@ -22,6 +22,7 @@ import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
 import { ScanProgress } from "@/components/patterns/ScanProgress";
+import { AppliedFilters } from "@/components/patterns/AppliedFilters";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 
 /** Count of active (non-default) filters, shown on the Filters button. */
@@ -204,6 +205,13 @@ export function PatternsPage({
             </Button>
           </ToolbarRow>
         </ToolbarRow>
+
+        <AppliedFilters
+          filters={filters}
+          patterns={patterns}
+          setFilter={setFilter}
+          resetFilters={resetFilters}
+        />
 
         {scanActive && results.length > 0 ? (
           <ScanProgress
