@@ -700,11 +700,12 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
   try {
     const [detail, chart] = await Promise.all([
       fetchSymbolDetail(symbol, tf),
-      fetchSymbolChart(
-        symbol,
-        tf,
-        state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : undefined,
-      ),
+      // Forward the TLS/TLR opt-out: with computation off the chart endpoint
+      // skips the detector and returns empty `trend_lines`.
+      fetchSymbolChart(symbol, tf, {
+        ...(state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : {}),
+        computeTrendlines: state.computeTrendlines,
+      }),
     ]);
     if (state.selectedSymbol !== symbol) return;
     patch({ detail, detailChart: chart, error: null });

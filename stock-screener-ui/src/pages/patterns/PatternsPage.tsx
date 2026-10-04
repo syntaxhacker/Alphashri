@@ -161,11 +161,12 @@ export function PatternsPage({
     chartRequestRef.current = token;
     const identity = hitIdentity(hit);
     setFullscreen({ hit, candles: hit.candles ?? [], overlays: [], trendLines: hit.trend_lines ?? [] });
-    void fetchSymbolChart(
-      hit.symbol,
-      hit.timeframe,
-      lookbackBars != null ? { lookbackBars } : undefined,
-    )
+    // Forward the TLS/TLR opt-out: with computation off the chart endpoint
+    // skips the detector and returns empty `trend_lines`.
+    void fetchSymbolChart(hit.symbol, hit.timeframe, {
+      ...(lookbackBars != null ? { lookbackBars } : {}),
+      computeTrendlines,
+    })
       .then((chart) => {
         // Drop stale responses: only the latest request may update the view.
         if (chartRequestRef.current !== token) return;

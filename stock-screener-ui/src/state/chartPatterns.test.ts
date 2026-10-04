@@ -842,7 +842,7 @@ describe("loadSymbolDetail", () => {
     expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1D",
-      { lookbackBars: 250 },
+      { lookbackBars: 250, computeTrendlines: true },
     );
   });
 
@@ -852,7 +852,35 @@ describe("loadSymbolDetail", () => {
 
     expect(getChartPatternsState().lookbackBars).toBeNull();
     await loadSymbolDetail("IRCON");
-    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", undefined);
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { computeTrendlines: true });
+  });
+
+  it("forwards computeTrendlines=false to fetchSymbolChart when TLS/TLR is off", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [], trend_lines: [] });
+
+    setComputeTrendlines(false);
+    await flush();
+    mocked.fetchSymbolChart.mockClear();
+    await loadSymbolDetail("IRCON");
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      expect.objectContaining({ computeTrendlines: false }),
+    );
+  });
+
+  it("forwards computeTrendlines=true to fetchSymbolChart by default", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+
+    expect(getChartPatternsState().computeTrendlines).toBe(true);
+    await loadSymbolDetail("IRCON");
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      expect.objectContaining({ computeTrendlines: true }),
+    );
   });
 });
 
@@ -897,6 +925,270 @@ describe("lookbackBars in results query", () => {
     await loadResults();
     expect(mocked.fetchResults).toHaveBeenCalledWith(
       expect.not.objectContaining({ lookback_bars: expect.anything() }),
+    );
+  });
+});
+
+describe("custom scope edge cases", () => {
+  it("selectSymbols([]) keeps the current universe instead of switching to custom", async () => {
+    setUniverse("nifty500");
+    mocked.fetchResults.mockClear();
+    selectSymbols([]);
+    await flush();
+    const state = getChartPatternsState();
+    expect(state.universe).toBe("nifty500");
+    expect(state.filters.symbols).toEqual([]);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: "nifty500" }),
+    );
+  });
+
+  it("selectUniverse(custom) preserves symbols and queries universe:null + symbols", async () => {
+    selectSymbols(["BSE"]);
+    await flush();
+    mocked.fetchResults.mockClear();
+    mocked.fetchSummary.mockClear();
+    selectUniverse(CUSTOM_UNIVERSE);
+    await flush();
+    const state = getChartPatternsState();
+    expect(state.universe).toBe(CUSTOM_UNIVERSE);
+    expect(state.filters.symbols).toEqual(["BSE"]);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: null, symbols: ["BSE"] }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: null, symbols: ["BSE"] }),
+    );
+  });
+
+  it("direct loaders no-op on an empty custom scope without touching the server", async () => {
+    setUniverse(CUSTOM_UNIVERSE);
+    await loadResults();
+    await loadSummary();
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+    expect(mocked.fetchSummary).not.toHaveBeenCalled();
+    expect(getChartPatternsState().results).toEqual([]);
+    expect(getChartPatternsState().total).toBe(0);
+    expect(getChartPatternsState().summary).toBeNull();
+  });
+});
+
+describe("setLookbackBars lifecycle", () => {
+  it("is a no-op when the value is unchanged (no reload, no forced scan)", async () => {
+    expect(getChartPatternsState().lookbackBars).toBeNull();
+    setLookbackBars(null);
+    await flush();
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+    expect(mocked.fetchSummary).not.toHaveBeenCalled();
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+
+  it("forwards lookback_bars to the summary query and clears a prior error", async () => {
+    setUniverse("nifty500");
+    await flush();
+    mocked.fetchResults.mockClear();
+    mocked.fetchSummary.mockClear();
+    mocked.startScan.mockClear();
+    mocked.fetchResults.mockRejectedValueOnce(new Error("results down"));
+    await loadResults();
+    expect(getChartPatternsState().error).toBe("results down");
+
+    mocked.fetchResults.mockResolvedValueOnce({ items: [], total: 0, summary: SUMMARY, data_through: null });
+    setLookbackBars(250);
+    await flush();
+    expect(getChartPatternsState().error).toBeNull();
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ lookback_bars: 250 }),
+    );
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ lookback_bars: 250, force: true }),
+    );
+  });
+
+  it("resetting to Auto (null) omits lookback_bars from the next scan", async () => {
+    setUniverse("nifty500");
+    setLookbackBars(250);
+    await flush();
+    setLookbackBars(null);
+    expect(getChartPatternsState().lookbackBars).toBeNull();
+    await flush();
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.not.objectContaining({ lookback_bars: expect.anything() }),
+    );
+  });
+});
+
+describe("setComputeTrendlines lifecycle", () => {
+  it("is a no-op when the value is unchanged (no reload, no scan)", async () => {
+    expect(getChartPatternsState().computeTrendlines).toBe(true);
+    setComputeTrendlines(true);
+    await flush();
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+    expect(mocked.fetchSummary).not.toHaveBeenCalled();
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+
+  it("computeTrendlines:false does not suppress the empty-view auto-scan", async () => {
+    setUniverse("nifty500");
+    setComputeTrendlines(false);
+    await flush();
+    mocked.startScan.mockClear();
+    selectTimeframe("15m");
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ compute_trendlines: false }),
+    );
+  });
+});
+
+describe("hasRestrictiveFilter exhaustive", () => {
+  it("flags every narrowing key and ignores view-only state", () => {
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, family: ["reversal"] })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, direction: ["bullish"] })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, status: ["confirmed"] })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, quality: "a" })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, formed_within_bars: 10 })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, volume_confirmed: false })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_base_days: 30 })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, max_range_pct: 20 })).toBe(true);
+    // Empty symbol string is not restrictive; view-only trendlines never is.
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: "" })).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: null })).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "resistance" })).toBe(false);
+    expect(hasRestrictiveFilter(DEFAULT_PATTERN_FILTERS)).toBe(false);
+  });
+});
+
+describe("scan lifecycle extras", () => {
+  it("triggerScan for a preset universe sends symbols:undefined with lookback", async () => {
+    setUniverse("nifty500");
+    setFilter("symbols", ["X"]);
+    setLookbackBars(250);
+    await flush();
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+    const req = mocked.startScan.mock.calls[0][0] as Record<string, unknown>;
+    expect(req["symbols"]).toBeUndefined();
+    expect(req["lookback_bars"]).toBe(250);
+    expect(req["force"]).toBe(true);
+  });
+
+  it("pollJob on a cancelled job stops without error and without reload", async () => {
+    mocked.fetchJob.mockResolvedValue(makeJob({ status: "cancelled" }));
+    setScanning(true);
+    await pollJob("cpj_1");
+    expect(getChartPatternsState().job?.status).toBe("cancelled");
+    expect(getChartPatternsState().scanning).toBe(false);
+    expect(getChartPatternsState().error).toBeNull();
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+    expect(mocked.fetchSummary).not.toHaveBeenCalled();
+  });
+
+  it("pollJob on a queued job keeps scanning and keeps polling", async () => {
+    mocked.fetchJob.mockResolvedValue(makeJob({ status: "queued", queue_position: 3 }));
+    setScanning(true);
+    await pollJob("cpj_1");
+    expect(getChartPatternsState().job?.status).toBe("queued");
+    expect(getChartPatternsState().scanning).toBe(true);
+    await vi.advanceTimersByTimeAsync(POLL_INTERVAL_MS);
+    expect(mocked.fetchJob).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe("loading + error generations", () => {
+  it("loadResults sets loading while in flight and clears it after", async () => {
+    const pending = loadResults();
+    expect(getChartPatternsState().loading).toBe(true);
+    await pending;
+    expect(getChartPatternsState().loading).toBe(false);
+  });
+
+  it("stores an error when loadSummary fails", async () => {
+    mocked.fetchSummary.mockRejectedValue(new Error("summary down"));
+    await loadSummary();
+    expect(getChartPatternsState().error).toBe("summary down");
+    expect(getChartPatternsState().loading).toBe(false);
+  });
+
+  it("ignores a stale loadSummary failure after a newer success", async () => {
+    let rejectSlow!: (reason: unknown) => void;
+    mocked.fetchSummary
+      .mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectSlow = reject; }))
+      .mockImplementationOnce(() => Promise.resolve({ ...SUMMARY, scanned: 5 }));
+    const slow = loadSummary();
+    const fast = loadSummary();
+    await fast;
+    await flush();
+    expect(getChartPatternsState().error).toBeNull();
+    rejectSlow(new Error("slow summary boom"));
+    await slow;
+    await flush();
+    expect(getChartPatternsState().error).toBeNull();
+    expect(getChartPatternsState().summary?.scanned).toBe(5);
+  });
+});
+
+describe("resetChartPatternsState", () => {
+  it("restores the full initial state", async () => {
+    setUniverse("nifty500");
+    setTimeframe("15m");
+    setFilter("q", "bank");
+    setLookbackBars(250);
+    setComputeTrendlines(false);
+    setScanning(true);
+    setJob(makeJob({ job_id: "cpj_dirty" }));
+    await flush();
+    resetChartPatternsState();
+    const state = getChartPatternsState();
+    expect(state.universe).toBe("");
+    expect(state.timeframe).toBe("1D");
+    expect(state.lookbackBars).toBeNull();
+    expect(state.computeTrendlines).toBe(true);
+    expect(state.filters).toEqual(DEFAULT_PATTERN_FILTERS);
+    expect(state.job).toBeNull();
+    expect(state.scanning).toBe(false);
+    expect(state.results).toEqual([]);
+    expect(state.total).toBe(0);
+    expect(state.summary).toBeNull();
+    expect(state.error).toBeNull();
+    expect(state.loading).toBe(false);
+    expect(state.selectedSymbol).toBeNull();
+    expect(state.detail).toBeNull();
+  });
+});
+
+describe("loadSymbolDetail extras", () => {
+  it("forwards an explicit timeframe to detail + chart", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "15m", candles: [], overlays: [] });
+    await loadSymbolDetail("IRCON", "15m");
+    expect(mocked.fetchSymbolDetail).toHaveBeenCalledWith("IRCON", "15m");
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "15m", { computeTrendlines: true });
+  });
+
+  it("stores an error when the detail request fails", async () => {
+    mocked.fetchSymbolDetail.mockRejectedValue(new Error("detail down"));
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+    await loadSymbolDetail("IRCON");
+    expect(getChartPatternsState().error).toBe("detail down");
+    expect(getChartPatternsState().loading).toBe(false);
+  });
+
+  it("forwards lookback + computeTrendlines:false together to the chart request", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+    setLookbackBars(250);
+    setComputeTrendlines(false);
+    await flush();
+    mocked.fetchSymbolChart.mockClear();
+    await loadSymbolDetail("IRCON");
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      { lookbackBars: 250, computeTrendlines: false },
     );
   });
 });

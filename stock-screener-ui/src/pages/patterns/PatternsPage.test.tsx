@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { act, cleanup, render, screen, waitFor } from "@testing-library/react";
+import { act, cleanup, render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO, PatternSummary } from "@/types/chartPatterns";
@@ -23,6 +23,103 @@ vi.mock("@/api/chartPatterns", () => ({
 const fetchPatternImages = vi.fn();
 vi.mock("@/api/patternImages", () => ({
   fetchPatternImages: (...args: unknown[]) => fetchPatternImages(...args),
+}));
+
+// Rendered-prop spies for the trendlines-view wiring tests.
+const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
+const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
+
+// Faithful stubs: preserve the contract testids the page relies on
+// (card buttons incl. expand affordance, fullscreen modal + chart +
+// "No chart data") while recording the `trendlinesView` prop.
+vi.mock("@/components/patterns/PatternGrid", () => ({
+  PatternGrid: ({ hits, onSelect, onExpand, trendlinesView = "both" }: any) => {
+    gridTrendlinesViews.push(trendlinesView);
+    return (
+      <div data-testid="patterns-grid" data-trendlines-view={trendlinesView}>
+        {(hits as any[]).map((hit: any) => (
+          <div key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}>
+            <button
+              type="button"
+              data-testid={`patterns-card-${hit.symbol}-${hit.pattern_id}`}
+              onClick={() => onSelect?.(hit)}
+            >
+              {hit.symbol} {hit.pattern_name}
+            </button>
+            <button
+              type="button"
+              data-testid={`patterns-card-expand-${hit.symbol}-${hit.pattern_id}`}
+              aria-label={`Open fullscreen chart for ${hit.symbol} ${hit.pattern_name}`}
+              onClick={(e) => {
+                e.stopPropagation();
+                onExpand?.(hit);
+              }}
+            >
+              expand
+            </button>
+          </div>
+        ))}
+      </div>
+    );
+  },
+}));
+
+vi.mock("@/components/patterns/PatternFullscreenView", () => ({
+  PatternFullscreenView: ({ opened, onClose, hit, candles, trendlinesView = "both" }: any) => {
+    fullscreenTrendlinesViews.push(trendlinesView);
+    if (!opened) return null;
+    return (
+      <div data-testid="patterns-fullscreen-modal" data-trendlines-view={trendlinesView}>
+        <div>{hit?.pattern_name}</div>
+        <button type="button" onClick={onClose}>
+          Close
+        </button>
+        <div data-testid="patterns-fullscreen-chart" />
+        {(candles?.length ?? 0) === 0 ? <div>No chart data</div> : null}
+      </div>
+    );
+  },
+}));
+
+// Native-select stubs so toolbar wiring is deterministic (the real MUI
+// Select needs popup interaction). Testids + onChange contracts preserved.
+vi.mock("@/components/patterns/TimeframeSelect", () => ({
+  TimeframeSelect: ({ timeframes, value, onChange }: any) => {
+    const source =
+      (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: value, label: value }];
+    return (
+      <select
+        data-testid="patterns-timeframe-select"
+        aria-label="Timeframe"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {source.map((tf: any) => (
+          <option key={tf.id} value={tf.id}>
+            {tf.label || tf.id}
+          </option>
+        ))}
+      </select>
+    );
+  },
+}));
+
+vi.mock("@/components/patterns/LookbackSelect", () => ({
+  LookbackSelect: ({ value, onChange }: any) => (
+    <select
+      data-testid="patterns-lookback-select"
+      aria-label="Lookback"
+      value={value == null ? "auto" : String(value)}
+      onChange={(e) => {
+        const v = e.target.value;
+        onChange(v === "auto" ? null : Number(v));
+      }}
+    >
+      <option value="auto">Auto</option>
+      <option value="250">250</option>
+      <option value="500">500</option>
+    </select>
+  ),
 }));
 
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
@@ -126,6 +223,8 @@ function r(jsx: React.ReactElement) {
 describe("PatternsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    gridTrendlinesViews.length = 0;
+    fullscreenTrendlinesViews.length = 0;
     fetchPatternImages.mockResolvedValue({
       falling_wedge: "/api/chart-patterns/image/falling_wedge",
     });
@@ -332,5 +431,230 @@ describe("PatternsPage", () => {
     // The newer selection stands: still the second hit, still no chart data.
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge");
     expect(screen.getByText("No chart data")).toBeInTheDocument();
+  });
+});
+
+describe("PatternsPage toolbar", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gridTrendlinesViews.length = 0;
+    fullscreenTrendlinesViews.length = 0;
+    fetchPatternImages.mockResolvedValue({});
+    fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+  });
+  afterEach(() => cleanup());
+
+  test("renders the scan-scope and results-toolbar contract regions", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.getByTestId("patterns-scan-scope")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-results-toolbar")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-symbol-filter")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-universe-bar")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-job-status")).toBeInTheDocument();
+  });
+
+  test("toolbar shows timeframe, lookback, filter-results and TLS/TLR controls", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-lookback-select")).toBeInTheDocument();
+    // Native input carries the testid (see TextInput htmlInput slot).
+    expect(screen.getByTestId("patterns-results-search")).toBeInTheDocument();
+    expect(screen.getByPlaceholderText("Symbol or company")).toBeInTheDocument();
+    expect(screen.getByText("TLS/TLR")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-compute-trendlines")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
+  });
+
+  test("changing the timeframe select calls setTimeframe", async () => {
+    const props = makeProps({
+      timeframes: [
+        { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
+        { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+      ],
+    });
+    r(<PatternsPage {...props} />);
+    await userEvent.selectOptions(screen.getByTestId("patterns-timeframe-select"), "1h");
+    expect(props.setTimeframe).toHaveBeenCalledWith("1h");
+  });
+
+  test("changing the lookback select calls setLookbackBars", async () => {
+    const props = makeProps();
+    r(<PatternsPage {...props} />);
+    await userEvent.selectOptions(screen.getByTestId("patterns-lookback-select"), "250");
+    expect(props.setLookbackBars).toHaveBeenCalledWith(250);
+  });
+
+  test("typing in Filter results commits the debounced q filter", async () => {
+    const props = makeProps();
+    r(<PatternsPage {...props} />);
+    await userEvent.type(screen.getByTestId("patterns-results-search"), "TCS");
+    await waitFor(
+      () => expect(props.setFilter).toHaveBeenCalledWith("q", "TCS"),
+      { timeout: 3000 },
+    );
+  });
+
+  test("Filters button shows the active-filter count", () => {
+    const props = makeProps({
+      filters: { ...makeProps().filters, family: ["reversal"], direction: ["bullish"] },
+    });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters (2)");
+  });
+
+  test("Filters button shows no count when filters are pristine", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
+    expect(screen.getByTestId("patterns-open-filters")).not.toHaveTextContent("(");
+  });
+});
+
+describe("PatternsPage applied filters + modal + fullscreen", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    gridTrendlinesViews.length = 0;
+    fullscreenTrendlinesViews.length = 0;
+    fetchPatternImages.mockResolvedValue({});
+    fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+  });
+  afterEach(() => cleanup());
+
+  test("applied-filters row renders one chip per active value", () => {
+    const props = makeProps({
+      filters: { ...makeProps().filters, family: ["reversal"], direction: ["bullish"], quality: "strong" },
+    });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByTestId("patterns-applied-filters")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-applied-filter-family:reversal")).toHaveTextContent("Family: Reversal");
+    expect(screen.getByTestId("patterns-applied-filter-direction:bullish")).toHaveTextContent("Direction: Bullish");
+    expect(screen.getByTestId("patterns-applied-filter-quality:strong")).toBeInTheDocument();
+  });
+
+  test("applied-filters row is absent when no filters are active", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.queryByTestId("patterns-applied-filters")).not.toBeInTheDocument();
+  });
+
+  test("removing an applied chip calls setFilter with the value dropped", async () => {
+    const props = makeProps({ filters: { ...makeProps().filters, family: ["reversal"] } });
+    r(<PatternsPage {...props} />);
+    const chip = screen.getByTestId("patterns-applied-filter-family:reversal");
+    await userEvent.click(within(chip).getByTestId("CancelIcon"));
+    expect(props.setFilter).toHaveBeenCalledWith("family", []);
+  });
+
+  test("Clear all in the applied row calls resetFilters", async () => {
+    const props = makeProps({ filters: { ...makeProps().filters, family: ["reversal"] } });
+    r(<PatternsPage {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-applied-clear-all"));
+    expect(props.resetFilters).toHaveBeenCalledTimes(1);
+  });
+
+  test("filters modal exposes the modal region and Reset all calls resetFilters", async () => {
+    const props = makeProps();
+    r(<PatternsPage {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-open-filters"));
+    expect(await screen.findByTestId("patterns-filter-modal")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("patterns-reset"));
+    expect(props.resetFilters).toHaveBeenCalledTimes(1);
+  });
+
+  test("expand button on a card opens the fullscreen chart", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
+    expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { computeTrendlines: true });
+  });
+
+  test("grid + fullscreen default to the both trendlines view when computing", () => {
+    r(<PatternsPage {...makeProps({ computeTrendlines: true })} />);
+    expect(gridTrendlinesViews.at(-1)).toBe("both");
+    expect(screen.getByTestId("patterns-grid")).toHaveAttribute("data-trendlines-view", "both");
+  });
+
+  test("TLS/TLR toggle off passes trendlinesView=none to grid and fullscreen", async () => {
+    r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
+    expect(gridTrendlinesViews.at(-1)).toBe("none");
+    expect(screen.getByTestId("patterns-grid")).toHaveAttribute("data-trendlines-view", "none");
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toHaveAttribute(
+      "data-trendlines-view",
+      "none",
+    );
+    expect(fullscreenTrendlinesViews.at(-1)).toBe("none");
+  });
+
+  test("opening a card opts the chart fetch out of trendline computation when TLS/TLR is off", async () => {
+    r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    expect(fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      expect.objectContaining({ computeTrendlines: false }),
+    );
+  });
+
+  test("opening a card forwards computeTrendlines when TLS/TLR is on", async () => {
+    r(<PatternsPage {...makeProps({ computeTrendlines: true, lookbackBars: 250 })} />);
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    expect(fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      { lookbackBars: 250, computeTrendlines: true },
+    );
+  });
+
+  test("view-only trendlines filter flows through when computation stays on", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          computeTrendlines: true,
+          filters: { ...makeProps().filters, trendlines: "support" },
+        })}
+      />,
+    );
+    expect(gridTrendlinesViews.at(-1)).toBe("support");
+  });
+
+  test("scan banner stays above the grid while a scan runs with results", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          scanning: true,
+          job: {
+            job_id: "cpj_banner",
+            universe: "nifty500",
+            timeframe: "1D",
+            status: "running",
+            total: 50,
+            done: 12,
+            failed: 0,
+            skipped: 0,
+            queue_position: null,
+            started_at: null,
+            finished_at: null,
+            data_through: null,
+            error: null,
+          },
+        })}
+      />,
+    );
+    // Banner variant (compact count, no spaces around the slash) + grid kept.
+    expect(screen.getByTestId("patterns-scan-progress")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("12/50 stocks");
+    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-empty")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
+  });
+
+  test("loading with no results and no active scan shows the generic loader", () => {
+    r(<PatternsPage {...makeProps({ loading: true, results: [], total: 0 })} />);
+    expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
+    expect(screen.getByText("Loading results…")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
   });
 });
