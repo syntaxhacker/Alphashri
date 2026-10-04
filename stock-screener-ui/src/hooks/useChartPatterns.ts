@@ -13,12 +13,14 @@ import {
   loadSymbolDetail,
   selectTimeframe,
   selectUniverse,
+  selectSymbols,
   setFilter,
   resetFilters,
   applyFilters,
   triggerScan,
   refresh,
   setSelectedSymbol,
+  CUSTOM_UNIVERSE,
 } from "../state/chartPatterns";
 
 export interface UseChartPatternsResult {
@@ -29,6 +31,10 @@ export interface UseChartPatternsResult {
   setTimeframe: (v: string) => void;
   universe: string;
   setUniverse: (v: string) => void;
+  /** Reserved id of the custom symbol scope (see `CUSTOM_UNIVERSE`). */
+  customUniverse: string;
+  /** Set the custom symbol scope (switches to the custom universe) and reload. */
+  selectSymbols: (symbols: string[]) => void;
   filters: PatternFilters;
   setFilter: (k: string, v: unknown) => void;
   resetFilters: () => void;
@@ -78,6 +84,8 @@ export function useChartPatterns(): UseChartPatternsResult {
     setTimeframe: selectTimeframe,
     universe: state.universe,
     setUniverse: selectUniverse,
+    customUniverse: CUSTOM_UNIVERSE,
+    selectSymbols,
     filters: state.filters,
     setFilter: handleSetFilter,
     resetFilters,

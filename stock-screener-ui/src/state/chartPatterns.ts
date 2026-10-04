@@ -37,6 +37,8 @@ import {
 /** Poll cadence while a scan job is queued/running. */
 export const POLL_INTERVAL_MS = 2000;
 export const DEFAULT_TIMEFRAME = "1D";
+/** Reserved universe id for a hand-picked symbol scan (no preset universe). */
+export const CUSTOM_UNIVERSE = "custom";
 export const DEFAULT_RESULTS_LIMIT = 200;
 /**
  * A combo whose last completed scan is older than this (or that has never been
@@ -250,8 +252,11 @@ export function setSelectedSymbol(selectedSymbol: string | null): void {
 // ---------------------------------------------------------------------------
 
 function baseQuery(): PatternsQuery {
+  const custom = state.universe === CUSTOM_UNIVERSE;
   return {
-    universe: state.universe || null,
+    // A custom scope is defined by its symbols, not a universe: query by symbol
+    // so known patterns for those symbols show regardless of which scan made them.
+    universe: custom ? null : state.universe || null,
     timeframe: state.timeframe || null,
     family: state.filters.family,
     pattern_id: state.filters.pattern_id,
@@ -305,6 +310,12 @@ export async function loadCatalog(): Promise<void> {
 
 /** Load the current result page for the active universe/timeframe/filters. */
 export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promise<void> {
+  // Custom scope with no symbols has nothing to show — and must never fall back
+  // to an unscoped query, which would return every universe's hits.
+  if (state.universe === CUSTOM_UNIVERSE && state.filters.symbols.length === 0) {
+    patch({ results: [], total: 0 });
+    return;
+  }
   const generation = ++resultsGeneration;
   startLoading();
   try {
@@ -326,6 +337,10 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
 
 /** Load the aggregate summary for the active universe/timeframe/filters. */
 export async function loadSummary(overrides: Partial<PatternsQuery> = {}): Promise<void> {
+  if (state.universe === CUSTOM_UNIVERSE && state.filters.symbols.length === 0) {
+    patch({ summary: null, dataThrough: null });
+    return;
+  }
   const generation = ++summaryGeneration;
   startLoading();
   try {
@@ -415,10 +430,18 @@ function maybeAutoScan(): void {
   if (state.scanning) return;
   const { universe, timeframe } = state;
   if (!universe || !timeframe) return;
+  const custom = universe === CUSTOM_UNIVERSE;
+  // A custom scope with no symbols has nothing to scan.
+  if (custom && state.filters.symbols.length === 0) return;
   // Results are present and fresh: nothing to refresh.
   if (state.results.length > 0 && !isScanStale()) return;
   // Empty under a restrictive filter is filter-caused, not a missing scan.
-  if (state.results.length === 0 && hasRestrictiveFilter(state.filters)) return;
+  // In a custom scope the symbols ARE the scope (not a narrowing filter), so
+  // they must not suppress the scan of that scope.
+  const restrictive = custom
+    ? hasRestrictiveFilter({ ...state.filters, symbols: [] })
+    : hasRestrictiveFilter(state.filters);
+  if (state.results.length === 0 && restrictive) return;
   const active = state.job;
   const activeForCombo =
     !!active &&
@@ -426,7 +449,10 @@ function maybeAutoScan(): void {
     active.universe === universe &&
     active.timeframe === timeframe;
   if (activeForCombo) return;
-  const key = `${universe}|${timeframe}`;
+  // A custom scope is keyed by its symbol set, so changing the set re-scans.
+  const key = custom
+    ? `${universe}:${[...state.filters.symbols].sort().join(",")}|${timeframe}`
+    : `${universe}|${timeframe}`;
   if (autoScanRequested.has(key)) return;
   // The key is recorded only after the scan is successfully enqueued (inside
   // `triggerScan`), so a 429/network failure leaves the combo retryable.
@@ -469,9 +495,10 @@ export async function triggerScan(
 ): Promise<void> {
   const universe = overrides.universe ?? state.universe;
   const timeframe = overrides.timeframe ?? state.timeframe;
+  const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : undefined;
   patch({ error: null });
   try {
-    const response = await startScan({ universe, timeframe, force });
+    const response = await startScan({ universe, timeframe, force, symbols });
     if (overrides.autoKey) autoScanRequested.add(overrides.autoKey);
     patch({
       job: jobFromScan(
@@ -583,10 +610,44 @@ export function selectTimeframe(timeframe: string): void {
 
 /** Switch universe and reload results/summary; clears the open symbol detail. */
 export function selectUniverse(universe: string): void {
-  // No-op first: re-selecting the active value must not wipe the open detail.
-  if (universe === state.universe) return;
-  patch({ universe, selectedSymbol: null, detail: null, detailChart: null, error: null });
-  void reloadSelection({ universe });
+  // No-op first: re-selecting the active preset must not wipe the open detail.
+  // Re-selecting `custom` is allowed (it may need a reload after clearing).
+  if (universe === state.universe && universe !== CUSTOM_UNIVERSE) return;
+  // Preset scopes are not symbol-scoped; entering custom keeps the current set.
+  const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : [];
+  patch({
+    universe,
+    filters: { ...state.filters, symbols },
+    selectedSymbol: null,
+    detail: null,
+    detailChart: null,
+    error: null,
+  });
+  void reloadSelection({});
+}
+
+/**
+ * Set the custom symbol scope (switching to the `custom` universe) and reload.
+ * Selecting symbols is what defines a custom scan — no preset universe needed.
+ */
+export function selectSymbols(symbols: string[]): void {
+  const clean: string[] = [];
+  const seen = new Set<string>();
+  for (const raw of symbols ?? []) {
+    const symbol = String(raw ?? "").trim().toUpperCase();
+    if (!symbol || seen.has(symbol)) continue;
+    seen.add(symbol);
+    clean.push(symbol);
+  }
+  patch({
+    universe: clean.length > 0 ? CUSTOM_UNIVERSE : state.universe,
+    filters: { ...state.filters, symbols: clean },
+    selectedSymbol: null,
+    detail: null,
+    detailChart: null,
+    error: null,
+  });
+  void reloadSelection({});
 }
 
 /** Load the symbol drill-down (detail + chart) for the active timeframe. */

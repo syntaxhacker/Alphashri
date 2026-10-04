@@ -56,6 +56,10 @@ export interface PatternsPageProps {
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
+  /** Reserved id of the custom symbol scope (e.g. `"custom"`). */
+  customUniverse: string;
+  /** Set the custom symbol scope (switches to the custom universe) and reload. */
+  selectSymbols: (symbols: string[]) => void;
   job: JobDTO | null;
   scanning: boolean;
   queuePosition: number | null;
@@ -84,6 +88,8 @@ export function PatternsPage({
   setFilter,
   resetFilters,
   applyFilters,
+  customUniverse,
+  selectSymbols,
   job,
   scanning,
   queuePosition,
@@ -172,12 +178,26 @@ export function PatternsPage({
           universes={universes}
           universe={universe}
           setUniverse={setUniverse}
+          customUniverse={customUniverse}
+          customSymbolCount={filters.symbols?.length ?? 0}
           scan={scan}
           scanning={scanning}
           job={job}
           queuePosition={queuePosition}
           error={error}
         />
+        <Box
+          data-testid="patterns-scan-scope"
+          sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, bgcolor: "background.paper", p: 1 }}
+        >
+          <SymbolFilter
+            filters={filters}
+            setFilter={setFilter}
+            onChange={selectSymbols}
+            placeholder="Search symbols to scan…"
+            helperText="Add symbols to scan just those — skips the whole universe"
+          />
+        </Box>
         <ScanStats summary={summary} />
       </Box>
 
@@ -192,7 +212,6 @@ export function PatternsPage({
           </Text>
           <ToolbarRow gap={8} justify="flex-end" align="center" style={{ flexWrap: "wrap" }}>
             <TimeframeSelect timeframes={timeframes} value={timeframe} onChange={setTimeframe} />
-            <SymbolFilter filters={filters} setFilter={setFilter} />
             <ResultsSearch filters={filters} setFilter={setFilter} />
             <Button
               size="xs"

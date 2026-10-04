@@ -51,6 +51,8 @@ export interface ScanRequest {
   universe: string;
   timeframe: string;
   force?: boolean;
+  /** Explicit symbol scope: scan only these (stored under the `custom` universe). */
+  symbols?: string[];
 }
 
 export interface ScanResponse {

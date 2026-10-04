@@ -43,6 +43,8 @@ import {
   selectTimeframe,
   setUniverse,
   selectUniverse,
+  selectSymbols,
+  CUSTOM_UNIVERSE,
   setFilter,
   resetFilters,
   applyFilters,
@@ -194,6 +196,50 @@ describe("selectTimeframe / selectUniverse", () => {
     selectUniverse("nifty50");
     expect(getChartPatternsState().universe).toBe("nifty50");
     expect(mocked.fetchResults).toHaveBeenCalledWith(expect.objectContaining({ universe: "nifty50" }));
+  });
+});
+
+describe("custom symbol scope", () => {
+  it("selectSymbols switches to the custom universe and queries by symbol", () => {
+    setUniverse("nifty500");
+    mocked.fetchResults.mockClear();
+    selectSymbols(["bse", " infy ", "BSE"]);
+    const state = getChartPatternsState();
+    expect(state.universe).toBe(CUSTOM_UNIVERSE);
+    expect(state.filters.symbols).toEqual(["BSE", "INFY"]);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: null, symbols: ["BSE", "INFY"] }),
+    );
+  });
+
+  it("selecting a preset universe clears the custom symbols", () => {
+    selectSymbols(["BSE"]);
+    mocked.fetchResults.mockClear();
+    selectUniverse("nifty50");
+    const state = getChartPatternsState();
+    expect(state.universe).toBe("nifty50");
+    expect(state.filters.symbols).toEqual([]);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: "nifty50", symbols: [] }),
+    );
+  });
+
+  it("a custom scan sends the symbol scope to startScan", async () => {
+    selectSymbols(["BSE", "INFY"]);
+    await flush();
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ universe: "custom", symbols: ["BSE", "INFY"], force: true }),
+    );
+  });
+
+  it("an empty custom scope neither queries nor auto-scans", async () => {
+    selectUniverse(CUSTOM_UNIVERSE);
+    await flush();
+    expect(getChartPatternsState().universe).toBe(CUSTOM_UNIVERSE);
+    expect(mocked.fetchResults).not.toHaveBeenCalled();
+    expect(mocked.startScan).not.toHaveBeenCalled();
   });
 });
 

@@ -1,4 +1,5 @@
 import { Box, Button, Chip, Text, ToolbarRow } from "@/ui";
+import { IconPencil } from "@tabler/icons-react";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
 import { JobStatus } from "./JobStatus";
 
@@ -6,6 +7,10 @@ export interface UniverseBarProps {
   universes: Universe[];
   universe: string;
   setUniverse: (value: string) => void;
+  /** Reserved id of the custom symbol scope (e.g. `"custom"`). */
+  customUniverse?: string;
+  /** How many symbols the custom scope currently holds (drives the label). */
+  customSymbolCount?: number;
   scan: () => void;
   scanning: boolean;
   job: JobDTO | null;
@@ -13,17 +18,31 @@ export interface UniverseBarProps {
   error: string | null;
 }
 
-/** Universe pills + rescan action + live job status. */
+/**
+ * Scan-scope bar: universe pills plus a "Custom" pill for a hand-picked symbol
+ * set, a live job status and the scan action. The action label adapts to the
+ * scope — "Scan again" for a universe, "Scan N symbols" for a custom set.
+ */
 export function UniverseBar({
   universes,
   universe,
   setUniverse,
+  customUniverse = "custom",
+  customSymbolCount = 0,
   scan,
   scanning,
   job,
   queuePosition,
   error,
 }: UniverseBarProps) {
+  const customActive = universe === customUniverse;
+  const customCount = customSymbolCount ?? 0;
+  const scanDisabled = scanning || (customActive && customCount === 0);
+  const scanLabel =
+    customActive && customCount > 0
+      ? `Scan ${customCount} symbol${customCount === 1 ? "" : "s"}`
+      : "Scan again";
+
   return (
     <Box
       data-testid="patterns-universe-bar"
@@ -32,7 +51,7 @@ export function UniverseBar({
       <ToolbarRow justify="space-between" gap={1.5}>
         <ToolbarRow gap={0.75}>
           <Text size="xs" fw={700} style={{ textTransform: "uppercase" }} c="dimmed">
-            Universe
+            Scan
           </Text>
           {universes.map((u) => (
             <Chip
@@ -47,6 +66,18 @@ export function UniverseBar({
               {u.count > 0 ? ` (${u.count.toLocaleString("en-IN")})` : ""}
             </Chip>
           ))}
+          <Chip
+            size="sm"
+            variant="light"
+            checked={customActive}
+            onChange={() => setUniverse(customUniverse)}
+            data-testid="patterns-universe-custom"
+          >
+            <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.5 }}>
+              <IconPencil size={12} />
+              Custom
+            </Box>
+          </Chip>
         </ToolbarRow>
         <ToolbarRow gap={1.5} justify="flex-end">
           <JobStatus job={job} queuePosition={queuePosition} scanning={scanning} />
@@ -55,10 +86,10 @@ export function UniverseBar({
             variant="filled"
             onClick={scan}
             loading={scanning}
-            disabled={scanning}
+            disabled={scanDisabled}
             data-testid="patterns-scan-again"
           >
-            Scan again
+            {scanLabel}
           </Button>
         </ToolbarRow>
       </ToolbarRow>

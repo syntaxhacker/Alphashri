@@ -16,6 +16,14 @@ const EMPTY_SYMBOLS: string[] = [];
 export interface SymbolFilterProps {
   filters: PatternFilters;
   setFilter: (key: string, value: any) => void;
+  /**
+   * Override how a selection change is applied. Defaults to
+   * `setFilter("symbols", …)`. The Patterns scan bar passes the custom-scope
+   * action so picking symbols switches to (and defines) a custom scan.
+   */
+  onChange?: (symbols: string[]) => void;
+  placeholder?: string;
+  helperText?: string;
 }
 
 /** Read the selected symbols from a filter payload (tolerant of older shapes). */
@@ -26,11 +34,19 @@ export function readSelectedSymbols(filters: PatternFilters): string[] {
 
 /**
  * Multi-symbol picker for the Patterns workspace. Debounces async symbol search
- * (via `searchSymbols`), keeps the selection in `filters.symbols` and reloads
- * results server-side through `setFilter`.
+ * (via `searchSymbols`) and keeps the selection in `filters.symbols`. By default
+ * it narrows results server-side through `setFilter`; the scan bar overrides
+ * that with the custom-scope action so the selection drives a targeted scan.
  */
-export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
+export function SymbolFilter({
+  filters,
+  setFilter,
+  onChange,
+  placeholder = "Filter symbols…",
+  helperText = "Show patterns only for these symbols",
+}: SymbolFilterProps) {
   const selected = readSelectedSymbols(filters);
+  const apply = onChange ?? ((symbols: string[]) => setFilter("symbols", symbols));
   const [query, setQuery] = useState("");
   const [debouncedQuery] = useDebouncedValue(query, 250);
   const [options, setOptions] = useState<Array<{ value: string; label: string }>>([]);
@@ -61,10 +77,7 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
   }, [debouncedQuery]);
 
   const removeSymbol = (symbol: string) => {
-    setFilter(
-      "symbols",
-      selected.filter((s) => s !== symbol),
-    );
+    apply(selected.filter((s) => s !== symbol));
   };
 
   return (
@@ -79,15 +92,16 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
             value={selected}
             searchValue={query}
             onChange={(vals) => {
-              setFilter("symbols", vals);
+              apply(vals);
               setQuery("");
             }}
             searchable
             onSearchChange={(v) => setQuery(v)}
             clearable
             hidePickedOptions
+            hideTags
             size="xs"
-            placeholder="Filter symbols…"
+            placeholder={placeholder}
             nothingFoundMessage="No symbols found"
             style={{ width: "100%" }}
           />
@@ -96,7 +110,7 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
           <Button
             size="xs"
             variant="subtle"
-            onClick={() => setFilter("symbols", [])}
+            onClick={() => apply([])}
             data-testid="patterns-symbol-clear"
           >
             Clear
@@ -104,7 +118,7 @@ export function SymbolFilter({ filters, setFilter }: SymbolFilterProps) {
         )}
       </Box>
       <Text size="xs" c="dimmed">
-        Show patterns only for these symbols
+        {helperText}
       </Text>
       {selected.length > 0 && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>

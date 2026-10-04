@@ -61,4 +61,29 @@ describe("UniverseBar", () => {
     r(<UniverseBar {...makeProps({ error: "Queue is full" })} />);
     expect(screen.getByTestId("patterns-status-line")).toHaveTextContent("Queue is full");
   });
+
+  test("renders the custom pill and selects the custom scope", async () => {
+    const props = makeProps({ customUniverse: "custom" });
+    r(<UniverseBar {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-universe-custom"));
+    expect(props.setUniverse).toHaveBeenCalledWith("custom");
+  });
+
+  test("labels the scan action with the custom symbol count", () => {
+    r(
+      <UniverseBar
+        {...makeProps({ universe: "custom", customUniverse: "custom", customSymbolCount: 3 })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-again")).toHaveTextContent("Scan 3 symbols");
+  });
+
+  test("disables the scan action for an empty custom scope", () => {
+    r(
+      <UniverseBar
+        {...makeProps({ universe: "custom", customUniverse: "custom", customSymbolCount: 0 })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-again")).toBeDisabled();
+  });
 });

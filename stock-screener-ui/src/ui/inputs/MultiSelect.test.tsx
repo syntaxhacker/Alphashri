@@ -55,4 +55,16 @@ describe("MultiSelect search handling", () => {
     );
     expect(screen.getByText("TCS")).toBeInTheDocument();
   });
+
+  test("hideTags renders no inline selected tags", () => {
+    const { container } = r(
+      <MultiSelect
+        data={[{ value: "BSE", label: "BSE" }]}
+        value={["BSE"]}
+        onChange={vi.fn()}
+        hideTags
+      />,
+    );
+    expect(container.querySelectorAll(".MuiAutocomplete-tag")).toHaveLength(0);
+  });
 });

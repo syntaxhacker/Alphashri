@@ -2,7 +2,6 @@ import { useMemo, useRef } from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
-import Chip from "@mui/material/Chip";
 import type { UIMultiSelectProps } from "../types";
 
 type Option = { value: string; label: string; disabled?: boolean };
@@ -33,6 +32,7 @@ export function MultiSelect({
   rightSection,
   maxValues,
   hidePickedOptions,
+  hideTags,
   label,
   description,
   error,
@@ -124,11 +124,7 @@ export function MultiSelect({
       className={className}
       style={style as React.CSSProperties}
       data-testid={testId}
-      renderTags={(tagValue, getTagProps) =>
-        tagValue.map((option, index) => (
-          <Chip label={option.label} size={muiSize} {...getTagProps({ index })} key={option.value} />
-        ))
-      }
+      renderValue={hideTags ? () => null : undefined}
       renderInput={(params) => (
         <TextField
           {...params}

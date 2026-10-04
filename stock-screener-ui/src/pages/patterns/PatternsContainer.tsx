@@ -41,6 +41,8 @@ export function PatternsContainer() {
       setFilter={vm.setFilter}
       resetFilters={vm.resetFilters}
       applyFilters={vm.applyFilters}
+      customUniverse={vm.customUniverse}
+      selectSymbols={vm.selectSymbols}
       job={vm.job}
       scanning={vm.scanning}
       queuePosition={vm.queuePosition}

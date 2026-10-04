@@ -364,6 +364,8 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   rightSection?: ReactNode;
   maxValues?: number;
   hidePickedOptions?: boolean;
+  /** Hide the inline selected tags (the caller renders its own chip row). */
+  hideTags?: boolean;
 }
 
 export interface UITextareaProps extends UIInputWrapperProps {

@@ -47,7 +47,7 @@ describe("ResultsSearch", () => {
 
   test("renders the label and current value", () => {
     r(<ResultsSearch filters={makeFilters({ q: "infy" })} setFilter={vi.fn()} />);
-    expect(screen.getByLabelText("Search results")).toHaveValue("infy");
+    expect(screen.getByLabelText("Filter results")).toHaveValue("infy");
   });
 
   test("keeps characters typed after a commit when the parent echoes q back", async () => {

@@ -53,7 +53,7 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
   return (
     <TextInput
       data-testid="patterns-results-search"
-      label="Search results"
+      label="Filter results"
       placeholder="Symbol or company"
       size="xs"
       w={220}
