@@ -100,6 +100,36 @@ def test_emits_at_most_one_hit_per_symbol():
 
 
 # ---------------------------------------------------------------------------
+# Trailing breakout trim
+# ---------------------------------------------------------------------------
+
+
+def base_then_breakdown_frame() -> pd.DataFrame:
+    """A long base (95..105) followed by a 6-bar breakdown to ~88."""
+    i = np.arange(120)
+    base = 100.0 + 5.0 * np.sin(i * 2.0 * np.pi / 24.0)
+    drop = np.array([100.0, 96.0, 92.0, 90.0, 88.0, 91.0])
+    return frame(np.concatenate([base, drop]))
+
+
+def test_breakdown_leg_does_not_drag_the_box_low():
+    df = F.normalize_ohlcv(base_then_breakdown_frame())
+    hits = _detect(df)
+    assert hits, "the base before the breakdown must still be detected"
+    hit = hits[0]
+    lower = hit.trendlines[1][0]["price"]
+    upper = hit.trendlines[0][0]["price"]
+    # Box edges sit on the base (95..105), not on the breakdown low (~87.5).
+    assert lower == pytest.approx(94.5, abs=1e-3)
+    assert upper == pytest.approx(105.5, abs=1e-3)
+    assert lower > float(df["low"].min()), "box low must exclude the breakdown leg"
+    assert hit.breakout_level == pytest.approx(upper, abs=1e-3)
+    # The box ends at the break, not at the last (post-breakdown) bar.
+    assert hit.bars_ago > 0
+    assert hit.end_date != df.index[-1].strftime("%Y-%m-%d")
+
+
+# ---------------------------------------------------------------------------
 # Trend rejection
 # ---------------------------------------------------------------------------
 

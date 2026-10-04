@@ -13,6 +13,10 @@ Geometry built here:
 * ``breakout_level`` = window high (upside breakout of the box), long geometry,
 * ``opposite_extreme`` = window low (measured-move target / ATR stop anchor),
 * ``trendlines`` = the two flat box edges (upper resistance, lower support).
+
+A trailing breakout/breakdown leg is trimmed off the box before the edges are
+measured, so a breakdown that runs to a new low no longer drags the support (and
+the drawn lower edge) down with it.
 """
 
 from __future__ import annotations
@@ -45,6 +49,12 @@ NEAR_FLAT_MAX = 0.12
 # Last close must be inside the box, away from a mid-breakout at either edge.
 POS_MIN, POS_MAX = 15.0, 85.0
 TOUCH_TOL_ATR = 0.75
+# A trailing run of >= this many bars closing beyond the box (by more than
+# ``BREAKOUT_TOL_ATR * ATR``) is a breakout/breakdown leg, not part of the base.
+# Trimming it keeps the box edges on the base: a breakdown that runs to a new
+# low must not drag the lower boundary (and the drawn box) down with it.
+BREAKOUT_MIN_BARS = 2
+BREAKOUT_TOL_ATR = 0.25
 
 
 def _calendar_days(df: pd.DataFrame, start: int, end: int) -> int:
@@ -71,8 +81,15 @@ def _tightness(range_pct: float, range_max: float) -> float:
     return round(float(min(1.0, max(0.5, score))), 3)
 
 
-def _window_base(df: pd.DataFrame, start: int, end: int, w: int):
-    """Metrics for the trailing base in ``[start, end]`` or ``None`` if no base."""
+def _window_base(
+    df: pd.DataFrame, start: int, end: int, w: int, check_pos: bool = True
+):
+    """Metrics for the trailing base in ``[start, end]`` or ``None`` if no base.
+
+    ``check_pos`` gates the "last close sits mid-box" guard. Detection uses it to
+    reject windows already mid-breakout, but the trailing-breakout trim skips it
+    (a base legitimately ends at the edge where price leaves the box).
+    """
     high = df["high"].astype(float)
     low = df["low"].astype(float)
     close = df["close"].astype(float)
@@ -89,7 +106,7 @@ def _window_base(df: pd.DataFrame, start: int, end: int, w: int):
 
     last = float(close.iloc[end])
     range_pos = (last - lo) / (hi - lo) * 100.0
-    if not (POS_MIN <= range_pos <= POS_MAX):
+    if check_pos and not (POS_MIN <= range_pos <= POS_MAX):
         return None
 
     xs = np.arange(start, end + 1, dtype=float)
@@ -111,6 +128,47 @@ def _window_base(df: pd.DataFrame, start: int, end: int, w: int):
     }
 
 
+def _trailing_base_end(
+    df: pd.DataFrame, start: int, end: int, atr_val: float
+) -> int:
+    """Last bar of the base before a trailing breakout, else ``end``.
+
+    Finds the largest sub-window ``[start, k]`` that is still a range-bound base
+    (range + near-flat; the mid-box position guard is skipped because a base
+    ends where price leaves the box) whose *following* bars all close beyond
+    that sub-window's box. The end is then walked back past any leading breakout
+    bar so the first bar to leave the box is excluded from the base. This keeps
+    a breakout/breakdown leg from dragging the box edges — and the drawn box —
+    with it (e.g. a breakdown running to a new low no longer sets the support).
+    """
+    if end - start + 1 <= MIN_BARS:
+        return end
+    tol = BREAKOUT_TOL_ATR * max(float(atr_val), 0.0)
+    close = df["close"].astype(float).to_numpy()
+    k = int(end)
+    for cand in range(int(end) - 1, int(start) + MIN_BARS - 2, -1):
+        base = _window_base(df, start, cand, cand - start + 1, check_pos=False)
+        if base is None:
+            continue
+        tail = close[cand + 1 : end + 1]
+        if len(tail) < BREAKOUT_MIN_BARS:
+            continue
+        if bool((tail < base["lo"] - tol).all()) or bool((tail > base["hi"] + tol).all()):
+            k = cand
+            break
+    # Walk back past leading breakout bars so the base does not include the bar
+    # that first closed outside it (strict: the first close beyond the box is
+    # the break, even when it is only marginally outside).
+    while k - 1 >= int(start) + MIN_BARS - 1:
+        prev = _window_base(df, start, k - 1, k - start, check_pos=False)
+        if prev is None:
+            break
+        if prev["lo"] <= close[k] <= prev["hi"]:
+            break
+        k -= 1
+    return k
+
+
 def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     """Consolidation (neutral continuation; long tight base with upside geometry).
 
@@ -118,16 +176,19 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     genuine base: range ``<= RANGE_MAX`` (default 20%, env
     ``PATTERN_CONSOLIDATION_MAX_RANGE_PCT``), last close inside the box
     (``15 <= range_pos <= 85``) and close near-flat over the window
-    (``|relative slope| <= 0.12``). Metric tools tightly bound a horizontal base
-    but let genuine multi-month bases through. Breakout is the box high with the
-    box low as the measured-move / stop anchor (``direction="neutral"``, long
-    geometry). Emits at most one hit per symbol.
+    (``|relative slope| <= 0.12``). A trailing breakout leg is then trimmed so
+    the box edges (and drawn box) stop at the base rather than at the breakout
+    extreme. Metric tools tightly bound a horizontal base but let genuine
+    multi-month bases through. Breakout is the box high with the box low as the
+    measured-move / stop anchor (``direction="neutral"``, long geometry). Emits
+    at most one hit per symbol.
     """
     ctx = ctx or {}
     n = len(df)
     if n < MIN_BARS:
         return []
 
+    atr_val = F.atr_value(df)
     best = None
     for w in WINDOWS:
         # Only scan a window we actually have bars for, so ``base_days`` is the
@@ -138,10 +199,16 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
         if win is None:
             continue
         start, end = win
-        base = _window_base(df, start, end, w)
+        # Validate on the raw window (keeps the "price mid-box" guard) ...
+        if _window_base(df, start, end, w) is None:
+            continue
+        # ... then trim a trailing breakout so the box edges stay on the base.
+        box_end = _trailing_base_end(df, start, end, atr_val)
+        base = _window_base(df, start, box_end, w, check_pos=False)
         if base is None:
             continue
-        if best is None or base["w"] > best["w"]:
+        base["span"] = base["end"] - base["start"] + 1
+        if best is None or base["span"] > best["span"]:
             best = base
 
     if best is None:
@@ -152,7 +219,6 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     range_pct, range_pos = best["range_pct"], best["range_pos"]
     base_days = _calendar_days(df, start, end)
 
-    atr_val = F.atr_value(df)
     highs, lows = get_swings(df, ctx)
     H = [(p, q) for p, q in highs if start <= p <= end]
     L = [(p, q) for p, q in lows if start <= p <= end]
