@@ -43,6 +43,9 @@ export const ERROR = NEGATIVE_COLOR;
 export const WARNING = "#F0883E";
 export const INFO = PRIMARY;
 
+/** Dialog / modal drop shadow — flat design: one soft shadow, no elevation tint. */
+export const DIALOG_SHADOW = "0 8px 32px rgba(0, 0, 0, 0.5)";
+
 // Text / surfaces
 export const TEXT = TEXT_COLOR;
 export const TEXT_MUTED = TEXT_MUTED_COLOR;
