@@ -40,7 +40,7 @@ function ReplayPageContent(
 ) {
   return (
     <Container maxWidth="xl" sx={{ py: 2, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="replay-page">
-      <Stack gap="sm" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <Stack gap="sm" sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
             <Card elevation={1}>
               <CardContent>
                 <TableContainer>

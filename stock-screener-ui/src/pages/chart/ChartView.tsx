@@ -101,7 +101,7 @@ const ChartView: React.FC = () => {
                 loading={vm.loading}
                 error={vm.error}
                 hasData={!!vm.data}
-                chart={<TradingViewChart candles={vm.candles} height={560} />}
+                chart={<TradingViewChart candles={vm.candles} />}
               />
             </CardContent>
           </Card>

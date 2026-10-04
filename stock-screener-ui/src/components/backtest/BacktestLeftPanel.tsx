@@ -118,7 +118,7 @@ export function BacktestLeftPanel({
         value="history"
         className="backtest-history-panel"
         flex={1}
-        sx={{ minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}
+        sx={{ minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }}
       >
         <BacktestHistory active={activeTab === "history"} onLoad={() => onTabChange("results")} />
       </Tabs.Panel>

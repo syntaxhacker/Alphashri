@@ -154,7 +154,7 @@ export function HeatmapPage() {
         </CardContent>
       </Card>
 
-      <Box sx={{ flex: 1, overflow: "auto", position: "relative", minHeight: 0, p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%" }}>
+      <Box sx={{ flex: 1, overflow: "auto", position: "relative", minHeight: 0, p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "flex-start", width: "100%" }}>
         <LoadingOverlay visible={heatmapLoading} />
         {heatmapError && (
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", height: 200, width: "100%" }}>

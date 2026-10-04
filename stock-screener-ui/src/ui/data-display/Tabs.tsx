@@ -124,10 +124,14 @@ export function Tab({
   );
 }
 
-export function TabsPanel({ value: panelValue, keepMounted, children, className, style, "data-testid": testId, ...rest }: UITabsPanelProps) {
+export function TabsPanel({ value: panelValue, keepMounted, children, className, style, "data-testid": testId, ...rest }: UITabsPanelProps & { sx?: Record<string, unknown> }) {
   const { value } = useTabsContext();
   const isActive = value === panelValue;
   if (!isActive && !keepMounted) return null;
+  // `rest` may carry an `sx` prop (e.g. `<Tabs.Panel sx={...}>`); spread it
+  // would replace the visibility `display` below, so merge it instead.
+  const { sx: sxProp, ...restProps } = rest as Record<string, unknown>;
+  const display = isActive ? "block" : "none";
   return (
     <Box
       role="tabpanel"
@@ -135,10 +139,10 @@ export function TabsPanel({ value: panelValue, keepMounted, children, className,
       className={className}
       style={style}
       data-testid={testId}
-      sx={{ py: 1.5, display: isActive ? "block" : keepMounted ? (isActive ? "block" : "none") : "block" }}
-      {...(rest as any)}
+      sx={{ py: 1.5, minHeight: 0, minWidth: 0, display, ...(sxProp as object) }}
+      {...(restProps as any)}
     >
-      <Box sx={{ display: isActive ? "block" : "none" }}>{children}</Box>
+      <Box sx={{ display, minWidth: 0 }}>{children}</Box>
     </Box>
   );
 }

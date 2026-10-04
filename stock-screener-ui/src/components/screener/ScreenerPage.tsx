@@ -263,7 +263,7 @@ export function ScreenerPage({
               </Box>
             </Paper>
           </Box>
-          <Box sx={{ display: activeTab !== "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+          <Box sx={{ display: activeTab !== "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, overflow: "auto" }}>
             <Suspense fallback={<Box sx={{ p: 2 }}><Skeleton h={120} /><Skeleton h={200} mt="sm" /></Box>}>
               {activeTab === "config" ? (
                 <ScreenerConfigView

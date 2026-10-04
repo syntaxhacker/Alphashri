@@ -12,12 +12,16 @@ import type { UIStackProps, UIPaperProps } from "@/ui";
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
   flexDirection: "column",
+  flex: 1,
   minHeight: 0,
+  minWidth: 0,
+  overflow: "hidden",
 };
 
 const SCROLL_CONTAINER_STYLE: CSSProperties = {
   flex: 1,
   minHeight: 0,
+  minWidth: 0,
   overflow: "auto",
 };
 

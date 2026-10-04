@@ -40,7 +40,7 @@ export function ChartBody(
           <Box
             data-testid="candlestick-chart"
             id="candlestick-chart"
-            sx={{ bgcolor: "background.paper", borderRadius: 1, width: "100%", maxWidth: 1200, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}
+            sx={{ bgcolor: "background.paper", borderRadius: 1, width: "100%", maxWidth: 1200, flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}
           >
             {chart}
           </Box>

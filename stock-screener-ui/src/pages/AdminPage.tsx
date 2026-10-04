@@ -6,7 +6,7 @@ import { Admin52wRangePanel } from "./admin/Admin52wRangePanel";
 import { NewsQueuePanel } from "./admin/NewsQueuePanel";
 import { OrderFlowJournalPanel } from "./admin/OrderFlowJournalPanel";
 
-const TAB_STYLE = { flex: 1, minHeight: 0, overflow: "hidden" };
+const TAB_STYLE = { flex: 1, minHeight: 0, overflow: "auto" };
 
 export default function AdminPage() {
   return (

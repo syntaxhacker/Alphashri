@@ -1,12 +1,22 @@
-import { useMemo } from "react";
-import { Text, Badge, ActionIcon, Stack } from "@/ui";
+import { useMemo, useState } from "react";
+import { Text, Badge, ActionIcon, Stack, Button, Select, SegmentedControl } from "@/ui";
 import Box from "@mui/material/Box";
-import { IconX, IconArrowUp, IconArrowDown } from "@tabler/icons-react";
+import { IconX, IconArrowUp, IconArrowDown, IconDownload, IconFilterOff } from "@tabler/icons-react";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { Trade } from "../../types/backtest";
 import { formatDateTimeHuman, formatDuration, getPnLTextColor } from "../../utils/ui-helpers";
 import { TINT_LOSS_ROW } from "../../config/colors";
 import { TanStackTable } from "../common/TanStackTable";
+import { DEFAULT_TRADE_FILTERS, filterTrades, tradeReason, type TradeFilters } from "./tradeFilters";
+
+/** Safe net P&L % — guards against zero entry_price/quantity. */
+export function tradePnlPct(t: Trade): number {
+  if (t.net_pnl_pct) return t.net_pnl_pct;
+  const denom = (t.entry_price ?? 0) * (t.quantity ?? 0);
+  if (!denom) return 0;
+  const pct = (t.net_pnl / denom) * 100;
+  return Number.isFinite(pct) ? pct : 0;
+}
 
 export function sortTrades(trades: Trade[], column: string, direction: "asc" | "desc"): Trade[] {
   return [...trades].sort((a, b) => {
@@ -51,8 +61,8 @@ export function sortTrades(trades: Trade[], column: string, direction: "asc" | "
         bVal = b.net_pnl;
         break;
       case "net_pnl_pct":
-        aVal = a.net_pnl_pct || (a.net_pnl / (a.entry_price * a.quantity)) * 100;
-        bVal = b.net_pnl_pct || (b.net_pnl / (b.entry_price * b.quantity)) * 100;
+        aVal = tradePnlPct(a);
+        bVal = tradePnlPct(b);
         break;
       case "hold_duration_minutes":
         aVal = a.hold_duration_minutes;
@@ -85,6 +95,9 @@ interface TradeHistoryTableProps {
   /** Called with the 1-based trade number (stable across sorting). */
   onRowClick: (tradeNumber: number) => void;
   onClose: () => void;
+  /** Optional controlled filter state — when omitted the table manages its own. */
+  filters?: TradeFilters;
+  onFiltersChange?: (filters: TradeFilters) => void;
 }
 
 export function TradeHistoryTable({
@@ -95,9 +108,34 @@ export function TradeHistoryTable({
   onSort,
   onRowClick,
   onClose,
+  filters,
+  onFiltersChange,
 }: TradeHistoryTableProps) {
+  const [internalFilters, setInternalFilters] = useState<TradeFilters>(DEFAULT_TRADE_FILTERS);
+  const isControlled = filters !== undefined;
+  const active = isControlled ? filters! : internalFilters;
+  const setFilters = (next: TradeFilters) => {
+    if (!isControlled) setInternalFilters(next);
+    onFiltersChange?.(next);
+  };
+  const { side: sideFilter, result: resultFilter, reason: reasonFilter } = active;
+
+  const safeTrades = trades ?? [];
+
+  const reasons = useMemo(
+    () => Array.from(new Set(safeTrades.map((t) => tradeReason(t)))).sort(),
+    [safeTrades],
+  );
+
+  const filteredTrades = useMemo(
+    () => filterTrades(safeTrades, active),
+    [safeTrades, active.side, active.result, active.reason],
+  );
+
+  const filtersActive = sideFilter !== "ALL" || resultFilter !== "ALL" || reasonFilter !== "ALL";
+
   const sortedTrades = useMemo(() => {
-    return [...(trades ?? [])].sort((a, b) => {
+    return [...filteredTrades].sort((a, b) => {
       let aVal: number | string = 0;
       let bVal: number | string = 0;
       switch (sortColumn) {
@@ -117,8 +155,8 @@ export function TradeHistoryTable({
           break;
         case "net_pnl": aVal = a.net_pnl; bVal = b.net_pnl; break;
         case "net_pnl_pct":
-          aVal = a.net_pnl_pct || (a.net_pnl / (a.entry_price * a.quantity)) * 100;
-          bVal = b.net_pnl_pct || (b.net_pnl / (b.entry_price * b.quantity)) * 100;
+          aVal = tradePnlPct(a);
+          bVal = tradePnlPct(b);
           break;
         case "hold_duration_minutes": aVal = a.hold_duration_minutes; bVal = b.hold_duration_minutes; break;
         case "exit_reason": aVal = a.exit_reason || ""; bVal = b.exit_reason || ""; break;
@@ -131,17 +169,17 @@ export function TradeHistoryTable({
         ? (aVal as number) - (bVal as number)
         : (bVal as number) - (aVal as number);
     });
-  }, [trades, sortColumn, sortDirection]);
+  }, [filteredTrades, sortColumn, sortDirection]);
 
-  const safeTrades = trades ?? [];
   const { totalPnl, wins, winRate } = useMemo(() => {
-    const pnl = safeTrades.reduce((sum, t) => sum + t.net_pnl, 0);
-    const w = safeTrades.filter((t) => t.net_pnl > 0).length;
-    const wr = safeTrades.length > 0 ? ((w / safeTrades.length) * 100).toFixed(1) : "0";
+    const pnl = filteredTrades.reduce((sum, t) => sum + t.net_pnl, 0);
+    const w = filteredTrades.filter((t) => t.net_pnl > 0).length;
+    const wr = filteredTrades.length > 0 ? ((w / filteredTrades.length) * 100).toFixed(1) : "0";
     return { totalPnl: pnl, wins: w, winRate: wr };
-  }, [safeTrades]);
-  const has52w =
-    (safeTrades[0]?.["52w_high"] !== undefined && safeTrades[0]?.["52w_high"] !== null);
+  }, [filteredTrades]);
+  const has52w = safeTrades.some(
+    (t) => t["52w_high"] !== undefined && t["52w_high"] !== null,
+  );
 
   // Stable 1-based trade numbers by original (unsorted) order. A Map keyed by the
   // trade object avoids `indexOf` stale-closure bugs when the list identity changes.
@@ -151,6 +189,29 @@ export function TradeHistoryTable({
     return m;
   }, [safeTrades]);
   const numberOf = (trade: Trade) => numberByTrade.get(trade) ?? 1;
+
+  const exportCsv = () => {
+    const headers = ["#", "Entry Time", "Exit Time", "Side", "Qty", "Entry Price", "Level Hi", "Level Lo", "Exit Price", "P&L", "P&L %", "Hold (min)", "Type"];
+    const esc = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const lines = [headers.join(",")];
+    for (const t of sortedTrades) {
+      const levelHi = (t as any).or_high ?? (t as any).r1 ?? t["52w_high"] ?? "";
+      const levelLo = (t as any).or_low ?? (t as any).s1 ?? "";
+      const pct = tradePnlPct(t);
+      lines.push([
+        numberOf(t), t.entry_time, t.exit_time, (t as any).side ?? "LONG", t.quantity,
+        t.entry_price, levelHi, levelLo, t.exit_price, t.net_pnl,
+        Number.isFinite(pct) ? pct.toFixed(2) : "", t.hold_duration_minutes ?? 0, t.exit_reason,
+      ].map(esc).join(","));
+    }
+    const blob = new Blob([lines.join("\n")], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `${symbol}_trades.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
 
   const handleHeaderClick = (column: string) => {
     onSort(column);
@@ -258,7 +319,7 @@ export function TradeHistoryTable({
         enableSorting: false,
         meta: { align: "center" } as any,
         cell: ({ row }) => {
-          const pnlPct = row.original.net_pnl_pct || (row.original.net_pnl / (row.original.entry_price * row.original.quantity)) * 100;
+          const pnlPct = tradePnlPct(row.original);
           return <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="xs" c={getPnLTextColor(pnlPct)} ta="center">{pnlPct >= 0 ? "+" : ""}{pnlPct.toFixed(2)}%</Text></Box>;
         },
       },
@@ -310,6 +371,9 @@ export function TradeHistoryTable({
           {symbol} Trades ({trades.length})
         </Text>
         <Box sx={{ flex: 1 }} />
+        <Button size="xs" variant="subtle" color="secondary" onClick={exportCsv} leftSection={<IconDownload size={11} />} data-testid="export-trades-csv">
+          CSV
+        </Button>
         <ActionIcon variant="subtle" color="secondary" size="xs" onClick={onClose} data-testid="close-trade-history-btn" title="Close">
           <IconX size={12} />
         </ActionIcon>
@@ -332,22 +396,84 @@ export function TradeHistoryTable({
           <Text size="xs" c="dimmed">WR</Text>
           <Text size="sm" fw={700} data-testid="trade-summary-wr" sx={{ fontVariantNumeric: "tabular-nums" }}>{winRate}%</Text>
         </Stack>
-        <Text size="xs" c="dimmed" data-testid="trade-summary-wins">Wins: {wins}/{trades.length}</Text>
+        <Text size="xs" c="dimmed" data-testid="trade-summary-wins">Wins: {wins}/{filteredTrades.length}</Text>
       </Stack>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} className="trade-history-scroll">
-        <TanStackTable<Trade>
-          data={sortedTrades}
-          columns={columns}
-          dataTestId="trade-history-table"
-          enableSorting={false}
-          getRowStyle={(row) => ({
-            backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
-          })}
-          getRowTestId={(_row, index) => `trade-history-row-${index}`}
-          getRowAttributes={(trade) => ({ "data-trade-number": numberOf(trade) })}
-          onRowClick={(row) => onRowClick(numberOf(row))}
+      <Stack
+        direction="row"
+        align="center"
+        spacing={1}
+        data-testid="trade-history-filters"
+        sx={{ flex: "0 0 auto", px: 1, py: "4px", borderBottom: "1px solid var(--mui-palette-divider)", flexWrap: "wrap", rowGap: "4px" }}
+      >
+        <SegmentedControl
+          size="xs"
+          value={sideFilter}
+          onChange={(v) => setFilters({ ...active, side: v })}
+          data={[
+            { value: "ALL", label: "All" },
+            { value: "LONG", label: "Long" },
+            { value: "SHORT", label: "Short" },
+          ]}
+          data-testid="filter-side"
         />
+        <SegmentedControl
+          size="xs"
+          value={resultFilter}
+          onChange={(v) => setFilters({ ...active, result: v })}
+          data={[
+            { value: "ALL", label: "All" },
+            { value: "WIN", label: "Win" },
+            { value: "LOSS", label: "Loss" },
+          ]}
+          data-testid="filter-result"
+        />
+        <Box sx={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <Select
+            size="xs"
+            value={reasonFilter}
+            onChange={(value) => setFilters({ ...active, reason: value as string })}
+            data={[{ value: "ALL", label: "All types" }, ...reasons.map((r) => ({ value: r, label: r }))]}
+            w={110}
+            data-testid="filter-reason"
+          />
+        </Box>
+        <Text size="xs" c="dimmed" data-testid="filter-count" sx={{ fontVariantNumeric: "tabular-nums" }}>
+          {filteredTrades.length}/{trades.length}
+        </Text>
+        {filtersActive && (
+          <ActionIcon
+            variant="subtle"
+            color="secondary"
+            size="xs"
+            onClick={() => setFilters(DEFAULT_TRADE_FILTERS)}
+            data-testid="filter-clear"
+            title="Clear filters"
+          >
+            <IconFilterOff size={12} />
+          </ActionIcon>
+        )}
+      </Stack>
+
+      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "auto", display: "flex", flexDirection: "column" }} className="trade-history-scroll">
+        {sortedTrades.length === 0 ? (
+          <Box sx={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", py: 3 }}>
+            <Text size="xs" c="dimmed">No trades match the current filters.</Text>
+          </Box>
+        ) : (
+          <TanStackTable<Trade>
+            data={sortedTrades}
+            columns={columns}
+            dataTestId="trade-history-table"
+            enableSorting={false}
+            getRowStyle={(row) => ({
+              backgroundColor: row.net_pnl >= 0 ? undefined : TINT_LOSS_ROW,
+            })}
+            getRowTestId={(_row, index) => `trade-history-row-${index}`}
+            getRowAttributes={(trade) => ({ "data-trade-number": numberOf(trade) })}
+            onRowClick={(row) => onRowClick(numberOf(row))}
+          />
+        )}
       </Box>
     </Stack>
   );
