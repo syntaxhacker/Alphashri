@@ -244,6 +244,7 @@ def save_hits(job_id: str, hits: Iterable[dict]) -> int:
                 "trendlines": hit.get("trendlines") or [],
                 "notes": hit.get("notes") or "",
                 "pivots": hit.get("pivots") or [],
+                "trend_lines": hit.get("trend_lines") or [],
             }
             row = PatternHit(
                 job_id=job_id,
@@ -281,6 +282,25 @@ def save_hits(job_id: str, hits: Iterable[dict]) -> int:
         raise
     finally:
         session.close()
+
+
+def _payload_trend_lines(raw) -> list:
+    """Scan-time ``trend_lines`` carried in a hit's ``payload_json``.
+
+    ``PatternHit.to_dict`` only surfaces the legacy payload keys, so the store
+    re-attaches the scan-time lines here (read path follows the same
+    payload→dict route). Missing/blank/malformed values yield ``[]``.
+    """
+    if not raw:
+        return []
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(payload, dict):
+        return []
+    lines = payload.get("trend_lines") or []
+    return list(lines) if isinstance(lines, list) else []
 
 
 def _apply_filters(query, filters: dict):
@@ -397,7 +417,11 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             .limit(max(0, int(limit)))
             .all()
         )
-        items = [row.to_dict() for row in rows]
+        items = []
+        for row in rows:
+            dto = row.to_dict()
+            dto["trend_lines"] = _payload_trend_lines(row.payload_json)
+            items.append(dto)
 
         summary = _summary_for(session, filters, base, total)
         return items, total, summary
@@ -574,7 +598,11 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
             key = (row.pattern_id, row.start_date, row.end_date)
             if key not in best:
                 best[key] = row
-        patterns = [row.to_dict() for row in best.values()]
+        patterns = []
+        for row in best.values():
+            dto = row.to_dict()
+            dto["trend_lines"] = _payload_trend_lines(row.payload_json)
+            patterns.append(dto)
         patterns.sort(
             key=lambda p: (
                 p.get("confidence") is None,

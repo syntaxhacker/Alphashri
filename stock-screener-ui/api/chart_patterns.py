@@ -368,27 +368,47 @@ def _slice_candles(df, start_date, end_date, max_bars: int = 160):
     return candles.candles_to_series(window, len(window))
 
 
+def _stored_trend_lines(item) -> Optional[list]:
+    """Scan-time ``trend_lines`` already carried by a result item, else ``None``.
+
+    Never raises: missing keys, ``None`` values, wrong types, and non-dict
+    items all fall through to ``None`` (caller runs the legacy recompute).
+    """
+    try:
+        stored = item.get("trend_lines")
+    except Exception:
+        return None
+    if isinstance(stored, list) and stored:
+        return stored
+    return None
+
+
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = 160):
     """Attach a real candle window + last close/day change to each result item.
 
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
     this also retrofits hits persisted before candle windows were exposed.
+    The fetch is bounded to the last 500 bars (detector windows are ≤250).
+    Items already carrying scan-time ``trend_lines`` keep them; the detector
+    only runs as a legacy fallback for items without stored lines.
     """
     cache: dict = {}
     tl_cache: dict = {}
     for item in items or []:
-        symbol = item.get("symbol")
-        timeframe = item.get("timeframe") or default_timeframe
+        stored_lines = _stored_trend_lines(item)
+        symbol = item.get("symbol") if isinstance(item, dict) else None
+        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
         if not symbol or not timeframe:
-            item.setdefault("candles", [])
-            item.setdefault("last_close", None)
-            item.setdefault("day_change_pct", None)
-            item["trend_lines"] = []
+            if isinstance(item, dict):
+                item.setdefault("candles", [])
+                item.setdefault("last_close", None)
+                item.setdefault("day_change_pct", None)
+                item["trend_lines"] = stored_lines if stored_lines is not None else []
             continue
         key = (symbol, timeframe)
         if key not in cache:
             try:
-                cache[key] = candles.fetch_for_timeframe(symbol, timeframe)
+                cache[key] = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=500)
             except Exception:
                 cache[key] = None
         df = cache[key]
@@ -405,6 +425,9 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         else:
             item["last_close"] = None
             item["day_change_pct"] = None
+        if stored_lines is not None:
+            item["trend_lines"] = stored_lines
+            continue
         if key not in tl_cache:
             try:
                 if df is not None and not getattr(df, "empty", True):
@@ -651,7 +674,7 @@ async def get_summary(
 
 def _candle_fields(symbol: str, timeframe: str) -> dict:
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe)
+        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=500)
     except Exception:
         df = None
     if df is None or getattr(df, "empty", True):
@@ -682,7 +705,7 @@ async def get_symbol_chart(
     limit: int = Query(300, ge=1, le=2000),
 ):
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe)
+        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=500)
     except Exception:
         df = None
     series = candles.candles_to_series(df, limit) if df is not None else []

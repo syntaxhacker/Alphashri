@@ -62,8 +62,18 @@ def detect_trendlines(df: pd.DataFrame | None) -> dict:
         return dict(empty)
     tol = 0.25 * atr
 
+    # Swing strictness scales with frame size: wide swings on large frames (a
+    # 1h frame has ~1700 bars and ~230 default pivots, making the
+    # O(pivots^2 x span) envelope fit ~8s/side); small frames keep the
+    # default order so sparse pivots still form lines. Single call — the
+    # helper already returns BOTH highs and lows.
+    order = 6 if len(norm) >= 500 else 2
     try:
-        _, lows = get_swings(norm, {})
+        highs, lows = get_swings(norm, {}, order, order)
+    except Exception:
+        return dict(empty)
+
+    try:
         env = F.envelope_line(norm, lows, "lower", tol)
         if env is not None:
             out["support"] = _build_side(norm, lows, env, "support", atr)
@@ -71,7 +81,6 @@ def detect_trendlines(df: pd.DataFrame | None) -> dict:
         out["support"] = None
 
     try:
-        highs, _ = get_swings(norm, {})
         env = F.envelope_line(norm, highs, "upper", tol)
         if env is not None:
             out["resistance"] = _build_side(norm, highs, env, "resistance", atr)

@@ -620,3 +620,72 @@ def test_cache_path_variant_does_not_poison_default():
 
     assert _cache_path("1D", "X", None, "lb250") != _cache_path("1D", "X")
     assert _cache_path("1D", "X", None) == _cache_path("1D", "X")
+
+
+# ---------------------------------------------------------------------------
+# Scan-time trend_lines: computed once per symbol in _process_symbol and
+# persisted through save_hits → query_results.
+# ---------------------------------------------------------------------------
+
+
+def test_process_symbol_attaches_trend_lines(cp_store, monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    store.save_job({
+        "job_id": "cpj_tlproc", "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+
+    result = scan._process_symbol("AAA", "1D", "cpj_tlproc")
+
+    assert result["status"] == "ok"
+    items, total, _ = store.query_results({"job_id": "cpj_tlproc"})
+    assert total == 1
+    assert isinstance(items[0].get("trend_lines"), list)
+
+
+def test_process_symbol_trendlines_failure_still_persists_hits(cp_store, monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    monkeypatch.setattr(scan, "trendlines_mod", None)
+    store.save_job({
+        "job_id": "cpj_tlproc_fail", "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+
+    result = scan._process_symbol("AAA", "1D", "cpj_tlproc_fail")
+
+    assert result["status"] == "ok"
+    items, total, _ = store.query_results({"job_id": "cpj_tlproc_fail"})
+    assert total == 1
+    assert items[0].get("trend_lines") == []
+
+
+def test_save_hits_round_trips_trend_lines(cp_store):
+    store.save_job({
+        "job_id": "cpj_tlrt", "universe": "nifty50", "timeframe": "1D", "status": "completed",
+    })
+    line = {
+        "kind": "support",
+        "start_date": "2026-01-01T00:00:00+00:00",
+        "start_price": 100.0,
+        "end_date": "2026-02-01T00:00:00+00:00",
+        "end_price": 110.0,
+        "slope": 0.2,
+        "touches": 3,
+        "span_bars": 30,
+        "violations": 0,
+    }
+    store.save_hits("cpj_tlrt", [dict(_dupe_hit(), trend_lines=[line])])
+
+    items, total, _ = store.query_results({"job_id": "cpj_tlrt"})
+    assert total == 1
+    assert items[0]["trend_lines"] == [line]

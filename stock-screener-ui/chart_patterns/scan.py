@@ -25,6 +25,11 @@ try:
 except Exception:  # pragma: no cover - integration env always has it
     universes_mod = None
 
+try:
+    from chart_patterns import trendlines as trendlines_mod
+except Exception:  # pragma: no cover - a broken trendlines module must not break scans
+    trendlines_mod = None
+
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
 DEFAULT_MIN_BARS = 60
 _PERSIST_EVERY = 10
@@ -180,6 +185,19 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     except Exception:
         return {"status": "failed", "data_through": data_through}
 
+    # Scan-time trendlines: computed once per symbol so read-time results can
+    # reuse the stored lines instead of re-running the detector per item.
+    scan_trend_lines: list = []
+    if hits and trendlines_mod is not None:
+        try:
+            _tl_res = trendlines_mod.detect_trendlines(df)
+            if isinstance(_tl_res, dict):
+                scan_trend_lines = [
+                    v for v in (_tl_res.get("support"), _tl_res.get("resistance")) if v
+                ]
+        except Exception:
+            scan_trend_lines = []
+
     enriched = []
     for hit in hits:
         try:
@@ -189,6 +207,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record["symbol"] = symbol
         record["name"] = name
         record.setdefault("timeframe", timeframe)
+        record["trend_lines"] = list(scan_trend_lines)
         enriched.append(record)
 
     if enriched:

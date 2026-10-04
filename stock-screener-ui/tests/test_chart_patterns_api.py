@@ -883,3 +883,46 @@ def test_symbol_chart_includes_trend_lines(cp_client, monkeypatch):
     assert len(body["trend_lines"]) == 2
     assert {t["kind"] for t in body["trend_lines"]} == {"support", "resistance"}
 
+
+def test_enrich_keeps_stored_trend_lines_without_detector(monkeypatch):
+    """Items already carrying scan-time lines must not trigger the detector."""
+    stored = [_fake_trendline("support"), _fake_trendline("resistance")]
+    item = dict(_hit("AAA"), trend_lines=stored)
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(80)
+
+    def _boom(df):
+        raise AssertionError("detect_trendlines must not run for stored lines")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
+
+    out = cp_api._enrich_with_candles([item], "1D")
+
+    assert out[0]["trend_lines"] == stored
+    assert out[0]["candles"], "candle window is still attached"
+    assert seen.get("lookback_bars") == 500
+
+
+def test_enrich_fetches_bounded_lookback_and_recomputes_when_blank(monkeypatch):
+    """Blank stored lines fall back to the detector on a 500-bar fetch."""
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df: {"support": _fake_trendline("support"), "resistance": None},
+    )
+
+    out = cp_api._enrich_with_candles([_hit("AAA")], "1D")
+
+    assert seen.get("lookback_bars") == 500
+    assert out[0]["trend_lines"] == [_fake_trendline("support")]
+
