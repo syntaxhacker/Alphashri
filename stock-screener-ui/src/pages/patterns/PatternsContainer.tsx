@@ -17,10 +17,12 @@ export function PatternsContainer() {
     universe: vm.universe,
     timeframe: vm.timeframe,
     lookbackBars: vm.lookbackBars,
+    computeTrendlines: vm.computeTrendlines,
     filters: vm.filters,
     setUniverse: vm.setUniverse,
     setTimeframe: vm.setTimeframe,
     setLookbackBars: vm.setLookbackBars,
+    setComputeTrendlines: vm.setComputeTrendlines,
     applyFilters: vm.applyFilters,
   });
 
@@ -45,6 +47,8 @@ export function PatternsContainer() {
       setFilter={vm.setFilter}
       resetFilters={vm.resetFilters}
       applyFilters={vm.applyFilters}
+      computeTrendlines={vm.computeTrendlines}
+      setComputeTrendlines={vm.setComputeTrendlines}
       customUniverse={vm.customUniverse}
       selectSymbols={vm.selectSymbols}
       job={vm.job}

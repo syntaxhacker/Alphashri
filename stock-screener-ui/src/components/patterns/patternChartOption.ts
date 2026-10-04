@@ -298,7 +298,7 @@ export function buildPatternChartOption({
         );
   visibleStandalone.forEach((line) => {
     if (!line) return;
-    const name = line.kind === "support" ? "Support" : "Resistance";
+    const name = line.kind === "support" ? "TLS" : "TLR";
     const color = line.kind === "support" ? POSITIVE : NEGATIVE;
     const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price, times);
     if (!points || points.length === 0) return;

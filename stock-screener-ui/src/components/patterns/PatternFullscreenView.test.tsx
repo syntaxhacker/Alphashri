@@ -145,7 +145,7 @@ describe("PatternFullscreenView", () => {
       series: Array<{ name?: string }>;
     };
     const names = option.series.map((s) => s.name);
-    expect(names).toContain("Support");
-    expect(names).not.toContain("Resistance");
+    expect(names).toContain("TLS");
+    expect(names).not.toContain("TLR");
   });
 });

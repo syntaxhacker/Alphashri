@@ -101,6 +101,8 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     },    setFilter: vi.fn(),
     resetFilters: vi.fn(),
     applyFilters: vi.fn(),
+    computeTrendlines: true,
+    setComputeTrendlines: vi.fn(),
     customUniverse: "custom",
     selectSymbols: vi.fn(),
     job: null,
@@ -273,6 +275,21 @@ describe("PatternsPage", () => {
     // …with an overlay spinner instead of the full-page loader.
     expect(screen.getByTestId("patterns-refreshing")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
+  });
+
+  test("TLS/TLR toggle reflects state and calls setComputeTrendlines", async () => {
+    const props = makeProps({ computeTrendlines: true });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByText("TLS/TLR")).toBeInTheDocument();
+    const toggle = screen.getByTestId("patterns-compute-trendlines");
+    expect(toggle).toBeChecked();
+    await userEvent.click(toggle);
+    expect(props.setComputeTrendlines).toHaveBeenCalledWith(false);
+  });
+
+  test("TLS/TLR toggle renders unchecked when computation is off", () => {
+    r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
+    expect(screen.getByTestId("patterns-compute-trendlines")).not.toBeChecked();
   });
 
   test("stale same-symbol fetches never overwrite the newer selection", async () => {

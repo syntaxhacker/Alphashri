@@ -21,6 +21,7 @@ import {
   triggerScan,
   refresh,
   setSelectedSymbol,
+  setComputeTrendlines,
   CUSTOM_UNIVERSE,
 } from "../state/chartPatterns";
 
@@ -42,6 +43,9 @@ export interface UseChartPatternsResult {
   setFilter: (k: string, v: unknown) => void;
   resetFilters: () => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
+  /** Skip server-side trendline computation + hide standalone lines. */
+  computeTrendlines: boolean;
+  setComputeTrendlines: (v: boolean) => void;
   job: JobDTO | null;
   scanning: boolean;
   queuePosition: number | null;
@@ -95,6 +99,8 @@ export function useChartPatterns(): UseChartPatternsResult {
     setFilter: handleSetFilter,
     resetFilters,
     applyFilters,
+    computeTrendlines: state.computeTrendlines,
+    setComputeTrendlines,
     job: state.job,
     scanning: state.scanning,
     queuePosition: state.job?.queue_position ?? null,

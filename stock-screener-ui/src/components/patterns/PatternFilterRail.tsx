@@ -474,8 +474,8 @@ export function PatternFilterRail({
       <Select
         data={[
           { value: "both", label: "Both" },
-          { value: "support", label: "Support only" },
-          { value: "resistance", label: "Resistance only" },
+          { value: "support", label: "TLS only" },
+          { value: "resistance", label: "TLR only" },
           { value: "none", label: "None" },
         ]}
         value={filters.trendlines ?? "both"}

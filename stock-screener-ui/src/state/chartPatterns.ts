@@ -76,6 +76,8 @@ export interface ChartPatternsState {
   /** Lookback window in bars (null = Auto / server default). */
   lookbackBars: number | null;
   filters: PatternFilters;
+  /** Skip server-side trendline computation + hide standalone lines (default true = compute). */
+  computeTrendlines: boolean;
   job: JobDTO | null;
   scanning: boolean;
   summary: PatternSummary | null;
@@ -100,6 +102,7 @@ function createInitialState(): ChartPatternsState {
     universe: "",
     lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
+    computeTrendlines: true,
     job: null,
     scanning: false,
     summary: null,
@@ -216,6 +219,18 @@ export function setFilter<K extends keyof PatternFilters>(
   void loadSummary();
 }
 
+/**
+ * Toggle server-side trendline computation. Reloads results/summary with the
+ * new flag; no forced re-scan is needed (the flag is view/compute-level, and
+ * the next explicit scan picks it up via `triggerScan`).
+ */
+export function setComputeTrendlines(value: boolean): void {
+  if (value === state.computeTrendlines) return;
+  patch({ computeTrendlines: value, error: null });
+  void loadResults({ offset: 0 });
+  void loadSummary();
+}
+
 /** Clear all filters back to defaults and reload results/summary. */
 export function resetFilters(): void {
   patch({ filters: { ...DEFAULT_PATTERN_FILTERS }, error: null });
@@ -289,6 +304,7 @@ function baseQuery(): PatternsQuery {
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
     lookback_bars: state.lookbackBars ?? undefined,
+    compute_trendlines: state.computeTrendlines,
   };
 }
 
@@ -523,6 +539,7 @@ export async function triggerScan(
       force,
       symbols,
       ...(lookback != null ? { lookback_bars: lookback } : {}),
+      compute_trendlines: state.computeTrendlines,
     });
     if (overrides.autoKey) autoScanRequested.add(overrides.autoKey);
     patch({

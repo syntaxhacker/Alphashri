@@ -33,10 +33,12 @@ function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrl
     universe: "",
     timeframe: "1D",
     lookbackBars: null,
+    computeTrendlines: true,
     filters: { ...DEFAULT_PATTERN_FILTERS },
     setUniverse: vi.fn(),
     setTimeframe: vi.fn(),
     setLookbackBars: vi.fn(),
+    setComputeTrendlines: vi.fn(),
     applyFilters: vi.fn(),
     ...overrides,
   };
@@ -55,6 +57,7 @@ describe("parsePatternParams", () => {
       universe: "nifty50",
       timeframe: "15m",
       lookback: null,
+      computeTrendlines: null,
       filters: {
         pattern_id: ["ascending_channel", "double_top"],
         family: ["reversal"],
@@ -91,7 +94,7 @@ describe("parsePatternParams", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("universe=&tf=&within=&symbol=&foo=bar"),
     );
-    expect(parsed).toEqual({ universe: null, timeframe: null, lookback: null, filters: {} });
+    expect(parsed).toEqual({ universe: null, timeframe: null, lookback: null, computeTrendlines: null, filters: {} });
   });
 
   it("parses lookback as an integer", () => {
@@ -198,6 +201,36 @@ describe("buildPatternParams", () => {
     expect(clean.has("trendlines")).toBe(false);
   });
 
+  it("round-trips compute_trendlines=0 and omits it when true", () => {
+    const off = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      computeTrendlines: false,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(off.get("compute_trendlines")).toBe("0");
+    expect(parsePatternParams(new URLSearchParams(off.toString())).computeTrendlines).toBe(false);
+
+    const on = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      computeTrendlines: true,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(on.has("compute_trendlines")).toBe(false);
+    expect(on.toString()).toBe("");
+
+    const omitted = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(omitted.has("compute_trendlines")).toBe(false);
+  });
+
   it("ignores unknown trendlines values", () => {
     expect(
       parsePatternParams(new URLSearchParams("trendlines=bogus")).filters.trendlines,
@@ -260,6 +293,21 @@ describe("usePatternUrlSync", () => {
     });
 
     expect(args.setLookbackBars).toHaveBeenCalledWith(250);
+    unmount();
+  });
+
+  it("applies compute_trendlines=0 from the URL on mount", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("compute_trendlines=0"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    const { unmount } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.setComputeTrendlines).toHaveBeenCalledWith(false);
     unmount();
   });
 

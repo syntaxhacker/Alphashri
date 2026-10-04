@@ -52,8 +52,8 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "both",
     });
     const series = seriesOf(option);
-    const support = series.filter((s) => s.name === "Support");
-    const resistance = series.filter((s) => s.name === "Resistance");
+    const support = series.filter((s) => s.name === "TLS");
+    const resistance = series.filter((s) => s.name === "TLR");
     expect(support).toHaveLength(1);
     expect(resistance).toHaveLength(1);
     expect(support[0].lineStyle?.color).toBe(POSITIVE);
@@ -72,11 +72,11 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "both",
     });
     const series = seriesOf(option);
-    expect(series.find((s) => s.name === "Support")?.endLabel?.formatter).toBe(
-      "Support · 3 touches",
+    expect(series.find((s) => s.name === "TLS")?.endLabel?.formatter).toBe(
+      "TLS · 3 touches",
     );
-    expect(series.find((s) => s.name === "Resistance")?.endLabel?.formatter).toBe(
-      "Resistance · 2 touches",
+    expect(series.find((s) => s.name === "TLR")?.endLabel?.formatter).toBe(
+      "TLR · 2 touches",
     );
   });
 
@@ -87,8 +87,8 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "support",
     });
     const names = seriesOf(option).map((s) => s.name);
-    expect(names).toContain("Support");
-    expect(names).not.toContain("Resistance");
+    expect(names).toContain("TLS");
+    expect(names).not.toContain("TLR");
     expect(seriesOf(option).some((s) => s.type === "candlestick")).toBe(true);
   });
 
@@ -99,8 +99,8 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "resistance",
     });
     const names = seriesOf(option).map((s) => s.name);
-    expect(names).toContain("Resistance");
-    expect(names).not.toContain("Support");
+    expect(names).toContain("TLR");
+    expect(names).not.toContain("TLS");
   });
 
   it("draws no standalone lines when the view is none", () => {
@@ -110,8 +110,8 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "none",
     });
     const names = seriesOf(option).map((s) => s.name);
-    expect(names).not.toContain("Support");
-    expect(names).not.toContain("Resistance");
+    expect(names).not.toContain("TLS");
+    expect(names).not.toContain("TLR");
     // …but the candles are still drawn.
     expect(seriesOf(option).some((s) => s.type === "candlestick")).toBe(true);
   });
@@ -127,8 +127,8 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "both",
     });
     const names = seriesOf(option).map((s) => s.name);
-    expect(names).toContain("Support");
-    expect(names).toContain("Resistance");
+    expect(names).toContain("TLS");
+    expect(names).toContain("TLR");
   });
 
   it("draws standalone lines on compact sparklines (cards) without end labels", () => {
@@ -139,10 +139,10 @@ describe("buildPatternChartOption standalone trendlines", () => {
       compact: true,
     });
     const names = seriesOf(option).map((s) => s.name);
-    expect(names).toContain("Support");
-    expect(names).toContain("Resistance");
+    expect(names).toContain("TLS");
+    expect(names).toContain("TLR");
     expect(
-      seriesOf(option).find((s) => s.name === "Support")?.endLabel,
+      seriesOf(option).find((s) => s.name === "TLS")?.endLabel,
     ).toBeUndefined();
   });
 
@@ -162,7 +162,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       standaloneTrendLines: [line],
       trendlinesView: "both",
     });
-    const resistance = seriesOf(option).find((s) => s.name === "Resistance");
+    const resistance = seriesOf(option).find((s) => s.name === "TLR");
     expect(resistance).toBeDefined();
     const data = resistance?.data as Array<number | null>;
     expect(data).toHaveLength(CANDLES.length);
@@ -196,7 +196,7 @@ describe("buildPatternChartOption standalone trendlines", () => {
       trendlinesView: "both",
     });
     const names = seriesOf(option).map((s) => s.name);
-    expect(names).not.toContain("Support");
-    expect(names).not.toContain("Resistance");
+    expect(names).not.toContain("TLS");
+    expect(names).not.toContain("TLR");
   });
 });

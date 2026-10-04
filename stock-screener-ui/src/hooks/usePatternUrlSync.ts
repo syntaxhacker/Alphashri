@@ -6,7 +6,8 @@
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
  *   sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
- *   `symbol=` values are the multi-symbol filter), q, trendlines.
+ *   `symbol=` values are the multi-symbol filter), q, trendlines,
+ *   compute_trendlines (`=0` only, when trendline computation is skipped).
  *
  * Reads the URL once on mount (so a bookmarked view is restored) and writes
  * non-default state back on change. After hydration it also adopts later URL
@@ -25,6 +26,8 @@ export interface ParsedPatternParams {
   universe: string | null;
   timeframe: string | null;
   lookback: number | null;
+  /** False when `compute_trendlines=0`; true when `=1`; null when omitted. */
+  computeTrendlines: boolean | null;
   filters: Partial<PatternFilters>;
 }
 
@@ -33,6 +36,8 @@ export interface PatternUrlState {
   universe: string;
   timeframe: string;
   lookbackBars: number | null;
+  /** Omitted (compute) is the default; only `false` is written. */
+  computeTrendlines?: boolean;
   filters: PatternFilters;
 }
 
@@ -40,6 +45,8 @@ export interface UsePatternUrlSyncArgs extends PatternUrlState {
   setUniverse: (universe: string) => void;
   setTimeframe: (timeframe: string) => void;
   setLookbackBars: (bars: number | null) => void;
+  /** Optional so existing call sites keep compiling; the container provides it. */
+  setComputeTrendlines?: (value: boolean) => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
 }
 
@@ -112,10 +119,21 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
     if (Number.isFinite(n)) lookback = n;
   }
 
+  // Compute toggle: only `=0` (skip) is ever written; `=1` parses back for
+  // robustness but is never produced by `buildPatternParams`.
+  const rawCompute = params.get("compute_trendlines");
+  const computeTrendlines =
+    rawCompute === "0" || rawCompute === "false"
+      ? false
+      : rawCompute === "1" || rawCompute === "true"
+        ? true
+        : null;
+
   return {
     universe: params.get("universe") || null,
     timeframe: params.get("tf") || null,
     lookback,
+    computeTrendlines,
     filters,
   };
 }
@@ -161,6 +179,10 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.trendlines && filters.trendlines !== DEFAULT_PATTERN_FILTERS.trendlines) {
     params.set("trendlines", filters.trendlines);
   }
+  // Compute toggle: only the opt-out (`false`) is written; compute is default.
+  if (state.computeTrendlines === false) {
+    params.set("compute_trendlines", "0");
+  }
 
   return params;
 }
@@ -184,6 +206,7 @@ const PATTERN_PARAM_KEYS = new Set([
   "symbol",
   "q",
   "trendlines",
+  "compute_trendlines",
 ]);
 
 /** True when a parsed URL actually carries any pattern param. */
@@ -192,6 +215,7 @@ function hasAnyPatternParam(parsed: ParsedPatternParams): boolean {
     parsed.universe != null ||
     parsed.timeframe != null ||
     parsed.lookback != null ||
+    parsed.computeTrendlines != null ||
     Object.keys(parsed.filters).length > 0
   );
 }
@@ -219,10 +243,12 @@ export function usePatternUrlSync({
   universe,
   timeframe,
   lookbackBars,
+  computeTrendlines,
   filters,
   setUniverse,
   setTimeframe,
   setLookbackBars,
+  setComputeTrendlines,
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -253,6 +279,7 @@ export function usePatternUrlSync({
     if (parsed.universe) setUniverse(parsed.universe);
     if (parsed.timeframe) setTimeframe(parsed.timeframe);
     if (parsed.lookback != null) setLookbackBars(parsed.lookback);
+    if (parsed.computeTrendlines != null) setComputeTrendlines?.(parsed.computeTrendlines);
     if (Object.keys(parsed.filters).length > 0) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -271,16 +298,19 @@ export function usePatternUrlSync({
         const universeOk = !parsed.universe || universe === parsed.universe;
         const timeframeOk = !parsed.timeframe || timeframe === parsed.timeframe;
         const lookbackOk = parsed.lookback == null || lookbackBars === parsed.lookback;
+        const computeOk =
+          parsed.computeTrendlines == null ||
+          (computeTrendlines ?? true) === parsed.computeTrendlines;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
           const current = (filters as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
-        if (!(universeOk && timeframeOk && lookbackOk && filtersOk)) return; // wait for adoption
+        if (!(universeOk && timeframeOk && lookbackOk && computeOk && filtersOk)) return; // wait for adoption
         hydratedRef.current = true;
       }
     }
 
-    const next = buildPatternParams({ universe, timeframe, lookbackBars, filters });
+    const next = buildPatternParams({ universe, timeframe, lookbackBars, computeTrendlines, filters });
     // Preserve unrelated params (e.g. the screener's `?screener=`) untouched.
     for (const [key, value] of searchParams.entries()) {
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
@@ -292,7 +322,7 @@ export function usePatternUrlSync({
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [universe, timeframe, lookbackBars, filters]);
+  }, [universe, timeframe, lookbackBars, computeTrendlines, filters]);
 
   // Back/forward (or manual) navigation: once hydrated, adopt a URL that
   // differs from what this hook last wrote. Setter calls are diffed against
@@ -309,6 +339,9 @@ export function usePatternUrlSync({
     if (parsed.timeframe && parsed.timeframe !== timeframe) setTimeframe(parsed.timeframe);
     if ((parsed.lookback ?? null) !== (lookbackBars ?? null)) {
       setLookbackBars(parsed.lookback);
+    }
+    if (parsed.computeTrendlines != null && parsed.computeTrendlines !== (computeTrendlines ?? true)) {
+      setComputeTrendlines?.(parsed.computeTrendlines);
     }
     const entries = Object.entries(parsed.filters);
     if (entries.length > 0) {

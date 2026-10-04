@@ -47,6 +47,7 @@ import {
   CUSTOM_UNIVERSE,
   setFilter,
   setLookbackBars,
+  setComputeTrendlines,
   resetFilters,
   applyFilters,
   loadCatalog,
@@ -434,6 +435,69 @@ describe("filters", () => {
   });
 });
 
+describe("computeTrendlines", () => {
+  it("defaults to true", () => {
+    expect(getChartPatternsState().computeTrendlines).toBe(true);
+  });
+
+  it("setComputeTrendlines(false) forwards compute_trendlines: false to results + summary without a forced scan", async () => {
+    setUniverse("nifty500");
+    await flush();
+    mocked.fetchResults.mockClear();
+    mocked.fetchSummary.mockClear();
+    mocked.startScan.mockClear();
+
+    setComputeTrendlines(false);
+
+    expect(getChartPatternsState().computeTrendlines).toBe(false);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ compute_trendlines: false }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ compute_trendlines: false }),
+    );
+    // View/compute-level toggle: reloads data but never forces a re-scan.
+    expect(mocked.startScan).not.toHaveBeenCalled();
+  });
+
+  it("setComputeTrendlines(true) sends compute_trendlines: true to results + summary", async () => {
+    setComputeTrendlines(false);
+    await flush();
+    mocked.fetchResults.mockClear();
+    mocked.fetchSummary.mockClear();
+
+    setComputeTrendlines(true);
+
+    expect(getChartPatternsState().computeTrendlines).toBe(true);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ compute_trendlines: true }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.objectContaining({ compute_trendlines: true }),
+    );
+  });
+
+  it("triggerScan forwards compute_trendlines: false to startScan", async () => {
+    setUniverse("nifty500");
+    setComputeTrendlines(false);
+    await flush();
+    mocked.startScan.mockClear();
+    mocked.fetchJob.mockImplementation(() => new Promise(() => {}));
+
+    await triggerScan(true);
+
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ compute_trendlines: false, force: true }),
+    );
+  });
+
+  it("resetChartPatternsState restores computeTrendlines to true", () => {
+    setComputeTrendlines(false);
+    resetChartPatternsState();
+    expect(getChartPatternsState().computeTrendlines).toBe(true);
+  });
+});
+
 describe("loaders", () => {
   it("loadResults populates items, total and dataThrough", async () => {
     mocked.fetchResults.mockResolvedValue({
@@ -736,6 +800,7 @@ describe("triggerScan", () => {
       universe: "nifty50",
       timeframe: "15m",
       force: false,
+      compute_trendlines: true,
     });
     const state = getChartPatternsState();
     expect(state.job?.universe).toBe("nifty50");

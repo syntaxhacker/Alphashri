@@ -156,9 +156,9 @@ export function buildAppliedFilterChips(
       group: "Trendlines",
       label:
         filters.trendlines === "support"
-          ? "Support only"
+          ? "TLS only"
           : filters.trendlines === "resistance"
-            ? "Resistance only"
+            ? "TLR only"
             : "Hidden",
       key: "trendlines",
       nextValue: "both",

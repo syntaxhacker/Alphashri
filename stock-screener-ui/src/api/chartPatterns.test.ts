@@ -211,6 +211,17 @@ describe("results + summary query building", () => {
     expect(buildPatternsQuery({})).not.toContain("lookback_bars");
     expect(buildPatternsQuery({ lookback_bars: null })).not.toContain("lookback_bars");
   });
+
+  it("buildPatternsQuery serializes compute_trendlines=0 only when false", () => {
+    expect(
+      new URLSearchParams(buildPatternsQuery({ compute_trendlines: false }).slice(1)).get(
+        "compute_trendlines",
+      ),
+    ).toBe("0");
+    expect(buildPatternsQuery({ compute_trendlines: false })).toContain("compute_trendlines=0");
+    expect(buildPatternsQuery({ compute_trendlines: true })).not.toContain("compute_trendlines");
+    expect(buildPatternsQuery({})).not.toContain("compute_trendlines");
+  });
 });
 
 describe("symbol endpoints", () => {
@@ -256,5 +267,25 @@ describe("symbol endpoints", () => {
     await fetchSymbolChart("IRCON", "1D", { lookbackBars: null });
     url = mockedFetch.mock.calls[0][0] as string;
     expect(queryOf(url).get("lookback_bars")).toBeNull();
+  });
+
+  it("fetchSymbolChart sends compute_trendlines=0 only when computeTrendlines is false", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { computeTrendlines: false });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("compute_trendlines")).toBe("0");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { computeTrendlines: true });
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("compute_trendlines")).toBeNull();
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { lookbackBars: 120, computeTrendlines: false });
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("lookback_bars")).toBe("120");
+    expect(queryOf(url).get("compute_trendlines")).toBe("0");
   });
 });

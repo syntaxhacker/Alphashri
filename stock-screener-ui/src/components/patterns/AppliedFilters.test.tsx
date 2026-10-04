@@ -54,13 +54,13 @@ describe("buildAppliedFilterChips", () => {
     expect(chips[0]).toMatchObject({
       id: "trendlines",
       group: "Trendlines",
-      label: "Support only",
+      label: "TLS only",
       key: "trendlines",
       nextValue: "both",
     });
     expect(
       buildAppliedFilterChips(makeFilters({ trendlines: "resistance" }), PATTERNS)[0].label,
-    ).toBe("Resistance only");
+    ).toBe("TLR only");
     expect(
       buildAppliedFilterChips(makeFilters({ trendlines: "none" }), PATTERNS)[0].label,
     ).toBe("Hidden");

@@ -244,4 +244,6 @@ export interface PatternsQuery extends Partial<PatternFilters> {
   offset?: number;
   /** Card candle window in bars (omitted/null = server default). */
   lookback_bars?: number | null;
+  /** Skip server-side trendline computation (false = skip; omitted/true = compute). */
+  compute_trendlines?: boolean;
 }

@@ -55,6 +55,8 @@ export interface ScanRequest {
   symbols?: string[];
   /** Lookback window in bars (omitted/null = server default). */
   lookback_bars?: number | null;
+  /** Skip server-side trendline computation (false = skip; omitted = compute). */
+  compute_trendlines?: boolean;
 }
 
 export interface ScanResponse {
@@ -140,6 +142,8 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
   for (const symbol of query.symbols ?? []) params.append("symbol", symbol);
   if (query.q) params.set("q", query.q);
   if (query.sort && query.sort !== "confidence") params.set("sort", query.sort);
+  // Opt-out flag: only serialized when false (compute is the default).
+  if (query.compute_trendlines === false) params.set("compute_trendlines", "0");
   if (query.limit != null) params.set("limit", String(query.limit));
   if (query.offset != null) params.set("offset", String(query.offset));
 
@@ -236,6 +240,8 @@ export async function fetchSymbolDetail(symbol: string, timeframe: string): Prom
 export interface SymbolChartOptions {
   limit?: number;
   lookbackBars?: number | null;
+  /** Skip server-side trendline computation (false = skip; omitted = compute). */
+  computeTrendlines?: boolean;
 }
 
 export async function fetchSymbolChart(
@@ -246,8 +252,10 @@ export async function fetchSymbolChart(
   const params = new URLSearchParams({ timeframe });
   const limit = typeof opts === "number" ? opts : opts?.limit;
   const lookbackBars = typeof opts === "number" ? undefined : opts?.lookbackBars;
+  const computeTrendlines = typeof opts === "number" ? undefined : opts?.computeTrendlines;
   if (limit != null) params.set("limit", String(limit));
   if (lookbackBars != null) params.set("lookback_bars", String(lookbackBars));
+  if (computeTrendlines === false) params.set("compute_trendlines", "0");
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
     `Failed to load ${symbol} chart`,

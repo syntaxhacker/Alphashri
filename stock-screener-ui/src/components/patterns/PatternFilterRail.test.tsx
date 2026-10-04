@@ -311,6 +311,13 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).not.toHaveBeenCalledWith("max_range_pct", expect.anything());
   });
 
+  test("labels the trendlines view options TLS/TLR", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    const select = screen.getByTestId("patterns-filter-trendlines");
+    expect(within(select).getByRole("option", { name: "TLS only" })).toBeInTheDocument();
+    expect(within(select).getByRole("option", { name: "TLR only" })).toBeInTheDocument();
+  });
+
   test("changes the trendlines view filter", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);

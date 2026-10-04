@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Text, ToolbarRow } from "@/ui";
+import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Switch, Text, ToolbarRow } from "@/ui";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import type {
   ChartCandle,
@@ -61,6 +61,9 @@ export interface PatternsPageProps {
   setFilter: (key: string, value: any) => void;
   resetFilters: () => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
+  /** Skip server-side trendline computation + hide standalone lines. */
+  computeTrendlines: boolean;
+  setComputeTrendlines: (value: boolean) => void;
   /** Reserved id of the custom symbol scope (e.g. `"custom"`). */
   customUniverse: string;
   /** Set the custom symbol scope (switches to the custom universe) and reload. */
@@ -95,6 +98,8 @@ export function PatternsPage({
   setFilter,
   resetFilters,
   applyFilters,
+  computeTrendlines,
+  setComputeTrendlines,
   customUniverse,
   selectSymbols,
   job,
@@ -138,6 +143,11 @@ export function PatternsPage({
       active = false;
     };
   }, [filtersOpen]);
+
+  /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
+  // Top-level compute toggle off: draw no standalone trendlines anywhere,
+  // regardless of the view-only `trendlines` filter.
+  const effectiveTrendlinesView = computeTrendlines ? (filters.trendlines ?? "both") : "none";
 
   /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
   const hitIdentity = (hit: PatternHitDTO): string =>
@@ -227,6 +237,13 @@ export function PatternsPage({
             <TimeframeSelect timeframes={timeframes} value={timeframe} onChange={setTimeframe} />
             <LookbackSelect value={lookbackBars} onChange={setLookbackBars} />
             <ResultsSearch filters={filters} setFilter={setFilter} />
+            <Switch
+              label="TLS/TLR"
+              size="sm"
+              checked={computeTrendlines}
+              onChange={(e) => setComputeTrendlines(e.target.checked)}
+              data-testid="patterns-compute-trendlines"
+            />
             <Button
               size="xs"
               variant="filled"
@@ -330,7 +347,7 @@ export function PatternsPage({
           // Keep the grid mounted while a refresh loads: the overlay spinner
           // signals progress without remounting every mini-chart.
           <Box sx={{ position: "relative", minWidth: 0 }}>
-            <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} trendlinesView={filters.trendlines ?? "both"} />
+            <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} trendlinesView={effectiveTrendlinesView} />
             <LoadingOverlay visible={loading} data-testid="patterns-refreshing" />
           </Box>
         )}
@@ -387,7 +404,7 @@ export function PatternsPage({
         candles={fullscreen?.candles ?? []}
         overlays={fullscreen?.overlays ?? []}
         trendLines={fullscreen?.trendLines ?? []}
-        trendlinesView={filters.trendlines ?? "both"}
+        trendlinesView={effectiveTrendlinesView}
       />
     </Box>
   );
