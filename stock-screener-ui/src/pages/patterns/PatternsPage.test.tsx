@@ -131,9 +131,18 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-job-status")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-stats")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-filter-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-open-filters")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
+  });
+
+  test("Filters button opens the modal with the full rail", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("patterns-open-filters"));
+    expect(await screen.findByTestId("patterns-filter-rail")).toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("patterns-filters-done"));
+    await waitFor(() => expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument());
   });
 
   test("renders symbol filter and results search controls", () => {
@@ -192,7 +201,8 @@ describe("PatternsPage", () => {
   test("toggling a family chip calls setFilter", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-family-reversal"));
+    await userEvent.click(screen.getByTestId("patterns-open-filters"));
+    await userEvent.click(await screen.findByTestId("patterns-family-reversal"));
     expect(props.setFilter).toHaveBeenCalledWith("family", ["reversal"]);
   });
 

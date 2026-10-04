@@ -104,9 +104,6 @@ function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilt
     setFilter: vi.fn(),
     resetFilters: vi.fn(),
     applyFilters: vi.fn(),
-    timeframes: [],
-    timeframe: "1D",
-    setTimeframe: vi.fn(),
     ...overrides,
   };
 }

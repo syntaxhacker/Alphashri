@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
-import { Alert, Box, Button, Loader, LoadingOverlay, Text, ToolbarRow } from "@/ui";
+import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Text, ToolbarRow } from "@/ui";
+import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import type {
   ChartCandle,
   JobDTO,
@@ -15,10 +16,30 @@ import { fetchSymbolChart } from "@/api/chartPatterns";
 import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
 import { PatternFilterRail } from "@/components/patterns/PatternFilterRail";
+import { TimeframeSelect } from "@/components/patterns/TimeframeSelect";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
+
+/** Count of active (non-default) filters, shown on the Filters button. */
+function activeFilterCount(f: PatternFilters): number {
+  let n = 0;
+  if (f.family?.length) n += 1;
+  if (f.pattern_id?.length) n += 1;
+  if (f.direction?.length) n += 1;
+  if (f.status?.length) n += 1;
+  if (f.quality) n += 1;
+  if (f.formed_within_bars != null) n += 1;
+  if (f.volume_confirmed != null) n += 1;
+  if (f.min_rr != null) n += 1;
+  if (f.symbol) n += 1;
+  if (f.symbols?.length) n += 1;
+  if (f.q) n += 1;
+  if (f.min_base_days != null) n += 1;
+  if (f.max_range_pct != null) n += 1;
+  return n;
+}
 
 export interface PatternsPageProps {
   timeframes: TFSpec[];
@@ -79,6 +100,8 @@ export function PatternsPage({
   // Monotonic request token: clicking two cards of the same symbol in quick
   // succession must not let the stale fetch overwrite the newer selection.
   const chartRequestRef = useRef(0);
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const activeFilters = activeFilterCount(filters);
 
   /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
   const hitIdentity = (hit: PatternHitDTO): string =>
@@ -116,15 +139,10 @@ export function PatternsPage({
       data-testid="patterns-page"
       sx={{
         p: 2,
-        display: "grid",
+        display: "flex",
+        flexDirection: "column",
         gap: 2,
-        alignItems: "start",
         width: "100%",
-        gridTemplateColumns: {
-          xs: "minmax(0, 1fr)",
-          md: "260px minmax(0, 1fr)",
-          lg: "260px minmax(0, 1fr)",
-        },
       }}
     >
       <Box sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 1.5, minWidth: 0 }}>
@@ -141,42 +159,28 @@ export function PatternsPage({
         <ScanStats summary={summary} />
       </Box>
 
-      <Box
-        sx={{
-          border: "1px solid",
-          borderColor: "divider",
-          borderRadius: 1,
-          bgcolor: "background.paper",
-          p: 1.5,
-          minWidth: 0,
-        }}
-      >
-        <PatternFilterRail
-          patterns={patterns}
-          results={results}
-          summary={summary}
-          filters={filters}
-          setFilter={setFilter}
-          resetFilters={resetFilters}
-          applyFilters={applyFilters}
-          timeframes={timeframes}
-          timeframe={timeframe}
-          setTimeframe={setTimeframe}
-        />
-      </Box>
-
       <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1.5 }}>
         <ToolbarRow
           justify="space-between"
           data-testid="patterns-results-toolbar"
-          style={{ rowGap: 8 }}
+          style={{ rowGap: 8, flexWrap: "wrap" }}
         >
           <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
             {total > 0 ? `${total} patterns` : "Patterns"}
           </Text>
-          <ToolbarRow gap={8} justify="flex-end">
+          <ToolbarRow gap={8} justify="flex-end" align="center" style={{ flexWrap: "wrap" }}>
+            <TimeframeSelect timeframes={timeframes} value={timeframe} onChange={setTimeframe} />
             <SymbolFilter filters={filters} setFilter={setFilter} />
             <ResultsSearch filters={filters} setFilter={setFilter} />
+            <Button
+              size="xs"
+              variant="filled"
+              leftSection={<IconAdjustmentsHorizontal size={14} />}
+              onClick={() => setFiltersOpen(true)}
+              data-testid="patterns-open-filters"
+            >
+              Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
+            </Button>
           </ToolbarRow>
         </ToolbarRow>
 
@@ -244,6 +248,37 @@ export function PatternsPage({
           </Box>
         )}
       </Box>
+
+      <Modal
+        opened={filtersOpen}
+        onClose={() => setFiltersOpen(false)}
+        title="Filters"
+        size="xl"
+        data-testid="patterns-filter-modal"
+      >
+        <Box sx={{ maxHeight: "68vh", overflowY: "auto", pr: 1 }}>
+          <PatternFilterRail
+            layout="panel"
+            patterns={patterns}
+            results={results}
+            summary={summary}
+            filters={filters}
+            setFilter={setFilter}
+            resetFilters={resetFilters}
+            applyFilters={applyFilters}
+          />
+        </Box>
+        <ToolbarRow justify="flex-end" gap={8} style={{ paddingTop: 16 }}>
+          <Button
+            size="sm"
+            variant="filled"
+            onClick={() => setFiltersOpen(false)}
+            data-testid="patterns-filters-done"
+          >
+            Done
+          </Button>
+        </ToolbarRow>
+      </Modal>
 
       <PatternFullscreenView
         opened={!!fullscreen}

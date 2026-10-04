@@ -365,12 +365,19 @@ async function chooseTimeframe(page: Page, label: string) {
   }
 }
 
+/** Open the Filters modal (the rail now lives inside it). */
+async function openFilters(page: Page) {
+  await page.locator('[data-testid="patterns-open-filters"]').click();
+  await expect(page.locator('[data-testid="patterns-filter-rail"]')).toBeVisible();
+}
+
 /**
  * Apply a "bearish" filter using whichever control the filter rail exposes
  * (checkbox/switch/radio, button, MUI select or plain text). Returns the
  * strategy used, or null when no recognisable control exists.
  */
 async function applyBearishFilter(page: Page): Promise<string | null> {
+  await openFilters(page);
   const rail = page.locator('[data-testid="patterns-filter-rail"]');
   await expect(rail).toBeVisible();
   const nameRe = /bearish/i;
@@ -448,7 +455,6 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("filter rail filters the cards", async ({ page }) => {
-    await expect(page.locator('[data-testid="patterns-filter-rail"]')).toBeVisible();
     await expect(page.locator('[data-testid="patterns-card"]').first()).toBeVisible();
     const before = await page.locator('[data-testid="patterns-card"]').count();
 
@@ -504,12 +510,14 @@ test.describe("Chart Patterns page", () => {
   });
 
   test("mirrors a filter change into the URL", async ({ page }) => {
+    await openFilters(page);
     await page.locator('[data-testid="patterns-direction-bearish"]').click();
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
   });
 
   test("a filter survives navigation away and back", async ({ page }) => {
+    await openFilters(page);
     await page.locator('[data-testid="patterns-direction-bearish"]').click();
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
