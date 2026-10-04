@@ -12,7 +12,7 @@ import {
   PRIMARY,
   WARNING,
 } from "@/ui/palette";
-import { mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
+import { mapTimeSegment, mapTrendlines, pointsToSeriesData } from "./trendlineMapping";
 import { formatChartTick, formatChartTimestamp } from "./datetime";
 import { formatCurrency } from "@/utils/ui-helpers";
 
@@ -300,15 +300,7 @@ export function buildPatternChartOption({
     if (!line) return;
     const name = line.kind === "support" ? "Support" : "Resistance";
     const color = line.kind === "support" ? POSITIVE : NEGATIVE;
-    const [points] = mapTrendlines(
-      [
-        [
-          { t: line.start_date, price: line.start_price },
-          { t: line.end_date, price: line.end_price },
-        ],
-      ],
-      times,
-    );
+    const points = mapTimeSegment(line.start_date, line.start_price, line.end_date, line.end_price, times);
     if (!points || points.length === 0) return;
     // A degenerate single-point line draws nothing as a line — dot-mark it.
     const singlePoint = points.length <= 1;

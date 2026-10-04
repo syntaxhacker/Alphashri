@@ -70,6 +70,77 @@ export function mapTrendlines(trendlines: Trendline[] | undefined, times: string
   return mapped;
 }
 
+/** Nearest candle index for an already-parsed timestamp. */
+function nearestIndexForTimestamp(target: number, parsed: number[]): number | undefined {
+  if (Number.isNaN(target) || parsed.length === 0) return undefined;
+  let best = -1;
+  let bestDiff = Number.POSITIVE_INFINITY;
+  parsed.forEach((value, i) => {
+    if (Number.isNaN(value)) return;
+    const diff = Math.abs(value - target);
+    if (diff < bestDiff) {
+      bestDiff = diff;
+      best = i;
+    }
+  });
+  return best >= 0 ? best : undefined;
+}
+
+/**
+ * Map a standalone support/resistance time segment onto a categorical candle
+ * `times` axis, interpolating the price at the visible window edges.
+ *
+ * Unlike `mapTrendlines` (which clamps out-of-window endpoint dates to the
+ * nearest candle but keeps the endpoint's original price), this clamps in
+ * *time* space first and evaluates the line's true value at the clamped
+ * times — so a long trendline starting before the window is drawn from its
+ * value at the first visible bar, not its ancient start price.
+ */
+export function mapTimeSegment(
+  startT: string,
+  startP: number,
+  endT: string,
+  endP: number,
+  times: string[],
+): AxisPoint[] {
+  if (times.length === 0) return [];
+  const t0 = parseEngineTimestamp(startT);
+  const t1 = parseEngineTimestamp(endT);
+  if (Number.isNaN(t0) || Number.isNaN(t1) || t1 < t0) return [];
+
+  const wStart = parseEngineTimestamp(times[0] as string);
+  const wEnd = parseEngineTimestamp(times[times.length - 1] as string);
+  if (Number.isNaN(wStart) || Number.isNaN(wEnd)) return [];
+  if (t1 < wStart || t0 > wEnd) return [];
+
+  const parsed = times.map((t) => parseEngineTimestamp(t));
+
+  // Degenerate zero-span segment (start == end): no slope to interpolate.
+  // Dot-mark it at its instant when inside the window, matching the chart's
+  // single-point handling (pre-existing card/fullscreen fixtures use these).
+  if (t1 === t0) {
+    const i = nearestIndexForTimestamp(t0, parsed);
+    if (i === undefined) return [];
+    return [{ index: i, price: startP }];
+  }
+
+  const a = Math.max(t0, wStart);
+  const b = Math.min(t1, wEnd);
+
+  const slope = (endP - startP) / (t1 - t0);
+  const pa = startP + slope * (a - t0);
+  const pb = startP + slope * (b - t0);
+
+  const ia = nearestIndexForTimestamp(a, parsed);
+  const ib = nearestIndexForTimestamp(b, parsed);
+  if (ia === undefined || ib === undefined) return [];
+  if (ia === ib) return [{ index: ia, price: pa }];
+  return [
+    { index: ia, price: pa },
+    { index: ib, price: pb },
+  ];
+}
+
 /** Expand mapped points into a null-padded data array aligned to the x-axis. */
 export function pointsToSeriesData(points: AxisPoint[], length: number): Array<number | null> {
   const data: Array<number | null> = Array.from({ length }, () => null);

@@ -145,4 +145,58 @@ describe("buildPatternChartOption standalone trendlines", () => {
       seriesOf(option).find((s) => s.name === "Support")?.endLabel,
     ).toBeUndefined();
   });
+
+  it("interpolates (not the stale start price) when a line starts before the window", () => {
+    // Resistance 1728 → 1147 from 2026-02-03 to 2026-09-04; the visible window
+    // starts 2026-05-04, so index 0 must carry the line's value at 2026-05-04.
+    const line = makeLine({
+      kind: "resistance",
+      start_date: "2026-02-03",
+      start_price: 1728,
+      end_date: "2026-05-07T09:15:00+05:30",
+      end_price: 1147,
+      touches: 2,
+    });
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      standaloneTrendLines: [line],
+      trendlinesView: "both",
+    });
+    const resistance = seriesOf(option).find((s) => s.name === "Resistance");
+    expect(resistance).toBeDefined();
+    const data = resistance?.data as Array<number | null>;
+    expect(data).toHaveLength(CANDLES.length);
+    expect(data[0]).not.toBeNull();
+    expect(data[0]).not.toBe(1728);
+    const t0 = Date.parse("2026-02-03T00:00:00+05:30");
+    const t1 = Date.parse("2026-05-07T09:15:00+05:30");
+    const wStart = Date.parse("2026-05-04T09:15:00+05:30");
+    const expected = 1728 + ((1147 - 1728) / (t1 - t0)) * (wStart - t0);
+    expect(data[0]).toBeCloseTo(expected, 6);
+  });
+
+  it("omits a standalone line entirely outside the window", () => {
+    const before = makeLine({
+      kind: "support",
+      start_date: "2026-01-01",
+      start_price: 90,
+      end_date: "2026-01-02",
+      end_price: 91,
+    });
+    const after = makeLine({
+      kind: "resistance",
+      start_date: "2026-06-01",
+      start_price: 110,
+      end_date: "2026-06-02",
+      end_price: 111,
+    });
+    const option = buildPatternChartOption({
+      candles: CANDLES,
+      standaloneTrendLines: [before, after],
+      trendlinesView: "both",
+    });
+    const names = seriesOf(option).map((s) => s.name);
+    expect(names).not.toContain("Support");
+    expect(names).not.toContain("Resistance");
+  });
 });
