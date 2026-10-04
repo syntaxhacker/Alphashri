@@ -21,6 +21,7 @@ import { TimeframeSelect } from "@/components/patterns/TimeframeSelect";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
+import { ScanProgress } from "@/components/patterns/ScanProgress";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
 
 /** Count of active (non-default) filters, shown on the Filters button. */
@@ -104,6 +105,7 @@ export function PatternsPage({
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [patternImages, setPatternImages] = useState<Record<string, string>>({});
   const activeFilters = activeFilterCount(filters);
+  const scanActive = scanning || job?.status === "running" || job?.status === "queued";
 
   // Reference images for the pattern tiles: load once, the first time the
   // Filters modal opens (no cost on page load).
@@ -203,6 +205,16 @@ export function PatternsPage({
           </ToolbarRow>
         </ToolbarRow>
 
+        {scanActive && results.length > 0 ? (
+          <ScanProgress
+            job={job}
+            scanning={scanning}
+            universe={universe}
+            timeframe={timeframe}
+            variant="banner"
+          />
+        ) : null}
+
         {error ? (
           <Alert color="error" data-testid="patterns-error">
             {error}
@@ -214,50 +226,65 @@ export function PatternsPage({
             data-testid="patterns-loading"
             sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, py: 6 }}
           >
-            <Loader size="lg" />
-            <Text size="sm" c="dimmed">
-              Detecting chart patterns…
-            </Text>
+            {scanActive ? (
+              <ScanProgress job={job} scanning={scanning} universe={universe} timeframe={timeframe} variant="block" />
+            ) : (
+              <>
+                <Loader size="lg" />
+                <Text size="sm" c="dimmed">
+                  Loading results…
+                </Text>
+              </>
+            )}
           </Box>
         ) : results.length === 0 ? (
-          <Box
-            data-testid="patterns-empty"
-            sx={{
-              border: "1px dashed",
-              borderColor: "divider",
-              borderRadius: 1,
-              bgcolor: "background.paper",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              justifyContent: "center",
-              gap: 1,
-              py: 6,
-              px: 2,
-              textAlign: "center",
-            }}
-          >
-            <Text size="sm" c="dimmed">
-              No patterns match the current filters.
-            </Text>
-            <Text size="xs" c="dimmed">
-              No results yet for {universe} · {timeframe} — run a scan.
-            </Text>
-            <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
-              <Button
-                size="xs"
-                variant="filled"
-                onClick={scan}
-                disabled={scanning}
-                data-testid="patterns-empty-scan"
-              >
-                Scan {timeframe} now
-              </Button>
-              <Button size="xs" variant="outline" onClick={refresh}>
-                Refresh
-              </Button>
+          scanActive ? (
+            <Box
+              data-testid="patterns-empty"
+              sx={{ display: "flex", flexDirection: "column", alignItems: "center", py: 6, px: 2 }}
+            >
+              <ScanProgress job={job} scanning={scanning} universe={universe} timeframe={timeframe} variant="block" />
             </Box>
-          </Box>
+          ) : (
+            <Box
+              data-testid="patterns-empty"
+              sx={{
+                border: "1px dashed",
+                borderColor: "divider",
+                borderRadius: 1,
+                bgcolor: "background.paper",
+                display: "flex",
+                flexDirection: "column",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+                py: 6,
+                px: 2,
+                textAlign: "center",
+              }}
+            >
+              <Text size="sm" c="dimmed">
+                No patterns match the current filters.
+              </Text>
+              <Text size="xs" c="dimmed">
+                No results yet for {universe} · {timeframe} — run a scan.
+              </Text>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap", justifyContent: "center" }}>
+                <Button
+                  size="xs"
+                  variant="filled"
+                  onClick={scan}
+                  disabled={scanning}
+                  data-testid="patterns-empty-scan"
+                >
+                  Scan {timeframe} now
+                </Button>
+                <Button size="xs" variant="outline" onClick={refresh}>
+                  Refresh
+                </Button>
+              </Box>
+            </Box>
+          )
         ) : (
           // Keep the grid mounted while a refresh loads: the overlay spinner
           // signals progress without remounting every mini-chart.

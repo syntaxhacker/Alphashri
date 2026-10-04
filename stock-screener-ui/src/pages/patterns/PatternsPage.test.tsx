@@ -179,6 +179,36 @@ describe("PatternsPage", () => {
     expect(screen.queryByTestId("patterns-empty")).not.toBeInTheDocument();
   });
 
+  test("shows scan progress in the grid while a scan is running", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          results: [],
+          total: 0,
+          scanning: true,
+          timeframe: "1h",
+          job: {
+            job_id: "cpj_x",
+            universe: "nifty50",
+            timeframe: "1h",
+            status: "running",
+            total: 50,
+            done: 12,
+            failed: 0,
+            skipped: 0,
+            queue_position: null,
+            started_at: null,
+            finished_at: null,
+            data_through: null,
+            error: null,
+          },
+        })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-progress")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("12 / 50 stocks");
+  });
+
   test("shows empty state with refresh action", async () => {
     const props = makeProps({ results: [], total: 0 });
     r(<PatternsPage {...props} />);
