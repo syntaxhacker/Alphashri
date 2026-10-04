@@ -65,7 +65,7 @@ export function PatternMiniChart({ hit }: PatternMiniChartProps) {
     <Box
       ref={chartRef}
       data-testid={`patterns-mini-chart-${hit.symbol}-${hit.pattern_id}`}
-      sx={{ width: "100%", height: 72 }}
+      sx={{ width: "100%", height: 128 }}
     />
   );
 }
