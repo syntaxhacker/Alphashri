@@ -702,10 +702,12 @@ async def get_symbol(symbol: str, timeframe: str = Query("1D")):
 async def get_symbol_chart(
     symbol: str,
     timeframe: str = Query("1D"),
-    limit: int = Query(300, ge=1, le=2000),
+    limit: int = Query(2000, ge=1, le=2000),
+    lookback_bars: Optional[int] = Query(None),
 ):
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=500)
+        lb = lookback_bars if lookback_bars is not None else 500
+        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lb)
     except Exception:
         df = None
     series = candles.candles_to_series(df, limit) if df is not None else []

@@ -151,7 +151,11 @@ export function PatternsPage({
     chartRequestRef.current = token;
     const identity = hitIdentity(hit);
     setFullscreen({ hit, candles: hit.candles ?? [], overlays: [], trendLines: hit.trend_lines ?? [] });
-    void fetchSymbolChart(hit.symbol, hit.timeframe)
+    void fetchSymbolChart(
+      hit.symbol,
+      hit.timeframe,
+      lookbackBars != null ? { lookbackBars } : undefined,
+    )
       .then((chart) => {
         // Drop stale responses: only the latest request may update the view.
         if (chartRequestRef.current !== token) return;

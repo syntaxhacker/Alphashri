@@ -232,13 +232,21 @@ export async function fetchSymbolDetail(symbol: string, timeframe: string): Prom
   );
 }
 
+export interface SymbolChartOptions {
+  limit?: number;
+  lookbackBars?: number | null;
+}
+
 export async function fetchSymbolChart(
   symbol: string,
   timeframe: string,
-  limit?: number,
+  opts?: number | SymbolChartOptions,
 ): Promise<ChartPayload> {
   const params = new URLSearchParams({ timeframe });
+  const limit = typeof opts === "number" ? opts : opts?.limit;
+  const lookbackBars = typeof opts === "number" ? undefined : opts?.lookbackBars;
   if (limit != null) params.set("limit", String(limit));
+  if (lookbackBars != null) params.set("lookback_bars", String(lookbackBars));
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
     `Failed to load ${symbol} chart`,

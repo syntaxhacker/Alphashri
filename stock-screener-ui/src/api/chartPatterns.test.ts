@@ -223,4 +223,31 @@ describe("symbol endpoints", () => {
     expect(queryOf(url).get("timeframe")).toBe("1D");
     expect(queryOf(url).get("limit")).toBe("300");
   });
+
+  it("fetchSymbolChart sends lookback_bars only when provided", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { lookbackBars: 250 });
+    let url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("lookback_bars")).toBe("250");
+    expect(queryOf(url).get("limit")).toBeNull();
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D");
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("lookback_bars")).toBeNull();
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { limit: 500, lookbackBars: 120 });
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("limit")).toBe("500");
+    expect(queryOf(url).get("lookback_bars")).toBe("120");
+
+    mockedFetch.mockClear();
+    mockedFetch.mockResolvedValue(okResponse({ symbol: "IRCON", candles: [], overlays: [] }));
+    await fetchSymbolChart("IRCON", "1D", { lookbackBars: null });
+    url = mockedFetch.mock.calls[0][0] as string;
+    expect(queryOf(url).get("lookback_bars")).toBeNull();
+  });
 });

@@ -940,3 +940,46 @@ def test_enrich_fetches_bounded_lookback_and_recomputes_when_blank(monkeypatch):
     assert seen.get("lookback_bars") == 500
     assert out[0]["trend_lines"] == [_fake_trendline("support")]
 
+
+# ---------------------------------------------------------------------------
+# symbol chart lookback_bars (fullscreen chart shows the entire window).
+# ---------------------------------------------------------------------------
+
+
+def test_symbol_chart_with_lookback_bars_forwards_and_returns_all(cp_client, monkeypatch):
+    """`lookback_bars=250` is forwarded to the fetch and nothing is truncated."""
+    store.save_hits("cpj_chartlb", [_hit("IRCON")])
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update({"symbol": symbol, "timeframe": timeframe, **kwargs})
+        return _make_df(250)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "lookback_bars": 250},
+    )
+    assert chart.status_code == 200
+    assert seen.get("lookback_bars") == 250
+    assert len(chart.json()["candles"]) == 250
+
+
+def test_symbol_chart_without_lookback_bars_uses_default(cp_client, monkeypatch):
+    """Omitting `lookback_bars` keeps the previous 500-bar default fetch."""
+    store.save_hits("cpj_chartlb_def", [_hit("IRCON")])
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(120)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    assert seen.get("lookback_bars") == 500
+    # Default limit (2000) exceeds the fetched window: all bars are returned.
+    assert len(chart.json()["candles"]) == 120
+

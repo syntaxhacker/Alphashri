@@ -680,7 +680,11 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
   try {
     const [detail, chart] = await Promise.all([
       fetchSymbolDetail(symbol, tf),
-      fetchSymbolChart(symbol, tf),
+      fetchSymbolChart(
+        symbol,
+        tf,
+        state.lookbackBars != null ? { lookbackBars: state.lookbackBars } : undefined,
+      ),
     ]);
     if (state.selectedSymbol !== symbol) return;
     patch({ detail, detailChart: chart, error: null });

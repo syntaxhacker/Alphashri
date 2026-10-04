@@ -765,6 +765,30 @@ describe("loadSymbolDetail", () => {
     expect(state.detail).toEqual({ symbol: "IRCON" });
     expect(state.detailChart?.symbol).toBe("IRCON");
   });
+
+  it("passes the store lookbackBars through to fetchSymbolChart", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+
+    setLookbackBars(250);
+    await flush();
+    mocked.fetchSymbolChart.mockClear();
+    await loadSymbolDetail("IRCON");
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1D",
+      { lookbackBars: 250 },
+    );
+  });
+
+  it("omits lookbackBars when the store is Auto (null)", async () => {
+    mocked.fetchSymbolDetail.mockResolvedValue({ symbol: "IRCON" } as never);
+    mocked.fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+
+    expect(getChartPatternsState().lookbackBars).toBeNull();
+    await loadSymbolDetail("IRCON");
+    expect(mocked.fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", undefined);
+  });
 });
 
 describe("lookbackBars", () => {
