@@ -53,6 +53,8 @@ export interface ScanRequest {
   force?: boolean;
   /** Explicit symbol scope: scan only these (stored under the `custom` universe). */
   symbols?: string[];
+  /** Lookback window in bars (omitted/null = server default). */
+  lookback_bars?: number | null;
 }
 
 export interface ScanResponse {

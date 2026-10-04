@@ -10,6 +10,7 @@ import type {
   PatternOverlay,
   PatternSummary,
   TFSpec,
+  TrendLine,
   Universe,
 } from "@/types/chartPatterns";
 import { fetchSymbolChart } from "@/api/chartPatterns";
@@ -18,6 +19,7 @@ import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
 import { PatternFilterRail } from "@/components/patterns/PatternFilterRail";
 import { TimeframeSelect } from "@/components/patterns/TimeframeSelect";
+import { LookbackSelect } from "@/components/patterns/LookbackSelect";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
@@ -41,6 +43,7 @@ function activeFilterCount(f: PatternFilters): number {
   if (f.q) n += 1;
   if (f.min_base_days != null) n += 1;
   if (f.max_range_pct != null) n += 1;
+  if (f.trendlines && f.trendlines !== "both") n += 1;
   return n;
 }
 
@@ -50,6 +53,8 @@ export interface PatternsPageProps {
   patterns: PatternDef[];
   timeframe: string;
   setTimeframe: (value: string) => void;
+  lookbackBars: number | null;
+  setLookbackBars: (value: number | null) => void;
   universe: string;
   setUniverse: (value: string) => void;
   filters: PatternFilters;
@@ -82,6 +87,8 @@ export function PatternsPage({
   patterns,
   timeframe,
   setTimeframe,
+  lookbackBars,
+  setLookbackBars,
   universe,
   setUniverse,
   filters,
@@ -105,6 +112,7 @@ export function PatternsPage({
     hit: PatternHitDTO;
     candles: ChartCandle[];
     overlays: PatternOverlay[];
+    trendLines: TrendLine[];
   } | null>(null);
   // Monotonic request token: clicking two cards of the same symbol in quick
   // succession must not let the stale fetch overwrite the newer selection.
@@ -142,7 +150,7 @@ export function PatternsPage({
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
     const identity = hitIdentity(hit);
-    setFullscreen({ hit, candles: hit.candles ?? [], overlays: [] });
+    setFullscreen({ hit, candles: hit.candles ?? [], overlays: [], trendLines: hit.trend_lines ?? [] });
     void fetchSymbolChart(hit.symbol, hit.timeframe)
       .then((chart) => {
         // Drop stale responses: only the latest request may update the view.
@@ -153,6 +161,7 @@ export function PatternsPage({
                 ...prev,
                 candles: chart.candles?.length ? chart.candles : prev.candles,
                 overlays: chart.overlays ?? [],
+                trendLines: chart.trend_lines ?? prev.trendLines,
               }
             : prev,
         );
@@ -212,6 +221,7 @@ export function PatternsPage({
           </Text>
           <ToolbarRow gap={8} justify="flex-end" align="center" style={{ flexWrap: "wrap" }}>
             <TimeframeSelect timeframes={timeframes} value={timeframe} onChange={setTimeframe} />
+            <LookbackSelect value={lookbackBars} onChange={setLookbackBars} />
             <ResultsSearch filters={filters} setFilter={setFilter} />
             <Button
               size="xs"
@@ -316,7 +326,7 @@ export function PatternsPage({
           // Keep the grid mounted while a refresh loads: the overlay spinner
           // signals progress without remounting every mini-chart.
           <Box sx={{ position: "relative", minWidth: 0 }}>
-            <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} />
+            <PatternGrid hits={results} onSelect={openFromCard} onExpand={openFromCard} trendlinesView={filters.trendlines ?? "both"} />
             <LoadingOverlay visible={loading} data-testid="patterns-refreshing" />
           </Box>
         )}
@@ -372,6 +382,8 @@ export function PatternsPage({
         hit={fullscreen?.hit ?? null}
         candles={fullscreen?.candles ?? []}
         overlays={fullscreen?.overlays ?? []}
+        trendLines={fullscreen?.trendLines ?? []}
+        trendlinesView={filters.trendlines ?? "both"}
       />
     </Box>
   );

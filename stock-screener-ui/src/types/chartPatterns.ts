@@ -66,6 +66,25 @@ export interface JobDTO {
 /** A single trendline is a list of `{t, price}` points. */
 export type Trendline = Array<{ t: string; price: number }>;
 
+/**
+ * Auto-computed standalone trendline (support/resistance) attached to a result
+ * item or a symbol-chart payload as `trend_lines`. Transport shape only.
+ */
+export interface TrendLine {
+  kind: "support" | "resistance";
+  start_date: string;
+  start_price: number;
+  end_date: string;
+  end_price: number;
+  slope: number;
+  touches: number;
+  span_bars: number;
+  violations: number;
+}
+
+/** View-only filter controlling which standalone trendlines are drawn. */
+export type TrendlinesView = "both" | "support" | "resistance" | "none";
+
 /** Pattern hit row (`PatternHitDTO`, `GET /results`). */
 export interface PatternHitDTO {
   id: number;
@@ -90,6 +109,8 @@ export interface PatternHitDTO {
   bars_ago: number;
   volume_confirmed: boolean;
   trendlines: Trendline[];
+  /** Auto-computed standalone support/resistance lines (view-only overlay). */
+  trend_lines?: TrendLine[];
   notes: string;
   /** Swing pivots used to define the pattern: on-chart markers + manual audit. */
   pivots?: Array<{ t: string; price: number; kind?: "high" | "low" }>;
@@ -177,6 +198,8 @@ export interface ChartPayload {
   timeframe: string;
   candles: ChartCandle[];
   overlays: PatternOverlay[];
+  /** Auto-computed standalone support/resistance lines (view-only overlay). */
+  trend_lines?: TrendLine[];
 }
 
 /** User-facing result filters (the filter rail). */
@@ -201,6 +224,11 @@ export interface PatternFilters {
   max_range_pct: number | null;
   /** Result ordering: `"confidence"` (default) or `"newest"` (freshest bars first). */
   sort: string;
+  /**
+   * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
+   * `/results` or `/summary` (not part of `baseQuery`), never restrictive.
+   */
+  trendlines: TrendlinesView;
 }
 
 /**

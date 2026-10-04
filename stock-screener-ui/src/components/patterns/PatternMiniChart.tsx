@@ -2,18 +2,20 @@ import { useEffect } from "react";
 import { Box } from "@/ui";
 import { useECharts } from "@/hooks/useECharts";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
-import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { buildPatternChartOption, BOUNDARY_COLORS } from "./patternChartOption";
 
 export interface PatternMiniChartProps {
   hit: PatternHitDTO;
+  /** View-only filter for standalone support/resistance lines. */
+  trendlinesView?: TrendlinesView;
 }
 
 /**
  * Compact inline candlestick for a card. Reuses the shared option builder so
  * the pattern geometry matches the detail / fullscreen views exactly.
  */
-export function PatternMiniChart({ hit }: PatternMiniChartProps) {
+export function PatternMiniChart({ hit, trendlinesView = "both" }: PatternMiniChartProps) {
   const { chartRef, setChartOption } = useECharts({ isDark: true });
 
   useEffect(() => {
@@ -22,7 +24,14 @@ export function PatternMiniChart({ hit }: PatternMiniChartProps) {
 
     if (candles.length > 0) {
       setChartOption(
-        buildPatternChartOption({ candles, trendlines, compact: true }) as never,
+        buildPatternChartOption({
+          candles,
+          trendlines,
+          hit,
+          standaloneTrendLines: hit.trend_lines ?? [],
+          trendlinesView,
+          compact: true,
+        }) as never,
       );
       return;
     }
@@ -59,7 +68,7 @@ export function PatternMiniChart({ hit }: PatternMiniChartProps) {
       yAxis: { type: "value", show: false, scale: true },
       series,
     });
-  }, [hit, setChartOption]);
+  }, [hit, setChartOption, trendlinesView]);
 
   return (
     <Box

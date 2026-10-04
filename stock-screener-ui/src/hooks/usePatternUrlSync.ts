@@ -6,7 +6,7 @@
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
  *   sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
- *   `symbol=` values are the multi-symbol filter), q.
+ *   `symbol=` values are the multi-symbol filter), q, trendlines.
  *
  * Reads the URL once on mount (so a bookmarked view is restored) and writes
  * non-default state back on change. After hydration it also adopts later URL
@@ -17,13 +17,14 @@
 
 import { useEffect, useRef } from "react";
 import { useSearchParams } from "react-router-dom";
-import type { PatternFilters } from "../types/chartPatterns";
+import type { PatternFilters, TrendlinesView } from "../types/chartPatterns";
 import { DEFAULT_PATTERN_FILTERS, DEFAULT_TIMEFRAME } from "../state/chartPatterns";
 
 /** Parsed URL: active selection plus a partial filter patch (defaults omitted). */
 export interface ParsedPatternParams {
   universe: string | null;
   timeframe: string | null;
+  lookback: number | null;
   filters: Partial<PatternFilters>;
 }
 
@@ -31,12 +32,14 @@ export interface ParsedPatternParams {
 export interface PatternUrlState {
   universe: string;
   timeframe: string;
+  lookbackBars: number | null;
   filters: PatternFilters;
 }
 
 export interface UsePatternUrlSyncArgs extends PatternUrlState {
   setUniverse: (universe: string) => void;
   setTimeframe: (timeframe: string) => void;
+  setLookbackBars: (bars: number | null) => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
 }
 
@@ -90,9 +93,29 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   const q = params.get("q");
   if (q) filters.q = q;
 
+  // View-only trendline filter: only known values are adopted; anything else
+  // (including a stale/typo'd param) falls back to the default via omission.
+  const trendlines = params.get("trendlines");
+  if (
+    trendlines === "both" ||
+    trendlines === "support" ||
+    trendlines === "resistance" ||
+    trendlines === "none"
+  ) {
+    filters.trendlines = trendlines as TrendlinesView;
+  }
+
+  let lookback: number | null = null;
+  const rawLookback = params.get("lookback");
+  if (rawLookback != null && rawLookback !== "") {
+    const n = Number.parseInt(rawLookback, 10);
+    if (Number.isFinite(n)) lookback = n;
+  }
+
   return {
     universe: params.get("universe") || null,
     timeframe: params.get("tf") || null,
+    lookback,
     filters,
   };
 }
@@ -108,6 +131,9 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (state.universe) params.set("universe", state.universe);
   if (state.timeframe && state.timeframe !== DEFAULT_TIMEFRAME) {
     params.set("tf", state.timeframe);
+  }
+  if (state.lookbackBars != null) {
+    params.set("lookback", String(state.lookbackBars));
   }
 
   for (const id of filters.pattern_id ?? []) params.append("pattern", id);
@@ -131,6 +157,10 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.symbol) params.set("symbol", filters.symbol);
   for (const symbol of filters.symbols ?? []) params.append("symbol", symbol);
   if (filters.q) params.set("q", filters.q);
+  // View-only: written only when it narrows the default "both" view.
+  if (filters.trendlines && filters.trendlines !== DEFAULT_PATTERN_FILTERS.trendlines) {
+    params.set("trendlines", filters.trendlines);
+  }
 
   return params;
 }
@@ -139,6 +169,7 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
 const PATTERN_PARAM_KEYS = new Set([
   "universe",
   "tf",
+  "lookback",
   "pattern",
   "family",
   "direction",
@@ -152,6 +183,7 @@ const PATTERN_PARAM_KEYS = new Set([
   "sort",
   "symbol",
   "q",
+  "trendlines",
 ]);
 
 /** True when a parsed URL actually carries any pattern param. */
@@ -159,6 +191,7 @@ function hasAnyPatternParam(parsed: ParsedPatternParams): boolean {
   return (
     parsed.universe != null ||
     parsed.timeframe != null ||
+    parsed.lookback != null ||
     Object.keys(parsed.filters).length > 0
   );
 }
@@ -185,9 +218,11 @@ export function filterValuesEqual(a: unknown, b: unknown): boolean {
 export function usePatternUrlSync({
   universe,
   timeframe,
+  lookbackBars,
   filters,
   setUniverse,
   setTimeframe,
+  setLookbackBars,
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -217,6 +252,7 @@ export function usePatternUrlSync({
     parsedRef.current = parsed;
     if (parsed.universe) setUniverse(parsed.universe);
     if (parsed.timeframe) setTimeframe(parsed.timeframe);
+    if (parsed.lookback != null) setLookbackBars(parsed.lookback);
     if (Object.keys(parsed.filters).length > 0) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -234,16 +270,17 @@ export function usePatternUrlSync({
       } else {
         const universeOk = !parsed.universe || universe === parsed.universe;
         const timeframeOk = !parsed.timeframe || timeframe === parsed.timeframe;
+        const lookbackOk = parsed.lookback == null || lookbackBars === parsed.lookback;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
           const current = (filters as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
-        if (!(universeOk && timeframeOk && filtersOk)) return; // wait for adoption
+        if (!(universeOk && timeframeOk && lookbackOk && filtersOk)) return; // wait for adoption
         hydratedRef.current = true;
       }
     }
 
-    const next = buildPatternParams({ universe, timeframe, filters });
+    const next = buildPatternParams({ universe, timeframe, lookbackBars, filters });
     // Preserve unrelated params (e.g. the screener's `?screener=`) untouched.
     for (const [key, value] of searchParams.entries()) {
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
@@ -255,7 +292,7 @@ export function usePatternUrlSync({
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [universe, timeframe, filters]);
+  }, [universe, timeframe, lookbackBars, filters]);
 
   // Back/forward (or manual) navigation: once hydrated, adopt a URL that
   // differs from what this hook last wrote. Setter calls are diffed against
@@ -270,6 +307,9 @@ export function usePatternUrlSync({
     const parsed = parsePatternParams(searchParams);
     if (parsed.universe && parsed.universe !== universe) setUniverse(parsed.universe);
     if (parsed.timeframe && parsed.timeframe !== timeframe) setTimeframe(parsed.timeframe);
+    if ((parsed.lookback ?? null) !== (lookbackBars ?? null)) {
+      setLookbackBars(parsed.lookback);
+    }
     const entries = Object.entries(parsed.filters);
     if (entries.length > 0) {
       const differs = entries.some(([key, value]) => {

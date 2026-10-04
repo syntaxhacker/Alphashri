@@ -32,9 +32,11 @@ function makeArgs(overrides: Partial<UsePatternUrlSyncArgs> = {}): UsePatternUrl
   return {
     universe: "",
     timeframe: "1D",
+    lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
     setUniverse: vi.fn(),
     setTimeframe: vi.fn(),
+    setLookbackBars: vi.fn(),
     applyFilters: vi.fn(),
     ...overrides,
   };
@@ -52,6 +54,7 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(params)).toEqual({
       universe: "nifty50",
       timeframe: "15m",
+      lookback: null,
       filters: {
         pattern_id: ["ascending_channel", "double_top"],
         family: ["reversal"],
@@ -88,7 +91,13 @@ describe("parsePatternParams", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("universe=&tf=&within=&symbol=&foo=bar"),
     );
-    expect(parsed).toEqual({ universe: null, timeframe: null, filters: {} });
+    expect(parsed).toEqual({ universe: null, timeframe: null, lookback: null, filters: {} });
+  });
+
+  it("parses lookback as an integer", () => {
+    expect(parsePatternParams(new URLSearchParams("lookback=250")).lookback).toBe(250);
+    expect(parsePatternParams(new URLSearchParams("")).lookback).toBeNull();
+    expect(parsePatternParams(new URLSearchParams("lookback=abc")).lookback).toBeNull();
   });
 });
 
@@ -104,14 +113,24 @@ describe("filterValuesEqual", () => {
 describe("buildPatternParams", () => {
   it("omits empty + default values so a clean view yields a clean URL", () => {
     expect(
-      buildPatternParams({ universe: "", timeframe: "1D", filters: { ...DEFAULT_PATTERN_FILTERS } }).toString(),
+      buildPatternParams({ universe: "", timeframe: "1D", lookbackBars: null, filters: { ...DEFAULT_PATTERN_FILTERS } }).toString(),
     ).toBe("");
+  });
+
+  it("writes lookback only when set", () => {
+    expect(
+      buildPatternParams({ universe: "", timeframe: "1D", lookbackBars: null, filters: { ...DEFAULT_PATTERN_FILTERS } }).has("lookback"),
+    ).toBe(false);
+    expect(
+      buildPatternParams({ universe: "", timeframe: "1D", lookbackBars: 250, filters: { ...DEFAULT_PATTERN_FILTERS } }).get("lookback"),
+    ).toBe("250");
   });
 
   it("serializes non-default selection and repeated symbols", () => {
     const params = buildPatternParams({
       universe: "nifty50",
       timeframe: "15m",
+      lookbackBars: null,
       filters: {
         ...DEFAULT_PATTERN_FILTERS,
         pattern_id: ["ascending_channel"],
@@ -136,6 +155,7 @@ describe("buildPatternParams", () => {
     const state = {
       universe: "nifty50",
       timeframe: "1D",
+      lookbackBars: null as number | null,
       filters: {
         ...DEFAULT_PATTERN_FILTERS,
         volume_confirmed: true as boolean | null,
@@ -154,6 +174,34 @@ describe("buildPatternParams", () => {
     expect(parsed.filters.symbol).toBe("IRCON");
     // And back again without loss.
     expect(buildPatternParams(state).toString()).toBe(serialized);
+  });
+
+  it("round-trips trendlines=support and omits it when both", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, trendlines: "support" as const },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toBe("trendlines=support");
+    expect(parsePatternParams(new URLSearchParams(serialized)).filters.trendlines).toBe(
+      "support",
+    );
+
+    const clean = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(clean.has("trendlines")).toBe(false);
+  });
+
+  it("ignores unknown trendlines values", () => {
+    expect(
+      parsePatternParams(new URLSearchParams("trendlines=bogus")).filters.trendlines,
+    ).toBeUndefined();
   });
 });
 
@@ -195,8 +243,24 @@ describe("usePatternUrlSync", () => {
 
     expect(args.setUniverse).not.toHaveBeenCalled();
     expect(args.setTimeframe).not.toHaveBeenCalled();
+    expect(args.setLookbackBars).not.toHaveBeenCalled();
     expect(args.applyFilters).not.toHaveBeenCalled();
     expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("applies lookback from the URL on mount and writes it back", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("universe=nifty50&lookback=250"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    const { unmount } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.setLookbackBars).toHaveBeenCalledWith(250);
+    unmount();
   });
 
   it("writes non-default state back to the URL on change (replace: true)", () => {

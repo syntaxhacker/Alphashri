@@ -1,7 +1,7 @@
 import { ActionIcon, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconArrowsMaximize } from "@tabler/icons-react";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
-import type { PatternHitDTO } from "@/types/chartPatterns";
+import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
 import { PatternMiniChart } from "./PatternMiniChart";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
@@ -11,6 +11,8 @@ export interface PatternCardProps {
   selected?: boolean;
   onClick?: (hit: PatternHitDTO) => void;
   onExpand?: (hit: PatternHitDTO) => void;
+  /** View-only filter for standalone support/resistance lines. */
+  trendlinesView?: TrendlinesView;
 }
 
 function price(value: number | null | undefined): string {
@@ -65,7 +67,7 @@ function consolidationBounds(hit: PatternHitDTO): { lo: number | null; hi: numbe
 }
 
 /** One pattern result card in the grid. */
-export function PatternCard({ hit, selected = false, onClick, onExpand }: PatternCardProps) {
+export function PatternCard({ hit, selected = false, onClick, onExpand, trendlinesView = "both" }: PatternCardProps) {
   const sinceStart = hit.start_price !== 0 ? ((hit.end_price - hit.start_price) / hit.start_price) * 100 : 0;
   const lastPrice = hit.last_close ?? hit.end_price;
   const changePct = hit.day_change_pct ?? sinceStart;
@@ -131,7 +133,7 @@ export function PatternCard({ hit, selected = false, onClick, onExpand }: Patter
         </ToolbarRow>
 
         <Box sx={{ px: 0.5 }}>
-          <PatternMiniChart hit={hit} />
+          <PatternMiniChart hit={hit} trendlinesView={trendlinesView} />
         </Box>
 
         {isConsolidation && bounds ? (

@@ -1,4 +1,4 @@
-import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline, TrendLine, TrendlinesView } from "@/types/chartPatterns";
 import {
   CHART_AVG_ENTRY,
   CHART_MUTED,
@@ -105,6 +105,17 @@ export interface PatternChartOptionInput {
   selectedInstanceKey?: string | null;
   /** Compact = card sparkline (no axes/tooltip/legend/zoom). */
   compact?: boolean;
+  /**
+   * View-only filter for standalone support/resistance lines: `"both"`
+   * (default) draws both kinds, `"support"`/`"resistance"` draws one kind,
+   * `"none"` draws none.
+   */
+  trendlinesView?: TrendlinesView;
+  /**
+   * Standalone support/resistance lines to draw. Defaults to the hit's own
+   * `trend_lines` when omitted.
+   */
+  standaloneTrendLines?: TrendLine[];
   /** Full = drill-down / fullscreen (axes, tooltip, legend, level guides). */
   showZoom?: boolean;
   /** Larger fonts/margins for the fullscreen view. */
@@ -128,6 +139,8 @@ export function buildPatternChartOption({
   compact = false,
   showZoom = false,
   large = false,
+  trendlinesView = "both",
+  standaloneTrendLines,
 }: PatternChartOptionInput): Record<string, unknown> {
   const times = candles.map((c) => c.t);
 
@@ -270,6 +283,69 @@ export function buildPatternChartOption({
       });
     });
     if (!legendData.includes(seriesName)) legendData.push(seriesName);
+  });
+
+  // Auto-computed standalone support/resistance lines (`trend_lines`): one
+  // straight start→end segment per line, drawn above the candles. View-only —
+  // `trendlinesView` only controls which kinds are painted, never which
+  // symbols/patterns match.
+  const standalone = standaloneTrendLines ?? hit?.trend_lines ?? [];
+  const visibleStandalone =
+    trendlinesView === "none"
+      ? []
+      : standalone.filter((line) =>
+          trendlinesView === "both" ? true : line?.kind === trendlinesView,
+        );
+  visibleStandalone.forEach((line) => {
+    if (!line) return;
+    const name = line.kind === "support" ? "Support" : "Resistance";
+    const color = line.kind === "support" ? POSITIVE : NEGATIVE;
+    const [points] = mapTrendlines(
+      [
+        [
+          { t: line.start_date, price: line.start_price },
+          { t: line.end_date, price: line.end_price },
+        ],
+      ],
+      times,
+    );
+    if (!points || points.length === 0) return;
+    // A degenerate single-point line draws nothing as a line — dot-mark it.
+    const singlePoint = points.length <= 1;
+    series.push({
+      type: "line",
+      name,
+      showSymbol: singlePoint ? true : false,
+      symbol: singlePoint ? "circle" : undefined,
+      symbolSize: singlePoint ? 6 : undefined,
+      connectNulls: true,
+      silent: true,
+      data: pointsToSeriesData(points, times.length),
+      lineStyle: {
+        width: large ? 2 : 1.5,
+        color,
+        type: "solid",
+        opacity: singlePoint ? 0 : 1,
+      },
+      // Inline touch count at the end of the line, matching the boundary
+      // end-label style (suppressed on compact sparklines like all labels).
+      endLabel: !compact
+        ? {
+            show: true,
+            formatter: `${name} · ${line.touches} touches`,
+            color,
+            fontSize: large ? 12 : 10,
+            fontWeight: 600,
+            distance: 6,
+            padding: [2, 4],
+            borderRadius: 3,
+            backgroundColor: CHART_OVERLAY,
+          }
+        : undefined,
+      labelLayout: !compact ? { hideOverlap: true } : undefined,
+      z: 4,
+    });
+    if (!compact && !legendData.includes(name)) legendData.push(name);
   });
 
   // Swing pivots that define the pattern: up/down triangles at their real

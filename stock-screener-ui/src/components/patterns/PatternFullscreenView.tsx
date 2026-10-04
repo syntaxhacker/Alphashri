@@ -2,7 +2,7 @@ import { useEffect } from "react";
 import { Box, Modal, Text, ToolbarRow } from "@/ui";
 import { useECharts } from "@/hooks/useECharts";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
-import type { ChartCandle, PatternHitDTO, PatternOverlay } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay, TrendLine, TrendlinesView } from "@/types/chartPatterns";
 import { buildPatternChartOption } from "./patternChartOption";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
@@ -15,16 +15,27 @@ export interface PatternFullscreenViewProps {
   candles: ChartCandle[];
   /** All detected patterns for the symbol, drawn as dashed siblings. */
   overlays?: PatternOverlay[];
+  /**
+   * Standalone support/resistance lines from the symbol-chart payload. Falls
+   * back to the hit's own `trend_lines` when absent/empty.
+   */
+  trendLines?: TrendLine[];
+  /** View-only filter for standalone support/resistance lines. */
+  trendlinesView?: TrendlinesView;
 }
 
 function FullscreenCanvas({
   hit,
   candles,
   overlays,
+  trendLines,
+  trendlinesView = "both",
 }: {
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
   overlays?: PatternOverlay[];
+  trendLines?: TrendLine[];
+  trendlinesView?: TrendlinesView;
 }) {
   const { chartRef, setChartOption } = useECharts({ isDark: true });
 
@@ -35,6 +46,9 @@ function FullscreenCanvas({
     // swing pivots are drawn. Passing zeroed levels keeps every other field
     // (symbol, trendlines, pivots) intact for the shared option builder.
     const chartHit = hit ? { ...hit, breakout_level: 0, target: 0, stop: 0 } : hit;
+    // Prefer the chart payload's lines (fresh for the drawn window); fall back
+    // to the hit's own lines when the payload carries none.
+    const standalone = (trendLines?.length ? trendLines : hit?.trend_lines) ?? [];
     setChartOption(
       buildPatternChartOption({
         candles,
@@ -43,12 +57,14 @@ function FullscreenCanvas({
         overlays,
         selectedPatternId: hit?.pattern_id,
         selectedStartDate: hit?.start_date,
+        standaloneTrendLines: standalone,
+        trendlinesView,
         compact: false,
         showZoom: true,
         large: true,
       }) as never,
     );
-  }, [candles, hit, overlays, setChartOption]);
+  }, [candles, hit, overlays, setChartOption, trendLines, trendlinesView]);
 
   return (
     <Box
@@ -150,6 +166,8 @@ export function PatternFullscreenView({
   hit,
   candles,
   overlays,
+  trendLines,
+  trendlinesView = "both",
 }: PatternFullscreenViewProps) {
   const title = hit ? `${hit.symbol} · ${hit.pattern_name}` : "Pattern chart";
 
@@ -181,7 +199,7 @@ export function PatternFullscreenView({
             minHeight: 0,
           }}
         >
-          <FullscreenCanvas hit={hit} candles={candles} overlays={overlays} />
+          <FullscreenCanvas hit={hit} candles={candles} overlays={overlays} trendLines={trendLines} trendlinesView={trendlinesView} />
         </Box>
 
         <Box

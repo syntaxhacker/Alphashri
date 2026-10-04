@@ -62,6 +62,7 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   min_base_days: null,
   max_range_pct: null,
   sort: "confidence",
+  trendlines: "both",
 };
 
 export interface ChartPatternsState {
@@ -72,6 +73,8 @@ export interface ChartPatternsState {
   families: PatternFamily[];
   timeframe: string;
   universe: string;
+  /** Lookback window in bars (null = Auto / server default). */
+  lookbackBars: number | null;
   filters: PatternFilters;
   job: JobDTO | null;
   scanning: boolean;
@@ -95,6 +98,7 @@ function createInitialState(): ChartPatternsState {
     families: [],
     timeframe: DEFAULT_TIMEFRAME,
     universe: "",
+    lookbackBars: null,
     filters: { ...DEFAULT_PATTERN_FILTERS },
     job: null,
     scanning: false,
@@ -186,6 +190,16 @@ export function setTimeframe(timeframe: string): void {
 
 export function setUniverse(universe: string): void {
   patch({ universe });
+}
+
+/** Set the lookback window (null = Auto) and force a re-scan of the scope. */
+export function setLookbackBars(bars: number | null): void {
+  if (bars === state.lookbackBars) return;
+  const { universe, timeframe } = state;
+  patch({ lookbackBars: bars, error: null });
+  void loadResults({ offset: 0 });
+  void loadSummary();
+  void triggerScan(true, { universe, timeframe });
 }
 
 export function setFilters(filters: PatternFilters): void {
@@ -399,7 +413,8 @@ function isScanStale(): boolean {
 /**
  * True when any result-narrowing filter is active. An empty result set under a
  * restrictive filter is filter-caused, not a missing scan — so it must never
- * trigger an automatic scan. (`sort` is ordering-only, not restrictive.)
+ * trigger an automatic scan. (`sort` is ordering-only, not restrictive;
+ * `trendlines` is a client-only view filter, never restrictive.)
  */
 export function hasRestrictiveFilter(filters: PatternFilters): boolean {
   return (
@@ -496,9 +511,16 @@ export async function triggerScan(
   const universe = overrides.universe ?? state.universe;
   const timeframe = overrides.timeframe ?? state.timeframe;
   const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : undefined;
+  const lookback = state.lookbackBars;
   patch({ error: null });
   try {
-    const response = await startScan({ universe, timeframe, force, symbols });
+    const response = await startScan({
+      universe,
+      timeframe,
+      force,
+      symbols,
+      ...(lookback != null ? { lookback_bars: lookback } : {}),
+    });
     if (overrides.autoKey) autoScanRequested.add(overrides.autoKey);
     patch({
       job: jobFromScan(

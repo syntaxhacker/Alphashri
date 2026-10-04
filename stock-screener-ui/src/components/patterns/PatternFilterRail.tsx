@@ -4,6 +4,7 @@ import type {
   PatternFilters,
   PatternHitDTO,
   PatternSummary,
+  TrendlinesView,
 } from "@/types/chartPatterns";
 import {
   PATTERN_FAMILIES,
@@ -466,6 +467,25 @@ export function PatternFilterRail({
     </Section>
   );
 
+  // View-only overlay toggle: controls which standalone support/resistance
+  // lines are drawn on the card/fullscreen charts. Never sent to the API.
+  const trendlinesSection = (
+    <Section title="Trendlines">
+      <Select
+        data={[
+          { value: "both", label: "Both" },
+          { value: "support", label: "Support only" },
+          { value: "resistance", label: "Resistance only" },
+          { value: "none", label: "None" },
+        ]}
+        value={filters.trendlines ?? "both"}
+        onChange={(v) => setFilter("trendlines", (v ?? "both") as TrendlinesView)}
+        size="sm"
+        data-testid="patterns-filter-trendlines"
+      />
+    </Section>
+  );
+
   const volumeSection = (
     <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
       <Switch
@@ -517,6 +537,7 @@ export function PatternFilterRail({
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, minWidth: 0 }}>
           {formedSection}
           {sortSection}
+          {trendlinesSection}
           {baseSection}
           {rangeSection}
           {volumeSection}
@@ -545,6 +566,8 @@ export function PatternFilterRail({
       {formedSection}
       <Divider />
       {sortSection}
+      <Divider />
+      {trendlinesSection}
       <Divider />
       {baseSection}
       <Divider />

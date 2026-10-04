@@ -16,9 +16,11 @@ export function PatternsContainer() {
   usePatternUrlSync({
     universe: vm.universe,
     timeframe: vm.timeframe,
+    lookbackBars: vm.lookbackBars,
     filters: vm.filters,
     setUniverse: vm.setUniverse,
     setTimeframe: vm.setTimeframe,
+    setLookbackBars: vm.setLookbackBars,
     applyFilters: vm.applyFilters,
   });
 
@@ -35,6 +37,8 @@ export function PatternsContainer() {
       patterns={vm.patterns}
       timeframe={vm.timeframe}
       setTimeframe={vm.setTimeframe}
+      lookbackBars={vm.lookbackBars}
+      setLookbackBars={vm.setLookbackBars}
       universe={vm.universe}
       setUniverse={vm.setUniverse}
       filters={vm.filters}

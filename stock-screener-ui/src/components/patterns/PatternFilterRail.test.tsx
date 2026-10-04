@@ -41,6 +41,7 @@ const FILTERS: PatternFilters = {
   min_base_days: null,
   max_range_pct: null,
   sort: "confidence",
+  trendlines: "both",
 };
 
 function makeProps(overrides: Partial<PatternFilterRailProps> = {}): PatternFilterRailProps {
@@ -308,5 +309,17 @@ describe("PatternFilterRail", () => {
     const input = within(screen.getByTestId("patterns-filter-max-range")).getByRole("spinbutton");
     fireEvent.change(input, { target: { value: "-" } });
     expect(props.setFilter).not.toHaveBeenCalledWith("max_range_pct", expect.anything());
+  });
+
+  test("changes the trendlines view filter", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.selectOptions(screen.getByTestId("patterns-filter-trendlines"), "support");
+    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "support");
+  });
+
+  test("shows the trendlines control in the panel layout", () => {
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.getByTestId("patterns-filter-trendlines")).toBeInTheDocument();
   });
 });

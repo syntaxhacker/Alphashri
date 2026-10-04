@@ -43,6 +43,28 @@ describe("buildAppliedFilterChips", () => {
     const bullish = chips.find((c) => c.id === "direction:bullish");
     expect(bullish?.nextValue).toEqual(["bearish"]);
   });
+
+  test("omits the trendlines chip when the view is both", () => {
+    expect(buildAppliedFilterChips(makeFilters({ trendlines: "both" }), PATTERNS)).toEqual([]);
+  });
+
+  test("builds a trendlines chip that resets to both", () => {
+    const chips = buildAppliedFilterChips(makeFilters({ trendlines: "support" }), PATTERNS);
+    expect(chips).toHaveLength(1);
+    expect(chips[0]).toMatchObject({
+      id: "trendlines",
+      group: "Trendlines",
+      label: "Support only",
+      key: "trendlines",
+      nextValue: "both",
+    });
+    expect(
+      buildAppliedFilterChips(makeFilters({ trendlines: "resistance" }), PATTERNS)[0].label,
+    ).toBe("Resistance only");
+    expect(
+      buildAppliedFilterChips(makeFilters({ trendlines: "none" }), PATTERNS)[0].label,
+    ).toBe("Hidden");
+  });
 });
 
 describe("AppliedFilters", () => {
@@ -109,5 +131,21 @@ describe("AppliedFilters", () => {
     );
     fireEvent.click(screen.getByTestId("patterns-applied-clear-all"));
     expect(resetFilters).toHaveBeenCalledTimes(1);
+  });
+
+  test("clicking the trendlines chip resets the view to both", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ trendlines: "none" })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Trendlines: Hidden")).toBeInTheDocument();
+    const chip = screen.getByTestId("patterns-applied-filter-trendlines");
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    expect(setFilter).toHaveBeenCalledWith("trendlines", "both");
   });
 });

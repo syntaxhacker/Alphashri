@@ -46,6 +46,7 @@ import {
   selectSymbols,
   CUSTOM_UNIVERSE,
   setFilter,
+  setLookbackBars,
   resetFilters,
   applyFilters,
   loadCatalog,
@@ -394,6 +395,23 @@ describe("filters", () => {
     resetFilters();
     expect(getChartPatternsState().filters).toEqual(DEFAULT_PATTERN_FILTERS);
     expect(mocked.fetchResults).toHaveBeenCalled();
+  });
+
+  it("trendlines defaults to both and is client-only (never in query args)", () => {
+    expect(DEFAULT_PATTERN_FILTERS.trendlines).toBe("both");
+    setFilter("trendlines", "support");
+    expect(getChartPatternsState().filters.trendlines).toBe("support");
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.not.objectContaining({ trendlines: expect.anything() }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.not.objectContaining({ trendlines: expect.anything() }),
+    );
+  });
+
+  it("trendlines is not a restrictive filter", () => {
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "support" })).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "none" })).toBe(false);
   });
 
   it("applyFilters merges onto defaults, resets unspecified keys, and reloads", () => {
@@ -746,5 +764,28 @@ describe("loadSymbolDetail", () => {
     expect(state.selectedSymbol).toBe("IRCON");
     expect(state.detail).toEqual({ symbol: "IRCON" });
     expect(state.detailChart?.symbol).toBe("IRCON");
+  });
+});
+
+describe("lookbackBars", () => {
+  it("defaults to null (Auto) and sends no lookback_bars", async () => {
+    expect(getChartPatternsState().lookbackBars).toBeNull();
+    setUniverse("nifty500");
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.not.objectContaining({ lookback_bars: expect.anything() }),
+    );
+  });
+
+  it("setLookbackBars(250) sets state and startScan receives lookback_bars: 250", async () => {
+    setUniverse("nifty500");
+    mocked.startScan.mockClear();
+    setLookbackBars(250);
+    expect(getChartPatternsState().lookbackBars).toBe(250);
+    await flush();
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ lookback_bars: 250, force: true }),
+    );
   });
 });

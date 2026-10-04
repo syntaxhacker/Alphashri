@@ -4,6 +4,8 @@ export { QualityBadge } from "./QualityBadge";
 export type { QualityBadgeProps } from "./QualityBadge";
 export { TimeframeSelect, FALLBACK_TIMEFRAMES } from "./TimeframeSelect";
 export type { TimeframeSelectProps } from "./TimeframeSelect";
+export { LookbackSelect, LOOKBACK_OPTIONS } from "./LookbackSelect";
+export type { LookbackSelectProps } from "./LookbackSelect";
 export { JobStatus } from "./JobStatus";
 export type { JobStatusProps } from "./JobStatus";
 export { ScanStats } from "./ScanStats";

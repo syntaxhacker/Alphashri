@@ -15,6 +15,7 @@ import {
   selectUniverse,
   selectSymbols,
   setFilter,
+  setLookbackBars,
   resetFilters,
   applyFilters,
   triggerScan,
@@ -29,6 +30,8 @@ export interface UseChartPatternsResult {
   patterns: ReturnType<typeof getChartPatternsState>["patterns"];
   timeframe: string;
   setTimeframe: (v: string) => void;
+  lookbackBars: number | null;
+  setLookbackBars: (v: number | null) => void;
   universe: string;
   setUniverse: (v: string) => void;
   /** Reserved id of the custom symbol scope (see `CUSTOM_UNIVERSE`). */
@@ -82,6 +85,8 @@ export function useChartPatterns(): UseChartPatternsResult {
     patterns: state.patterns,
     timeframe: state.timeframe,
     setTimeframe: selectTimeframe,
+    lookbackBars: state.lookbackBars,
+    setLookbackBars,
     universe: state.universe,
     setUniverse: selectUniverse,
     customUniverse: CUSTOM_UNIVERSE,

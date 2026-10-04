@@ -121,4 +121,31 @@ describe("PatternFullscreenView", () => {
     const candleSeries = option.series.find((s) => s.type === "candlestick");
     expect(candleSeries?.markLine).toBeUndefined();
   });
+
+  test("draws only the selected standalone trendline kinds", () => {
+    const t = "2026-09-26T09:15:00+05:30";
+    const candles = [{ t, o: 100, h: 115, l: 98, c: 112, v: 1000 }];
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={candles}
+        trendLines={[
+          { kind: "support", start_date: t, start_price: 98, end_date: t, end_price: 100, slope: 0, touches: 3, span_bars: 1, violations: 0 },
+          { kind: "resistance", start_date: t, start_price: 112, end_date: t, end_price: 114, slope: 0, touches: 2, span_bars: 1, violations: 0 },
+        ]}
+        trendlinesView="support"
+      />,
+    );
+
+    expect(setChartOption).toHaveBeenCalled();
+    const calls = setChartOption.mock.calls;
+    const option = calls[calls.length - 1]?.[0] as {
+      series: Array<{ name?: string }>;
+    };
+    const names = option.series.map((s) => s.name);
+    expect(names).toContain("Support");
+    expect(names).not.toContain("Resistance");
+  });
 });

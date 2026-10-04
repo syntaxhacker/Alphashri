@@ -149,6 +149,21 @@ export function buildAppliedFilterChips(
       nextValue: "confidence",
     });
   }
+  // View-only overlay toggle (client-side only): one chip that resets to Both.
+  if (filters.trendlines && filters.trendlines !== "both") {
+    chips.push({
+      id: "trendlines",
+      group: "Trendlines",
+      label:
+        filters.trendlines === "support"
+          ? "Support only"
+          : filters.trendlines === "resistance"
+            ? "Resistance only"
+            : "Hidden",
+      key: "trendlines",
+      nextValue: "both",
+    });
+  }
   return chips;
 }
 
