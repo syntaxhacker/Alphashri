@@ -242,4 +242,6 @@ export interface PatternsQuery extends Partial<PatternFilters> {
   timeframe?: string | null;
   limit?: number;
   offset?: number;
+  /** Card candle window in bars (omitted/null = server default). */
+  lookback_bars?: number | null;
 }

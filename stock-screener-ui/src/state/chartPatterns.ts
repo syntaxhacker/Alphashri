@@ -286,6 +286,9 @@ function baseQuery(): PatternsQuery {
     min_base_days: state.filters.min_base_days,
     max_range_pct: state.filters.max_range_pct,
     sort: state.filters.sort,
+    // Card candle window: the cards fetch the active Lookback so mini-charts
+    // span it (omitted when Auto so the server default applies).
+    lookback_bars: state.lookbackBars ?? undefined,
   };
 }
 

@@ -117,6 +117,7 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
   if (query.job_id) params.set("job_id", query.job_id);
   if (query.universe) params.set("universe", query.universe);
   if (query.timeframe) params.set("timeframe", query.timeframe);
+  if (query.lookback_bars != null) params.set("lookback_bars", String(query.lookback_bars));
   for (const family of query.family ?? []) params.append("family", family);
   for (const patternId of query.pattern_id ?? []) params.append("pattern_id", patternId);
   for (const direction of query.direction ?? []) params.append("direction", direction);

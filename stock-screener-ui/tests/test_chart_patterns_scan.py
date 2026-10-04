@@ -723,3 +723,26 @@ def test_process_symbol_forwards_lookback_to_trendlines(cp_store, monkeypatch):
     result = scan._process_symbol("AAA", "1D", "cpj_tlfwd")
     assert result["status"] == "ok"
     assert seen["lookback_bars"] is None
+
+
+def test_process_symbol_stamps_trend_lines_sig(cp_store, monkeypatch):
+    """Hit records carry `trend_lines_sig` matching the detector signature."""
+    from chart_patterns import config as cp_config
+
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    store.save_job({
+        "job_id": "cpj_tlsig", "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+
+    result = scan._process_symbol("AAA", "1D", "cpj_tlsig")
+
+    assert result["status"] == "ok"
+    items, total, _ = store.query_results({"job_id": "cpj_tlsig"})
+    assert total == 1
+    assert items[0].get("trend_lines_sig") == cp_config.trendline_signature()

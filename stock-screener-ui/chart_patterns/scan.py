@@ -13,7 +13,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from types import SimpleNamespace
 
-from chart_patterns import candles, jobs as jobs_mod, store
+from chart_patterns import candles, config, jobs as jobs_mod, store
 
 try:
     from chart_patterns import engine as engine_mod
@@ -208,6 +208,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record["name"] = name
         record.setdefault("timeframe", timeframe)
         record["trend_lines"] = list(scan_trend_lines)
+        record["trend_lines_sig"] = config.trendline_signature()
         enriched.append(record)
 
     if enriched:

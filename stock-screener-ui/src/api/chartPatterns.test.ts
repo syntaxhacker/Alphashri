@@ -204,6 +204,13 @@ describe("results + summary query building", () => {
     expect(buildPatternsQuery({ sort: "confidence" })).not.toContain("sort");
     expect(buildPatternsQuery({})).not.toContain("sort");
   });
+
+  it("buildPatternsQuery serializes lookback_bars and omits null/undefined", () => {
+    expect(new URLSearchParams(buildPatternsQuery({ lookback_bars: 250 }).slice(1)).get("lookback_bars")).toBe("250");
+    expect(buildPatternsQuery({ lookback_bars: 250 })).toContain("lookback_bars=250");
+    expect(buildPatternsQuery({})).not.toContain("lookback_bars");
+    expect(buildPatternsQuery({ lookback_bars: null })).not.toContain("lookback_bars");
+  });
 });
 
 describe("symbol endpoints", () => {

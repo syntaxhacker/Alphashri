@@ -813,3 +813,25 @@ describe("lookbackBars", () => {
     );
   });
 });
+
+describe("lookbackBars in results query", () => {
+  it("fetchResults is called with lookback_bars when set", async () => {
+    setUniverse("nifty500");
+    setLookbackBars(250);
+    await flush();
+    mocked.fetchResults.mockClear();
+    await loadResults();
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.objectContaining({ lookback_bars: 250 }),
+    );
+  });
+
+  it("fetchResults omits lookback_bars when Auto (null)", async () => {
+    setUniverse("nifty500");
+    expect(getChartPatternsState().lookbackBars).toBeNull();
+    await loadResults();
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.not.objectContaining({ lookback_bars: expect.anything() }),
+    );
+  });
+});

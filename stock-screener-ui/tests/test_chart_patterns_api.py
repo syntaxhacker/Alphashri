@@ -11,7 +11,7 @@ from sqlalchemy.orm import sessionmaker
 import api.chart_patterns as cp_api
 from api.auth import get_current_user
 from api.chart_patterns import router
-from chart_patterns import jobs, store
+from chart_patterns import config, jobs, store
 from db.database import get_db
 
 
@@ -928,9 +928,9 @@ def test_symbol_chart_includes_trend_lines(cp_client, monkeypatch):
 
 
 def test_enrich_keeps_stored_trend_lines_without_detector(monkeypatch):
-    """Items already carrying scan-time lines must not trigger the detector."""
+    """Fresh stored lines (matching signature) must not trigger the detector."""
     stored = [_fake_trendline("support"), _fake_trendline("resistance")]
-    item = dict(_hit("AAA"), trend_lines=stored)
+    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature())
     seen = {}
 
     def _fetch(symbol, timeframe, **kwargs):
@@ -968,6 +968,69 @@ def test_enrich_fetches_bounded_lookback_and_recomputes_when_blank(monkeypatch):
 
     assert seen.get("lookback_bars") == 500
     assert out[0]["trend_lines"] == [_fake_trendline("support")]
+
+
+def test_enrich_recomputes_when_signature_stale(monkeypatch):
+    """Stale stored lines (signature mismatch) are recomputed, not kept."""
+    stored = [_fake_trendline("support")]
+    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig="stale-sig")
+    calls = []
+
+    def _boom(df, lookback_bars=None):
+        calls.append(1)
+        raise RuntimeError("detector exploded")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
+
+    out = cp_api._enrich_with_candles([item], "1D")
+
+    assert calls, "stale signature must trigger a detector recompute"
+    assert out[0]["trend_lines"] == []
+    assert out[0]["candles"], "candle window is still attached"
+
+
+def test_enrich_keeps_fresh_signature_without_detector(monkeypatch):
+    """A matching signature keeps stored lines (detector NOT called)."""
+    stored = [_fake_trendline("support"), _fake_trendline("resistance")]
+    item = dict(_hit("AAA"), trend_lines=stored, trend_lines_sig=config.trendline_signature())
+
+    def _boom(df, lookback_bars=None):
+        raise AssertionError("detect_trendlines must not run for a fresh signature")
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
+
+    out = cp_api._enrich_with_candles([item], "1D")
+
+    assert out[0]["trend_lines"] == stored
+    assert out[0]["candles"], "candle window is still attached"
+
+
+def test_results_lookback_bars_spans_full_window(cp_client, monkeypatch):
+    """`/results?lookback_bars=250` fetches 250 bars and returns all of them."""
+    store.save_job({
+        "job_id": "cpj_lbl", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "done": 10,
+    })
+    store.save_hits("cpj_lbl", [_hit("AAA")])
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(250)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
+    )
+
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_lbl", "lookback_bars": 250})
+    assert resp.status_code == 200
+    assert seen.get("lookback_bars") == 250
+    candles = resp.json()["items"][0]["candles"]
+    assert len(candles) == 250, "card window spans the full Lookback, not the ~160 pattern slice"
 
 
 # ---------------------------------------------------------------------------

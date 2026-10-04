@@ -383,19 +383,46 @@ def _stored_trend_lines(item) -> Optional[list]:
     return None
 
 
-def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS):
+def _stored_lines_sig(item) -> Optional[str]:
+    """Scan-time ``trend_lines_sig`` carried by a result item, else ``None``."""
+    try:
+        sig = item.get("trend_lines_sig")
+    except Exception:
+        return None
+    return str(sig) if isinstance(sig, str) and sig else None
+
+
+def _stored_lines_fresh(item) -> bool:
+    """True when stored ``trend_lines`` are non-empty and match the detector.
+
+    After a detector change the stored lines are stale and must be recomputed
+    so cards and fullscreen agree.
+    """
+    if _stored_trend_lines(item) is None:
+        return False
+    return _stored_lines_sig(item) == config.trendline_signature()
+
+
+def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
+                          lookback_bars: Optional[int] = None):
     """Attach a real candle window + last close/day change to each result item.
 
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
     this also retrofits hits persisted before candle windows were exposed.
-    The fetch is bounded to the last 500 bars (detector windows are ≤250).
-    Items already carrying scan-time ``trend_lines`` keep them; the detector
-    only runs as a legacy fallback for items without stored lines.
+    The fetch covers the full Lookback window (``lookback_bars`` or the
+    ``READ_LOOKBACK_BARS`` default) and cards show the WHOLE fetched window —
+    not just the pattern slice — so card mini-charts span the Lookback.
+    Items already carrying fresh scan-time ``trend_lines`` (non-empty with a
+    matching ``trend_lines_sig``) keep them; stale or blank lines are
+    recomputed with the detector and overwritten.
     """
+    _ = max_bars  # kept for backwards compatibility; cards now span the Lookback
+    fetch_lb = lookback_bars or config.READ_LOOKBACK_BARS
     cache: dict = {}
     tl_cache: dict = {}
     for item in items or []:
-        stored_lines = _stored_trend_lines(item)
+        fresh = _stored_lines_fresh(item)
+        stored_lines = _stored_trend_lines(item) if fresh else None
         symbol = item.get("symbol") if isinstance(item, dict) else None
         timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
         if not symbol or not timeframe:
@@ -408,11 +435,17 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         key = (symbol, timeframe)
         if key not in cache:
             try:
-                cache[key] = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=config.READ_LOOKBACK_BARS)
+                cache[key] = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
             except Exception:
                 cache[key] = None
         df = cache[key]
-        item["candles"] = _slice_candles(df, item.get("start_date"), item.get("end_date"), max_bars)
+        try:
+            if df is not None and not getattr(df, "empty", True):
+                item["candles"] = candles.candles_to_series(df, config.CHART_MAX_BARS)
+            else:
+                item["candles"] = []
+        except Exception:
+            item["candles"] = []
         if df is not None and not getattr(df, "empty", True):
             try:
                 last = float(df["close"].iloc[-1])
@@ -617,6 +650,7 @@ async def get_results(
     sort: str = Query("confidence"),
     limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
     offset: int = Query(0, ge=0),
+    lookback_bars: Optional[int] = Query(None),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
@@ -626,7 +660,8 @@ async def get_results(
     items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
     # off the event loop so a slow/hung fetch cannot freeze the whole server.
-    await run_in_threadpool(_enrich_with_candles, items, timeframe)
+    # The card window spans the active Lookback so mini-charts match the view.
+    await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars)
     return _sanitize_for_json({
         "items": items,
         "total": total,
@@ -715,6 +750,7 @@ async def get_symbol_chart(
     series = candles.candles_to_series(df, limit) if df is not None else []
     detail = store.get_symbol_detail(symbol, timeframe)
     overlays = []
+    stored_fresh_lines: list = []
     for pattern in detail.get("patterns", []):
         if pattern.get("trendlines"):
             overlays.append({
@@ -726,11 +762,18 @@ async def get_symbol_chart(
                 "end_date": pattern.get("end_date"),
                 "id": pattern.get("id"),
             })
-    try:
-        _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
-        trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
-    except Exception:
-        trend_lines = []
+        # Reuse fresh scan-time lines so fullscreen agrees with the cards;
+        # stale lines (detector changed) fall through to the recompute below.
+        if not stored_fresh_lines and _stored_lines_fresh(pattern):
+            stored_fresh_lines = list(pattern.get("trend_lines") or [])
+    if stored_fresh_lines:
+        trend_lines = stored_fresh_lines
+    else:
+        try:
+            _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
+            trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
+        except Exception:
+            trend_lines = []
     return _sanitize_for_json({
         "symbol": symbol.upper(),
         "timeframe": timeframe,

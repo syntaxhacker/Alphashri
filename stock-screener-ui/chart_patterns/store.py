@@ -245,6 +245,7 @@ def save_hits(job_id: str, hits: Iterable[dict]) -> int:
                 "notes": hit.get("notes") or "",
                 "pivots": hit.get("pivots") or [],
                 "trend_lines": hit.get("trend_lines") or [],
+                "trend_lines_sig": hit.get("trend_lines_sig") or "",
             }
             row = PatternHit(
                 job_id=job_id,
@@ -301,6 +302,24 @@ def _payload_trend_lines(raw) -> list:
         return []
     lines = payload.get("trend_lines") or []
     return list(lines) if isinstance(lines, list) else []
+
+
+def _payload_trend_lines_sig(raw) -> Optional[str]:
+    """Scan-time ``trend_lines_sig`` carried in a hit's ``payload_json``.
+
+    Follows the same payload→dict route as ``_payload_trend_lines``.
+    Missing/blank/malformed values yield ``None`` (treated as stale).
+    """
+    if not raw:
+        return None
+    try:
+        payload = json.loads(raw) if isinstance(raw, str) else {}
+    except (TypeError, ValueError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    sig = payload.get("trend_lines_sig")
+    return str(sig) if sig else None
 
 
 def _apply_filters(query, filters: dict):
@@ -421,6 +440,7 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
         for row in rows:
             dto = row.to_dict()
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
+            dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
             items.append(dto)
 
         summary = _summary_for(session, filters, base, total)
@@ -602,6 +622,7 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
         for row in best.values():
             dto = row.to_dict()
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
+            dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
             patterns.append(dto)
         patterns.sort(
             key=lambda p: (
