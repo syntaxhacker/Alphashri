@@ -422,6 +422,47 @@ async function applyBearishFilter(page: Page): Promise<string | null> {
   return null;
 }
 
+/**
+ * Pick an option from a `Select` by testid. Handles both a native <select>
+ * and the MUI Select wrapper (testid on the FormControl), mirroring
+ * `chooseTimeframe`.
+ */
+async function chooseSelectOption(page: Page, testId: string, label: string) {
+  const select = page.locator(`[data-testid="${testId}"]`);
+  await expect(select).toBeVisible();
+  const tag = await select.evaluate((el) => el.tagName.toLowerCase());
+  if (tag === "select") {
+    await select.selectOption({ label });
+  } else {
+    await select.click();
+    const option = page.getByRole("option", { name: label, exact: true });
+    await expect(option).toBeVisible();
+    await option.click();
+    await expect(select).toContainText(label);
+  }
+}
+
+/**
+ * Read the ECharts series names of the fullscreen pattern chart. ECharts
+ * paints to canvas (no DOM legend), but the instance is reachable through the
+ * global `echarts` registry that `useECharts` populates on init.
+ */
+async function fullscreenSeriesNames(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const host = document.querySelector('[data-testid="patterns-fullscreen-chart"] > div');
+    const lib = (window as unknown as {
+      echarts?: {
+        getInstanceByDom: (el: Element) => { getOption: () => { series?: Array<{ name?: unknown }> } } | null;
+      };
+    }).echarts;
+    if (!host || !lib) return [];
+    const instance = lib.getInstanceByDom(host);
+    if (!instance) return [];
+    const series = instance.getOption()?.series ?? [];
+    return series.map((s) => String(s?.name ?? ""));
+  });
+}
+
 test.describe("Chart Patterns page", () => {
   test.beforeEach(async ({ page }) => {
     await setupApiMocks(page);
@@ -600,5 +641,215 @@ test.describe("Chart Patterns page", () => {
     await page.getByPlaceholder("Symbol or company").fill("infy");
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
+  });
+
+  test("results search matches company names", async ({ page }) => {
+    await page.getByPlaceholder("Symbol or company").fill("Tata Consultancy");
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+    await expect(page.locator('[data-testid="patterns-card-TCS-cup_handle"]')).toBeVisible();
+    await expect(page).toHaveURL(/q=Tata/);
+  });
+
+  test("changing the lookback re-scans and syncs the URL", async ({ page }) => {
+    const resultsWithLookback = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/chart-patterns/results") &&
+        resp.url().includes("lookback_bars=250"),
+    );
+    const scanWithLookback = page.waitForRequest(
+      (req) => req.url().includes("/api/chart-patterns/scan") && req.method() === "POST",
+    );
+
+    await chooseSelectOption(page, "patterns-lookback-select", "250");
+
+    await resultsWithLookback;
+    const scanRequest = await scanWithLookback;
+    expect(JSON.parse(scanRequest.postData() ?? "{}").lookback_bars).toBe(250);
+    await expect(page).toHaveURL(/lookback=250/);
+    await expect(page.locator('[data-testid="patterns-lookback-select"]')).toContainText("250");
+  });
+
+  test("TLS/TLR toggle hides standalone trendlines and syncs compute_trendlines=0", async ({ page }) => {
+    // Last-registered handler wins: enrich the chart payload with standalone
+    // support/resistance lines so the toggle has series to hide.
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
+      const url = new URL(route.request().url());
+      const parts = url.pathname.split("/");
+      const symbol = decodeURIComponent(parts[parts.indexOf("symbol") + 1]);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol,
+          timeframe: url.searchParams.get("timeframe") || "1D",
+          candles: candlesFor(symbol),
+          overlays: [],
+          trend_lines: [
+            { kind: "support", start_date: "2026-08-05", start_price: 105, end_date: "2026-08-20", end_price: 110, slope: 0.3, touches: 4, span_bars: 15, violations: 0 },
+            { kind: "resistance", start_date: "2026-08-05", start_price: 120, end_date: "2026-08-20", end_price: 118, slope: -0.1, touches: 3, span_bars: 15, violations: 1 },
+          ],
+        }),
+      });
+    });
+
+    const card = page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]');
+    await expect(card).toBeVisible();
+    await card.click();
+    const modal = page.locator('[data-testid="patterns-fullscreen-modal"]');
+    await expect(modal).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+
+    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("TLS");
+    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("TLR");
+
+    const resultsWithoutTrendlines = page.waitForResponse(
+      (resp) =>
+        resp.url().includes("/api/chart-patterns/results") &&
+        resp.url().includes("compute_trendlines=0"),
+    );
+    await page.locator('[data-testid="patterns-compute-trendlines-label"]').click();
+    await expect(page.locator('[data-testid="patterns-compute-trendlines"]')).not.toBeChecked();
+    await resultsWithoutTrendlines;
+    await expect(page).toHaveURL(/compute_trendlines=0/);
+    await expect(modal).toBeVisible();
+
+    await expect
+      .poll(
+        async () =>
+          (await fullscreenSeriesNames(page)).filter((name) => name === "TLS" || name === "TLR").length,
+        { timeout: 10000 },
+      )
+      .toBe(0);
+  });
+
+  test("custom symbol scope drives a Scan N symbols action", async ({ page }) => {
+    const scope = page.locator('[data-testid="patterns-scan-scope"] [data-testid="patterns-symbol-filter"]');
+    const input = scope.getByRole("combobox");
+    const scanButton = page.locator('[data-testid="patterns-scan-again"]');
+
+    await input.click();
+    await input.pressSequentially("IRCON", { delay: 30 });
+    const irconOption = page.getByRole("option", { name: /IRCON/ });
+    await expect(irconOption).toBeVisible();
+    await irconOption.click();
+    await expect(page.getByTestId("patterns-symbol-chip-IRCON")).toBeVisible();
+    await expect(scanButton).toContainText("Scan 1 symbol");
+
+    await input.click();
+    await input.pressSequentially("TCS", { delay: 30 });
+    const tcsOption = page.getByRole("option", { name: /TCS/ });
+    await expect(tcsOption).toBeVisible();
+    await tcsOption.click();
+    await expect(scanButton).toContainText("Scan 2 symbols");
+    await expect(page).toHaveURL(/symbol=IRCON/);
+    await expect(page).toHaveURL(/symbol=TCS/);
+    // The custom scope narrows the grid to the picked symbols.
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(2);
+
+    const scanPost = page.waitForRequest(
+      (req) => req.url().includes("/api/chart-patterns/scan") && req.method() === "POST",
+    );
+    await scanButton.click();
+    const body = JSON.parse((await scanPost).postData() ?? "{}") as { symbols?: string[] };
+    expect(body.symbols ?? []).toEqual(expect.arrayContaining(["IRCON", "TCS"]));
+  });
+
+  test("filters modal offers Both/TLS only/TLR only/None trendline views", async ({ page }) => {
+    await openFilters(page);
+    const select = page.locator('[data-testid="patterns-filter-trendlines"]');
+    await expect(select).toBeVisible();
+    await select.click();
+    for (const label of ["Both", "TLS only", "TLR only", "None"]) {
+      await expect(page.getByRole("option", { name: label, exact: true })).toBeVisible();
+    }
+
+    await page.getByRole("option", { name: "TLR only", exact: true }).click();
+    await expect(page).toHaveURL(/trendlines=resistance/);
+    await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("TLR only");
+
+    await select.click();
+    await page.getByRole("option", { name: "None", exact: true }).click();
+    await expect(page).toHaveURL(/trendlines=none/);
+    await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("Hidden");
+
+    await page.locator('[data-testid="patterns-filters-done"]').click();
+    await expect(page.locator('[data-testid="patterns-filter-modal"]')).toBeHidden();
+  });
+
+  test("applied-filter chips reflect the active filters and remove one at a time", async ({ page }) => {
+    await expect(page.getByTestId("patterns-applied-filters")).toHaveCount(0);
+
+    await openFilters(page);
+    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await page.locator('[data-testid="patterns-filters-done"]').click();
+
+    await expect(page.locator('[data-testid="patterns-open-filters"]')).toContainText("Filters (1)");
+    const applied = page.getByTestId("patterns-applied-filters");
+    await expect(applied).toBeVisible();
+    const chip = page.getByTestId("patterns-applied-filter-direction:bearish");
+    await expect(chip).toContainText("Direction: Bearish");
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+
+    await chip.locator(".MuiChip-deleteIcon").click();
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
+    await expect(applied).toHaveCount(0);
+  });
+
+  test("applied-filter Clear all resets the grid", async ({ page }) => {
+    await openFilters(page);
+    await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await page.locator('[data-testid="patterns-filters-done"]').click();
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
+
+    await page.locator('[data-testid="patterns-applied-clear-all"]').click();
+    await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
+    await expect(page.getByTestId("patterns-applied-filters")).toHaveCount(0);
+    await expect(page.locator('[data-testid="patterns-open-filters"]')).toHaveText("Filters");
+  });
+
+  test("fullscreen draws the selected instance once with no duplicate sibling", async ({ page }) => {
+    // Last-registered handler wins: the payload echoes the selected instance
+    // (same pattern_id + start_date) plus one genuinely different overlay.
+    // Instance-aware sibling skipping must hide the echo, so the legend shows
+    // "Falling Wedge" once and never "Falling Wedge (2)".
+    await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
+      const url = new URL(route.request().url());
+      const parts = url.pathname.split("/");
+      const symbol = decodeURIComponent(parts[parts.indexOf("symbol") + 1]);
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          symbol,
+          timeframe: url.searchParams.get("timeframe") || "1D",
+          candles: candlesFor(symbol),
+          overlays: [
+            {
+              pattern_id: "falling_wedge",
+              pattern_name: "Falling Wedge",
+              start_date: "2026-04-26",
+              trendlines: allHits[0].trendlines,
+            },
+            {
+              pattern_id: "ascending_channel",
+              pattern_name: "Ascending Channel",
+              start_date: "2026-06-01",
+              trendlines: allHits[0].trendlines,
+            },
+          ],
+        }),
+      });
+    });
+
+    const card = page.locator('[data-testid="patterns-card-IRCON-falling_wedge"]');
+    await expect(card).toBeVisible();
+    await card.click();
+    await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
+
+    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("Falling Wedge");
+    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("Ascending Channel");
+    const names = await fullscreenSeriesNames(page);
+    expect(names.filter((name) => name === "Falling Wedge")).toHaveLength(1);
+    expect(names).not.toContain("Falling Wedge (2)");
   });
 });

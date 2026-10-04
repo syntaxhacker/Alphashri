@@ -775,3 +775,106 @@ def test_run_job_compute_trendlines_false_skips_detector(cp_store, monkeypatch):
     items, total, _ = store.query_results({"job_id": "cpj_tlskip"})
     assert total == 1
     assert items[0].get("trend_lines") == []
+
+
+# ---------------------------------------------------------------------------
+# Missing coverage: empty/None frames, stale freshness, None flag default,
+# and detection-input slicing.
+# ---------------------------------------------------------------------------
+
+
+def test_process_symbol_empty_frame_is_failed(cp_store, monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(0),
+    )
+    store.save_job({"job_id": "cpj_empty", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    assert scan._process_symbol("AAA", "1D", "cpj_empty")["status"] == "failed"
+
+
+def test_process_symbol_none_frame_is_failed(cp_store, monkeypatch):
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: None,
+    )
+    store.save_job({"job_id": "cpj_none", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    assert scan._process_symbol("AAA", "1D", "cpj_none")["status"] == "failed"
+
+
+def test_run_job_stale_combo_reruns(cp_store, monkeypatch):
+    """A completed job older than the freshness TTL does not short-circuit."""
+    from datetime import datetime, timedelta, timezone
+
+    stale = (datetime.now(timezone.utc) - timedelta(seconds=scan.SCAN_FRESH_SECONDS + 60)).isoformat()
+    store.save_job({
+        "job_id": "cpj_stale_prev", "universe": "nifty50", "timeframe": "1D",
+        "status": "completed", "total": 1, "done": 1, "finished_at": stale,
+    })
+    fetched = []
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: (
+            fetched.append(symbol) or _make_df(80)
+        ),
+    )
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+    store.save_job({"job_id": "cpj_stale_new", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    scan.run_job("cpj_stale_new")
+
+    assert fetched == ["AAA"]
+    assert store.get_job("cpj_stale_new")["status"] == "completed"
+
+
+def test_run_job_compute_trendlines_none_defaults_to_true(cp_store, monkeypatch):
+    """An explicit `compute_trendlines=None` param still runs the detector."""
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
+    )
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+    seen = {}
+
+    def fake_tl(df, lookback_bars=None):
+        seen["ran"] = True
+        return {"support": None, "resistance": None}
+
+    monkeypatch.setattr(scan.trendlines_mod, "detect_trendlines", fake_tl)
+    store.save_job({
+        "job_id": "cpj_tlnone", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"compute_trendlines": None},
+    })
+
+    scan.run_job("cpj_tlnone")
+
+    assert seen.get("ran") is True
+    items, total, _ = store.query_results({"job_id": "cpj_tlnone"})
+    assert total == 1
+    assert items[0].get("trend_lines_sig") is not None
+
+
+def test_process_symbol_lookback_slices_detection_input(cp_store, monkeypatch):
+    """The detector sees only the last N bars when `lookback_bars` is set."""
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(100),
+    )
+    seen = {}
+
+    def fake_detect(df, timeframe, symbol):
+        seen["n"] = len(df)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    store.save_job({
+        "job_id": "cpj_slice", "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+
+    result = scan._process_symbol("AAA", "1D", "cpj_slice", lookback_bars=40)
+
+    assert result["status"] == "ok"
+    assert seen["n"] == 40

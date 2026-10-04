@@ -423,3 +423,242 @@ describe("usePatternUrlSync", () => {
     expect(setSearchParams).toHaveBeenCalledTimes(1);
   });
 });
+
+describe("universe/tf/lookback/compute_trendlines round-trip", () => {
+  it("round-trips all four selection keys through build/parse", () => {
+    const state = {
+      universe: "nifty50",
+      timeframe: "15m",
+      lookbackBars: 250 as number | null,
+      computeTrendlines: false as boolean | undefined,
+      filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toContain("universe=nifty50");
+    expect(serialized).toContain("tf=15m");
+    expect(serialized).toContain("lookback=250");
+    expect(serialized).toContain("compute_trendlines=0");
+
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.universe).toBe("nifty50");
+    expect(parsed.timeframe).toBe("15m");
+    expect(parsed.lookback).toBe(250);
+    expect(parsed.computeTrendlines).toBe(false);
+    expect(parsed.filters.q).toBe("bank");
+  });
+
+  it("writes non-default universe/tf/lookback/compute_trendlines=0 on change", () => {
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+    expect(setSearchParams).not.toHaveBeenCalled();
+
+    rerender({
+      ...args,
+      universe: "nifty50",
+      timeframe: "15m",
+      lookbackBars: 250,
+      computeTrendlines: false,
+      filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
+    });
+
+    expect(setSearchParams).toHaveBeenCalledTimes(1);
+    const [params, options] = setSearchParams.mock.calls[0];
+    expect(options).toEqual({ replace: true });
+    const written = params as URLSearchParams;
+    expect(written.get("universe")).toBe("nifty50");
+    expect(written.get("tf")).toBe("15m");
+    expect(written.get("lookback")).toBe("250");
+    expect(written.get("compute_trendlines")).toBe("0");
+    expect(written.get("q")).toBe("bank");
+  });
+
+  it("omits defaults when state returns to default (writes a clean URL)", () => {
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    const changed: UsePatternUrlSyncArgs = {
+      ...args,
+      universe: "nifty50",
+      timeframe: "15m",
+      lookbackBars: 250,
+      computeTrendlines: false,
+      filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
+    };
+    rerender(changed);
+    expect(setSearchParams).toHaveBeenCalledTimes(1);
+    const first = setSearchParams.mock.calls[0][0] as URLSearchParams;
+    expect(first.get("lookback")).toBe("250");
+    expect(first.get("compute_trendlines")).toBe("0");
+
+    // The router adopts the write; the user then clears back to defaults.
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams(first.toString()),
+      setSearchParams,
+    ] as never);
+    rerender(args);
+
+    expect(setSearchParams).toHaveBeenCalledTimes(2);
+    const second = setSearchParams.mock.calls[1][0] as URLSearchParams;
+    expect(second.toString()).toBe("");
+    expect(second.has("universe")).toBe(false);
+    expect(second.has("tf")).toBe(false);
+    expect(second.has("lookback")).toBe(false);
+    expect(second.has("compute_trendlines")).toBe(false);
+  });
+});
+
+describe("usePatternUrlSync mount adoption", () => {
+  it("adopts trendlines=support from the URL on mount", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("trendlines=support"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.applyFilters).toHaveBeenCalledWith({ trendlines: "support" });
+  });
+
+  it("adopts compute_trendlines=1 from the URL on mount", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("compute_trendlines=1"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.setComputeTrendlines).toHaveBeenCalledWith(true);
+  });
+
+  it("ignores unknown trendlines values and unrelated params on mount", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("trendlines=bogus&screener=momentum"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.setTimeframe).not.toHaveBeenCalled();
+    expect(args.setLookbackBars).not.toHaveBeenCalled();
+    expect(args.setComputeTrendlines).not.toHaveBeenCalled();
+    expect(args.applyFilters).not.toHaveBeenCalled();
+    expect(setSearchParams).not.toHaveBeenCalled();
+  });
+});
+
+describe("usePatternUrlSync back/forward adoption", () => {
+  it("adopts universe/timeframe/lookback/compute_trendlines on external navigation", () => {
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(setSearchParams).not.toHaveBeenCalled();
+
+    // Simulate back/forward navigation to a fully-specified URL.
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("universe=nifty50&tf=15m&lookback=250&compute_trendlines=0"),
+      setSearchParams,
+    ] as never);
+    rerender(args);
+
+    expect(args.setUniverse).toHaveBeenCalledWith("nifty50");
+    expect(args.setTimeframe).toHaveBeenCalledWith("15m");
+    expect(args.setLookbackBars).toHaveBeenCalledWith(250);
+    expect(args.setComputeTrendlines).toHaveBeenCalledWith(false);
+    expect(args.applyFilters).not.toHaveBeenCalled();
+    expect(setSearchParams).not.toHaveBeenCalled();
+  });
+
+  it("ignores an externally navigated URL carrying only unknown values", () => {
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("trendlines=bogus"),
+      setSearchParams,
+    ] as never);
+    rerender(args);
+
+    expect(args.setUniverse).not.toHaveBeenCalled();
+    expect(args.setTimeframe).not.toHaveBeenCalled();
+    expect(args.setLookbackBars).not.toHaveBeenCalled();
+    expect(args.setComputeTrendlines).not.toHaveBeenCalled();
+    expect(args.applyFilters).not.toHaveBeenCalled();
+  });
+});
+
+describe("usePatternUrlSync hydration gate", () => {
+  it("holds writes until the store adopts the incoming URL, then writes without clobbering", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("universe=nifty50&tf=15m"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs({ filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" } });
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    // Mount adopts the URL but never writes on the first commit.
+    expect(args.setUniverse).toHaveBeenCalledWith("nifty50");
+    expect(args.setTimeframe).toHaveBeenCalledWith("15m");
+    expect(args.applyFilters).not.toHaveBeenCalled();
+    expect(setSearchParams).not.toHaveBeenCalled();
+
+    // The store adopts the universe only: the gate must still hold (tf pending).
+    rerender({ ...args, universe: "nifty50" });
+    expect(setSearchParams).not.toHaveBeenCalled();
+
+    // Full adoption releases the gate; the write keeps the local q filter.
+    rerender({ ...args, universe: "nifty50", timeframe: "15m" });
+    expect(setSearchParams).toHaveBeenCalledTimes(1);
+    const written = setSearchParams.mock.calls[0][0] as URLSearchParams;
+    expect(written.get("universe")).toBe("nifty50");
+    expect(written.get("tf")).toBe("15m");
+    expect(written.get("q")).toBe("bank");
+  });
+});
+
+describe("usePatternUrlSync unrelated params", () => {
+  it("preserves unrelated params and drops unknown trendlines on write", () => {
+    mockedUseSearchParams.mockReturnValue([
+      new URLSearchParams("screener=momentum&trendlines=bogus"),
+      setSearchParams,
+    ] as never);
+
+    const args = makeArgs();
+    const { rerender } = renderHook((props: UsePatternUrlSyncArgs) => usePatternUrlSync(props), {
+      initialProps: args,
+    });
+
+    rerender({
+      ...args,
+      universe: "nifty50",
+      filters: { ...DEFAULT_PATTERN_FILTERS, q: "bank" },
+    });
+
+    expect(setSearchParams).toHaveBeenCalledTimes(1);
+    const written = setSearchParams.mock.calls[0][0] as URLSearchParams;
+    expect(written.get("screener")).toBe("momentum");
+    expect(written.get("universe")).toBe("nifty50");
+    expect(written.get("q")).toBe("bank");
+    expect(written.has("trendlines")).toBe(false);
+  });
+});

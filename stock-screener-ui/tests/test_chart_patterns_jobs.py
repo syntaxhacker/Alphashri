@@ -153,3 +153,116 @@ def test_get_job_falls_back_to_db(cp_store):
     assert dto is not None
     assert dto["status"] == "completed"
     assert dto["universe"] == "nifty50"
+
+
+# ---------------------------------------------------------------------------
+# Missing coverage: scope-aware coalescing/supersede, running-cancel,
+# queue-full accounting.
+# ---------------------------------------------------------------------------
+
+
+def test_scope_signature_defaults():
+    assert jobs._scope_signature(None) == ((), None)
+    assert jobs._scope_signature("not-a-dict") == ((), None)
+    assert jobs._scope_signature({}) == ((), None)
+    assert jobs._scope_signature({"symbols": ["B", "A"]}) == (("A", "B"), None)
+    # No dedupe at this layer (the API normalizes before submit); sorting only.
+    assert jobs._scope_signature({"symbols": ["B", "A", "B"]}) == (("A", "B", "B"), None)
+    assert jobs._scope_signature({"lookback_bars": 250}) == ((), 250)
+
+
+def test_same_scope_coalesces_no_new_slot(cp_store):
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    try:
+        first = jobs.submit("nifty50", "1D", params={"lookback_bars": 250})
+        same = jobs.submit("nifty50", "1D", params={"lookback_bars": 250})
+        assert same["job_id"] == first["job_id"]
+        assert jobs.queue_size() == 1
+    finally:
+        release.set()
+
+
+def test_scope_change_supersedes_and_cancels(cp_store):
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    try:
+        first = jobs.submit("nifty50", "1D", params={"lookback_bars": 250})
+        changed = jobs.submit("nifty50", "1D", params={"lookback_bars": 500})
+        assert changed["job_id"] != first["job_id"]
+        assert jobs.get_job(first["job_id"])["status"] == "cancelled"
+    finally:
+        jobs.configure(max_queue=8, max_workers=3)
+        release.set()
+
+
+def test_symbol_scope_change_supersedes(cp_store):
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    try:
+        scoped = jobs.submit("custom", "1D", params={"symbols": ["AAA"]})
+        same = jobs.submit("custom", "1D", params={"symbols": ["AAA"]})
+        assert same["job_id"] == scoped["job_id"]
+        other = jobs.submit("custom", "1D", params={"symbols": ["BBB"]})
+        assert other["job_id"] != scoped["job_id"]
+        assert jobs.get_job(scoped["job_id"])["status"] == "cancelled"
+    finally:
+        jobs.configure(max_queue=8, max_workers=3)
+        release.set()
+
+
+def test_cancel_running_job_marks_cancelled(cp_store):
+    started = threading.Event()
+    release = threading.Event()
+
+    def runner(job_id):
+        started.set()
+        release.wait(5)
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    try:
+        dto = jobs.submit("nifty50", "1D")
+        assert started.wait(5)
+        assert jobs.get_job(dto["job_id"])["status"] == "running"
+        cancelled = jobs.cancel(dto["job_id"])
+        assert cancelled["status"] == "cancelled"
+        assert jobs.is_cancelled(dto["job_id"]) is True
+    finally:
+        release.set()
+
+
+def test_cancel_unknown_returns_none(cp_store):
+    jobs.configure(max_queue=4, max_workers=1, runner=lambda job_id: None)
+    assert jobs.cancel("cpj_nope_missing") is None
+
+
+def test_queue_full_counts_running_and_coalesced_bypasses(cp_store):
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+
+    jobs.configure(max_queue=1, max_workers=1, runner=runner)
+    try:
+        first = jobs.submit("nifty50", "1D")
+        # Same combo coalesces: no new slot, no QueueFullError.
+        assert jobs.submit("nifty50", "1D")["job_id"] == first["job_id"]
+        # A different combo needs a new slot: queue is full.
+        with pytest.raises(jobs.QueueFullError):
+            jobs.submit("nifty500", "1D")
+        assert jobs.queue_size() == 1
+    finally:
+        jobs.configure(max_queue=8, max_workers=3)
+        release.set()

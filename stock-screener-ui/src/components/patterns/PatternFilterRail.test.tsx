@@ -329,4 +329,137 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
     expect(screen.getByTestId("patterns-filter-trendlines")).toBeInTheDocument();
   });
+
+  test("trendlines select exposes all four labels with the right values", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    const select = screen.getByTestId("patterns-filter-trendlines");
+    const options = within(select).getAllByRole("option");
+    expect(options.map((o) => [o.getAttribute("value"), o.textContent])).toEqual([
+      ["both", "Both"],
+      ["support", "TLS only"],
+      ["resistance", "TLR only"],
+      ["none", "None"],
+    ]);
+  });
+
+  test("changing trendlines to resistance / none / both", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const select = screen.getByTestId("patterns-filter-trendlines");
+    await userEvent.selectOptions(select, "resistance");
+    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "resistance");
+    await userEvent.selectOptions(select, "none");
+    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "none");
+    await userEvent.selectOptions(select, "both");
+    expect(props.setFilter).toHaveBeenCalledWith("trendlines", "both");
+  });
+
+  test("clicking a preset calls applyFilters with its patch", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-fresh_reversals"));
+    expect(props.applyFilters).toHaveBeenCalledWith({
+      family: ["reversal"],
+      formed_within_bars: 3,
+      sort: "newest",
+    });
+  });
+
+  test("rail layout shows Reset; panel layout hides it", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    expect(screen.getByTestId("patterns-reset")).toBeInTheDocument();
+    cleanup();
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.queryByTestId("patterns-reset")).not.toBeInTheDocument();
+  });
+
+  test("panel layout renders every control group", () => {
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.getByTestId("patterns-filter-rail")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-presets")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-family-reversal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-direction-bullish")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-status-filter-forming")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-quality-select")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-formed-within")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-trendlines")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-volume-confirmed")).toBeInTheDocument();
+  });
+
+  test("clearing quality back to Any stores null", async () => {
+    const props = makeProps({ filters: { ...FILTERS, quality: "strong" } });
+    r(<PatternFilterRail {...props} />);
+    fireEvent.change(screen.getByTestId("patterns-quality-select"), { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("quality", null);
+  });
+
+  test("formed-within numeric input sets the value", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-formed-within")).getByRole(
+      "spinbutton",
+    );
+    fireEvent.change(input, { target: { value: "10" } });
+    expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", 10);
+  });
+
+  test("clearing the formed-within input stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, formed_within_bars: 10 } });
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-formed-within")).getByRole(
+      "spinbutton",
+    );
+    fireEvent.change(input, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", null);
+  });
+
+  test("clicking the active formed-within preset clears it", async () => {
+    const props = makeProps({ filters: { ...FILTERS, formed_within_bars: 5 } });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-formed-within-5"));
+    expect(props.setFilter).toHaveBeenCalledWith("formed_within_bars", null);
+  });
+
+  test("toggling volume confirmed off stores null", async () => {
+    const props = makeProps({ filters: { ...FILTERS, volume_confirmed: true } });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-volume-confirmed"));
+    expect(props.setFilter).toHaveBeenCalledWith("volume_confirmed", null);
+  });
+
+  test("sets the 30-day base-length preset", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-min-base-30"));
+    expect(props.setFilter).toHaveBeenCalledWith("min_base_days", 30);
+  });
+
+  test("clicking the active base-length preset clears it", async () => {
+    const props = makeProps({ filters: { ...FILTERS, min_base_days: 90 } });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-min-base-90"));
+    expect(props.setFilter).toHaveBeenCalledWith("min_base_days", null);
+  });
+
+  test("clearing the max range input stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, max_range_pct: 20 } });
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-max-range")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("max_range_pct", null);
+  });
+
+  test("removes an already-selected direction and status", async () => {
+    const props = makeProps({
+      filters: { ...FILTERS, direction: ["bullish"], status: ["confirmed"] },
+    });
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-direction-bullish"));
+    expect(props.setFilter).toHaveBeenCalledWith("direction", []);
+    await userEvent.click(screen.getByTestId("patterns-status-filter-confirmed"));
+    expect(props.setFilter).toHaveBeenCalledWith("status", []);
+  });
 });

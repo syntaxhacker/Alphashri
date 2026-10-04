@@ -289,3 +289,198 @@ describe("symbol endpoints", () => {
     expect(queryOf(url).get("compute_trendlines")).toBe("0");
   });
 });
+
+describe("buildPatternsQuery missing serialization", () => {
+  it("serializes universe/timeframe/job_id", () => {
+    const params = new URLSearchParams(
+      buildPatternsQuery({ universe: "nifty500", timeframe: "1D", job_id: "cpj_9" }).slice(1),
+    );
+    expect(params.get("universe")).toBe("nifty500");
+    expect(params.get("timeframe")).toBe("1D");
+    expect(params.get("job_id")).toBe("cpj_9");
+  });
+
+  it("serializes family/direction/status arrays + scalar filters + singular symbol", () => {
+    const query = buildPatternsQuery({
+      family: ["reversal"],
+      direction: ["bullish", "bearish"],
+      status: ["confirmed", "forming"],
+      quality: "strong",
+      formed_within_bars: 5,
+      volume_confirmed: true,
+      min_rr: 2,
+      symbol: "SBIN",
+    });
+    const params = new URLSearchParams(query.slice(1));
+    expect(params.getAll("family")).toEqual(["reversal"]);
+    expect(params.getAll("direction")).toEqual(["bullish", "bearish"]);
+    expect(params.getAll("status")).toEqual(["confirmed", "forming"]);
+    expect(params.get("quality")).toBe("strong");
+    expect(params.get("formed_within_bars")).toBe("5");
+    expect(params.get("volume_confirmed")).toBe("true");
+    expect(params.get("min_rr")).toBe("2");
+    expect(params.get("symbol")).toBe("SBIN");
+  });
+
+  it("serializes limit/offset and omits them when absent", () => {
+    const params = new URLSearchParams(
+      buildPatternsQuery({ limit: 50, offset: 10 }).slice(1),
+    );
+    expect(params.get("limit")).toBe("50");
+    expect(params.get("offset")).toBe("10");
+    expect(buildPatternsQuery({})).not.toContain("limit");
+    expect(buildPatternsQuery({})).not.toContain("offset");
+  });
+
+  it("serializes volume_confirmed=false (explicit opt-out is kept)", () => {
+    const params = new URLSearchParams(
+      buildPatternsQuery({ volume_confirmed: false }).slice(1),
+    );
+    expect(params.get("volume_confirmed")).toBe("false");
+  });
+});
+
+describe("results/summary/symbol error messages", () => {
+  it("fetchResults throws the server detail on failure", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "results boom" }));
+    await expect(fetchResults({ universe: "nifty500" })).rejects.toThrow("results boom");
+  });
+
+  it("fetchResults falls back when the error body is not JSON", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchResults({})).rejects.toThrow("Failed to fetch pattern results");
+  });
+
+  it("fetchResults defaults missing items/total/data_through", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ summary: { scanned: 1 } }));
+    const result = await fetchResults({});
+    expect(result.items).toEqual([]);
+    expect(result.total).toBe(0);
+    expect(result.data_through).toBeNull();
+  });
+
+  it("fetchSummary throws the server detail on failure", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "summary boom" }));
+    await expect(fetchSummary({})).rejects.toThrow("summary boom");
+  });
+
+  it("fetchSummary falls back when the error body is not JSON", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 503,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchSummary({})).rejects.toThrow("Failed to fetch pattern summary");
+  });
+
+  it("fetchSymbolDetail throws the server detail and encodes special chars", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(404, { detail: "no such symbol" }));
+    await expect(fetchSymbolDetail("M&M", "1D")).rejects.toThrow("no such symbol");
+    expect(mockedFetch.mock.calls[0][0]).toContain("/symbol/M%26M?");
+  });
+
+  it("fetchSymbolDetail falls back to Failed to load <symbol> on non-JSON errors", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchSymbolDetail("SBIN", "1D")).rejects.toThrow("Failed to load SBIN");
+  });
+
+  it("fetchSymbolChart throws the server detail on failure", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "chart boom" }));
+    await expect(fetchSymbolChart("SBIN", "1D")).rejects.toThrow("chart boom");
+  });
+
+  it("fetchSymbolChart falls back to Failed to load <symbol> chart on non-JSON errors", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchSymbolChart("SBIN", "1D")).rejects.toThrow(
+      "Failed to load SBIN chart",
+    );
+  });
+});
+
+describe("startScan extended body + 429 fallbacks", () => {
+  it("POSTs lookback_bars/symbols/compute_trendlines through untouched", async () => {
+    mockedFetch.mockResolvedValue(
+      okResponse({ job_id: "cpj_2", status: "queued", queue_position: 1, queue_size: 2 }),
+    );
+
+    await startScan({
+      universe: "custom",
+      timeframe: "1D",
+      symbols: ["SBIN", "TCS"],
+      lookback_bars: 250,
+      compute_trendlines: false,
+    });
+
+    const [url, options] = mockedFetch.mock.calls[0];
+    expect(url).toContain("/api/chart-patterns/scan");
+    expect(JSON.parse(options?.body as string)).toEqual({
+      universe: "custom",
+      timeframe: "1D",
+      symbols: ["SBIN", "TCS"],
+      lookback_bars: 250,
+      compute_trendlines: false,
+    });
+  });
+
+  it("maps 429 without queue metadata to null sizes", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(429, { detail: "queue full" }));
+    const err = await startScan({ universe: "nifty500", timeframe: "1D" }).catch((e) => e);
+    expect(err).toBeInstanceOf(QueueFullError);
+    expect((err as QueueFullError).queueSize).toBeNull();
+    expect((err as QueueFullError).maxQueue).toBeNull();
+  });
+
+  it("maps 429 with non-JSON body to the fallback detail", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 429,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    const err = await startScan({ universe: "nifty500", timeframe: "1D" }).catch((e) => e);
+    expect(err).toBeInstanceOf(QueueFullError);
+    expect((err as QueueFullError).message).toBe("Pattern scan queue is full");
+    expect((err as QueueFullError).queueSize).toBeNull();
+  });
+
+  it("falls back to Failed to start scan (<status>) on non-JSON non-429 errors", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 502,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(startScan({ universe: "x", timeframe: "1D" })).rejects.toThrow(
+      "Failed to start scan (502)",
+    );
+  });
+
+  it("QueueFullError defaults to null metadata", () => {
+    const err = new QueueFullError("full");
+    expect(err.name).toBe("QueueFullError");
+    expect(err.queueSize).toBeNull();
+    expect(err.maxQueue).toBeNull();
+  });
+});

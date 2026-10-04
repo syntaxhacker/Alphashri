@@ -28,4 +28,39 @@ describe("QualityBadge", () => {
     r(<QualityBadge quality="weird" />);
     expect(screen.getByTestId("patterns-quality-weird")).toHaveTextContent("Weird");
   });
+
+  test.each([
+    ["textbook", "Textbook"],
+    ["strong", "Strong"],
+    ["fair", "Fair"],
+    ["marginal", "Marginal"],
+  ] as Array<[string, string]>)("renders tier %s with label %s", (quality, label) => {
+    r(<QualityBadge quality={quality} />);
+    expect(screen.getByTestId(`patterns-quality-${quality}`)).toHaveTextContent(label);
+  });
+
+  test.each([["TEXTBOOK", "patterns-quality-textbook", "Textbook"]])(
+    "matches tier case-insensitively: %s",
+    (quality, testId, label) => {
+      r(<QualityBadge quality={quality} />);
+      expect(screen.getByTestId(testId)).toHaveTextContent(label);
+    },
+  );
+
+  test.each([
+    [null, "patterns-quality-unknown"],
+    [undefined, "patterns-quality-unknown"],
+    ["", "patterns-quality-unknown"],
+  ] as Array<[null | undefined | string, string]>)(
+    "falls back to Unknown for missing quality %s",
+    (quality, testId) => {
+      r(<QualityBadge quality={quality} />);
+      expect(screen.getByTestId(testId)).toHaveTextContent("Unknown");
+    },
+  );
+
+  test("supports a custom data-testid override", () => {
+    r(<QualityBadge quality="strong" data-testid="custom-quality" />);
+    expect(screen.getByTestId("custom-quality")).toHaveTextContent("Strong");
+  });
 });

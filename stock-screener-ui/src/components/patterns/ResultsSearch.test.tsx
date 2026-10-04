@@ -79,4 +79,32 @@ describe("ResultsSearch", () => {
     rerender(<ResultsSearch filters={makeFilters({ q: "" })} setFilter={vi.fn()} />);
     expect(input).toHaveValue("");
   });
+
+  test("does not commit on mount or when filters.q already matches", async () => {
+    const setFilter = vi.fn();
+    const { rerender } = r(
+      <ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />,
+    );
+    // Longer than the 300ms debounce: an unchanged query must never re-commit.
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(setFilter).not.toHaveBeenCalled();
+
+    rerender(<ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(setFilter).not.toHaveBeenCalled();
+  });
+
+  test("parent echo of a commit does not trigger a second commit", async () => {
+    const user = userEvent.setup();
+    const setFilter = vi.fn();
+    const { rerender } = r(<ResultsSearch filters={makeFilters()} setFilter={setFilter} />);
+
+    await user.type(screen.getByTestId("patterns-results-search"), "bank");
+    await waitFor(() => expect(setFilter).toHaveBeenCalledWith("q", "bank"));
+
+    // Late store echo of our own commit must not re-commit.
+    rerender(<ResultsSearch filters={makeFilters({ q: "bank" })} setFilter={setFilter} />);
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    expect(setFilter).toHaveBeenCalledTimes(1);
+  });
 });

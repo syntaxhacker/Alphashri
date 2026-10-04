@@ -108,4 +108,66 @@ describe("deletePatternImage", () => {
     mockedFetch.mockResolvedValue(errorResponse(403, { detail: "Admin access required" }));
     await expect(deletePatternImage("falling_wedge")).rejects.toThrow("Admin access required");
   });
+
+  it("URL-encodes the pattern id", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ status: "ok" }));
+    await deletePatternImage("weird/id");
+    expect(mockedFetch.mock.calls[0][0]).toContain("/image/weird%2Fid");
+  });
+});
+
+describe("error-field + non-JSON fallbacks", () => {
+  it("fetchPatternImages reads the error field", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { error: "images failed" }));
+    await expect(fetchPatternImages()).rejects.toThrow("images failed");
+  });
+
+  it("fetchPatternImages falls back when the error body is not JSON", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchPatternImages()).rejects.toThrow(
+      "Failed to load pattern images (500)",
+    );
+  });
+
+  it("uploadPatternImage reads the error field", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(400, { error: "bad upload" }));
+    await expect(
+      uploadPatternImage("p", new File(["x"], "a.png", { type: "image/png" })),
+    ).rejects.toThrow("bad upload");
+  });
+
+  it("uploadPatternImage falls back when the error body is not JSON", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 500,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(
+      uploadPatternImage("p", new File(["x"], "a.png", { type: "image/png" })),
+    ).rejects.toThrow("Failed to upload image (500)");
+  });
+
+  it("deletePatternImage reads the error field", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(403, { error: "forbidden" }));
+    await expect(deletePatternImage("p")).rejects.toThrow("forbidden");
+  });
+
+  it("deletePatternImage falls back when the error body is not JSON", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: false,
+      status: 404,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(deletePatternImage("p")).rejects.toThrow("Failed to delete image (404)");
+  });
 });

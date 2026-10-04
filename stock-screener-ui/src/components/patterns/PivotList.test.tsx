@@ -40,4 +40,35 @@ describe("PivotList", () => {
     await user.click(toggle);
     expect(toggle).toHaveAttribute("aria-expanded", "true");
   });
+
+  test("renders nothing when pivots is undefined (empty state)", () => {
+    const { container } = r(<PivotList pivots={undefined} />);
+    expect(container.querySelector('[data-testid="patterns-detail-pivots"]')).toBeNull();
+  });
+
+  test("renders nothing when the pivots prop is omitted (empty state)", () => {
+    const { container } = r(<PivotList />);
+    expect(container.querySelector('[data-testid="patterns-detail-pivots"]')).toBeNull();
+  });
+
+  test("shows an em dash for pivots with a missing price", () => {
+    r(
+      <PivotList
+        pivots={[
+          { t: "2026-05-04", price: null as unknown as number, kind: "high" },
+        ]}
+      />,
+    );
+    expect(screen.getByTestId("patterns-detail-pivot-0")).toHaveTextContent("—");
+    expect(screen.getByTestId("patterns-detail-pivot-0")).toHaveTextContent("High");
+  });
+
+  test("defaults a pivot with missing kind to High", () => {
+    r(
+      <PivotList
+        pivots={[{ t: "2026-05-04", price: 100 } as { t: string; price: number; kind?: "high" | "low" }]}
+      />,
+    );
+    expect(screen.getByTestId("patterns-detail-pivot-0")).toHaveTextContent("High");
+  });
 });

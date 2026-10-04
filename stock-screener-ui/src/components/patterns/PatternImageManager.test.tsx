@@ -2,7 +2,7 @@
 import "@testing-library/jest-dom/vitest";
 import type { ReactElement, ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
 import { PatternImageManager } from "./PatternImageManager";
@@ -120,5 +120,56 @@ describe("PatternImageManager", () => {
     r(<PatternImageManager />);
 
     expect(await screen.findByTestId("pattern-image-manager-error")).toHaveTextContent("boom");
+  });
+
+  test("lists uploaded images as <img> with Replace, others with Upload", async () => {
+    mockedFetch.mockResolvedValue({ falling_wedge: "/img/wedge.png" });
+    r(<PatternImageManager />);
+
+    await screen.findByTestId("pattern-image-falling_wedge");
+    const withImage = within(screen.getByTestId("pattern-image-card-falling_wedge"));
+    expect(withImage.getByTestId("pattern-image-falling_wedge").tagName).toBe("IMG");
+    expect(withImage.getByRole("button", { name: /replace/i })).toBeInTheDocument();
+
+    const withoutImage = within(screen.getByTestId("pattern-image-card-rising_wedge"));
+    expect(
+      withoutImage.queryByTestId("pattern-image-rising_wedge"),
+    ).not.toBeInTheDocument();
+    expect(
+      withoutImage.getByTestId("pattern-image-placeholder"),
+    ).toBeInTheDocument();
+    expect(withoutImage.getByRole("button", { name: /upload/i })).toBeInTheDocument();
+  });
+
+  test("shows a per-card error when delete fails and keeps the image", async () => {
+    mockedFetch.mockResolvedValue({ falling_wedge: "/img/wedge.png" });
+    mockedDelete.mockRejectedValue(new Error("delete boom"));
+
+    r(<PatternImageManager />);
+
+    const del = await screen.findByTestId("pattern-image-delete-falling_wedge");
+    expect(del).toBeEnabled();
+    fireEvent.click(del);
+
+    await waitFor(() => expect(mockedDelete).toHaveBeenCalledWith("falling_wedge"));
+    expect(await screen.findByTestId("pattern-image-error-falling_wedge")).toHaveTextContent(
+      "delete boom",
+    );
+    // Failed clear keeps the uploaded image wired to the card.
+    expect(screen.getByTestId("pattern-image-falling_wedge")).toBeInTheDocument();
+  });
+
+  test("refreshes the image map after a successful delete (clear wiring)", async () => {
+    mockedFetch
+      .mockResolvedValueOnce({ falling_wedge: "/img/wedge.png" })
+      .mockResolvedValueOnce({});
+    mockedDelete.mockResolvedValue(undefined);
+
+    r(<PatternImageManager />);
+
+    fireEvent.click(await screen.findByTestId("pattern-image-delete-falling_wedge"));
+
+    await waitFor(() => expect(mockedDelete).toHaveBeenCalledWith("falling_wedge"));
+    await waitFor(() => expect(mockedFetch).toHaveBeenCalledTimes(2));
   });
 });

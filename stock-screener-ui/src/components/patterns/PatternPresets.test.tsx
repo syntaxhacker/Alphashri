@@ -149,4 +149,52 @@ describe("PatternPresets", () => {
     expect(storedAgain[0].filters.direction).toEqual(["bullish"]);
     expect(stored[0].filters.family).not.toBe(nested.family);
   });
+
+  test("round-trips saved presets across remounts via localStorage", async () => {
+    const props = makeProps();
+    const first = r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-save"));
+    await userEvent.type(screen.getByTestId("patterns-preset-name"), "Round trip");
+    await userEvent.click(screen.getByTestId("patterns-preset-name-save"));
+    const stored = JSON.parse(localStorage.getItem(PATTERN_PRESETS_STORAGE_KEY) ?? "[]");
+    expect(stored).toHaveLength(1);
+    first.unmount();
+
+    r(<PatternPresets {...makeProps()} />);
+    expect(screen.getByTestId("patterns-preset-saved")).toBeInTheDocument();
+    expect(
+      screen.getByTestId(`patterns-preset-apply-${stored[0].id}`),
+    ).toHaveTextContent("Round trip");
+  });
+
+  test("applies a saved preset via its chip with the saved payload", async () => {
+    const savedFilters: PatternFilters = { ...FILTERS, direction: ["bullish"] };
+    localStorage.setItem(
+      PATTERN_PRESETS_STORAGE_KEY,
+      JSON.stringify([{ id: "p1", name: "Bulls", filters: savedFilters }]),
+    );
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+
+    await userEvent.click(screen.getByTestId("patterns-preset-apply-p1"));
+
+    expect(props.applyFilters).toHaveBeenCalledWith(savedFilters);
+  });
+
+  test("applies the bullish built-in preset payload", async () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-bullish_setups"));
+    expect(props.applyFilters).toHaveBeenCalledWith({ direction: ["bullish"] });
+  });
+
+  test("ignores corrupt localStorage content and still renders built-ins", async () => {
+    localStorage.setItem(PATTERN_PRESETS_STORAGE_KEY, "not-json{{{");
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+
+    expect(screen.queryByTestId("patterns-preset-saved")).not.toBeInTheDocument();
+    expect(screen.getByTestId("patterns-preset-fresh_reversals")).toBeInTheDocument();
+    expect(props.applyFilters).not.toHaveBeenCalled();
+  });
 });

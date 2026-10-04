@@ -86,4 +86,32 @@ describe("UniverseBar", () => {
     );
     expect(screen.getByTestId("patterns-scan-again")).toBeDisabled();
   });
+
+  test("labels the scan action Scan again for a universe scope", () => {
+    r(<UniverseBar {...makeProps({ universe: "nifty50" })} />);
+    expect(screen.getByTestId("patterns-scan-again")).toHaveTextContent("Scan again");
+    expect(screen.getByTestId("patterns-scan-again")).toBeEnabled();
+  });
+
+  test("uses the singular symbol label for a one-symbol custom set", () => {
+    r(
+      <UniverseBar
+        {...makeProps({ universe: "custom", customUniverse: "custom", customSymbolCount: 1 })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-again")).toHaveTextContent("Scan 1 symbol");
+    expect(screen.getByTestId("patterns-scan-again")).not.toHaveTextContent("symbols");
+  });
+
+  test("clicking scan calls the scan handler", async () => {
+    const props = makeProps();
+    r(<UniverseBar {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-scan-again"));
+    expect(props.scan).toHaveBeenCalledTimes(1);
+  });
+
+  test("renders no status line when there is no error", () => {
+    r(<UniverseBar {...makeProps({ error: null })} />);
+    expect(screen.queryByTestId("patterns-status-line")).not.toBeInTheDocument();
+  });
 });

@@ -15,6 +15,12 @@ vi.mock("@/hooks/useECharts", () => ({
   }),
 }));
 
+vi.mock("./PatternMiniChart", () => ({
+  PatternMiniChart: ({ trendlinesView }: { trendlinesView?: string }) => (
+    <div data-testid="mini-stub" data-trendlines-view={trendlinesView ?? "both"} />
+  ),
+}));
+
 const HIT: PatternHitDTO = {
   id: 1,
   symbol: "IRCON",
@@ -182,5 +188,96 @@ describe("PatternCard", () => {
       />,
     );
     expect(screen.getByTestId("patterns-card-range-CONS")).toHaveTextContent("₹105.00 – ₹130.00");
+  });
+});
+
+describe("PatternCard missing coverage", () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => cleanup());
+
+  test("expand button calls onExpand without triggering onClick", async () => {
+    const onClick = vi.fn();
+    const onExpand = vi.fn();
+    r(<PatternCard hit={HIT} onClick={onClick} onExpand={onExpand} />);
+    await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
+    expect(onExpand).toHaveBeenCalledTimes(1);
+    expect(onExpand).toHaveBeenCalledWith(HIT);
+    expect(onClick).not.toHaveBeenCalled();
+  });
+
+  test("renders no expand button when onExpand is omitted", () => {
+    r(<PatternCard hit={HIT} onClick={vi.fn()} />);
+    expect(
+      screen.queryByTestId("patterns-card-expand-IRCON-falling_wedge"),
+    ).not.toBeInTheDocument();
+  });
+
+  test("selected card renders a different border treatment than unselected", () => {
+    const selected = r(<PatternCard hit={HIT} selected />);
+    const selectedCard = selected.container.querySelector(
+      '[data-testid="patterns-card-IRCON-falling_wedge"]',
+    );
+    const plain = r(<PatternCard hit={HIT} />);
+    const plainCard = plain.container.querySelector(
+      '[data-testid="patterns-card-IRCON-falling_wedge"]',
+    );
+    expect(selectedCard).toBeInTheDocument();
+    expect(plainCard).toBeInTheDocument();
+    expect(selectedCard!.className).not.toBe(plainCard!.className);
+  });
+
+  test("shows the last close and signed day change", () => {
+    const view = r(<PatternCard hit={{ ...HIT, last_close: 120, day_change_pct: 2.5 }} />);
+    expect(view.getByText("₹120.00")).toBeInTheDocument();
+    expect(view.getByText("+2.50%")).toBeInTheDocument();
+  });
+
+  test("falls back to end price and since-start change without enrichment", () => {
+    const view = r(<PatternCard hit={{ ...HIT, end_price: 115.4 }} />);
+    expect(view.getByText("₹115.40")).toBeInTheDocument();
+    expect(view.getByText("+15.40%")).toBeInTheDocument();
+  });
+
+  test("gain and loss day-change render with different color treatments", () => {
+    const gain = r(<PatternCard hit={{ ...HIT, last_close: 120, day_change_pct: 2.5 }} />);
+    const gainEl = gain.getByText("+2.50%");
+    gain.unmount();
+    const loss = r(<PatternCard hit={{ ...HIT, last_close: 118, day_change_pct: -1.25 }} />);
+    const lossEl = loss.getByText("-1.25%");
+    expect(lossEl).toBeInTheDocument();
+    expect(gainEl.className).not.toBe(lossEl.className);
+  });
+
+  test("uses the singular candle label when bars_ago is 1", () => {
+    const view = r(<PatternCard hit={{ ...HIT, bars_ago: 1 }} />);
+    expect(view.getByText("1 1D candle ago")).toBeInTheDocument();
+  });
+
+  test("trims a fractional range_pct to one decimal", () => {
+    const view = r(<PatternCard hit={{ ...HIT, base_days: 45, range_pct: 13.26 }} />);
+    expect(view.getByText("Base 45d · 13.3%")).toBeInTheDocument();
+  });
+
+  test("omits the range share when range_pct is absent", () => {
+    const view = r(<PatternCard hit={{ ...HIT, base_days: 60 }} />);
+    expect(
+      view.getByTestId("patterns-card-base-IRCON-falling_wedge"),
+    ).toHaveTextContent("Base 60d");
+    expect(
+      view.getByTestId("patterns-card-base-IRCON-falling_wedge"),
+    ).not.toHaveTextContent("·");
+  });
+
+  test("forwards the default trendlinesView to the mini chart", () => {
+    r(<PatternCard hit={HIT} />);
+    expect(screen.getByTestId("mini-stub")).toHaveAttribute("data-trendlines-view", "both");
+  });
+
+  test("forwards a custom trendlinesView to the mini chart", () => {
+    r(<PatternCard hit={HIT} trendlinesView="resistance" />);
+    expect(screen.getByTestId("mini-stub")).toHaveAttribute(
+      "data-trendlines-view",
+      "resistance",
+    );
   });
 });

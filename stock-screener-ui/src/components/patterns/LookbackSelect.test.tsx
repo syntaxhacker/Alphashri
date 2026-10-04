@@ -51,4 +51,24 @@ describe("LookbackSelect", () => {
     await userEvent.selectOptions(screen.getByTestId("patterns-lookback-select"), "auto");
     expect(onChange).toHaveBeenCalledWith(null);
   });
+
+  test("reflects the current value as the selected option", () => {
+    r(<LookbackSelect value={null} onChange={vi.fn()} />);
+    expect(screen.getByTestId("patterns-lookback-select")).toHaveValue("auto");
+    cleanup();
+    r(<LookbackSelect value={250} onChange={vi.fn()} />);
+    expect(screen.getByTestId("patterns-lookback-select")).toHaveValue("250");
+  });
+
+  test.each([
+    ["60", 60],
+    ["120", 120],
+    ["500", 500],
+    ["1000", 1000],
+  ])("selecting %s calls onChange(%i)", async (option, expected) => {
+    const onChange = vi.fn();
+    r(<LookbackSelect value={null} onChange={onChange} />);
+    await userEvent.selectOptions(screen.getByTestId("patterns-lookback-select"), option);
+    expect(onChange).toHaveBeenCalledWith(expected);
+  });
 });

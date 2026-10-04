@@ -139,3 +139,46 @@ def test_invalid_lookback_falls_back_to_default():
     expected = detect_trendlines(df)
     for bad in (None, 0, -5, "200", 3.5):
         assert detect_trendlines(df, lookback_bars=bad) == expected
+
+
+def test_min_touches_guard_rejects_lines(monkeypatch):
+    """An unsatisfiable touches guard yields no lines (no crash)."""
+    df = _rising_support_df()
+    assert detect_trendlines(df)["support"] is not None
+    monkeypatch.setattr(pattern_config, "TRENDLINE_MIN_TOUCHES", 10**6)
+    res = detect_trendlines(df)
+    assert res == {"support": None, "resistance": None}
+
+
+def test_min_span_guard_rejects_lines(monkeypatch):
+    """An unsatisfiable span guard yields no lines (no crash)."""
+    df = _descending_resistance_df()
+    assert detect_trendlines(df)["resistance"] is not None
+    monkeypatch.setattr(pattern_config, "TRENDLINE_MIN_SPAN", 10**6)
+    res = detect_trendlines(df)
+    assert res == {"support": None, "resistance": None}
+
+
+def test_malformed_frame_returns_empty_without_raising():
+    """Frames without OHLC columns yield both None instead of raising."""
+    idx = pd.date_range("2026-01-01", periods=60, freq="D", tz="UTC")
+    bad = pd.DataFrame({"foo": range(60), "bar": range(60)}, index=idx)
+    assert detect_trendlines(bad) == {"support": None, "resistance": None}
+
+
+def test_signature_changes_with_config(monkeypatch):
+    """`trendline_signature` tracks every detector constant."""
+    base = pattern_config.trendline_signature()
+    assert isinstance(base, str) and base
+    monkeypatch.setattr(pattern_config, "TRENDLINE_MIN_TOUCHES", 999)
+    assert pattern_config.trendline_signature() != base
+    monkeypatch.setattr(pattern_config, "TRENDLINE_MIN_SPAN", 999)
+    assert pattern_config.trendline_signature() != base
+    monkeypatch.setattr(pattern_config, "TRENDLINE_TOUCH_TOL_ATR", 123.456)
+    assert pattern_config.trendline_signature() != base
+    monkeypatch.setattr(pattern_config, "TRENDLINE_ENVELOPE_TOL_ATR", 123.456)
+    assert pattern_config.trendline_signature() != base
+    monkeypatch.setattr(pattern_config, "TRENDLINE_SWING_ORDER", 999)
+    assert pattern_config.trendline_signature() != base
+    monkeypatch.setattr(pattern_config, "TRENDLINE_LOOKBACK_BARS", 999)
+    assert pattern_config.trendline_signature() != base

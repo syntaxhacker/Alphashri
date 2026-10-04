@@ -61,4 +61,43 @@ describe("PatternImage", () => {
     expect(label).toHaveTextContent("Falling Wedge");
     expect(label).toHaveStyle({ display: "none" });
   });
+
+  test("uses custom alt text for the rendered image", () => {
+    r(
+      <PatternImage
+        patternId="falling_wedge"
+        images={{ falling_wedge: "/img/wedge.png" }}
+        alt="Wedge example"
+      />,
+    );
+
+    const img = screen.getByTestId("pattern-image-falling_wedge");
+    expect(img).toHaveAttribute("alt", "Wedge example");
+    expect(img).toHaveAttribute("src", "/img/wedge.png");
+  });
+
+  test("uses custom alt text for the placeholder label", () => {
+    r(<PatternImage patternId="falling_wedge" images={{}} alt="Custom placeholder" />);
+
+    expect(screen.getByTestId("pattern-image-placeholder")).toBeInTheDocument();
+    expect(screen.getByTestId("pattern-image-placeholder-label")).toHaveTextContent(
+      "Custom placeholder",
+    );
+  });
+
+  test("recovers the image when the url prop changes after an error", () => {
+    const { rerender } = r(
+      <PatternImage patternId="falling_wedge" images={{ falling_wedge: "/broken" }} />,
+    );
+    fireEvent.error(screen.getByTestId("pattern-image-falling_wedge"));
+    expect(screen.getByTestId("pattern-image-placeholder")).toBeInTheDocument();
+
+    rerender(
+      <PatternImage patternId="falling_wedge" images={{ falling_wedge: "/fixed.png" }} />,
+    );
+    const img = screen.getByTestId("pattern-image-falling_wedge");
+    expect(img.tagName).toBe("IMG");
+    expect(img).toHaveAttribute("src", "/fixed.png");
+    expect(screen.queryByTestId("pattern-image-placeholder")).not.toBeInTheDocument();
+  });
 });

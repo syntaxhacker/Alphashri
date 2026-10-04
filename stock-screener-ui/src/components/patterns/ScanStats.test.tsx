@@ -79,4 +79,42 @@ describe("ScanStats", () => {
       vi.useRealTimers();
     }
   });
+
+  test("renders a dash for every stat when summary is null", () => {
+    r(<ScanStats summary={null} />);
+    for (const key of [
+      "scanned",
+      "patterns",
+      "in_view",
+      "confirmed",
+      "bull_bear",
+      "data_through",
+      "last_scan",
+    ]) {
+      expect(screen.getByTestId(`patterns-stat-${key}`)).toHaveTextContent("—");
+    }
+  });
+
+  test("renders a custom data_through value verbatim", () => {
+    r(<ScanStats summary={{ ...SUMMARY, data_through: "2026-10-01 (delayed)" }} />);
+    expect(screen.getByTestId("patterns-stat-data_through")).toHaveTextContent(
+      "2026-10-01 (delayed)",
+    );
+  });
+
+  test("formats large counts with en-IN grouping", () => {
+    r(<ScanStats summary={{ ...SUMMARY, scanned: 9700, patterns: 123456 }} />);
+    expect(screen.getByTestId("patterns-stat-scanned")).toHaveTextContent("9,700");
+    expect(screen.getByTestId("patterns-stat-patterns")).toHaveTextContent("1,23,456");
+  });
+
+  test("shows hour and day granularity for the last scan age", () => {
+    const threeHoursAgo = new Date(Date.now() - 3 * 3_600_000).toISOString();
+    r(<ScanStats summary={{ ...SUMMARY, last_scan_at: threeHoursAgo }} />);
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("3 h ago");
+    cleanup();
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString();
+    r(<ScanStats summary={{ ...SUMMARY, last_scan_at: twoDaysAgo }} />);
+    expect(screen.getByTestId("patterns-stat-last_scan")).toHaveTextContent("2 d ago");
+  });
 });

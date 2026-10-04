@@ -1141,3 +1141,72 @@ def test_symbol_chart_compute_trendlines_false_skips_detector(cp_client, monkeyp
     assert chart.status_code == 200
     assert chart.json()["trend_lines"] == []
 
+
+# ---------------------------------------------------------------------------
+# Missing coverage: scan param passthrough, lookback boundaries, 422s.
+# ---------------------------------------------------------------------------
+
+
+def test_scan_forwards_compute_trendlines_false(cp_client, monkeypatch):
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(params=params)
+        return {
+            "job_id": "cpj_tlflag", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D", "compute_trendlines": False},
+    )
+    assert resp.status_code == 200
+    assert captured["params"]["compute_trendlines"] is False
+
+
+def test_scan_lookback_boundaries_accepted(cp_client, monkeypatch):
+    captured = []
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.append(params.get("lookback_bars"))
+        return {
+            "job_id": "cpj_lb_edge", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    for edge in (config.LOOKBACK_MIN, config.LOOKBACK_MAX):
+        resp = cp_client.post(
+            "/api/chart-patterns/scan",
+            json={"universe": "nifty500", "timeframe": "1D", "lookback_bars": edge},
+        )
+        assert resp.status_code == 200
+    assert captured == [config.LOOKBACK_MIN, config.LOOKBACK_MAX]
+
+
+def test_scan_missing_timeframe_422(cp_client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("submit must not be called without a timeframe")
+
+    monkeypatch.setattr(cp_api.jobs, "submit", _boom)
+    resp = cp_client.post("/api/chart-patterns/scan", json={"universe": "nifty500"})
+    assert resp.status_code == 422
+
+
+def test_results_limit_over_max_422(cp_client):
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_any", "limit": config.RESULTS_MAX_LIMIT + 1},
+    )
+    assert resp.status_code == 422
+
+
+def test_chart_limit_over_max_422(cp_client):
+    resp = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "limit": config.CHART_MAX_BARS + 1},
+    )
+    assert resp.status_code == 422
+
