@@ -746,3 +746,32 @@ def test_process_symbol_stamps_trend_lines_sig(cp_store, monkeypatch):
     items, total, _ = store.query_results({"job_id": "cpj_tlsig"})
     assert total == 1
     assert items[0].get("trend_lines_sig") == cp_config.trendline_signature()
+
+
+def test_run_job_compute_trendlines_false_skips_detector(cp_store, monkeypatch):
+    """`params={"compute_trendlines": False}` stores empty lines, no detector call."""
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+
+    def _boom(df, lookback_bars=None):
+        raise AssertionError("detect_trendlines must not run when compute_trendlines=false")
+
+    monkeypatch.setattr(scan.trendlines_mod, "detect_trendlines", _boom)
+    store.save_job({
+        "job_id": "cpj_tlskip", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"compute_trendlines": False},
+    })
+
+    scan.run_job("cpj_tlskip")
+
+    row = store.get_job("cpj_tlskip")
+    assert row["status"] == "completed"
+    items, total, _ = store.query_results({"job_id": "cpj_tlskip"})
+    assert total == 1
+    assert items[0].get("trend_lines") == []

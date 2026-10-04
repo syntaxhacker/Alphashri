@@ -155,7 +155,7 @@ def _is_cancelled(job_id: str) -> bool:
 
 
 def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
-                   lookback_bars=None) -> dict:
+                   lookback_bars=None, compute_trendlines: bool = True) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict."""
     if _is_cancelled(job_id):
         return {"status": "skipped", "data_through": None}
@@ -188,7 +188,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     # Scan-time trendlines: computed once per symbol so read-time results can
     # reuse the stored lines instead of re-running the detector per item.
     scan_trend_lines: list = []
-    if hits and trendlines_mod is not None:
+    if compute_trendlines and hits and trendlines_mod is not None:
         try:
             _tl_res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
             if isinstance(_tl_res, dict):
@@ -208,7 +208,8 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         record["name"] = name
         record.setdefault("timeframe", timeframe)
         record["trend_lines"] = list(scan_trend_lines)
-        record["trend_lines_sig"] = config.trendline_signature()
+        if compute_trendlines:
+            record["trend_lines_sig"] = config.trendline_signature()
         enriched.append(record)
 
     if enriched:
@@ -233,6 +234,10 @@ def run_job(job_id: str) -> None:
     params = _job_params(job)
     raw_symbols = params.get("symbols")
     lookback_bars = params.get("lookback_bars")
+    compute_trendlines = params.get("compute_trendlines", True)
+    if compute_trendlines is None:
+        compute_trendlines = True
+    compute_trendlines = bool(compute_trendlines)
 
     try:
         if raw_symbols:
@@ -290,7 +295,8 @@ def run_job(job_id: str) -> None:
 
     with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
         futures = {
-            pool.submit(_process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars): symbol
+            pool.submit(_process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
+                        compute_trendlines): symbol
             for symbol in symbols
         }
         cancelled = False

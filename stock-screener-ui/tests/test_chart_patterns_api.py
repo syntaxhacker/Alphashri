@@ -1075,3 +1075,69 @@ def test_symbol_chart_without_lookback_bars_uses_default(cp_client, monkeypatch)
     # Default limit (2000) exceeds the fetched window: all bars are returned.
     assert len(chart.json()["candles"]) == 120
 
+
+# ---------------------------------------------------------------------------
+# compute_trendlines flag: standalone trendline work can be skipped.
+# ---------------------------------------------------------------------------
+
+
+def test_results_compute_trendlines_false_skips_detector(cp_client, monkeypatch):
+    store.save_job({
+        "job_id": "cpj_tlskip", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "done": 10,
+    })
+    store.save_hits("cpj_tlskip", [_hit("AAA")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+
+    def _boom(df, lookback_bars=None):
+        raise AssertionError("detect_trendlines must not run when compute_trendlines=false")
+
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_tlskip", "compute_trendlines": "false"},
+    )
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 1
+    assert items[0]["trend_lines"] == []
+    # Candles + closes are still attached.
+    assert items[0]["candles"], "candle window is still attached"
+    assert items[0]["last_close"] is not None
+    assert items[0]["day_change_pct"] is not None
+
+
+def test_results_compute_trendlines_default_still_computes(cp_client, monkeypatch):
+    store.save_job({
+        "job_id": "cpj_tldef", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "done": 10,
+    })
+    store.save_hits("cpj_tldef", [_hit("AAA")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
+    )
+
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tldef"})
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["trend_lines"] == [_fake_trendline("support")]
+
+
+def test_symbol_chart_compute_trendlines_false_skips_detector(cp_client, monkeypatch):
+    store.save_hits("cpj_tlskipchart", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+
+    def _boom(df, lookback_bars=None):
+        raise AssertionError("detect_trendlines must not run when compute_trendlines=false")
+
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "compute_trendlines": "false"},
+    )
+    assert chart.status_code == 200
+    assert chart.json()["trend_lines"] == []
+

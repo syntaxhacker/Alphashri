@@ -404,7 +404,7 @@ def _stored_lines_fresh(item) -> bool:
 
 
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
-                          lookback_bars: Optional[int] = None):
+                          lookback_bars: Optional[int] = None, compute_trendlines: bool = True):
     """Attach a real candle window + last close/day change to each result item.
 
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
@@ -430,7 +430,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
                 item.setdefault("candles", [])
                 item.setdefault("last_close", None)
                 item.setdefault("day_change_pct", None)
-                item["trend_lines"] = stored_lines if stored_lines is not None else []
+                item["trend_lines"] = [] if not compute_trendlines else (stored_lines if stored_lines is not None else [])
             continue
         key = (symbol, timeframe)
         if key not in cache:
@@ -458,6 +458,9 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         else:
             item["last_close"] = None
             item["day_change_pct"] = None
+        if not compute_trendlines:
+            item["trend_lines"] = []
+            continue
         if stored_lines is not None:
             item["trend_lines"] = stored_lines
             continue
@@ -485,6 +488,7 @@ class ScanRequest(BaseModel):
     universe: str = ""
     timeframe: str
     force: bool = False
+    compute_trendlines: bool = True
     # Optional explicit symbol scope. When present, only these symbols are
     # scanned (the job is stored under the reserved ``custom`` universe), so a
     # caller can run detection on a hand-picked list without computing a whole
@@ -559,6 +563,7 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
                 detail=f"unknown universe {request.universe!r}. Known: {sorted(_valid_universe_ids())}",
             )
         params = {"force": request.force}
+    params["compute_trendlines"] = request.compute_trendlines
     if request.lookback_bars is not None:
         params["lookback_bars"] = request.lookback_bars
     if request.timeframe not in _valid_timeframe_ids():
@@ -651,6 +656,7 @@ async def get_results(
     limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
     offset: int = Query(0, ge=0),
     lookback_bars: Optional[int] = Query(None),
+    compute_trendlines: bool = Query(True),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
@@ -661,7 +667,8 @@ async def get_results(
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
     # off the event loop so a slow/hung fetch cannot freeze the whole server.
     # The card window spans the active Lookback so mini-charts match the view.
-    await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars)
+    await run_in_threadpool(_enrich_with_candles, items, timeframe, lookback_bars=lookback_bars,
+                            compute_trendlines=compute_trendlines)
     return _sanitize_for_json({
         "items": items,
         "total": total,
@@ -741,6 +748,7 @@ async def get_symbol_chart(
     timeframe: str = Query("1D"),
     limit: int = Query(config.CHART_MAX_BARS, ge=1, le=config.CHART_MAX_BARS),
     lookback_bars: Optional[int] = Query(None),
+    compute_trendlines: bool = Query(True),
 ):
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
@@ -766,7 +774,9 @@ async def get_symbol_chart(
         # stale lines (detector changed) fall through to the recompute below.
         if not stored_fresh_lines and _stored_lines_fresh(pattern):
             stored_fresh_lines = list(pattern.get("trend_lines") or [])
-    if stored_fresh_lines:
+    if not compute_trendlines:
+        trend_lines = []
+    elif stored_fresh_lines:
         trend_lines = stored_fresh_lines
     else:
         try:
