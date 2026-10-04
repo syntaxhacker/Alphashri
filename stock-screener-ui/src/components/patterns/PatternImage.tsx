@@ -11,10 +11,12 @@ export interface PatternImageProps {
   alt?: string;
   /** Rendered height in px. Defaults to 120. */
   height?: number;
+  /** Show the pattern name inside the no-image placeholder (default true). */
+  showPlaceholderLabel?: boolean;
 }
 
 /** Compact inline SVG shown when a pattern has no uploaded image. */
-function PatternPlaceholder({ label }: { label: string }) {
+function PatternPlaceholder({ label, showLabel }: { label: string; showLabel: boolean }) {
   return (
     <Box
       data-testid="pattern-image-placeholder"
@@ -63,6 +65,7 @@ function PatternPlaceholder({ label }: { label: string }) {
         ta="center"
         lineClamp={2}
         data-testid="pattern-image-placeholder-label"
+        sx={{ display: showLabel ? undefined : "none" }}
       >
         {label}
       </Text>
@@ -74,7 +77,13 @@ function PatternPlaceholder({ label }: { label: string }) {
  * Render the uploaded reference image for a pattern, falling back to a compact
  * SVG placeholder when there is no image (or the image fails to load).
  */
-export function PatternImage({ patternId, images, alt, height = 120 }: PatternImageProps) {
+export function PatternImage({
+  patternId,
+  images,
+  alt,
+  height = 120,
+  showPlaceholderLabel = true,
+}: PatternImageProps) {
   const url = images[patternId];
   const [errored, setErrored] = useState(false);
 
@@ -106,7 +115,7 @@ export function PatternImage({ patternId, images, alt, height = 120 }: PatternIm
 
   return (
     <Box sx={{ width: "100%", height }}>
-      <PatternPlaceholder label={label} />
+      <PatternPlaceholder label={label} showLabel={showPlaceholderLabel} />
     </Box>
   );
 }

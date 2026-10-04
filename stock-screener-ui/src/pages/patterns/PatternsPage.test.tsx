@@ -20,6 +20,11 @@ vi.mock("@/api/chartPatterns", () => ({
   fetchSymbolChart: (...args: unknown[]) => fetchSymbolChart(...args),
 }));
 
+const fetchPatternImages = vi.fn();
+vi.mock("@/api/patternImages", () => ({
+  fetchPatternImages: (...args: unknown[]) => fetchPatternImages(...args),
+}));
+
 function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
   return {
     id: 1,
@@ -109,6 +114,9 @@ function r(jsx: React.ReactElement) {
 describe("PatternsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    fetchPatternImages.mockResolvedValue({
+      falling_wedge: "/api/chart-patterns/image/falling_wedge",
+    });
     fetchSymbolChart.mockResolvedValue({
       symbol: "IRCON",
       timeframe: "1D",
@@ -141,6 +149,12 @@ describe("PatternsPage", () => {
     expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("patterns-open-filters"));
     expect(await screen.findByTestId("patterns-filter-rail")).toBeInTheDocument();
+    // Pattern tiles show the reference image + label.
+    const img = await screen.findByTestId("pattern-image-falling_wedge");
+    expect(img).toHaveAttribute("src", "/api/chart-patterns/image/falling_wedge");
+    expect(screen.getByTestId("patterns-filter-pattern-falling_wedge")).toHaveTextContent(
+      "Falling Wedge",
+    );
     await userEvent.click(screen.getByTestId("patterns-filters-done"));
     await waitFor(() => expect(screen.queryByTestId("patterns-filter-rail")).not.toBeInTheDocument());
   });

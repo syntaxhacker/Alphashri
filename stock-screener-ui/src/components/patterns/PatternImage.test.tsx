@@ -54,4 +54,11 @@ describe("PatternImage", () => {
       "mystery_shape",
     );
   });
+
+  test("hides the placeholder label in tile mode", () => {
+    r(<PatternImage patternId="falling_wedge" images={{}} showPlaceholderLabel={false} />);
+    const label = screen.getByTestId("pattern-image-placeholder-label");
+    expect(label).toHaveTextContent("Falling Wedge");
+    expect(label).toHaveStyle({ display: "none" });
+  });
 });

@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Text, ToolbarRow } from "@/ui";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import type {
@@ -13,6 +13,7 @@ import type {
   Universe,
 } from "@/types/chartPatterns";
 import { fetchSymbolChart } from "@/api/chartPatterns";
+import { fetchPatternImages } from "@/api/patternImages";
 import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
 import { PatternFilterRail } from "@/components/patterns/PatternFilterRail";
@@ -101,7 +102,25 @@ export function PatternsPage({
   // succession must not let the stale fetch overwrite the newer selection.
   const chartRequestRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  const [patternImages, setPatternImages] = useState<Record<string, string>>({});
   const activeFilters = activeFilterCount(filters);
+
+  // Reference images for the pattern tiles: load once, the first time the
+  // Filters modal opens (no cost on page load).
+  useEffect(() => {
+    if (!filtersOpen) return;
+    let active = true;
+    fetchPatternImages()
+      .then((map) => {
+        if (active) setPatternImages(map);
+      })
+      .catch(() => {
+        /* non-fatal: tiles fall back to placeholders */
+      });
+    return () => {
+      active = false;
+    };
+  }, [filtersOpen]);
 
   /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
   const hitIdentity = (hit: PatternHitDTO): string =>
@@ -266,9 +285,22 @@ export function PatternsPage({
             setFilter={setFilter}
             resetFilters={resetFilters}
             applyFilters={applyFilters}
+            images={patternImages}
           />
         </Box>
-        <ToolbarRow justify="flex-end" gap={8} style={{ paddingTop: 16 }}>
+        <ToolbarRow
+          justify="space-between"
+          gap={8}
+          style={{ paddingTop: 12, borderTop: "1px solid", borderColor: "var(--mui-palette-divider)" }}
+        >
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={resetFilters}
+            data-testid="patterns-reset"
+          >
+            Reset all
+          </Button>
           <Button
             size="sm"
             variant="filled"

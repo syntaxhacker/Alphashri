@@ -192,6 +192,7 @@ export function PatternPresets({ filters, applyFilters }: PatternPresetsProps) {
           variant="outline"
           onClick={() => setNaming(true)}
           data-testid="patterns-preset-save"
+          sx={{ alignSelf: "flex-start" }}
         >
           Save current
         </Button>

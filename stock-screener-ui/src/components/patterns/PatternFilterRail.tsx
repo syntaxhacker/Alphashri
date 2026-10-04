@@ -12,6 +12,7 @@ import {
   STATUS_INFO,
 } from "@/config/patternCatalog";
 import { PatternPresets } from "./PatternPresets";
+import { PatternImage } from "./PatternImage";
 
 const FAMILY_LABELS: Record<string, string> = {
   reversal: "Reversal",
@@ -34,6 +35,8 @@ export interface PatternFilterRailProps {
   resetFilters: () => void;
   /** Apply a partial filter patch (merged onto defaults) and reload; used by presets. */
   applyFilters: (filters: Partial<PatternFilters>) => void;
+  /** Map of `pattern_id` → reference-image URL (from `fetchPatternImages`). */
+  images?: Record<string, string>;
   /**
    * `"rail"` (default) = single vertical column. `"panel"` = explicit 3-column
    * layout for the filter modal (What · Patterns · Refine), top-aligned.
@@ -59,9 +62,18 @@ function Section({
   children: React.ReactNode;
 }) {
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.75 }}>
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        <Text size="xs" fw={700} style={{ textTransform: "uppercase" }} c="dimmed">
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          gap: 0.5,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+          pb: 0.5,
+        }}
+      >
+        <Text size="xs" fw={700} style={{ textTransform: "uppercase", letterSpacing: 0.4 }} c="dimmed">
           {title}
         </Text>
         {info}
@@ -126,6 +138,7 @@ export function PatternFilterRail({
   setFilter,
   resetFilters,
   applyFilters,
+  images,
   layout = "rail",
 }: PatternFilterRailProps) {
   const panel = layout === "panel";
@@ -176,34 +189,78 @@ export function PatternFilterRail({
     </Section>
   );
 
+  const patternTile = (patternId: string, label: string, count: number) => {
+    const selected = selectedPatterns.includes(patternId);
+    const togglePattern = () => setFilter("pattern_id", toggle(selectedPatterns, patternId));
+    return (
+      <Box
+        key={patternId}
+        role="button"
+        tabIndex={0}
+        aria-pressed={selected}
+        onClick={togglePattern}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            togglePattern();
+          }
+        }}
+        data-testid={`patterns-filter-pattern-${patternId}`}
+        sx={{
+          display: "flex",
+          flexDirection: "column",
+          gap: 0.5,
+          p: 0.5,
+          minWidth: 0,
+          border: "1px solid",
+          borderColor: selected ? "primary.main" : "divider",
+          bgcolor: selected ? "action.selected" : "background.default",
+          borderRadius: 1,
+          cursor: "pointer",
+          transition: "border-color 120ms ease",
+          "&:hover": { borderColor: "primary.main" },
+          "&:focus-visible": { outline: "2px solid", outlineColor: "primary.main", outlineOffset: 1 },
+        }}
+      >
+        <PatternImage
+          patternId={patternId}
+          images={images ?? {}}
+          height={54}
+          showPlaceholderLabel={false}
+        />
+        <Text size="xs" fw={selected ? 700 : 500} lineClamp={2} sx={{ lineHeight: 1.25, minHeight: 30 }}>
+          {label} ({count})
+        </Text>
+      </Box>
+    );
+  };
+
   const patternsSection = (
     <Section title="Patterns">
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1.5 }}>
         {PATTERN_FAMILIES.map((family) => (
           <Box
             key={family.id}
             sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}
             data-testid={`patterns-filter-family-group-${family.id}`}
           >
-            <Text size="xs" c="dimmed">
+            <Text size="xs" c="dimmed" fw={600}>
               {family.label}
             </Text>
-            <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-              {family.patterns.map((pattern) => {
-                const count = patternCountFor(pattern.id);
-                return (
-                  <Chip
-                    key={pattern.id}
-                    size="xs"
-                    variant="light"
-                    checked={selectedPatterns.includes(pattern.id)}
-                    onChange={() => setFilter("pattern_id", toggle(selectedPatterns, pattern.id))}
-                    data-testid={`patterns-filter-pattern-${pattern.id}`}
-                  >
-                    {PATTERN_LABELS[pattern.id] ?? pattern.name} ({count})
-                  </Chip>
-                );
-              })}
+            <Box
+              sx={{
+                display: "grid",
+                gridTemplateColumns: "repeat(auto-fill, minmax(140px, 1fr))",
+                gap: 1,
+              }}
+            >
+              {family.patterns.map((pattern) =>
+                patternTile(
+                  pattern.id,
+                  PATTERN_LABELS[pattern.id] ?? pattern.name,
+                  patternCountFor(pattern.id),
+                ),
+              )}
             </Box>
           </Box>
         ))}
@@ -418,14 +475,16 @@ export function PatternFilterRail({
         onChange={(e) => setFilter("volume_confirmed", e.target.checked ? true : null)}
         data-testid="patterns-volume-confirmed"
       />
-      <Button
-        size="xs"
-        variant="outline"
-        onClick={resetFilters}
-        data-testid="patterns-reset"
-      >
-        Reset
-      </Button>
+      {!panel && (
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={resetFilters}
+          data-testid="patterns-reset"
+        >
+          Reset
+        </Button>
+      )}
     </Box>
   );
 
@@ -439,7 +498,7 @@ export function PatternFilterRail({
           display: "grid",
           gridTemplateColumns: {
             xs: "minmax(0, 1fr)",
-            md: "minmax(0, 1fr) minmax(0, 1.3fr) minmax(0, 1fr)",
+            md: "minmax(0, 1fr) minmax(0, 1.5fr) minmax(0, 1fr)",
           },
           gap: 3,
           alignItems: "start",

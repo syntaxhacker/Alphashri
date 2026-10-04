@@ -198,6 +198,15 @@ describe("PatternFilterRail", () => {
     );
   });
 
+  test("pattern tiles render the reference image when available", () => {
+    const props = makeProps({
+      images: { ascending_channel: "/api/chart-patterns/image/ascending_channel" },
+    });
+    r(<PatternFilterRail {...props} />);
+    const img = screen.getByTestId("pattern-image-ascending_channel");
+    expect(img).toHaveAttribute("src", "/api/chart-patterns/image/ascending_channel");
+  });
+
   test("toggles a specific pattern into pattern_id", async () => {
     const props = makeProps();
     r(<PatternFilterRail {...props} />);
