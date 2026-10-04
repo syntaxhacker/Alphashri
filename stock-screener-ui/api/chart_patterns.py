@@ -10,6 +10,7 @@ from datetime import datetime
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
@@ -537,7 +538,9 @@ async def get_results(
         min_base_days, max_range_pct, q, sort=sort,
     )
     items, total, summary = store.query_results(filters, limit=limit, offset=offset)
-    _enrich_with_candles(items, timeframe)
+    # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
+    # off the event loop so a slow/hung fetch cannot freeze the whole server.
+    await run_in_threadpool(_enrich_with_candles, items, timeframe)
     return _sanitize_for_json({
         "items": items,
         "total": total,
@@ -604,8 +607,8 @@ def _candle_fields(symbol: str, timeframe: str) -> dict:
 @router.get("/symbol/{symbol}")
 async def get_symbol(symbol: str, timeframe: str = Query("1D")):
     detail = store.get_symbol_detail(symbol, timeframe)
-    detail.update(_candle_fields(symbol, timeframe))
-    _enrich_with_candles(detail.get("patterns", []), timeframe)
+    detail.update(await run_in_threadpool(_candle_fields, symbol, timeframe))
+    await run_in_threadpool(_enrich_with_candles, detail.get("patterns", []), timeframe)
     if not detail.get("name"):
         detail["name"] = _lookup_name(symbol)
     return _sanitize_for_json(detail)
