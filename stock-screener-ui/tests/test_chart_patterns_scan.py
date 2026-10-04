@@ -388,6 +388,11 @@ def test_run_job_force_bypasses_freshness_short_circuit(cp_store, patched_scan):
 def test_run_job_scans_explicit_symbol_scope(cp_store, monkeypatch):
     calls = {"fetch": [], "detect": []}
 
+    # Serial workers: the in-memory test DB shares one StaticPool SQLite
+    # connection, so concurrent save_hits commits race ("bad parameter or
+    # other API misuse"). This test covers scope routing, not parallelism.
+    monkeypatch.setattr(scan, "SYMBOL_WORKERS", 1)
+
     def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
         calls["fetch"].append(symbol)
         return _make_df(80)
@@ -689,3 +694,32 @@ def test_save_hits_round_trips_trend_lines(cp_store):
     items, total, _ = store.query_results({"job_id": "cpj_tlrt"})
     assert total == 1
     assert items[0]["trend_lines"] == [line]
+
+
+def test_process_symbol_forwards_lookback_to_trendlines(cp_store, monkeypatch):
+    """`_process_symbol` passes its `lookback_bars` into `detect_trendlines`."""
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
+    )
+    monkeypatch.setattr(
+        scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)])
+    )
+    seen = {}
+
+    def fake_tl(df, lookback_bars=None):
+        seen["lookback_bars"] = lookback_bars
+        return {"support": None, "resistance": None}
+
+    monkeypatch.setattr(scan.trendlines_mod, "detect_trendlines", fake_tl)
+    store.save_job({
+        "job_id": "cpj_tlfwd", "universe": "nifty50", "timeframe": "1D", "status": "queued",
+    })
+
+    result = scan._process_symbol("AAA", "1D", "cpj_tlfwd", lookback_bars=40)
+    assert result["status"] == "ok"
+    assert seen["lookback_bars"] == 40
+
+    result = scan._process_symbol("AAA", "1D", "cpj_tlfwd")
+    assert result["status"] == "ok"
+    assert seen["lookback_bars"] is None

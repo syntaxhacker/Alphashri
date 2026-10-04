@@ -118,3 +118,24 @@ def test_long_frame_lines_come_from_trailing_window():
         end_day = str(line["end_date"])[:10]
         assert end_day in days
         assert days.index(end_day) >= len(df) - 60
+
+
+def test_explicit_lookback_uses_trailing_window():
+    """`lookback_bars=200` runs detection over the last 200 bars only."""
+    for side in ("support", "resistance"):
+        df = _long_frame_with_recent_pivots(600, side)
+        res = detect_trendlines(df, lookback_bars=200)
+        line = res[side]
+        assert line is not None, f"{side} not found with lookback_bars=200"
+        days = df.index.strftime("%Y-%m-%d").tolist()
+        end_day = str(line["end_date"])[:10]
+        assert end_day in days
+        assert days.index(end_day) >= len(df) - 60
+
+
+def test_invalid_lookback_falls_back_to_default():
+    """Non-positive/non-int lookbacks behave exactly like the default."""
+    df = _long_frame_with_recent_pivots(600, "support")
+    expected = detect_trendlines(df)
+    for bad in (None, 0, -5, "200", 3.5):
+        assert detect_trendlines(df, lookback_bars=bad) == expected

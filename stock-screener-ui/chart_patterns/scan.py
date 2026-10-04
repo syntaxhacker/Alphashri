@@ -190,7 +190,7 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     scan_trend_lines: list = []
     if hits and trendlines_mod is not None:
         try:
-            _tl_res = trendlines_mod.detect_trendlines(df)
+            _tl_res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
             if isinstance(_tl_res, dict):
                 scan_trend_lines = [
                     v for v in (_tl_res.get("support"), _tl_res.get("resistance")) if v

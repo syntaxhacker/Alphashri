@@ -113,21 +113,44 @@ def _runner_fn() -> Callable[[str], None]:
     return _default
 
 
+def _scope_signature(params: Optional[dict] = None) -> tuple:
+    """Coalescing scope of a job: ``(sorted symbols, lookback_bars)``.
+
+    Two jobs for the same ``(universe, timeframe)`` coalesce only when their
+    scopes match; a scope change (Lookback or custom symbol set) supersedes
+    the in-flight job instead of being silently dropped.
+    """
+    p = params if isinstance(params, dict) else {}
+    symbols = p.get("symbols") or []
+    return (tuple(sorted(symbols)), p.get("lookback_bars"))
+
+
 def submit(universe: str, timeframe: str, requested_by=None, params: Optional[dict] = None) -> dict:
     """Enqueue a job. Raises :class:`QueueFullError` when the queue is full.
 
     A ``queued``/``running`` job for the same ``(universe, timeframe)`` combo
-    is coalesced: the existing job is returned instead of enqueuing a second
-    scan (concurrent same-combo scans race in scan.py's delete/save_hits).
+    with the same scope signature (symbols + lookback_bars) is coalesced:
+    the existing job is returned instead of enqueuing a second scan
+    (concurrent same-combo scans race in scan.py's delete/save_hits). A
+    same-combo job with a *different* scope is cancelled and superseded by
+    the new job, so a Lookback/symbol change is never silently dropped (the
+    cancelled job stops at its next per-symbol check).
     """
     with _lock:
-        for job in _jobs.values():
+        new_scope = _scope_signature(params)
+        supersede_id: Optional[str] = None
+        for job_id, job in _jobs.items():
             if (
                 job.get("status") in ("queued", "running")
                 and job.get("universe") == universe
                 and job.get("timeframe") == timeframe
             ):
-                return dict(job)
+                if _scope_signature(job.get("params")) == new_scope:
+                    return dict(job)
+                supersede_id = job_id
+                break
+        if supersede_id is not None:
+            cancel(supersede_id)
         if len(_pending) + len(_running) >= _max_queue():
             raise QueueFullError(
                 f"queue full ({len(_pending) + len(_running)}/{_max_queue()})"

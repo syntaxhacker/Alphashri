@@ -47,8 +47,13 @@ def _build_side(df: pd.DataFrame, pivots: list, env: dict, kind: str, atr: float
         return None
 
 
-def detect_trendlines(df: pd.DataFrame | None) -> dict:
+def detect_trendlines(df: pd.DataFrame | None, lookback_bars: int | None = None) -> dict:
     """Detect standalone support (swing lows) and resistance (swing highs).
+
+    ``lookback_bars`` caps the trailing window the detector runs over: a
+    positive int slices the frame to its last ``lookback_bars`` bars (never
+    enlarging a shorter frame); anything else falls back to
+    ``config.TRENDLINE_LOOKBACK_BARS``.
 
     Returns ``{"support": obj | None, "resistance": obj | None}``. Never
     raises on bad input: ``None``/empty/malformed frames yield both ``None``.
@@ -63,8 +68,13 @@ def detect_trendlines(df: pd.DataFrame | None) -> dict:
     if norm is None or norm.empty:
         return dict(empty)
 
-    if len(norm) > TRENDLINE_LOOKBACK_BARS:
-        norm = norm.iloc[-TRENDLINE_LOOKBACK_BARS:]
+    window = (
+        lookback_bars
+        if isinstance(lookback_bars, int) and lookback_bars > 0
+        else pattern_config.TRENDLINE_LOOKBACK_BARS
+    )
+    if len(norm) > window:
+        norm = norm.iloc[-window:]
 
     out: dict = {"support": None, "resistance": None}
     try:

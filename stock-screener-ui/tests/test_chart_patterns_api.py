@@ -774,6 +774,35 @@ def test_submit_coalesces_duplicate_same_combo(cp_client):
         release.set()
 
 
+def test_submit_same_scope_coalesces_scope_change_supersedes(cp_client):
+    """Same (universe, timeframe, scope) coalesces; a scope change cancels."""
+    release = threading.Event()
+
+    def runner(job_id):
+        release.wait(5)
+
+    jobs.configure(max_queue=4, max_workers=1, runner=runner)
+    try:
+        first = jobs.submit("nifty50", "1D", params={"lookback_bars": 250})
+        same = jobs.submit("nifty50", "1D", params={"lookback_bars": 250})
+        assert same["job_id"] == first["job_id"]
+
+        changed = jobs.submit("nifty50", "1D", params={"lookback_bars": 500})
+        assert changed["job_id"] != first["job_id"]
+        assert jobs.get_job(first["job_id"])["status"] == "cancelled"
+
+        scoped = jobs.submit("custom", "1D", params={"symbols": ["AAA"]})
+        scoped_same = jobs.submit("custom", "1D", params={"symbols": ["AAA"]})
+        assert scoped_same["job_id"] == scoped["job_id"]
+
+        scoped_other = jobs.submit("custom", "1D", params={"symbols": ["BBB"]})
+        assert scoped_other["job_id"] != scoped["job_id"]
+        assert jobs.get_job(scoped["job_id"])["status"] == "cancelled"
+    finally:
+        jobs.configure(max_queue=8, max_workers=3)
+        release.set()
+
+
 # ---------------------------------------------------------------------------
 # lookback_bars (opt-in): forwarded into job params; out-of-range → 422.
 # ---------------------------------------------------------------------------
@@ -852,7 +881,7 @@ def test_results_items_include_trend_lines(cp_client, monkeypatch):
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
     monkeypatch.setattr(
         cp_api.trendlines_mod, "detect_trendlines",
-        lambda df: {"support": _fake_trendline("support"), "resistance": None},
+        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
     )
 
     resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tl"})
@@ -872,7 +901,7 @@ def test_results_trend_lines_error_falls_back_to_empty(cp_client, monkeypatch):
     store.save_hits("cpj_tl_err", [_hit("AAA")])
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
 
-    def _boom(df):
+    def _boom(df, lookback_bars=None):
         raise RuntimeError("detector exploded")
 
     monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
@@ -887,7 +916,7 @@ def test_symbol_chart_includes_trend_lines(cp_client, monkeypatch):
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
     monkeypatch.setattr(
         cp_api.trendlines_mod, "detect_trendlines",
-        lambda df: {"support": _fake_trendline("support"), "resistance": _fake_trendline("resistance")},
+        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": _fake_trendline("resistance")},
     )
 
     chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
@@ -932,7 +961,7 @@ def test_enrich_fetches_bounded_lookback_and_recomputes_when_blank(monkeypatch):
     monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
     monkeypatch.setattr(
         cp_api.trendlines_mod, "detect_trendlines",
-        lambda df: {"support": _fake_trendline("support"), "resistance": None},
+        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
     )
 
     out = cp_api._enrich_with_candles([_hit("AAA")], "1D")

@@ -727,7 +727,7 @@ async def get_symbol_chart(
                 "id": pattern.get("id"),
             })
     try:
-        _res = trendlines_mod.detect_trendlines(df)
+        _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars)
         trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
     except Exception:
         trend_lines = []
