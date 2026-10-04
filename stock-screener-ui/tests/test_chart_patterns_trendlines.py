@@ -2,6 +2,7 @@
 import numpy as np
 import pandas as pd
 
+from chart_patterns import config as pattern_config
 from chart_patterns.trendlines import detect_trendlines
 
 
@@ -73,6 +74,12 @@ def test_noisy_series_does_not_crash():
 def test_none_and_empty():
     assert detect_trendlines(None) == {"support": None, "resistance": None}
     assert detect_trendlines(pd.DataFrame()) == {"support": None, "resistance": None}
+
+
+def test_default_lookback_constant_and_detection_still_works():
+    assert pattern_config.TRENDLINE_LOOKBACK_BARS == 400
+    res = detect_trendlines(_rising_support_df())
+    assert res["support"] is not None
 
 
 def _long_frame_with_recent_pivots(n: int = 600, side: str = "support") -> pd.DataFrame:

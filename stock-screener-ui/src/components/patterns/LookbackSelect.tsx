@@ -1,7 +1,8 @@
 import { Select } from "@/ui";
+import { LOOKBACK_OPTIONS } from "@/config/patterns";
 
-/** Lookback window options (in bars). `null` = Auto (server default). */
-export const LOOKBACK_OPTIONS: number[] = [60, 120, 250, 500, 1000];
+/** Re-exported so existing imports from this module keep working. */
+export { LOOKBACK_OPTIONS };
 
 export interface LookbackSelectProps {
   value: number | null;

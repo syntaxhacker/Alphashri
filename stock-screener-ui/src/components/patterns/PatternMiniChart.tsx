@@ -3,6 +3,7 @@ import { Box } from "@/ui";
 import { useECharts } from "@/hooks/useECharts";
 import { NEGATIVE, POSITIVE } from "@/ui/palette";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
+import { MINI_CHART_HEIGHT } from "@/config/patterns";
 import { buildPatternChartOption, BOUNDARY_COLORS } from "./patternChartOption";
 
 export interface PatternMiniChartProps {
@@ -74,7 +75,7 @@ export function PatternMiniChart({ hit, trendlinesView = "both" }: PatternMiniCh
     <Box
       ref={chartRef}
       data-testid={`patterns-mini-chart-${hit.symbol}-${hit.pattern_id}`}
-      sx={{ width: "100%", height: 128 }}
+      sx={{ width: "100%", height: MINI_CHART_HEIGHT }}
     />
   );
 }

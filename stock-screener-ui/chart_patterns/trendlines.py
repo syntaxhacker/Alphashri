@@ -10,13 +10,15 @@ from __future__ import annotations
 import pandas as pd
 
 from chart_patterns import features as F
+from chart_patterns import config as pattern_config
 from chart_patterns.detectors.common import get_swings, iso_ts
 
 #: Trailing window (in bars) used for trendline detection. The envelope fit
 #: prefers the longest 0-violation line, so running it over the full history
 #: latches onto stale lines (e.g. an old rising resistance on a long 1h
 #: frame) instead of the recent line the price is currently respecting.
-TRENDLINE_LOOKBACK_BARS = 400
+#: Re-exported from :mod:`chart_patterns.config` (env-overridable).
+TRENDLINE_LOOKBACK_BARS = pattern_config.TRENDLINE_LOOKBACK_BARS
 
 
 def _build_side(df: pd.DataFrame, pivots: list, env: dict, kind: str, atr: float) -> dict | None:
@@ -26,9 +28,9 @@ def _build_side(df: pd.DataFrame, pivots: list, env: dict, kind: str, atr: float
         intercept = float(env["intercept"])
         x0 = int(env["x0"])
         x1 = int(env["x1"])
-        touches = int(F.count_touches(pivots, slope, intercept, atr, tol_atr=0.6))
+        touches = int(F.count_touches(pivots, slope, intercept, atr, tol_atr=pattern_config.TRENDLINE_TOUCH_TOL_ATR))
         span = int(x1 - x0)
-        if touches < 2 or span < 20:
+        if touches < pattern_config.TRENDLINE_MIN_TOUCHES or span < pattern_config.TRENDLINE_MIN_SPAN:
             return None
         return {
             "kind": kind,
@@ -69,14 +71,14 @@ def detect_trendlines(df: pd.DataFrame | None) -> dict:
         atr = float(F.atr_value(norm))
     except Exception:
         return dict(empty)
-    tol = 0.25 * atr
+    tol = pattern_config.TRENDLINE_ENVELOPE_TOL_ATR * atr
 
     # Swing strictness scales with frame size: wide swings on large frames (a
     # 1h frame has ~1700 bars and ~230 default pivots, making the
     # O(pivots^2 x span) envelope fit ~8s/side); small frames keep the
     # default order so sparse pivots still form lines. Single call — the
     # helper already returns BOTH highs and lows.
-    order = 6 if len(norm) >= 500 else 2
+    order = pattern_config.TRENDLINE_SWING_ORDER if len(norm) >= pattern_config.TRENDLINE_SWING_MIN_BARS else 2
     try:
         highs, lows = get_swings(norm, {}, order, order)
     except Exception:

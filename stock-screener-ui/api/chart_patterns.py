@@ -14,7 +14,7 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from chart_patterns import candles, jobs, store
+from chart_patterns import candles, config, jobs, store
 from chart_patterns import trendlines as trendlines_mod
 from db.models.user import User
 from api.auth import get_current_user
@@ -307,7 +307,7 @@ def _lookup_name(symbol: str) -> Optional[str]:
     return _name_cache.get(str(symbol).upper())
 
 
-def _slice_candles(df, start_date, end_date, max_bars: int = 160):
+def _slice_candles(df, start_date, end_date, max_bars: int = config.CARD_MAX_BARS):
     """Return the OHLCV window covering a pattern (padded + capped) for a card.
 
     The window always includes the pattern's start and end bars, even when it is
@@ -383,7 +383,7 @@ def _stored_trend_lines(item) -> Optional[list]:
     return None
 
 
-def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = 160):
+def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS):
     """Attach a real candle window + last close/day change to each result item.
 
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
@@ -408,7 +408,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         key = (symbol, timeframe)
         if key not in cache:
             try:
-                cache[key] = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=500)
+                cache[key] = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=config.READ_LOOKBACK_BARS)
             except Exception:
                 cache[key] = None
         df = cache[key]
@@ -465,7 +465,9 @@ class ScanRequest(BaseModel):
 
 # Upper bound on a custom scan's symbol list (matches the picker's practical
 # size; keeps one request from enqueuing a universe-sized job by accident).
-MAX_CUSTOM_SYMBOLS = 200
+# Env-overridable via chart_patterns.config (default 200); kept importable
+# here for backwards compatibility.
+MAX_CUSTOM_SYMBOLS = config.CUSTOM_SYMBOLS_MAX
 
 
 def _normalize_symbol_list(raw) -> list[str]:
@@ -505,11 +507,11 @@ async def get_patterns():
 @router.post("/scan")
 async def create_scan(request: ScanRequest, user: User = Depends(get_current_user)):
     if request.lookback_bars is not None and not (
-        60 <= request.lookback_bars <= 5000
+        config.LOOKBACK_MIN <= request.lookback_bars <= config.LOOKBACK_MAX
     ):
         raise HTTPException(
             status_code=422,
-            detail="lookback_bars must be between 60 and 5000",
+            detail=f"lookback_bars must be between {config.LOOKBACK_MIN} and {config.LOOKBACK_MAX}",
         )
     symbols = _normalize_symbol_list(request.symbols)
     if symbols:
@@ -613,7 +615,7 @@ async def get_results(
     max_range_pct: Optional[float] = Query(None),
     q: Optional[str] = Query(None),
     sort: str = Query("confidence"),
-    limit: int = Query(100, ge=1, le=1000),
+    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
     offset: int = Query(0, ge=0),
 ):
     filters = _build_filters(
@@ -674,7 +676,7 @@ async def get_summary(
 
 def _candle_fields(symbol: str, timeframe: str) -> dict:
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=500)
+        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=config.READ_LOOKBACK_BARS)
     except Exception:
         df = None
     if df is None or getattr(df, "empty", True):
@@ -702,11 +704,11 @@ async def get_symbol(symbol: str, timeframe: str = Query("1D")):
 async def get_symbol_chart(
     symbol: str,
     timeframe: str = Query("1D"),
-    limit: int = Query(2000, ge=1, le=2000),
+    limit: int = Query(config.CHART_MAX_BARS, ge=1, le=config.CHART_MAX_BARS),
     lookback_bars: Optional[int] = Query(None),
 ):
     try:
-        lb = lookback_bars if lookback_bars is not None else 500
+        lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
         df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lb)
     except Exception:
         df = None
