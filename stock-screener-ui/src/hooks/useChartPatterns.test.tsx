@@ -73,6 +73,7 @@ const CONTRACT_KEYS = [
   "error",
   "scan",
   "refresh",
+  "forceRefresh",
   "loadSymbol",
 ];
 

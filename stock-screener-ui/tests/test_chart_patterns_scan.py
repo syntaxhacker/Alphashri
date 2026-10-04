@@ -807,6 +807,8 @@ def test_run_job_stale_combo_reruns(cp_store, monkeypatch):
     """A completed job older than the freshness TTL does not short-circuit."""
     from datetime import datetime, timedelta, timezone
 
+    # Pin market-open so the TTL branch applies regardless of when this runs.
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
     stale = (datetime.now(timezone.utc) - timedelta(seconds=scan.SCAN_FRESH_SECONDS + 60)).isoformat()
     store.save_job({
         "job_id": "cpj_stale_prev", "universe": "nifty50", "timeframe": "1D",
@@ -878,3 +880,139 @@ def test_process_symbol_lookback_slices_detection_input(cp_store, monkeypatch):
 
     assert result["status"] == "ok"
     assert seen["n"] == 40
+
+
+# ---------------------------------------------------------------------------
+# Session-aware freshness: TTL applies only while the market is open; when
+# closed, a combo stays fresh until a new session completes.
+# ---------------------------------------------------------------------------
+
+
+def _market_closed(monkeypatch):
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+
+
+def _market_open(monkeypatch):
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: True)
+
+
+def _session_finished_iso() -> str:
+    """An ISO `finished_at` inside the current last-completed session."""
+    from datetime import datetime
+
+    from trading.calendar import last_completed_session
+    from trading.timezone import IST
+
+    sess = last_completed_session()
+    return datetime(sess.year, sess.month, sess.day, 16, 0, tzinfo=IST).isoformat()
+
+
+def test_is_fresh_open_market_uses_ttl(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    _market_open(monkeypatch)
+    assert scan._is_fresh(datetime.now(timezone.utc).isoformat()) is True
+    old = (
+        datetime.now(timezone.utc)
+        - timedelta(seconds=scan.SCAN_FRESH_SECONDS + 60)
+    ).isoformat()
+    assert scan._is_fresh(old) is False
+
+
+def test_is_fresh_closed_market_same_session(monkeypatch):
+    from datetime import date
+
+    _market_closed(monkeypatch)
+    monkeypatch.setattr(
+        "trading.calendar.last_completed_session", lambda ts=None: date(2026, 9, 25)
+    )
+    assert scan._is_fresh("2026-09-26T10:00:00+00:00") is True
+
+
+def test_is_fresh_closed_market_new_session(monkeypatch):
+    from datetime import date
+
+    _market_closed(monkeypatch)
+    sessions = iter([date(2026, 9, 24), date(2026, 9, 25)])
+    monkeypatch.setattr(
+        "trading.calendar.last_completed_session", lambda ts=None: next(sessions)
+    )
+    assert scan._is_fresh("2026-09-24T10:00:00+00:00") is False
+
+
+def test_run_job_closed_market_same_session_skips_rescan(cp_store, patched_scan, monkeypatch):
+    """Prev job finished in the last completed session: no re-scan when closed."""
+    _market_closed(monkeypatch)
+    store.save_job({
+        "job_id": "cpj_sess_prev", "universe": "nifty50", "timeframe": "1D",
+        "status": "completed", "total": 3, "done": 3,
+        "finished_at": _session_finished_iso(),
+    })
+    store.save_job({"job_id": "cpj_sess_new", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    scan.run_job("cpj_sess_new")
+
+    assert patched_scan["fetch"] == []
+    row = store.get_job("cpj_sess_new")
+    assert row["status"] == "completed"
+    assert row["total"] == 3
+    assert row["finished_at"] is not None
+
+
+def test_run_job_closed_market_new_session_reruns(cp_store, monkeypatch):
+    """A new completed session since the scan makes the combo stale."""
+    from datetime import date
+
+    _market_closed(monkeypatch)
+    sessions = iter([date(2026, 9, 24), date(2026, 9, 25)])
+    monkeypatch.setattr(
+        "trading.calendar.last_completed_session", lambda ts=None: next(sessions)
+    )
+    store.save_job({
+        "job_id": "cpj_ns_prev", "universe": "nifty50", "timeframe": "1D",
+        "status": "completed", "total": 1, "done": 1,
+        "finished_at": "2026-09-24T10:00:00+00:00",
+    })
+    fetched = []
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: (
+            fetched.append(symbol) or _make_df(80)
+        ),
+    )
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+    store.save_job({"job_id": "cpj_ns_new", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+
+    scan.run_job("cpj_ns_new")
+
+    assert fetched == ["AAA"]
+    assert store.get_job("cpj_ns_new")["status"] == "completed"
+
+
+def test_run_job_force_bypasses_session_freshness(cp_store, monkeypatch):
+    """`force=True` still recomputes even when the closed-market session is fresh."""
+    _market_closed(monkeypatch)
+    store.save_job({
+        "job_id": "cpj_sforce_prev", "universe": "nifty50", "timeframe": "1D",
+        "status": "completed", "total": 1, "done": 1,
+        "finished_at": _session_finished_iso(),
+    })
+    fetched = []
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: (
+            fetched.append(symbol) or _make_df(80)
+        ),
+    )
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+    store.save_job({
+        "job_id": "cpj_sforce_new", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"force": True},
+    })
+
+    scan.run_job("cpj_sforce_new")
+
+    assert fetched == ["AAA"]
+    assert store.get_job("cpj_sforce_new")["status"] == "completed"

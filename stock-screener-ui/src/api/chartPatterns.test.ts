@@ -84,6 +84,19 @@ describe("startScan", () => {
     expect(JSON.parse(options?.body as string)).toEqual({ universe: "nifty500", timeframe: "1D", force: true });
   });
 
+  it("passes refresh:true through to the scan body", async () => {
+    mockedFetch.mockResolvedValue(okResponse({ job_id: "cpj_3", status: "queued", queue_position: 0, queue_size: 1 }));
+
+    await startScan({ universe: "nifty500", timeframe: "1D", refresh: true });
+
+    const [, options] = mockedFetch.mock.calls[0];
+    expect(JSON.parse(options?.body as string)).toEqual({
+      universe: "nifty500",
+      timeframe: "1D",
+      refresh: true,
+    });
+  });
+
   it("maps HTTP 429 to QueueFullError with queue metadata", async () => {
     mockedFetch.mockResolvedValue(errorResponse(429, { detail: "queue full", queue_size: 8, max_queue: 8 }));
 

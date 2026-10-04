@@ -51,6 +51,8 @@ export interface ScanRequest {
   universe: string;
   timeframe: string;
   force?: boolean;
+  /** Clear cached candles for the scope + timeframe, then run a forced fresh scan. */
+  refresh?: boolean;
   /** Explicit symbol scope: scan only these (stored under the `custom` universe). */
   symbols?: string[];
   /** Lookback window in bars (omitted/null = server default). */

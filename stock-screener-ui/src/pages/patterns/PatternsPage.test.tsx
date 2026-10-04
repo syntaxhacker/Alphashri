@@ -212,6 +212,7 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
     error: null,
     scan: vi.fn(),
     refresh: vi.fn(),
+    forceRefresh: vi.fn(),
     ...overrides,
   };
 }
@@ -506,6 +507,18 @@ describe("PatternsPage toolbar", () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
     expect(screen.getByTestId("patterns-open-filters")).not.toHaveTextContent("(");
+  });
+
+  test("Force refresh button calls forceRefresh", async () => {
+    const props = makeProps();
+    r(<PatternsPage {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-force-refresh"));
+    expect(props.forceRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("Force refresh button is disabled while scanning", () => {
+    r(<PatternsPage {...makeProps({ scanning: true })} />);
+    expect(screen.getByTestId("patterns-force-refresh")).toBeDisabled();
   });
 });
 

@@ -1210,3 +1210,91 @@ def test_chart_limit_over_max_422(cp_client):
     )
     assert resp.status_code == 422
 
+
+# ---------------------------------------------------------------------------
+# refresh flag: clear candle cache before enqueueing a forced scan.
+# ---------------------------------------------------------------------------
+
+
+def test_scan_refresh_universe_scope_clears_timeframe_cache(cp_client, monkeypatch):
+    clear_calls = []
+    captured = {}
+
+    def fake_clear_cache(*args, **kwargs):
+        clear_calls.append((args, kwargs))
+        return 3
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(universe=universe, params=params)
+        return {
+            "job_id": "cpj_refresh", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.candles, "clear_cache", fake_clear_cache)
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D", "refresh": True},
+    )
+    assert resp.status_code == 200
+    assert len(clear_calls) == 1
+    _, kwargs = clear_calls[0]
+    assert kwargs == {"timeframe": "1D"}
+    assert captured["params"]["force"] is True
+    assert captured["params"]["refresh"] is True
+
+
+def test_scan_refresh_custom_scope_clears_symbol_cache(cp_client, monkeypatch):
+    clear_calls = []
+    captured = {}
+
+    def fake_clear_cache(*args, **kwargs):
+        clear_calls.append((args, kwargs))
+        return 2
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(universe=universe, params=params)
+        return {
+            "job_id": "cpj_refresh_custom", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.candles, "clear_cache", fake_clear_cache)
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "", "timeframe": "1D", "symbols": ["infy", "bse"], "refresh": True},
+    )
+    assert resp.status_code == 200
+    assert len(clear_calls) == 1
+    _, kwargs = clear_calls[0]
+    assert kwargs == {"symbols": ["INFY", "BSE"], "timeframe": "1D"}
+    assert captured["universe"] == "custom"
+    assert captured["params"]["force"] is True
+    assert captured["params"]["refresh"] is True
+
+
+def test_scan_without_refresh_does_not_clear_cache(cp_client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("clear_cache must not be called when refresh is false")
+
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(params=params)
+        return {
+            "job_id": "cpj_no_refresh", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.candles, "clear_cache", _boom)
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert resp.status_code == 200
+    assert captured["params"]["force"] is False
+    assert "refresh" not in captured["params"]
+

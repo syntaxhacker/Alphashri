@@ -20,6 +20,7 @@ import {
   applyFilters,
   triggerScan,
   refresh,
+  forceRefresh,
   setSelectedSymbol,
   setComputeTrendlines,
   CUSTOM_UNIVERSE,
@@ -60,6 +61,8 @@ export interface UseChartPatternsResult {
   error: string | null;
   scan: () => void;
   refresh: () => void;
+  /** Clear cached candles for the scope + timeframe and re-scan fresh. */
+  forceRefresh: () => void;
   loadSymbol: (s: string) => void;
 }
 
@@ -77,6 +80,10 @@ export function useChartPatterns(): UseChartPatternsResult {
   // effect deps, so inline closures would re-fire those effects every render.
   const handleScan = useCallback(() => {
     void triggerScan();
+  }, []);
+
+  const handleForceRefresh = useCallback(() => {
+    forceRefresh();
   }, []);
 
   const handleLoadSymbol = useCallback((symbol: string) => {
@@ -115,6 +122,7 @@ export function useChartPatterns(): UseChartPatternsResult {
     error: state.error,
     scan: handleScan,
     refresh,
+    forceRefresh: handleForceRefresh,
     loadSymbol: handleLoadSymbol,
   };
 }

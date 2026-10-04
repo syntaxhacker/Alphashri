@@ -61,6 +61,7 @@ export function PatternsContainer() {
       error={vm.error}
       scan={vm.scan}
       refresh={vm.refresh}
+      forceRefresh={vm.forceRefresh}
     />
   );
 }

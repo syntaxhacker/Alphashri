@@ -55,6 +55,7 @@ import {
   loadSummary,
   loadActiveJobs,
   triggerScan,
+  forceRefresh,
   pollJob,
   setScanning,
   setJob,
@@ -816,6 +817,46 @@ describe("triggerScan", () => {
     const state = getChartPatternsState();
     expect(state.scanning).toBe(false);
     expect(state.error).toBe("queue full");
+  });
+});
+
+describe("forceRefresh", () => {
+  it("triggers a scan with refresh:true + force:true for the current scope", async () => {
+    setUniverse("nifty500");
+    await flush();
+    mocked.startScan.mockClear();
+    mocked.fetchJob.mockImplementation(() => new Promise(() => {}));
+
+    forceRefresh();
+    await flush();
+
+    expect(mocked.startScan).toHaveBeenCalledTimes(1);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        universe: "nifty500",
+        timeframe: "1D",
+        refresh: true,
+        force: true,
+      }),
+    );
+    expect(getChartPatternsState().scanning).toBe(true);
+  });
+
+  it("passes refresh through triggerScan for a custom symbol scope", async () => {
+    selectSymbols(["SBIN", "TCS"]);
+    await flush();
+    mocked.startScan.mockClear();
+
+    await triggerScan(true, { refresh: true });
+
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({
+        universe: "custom",
+        symbols: ["SBIN", "TCS"],
+        refresh: true,
+        force: true,
+      }),
+    );
   });
 });
 

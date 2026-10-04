@@ -30,6 +30,15 @@ try:
 except Exception:  # pragma: no cover - a broken trendlines module must not break scans
     trendlines_mod = None
 
+try:
+    from trading import calendar as _calendar_mod
+    from trading import utils as _market_mod
+    from trading.timezone import IST as _IST
+except Exception:  # pragma: no cover - trading package always present in app env
+    _calendar_mod = None
+    _market_mod = None
+    _IST = timezone.utc
+
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
 DEFAULT_MIN_BARS = 60
 _PERSIST_EVERY = 10
@@ -131,7 +140,12 @@ def _job_params(job: dict) -> dict:
 
 
 def _is_fresh(finished_at, ttl_seconds: int = SCAN_FRESH_SECONDS) -> bool:
-    """True when an ISO ``finished_at`` is younger than ``ttl_seconds``."""
+    """Session-aware freshness for a completed combo scan.
+
+    - Market OPEN now: fresh when ``finished_at`` is younger than ``ttl_seconds``.
+    - Market CLOSED: fresh when the last completed session hasn't changed since
+      the scan finished (weekends/holidays never churn re-scans).
+    """
     if not finished_at:
         return False
     try:
@@ -139,11 +153,34 @@ def _is_fresh(finished_at, ttl_seconds: int = SCAN_FRESH_SECONDS) -> bool:
             finished = datetime.fromisoformat(finished_at)
         else:
             finished = finished_at
-        if finished.tzinfo is None:
+        if isinstance(finished, datetime) and finished.tzinfo is None:
             finished = finished.replace(tzinfo=timezone.utc)
-        age = (datetime.now(timezone.utc) - finished).total_seconds()
-        return 0 <= age < max(0, int(ttl_seconds))
     except (ValueError, TypeError, OverflowError):
+        return False
+
+    try:
+        market_open = bool(_market_mod.is_market_open()) if _market_mod is not None else True
+    except Exception:
+        market_open = True
+    if market_open:
+        try:
+            if not isinstance(finished, datetime):
+                return False
+            age = (datetime.now(timezone.utc) - finished).total_seconds()
+            return 0 <= age < max(0, int(ttl_seconds))
+        except (ValueError, TypeError, OverflowError):
+            return False
+    try:
+        if _calendar_mod is None:
+            return False
+        if isinstance(finished, datetime):
+            finished_ts = finished.astimezone(_IST)
+        else:
+            finished_ts = finished  # plain date: calendar treats as midnight IST
+        return _calendar_mod.last_completed_session(finished_ts) == _calendar_mod.last_completed_session(
+            datetime.now(_IST)
+        )
+    except (ValueError, TypeError, OverflowError, AttributeError):
         return False
 
 

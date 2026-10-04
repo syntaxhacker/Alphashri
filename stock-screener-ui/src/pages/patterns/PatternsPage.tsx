@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Switch, Text, ToolbarRow } from "@/ui";
+import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Switch, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import type {
   ChartCandle,
@@ -78,6 +78,8 @@ export interface PatternsPageProps {
   error: string | null;
   scan: () => void;
   refresh: () => void;
+  /** Clear cached candles for the scope + timeframe and re-scan fresh. */
+  forceRefresh: () => void;
 }
 
 /**
@@ -112,6 +114,7 @@ export function PatternsPage({
   error,
   scan,
   refresh,
+  forceRefresh,
 }: PatternsPageProps) {
   const [fullscreen, setFullscreen] = useState<{
     hit: PatternHitDTO;
@@ -254,6 +257,17 @@ export function PatternsPage({
             >
               Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
             </Button>
+            <Tooltip label="Clear cached candles and re-scan fresh">
+              <Button
+                size="xs"
+                variant="outline"
+                onClick={forceRefresh}
+                disabled={scanning}
+                data-testid="patterns-force-refresh"
+              >
+                Force refresh
+              </Button>
+            </Tooltip>
           </ToolbarRow>
         </ToolbarRow>
 

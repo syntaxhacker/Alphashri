@@ -115,6 +115,7 @@ function makeVm() {
     error: null,
     scan: vi.fn(),
     refresh: vi.fn(),
+    forceRefresh: vi.fn(),
   };
 }
 
@@ -167,7 +168,7 @@ describe("PatternsContainer", () => {
       "customUniverse", "selectSymbols",
       "job", "scanning", "queuePosition", "summary",
       "results", "total", "loading", "error",
-      "scan", "refresh",
+      "scan", "refresh", "forceRefresh",
     ];
     expect(Object.keys(props).sort()).toEqual([...expectedKeys].sort());
     for (const key of expectedKeys) {

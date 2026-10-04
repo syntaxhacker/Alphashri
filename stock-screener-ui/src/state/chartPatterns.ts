@@ -522,21 +522,24 @@ function jobFromScan(
  * (notably `maybeAutoScan`) may pin an explicit universe/timeframe — the
  * request must use those, not whatever state holds when the await resolves.
  * `autoKey` (a `universe|timeframe` once-per-combo key) is recorded only after
- * the scan is successfully enqueued, so failures stay retryable. */
+ * the scan is successfully enqueued, so failures stay retryable.
+ * `refresh` clears cached candles for the scope + timeframe before scanning. */
 export async function triggerScan(
   force = false,
-  overrides: { universe?: string; timeframe?: string; autoKey?: string } = {},
+  overrides: { universe?: string; timeframe?: string; autoKey?: string; refresh?: boolean } = {},
 ): Promise<void> {
   const universe = overrides.universe ?? state.universe;
   const timeframe = overrides.timeframe ?? state.timeframe;
   const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : undefined;
   const lookback = state.lookbackBars;
+  const refresh = overrides.refresh ?? false;
   patch({ error: null });
   try {
     const response = await startScan({
       universe,
       timeframe,
       force,
+      ...(refresh ? { refresh: true } : {}),
       symbols,
       ...(lookback != null ? { lookback_bars: lookback } : {}),
       compute_trendlines: state.computeTrendlines,
@@ -634,6 +637,15 @@ export function refresh(): void {
   if (state.job && (state.job.status === "queued" || state.job.status === "running")) {
     void pollJob(state.job.job_id);
   }
+}
+
+/**
+ * Force a fresh scan of the current scope: clears the cached candles for the
+ * scope + timeframe, then runs a forced scan with polling (same machinery as
+ * `triggerScan`).
+ */
+export function forceRefresh(): void {
+  void triggerScan(true, { refresh: true });
 }
 
 /** Reload results+summary for a new selection, then auto-scan if still empty. */

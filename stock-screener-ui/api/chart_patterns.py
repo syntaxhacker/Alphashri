@@ -488,6 +488,7 @@ class ScanRequest(BaseModel):
     universe: str = ""
     timeframe: str
     force: bool = False
+    refresh: bool = False
     compute_trendlines: bool = True
     # Optional explicit symbol scope. When present, only these symbols are
     # scanned (the job is stored under the reserved ``custom`` universe), so a
@@ -571,6 +572,13 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
             status_code=422,
             detail=f"unknown timeframe {request.timeframe!r}. Known: {sorted(_valid_timeframe_ids())}",
         )
+    if request.refresh:
+        if symbols:
+            candles.clear_cache(symbols=symbols, timeframe=request.timeframe)
+        else:
+            candles.clear_cache(timeframe=request.timeframe)
+        params["force"] = True
+        params["refresh"] = True
     try:
         dto = jobs.submit(
             universe,
