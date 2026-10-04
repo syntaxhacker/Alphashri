@@ -69,7 +69,7 @@ def cp_store(test_db_engine):
 def patched_scan(monkeypatch):
     calls = {"fetch": [], "detect": []}
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
         calls["fetch"].append(symbol)
         if symbol == "BBB":
             return None  # fetch failure
@@ -132,7 +132,7 @@ def test_run_job_universe_error_marks_failed(cp_store, monkeypatch):
 def test_run_job_per_symbol_detector_error_does_not_abort(cp_store, monkeypatch):
     monkeypatch.setattr(
         scan.candles, "fetch_for_timeframe",
-        lambda symbol, timeframe, as_of_date=None, api_client=None: _make_df(80),
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: _make_df(80),
     )
 
     def flaky(df, timeframe, symbol):
@@ -388,7 +388,7 @@ def test_run_job_force_bypasses_freshness_short_circuit(cp_store, patched_scan):
 def test_run_job_scans_explicit_symbol_scope(cp_store, monkeypatch):
     calls = {"fetch": [], "detect": []}
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
         calls["fetch"].append(symbol)
         return _make_df(80)
 
@@ -429,7 +429,7 @@ def test_run_job_symbol_scope_bypasses_freshness(cp_store, monkeypatch):
 
     fetched = []
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
         fetched.append(symbol)
         return _make_df(80)
 
@@ -463,7 +463,7 @@ def test_run_job_honours_cancellation_per_symbol(cp_store, patched_scan, monkeyp
 def test_process_symbol_checks_cancel_before_fetch(cp_store, monkeypatch):
     calls = []
 
-    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None):
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
         calls.append(symbol)
         return _make_df(80)
 
@@ -553,3 +553,70 @@ def test_resample_bins_anchor_to_ist_midnight():
     assert all(ts.hour % 2 == 0 for ts in ist)
     # Index returns to the original timezone.
     assert str(out.index.tz) == "UTC"
+
+
+# ---------------------------------------------------------------------------
+# lookback_bars (opt-in trailing window): fetch covers N bars, detection sees
+# only the last N bars; Auto (omitted) leaves the full frame untouched.
+# ---------------------------------------------------------------------------
+
+
+def test_run_job_lookback_slices_to_last_n_bars(cp_store, monkeypatch):
+    seen = {}
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
+        seen["lookback_bars"] = lookback_bars
+        return _make_df(100)
+
+    def fake_detect(df, timeframe, symbol):
+        seen["n"] = len(df)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+
+    store.save_job({
+        "job_id": "cpj_lb40", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"lookback_bars": 40},
+    })
+    scan.run_job("cpj_lb40")
+
+    row = store.get_job("cpj_lb40")
+    assert row["status"] == "completed"
+    assert seen["lookback_bars"] == 40
+    assert seen["n"] == 40
+
+
+def test_run_job_without_lookback_passes_full_frame(cp_store, monkeypatch):
+    seen = {}
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
+        seen["lookback_bars"] = lookback_bars
+        return _make_df(100)
+
+    def fake_detect(df, timeframe, symbol):
+        seen["n"] = len(df)
+        return [_hit(symbol)]
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA"]))
+
+    store.save_job({
+        "job_id": "cpj_lbauto", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued",
+    })
+    scan.run_job("cpj_lbauto")
+
+    row = store.get_job("cpj_lbauto")
+    assert row["status"] == "completed"
+    assert seen["lookback_bars"] is None
+    assert seen["n"] == 100
+
+
+def test_cache_path_variant_does_not_poison_default():
+    from chart_patterns.candles import _cache_path
+
+    assert _cache_path("1D", "X", None, "lb250") != _cache_path("1D", "X")
+    assert _cache_path("1D", "X", None) == _cache_path("1D", "X")

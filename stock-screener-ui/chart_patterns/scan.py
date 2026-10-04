@@ -149,12 +149,13 @@ def _is_cancelled(job_id: str) -> bool:
         return False
 
 
-def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None) -> dict:
+def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
+                   lookback_bars=None) -> dict:
     """Fetch + detect one symbol. Never raises; returns a status dict."""
     if _is_cancelled(job_id):
         return {"status": "skipped", "data_through": None}
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe)
+        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lookback_bars)
     except Exception:
         return {"status": "failed", "data_through": None}
 
@@ -164,6 +165,12 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None) -> dict
     data_through = candles.frame_last_date(df)
     if len(df) < _resolve_min_bars(timeframe):
         return {"status": "skipped", "data_through": data_through}
+
+    # Opt-in trailing window: cap the detection input at the last N bars.
+    # The min_bars gate above runs on the full fetched frame so an explicit
+    # small lookback still reaches detection.
+    if isinstance(lookback_bars, int) and lookback_bars > 0 and len(df) > lookback_bars:
+        df = df.iloc[-lookback_bars:]
 
     if _is_cancelled(job_id):
         return {"status": "skipped", "data_through": data_through}
@@ -205,6 +212,7 @@ def run_job(job_id: str) -> None:
     timeframe = job.get("timeframe")
     params = _job_params(job)
     raw_symbols = params.get("symbols")
+    lookback_bars = params.get("lookback_bars")
 
     try:
         if raw_symbols:
@@ -262,7 +270,7 @@ def run_job(job_id: str) -> None:
 
     with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
         futures = {
-            pool.submit(_process_symbol, symbol, timeframe, job_id, names.get(symbol)): symbol
+            pool.submit(_process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars): symbol
             for symbol in symbols
         }
         cancelled = False

@@ -15,6 +15,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from chart_patterns import candles, jobs, store
+from chart_patterns import trendlines as trendlines_mod
 from db.models.user import User
 from api.auth import get_current_user
 from api.utils import _sanitize_for_json
@@ -374,6 +375,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     this also retrofits hits persisted before candle windows were exposed.
     """
     cache: dict = {}
+    tl_cache: dict = {}
     for item in items or []:
         symbol = item.get("symbol")
         timeframe = item.get("timeframe") or default_timeframe
@@ -381,6 +383,7 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
             item.setdefault("candles", [])
             item.setdefault("last_close", None)
             item.setdefault("day_change_pct", None)
+            item["trend_lines"] = []
             continue
         key = (symbol, timeframe)
         if key not in cache:
@@ -402,6 +405,19 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         else:
             item["last_close"] = None
             item["day_change_pct"] = None
+        if key not in tl_cache:
+            try:
+                if df is not None and not getattr(df, "empty", True):
+                    tl_cache[key] = trendlines_mod.detect_trendlines(df)
+                else:
+                    tl_cache[key] = {"support": None, "resistance": None}
+            except Exception:
+                tl_cache[key] = {"support": None, "resistance": None}
+        try:
+            res = tl_cache[key] or {}
+            item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
+        except Exception:
+            item["trend_lines"] = []
     return items
 
 
@@ -418,6 +434,10 @@ class ScanRequest(BaseModel):
     # caller can run detection on a hand-picked list without computing a whole
     # universe.
     symbols: Optional[list[str]] = None
+    # Optional trailing window in bars. None = Auto (fetch max_lookback_days,
+    # no slicing). When set, history covers N bars and detection sees only
+    # the last N bars.
+    lookback_bars: Optional[int] = None
 
 
 # Upper bound on a custom scan's symbol list (matches the picker's practical
@@ -461,6 +481,13 @@ async def get_patterns():
 
 @router.post("/scan")
 async def create_scan(request: ScanRequest, user: User = Depends(get_current_user)):
+    if request.lookback_bars is not None and not (
+        60 <= request.lookback_bars <= 5000
+    ):
+        raise HTTPException(
+            status_code=422,
+            detail="lookback_bars must be between 60 and 5000",
+        )
     symbols = _normalize_symbol_list(request.symbols)
     if symbols:
         # Explicit symbol scope: scan only these, under the reserved universe.
@@ -474,6 +501,8 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
                 detail=f"unknown universe {request.universe!r}. Known: {sorted(_valid_universe_ids())}",
             )
         params = {"force": request.force}
+    if request.lookback_bars is not None:
+        params["lookback_bars"] = request.lookback_bars
     if request.timeframe not in _valid_timeframe_ids():
         raise HTTPException(
             status_code=422,
@@ -667,9 +696,15 @@ async def get_symbol_chart(
                 "direction": pattern.get("direction"),
                 "trendlines": pattern.get("trendlines"),
             })
+    try:
+        _res = trendlines_mod.detect_trendlines(df)
+        trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
+    except Exception:
+        trend_lines = []
     return _sanitize_for_json({
         "symbol": symbol.upper(),
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
+        "trend_lines": trend_lines,
     })

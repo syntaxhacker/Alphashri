@@ -14,6 +14,7 @@ Today's data has a 60s TTL; historical data never expires.
 from __future__ import annotations
 
 import json
+import math
 import pickle
 import time
 from datetime import datetime, timedelta
@@ -56,17 +57,23 @@ def _is_today(date_str: str) -> bool:
     return date_str == datetime.now(config.IST).strftime("%Y-%m-%d")
 
 
-def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None) -> Path:
+def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
+               variant: Optional[str] = None) -> Path:
     """Cache file for a symbol/timeframe, keyed by date when historical.
 
     An explicitly passed ``as_of_date`` gets its own cache file so historical
     scans never read (or poison) today's cache; the default (today) path is
-    unchanged.
+    unchanged. An optional ``variant`` (e.g. ``"lb250"``) namespaces scans that
+    fetch a different history window so they cannot poison the default cache.
     """
     if as_of_date:
         safe = "".join(c for c in str(as_of_date) if c.isalnum() or c in ("-", "_"))
-        return CACHE_DIR / str(tf_id) / f"{symbol.upper()}.{safe or 'nodate'}.pkl"
-    return CACHE_DIR / str(tf_id) / f"{symbol.upper()}.pkl"
+        base = f"{symbol.upper()}.{safe or 'nodate'}"
+    else:
+        base = symbol.upper()
+    if variant:
+        base = f"{base}.{variant}"
+    return CACHE_DIR / str(tf_id) / f"{base}.pkl"
 
 
 def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
@@ -147,15 +154,34 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     return out
 
 
+def _lookback_days(spec_minutes: int, lookback_bars: int) -> int:
+    """Calendar days needed to cover ``lookback_bars`` of ``spec_minutes`` bars."""
+    minutes = int(spec_minutes or 0)
+    if minutes >= 43200:  # 1M
+        bars_per_day = 1.0 / 30.0
+    elif minutes >= 10080:  # 1W
+        bars_per_day = 1.0 / 7.0
+    elif minutes >= 1440:  # 1D (5 trading days per 7 calendar days)
+        bars_per_day = 5.0 / 7.0
+    else:  # intraday: ~375 trading minutes per NSE session
+        bars_per_day = max(1.0, 375.0 / minutes) if minutes > 0 else 1.0
+    days = math.ceil(lookback_bars / bars_per_day * 1.5)
+    return max(1, min(3650, days))
+
+
 def fetch_for_timeframe(
     symbol: str,
     tf_id: str,
     as_of_date: Optional[str] = None,
     api_client=None,
+    lookback_bars: Optional[int] = None,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
     Returns a tz-aware (UTC) DataFrame indexed by timestamp or ``None``.
+    When ``lookback_bars`` is set, enough calendar history is fetched to cover
+    N bars (variant cache key so the default cache is never poisoned); the
+    caller slices to the last N bars before detection.
     """
     from market_data.market_data import fetch_candles
 
@@ -164,20 +190,27 @@ def fetch_for_timeframe(
     source_tf = _attr(spec, "source_tf", None)
     max_lookback = int(_attr(spec, "max_lookback_days", 90) or 90)
 
+    if lookback_bars is not None:
+        days = _lookback_days(minutes, int(lookback_bars))
+        variant = f"lb{int(lookback_bars)}"
+    else:
+        days = max_lookback
+        variant = None
+
     import config
     to_date = as_of_date or datetime.now(config.IST).strftime("%Y-%m-%d")
     try:
         from_date = (
-            datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=max_lookback)
+            datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=days)
         ).strftime("%Y-%m-%d")
     except ValueError:
         to_date = datetime.now(config.IST).strftime("%Y-%m-%d")
         from_date = (
-            datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=max_lookback)
+            datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=days)
         ).strftime("%Y-%m-%d")
 
     is_today = _is_today(to_date)
-    cache_path = _cache_path(tf_id, symbol, as_of_date if as_of_date else None)
+    cache_path = _cache_path(tf_id, symbol, as_of_date if as_of_date else None, variant=variant)
     cached = _read_cached(cache_path, is_today)
     if cached is not None:
         return cached

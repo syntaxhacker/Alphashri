@@ -759,3 +759,127 @@ def test_submit_coalesces_duplicate_same_combo(cp_client):
     finally:
         release.set()
 
+
+# ---------------------------------------------------------------------------
+# lookback_bars (opt-in): forwarded into job params; out-of-range → 422.
+# ---------------------------------------------------------------------------
+
+
+def test_scan_with_lookback_bars_enqueues_param(cp_client, monkeypatch):
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(universe=universe, timeframe=timeframe, params=params)
+        return {
+            "job_id": "cpj_lb", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D", "lookback_bars": 250},
+    )
+    assert resp.status_code == 200
+    assert captured["params"]["lookback_bars"] == 250
+
+
+def test_scan_with_lookback_bars_too_small_422(cp_client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("submit must not be called for an invalid lookback_bars")
+
+    monkeypatch.setattr(cp_api.jobs, "submit", _boom)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D", "lookback_bars": 10},
+    )
+    assert resp.status_code == 422
+    assert "lookback_bars" in resp.json()["detail"]
+
+
+def test_scan_with_lookback_bars_too_large_422(cp_client, monkeypatch):
+    def _boom(*args, **kwargs):
+        raise AssertionError("submit must not be called for an invalid lookback_bars")
+
+    monkeypatch.setattr(cp_api.jobs, "submit", _boom)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D", "lookback_bars": 99999},
+    )
+    assert resp.status_code == 422
+    assert "lookback_bars" in resp.json()["detail"]
+
+
+# ---------------------------------------------------------------------------
+# trend_lines attachment (standalone trendline detector).
+# ---------------------------------------------------------------------------
+
+
+def _fake_trendline(kind: str) -> dict:
+    return {
+        "kind": kind,
+        "start_date": "2026-01-01T00:00:00+00:00",
+        "start_price": 100.0,
+        "end_date": "2026-03-01T00:00:00+00:00",
+        "end_price": 110.0,
+        "slope": 0.2,
+        "touches": 3,
+        "span_bars": 40,
+        "violations": 0,
+    }
+
+
+def test_results_items_include_trend_lines(cp_client, monkeypatch):
+    store.save_job({
+        "job_id": "cpj_tl", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "done": 10,
+    })
+    store.save_hits("cpj_tl", [_hit("AAA")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df: {"support": _fake_trendline("support"), "resistance": None},
+    )
+
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tl"})
+    assert resp.status_code == 200
+    items = resp.json()["items"]
+    assert len(items) == 1
+    assert isinstance(items[0]["trend_lines"], list)
+    assert len(items[0]["trend_lines"]) == 1
+    assert items[0]["trend_lines"][0]["kind"] == "support"
+
+
+def test_results_trend_lines_error_falls_back_to_empty(cp_client, monkeypatch):
+    store.save_job({
+        "job_id": "cpj_tl_err", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "done": 10,
+    })
+    store.save_hits("cpj_tl_err", [_hit("AAA")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+
+    def _boom(df):
+        raise RuntimeError("detector exploded")
+
+    monkeypatch.setattr(cp_api.trendlines_mod, "detect_trendlines", _boom)
+
+    resp = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_tl_err"})
+    assert resp.status_code == 200
+    assert resp.json()["items"][0]["trend_lines"] == []
+
+
+def test_symbol_chart_includes_trend_lines(cp_client, monkeypatch):
+    store.save_hits("cpj_tlsym", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df: {"support": _fake_trendline("support"), "resistance": _fake_trendline("resistance")},
+    )
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    body = chart.json()
+    assert isinstance(body["trend_lines"], list)
+    assert len(body["trend_lines"]) == 2
+    assert {t["kind"] for t in body["trend_lines"]} == {"support", "resistance"}
+
