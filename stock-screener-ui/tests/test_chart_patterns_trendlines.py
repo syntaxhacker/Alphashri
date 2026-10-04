@@ -73,3 +73,41 @@ def test_noisy_series_does_not_crash():
 def test_none_and_empty():
     assert detect_trendlines(None) == {"support": None, "resistance": None}
     assert detect_trendlines(pd.DataFrame()) == {"support": None, "resistance": None}
+
+
+def _long_frame_with_recent_pivots(n: int = 600, side: str = "support") -> pd.DataFrame:
+    """Frame longer than the lookback window, pivots only in the trailing window."""
+    idx = pd.date_range("2026-01-01", periods=n, freq="D", tz="UTC")
+    if side == "support":
+        base = 100.0 + 0.3 * np.arange(n)
+        high = base + 2.0
+        low = base + 0.5
+        for p in (n - 150, n - 100, n - 50, n - 20):
+            low[p] = base[p] - 0.5
+        return pd.DataFrame(
+            {"open": base + 0.5, "high": high, "low": low, "close": base + 0.5, "volume": 1000.0},
+            index=idx,
+        )
+    base = 200.0 - 0.3 * np.arange(n)
+    low = base - 2.0
+    high = base - 0.5
+    for p in (n - 150, n - 100, n - 50, n - 20):
+        high[p] = base[p] + 0.5
+    return pd.DataFrame(
+        {"open": base, "high": high, "low": low, "close": base, "volume": 1000.0},
+        index=idx,
+    )
+
+
+def test_long_frame_lines_come_from_trailing_window():
+    """On a frame longer than the lookback, lines end in the recent bars."""
+    for side in ("support", "resistance"):
+        df = _long_frame_with_recent_pivots(600, side)
+        assert len(df) > 400
+        res = detect_trendlines(df)
+        line = res[side]
+        assert line is not None, f"{side} not found on long frame"
+        days = df.index.strftime("%Y-%m-%d").tolist()
+        end_day = str(line["end_date"])[:10]
+        assert end_day in days
+        assert days.index(end_day) >= len(df) - 60

@@ -471,6 +471,20 @@ def test_symbol_detail_and_chart(cp_client, monkeypatch):
     assert c["overlays"] and c["overlays"][0]["pattern_id"] == "falling_wedge"
 
 
+def test_symbol_chart_overlays_include_pattern_dates(cp_client, monkeypatch):
+    """Fullscreen overlays must carry start/end dates (dedupes the selection)."""
+    store.save_hits("cpj_ovdates", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    overlays = chart.json()["overlays"]
+    assert overlays, "expected at least one overlay"
+    for ov in overlays:
+        assert ov.get("start_date"), "overlay missing start_date"
+        assert ov.get("end_date"), "overlay missing end_date"
+
+
 def test_symbol_detail_dedupes_hits_across_universe_jobs(cp_client, monkeypatch):
     """A symbol in two scanned universes must not list each pattern twice."""
     store.save_job({

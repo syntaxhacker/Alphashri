@@ -12,6 +12,12 @@ import pandas as pd
 from chart_patterns import features as F
 from chart_patterns.detectors.common import get_swings, iso_ts
 
+#: Trailing window (in bars) used for trendline detection. The envelope fit
+#: prefers the longest 0-violation line, so running it over the full history
+#: latches onto stale lines (e.g. an old rising resistance on a long 1h
+#: frame) instead of the recent line the price is currently respecting.
+TRENDLINE_LOOKBACK_BARS = 400
+
 
 def _build_side(df: pd.DataFrame, pivots: list, env: dict, kind: str, atr: float) -> dict | None:
     """Serialise one envelope line, applying the touches/span guards."""
@@ -54,6 +60,9 @@ def detect_trendlines(df: pd.DataFrame | None) -> dict:
         return dict(empty)
     if norm is None or norm.empty:
         return dict(empty)
+
+    if len(norm) > TRENDLINE_LOOKBACK_BARS:
+        norm = norm.iloc[-TRENDLINE_LOOKBACK_BARS:]
 
     out: dict = {"support": None, "resistance": None}
     try:

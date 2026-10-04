@@ -718,6 +718,9 @@ async def get_symbol_chart(
                 "pattern_name": pattern.get("pattern_name"),
                 "direction": pattern.get("direction"),
                 "trendlines": pattern.get("trendlines"),
+                "start_date": pattern.get("start_date"),
+                "end_date": pattern.get("end_date"),
+                "id": pattern.get("id"),
             })
     try:
         _res = trendlines_mod.detect_trendlines(df)
