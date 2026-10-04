@@ -203,9 +203,15 @@ def run_job(job_id: str) -> None:
 
     universe = job.get("universe")
     timeframe = job.get("timeframe")
+    params = _job_params(job)
+    raw_symbols = params.get("symbols")
 
     try:
-        symbols, names = _load_symbols(universe)
+        if raw_symbols:
+            # Explicit symbol scope: run only these, no universe lookup.
+            symbols, names = _normalize_universe(raw_symbols)
+        else:
+            symbols, names = _load_symbols(universe)
     except Exception as exc:
         jobs_mod.update_state(
             job_id, status="failed", error=str(exc)[:500], finished_at=_now()
@@ -216,9 +222,11 @@ def run_job(job_id: str) -> None:
 
     # Staleness short-circuit: a fresh completed scan already covers this
     # combo, so a non-forced rescan would just recompute identical hits.
-    # ``force=True`` bypasses this and always recomputes.
-    force = bool(_job_params(job).get("force"))
-    if not force:
+    # ``force=True`` bypasses this and always recomputes. Symbol-scoped jobs
+    # always run — their scope is explicit and may differ from the last custom
+    # scan even when the (shared) ``custom`` universe looks fresh.
+    force = bool(params.get("force"))
+    if not force and not raw_symbols:
         try:
             prev = store.latest_completed_job(universe, timeframe)
         except Exception:

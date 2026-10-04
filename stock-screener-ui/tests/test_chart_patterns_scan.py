@@ -385,6 +385,67 @@ def test_run_job_force_bypasses_freshness_short_circuit(cp_store, patched_scan):
     assert row["finished_at"] is not None
 
 
+def test_run_job_scans_explicit_symbol_scope(cp_store, monkeypatch):
+    calls = {"fetch": [], "detect": []}
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None):
+        calls["fetch"].append(symbol)
+        return _make_df(80)
+
+    def fake_detect(df, timeframe, symbol):
+        calls["detect"].append(symbol)
+        return [_hit(symbol)]
+
+    def boom(_uid):
+        raise AssertionError("universe lookup must not run for a symbol scope")
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=boom))
+
+    store.save_job({
+        "job_id": "cpj_scope", "universe": "custom", "timeframe": "1D",
+        "status": "queued", "params": {"symbols": ["BSE", "INFY"]},
+    })
+    scan.run_job("cpj_scope")
+
+    row = store.get_job("cpj_scope")
+    assert row["status"] == "completed"
+    assert row["total"] == 2
+    assert sorted(calls["fetch"]) == ["BSE", "INFY"]
+    items, total, _ = store.query_results({"job_id": "cpj_scope"})
+    assert total == 2
+    assert {i["symbol"] for i in items} == {"BSE", "INFY"}
+
+
+def test_run_job_symbol_scope_bypasses_freshness(cp_store, monkeypatch):
+    from datetime import datetime, timezone
+
+    store.save_job({
+        "job_id": "cpj_scope_prev", "universe": "custom", "timeframe": "1D",
+        "status": "completed", "total": 1, "done": 1,
+        "finished_at": datetime.now(timezone.utc).isoformat(),
+    })
+
+    fetched = []
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None):
+        fetched.append(symbol)
+        return _make_df(80)
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+
+    store.save_job({
+        "job_id": "cpj_scope_new", "universe": "custom", "timeframe": "1D",
+        "status": "queued", "params": {"symbols": ["TCS"]},
+    })
+    scan.run_job("cpj_scope_new")
+
+    assert fetched == ["TCS"]
+    assert store.get_job("cpj_scope_new")["status"] == "completed"
+
+
 def test_run_job_honours_cancellation_per_symbol(cp_store, patched_scan, monkeypatch):
     monkeypatch.setattr(jobs, "is_cancelled", lambda job_id: True)
     store.save_job({"job_id": "cpj_cancel", "universe": "nifty50", "timeframe": "1D", "status": "queued"})

@@ -410,9 +410,34 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
 # ---------------------------------------------------------------------------
 
 class ScanRequest(BaseModel):
-    universe: str
+    universe: str = ""
     timeframe: str
     force: bool = False
+    # Optional explicit symbol scope. When present, only these symbols are
+    # scanned (the job is stored under the reserved ``custom`` universe), so a
+    # caller can run detection on a hand-picked list without computing a whole
+    # universe.
+    symbols: Optional[list[str]] = None
+
+
+# Upper bound on a custom scan's symbol list (matches the picker's practical
+# size; keeps one request from enqueuing a universe-sized job by accident).
+MAX_CUSTOM_SYMBOLS = 200
+
+
+def _normalize_symbol_list(raw) -> list[str]:
+    """Upper-cased, de-duplicated, order-preserving symbol scope (capped)."""
+    out: list[str] = []
+    seen: set = set()
+    for item in raw or []:
+        symbol = str(item or "").strip().upper()
+        if not symbol or symbol in seen:
+            continue
+        seen.add(symbol)
+        out.append(symbol)
+        if len(out) >= MAX_CUSTOM_SYMBOLS:
+            break
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -436,12 +461,19 @@ async def get_patterns():
 
 @router.post("/scan")
 async def create_scan(request: ScanRequest, user: User = Depends(get_current_user)):
-    universe = _normalize_universe(request.universe)
-    if universe not in _valid_universe_ids():
-        raise HTTPException(
-            status_code=422,
-            detail=f"unknown universe {request.universe!r}. Known: {sorted(_valid_universe_ids())}",
-        )
+    symbols = _normalize_symbol_list(request.symbols)
+    if symbols:
+        # Explicit symbol scope: scan only these, under the reserved universe.
+        universe = "custom"
+        params = {"force": request.force, "symbols": symbols}
+    else:
+        universe = _normalize_universe(request.universe)
+        if universe not in _valid_universe_ids():
+            raise HTTPException(
+                status_code=422,
+                detail=f"unknown universe {request.universe!r}. Known: {sorted(_valid_universe_ids())}",
+            )
+        params = {"force": request.force}
     if request.timeframe not in _valid_timeframe_ids():
         raise HTTPException(
             status_code=422,
@@ -452,7 +484,7 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
             universe,
             request.timeframe,
             requested_by=getattr(user, "id", None),
-            params={"force": request.force},
+            params=params,
         )
     except jobs.QueueFullError:
         return JSONResponse(
