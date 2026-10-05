@@ -27,6 +27,12 @@ import pandas as pd
 from market_data.market_data import _lookback_days
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / "pattern_cache" / "candles"
+
+#: Bump when the *content* semantics of a cached frame change (e.g. the daily
+#: completed-session backfill from the 1-minute tape) so pre-existing entries on
+#: disk are ignored rather than served as if still fresh — the session pin only
+#: tracks *which* session a frame ends on, not what it contains.
+CACHE_VERSION = 2
 TODAY_TTL_SECONDS = 60
 
 # Target minutes -> pandas resample rule for targets that are NOT native Upstox
@@ -59,6 +65,80 @@ def _resolve_timeframe(tf_id: str):
 def _is_today(date_str: str) -> bool:
     import config
     return date_str == datetime.now(config.IST).strftime("%Y-%m-%d")
+
+
+def _asof_date_part(value: Optional[str]) -> Optional[str]:
+    """Date (``YYYY-MM-DD``) portion of an as-of/from value, else ``None``."""
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text[:10] if text else None
+
+
+def _asof_time_variant(value: Optional[str]) -> Optional[str]:
+    """Cache-variant fragment for the time portion of an as-of value.
+
+    Returns ``None`` for date-only values so their cache path is unchanged;
+    an intraday as-of (``...THH:MM``) gets its own namespaced entry that can
+    never poison the default cache.
+    """
+    text = str(value).strip() if value is not None else ""
+    if len(text) <= 10:
+        return None
+    safe = "".join(c for c in text[10:] if c.isalnum())
+    return f"to{safe}" if safe else "toT"
+
+
+def parse_asof_datetime(value: str) -> datetime:
+    """Parse an as-of/from value into an IST-aware ``datetime``.
+
+    Accepts ``"YYYY-MM-DD"`` or ``"YYYY-MM-DDTHH:MM"`` (and ``:SS``); a
+    date-only value means IST midnight. Raises ``ValueError`` on garbage.
+    """
+    text = str(value).strip() if value is not None else ""
+    try:
+        parsed = datetime.fromisoformat(text)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(
+            f"invalid date {value!r}; expected YYYY-MM-DD or YYYY-MM-DDTHH:MM[:SS]"
+        ) from exc
+    try:
+        from trading.timezone import IST as _IST2
+    except Exception:
+        import config as _cfg
+
+        _IST2 = getattr(_cfg, "IST", None)
+    try:
+        if parsed.tzinfo is None:
+            return parsed.replace(tzinfo=_IST2)
+        return parsed.astimezone(_IST2)
+    except Exception as exc:
+        raise ValueError(
+            f"invalid date {value!r}; expected YYYY-MM-DD or YYYY-MM-DDTHH:MM[:SS]"
+        ) from exc
+
+
+def truncate_frame_to(df: pd.DataFrame, to_dt: datetime) -> Optional[pd.DataFrame]:
+    """Return rows with index ``<= to_dt``, comparing in IST.
+
+    Candle indexes are UTC; the comparison converts to IST first so an
+    intraday ``to_dt`` truncates at the right bar. Never raises: falls back
+    to the untruncated frame on any error.
+    """
+    if df is None or getattr(df, "empty", True):
+        return df
+    try:
+        idx = df.index
+        try:
+            if idx.tz is None:
+                idx_ist = idx.tz_localize("UTC").tz_convert("Asia/Kolkata")
+            else:
+                idx_ist = idx.tz_convert("Asia/Kolkata")
+        except Exception:
+            idx_ist = idx
+        return df[idx_ist <= to_dt]
+    except Exception:
+        return df
 
 
 def _is_trading_day(d: date) -> bool:
@@ -126,7 +206,7 @@ def _cache_path(tf_id: str, symbol: str, as_of_date: Optional[str] = None,
         base = symbol.upper()
     if variant:
         base = f"{base}.{variant}"
-    return CACHE_DIR / str(tf_id) / f"{base}.pkl"
+    return CACHE_DIR / str(tf_id) / f"{base}.v{CACHE_VERSION}.pkl"
 
 
 def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
@@ -285,6 +365,7 @@ def fetch_for_timeframe(
     api_client=None,
     lookback_bars: Optional[int] = None,
     include_partial_today: bool = False,
+    from_date: Optional[str] = None,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -292,6 +373,19 @@ def fetch_for_timeframe(
     When ``lookback_bars`` is set, enough calendar history is fetched to cover
     N bars (variant cache key so the default cache is never poisoned); the
     caller slices to the last N bars before detection.
+
+    ``from_date`` (``"YYYY-MM-DD"`` or a datetime whose date part is used)
+    overrides the lookback-derived window start; ``as_of_date`` pins the
+    window end (its date part; a time portion only affects replay truncation
+    by callers). Either one namespaces the cache entry so a ``(from, to)``
+    window or an intraday as-of never poisons the default cache. Behaviour
+    is identical when both are ``None``.
+
+    On ``"1D"`` with a live-edge window the base frame already contains the
+    core's completed-session backfill (missing recent sessions synthesized
+    from the 1-minute tape). Those bars are ordinary completed-session data
+    — immutable once the session closes — so caching them in the default
+    entry is safe. Only the in-progress session stays out of the cache:
 
     With ``include_partial_today=True`` on ``"1D"`` (used by the symbol
     chart), today's in-progress daily bar — aggregated from the 1-minute tape
@@ -316,21 +410,39 @@ def fetch_for_timeframe(
     else:
         days = max_lookback
         variant = None
+    # Explicit window bounds namespace the cache so replay windows never
+    # poison (or read) the default entry. Unset bounds keep today's path.
+    as_of_part = _asof_date_part(as_of_date)
+    from_part = _asof_date_part(from_date)
+    if from_part:
+        variant = f"{variant}.from{from_part}" if variant else f"from{from_part}"
+    time_variant = _asof_time_variant(as_of_date)
+    if time_variant:
+        variant = f"{variant}.{time_variant}" if variant else time_variant
 
     import config
-    to_date = as_of_date or datetime.now(config.IST).strftime("%Y-%m-%d")
-    try:
-        from_date = (
-            datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=days)
-        ).strftime("%Y-%m-%d")
-    except ValueError:
-        to_date = datetime.now(config.IST).strftime("%Y-%m-%d")
-        from_date = (
-            datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=days)
-        ).strftime("%Y-%m-%d")
+    to_date = as_of_part or datetime.now(config.IST).strftime("%Y-%m-%d")
+    if from_part:
+        try:
+            datetime.strptime(from_part, "%Y-%m-%d")
+            eff_from = from_part
+        except ValueError:
+            eff_from = None
+    else:
+        eff_from = None
+    if eff_from is None:
+        try:
+            eff_from = (
+                datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=days)
+            ).strftime("%Y-%m-%d")
+        except ValueError:
+            to_date = datetime.now(config.IST).strftime("%Y-%m-%d")
+            eff_from = (
+                datetime.strptime(to_date, "%Y-%m-%d") - timedelta(days=days)
+            ).strftime("%Y-%m-%d")
 
     is_today = _is_today(to_date)
-    cache_path = _cache_path(tf_id, symbol, as_of_date if as_of_date else None, variant=variant)
+    cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
     cached = _read_cached(cache_path, is_today)
     if cached is not None:
         df = cached
@@ -346,7 +458,7 @@ def fetch_for_timeframe(
         df = fetch_candles_for_timeframe(
             symbol,
             fetch_tf_id,
-            from_date=from_date,
+            from_date=eff_from,
             to_date=to_date,
             api_client=api_client,
         )

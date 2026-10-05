@@ -53,7 +53,10 @@ TOUCH_TOL_ATR = 0.75
 # ``BREAKOUT_TOL_ATR * ATR``) is a breakout/breakdown leg, not part of the base.
 # Trimming it keeps the box edges on the base: a breakdown that runs to a new
 # low must not drag the lower boundary (and the drawn box) down with it.
-BREAKOUT_MIN_BARS = 2
+# ``1`` so a fresh single-bar breakout (today's bar) is trimmed too and the base
+# it broke out of is still reported — otherwise a same-day breakout hides the
+# base because the raw window's last close sits at the top of the range.
+BREAKOUT_MIN_BARS = 1
 BREAKOUT_TOL_ATR = 0.25
 
 
@@ -169,13 +172,36 @@ def _trailing_base_end(
     return k
 
 
+def _is_range_bound(
+    df: pd.DataFrame, ctx: dict | None, start: int, end: int, hi: float, lo: float, atr_val: float
+) -> bool:
+    """True when price oscillates inside the box — touches **both** edges.
+
+    The mid-box position guard (``POS_MIN..POS_MAX``) rejects a window whose last
+    close is at the top of the range, which is exactly what a base looks like on
+    the bar it breaks out. For a breakout leg the base is instead validated by
+    two-sided oscillation: a real base swings back and forth (swing highs near
+    ``hi`` *and* swing lows near ``lo``), whereas a monotonic trend rides one
+    edge and produces touches on a single side only.
+    """
+    highs, lows = get_swings(df, ctx)
+    H = [(p, q) for p, q in highs if start <= p <= end]
+    L = [(p, q) for p, q in lows if start <= p <= end]
+    if not H or not L:
+        return False
+    up = F.count_touches(H, 0.0, hi, atr_val, tol_atr=TOUCH_TOL_ATR)
+    dn = F.count_touches(L, 0.0, lo, atr_val, tol_atr=TOUCH_TOL_ATR)
+    return up >= 1 and dn >= 1
+
+
 def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
     """Consolidation (neutral continuation; long tight base with upside geometry).
 
     Scans trailing windows ``WINDOWS`` and reports the **longest** one that is a
     genuine base: range ``<= RANGE_MAX`` (default 20%, env
-    ``PATTERN_CONSOLIDATION_MAX_RANGE_PCT``), last close inside the box
-    (``15 <= range_pos <= 85``) and close near-flat over the window
+    ``PATTERN_CONSOLIDATION_MAX_RANGE_PCT``), two-sided oscillation inside the
+    box (swing highs near the top *and* swing lows near the bottom, via
+    ``_is_range_bound``) and close near-flat over the window
     (``|relative slope| <= 0.12``). A trailing breakout leg is then trimmed so
     the box edges (and drawn box) stop at the base rather than at the breakout
     extreme. Metric tools tightly bound a horizontal base but let genuine
@@ -199,13 +225,18 @@ def detect_consolidation(df: pd.DataFrame, ctx: dict | None = None) -> list:
         if win is None:
             continue
         start, end = win
-        # Validate on the raw window (keeps the "price mid-box" guard) ...
-        if _window_base(df, start, end, w) is None:
-            continue
-        # ... then trim a trailing breakout so the box edges stay on the base.
+        # Trim a trailing breakout/breakdown leg FIRST so the box is measured on
+        # the base, not on the breakout bar. Validating the raw window first
+        # (as before) hid every fresh breakout: the breakout bar inflates the
+        # range and pushes the last close to the top of the window.
         box_end = _trailing_base_end(df, start, end, atr_val)
         base = _window_base(df, start, box_end, w, check_pos=False)
         if base is None:
+            continue
+        # Both cases (breakout leg or not) require the base to oscillate
+        # (touch both edges) so a monotonic trend — whose last close also
+        # sits at the top of the range — is still rejected.
+        if not _is_range_bound(df, ctx, start, box_end, base["hi"], base["lo"], atr_val):
             continue
         base["span"] = base["end"] - base["start"] + 1
         if best is None or base["span"] > best["span"]:

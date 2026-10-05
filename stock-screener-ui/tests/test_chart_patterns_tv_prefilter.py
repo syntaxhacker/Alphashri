@@ -70,6 +70,7 @@ def test_metrics_mapping(fake_tv):
     assert m == {
         "volume": 5_000_000.0,
         "rel_volume": 1.8,
+        "rel_volume_calc": pytest.approx(5_000_000.0 / 2_800_000.0),
         "avg_volume_10d": 2_800_000.0,
         "close": 2500.0,
         "change": 1.2,
@@ -160,6 +161,20 @@ def test_prefilter_missing_symbol_excluded(monkeypatch):
     assert info["before"] == 2 and info["after"] == 1
 
 
+def test_prefilter_keeps_symbols_from_a_failed_batch(monkeypatch):
+    """A batch that errored (``unqueried``) must fail open, not be dropped."""
+    metrics = {
+        "AAA": {"volume": 5_000_000.0, "rel_volume": 2.0, "avg_volume_10d": 2_500_000.0,
+                "close": 100.0, "change": 1.0, "market_cap": 1e9},
+        "BBB": {"unqueried": True},
+    }
+    monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: metrics)
+    kept, info = tv_prefilter.prefilter_by_volume(["AAA", "BBB", "GHOST"], min_rel_volume=1.5)
+    assert kept == ["AAA", "BBB"], "the failed-batch symbol must be kept (fail open)"
+    assert "GHOST" not in kept, "a genuinely absent symbol is still excluded"
+    assert info["after"] == 2
+
+
 def test_prefilter_fail_open_on_tv_error(monkeypatch):
     monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: {})
     kept, info = tv_prefilter.prefilter_by_volume(
@@ -167,3 +182,49 @@ def test_prefilter_fail_open_on_tv_error(monkeypatch):
     )
     assert kept == ["AAA", "BBB"]
     assert info == {"fail_open": True}
+
+
+def test_rel_volume_calc_none_without_average(fake_tv):
+    fake_tv.frame = _tv_df([{
+        "ticker": "NSE:AAA", "name": "AAA", "volume": 1_000_000.0,
+        "relative_volume_10d_calc": 2.0, "average_volume_10d_calc": None,
+        "close": 100.0, "change": 0.5, "market_cap_basic": 1_000_000_000.0,
+    }, {
+        "ticker": "NSE:ZERO", "name": "ZERO", "volume": 1_000_000.0,
+        "relative_volume_10d_calc": 2.0, "average_volume_10d_calc": 0.0,
+        "close": 100.0, "change": 0.5, "market_cap_basic": 1_000_000_000.0,
+    }])
+    got = tv_prefilter.fetch_tv_volume_metrics(["AAA", "ZERO"])
+    assert got["AAA"]["rel_volume_calc"] is None
+    assert got["ZERO"]["rel_volume_calc"] is None
+    # TV's own field is untouched (different denominator, kept as-is).
+    assert got["AAA"]["rel_volume"] == 2.0
+
+
+def test_low_coverage_logs_warning(fake_tv, caplog):
+    rows = [{
+        "ticker": "NSE:AAA", "name": "AAA", "volume": 1_000_000.0,
+        "relative_volume_10d_calc": 2.0, "average_volume_10d_calc": 500_000.0,
+        "close": 100.0, "change": 0.5, "market_cap_basic": 1_000_000_000.0,
+    }]
+    fake_tv.frame = _tv_df(rows)
+    with caplog.at_level("WARNING", logger="chart_patterns.tv_prefilter"):
+        got = tv_prefilter.fetch_tv_volume_metrics(
+            ["AAA", "BBB", "CCC", "DDD", "EEE"]
+        )
+    assert set(got) == {"AAA"}
+    warnings = [r for r in caplog.records if "low coverage" in r.getMessage()]
+    assert warnings, "expected a low-coverage WARNING with the ratio"
+    assert "1/5" in warnings[0].getMessage()
+
+
+def test_full_coverage_logs_no_warning(fake_tv, caplog):
+    fake_tv.frame = _tv_df([{
+        "ticker": "NSE:AAA", "name": "AAA", "volume": 1_000_000.0,
+        "relative_volume_10d_calc": 2.0, "average_volume_10d_calc": 500_000.0,
+        "close": 100.0, "change": 0.5, "market_cap_basic": 1_000_000_000.0,
+    }])
+    with caplog.at_level("WARNING", logger="chart_patterns.tv_prefilter"):
+        got = tv_prefilter.fetch_tv_volume_metrics(["AAA"])
+    assert set(got) == {"AAA"}
+    assert not [r for r in caplog.records if "low coverage" in r.getMessage()]

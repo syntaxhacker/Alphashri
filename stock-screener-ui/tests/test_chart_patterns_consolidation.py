@@ -129,6 +129,57 @@ def test_breakdown_leg_does_not_drag_the_box_low():
     assert hit.end_date != df.index[-1].strftime("%Y-%m-%d")
 
 
+def base_then_breakout_frame() -> pd.DataFrame:
+    """A long oscillating base (95..105) followed by a single breakout bar to 108."""
+    i = np.arange(120)
+    base = 100.0 + 5.0 * np.sin(i * 2.0 * np.pi / 24.0)
+    return frame(np.concatenate([base, [108.0]]))
+
+
+def test_breakout_of_a_long_base_is_detected():
+    """A fresh breakout must not hide the base it broke out of.
+
+    Regression: validating the raw window (which includes the breakout bar)
+    rejected every same-day breakout because the last close sits at the top of
+    the range (``range_pos`` > 85) and the breakout bar inflates the range.
+    """
+    df = F.normalize_ohlcv(base_then_breakout_frame())
+    hits = _detect(df)
+    assert hits, "a long base followed by a breakout must still be detected"
+    hit = hits[0]
+    assert hit.base_days >= 90, f"expected a long base, got {hit.base_days}"
+    assert hit.status == "confirmed", "the close is above the box -> confirmed"
+    assert hit.bars_ago >= 1, "the breakout bar is excluded from the base"
+    # ``range_pos`` describes the *base* (mid-box), not the breakout close.
+    assert 15.0 <= hit.range_pos <= 85.0
+    # Box edges still sit on the base, not on the breakout bar.
+    assert hit.trendlines[0][0]["price"] == pytest.approx(105.5, abs=1e-3)
+    assert hit.trendlines[1][0]["price"] == pytest.approx(94.5, abs=1e-3)
+
+
+def test_monotonic_trend_with_single_breakout_bar_is_still_rejected():
+    """A steady uptrend must not be relabelled a base just because its last bar
+    is beyond the prior range — it has no two-sided oscillation."""
+    closes = np.concatenate([np.linspace(100, 112, 160), [113.0]])
+    assert _detect(frame(closes)) == []
+
+
+def test_long_base_with_close_near_top_is_detected():
+    """A long base whose close sits near the top (pos > 85, no breakout yet)
+    is still a base — the breakout candidates.
+
+    Regression: the old ``POS_MIN..POS_MAX`` no-breakout guard hid these
+    (e.g. a 128d base reported as a 42d one). Both branches now use the
+    oscillation discriminator (``_is_range_bound``) instead.
+    """
+    df = base_frame(140)
+    hi = float(df["high"].max())
+    df.iloc[-1, df.columns.get_loc("close")] = hi - 0.05
+    hits = _detect(df)
+    assert hits, "a long base with its close near the top must be detected"
+    assert hits[0].range_pos > 85.0
+
+
 # ---------------------------------------------------------------------------
 # Trend rejection
 # ---------------------------------------------------------------------------

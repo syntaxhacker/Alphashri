@@ -8,6 +8,10 @@ any candle fetch, so low-energy symbols never cost an Upstox call.
 
 Fail-open: when TradingView is unreachable (or returns nothing) the full symbol
 list passes through unchanged with a ``{"fail_open": True}`` marker.
+
+``rel_volume_calc`` (``volume / average_volume_10d``) is computed locally
+alongside TV's ``relative_volume_10d_calc``: TV's field uses a different
+(session-relative) denominator, so the two are not interchangeable.
 """
 
 from __future__ import annotations
@@ -49,9 +53,11 @@ def _to_float(value) -> float | None:
 def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> dict[str, dict]:
     """Bulk-fetch volume metrics keyed by upper-cased symbol.
 
-    One ``Query().select(...).where(Column('name').isin(symbols)).limit(...)``
-    call. Symbols missing from the TV response are absent from the result.
-    Never raises — returns ``{}`` on any error (caller fails open).
+    One batched ``Query().set_tickers("NSE:SYMBOL", ...)`` call. Symbols absent
+    from a **successful** response are omitted (no data ≠ liquid). A batch that
+    *errors* is recorded with an ``{"unqueried": True}`` marker so the caller can
+    fail open for it — a transient TV failure must not silently drop symbols.
+    Never raises — returns ``{}`` when every batch fails (caller fails open).
     """
     try:
         from tradingview_screener import Query
@@ -69,6 +75,8 @@ def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> 
     if not syms:
         return {}
     out: dict[str, dict] = {}
+    any_success = False
+    failed: list[str] = []
     for start in range(0, len(syms), _TV_BATCH_SIZE):
         batch = syms[start : start + _TV_BATCH_SIZE]
         tickers = [t for t in (to_tv_ticker(s) for s in batch) if t]
@@ -82,7 +90,9 @@ def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> 
             _, df = query.get_scanner_data()
         except Exception as exc:
             log.warning("TV prefilter: scanner batch failed (%s)", exc)
+            failed.extend(batch)
             continue
+        any_success = True
         if df is None or getattr(df, "empty", True):
             continue
         for _, row in df.iterrows():
@@ -96,14 +106,50 @@ def fetch_tv_volume_metrics(symbols: list[str], *, limit: int | None = None) -> 
             bare = normalize_tv_symbol(ticker or name)
             if not bare:
                 continue
+            volume = _to_float(row.get("volume"))
+            avg_volume_10d = _to_float(row.get("average_volume_10d_calc"))
+            # Local ratio on a documented denominator: TV's
+            # ``relative_volume_10d_calc`` uses a different (session-relative)
+            # denominator, so it cannot be reproduced from these two fields.
+            if volume is not None and avg_volume_10d:
+                rel_volume_calc = volume / avg_volume_10d
+            else:
+                rel_volume_calc = None
             out[bare] = {
-                "volume": _to_float(row.get("volume")),
+                "volume": volume,
                 "rel_volume": _to_float(row.get("relative_volume_10d_calc")),
-                "avg_volume_10d": _to_float(row.get("average_volume_10d_calc")),
+                "rel_volume_calc": rel_volume_calc,
+                "avg_volume_10d": avg_volume_10d,
                 "close": _to_float(row.get("close")),
                 "change": _to_float(row.get("change")),
                 "market_cap": _to_float(row.get("market_cap_basic")),
             }
+    if not any_success and failed:
+        # Every batch failed: fail open wholesale (no partial picture to trust).
+        return {}
+    for sym in failed:
+        out.setdefault(sym, {"unqueried": True})
+    if any_success:
+        # A broad/custom universe can silently lose candidates when TV answers
+        # successfully but covers far fewer symbols than requested (absent
+        # symbols are excluded downstream). Warn with the coverage ratio.
+        # Failed-batch symbols carry ``unqueried`` markers (fail open), so
+        # coverage is measured over successfully-queried symbols only.
+        failed_set = set(failed)
+        queried_ok = [s for s in syms if s not in failed_set]
+        if queried_ok:
+            covered = sum(
+                1 for s in queried_ok if s in out and not out[s].get("unqueried")
+            )
+            coverage = covered / len(queried_ok)
+            if coverage < 0.5:
+                log.warning(
+                    "TV prefilter: low coverage %.0f%% (%d/%d symbols "
+                    "queried successfully)",
+                    coverage * 100.0,
+                    covered,
+                    len(queried_ok),
+                )
     return out
 
 
@@ -117,7 +163,9 @@ def prefilter_by_volume(
 
     - ``min_rel_volume``: keep ``rel_volume >= min_rel_volume`` (when set).
     - ``min_volume_m``: keep ``volume >= min_volume_m * 1e6`` (when set).
-    - Symbols absent from the TV response are excluded (no data ≠ liquid).
+    - Symbols absent from a successful TV response are excluded (no data ≠ liquid).
+    - A batch that errored is kept (fail open) — a transient TV failure must not
+      silently drop symbols.
     - When the TV fetch returns ``{}``, all symbols pass with
       ``{"fail_open": True}``.
     """
@@ -145,6 +193,11 @@ def prefilter_by_volume(
         metric = metrics.get(sym)
         if metric is None:
             dropped.append(sym)
+            continue
+        if metric.get("unqueried"):
+            # A batch that errored: keep the symbol (fail open) rather than
+            # silently dropping it for a transient TV failure.
+            kept.append(sym)
             continue
         rel = metric.get("rel_volume")
         if min_rel_volume is not None and (rel is None or rel < float(min_rel_volume)):

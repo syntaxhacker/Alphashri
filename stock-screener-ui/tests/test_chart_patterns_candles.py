@@ -206,3 +206,22 @@ def test_clear_cache_no_match_is_safe(cache_dir):
 def test_clear_cache_missing_dir_returns_zero(monkeypatch, tmp_path):
     monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path / "does-not-exist")
     assert candles_mod.clear_cache() == 0
+
+
+def test_cache_path_is_versioned():
+    """A cache-version bump must invalidate pre-existing on-disk entries.
+
+    The session pin only tracks *which* session a frame ends on, not its
+    content; a content change (e.g. the daily completed-session backfill) needs
+    a version in the path so stale entries are missed rather than served.
+    """
+    assert candles_mod.CACHE_VERSION >= 2
+    assert candles_mod._cache_path("1D", "RELIANCE").name == (
+        f"RELIANCE.v{candles_mod.CACHE_VERSION}.pkl"
+    )
+    assert candles_mod._cache_path("1D", "RELIANCE", variant="lb500").name == (
+        f"RELIANCE.lb500.v{candles_mod.CACHE_VERSION}.pkl"
+    )
+    assert candles_mod._cache_path("1D", "RELIANCE", as_of_date="2026-10-05").name == (
+        f"RELIANCE.2026-10-05.v{candles_mod.CACHE_VERSION}.pkl"
+    )
