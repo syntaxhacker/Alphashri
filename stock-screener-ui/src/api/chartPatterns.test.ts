@@ -8,6 +8,7 @@ import { fetchWithAuth } from "../state/auth";
 import {
   QueueFullError,
   buildPatternsQuery,
+  fetchMarketStatus,
   fetchTimeframes,
   fetchUniverses,
   fetchPatternCatalog,
@@ -427,6 +428,37 @@ describe("results/summary/symbol error messages", () => {
     await expect(fetchSymbolChart("SBIN", "1D")).rejects.toThrow(
       "Failed to load SBIN chart",
     );
+  });
+});
+
+describe("fetchMarketStatus", () => {
+  it("GETs /market-status and returns the payload", async () => {
+    const status = {
+      open: true,
+      holiday: false,
+      now_ist: "2026-10-05T10:00:00+05:30",
+      reason: "open",
+    };
+    mockedFetch.mockResolvedValue(okResponse(status));
+    await expect(fetchMarketStatus()).resolves.toEqual(status);
+    expect(mockedFetch).toHaveBeenCalledWith(
+      expect.stringContaining("/api/chart-patterns/market-status"),
+    );
+  });
+
+  it("defaults missing fields", async () => {
+    mockedFetch.mockResolvedValue(okResponse({}));
+    await expect(fetchMarketStatus()).resolves.toEqual({
+      open: false,
+      holiday: false,
+      now_ist: "",
+      reason: "",
+    });
+  });
+
+  it("throws server detail on failure", async () => {
+    mockedFetch.mockResolvedValue(errorResponse(500, { detail: "status boom" }));
+    await expect(fetchMarketStatus()).rejects.toThrow("status boom");
   });
 });
 

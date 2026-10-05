@@ -1,4 +1,4 @@
-import { Box, Button, Chip, Divider, NumberInput, Select, Switch, Text, ToolbarRow, Tooltip } from "@/ui";
+import { Box, Button, Chip, Divider, NumberInput, Select, Switch, Text, TextInput, ToolbarRow, Tooltip } from "@/ui";
 import type {
   PatternDef,
   PatternFilters,
@@ -14,6 +14,8 @@ import {
 } from "@/config/patternCatalog";
 import { PatternPresets } from "./PatternPresets";
 import { PatternImage } from "./PatternImage";
+import { ReplayScanControl, type ReplayScanArgs } from "./ReplayScanControl";
+import { daysAgoDatetimeLocal, startOfMonthDatetimeLocal } from "./datetime";
 
 const FAMILY_LABELS: Record<string, string> = {
   reversal: "Reversal",
@@ -43,6 +45,8 @@ export interface PatternFilterRailProps {
    * layout for the filter modal (What · Patterns · Refine), top-aligned.
    */
   layout?: "rail" | "panel";
+  /** Run an as-of replay scan; renders the replay control when provided. */
+  onReplayScan?: (args: ReplayScanArgs) => void;
 }
 
 function asArray(value: unknown): string[] {
@@ -141,6 +145,7 @@ export function PatternFilterRail({
   applyFilters,
   images,
   layout = "rail",
+  onReplayScan,
 }: PatternFilterRailProps) {
   const panel = layout === "panel";
   const familyOrder = Array.from(new Set([...FAMILY_ORDER, ...patterns.map((p) => p.family)]));
@@ -387,6 +392,87 @@ export function PatternFilterRail({
       </Box>
     </Section>
   );
+
+  const dateSection = (
+    <Section title="Formed between">
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Text size="xs" c="dimmed">
+            From
+          </Text>
+          <ToolbarRow gap={4} align="center">
+            <TextInput
+              type="datetime-local"
+              value={filters.from_date ?? ""}
+              onChange={(v) => setFilter("from_date", v ? String(v) : null)}
+              size="sm"
+              w={190}
+              data-testid="patterns-filter-from-date"
+            />
+            {filters.from_date ? (
+              <Button
+                size="xs"
+                variant="subtle"
+                onClick={() => setFilter("from_date", null)}
+                data-testid="patterns-filter-from-date-clear"
+              >
+                Clear
+              </Button>
+            ) : null}
+          </ToolbarRow>
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Text size="xs" c="dimmed">
+            To
+          </Text>
+          <ToolbarRow gap={4} align="center">
+            <TextInput
+              type="datetime-local"
+              value={filters.to_date ?? ""}
+              onChange={(v) => setFilter("to_date", v ? String(v) : null)}
+              size="sm"
+              w={190}
+              data-testid="patterns-filter-to-date"
+            />
+            {filters.to_date ? (
+              <Button
+                size="xs"
+                variant="subtle"
+                onClick={() => setFilter("to_date", null)}
+                data-testid="patterns-filter-to-date-clear"
+              >
+                Clear
+              </Button>
+            ) : null}
+          </ToolbarRow>
+        </Box>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+          <Chip
+            size="xs"
+            variant="light"
+            onChange={() => setFilter("from_date", daysAgoDatetimeLocal(30))}
+            data-testid="patterns-filter-date-last-30d"
+          >
+            Last 30 days
+          </Chip>
+          <Chip
+            size="xs"
+            variant="light"
+            onChange={() => setFilter("from_date", startOfMonthDatetimeLocal())}
+            data-testid="patterns-filter-date-this-month"
+          >
+            This month
+          </Chip>
+        </Box>
+      </Box>
+    </Section>
+  );
+
+  const replaySection = onReplayScan ? (
+    <Section title="Replay scan">
+      <ReplayScanControl onReplayScan={onReplayScan} />
+    </Section>
+  ) : null;
 
   const sortSection = (
     <Section title="Sort">
@@ -650,6 +736,7 @@ export function PatternFilterRail({
         </Box>
         <Box sx={{ display: "flex", flexDirection: "column", gap: 2.5, minWidth: 0 }}>
           {formedSection}
+          {dateSection}
           {sortSection}
           {trendlinesSection}
           {baseSection}
@@ -657,6 +744,7 @@ export function PatternFilterRail({
           {gap52Section}
           {rangePosSection}
           {volumeScanSection}
+          {replaySection}
           {volumeSection}
         </Box>
       </Box>
@@ -682,6 +770,8 @@ export function PatternFilterRail({
       <Divider />
       {formedSection}
       <Divider />
+      {dateSection}
+      <Divider />
       {sortSection}
       <Divider />
       {trendlinesSection}
@@ -696,6 +786,8 @@ export function PatternFilterRail({
       <Divider />
       {volumeScanSection}
       <Divider />
+      {replaySection}
+      {replaySection ? <Divider /> : null}
       {volumeSection}
     </Box>
   );

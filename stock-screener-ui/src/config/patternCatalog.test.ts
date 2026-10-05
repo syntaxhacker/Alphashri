@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
+  BUILTIN_PRESETS,
   PATTERN_CATALOG,
   PATTERN_FAMILIES,
   PATTERN_LABELS,
@@ -67,5 +68,16 @@ describe("patternCatalog", () => {
       expect(entry.label).toBeTruthy();
       expect(entry.description.length).toBeGreaterThan(10);
     }
+  });
+
+  it("ships a last_30d preset scoping the formation window", () => {
+    const preset = BUILTIN_PRESETS.find((p) => p.id === "last_30d");
+    expect(preset).toBeTruthy();
+    expect(preset?.filters.from_date).toBeTruthy();
+    const parsed = Date.parse(String(preset?.filters.from_date));
+    expect(Number.isNaN(parsed)).toBe(false);
+    const daysAgo = (Date.now() - parsed) / 86_400_000;
+    expect(daysAgo).toBeGreaterThan(29);
+    expect(daysAgo).toBeLessThan(31);
   });
 });

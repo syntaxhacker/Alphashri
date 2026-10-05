@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Loader, Modal, Text, ToolbarRow } from "@/ui";
+import { Alert, Box, Loader, Modal, Text, TextInput, ToolbarRow } from "@/ui";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { ChartCandle, PatternHitDTO, PatternOverlay, TFSpec, TrendLine, TrendlinesView } from "@/types/chartPatterns";
 import { buildPatternTVData } from "./patternTVData";
@@ -38,6 +38,16 @@ export interface PatternFullscreenViewProps {
   onTimeframeChange?: (timeframe: string) => void;
   /** Small loading state shown next to the selector while the TF reloads. */
   loading?: boolean;
+  /**
+   * As-of replay cutoff (ISO local datetime, null = live). When set together
+   * with `onAsOfChange` the toolbar renders From/To replay inputs plus an
+   * as-of banner, and the chart is re-fetched truncated at the cutoff.
+   */
+  asOf?: string | null;
+  /** Replay window start (ISO local datetime, null = any). */
+  fromDate?: string | null;
+  /** Re-fetch the chart truncated at the new as-of cutoff / window. */
+  onAsOfChange?: (asOf: string | null, fromDate: string | null) => void;
 }
 
 /**
@@ -210,8 +220,43 @@ export function PatternFullscreenView({
   timeframes,
   onTimeframeChange,
   loading = false,
+  asOf = null,
+  fromDate = null,
+  onAsOfChange,
 }: PatternFullscreenViewProps) {
   const title = hit ? `${hit.symbol} · ${hit.pattern_name}` : "Pattern chart";
+  const asOfLabel = typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
+
+  const asOfControls = onAsOfChange ? (
+    <ToolbarRow gap={8} align="center" data-testid="patterns-fullscreen-asof-controls">
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Text size="xs" c="dimmed">
+          From
+        </Text>
+        <TextInput
+          type="datetime-local"
+          value={fromDate ?? ""}
+          onChange={(v) => onAsOfChange(asOf ?? null, v ? String(v) : null)}
+          size="sm"
+          w={190}
+          data-testid="patterns-fullscreen-asof-from"
+        />
+      </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Text size="xs" c="dimmed">
+          As of
+        </Text>
+        <TextInput
+          type="datetime-local"
+          value={asOf ?? ""}
+          onChange={(v) => onAsOfChange(v ? String(v) : null, fromDate ?? null)}
+          size="sm"
+          w={190}
+          data-testid="patterns-fullscreen-asof-to"
+        />
+      </Box>
+    </ToolbarRow>
+  ) : null;
 
   return (
     <Modal
@@ -231,6 +276,7 @@ export function PatternFullscreenView({
               />
             </Box>
           ) : null}
+          {asOfControls}
           {loading ? <Loader size="xs" data-testid="patterns-fullscreen-loading" /> : null}
         </ToolbarRow>
       }
@@ -238,6 +284,13 @@ export function PatternFullscreenView({
       padding={0}
       data-testid="patterns-fullscreen-modal"
     >
+      {asOfLabel ? (
+        <Box sx={{ px: 2, pt: 2 }}>
+          <Alert color="info" data-testid="patterns-fullscreen-asof-banner">
+            {`Viewing as of ${asOfLabel}`}
+          </Alert>
+        </Box>
+      ) : null}
       <Box
         sx={{
           display: "flex",

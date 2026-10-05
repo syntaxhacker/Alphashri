@@ -32,7 +32,13 @@ export function JobStatus({ job, queuePosition, scanning }: JobStatusProps) {
     const done = job?.done ?? 0;
     message = total > 0 ? `Scanning ${done}/${total}${job ? failureNote(job) : ""}` : "Scanning…";
   } else if (status === "completed") {
-    message = job?.data_through ? `Last scan complete · through ${job.data_through}` : "Last scan complete";
+    const base = job?.data_through
+      ? `Last scan complete · through ${job.data_through}`
+      : "Last scan complete";
+    // A reused scan finished without re-detecting: say so inline. The full
+    // `patterns-scan-reused` notice lives next to Force refresh (PatternsPage)
+    // and in ScanProgress, so this stays a text suffix (no duplicate testid).
+    message = job?.reused ? `${base} · reused (data unchanged)` : base;
   } else if (status === "failed") {
     message = `Scan failed${job?.error ? `: ${job.error}` : ""}`;
   } else if (status === "cancelled") {

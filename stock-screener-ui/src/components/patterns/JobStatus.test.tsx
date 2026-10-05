@@ -147,4 +147,16 @@ describe("JobStatus", () => {
     expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("Scanning…");
     expect(screen.queryByRole("progressbar")).not.toBeInTheDocument();
   });
+
+  test("marks a reused completed scan inline", () => {
+    r(
+      <JobStatus
+        job={{ ...JOB, status: "completed", data_through: "2026-09-30", reused: true }}
+        queuePosition={null}
+        scanning={false}
+      />,
+    );
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("reused (data unchanged)");
+  });
 });

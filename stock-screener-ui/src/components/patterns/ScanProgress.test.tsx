@@ -158,4 +158,56 @@ describe("ScanProgress", () => {
     r(<ScanProgress job={makeJob({ total: 0, done: 0 })} scanning variant="inline" />);
     expect(screen.getByTestId("patterns-scan-progress")).not.toHaveTextContent("left");
   });
+
+  test("shows the reused notice when the job reused a previous scan", () => {
+    r(
+      <ScanProgress
+        job={makeJob({ status: "completed", reused: true, reused_age_sec: 720 })}
+        scanning={false}
+      />,
+    );
+    const notice = screen.getByTestId("patterns-scan-reused");
+    expect(notice).toHaveTextContent("Reused scan from 12 min ago");
+    expect(notice).toHaveTextContent("data unchanged");
+    expect(notice).toHaveTextContent("Force to re-run");
+  });
+
+  test("reused notice falls back when no age signal is available", () => {
+    r(<ScanProgress job={makeJob({ status: "completed", reused: true })} scanning={false} />);
+    expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent(
+      "Reused scan — data unchanged",
+    );
+  });
+
+  test("reused notice derives the age from reused_finished_at", () => {
+    vi.useFakeTimers();
+    try {
+      const now = new Date("2026-10-03T10:00:00Z").getTime();
+      vi.setSystemTime(now);
+      const finishedAt = new Date(now - 12 * 60_000).toISOString();
+      r(
+        <ScanProgress
+          job={makeJob({ status: "completed", reused: true, reused_finished_at: finishedAt })}
+          scanning={false}
+        />,
+      );
+      expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent(
+        "Reused scan from 12 min ago",
+      );
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("reused notice renders the force action when a handler is provided", () => {
+    const onForceRefresh = vi.fn();
+    r(
+      <ScanProgress
+        job={makeJob({ status: "completed", reused: true, reused_age_sec: 60 })}
+        scanning={false}
+        onForceRefresh={onForceRefresh}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-reused-force")).toBeInTheDocument();
+  });
 });

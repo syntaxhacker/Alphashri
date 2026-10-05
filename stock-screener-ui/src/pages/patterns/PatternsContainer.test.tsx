@@ -116,6 +116,8 @@ function makeVm() {
     scan: vi.fn(),
     refresh: vi.fn(),
     forceRefresh: vi.fn(),
+    lastScanAsOf: null,
+    lastScanFrom: null,
   };
 }
 
@@ -149,6 +151,8 @@ describe("PatternsContainer", () => {
     expect(args.setLookbackBars).toBe(vm.setLookbackBars);
     expect(args.setComputeTrendlines).toBe(vm.setComputeTrendlines);
     expect(args.applyFilters).toBe(vm.applyFilters);
+    expect(args.tab).toBe("scan");
+    expect(typeof args.setTab).toBe("function");
   });
 
   test("passes every view-model prop through to PatternsPage", () => {
@@ -169,9 +173,27 @@ describe("PatternsContainer", () => {
       "job", "scanning", "queuePosition", "summary",
       "results", "total", "loading", "error",
       "scan", "refresh", "forceRefresh",
+      "scanReplay", "replayAsOf",
+      "tab", "setTab",
     ];
     expect(Object.keys(props).sort()).toEqual([...expectedKeys].sort());
     for (const key of expectedKeys) {
+      if (key === "scanReplay") {
+        expect(typeof props[key], `prop ${key}`).toBe("function");
+        continue;
+      }
+      if (key === "replayAsOf") {
+        expect(props[key], `prop ${key}`).toBe(vm.lastScanAsOf);
+        continue;
+      }
+      if (key === "tab") {
+        expect(props[key], `prop ${key}`).toBe("scan");
+        continue;
+      }
+      if (key === "setTab") {
+        expect(typeof props[key], `prop ${key}`).toBe("function");
+        continue;
+      }
       expect(props[key], `prop ${key}`).toBe(vm[key as keyof typeof vm] as unknown);
     }
   });

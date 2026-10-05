@@ -134,6 +134,17 @@ export interface PatternPreset {
  * Ready-made filter presets shown in the rail. Applying one merges its
  * `filters` onto `DEFAULT_PATTERN_FILTERS`, so unspecified fields reset.
  */
+
+/** ISO date (`YYYY-MM-DD`) N days ago in local time. */
+function isoDateDaysAgo(days: number): string {
+  const d = new Date();
+  d.setDate(d.getDate() - days);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 export const BUILTIN_PRESETS: PatternPreset[] = [
   {
     id: "fresh_reversals",
@@ -193,5 +204,11 @@ export const BUILTIN_PRESETS: PatternPreset[] = [
     name: "High rel-vol",
     description: "Only scan symbols with strong relative volume",
     filters: { min_rel_volume: 1.5, min_volume_m: 5 },
+  },
+  {
+    id: "last_30d",
+    name: "Last 30 days",
+    description: "Patterns formed in the last 30 days",
+    filters: { from_date: isoDateDaysAgo(30), to_date: null },
   },
 ];

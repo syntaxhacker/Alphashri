@@ -50,6 +50,10 @@ export interface UseChartPatternsResult {
   job: JobDTO | null;
   scanning: boolean;
   queuePosition: number | null;
+  /** Echo of the last replay scan cutoff (null = live scan). */
+  lastScanAsOf: string | null;
+  /** Echo of the last replay scan window start (null = any). */
+  lastScanFrom: string | null;
   summary: ReturnType<typeof getChartPatternsState>["summary"];
   results: ReturnType<typeof getChartPatternsState>["results"];
   total: number;
@@ -111,6 +115,8 @@ export function useChartPatterns(): UseChartPatternsResult {
     job: state.job,
     scanning: state.scanning,
     queuePosition: state.job?.queue_position ?? null,
+    lastScanAsOf: state.lastScanAsOf,
+    lastScanFrom: state.lastScanFrom,
     summary: state.summary,
     results: state.results,
     total: state.total,

@@ -62,6 +62,8 @@ const CONTRACT_KEYS = [
   "job",
   "scanning",
   "queuePosition",
+  "lastScanAsOf",
+  "lastScanFrom",
   "summary",
   "results",
   "total",

@@ -1,8 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useChartPatterns } from "@/hooks/useChartPatterns";
 import { usePatternUrlSync } from "@/hooks/usePatternUrlSync";
-import { loadCatalog } from "@/state/chartPatterns";
+import { loadCatalog, triggerReplayScan } from "@/state/chartPatterns";
 import { PatternsPage } from "./PatternsPage";
+import type { ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
 
 // Bootstrap once per app session (StrictMode-safe): load timeframe registry,
 // universes, catalog, then the first result page.
@@ -11,6 +12,7 @@ let catalogRequested = false;
 /** Route entry for `/patterns` — wires the store hook to the presentational page. */
 export function PatternsContainer() {
   const vm = useChartPatterns();
+  const [tab, setTab] = useState<"scan" | "watch">("scan");
 
   // Mirror universe/timeframe/filters to the URL so a filtered view is shareable.
   usePatternUrlSync({
@@ -18,11 +20,13 @@ export function PatternsContainer() {
     timeframe: vm.timeframe,
     lookbackBars: vm.lookbackBars,
     computeTrendlines: vm.computeTrendlines,
+    tab,
     filters: vm.filters,
     setUniverse: vm.setUniverse,
     setTimeframe: vm.setTimeframe,
     setLookbackBars: vm.setLookbackBars,
     setComputeTrendlines: vm.setComputeTrendlines,
+    setTab,
     applyFilters: vm.applyFilters,
   });
 
@@ -62,6 +66,12 @@ export function PatternsContainer() {
       scan={vm.scan}
       refresh={vm.refresh}
       forceRefresh={vm.forceRefresh}
+      scanReplay={(args: ReplayScanArgs) => {
+        void triggerReplayScan(args.asOf, args.from);
+      }}
+      replayAsOf={vm.lastScanAsOf}
+      tab={tab}
+      setTab={setTab}
     />
   );
 }

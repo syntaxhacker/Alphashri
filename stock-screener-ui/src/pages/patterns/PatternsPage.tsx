@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Switch, Text, ToolbarRow, Tooltip } from "@/ui";
+import { Alert, Box, Button, Loader, LoadingOverlay, Modal, Switch, Tabs, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconAdjustmentsHorizontal } from "@tabler/icons-react";
 import type {
   ChartCandle,
@@ -23,9 +23,12 @@ import { LookbackSelect } from "@/components/patterns/LookbackSelect";
 import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
-import { ScanProgress } from "@/components/patterns/ScanProgress";
+import { ScanProgress, ReusedScanNotice } from "@/components/patterns/ScanProgress";
 import { AppliedFilters } from "@/components/patterns/AppliedFilters";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
+import { ReplayScanControl, type ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
+import { WatchView } from "@/components/patterns/WatchView";
+import { formatAsOfLabel } from "@/components/patterns/datetime";
 import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 
 /** Count of active (non-default) filters, shown on the Filters button. */
@@ -44,6 +47,10 @@ function activeFilterCount(f: PatternFilters): number {
   if (f.q) n += 1;
   if (f.min_base_days != null) n += 1;
   if (f.max_range_pct != null) n += 1;
+  if (f.max_52w_gap != null) n += 1;
+  if (f.min_range_pos != null) n += 1;
+  if (f.from_date) n += 1;
+  if (f.to_date) n += 1;
   if (f.min_rel_volume != null) n += 1;
   if (f.min_volume_m != null) n += 1;
   if (f.trendlines && f.trendlines !== "both") n += 1;
@@ -83,6 +90,13 @@ export interface PatternsPageProps {
   refresh: () => void;
   /** Clear cached candles for the scope + timeframe and re-scan fresh. */
   forceRefresh: () => void;
+  /** Run an as-of replay scan (slower full-history recompute). */
+  scanReplay?: (args: ReplayScanArgs) => void;
+  /** Echo of the last replay scan cutoff (null = live); shown as a label. */
+  replayAsOf?: string | null;
+  /** Active workspace tab (default `scan`); controlled by the container for URL sync. */
+  tab?: "scan" | "watch";
+  setTab?: (tab: "scan" | "watch") => void;
 }
 
 /**
@@ -118,6 +132,10 @@ export function PatternsPage({
   scan,
   refresh,
   forceRefresh,
+  scanReplay,
+  replayAsOf = null,
+  tab: tabProp,
+  setTab: setTabProp,
 }: PatternsPageProps) {
   const [fullscreen, setFullscreen] = useState<{
     symbol: string;
@@ -129,11 +147,24 @@ export function PatternsPage({
     trendLines: TrendLine[];
     /** True while a fullscreen timeframe switch is reloading the chart. */
     loading: boolean;
+    /** As-of replay cutoff (ISO local datetime, null = live). */
+    asOf: string | null;
+    /** Replay window start (ISO local datetime, null = any). */
+    fromDate: string | null;
   } | null>(null);
   // Monotonic request token: clicking two cards of the same symbol in quick
   // succession must not let the stale fetch overwrite the newer selection.
   const chartRequestRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Workspace tab: controlled by the container (URL sync) when provided,
+  // otherwise local state defaulting to the scan view.
+  const [internalTab, setInternalTab] = useState<"scan" | "watch">("scan");
+  const activeTab = tabProp ?? internalTab;
+  const handleTabChange = (value: string | null) => {
+    if (value !== "scan" && value !== "watch") return;
+    if (setTabProp) setTabProp(value);
+    else setInternalTab(value);
+  };
   // Filter edits are staged in a draft and only applied when the user clicks
   // "Filter" — changing a control no longer triggers an instant reload.
   const [draftFilters, setDraftFilters] = useState<PatternFilters>(filters);
@@ -196,6 +227,8 @@ export function PatternsPage({
       overlays: [],
       trendLines: hit.trend_lines ?? [],
       loading: false,
+      asOf: null,
+      fromDate: null,
     });
     // Forward the TLS/TLR opt-out: with computation off the chart endpoint
     // skips the detector and returns empty `trend_lines`.
@@ -223,18 +256,77 @@ export function PatternsPage({
   };
 
   /**
+   * Watch-row open: fetch the symbol chart with live pattern detection and
+   * show it fullscreen, promoting the highest-confidence hit (or null when
+   * there is none). Mirrors `openFromCard` without needing a card hit.
+   */
+  const openFromSymbol = (symbol: string) => {
+    const token = chartRequestRef.current + 1;
+    chartRequestRef.current = token;
+    setFullscreen({
+      symbol,
+      hit: null,
+      timeframe,
+      candles: [],
+      overlays: [],
+      trendLines: [],
+      loading: true,
+      asOf: null,
+      fromDate: null,
+    });
+    void fetchSymbolChart(symbol, timeframe, {
+      detectPatterns: true,
+      ...(lookbackBars != null ? { lookbackBars } : {}),
+      computeTrendlines,
+    })
+      .then((chart) => {
+        if (chartRequestRef.current !== token) return;
+        const hits = chart.hits ?? [];
+        let best: PatternHitDTO | null = null;
+        for (const candidate of hits) {
+          if (!best || candidate.confidence > best.confidence) best = candidate;
+        }
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol && prev.timeframe === timeframe
+            ? {
+                ...prev,
+                hit: best,
+                candles: chart.candles ?? [],
+                overlays: chart.overlays ?? [],
+                trendLines: chart.trend_lines ?? [],
+                loading: false,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        if (chartRequestRef.current !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol && prev.timeframe === timeframe
+            ? { ...prev, loading: false }
+            : prev,
+        );
+      });
+  };
+
+  /**
    * Fullscreen timeframe switch: re-runs pattern detection on the new
    * timeframe (`detect_patterns=1`), swaps candles/overlays/trendlines, and
    * promotes the highest-confidence hit (or null when there is none).
+   * Preserves the active as-of replay window when one is set.
    */
   const changeFullscreenTimeframe = (tf: string) => {
     const current = fullscreen;
     if (!current || tf === current.timeframe) return;
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
-    const { symbol } = current;
+    const { symbol, asOf, fromDate } = current;
     setFullscreen({ ...current, timeframe: tf, loading: true });
-    void fetchSymbolChart(symbol, tf, { detectPatterns: true })
+    void fetchSymbolChart(symbol, tf, {
+      detectPatterns: true,
+      ...(asOf ? { asOf } : {}),
+      ...(fromDate ? { fromDate } : {}),
+    })
       .then((chart) => {
         // Drop stale responses: only the latest request may update the view.
         if (chartRequestRef.current !== token) return;
@@ -267,6 +359,58 @@ export function PatternsPage({
       });
   };
 
+  /**
+   * Fullscreen as-of replay: re-runs detection truncated at the cutoff
+   * (`detect_patterns=1` + `asOf`/`fromDate`), swaps candles, and promotes
+   * the highest-confidence hit in the window (or null when there is none).
+   * Keeps the loading state while the replay fetch is in flight.
+   */
+  const changeFullscreenAsOf = (asOf: string | null, fromDate: string | null) => {
+    const current = fullscreen;
+    if (!current) return;
+    const token = chartRequestRef.current + 1;
+    chartRequestRef.current = token;
+    const { symbol, timeframe: tf } = current;
+    setFullscreen({ ...current, asOf, fromDate, loading: true });
+    void fetchSymbolChart(symbol, tf, {
+      detectPatterns: true,
+      asOf: asOf ?? undefined,
+      fromDate: fromDate ?? undefined,
+    })
+      .then((chart) => {
+        // Drop stale responses: only the latest request may update the view.
+        if (chartRequestRef.current !== token) return;
+        const hits = chart.hits ?? [];
+        let best: PatternHitDTO | null = null;
+        for (const candidate of hits) {
+          if (!best || candidate.confidence > best.confidence) best = candidate;
+        }
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol && prev.timeframe === tf
+            ? {
+                ...prev,
+                asOf,
+                fromDate,
+                hit: best,
+                candles: chart.candles ?? [],
+                overlays: chart.overlays ?? [],
+                trendLines: chart.trend_lines ?? [],
+                loading: false,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        // Non-fatal: keep the previous chart, just clear the spinner.
+        if (chartRequestRef.current !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol && prev.timeframe === tf
+            ? { ...prev, asOf, fromDate, loading: false }
+            : prev,
+        );
+      });
+  };
+
   return (
     <Box
       data-testid="patterns-page"
@@ -278,6 +422,16 @@ export function PatternsPage({
         width: "100%",
       }}
     >
+      <Tabs value={activeTab} onChange={handleTabChange} data-testid="patterns-tabs">
+        <Tabs.List data-testid="patterns-tab-list">
+          <Tabs.Tab value="scan" data-testid="patterns-tab-scan">
+            Scan
+          </Tabs.Tab>
+          <Tabs.Tab value="watch" data-testid="patterns-tab-watch">
+            Watch
+          </Tabs.Tab>
+        </Tabs.List>
+        <Tabs.Panel value="scan" data-testid="patterns-panel-scan">
       <Box sx={{ gridColumn: "1 / -1", display: "flex", flexDirection: "column", gap: 1.5, minWidth: 0 }}>
         <UniverseBar
           universes={universes}
@@ -302,6 +456,14 @@ export function PatternsPage({
             placeholder="Search symbols to scan…"
             helperText="Add symbols to scan just those — skips the whole universe"
           />
+          <Box sx={{ mt: 1 }}>
+            <ReplayScanControl onReplayScan={scanReplay} />
+          </Box>
+          {replayAsOf ? (
+            <Text size="xs" c="dimmed" data-testid="patterns-scan-asof">
+              {`as of ${formatAsOfLabel(replayAsOf)}`}
+            </Text>
+          ) : null}
         </Box>
         <ScanStats summary={summary} />
       </Box>
@@ -335,10 +497,10 @@ export function PatternsPage({
             >
               Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
             </Button>
-            <Tooltip label="Clear cached candles and re-scan fresh">
+            <Tooltip label={job?.reused ? "Re-scan fresh (last scan was reused)" : "Clear cached candles and re-scan fresh"}>
               <Button
                 size="xs"
-                variant="outline"
+                variant={job?.reused ? "filled" : "outline"}
                 onClick={forceRefresh}
                 disabled={scanning}
                 data-testid="patterns-force-refresh"
@@ -346,6 +508,7 @@ export function PatternsPage({
                 Force refresh
               </Button>
             </Tooltip>
+            {job?.reused && !scanActive ? <ReusedScanNotice job={job} /> : null}
           </ToolbarRow>
         </ToolbarRow>
 
@@ -445,6 +608,16 @@ export function PatternsPage({
           </Box>
         )}
       </Box>
+        </Tabs.Panel>
+        <Tabs.Panel value="watch" data-testid="patterns-panel-watch">
+          <WatchView
+            universe={universe}
+            timeframe={timeframe}
+            minBaseDays={filters.min_base_days}
+            onOpenSymbol={openFromSymbol}
+          />
+        </Tabs.Panel>
+      </Tabs>
 
       <Modal
         opened={filtersOpen}
@@ -464,6 +637,7 @@ export function PatternsPage({
             resetFilters={resetDraft}
             applyFilters={applyDraftPreset}
             images={patternImages}
+            onReplayScan={scanReplay}
           />
         </Box>
         <ToolbarRow
@@ -502,6 +676,9 @@ export function PatternsPage({
         timeframes={timeframes}
         onTimeframeChange={changeFullscreenTimeframe}
         loading={fullscreen?.loading ?? false}
+        asOf={fullscreen?.asOf ?? null}
+        fromDate={fullscreen?.fromDate ?? null}
+        onAsOfChange={changeFullscreenAsOf}
       />
     </Box>
   );

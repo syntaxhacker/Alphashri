@@ -13,11 +13,14 @@ import type {
   PatternFamily,
   JobDTO,
   JobStatus,
+  MarketStatus,
   PatternHitDTO,
   PatternSummary,
   SymbolDetail,
   ChartPayload,
   PatternsQuery,
+  WatchPayload,
+  WatchSetup,
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "./config";
@@ -63,6 +66,10 @@ export interface ScanRequest {
   min_rel_volume?: number | null;
   /** Minimum watched volume in millions (scan-time only; omitted/null = any). */
   min_volume_m?: number | null;
+  /** Replay cutoff: detect patterns as of this timestamp (omitted/null = live). */
+  as_of_date?: string | null;
+  /** Replay window start: only consider formations at/after this (omitted/null = any). */
+  from_date?: string | null;
 }
 
 export interface ScanResponse {
@@ -70,6 +77,14 @@ export interface ScanResponse {
   status: JobStatus;
   queue_position: number | null;
   queue_size: number;
+  /**
+   * Reuse markers echoed when a non-forced scan reused a previous scan
+   * without re-detecting ( mirrors `JobDTO.reused*`; absent = fresh scan).
+   */
+  reused?: boolean;
+  reused_from?: string | null;
+  reused_age_sec?: number | null;
+  reused_finished_at?: string | null;
 }
 
 export interface ResultsResponse {
@@ -153,6 +168,8 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
   if (query.symbol) params.set("symbol", query.symbol);
   for (const symbol of query.symbols ?? []) params.append("symbol", symbol);
   if (query.q) params.set("q", query.q);
+  if (query.from_date) params.set("from_date", query.from_date);
+  if (query.to_date) params.set("to_date", query.to_date);
   if (query.sort && query.sort !== "confidence") params.set("sort", query.sort);
   // Opt-out flag: only serialized when false (compute is the default).
   if (query.compute_trendlines === false) params.set("compute_trendlines", "0");
@@ -256,6 +273,10 @@ export interface SymbolChartOptions {
   computeTrendlines?: boolean;
   /** Run live pattern detection on this timeframe (`detect_patterns=1`). */
   detectPatterns?: boolean;
+  /** Replay cutoff: truncate candles at this timestamp (`as_of_date`). */
+  asOf?: string;
+  /** Replay window start: filter hits to this window (`from_date`). */
+  fromDate?: string;
 }
 
 export async function fetchSymbolChart(
@@ -268,12 +289,66 @@ export async function fetchSymbolChart(
   const lookbackBars = typeof opts === "number" ? undefined : opts?.lookbackBars;
   const computeTrendlines = typeof opts === "number" ? undefined : opts?.computeTrendlines;
   const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
+  const asOf = typeof opts === "number" ? undefined : opts?.asOf;
+  const fromDate = typeof opts === "number" ? undefined : opts?.fromDate;
   if (limit != null) params.set("limit", String(limit));
   if (lookbackBars != null) params.set("lookback_bars", String(lookbackBars));
   if (computeTrendlines === false) params.set("compute_trendlines", "0");
   if (detectPatterns) params.set("detect_patterns", "1");
+  if (asOf) params.set("as_of_date", asOf);
+  if (fromDate) params.set("from_date", fromDate);
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
     `Failed to load ${symbol} chart`,
   );
+}
+
+export interface WatchQuery {
+  setup: string;
+  universe: string;
+  timeframe: string;
+  minBaseDays?: number | null;
+  minRelVolume?: number | null;
+}
+
+/** Serialize a `WatchQuery` into a query string for `GET /watch`. */
+export function buildWatchQuery(query: WatchQuery): string {
+  const params = new URLSearchParams();
+  if (query.setup) params.set("setup", query.setup);
+  if (query.universe) params.set("universe", query.universe);
+  if (query.timeframe) params.set("timeframe", query.timeframe);
+  if (query.minBaseDays != null) params.set("min_base_days", String(query.minBaseDays));
+  if (query.minRelVolume != null) params.set("min_rel_volume", String(query.minRelVolume));
+  const qs = params.toString();
+  return qs ? `?${qs}` : "";
+}
+
+export async function fetchWatchSetups(): Promise<WatchSetup[]> {
+  const data = await getJson<{ setups: WatchSetup[] }>(
+    `${CHART_PATTERNS_BASE}/watch/setups`,
+    "Failed to fetch watch setups",
+  );
+  return data.setups ?? [];
+}
+
+export async function fetchWatch(query: WatchQuery): Promise<WatchPayload> {
+  const data = await getJson<WatchPayload>(
+    `${CHART_PATTERNS_BASE}/watch${buildWatchQuery(query)}`,
+    "Failed to fetch breakout watch",
+  );
+  return { ...data, items: data.items ?? [] };
+}
+
+/** Holiday-aware market open state (`GET /api/chart-patterns/market-status`). */
+export async function fetchMarketStatus(): Promise<MarketStatus> {
+  const data = await getJson<MarketStatus>(
+    `${CHART_PATTERNS_BASE}/market-status`,
+    "Failed to fetch market status",
+  );
+  return {
+    open: data.open ?? false,
+    holiday: data.holiday ?? false,
+    now_ist: data.now_ist ?? "",
+    reason: data.reason ?? "",
+  };
 }

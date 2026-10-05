@@ -541,6 +541,45 @@ describe("PatternsPage toolbar", () => {
     r(<PatternsPage {...makeProps({ scanning: true })} />);
     expect(screen.getByTestId("patterns-force-refresh")).toBeDisabled();
   });
+
+  test("shows the reused notice next to Force refresh when the job was reused", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          job: {
+            job_id: "cpj_reused",
+            universe: "nifty500",
+            timeframe: "1D",
+            status: "completed" as const,
+            total: 500,
+            done: 500,
+            failed: 0,
+            skipped: 0,
+            queue_position: null,
+            started_at: null,
+            finished_at: null,
+            data_through: "2026-09-30",
+            error: null,
+            reused: true,
+            reused_from: "cpj_prev",
+            reused_age_sec: 720,
+            reused_finished_at: null,
+          },
+          scanning: false,
+        })}
+      />,
+    );
+    const notice = screen.getByTestId("patterns-scan-reused");
+    expect(notice).toHaveTextContent("Reused scan from 12 min ago");
+    expect(notice).toHaveTextContent("Force to re-run");
+    // The existing Force refresh action stays available right beside it.
+    expect(screen.getByTestId("patterns-force-refresh")).toBeInTheDocument();
+  });
+
+  test("no reused notice for a freshly computed scan", () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
+  });
 });
 
 describe("PatternsPage applied filters + modal + fullscreen", () => {

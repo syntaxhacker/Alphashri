@@ -176,6 +176,24 @@ export function buildAppliedFilterChips(
       nextValue: null,
     });
   }
+  if (filters.from_date) {
+    chips.push({
+      id: "from_date",
+      group: "Date",
+      label: `formed ≥ ${String(filters.from_date).replace("T", " ")}`,
+      key: "from_date",
+      nextValue: null,
+    });
+  }
+  if (filters.to_date) {
+    chips.push({
+      id: "to_date",
+      group: "Date",
+      label: `formed ≤ ${String(filters.to_date).replace("T", " ")}`,
+      key: "to_date",
+      nextValue: null,
+    });
+  }
   if (filters.sort && filters.sort !== "confidence") {
     chips.push({
       id: `sort:${filters.sort}`,

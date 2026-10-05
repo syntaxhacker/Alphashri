@@ -58,6 +58,7 @@ describe("parsePatternParams", () => {
       timeframe: "15m",
       lookback: null,
       computeTrendlines: null,
+      tab: null,
       filters: {
         pattern_id: ["ascending_channel", "double_top"],
         family: ["reversal"],
@@ -94,7 +95,7 @@ describe("parsePatternParams", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("universe=&tf=&within=&symbol=&foo=bar"),
     );
-    expect(parsed).toEqual({ universe: null, timeframe: null, lookback: null, computeTrendlines: null, filters: {} });
+    expect(parsed).toEqual({ universe: null, timeframe: null, lookback: null, computeTrendlines: null, tab: null, filters: {} });
   });
 
   it("parses lookback as an integer", () => {

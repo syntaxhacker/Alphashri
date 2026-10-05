@@ -1,4 +1,4 @@
-import { Box, Progress, Text } from "@/ui";
+import { Alert, Box, Button, Progress, Text } from "@/ui";
 import type { JobDTO } from "@/types/chartPatterns";
 
 export interface ScanProgressProps {
@@ -12,6 +12,8 @@ export interface ScanProgressProps {
    * `"inline"` = compact one-liner (bar + count).
    */
   variant?: "block" | "banner" | "inline";
+  /** Optional re-run action shown next to the reused-scan notice. */
+  onForceRefresh?: () => void;
 }
 
 /** Friendly universe labels for the progress line (ids are lowercase). */
@@ -47,8 +49,59 @@ function etaLabel(job: JobDTO | null): string | null {
 }
 
 /**
+ * Human age of a reused scan, e.g. `"12 min ago"`. Prefers the server's
+ * `reused_age_sec`; falls back to `reused_finished_at`/`finished_at` relative
+ * to now. Null when no age signal is available.
+ */
+export function formatReusedAge(job: JobDTO, now: number = Date.now()): string | null {
+  const direct = job.reused_age_sec;
+  const fromDirect =
+    direct != null && Number.isFinite(direct) && direct >= 0 ? Math.round(direct) : null;
+  const stamp = job.reused_finished_at ?? job.finished_at ?? null;
+  let totalSec = fromDirect;
+  if (totalSec == null && stamp) {
+    const ts = Date.parse(stamp);
+    if (!Number.isNaN(ts)) totalSec = Math.max(0, Math.round((now - ts) / 1000));
+  }
+  if (totalSec == null) return null;
+  if (totalSec < 60) return `${totalSec}s ago`;
+  const minutes = Math.round(totalSec / 60);
+  if (minutes < 60) return `${minutes} min ago`;
+  return `${Math.round(minutes / 60)} h ago`;
+}
+
+export interface ReusedScanNoticeProps {
+  job: JobDTO;
+  /** Optional re-run action rendered as a compact button next to the notice. */
+  onForceRefresh?: () => void;
+}
+
+/**
+ * Notice shown when a non-forced scan reused a previous scan without
+ * re-detecting (data unchanged). Pairs with the Force refresh action.
+ */
+export function ReusedScanNotice({ job, onForceRefresh }: ReusedScanNoticeProps) {
+  if (!job.reused) return null;
+  const age = formatReusedAge(job);
+  const when = age ? ` from ${age}` : "";
+  return (
+    <Alert color="info" data-testid="patterns-scan-reused">
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, flexWrap: "wrap" }}>
+        <Text size="xs">{`Reused scan${when} — data unchanged. Force to re-run.`}</Text>
+        {onForceRefresh ? (
+          <Button size="xs" variant="outline" onClick={onForceRefresh} data-testid="patterns-scan-reused-force">
+            Force re-run
+          </Button>
+        ) : null}
+      </Box>
+    </Alert>
+  );
+}
+
+/**
  * Live scan progress: how many symbols of the combo have been processed.
- * Renders nothing when no scan is active (so it never clutters an idle page).
+ * Renders nothing when no scan is active (so it never clutters an idle page),
+ * except for the reused-scan notice which explains a silently reused scan.
  */
 export function ScanProgress({
   job,
@@ -56,10 +109,14 @@ export function ScanProgress({
   universe,
   timeframe,
   variant = "block",
+  onForceRefresh,
 }: ScanProgressProps) {
   const status = job?.status ?? null;
   const queued = status === "queued" || (!scanning && status === "queued");
   const running = scanning || status === "running";
+  if (job?.reused && !running && !queued) {
+    return <ReusedScanNotice job={job} onForceRefresh={onForceRefresh} />;
+  }
   if (!running && !queued) return null;
 
   const total = job?.total ?? 0;

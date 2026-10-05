@@ -5,7 +5,7 @@
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
- *   gap52, pos, relvol, volm, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   gap52, pos, relvol, volm, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
  *   `symbol=` values are the multi-symbol filter), q, trendlines,
  *   compute_trendlines (`=0` only, when trendline computation is skipped).
  *
@@ -28,6 +28,8 @@ export interface ParsedPatternParams {
   lookback: number | null;
   /** False when `compute_trendlines=0`; true when `=1`; null when omitted. */
   computeTrendlines: boolean | null;
+  /** Active workspace tab (`scan`|`watch`); null when omitted (defaults to scan). */
+  tab: "scan" | "watch" | null;
   filters: Partial<PatternFilters>;
 }
 
@@ -38,6 +40,8 @@ export interface PatternUrlState {
   lookbackBars: number | null;
   /** Omitted (compute) is the default; only `false` is written. */
   computeTrendlines?: boolean;
+  /** Active workspace tab; only `watch` is written (`scan` is the default). */
+  tab?: "scan" | "watch";
   filters: PatternFilters;
 }
 
@@ -47,6 +51,8 @@ export interface UsePatternUrlSyncArgs extends PatternUrlState {
   setLookbackBars: (bars: number | null) => void;
   /** Optional so existing call sites keep compiling; the container provides it. */
   setComputeTrendlines?: (value: boolean) => void;
+  /** Optional; when provided the `tab` param round-trips through the URL. */
+  setTab?: (tab: "scan" | "watch") => void;
   applyFilters: (filters: Partial<PatternFilters>) => void;
 }
 
@@ -96,6 +102,11 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   const minVolumeM = numberOrNull(params.get("volm"));
   if (minVolumeM != null) filters.min_volume_m = minVolumeM;
 
+  const from = params.get("from");
+  if (from) filters.from_date = from;
+  const to = params.get("to");
+  if (to) filters.to_date = to;
+
   const sort = params.get("sort");
   if (sort) filters.sort = sort;
 
@@ -142,6 +153,7 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
     timeframe: params.get("tf") || null,
     lookback,
     computeTrendlines,
+    tab: params.get("tab") === "watch" ? "watch" : params.get("tab") === "scan" ? "scan" : null,
     filters,
   };
 }
@@ -181,6 +193,8 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.min_range_pos != null) params.set("pos", String(filters.min_range_pos));
   if (filters.min_rel_volume != null) params.set("relvol", String(filters.min_rel_volume));
   if (filters.min_volume_m != null) params.set("volm", String(filters.min_volume_m));
+  if (filters.from_date) params.set("from", filters.from_date);
+  if (filters.to_date) params.set("to", filters.to_date);
   if (filters.sort && filters.sort !== DEFAULT_PATTERN_FILTERS.sort) {
     params.set("sort", filters.sort);
   }
@@ -194,6 +208,10 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   // Compute toggle: only the opt-out (`false`) is written; compute is default.
   if (state.computeTrendlines === false) {
     params.set("compute_trendlines", "0");
+  }
+  // Workspace tab: only `watch` is written; `scan` is the default view.
+  if (state.tab === "watch") {
+    params.set("tab", "watch");
   }
 
   return params;
@@ -218,11 +236,14 @@ const PATTERN_PARAM_KEYS = new Set([
   "pos",
   "relvol",
   "volm",
+  "from",
+  "to",
   "sort",
   "symbol",
   "q",
   "trendlines",
   "compute_trendlines",
+  "tab",
 ]);
 
 /** True when a parsed URL actually carries any pattern param. */
@@ -232,6 +253,7 @@ function hasAnyPatternParam(parsed: ParsedPatternParams): boolean {
     parsed.timeframe != null ||
     parsed.lookback != null ||
     parsed.computeTrendlines != null ||
+    parsed.tab != null ||
     Object.keys(parsed.filters).length > 0
   );
 }
@@ -260,11 +282,13 @@ export function usePatternUrlSync({
   timeframe,
   lookbackBars,
   computeTrendlines,
+  tab,
   filters,
   setUniverse,
   setTimeframe,
   setLookbackBars,
   setComputeTrendlines,
+  setTab,
   applyFilters,
 }: UsePatternUrlSyncArgs): void {
   const [searchParams, setSearchParams] = useSearchParams();
@@ -296,6 +320,7 @@ export function usePatternUrlSync({
     if (parsed.timeframe) setTimeframe(parsed.timeframe);
     if (parsed.lookback != null) setLookbackBars(parsed.lookback);
     if (parsed.computeTrendlines != null) setComputeTrendlines?.(parsed.computeTrendlines);
+    if (parsed.tab != null) setTab?.(parsed.tab);
     if (Object.keys(parsed.filters).length > 0) applyFilters(parsed.filters);
     // Intentionally mount-only: read the URL once, then let changes write back.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -317,16 +342,17 @@ export function usePatternUrlSync({
         const computeOk =
           parsed.computeTrendlines == null ||
           (computeTrendlines ?? true) === parsed.computeTrendlines;
+        const tabOk = parsed.tab == null || (tab ?? "scan") === parsed.tab;
         const filtersOk = Object.entries(parsed.filters).every(([key, value]) => {
           const current = (filters as Record<string, unknown>)[key];
           return filterValuesEqual(current, value);
         });
-        if (!(universeOk && timeframeOk && lookbackOk && computeOk && filtersOk)) return; // wait for adoption
+        if (!(universeOk && timeframeOk && lookbackOk && computeOk && tabOk && filtersOk)) return; // wait for adoption
         hydratedRef.current = true;
       }
     }
 
-    const next = buildPatternParams({ universe, timeframe, lookbackBars, computeTrendlines, filters });
+    const next = buildPatternParams({ universe, timeframe, lookbackBars, computeTrendlines, tab, filters });
     // Preserve unrelated params (e.g. the screener's `?screener=`) untouched.
     for (const [key, value] of searchParams.entries()) {
       if (!PATTERN_PARAM_KEYS.has(key)) next.append(key, value);
@@ -338,7 +364,7 @@ export function usePatternUrlSync({
     // Intentionally keyed on the synced state; `searchParams`/`setSearchParams`
     // are read imperatively and would re-trigger on every navigation.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [universe, timeframe, lookbackBars, computeTrendlines, filters]);
+  }, [universe, timeframe, lookbackBars, computeTrendlines, tab, filters]);
 
   // Back/forward (or manual) navigation: once hydrated, adopt a URL that
   // differs from what this hook last wrote. Setter calls are diffed against
@@ -358,6 +384,9 @@ export function usePatternUrlSync({
     }
     if (parsed.computeTrendlines != null && parsed.computeTrendlines !== (computeTrendlines ?? true)) {
       setComputeTrendlines?.(parsed.computeTrendlines);
+    }
+    if (parsed.tab != null && parsed.tab !== (tab ?? "scan")) {
+      setTab?.(parsed.tab);
     }
     const entries = Object.entries(parsed.filters);
     if (entries.length > 0) {

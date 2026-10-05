@@ -65,6 +65,8 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   min_range_pos: null,
   min_rel_volume: null,
   min_volume_m: null,
+  from_date: null,
+  to_date: null,
   sort: "confidence",
   trendlines: "both",
 };
@@ -88,6 +90,10 @@ export interface ChartPatternsState {
   results: PatternHitDTO[];
   total: number;
   dataThrough: string | null;
+  /** Echo of the last replay scan request (null = live scan). Surfaces the job's as-of label. */
+  lastScanAsOf: string | null;
+  /** Echo of the last replay scan window start (null = any). */
+  lastScanFrom: string | null;
   selectedSymbol: string | null;
   detail: SymbolDetail | null;
   detailChart: ChartPayload | null;
@@ -113,6 +119,8 @@ function createInitialState(): ChartPatternsState {
     results: [],
     total: 0,
     dataThrough: null,
+    lastScanAsOf: null,
+    lastScanFrom: null,
     selectedSymbol: null,
     detail: null,
     detailChart: null,
@@ -306,6 +314,8 @@ function baseQuery(): PatternsQuery {
     max_range_pct: state.filters.max_range_pct,
     max_52w_gap: state.filters.max_52w_gap,
     min_range_pos: state.filters.min_range_pos,
+    from_date: state.filters.from_date,
+    to_date: state.filters.to_date,
     sort: state.filters.sort,
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
@@ -459,7 +469,9 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
     filters.max_52w_gap != null ||
     filters.min_range_pos != null ||
     filters.min_rel_volume != null ||
-    filters.min_volume_m != null
+    filters.min_volume_m != null ||
+    (filters.from_date != null && filters.from_date !== "") ||
+    (filters.to_date != null && filters.to_date !== "")
   );
 }
 
@@ -510,6 +522,12 @@ function jobFromScan(
   queuePosition: number | null,
   universe: string,
   timeframe: string,
+  reused?: {
+    reused?: boolean;
+    reused_from?: string | null;
+    reused_age_sec?: number | null;
+    reused_finished_at?: string | null;
+  },
 ): JobDTO {
   return {
     job_id: jobId,
@@ -525,6 +543,14 @@ function jobFromScan(
     finished_at: null,
     data_through: null,
     error: null,
+    ...(reused?.reused
+      ? {
+          reused: true,
+          reused_from: reused.reused_from ?? null,
+          reused_age_sec: reused.reused_age_sec ?? null,
+          reused_finished_at: reused.reused_finished_at ?? null,
+        }
+      : {}),
   };
 }
 
@@ -533,16 +559,35 @@ function jobFromScan(
  * request must use those, not whatever state holds when the await resolves.
  * `autoKey` (a `universe|timeframe` once-per-combo key) is recorded only after
  * the scan is successfully enqueued, so failures stay retryable.
- * `refresh` clears cached candles for the scope + timeframe before scanning. */
+ * `refresh` clears cached candles for the scope + timeframe before scanning.
+ * Replay: explicit `asOfDate`/`fromDate` overrides win; otherwise the
+ * `from_date`/`to_date` result filters double as the replay window and are
+ * forwarded as `from_date`/`as_of_date` only when set. */
 export async function triggerScan(
   force = false,
-  overrides: { universe?: string; timeframe?: string; autoKey?: string; refresh?: boolean } = {},
+  overrides: {
+    universe?: string;
+    timeframe?: string;
+    autoKey?: string;
+    refresh?: boolean;
+    /** Replay cutoff (ISO local datetime); falls back to `filters.to_date`. */
+    asOfDate?: string | null;
+    /** Replay window start (ISO local datetime); falls back to `filters.from_date`. */
+    fromDate?: string | null;
+    /** Snake-case aliases for the replay overrides (accepted for convenience). */
+    as_of_date?: string | null;
+    from_date?: string | null;
+  } = {},
 ): Promise<void> {
   const universe = overrides.universe ?? state.universe;
   const timeframe = overrides.timeframe ?? state.timeframe;
   const symbols = universe === CUSTOM_UNIVERSE ? state.filters.symbols : undefined;
   const lookback = state.lookbackBars;
   const refresh = overrides.refresh ?? false;
+  const asOf = overrides.asOfDate ?? overrides.as_of_date ?? state.filters.to_date ?? null;
+  const from = overrides.fromDate ?? overrides.from_date ?? state.filters.from_date ?? null;
+  const asOfValue = typeof asOf === "string" && asOf !== "" ? asOf : null;
+  const fromValue = typeof from === "string" && from !== "" ? from : null;
   patch({ error: null });
   try {
     const response = await startScan({
@@ -560,6 +605,9 @@ export async function triggerScan(
       ...(state.filters.min_volume_m != null
         ? { min_volume_m: state.filters.min_volume_m }
         : {}),
+      // Replay window (only sent when set; never null).
+      ...(asOfValue != null ? { as_of_date: asOfValue } : {}),
+      ...(fromValue != null ? { from_date: fromValue } : {}),
     });
     if (overrides.autoKey) autoScanRequested.add(overrides.autoKey);
     patch({
@@ -569,9 +617,12 @@ export async function triggerScan(
         response.queue_position,
         universe,
         timeframe,
+        response,
       ),
       scanning: true,
       error: null,
+      lastScanAsOf: asOfValue,
+      lastScanFrom: fromValue,
     });
     void pollJob(response.job_id);
   } catch (error) {
@@ -587,6 +638,18 @@ export async function triggerScan(
     }
     patch({ scanning: false, error: toMessage(error, "Failed to start scan") });
   }
+}
+
+/**
+ * Run an as-of replay scan: a forced scan with `as_of_date`/`from_date` so
+ * the detector recomputes history up to the cutoff. Replay scans are slower
+ * than live scans (full history recompute). Nulls mean live (no replay).
+ */
+export async function triggerReplayScan(
+  asOf: string | null,
+  from: string | null,
+): Promise<void> {
+  await triggerScan(true, { asOfDate: asOf, fromDate: from });
 }
 
 function stopPolling(): void {

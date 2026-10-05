@@ -37,3 +37,5 @@ export type { PatternChartLegendProps, PatternLegendLine } from "./PatternChartL
 export { PatternImage } from "./PatternImage";
 export type { PatternImageProps } from "./PatternImage";
 export { PatternImageManager } from "./PatternImageManager";
+export { ReplayScanControl } from "./ReplayScanControl";
+export type { ReplayScanControlProps, ReplayScanArgs } from "./ReplayScanControl";

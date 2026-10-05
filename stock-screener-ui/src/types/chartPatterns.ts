@@ -61,6 +61,25 @@ export interface JobDTO {
   finished_at: string | null;
   data_through: string | null;
   error: string | null;
+  /**
+   * True when a non-forced scan reused a previous scan without re-detecting
+   * (data unchanged). Absent/false = freshly computed.
+   */
+  reused?: boolean;
+  /** Job id of the previous scan that was reused (null when not reused). */
+  reused_from?: string | null;
+  /** Age of the reused scan in seconds (null when not reused/unknown). */
+  reused_age_sec?: number | null;
+  /** Finish timestamp of the reused scan (null when not reused/unknown). */
+  reused_finished_at?: string | null;
+}
+
+/** Market open state (`GET /api/chart-patterns/market-status`, holiday-aware). */
+export interface MarketStatus {
+  open: boolean;
+  holiday: boolean;
+  now_ist: string;
+  reason: string;
 }
 
 /** A single trendline is a list of `{t, price}` points. */
@@ -207,6 +226,11 @@ export interface ChartPayload {
    * Absent unless detection was requested.
    */
   hits?: PatternHitDTO[];
+  /**
+   * Echo of the requested `as_of_date` replay cutoff (null/absent = live).
+   * Candles are truncated at this timestamp and `hits` filtered to the window.
+   */
+  as_of?: string | null;
 }
 
 /** User-facing result filters (the filter rail). */
@@ -250,6 +274,17 @@ export interface PatternFilters {
    * pre-filter like `min_rel_volume`; never sent to `/results`/`/summary`.
    */
   min_volume_m?: number | null;
+  /**
+   * Lower bound of the formation window (ISO local datetime, null = any).
+   * Filters hits formed at/after this timestamp (`from_date` query param).
+   */
+  from_date: string | null;
+  /**
+   * Upper bound of the formation window (ISO local datetime, null = any).
+   * Filters hits formed at/before this timestamp (`to_date` query param);
+   * also doubles as the as-of replay cutoff for scans/charts.
+   */
+  to_date: string | null;
   /** Result ordering: `"confidence"` (default) or `"newest"` (freshest bars first). */
   sort: string;
   /**
@@ -274,4 +309,41 @@ export interface PatternsQuery extends Partial<PatternFilters> {
   lookback_bars?: number | null;
   /** Skip server-side trendline computation (false = skip; omitted/true = compute). */
   compute_trendlines?: boolean;
+}
+
+/** Breakout-watch setup (`GET /api/chart-patterns/watch/setups`). */
+export interface WatchSetup {
+  id: string;
+  label: string;
+  description: string;
+  default_min_rel_volume: number;
+}
+
+export type WatchState = "armed" | "triggered" | "invalidated";
+
+/** One breakout-watch row (`GET /api/chart-patterns/watch`). */
+export interface WatchRow {
+  symbol: string;
+  setup_id: string;
+  trigger_level: number;
+  invalidate_level: number;
+  base_days: number;
+  range_pct: number;
+  confidence: number;
+  status: string;
+  end_date: string;
+  ltp: number;
+  rel_volume: number;
+  pct_to_trigger: number;
+  state: WatchState;
+  /** True for a fresh cross that was already above the box on the last completed bar. */
+  fresh?: boolean;
+}
+
+/** Breakout-watch payload (`GET /api/chart-patterns/watch`). */
+export interface WatchPayload {
+  setup: string;
+  min_rel_volume: number;
+  updated_at: string;
+  items: WatchRow[];
 }
