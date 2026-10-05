@@ -403,6 +403,25 @@ def _stored_lines_fresh(item) -> bool:
     return _stored_lines_sig(item) == config.trendline_signature()
 
 
+def _clamp_to_lookback(df, lookback_bars: Optional[int]):
+    """Slice ``df`` to its last ``lookback_bars`` rows; passthrough otherwise.
+
+    The fetch window carries ~1.5x headroom (``_lookback_days`` safety factor)
+    so detection always sees enough bars; the displayed chart/cards are
+    clamped to exactly the requested Lookback. ``None`` (Auto) or invalid
+    values keep the whole fetched window.
+    """
+    if lookback_bars is None or df is None or getattr(df, "empty", True):
+        return df
+    try:
+        n = int(lookback_bars)
+    except (TypeError, ValueError):
+        return df
+    if n <= 0 or len(df) <= n:
+        return df
+    return df.tail(n)
+
+
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
                           lookback_bars: Optional[int] = None, compute_trendlines: bool = True):
     """Attach a real candle window + last close/day change to each result item.
@@ -410,8 +429,10 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     Candles are served from ``candles.fetch_for_timeframe`` (disk-cached), so
     this also retrofits hits persisted before candle windows were exposed.
     The fetch covers the full Lookback window (``lookback_bars`` or the
-    ``READ_LOOKBACK_BARS`` default) and cards show the WHOLE fetched window —
-    not just the pattern slice — so card mini-charts span the Lookback.
+    ``READ_LOOKBACK_BARS`` default) for detection headroom, but when
+    ``lookback_bars`` is provided the card window is clamped to exactly the
+    last ``lookback_bars`` bars so card mini-charts span the Lookback. When
+    ``lookback_bars`` is None (Auto) the whole fetched window is shown.
     Items already carrying fresh scan-time ``trend_lines`` (non-empty with a
     matching ``trend_lines_sig``) keep them; stale or blank lines are
     recomputed with the detector and overwritten.
@@ -441,7 +462,8 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
         df = cache[key]
         try:
             if df is not None and not getattr(df, "empty", True):
-                item["candles"] = candles.candles_to_series(df, config.CHART_MAX_BARS)
+                frame = _clamp_to_lookback(df, lookback_bars)
+                item["candles"] = candles.candles_to_series(frame, config.CHART_MAX_BARS)
             else:
                 item["candles"] = []
         except Exception:
@@ -622,6 +644,7 @@ def _build_filters(
     status=None, quality=None, formed_within_bars=None, volume_confirmed=None,
     min_rr=None, symbol=None, pattern_id=None,
     min_base_days=None, max_range_pct=None, q=None, sort="confidence",
+    max_52w_gap=None, min_range_pos=None,
 ) -> dict:
     return {
         "job_id": job_id,
@@ -640,6 +663,8 @@ def _build_filters(
         "max_range_pct": max_range_pct,
         "q": q,
         "sort": sort,
+        "max_52w_gap": max_52w_gap,
+        "min_range_pos": min_range_pos,
     }
 
 
@@ -665,11 +690,14 @@ async def get_results(
     offset: int = Query(0, ge=0),
     lookback_bars: Optional[int] = Query(None),
     compute_trendlines: bool = Query(True),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort,
+        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+        min_range_pos=min_range_pos,
     )
     items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
@@ -703,11 +731,14 @@ async def get_summary(
     max_range_pct: Optional[float] = Query(None),
     q: Optional[str] = Query(None),
     sort: str = Query("confidence"),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
-        min_base_days, max_range_pct, q, sort=sort,
+        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+        min_range_pos=min_range_pos,
     )
     summary = store.compute_summary(filters)
     return _sanitize_for_json({
@@ -763,7 +794,9 @@ async def get_symbol_chart(
         df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lb)
     except Exception:
         df = None
-    series = candles.candles_to_series(df, limit) if df is not None else []
+    # The fetch window carries ~1.5x headroom; clamp the displayed chart to
+    # exactly the requested Lookback (Auto keeps the whole window).
+    series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if df is not None else []
     detail = store.get_symbol_detail(symbol, timeframe)
     overlays = []
     stored_fresh_lines: list = []

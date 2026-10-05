@@ -115,6 +115,21 @@ def test_dedupe_across_jobs_unfiltered(cp_store):
     assert summary["patterns"] == 1
 
 
+def test_dedupe_collapses_pattern_redetected_with_new_end(cp_store):
+    """The same pattern re-detected a bar later (different end_date) is one row."""
+    store.save_job({"job_id": "cpj_e1", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_e1", [_hit("AAA", end_date="2026-09-25")])
+    store.save_job({"job_id": "cpj_e2", "universe": "nifty500", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_e2", [_hit("AAA", end_date="2026-09-26")])
+
+    items, total, summary = store.query_results({})
+
+    assert total == 1
+    assert items[0]["end_date"] == "2026-09-26"  # newest instance wins
+    assert items[0]["job_id"] == "cpj_e2"
+    assert summary["patterns"] == 1
+
+
 def test_explicit_job_filter_keeps_both_rows(cp_store):
     store.save_job({"job_id": "cpj_d3", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
     store.save_hits("cpj_d3", [_hit()])
@@ -188,3 +203,102 @@ def test_save_job_round_trip_params(cp_store):
 
     row = store.get_job("cpj_p")
     assert row["params"] == {"force": True, "lookback_bars": 250}
+
+
+def _seed_52w_ranges(cp_store, rows):
+    """Seed ``stock_52w_range`` rows: ``[(symbol, high_52w, close), ...]``."""
+    from db.models.stock_52w_touch import Stock52WeekRange
+
+    session = cp_store()
+    try:
+        for symbol, high, close in rows:
+            session.merge(Stock52WeekRange(
+                symbol=symbol, high_52w=high, low_52w=close, close=close,
+            ))
+        session.commit()
+    finally:
+        session.close()
+
+
+def test_max_52w_gap_filters_to_near_high(cp_store):
+    # NEAR gap = (100-98)/100*100 = 2.0; FAR gap = (100-50)/100*100 = 50.0.
+    _seed_52w_ranges(cp_store, [("NEAR", 100.0, 98.0), ("FAR", 100.0, 50.0)])
+    store.save_job({"job_id": "cpj_52w", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_52w", [_hit("NEAR"), _hit("FAR")])
+
+    items, total, summary = store.query_results({"job_id": "cpj_52w", "max_52w_gap": 3})
+
+    assert total == 1
+    assert items[0]["symbol"] == "NEAR"
+    assert items[0]["to_52w_high"] == 2.0
+    assert summary["patterns"] == 1
+
+
+def test_max_52w_gap_absent_returns_both_with_gaps(cp_store):
+    _seed_52w_ranges(cp_store, [("NEAR", 100.0, 98.0), ("FAR", 100.0, 50.0)])
+    store.save_job({"job_id": "cpj_52w2", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_52w2", [_hit("NEAR"), _hit("FAR")])
+
+    items, total, _ = store.query_results({"job_id": "cpj_52w2"})
+
+    assert total == 2
+    gaps = {item["symbol"]: item["to_52w_high"] for item in items}
+    assert gaps == {"NEAR": 2.0, "FAR": 50.0}
+
+
+def test_symbol_without_52w_row_has_none_gap_and_is_excluded(cp_store):
+    _seed_52w_ranges(cp_store, [("NEAR", 100.0, 98.0)])
+    store.save_job({"job_id": "cpj_52w3", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_52w3", [_hit("NEAR"), _hit("NOROW")])
+
+    items, total, _ = store.query_results({"job_id": "cpj_52w3"})
+    assert total == 2
+    assert next(i for i in items if i["symbol"] == "NOROW")["to_52w_high"] is None
+
+    filtered, filtered_total, _ = store.query_results({"job_id": "cpj_52w3", "max_52w_gap": 3})
+    assert filtered_total == 1
+    assert filtered[0]["symbol"] == "NEAR"
+
+
+def test_min_range_pos_filters_and_excludes_null(cp_store):
+    store.save_job({"job_id": "cpj_rp", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_rp", [
+        _hit("HIGH", range_pos=90.0),
+        _hit("LOW", range_pos=40.0),
+        _hit("NULLRP"),  # range_pos None
+    ])
+
+    items, total, summary = store.query_results({"job_id": "cpj_rp", "min_range_pos": 80})
+
+    assert total == 1
+    assert items[0]["symbol"] == "HIGH"
+    assert items[0]["range_pos"] == 90.0
+    assert summary["patterns"] == 1
+
+
+def test_min_range_pos_absent_returns_all(cp_store):
+    store.save_job({"job_id": "cpj_rp2", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_rp2", [
+        _hit("HIGH", range_pos=90.0),
+        _hit("LOW", range_pos=40.0),
+        _hit("NULLRP"),
+    ])
+
+    _, total, _ = store.query_results({"job_id": "cpj_rp2"})
+
+    assert total == 3
+
+
+def test_sort_range_pos_orders_desc(cp_store):
+    """`sort="range_pos"` orders by range_pos desc, not confidence."""
+    store.save_job({"job_id": "cpj_rps", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_rps", [
+        _hit("LOWC", range_pos=40.0, confidence=99.0),
+        _hit("HIGHC", range_pos=90.0, confidence=10.0),
+        _hit("NULLC", confidence=95.0),
+    ])
+
+    items, total, _ = store.query_results({"job_id": "cpj_rps", "sort": "range_pos"})
+
+    assert total == 3
+    assert [item["symbol"] for item in items] == ["HIGHC", "LOWC", "NULLC"]

@@ -1298,3 +1298,195 @@ def test_scan_without_refresh_does_not_clear_cache(cp_client, monkeypatch):
     assert captured["params"]["force"] is False
     assert "refresh" not in captured["params"]
 
+
+# ---------------------------------------------------------------------------
+# max_52w_gap filter: 52-week-high proximity backed by stock_52w_range.
+# ---------------------------------------------------------------------------
+
+
+def _seed_52w_ranges(engine, rows):
+    """Seed ``stock_52w_range`` rows: ``[(symbol, high_52w, close), ...]``."""
+    from sqlalchemy.orm import sessionmaker
+
+    from db.models.stock_52w_touch import Stock52WeekRange
+
+    factory = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+    session = factory()
+    try:
+        for symbol, high, close in rows:
+            session.merge(Stock52WeekRange(
+                symbol=symbol, high_52w=high, low_52w=close, close=close,
+            ))
+        session.commit()
+    finally:
+        session.close()
+
+
+def test_results_max_52w_gap_filter(cp_client, test_db_engine):
+    # NEAR gap = 2.0, FAR gap = 50.0.
+    _seed_52w_ranges(test_db_engine, [("NEAR", 100.0, 98.0), ("FAR", 100.0, 50.0)])
+    store.save_job({
+        "job_id": "cpj_52w", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_52w", [_hit("NEAR"), _hit("FAR")])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_52w", "max_52w_gap": 3},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["symbol"] == "NEAR"
+    assert body["items"][0]["to_52w_high"] == 2.0
+
+    unfiltered = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_52w"})
+    assert unfiltered.status_code == 200
+    assert unfiltered.json()["total"] == 2
+
+
+def test_summary_max_52w_gap_filter(cp_client, test_db_engine):
+    _seed_52w_ranges(test_db_engine, [("NEAR", 100.0, 98.0), ("FAR", 100.0, 50.0)])
+    store.save_job({
+        "job_id": "cpj_52ws", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_52ws", [_hit("NEAR"), _hit("FAR")])
+
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_52ws", "max_52w_gap": 3},
+    )
+    assert summary.status_code == 200
+    assert summary.json()["patterns"] == 1
+
+    unfiltered = cp_client.get("/api/chart-patterns/summary", params={"job_id": "cpj_52ws"})
+    assert unfiltered.status_code == 200
+    assert unfiltered.json()["patterns"] == 2
+
+
+# ---------------------------------------------------------------------------
+# min_range_pos filter + range_pos sort (consolidation base position).
+# ---------------------------------------------------------------------------
+
+
+def _hit_with_range_pos(symbol: str, range_pos) -> dict:
+    return dict(_hit(symbol), range_pos=range_pos)
+
+
+def test_results_min_range_pos_filter(cp_client):
+    store.save_job({
+        "job_id": "cpj_rp", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_rp", [
+        _hit_with_range_pos("HIGH", 90.0),
+        _hit_with_range_pos("LOW", 40.0),
+        _hit("NULLRP"),
+    ])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_rp", "min_range_pos": 80},
+    )
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["symbol"] == "HIGH"
+
+    unfiltered = cp_client.get("/api/chart-patterns/results", params={"job_id": "cpj_rp"})
+    assert unfiltered.status_code == 200
+    assert unfiltered.json()["total"] == 3
+
+
+def test_summary_min_range_pos_filter(cp_client):
+    store.save_job({
+        "job_id": "cpj_rps", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    store.save_hits("cpj_rps", [
+        _hit_with_range_pos("HIGH", 90.0),
+        _hit_with_range_pos("LOW", 40.0),
+        _hit("NULLRP"),
+    ])
+
+    summary = cp_client.get(
+        "/api/chart-patterns/summary",
+        params={"job_id": "cpj_rps", "min_range_pos": 80},
+    )
+    assert summary.status_code == 200
+    assert summary.json()["patterns"] == 1
+
+    unfiltered = cp_client.get("/api/chart-patterns/summary", params={"job_id": "cpj_rps"})
+    assert unfiltered.status_code == 200
+    assert unfiltered.json()["patterns"] == 3
+
+
+def test_results_sort_range_pos(cp_client):
+    """`sort=range_pos` orders by range_pos desc, NULLs last."""
+    store.save_job({
+        "job_id": "cpj_rpsort", "universe": "nifty500", "timeframe": "1D", "status": "completed",
+    })
+    low = dict(_hit_with_range_pos("LOW", 40.0), confidence=99.0)
+    high = dict(_hit_with_range_pos("HIGH", 90.0), confidence=10.0)
+    null = dict(_hit("NULLRP"), confidence=95.0)
+    store.save_hits("cpj_rpsort", [low, high, null])
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_rpsort", "sort": "range_pos"},
+    )
+    assert resp.status_code == 200
+    assert [item["symbol"] for item in resp.json()["items"]] == ["HIGH", "LOW", "NULLRP"]
+
+
+# ---------------------------------------------------------------------------
+# lookback_bars clamping: chart + cards span exactly N bars when the frame
+# fetched for detection headroom is longer.
+# ---------------------------------------------------------------------------
+
+
+def test_symbol_chart_lookback_bars_clamps_to_exactly_n(cp_client, monkeypatch):
+    """Fetch returns 300 bars but `lookback_bars=200` shows exactly 200."""
+    store.save_hits("cpj_chartclamp", [_hit("IRCON")])
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(300)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "lookback_bars": 200},
+    )
+    assert chart.status_code == 200
+    assert seen.get("lookback_bars") == 200
+    assert len(chart.json()["candles"]) == 200
+
+
+def test_results_cards_lookback_bars_clamps_to_exactly_n(cp_client, monkeypatch):
+    """Card windows are clamped to exactly N bars when the frame is longer."""
+    store.save_job({
+        "job_id": "cpj_cardclamp", "universe": "nifty500", "timeframe": "1D",
+        "status": "completed", "total": 10, "done": 10,
+    })
+    store.save_hits("cpj_cardclamp", [_hit("AAA")])
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(kwargs)
+        return _make_df(300)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": _fake_trendline("support"), "resistance": None},
+    )
+
+    resp = cp_client.get(
+        "/api/chart-patterns/results",
+        params={"job_id": "cpj_cardclamp", "lookback_bars": 200},
+    )
+    assert resp.status_code == 200
+    assert seen.get("lookback_bars") == 200
+    assert len(resp.json()["items"][0]["candles"]) == 200
+

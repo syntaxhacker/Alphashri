@@ -322,7 +322,7 @@ def _payload_trend_lines_sig(raw) -> Optional[str]:
     return str(sig) if sig else None
 
 
-def _apply_filters(query, filters: dict):
+def _apply_filters(query, filters: dict, session=None):
     join_job = bool(filters.get("universe")) 
     if join_job:
         query = query.join(PatternComputeJob, PatternComputeJob.id == PatternHit.job_id)
@@ -374,8 +374,17 @@ def _apply_filters(query, filters: dict):
         query = query.filter(PatternHit.base_days >= int(filters["min_base_days"]))
     if filters.get("max_range_pct") is not None:
         query = query.filter(PatternHit.range_pct <= float(filters["max_range_pct"]))
+    if filters.get("min_range_pos") is not None:
+        # NULL range_pos rows compare NULL (not TRUE) and are excluded.
+        query = query.filter(PatternHit.range_pos >= float(filters["min_range_pos"]))
     if filters.get("volume_confirmed") is not None:
         query = query.filter(PatternHit.volume_confirmed.is_(bool(filters["volume_confirmed"])))
+    if filters.get("max_52w_gap") is not None:
+        from db.models.stock_52w_touch import Stock52WeekRange
+        sess = session if session is not None else query.session
+        gap = (Stock52WeekRange.high_52w - Stock52WeekRange.close) / Stock52WeekRange.high_52w * 100
+        near = sess.query(Stock52WeekRange.symbol).filter(gap <= float(filters["max_52w_gap"]))
+        query = query.filter(PatternHit.symbol.in_(near))
     return query
 
 
@@ -389,11 +398,55 @@ def _needs_dedupe(filters: dict) -> bool:
     return not filters.get("job_id") and not filters.get("universe")
 
 
+def _attach_52w_gaps(session, items: list) -> None:
+    """Attach ``to_52w_high`` (percent gap to the 52W high) to each item, in place.
+
+    A single ``stock_52w_range`` query covers the whole page; symbols with no
+    row get ``None``.
+    """
+    if not items:
+        return
+    try:
+        from db.models.stock_52w_touch import Stock52WeekRange
+    except Exception:
+        for item in items:
+            if isinstance(item, dict):
+                item["to_52w_high"] = None
+        return
+    symbols = [str(item.get("symbol") or "").upper() for item in items if isinstance(item, dict)]
+    symbols = [s for s in symbols if s]
+    if not symbols:
+        for item in items:
+            if isinstance(item, dict):
+                item["to_52w_high"] = None
+        return
+    try:
+        rows = (
+            session.query(Stock52WeekRange.symbol, Stock52WeekRange.high_52w, Stock52WeekRange.close)
+            .filter(Stock52WeekRange.symbol.in_(symbols))
+            .all()
+        )
+    except Exception:
+        rows = []
+    gaps: dict[str, float] = {}
+    for symbol, high, close in rows:
+        try:
+            if high:
+                gaps[str(symbol).upper()] = round(((high - close) / high) * 100, 2)
+        except (TypeError, ZeroDivisionError, ArithmeticError):
+            continue
+    for item in items:
+        if isinstance(item, dict):
+            item["to_52w_high"] = gaps.get(str(item.get("symbol") or "").upper())
+
+
 def _deduped_base(session, base):
     """Restrict ``base`` to the newest row per pattern identity.
 
-    Identity is ``(symbol, timeframe, pattern_id, start_date, end_date)`` and
-    newest is the largest autoincrement ``id`` (later jobs insert later rows).
+    Identity is ``(symbol, timeframe, pattern_id, start_date)`` and newest is the
+    largest autoincrement ``id`` (later jobs insert later rows). ``end_date`` is
+    excluded so a pattern re-detected a bar later in another job collapses to its
+    newest instance instead of listing twice.
     """
     ids_subq = (
         base.with_entities(func.max(PatternHit.id))
@@ -402,7 +455,6 @@ def _deduped_base(session, base):
             PatternHit.timeframe,
             PatternHit.pattern_id,
             PatternHit.start_date,
-            PatternHit.end_date,
         )
         .subquery()
     )
@@ -415,16 +467,24 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
     Ordering is confidence-first by default. ``filters["sort"] == "newest"``
     instead surfaces the freshest formations first (``bars_ago`` ascending),
     breaking ties by confidence then insertion order.
+    ``filters["sort"] == "range_pos"`` orders by consolidation ``range_pos``
+    descending (NULLs last), breaking ties by confidence then insertion order.
     """
     session = _new_session()
     try:
-        base = _apply_filters(session.query(PatternHit), filters)
+        base = _apply_filters(session.query(PatternHit), filters, session)
         if _needs_dedupe(filters):
             base = _deduped_base(session, base)
         total = base.count()
         if filters.get("sort") == "newest":
             order_by = (
                 PatternHit.bars_ago.asc(),
+                PatternHit.confidence.desc().nullslast(),
+                PatternHit.id.desc(),
+            )
+        elif filters.get("sort") == "range_pos":
+            order_by = (
+                PatternHit.range_pos.desc().nullslast(),
                 PatternHit.confidence.desc().nullslast(),
                 PatternHit.id.desc(),
             )
@@ -442,6 +502,7 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
             items.append(dto)
+        _attach_52w_gaps(session, items)
 
         summary = _summary_for(session, filters, base, total)
         return items, total, summary
@@ -590,7 +651,7 @@ def _empty_summary() -> dict:
 def compute_summary(filters: dict) -> dict:
     session = _new_session()
     try:
-        base = _apply_filters(session.query(PatternHit), filters)
+        base = _apply_filters(session.query(PatternHit), filters, session)
         if _needs_dedupe(filters):
             base = _deduped_base(session, base)
         total = base.count()
@@ -611,11 +672,12 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
             q = q.filter(PatternHit.timeframe == timeframe)
         # A symbol can belong to several scanned universes (e.g. nifty50 and
         # nifty500), so the same detection is stored once per job. Keep only the
-        # newest row per pattern identity, then sort by confidence for display.
+        # newest row per pattern identity (start_date, not end_date — a pattern
+        # re-detected a bar later is the same instance), then sort by confidence.
         rows = q.order_by(PatternHit.id.desc()).all()
         best: dict[tuple, PatternHit] = {}
         for row in rows:
-            key = (row.pattern_id, row.start_date, row.end_date)
+            key = (row.pattern_id, row.start_date)
             if key not in best:
                 best[key] = row
         patterns = []
