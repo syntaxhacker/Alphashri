@@ -134,6 +134,19 @@ describe("buildAppliedFilterChips", () => {
       { id: "sort:range_pos", group: "Sort", label: "Near breakout", nextValue: "confidence" },
     ]);
   });
+
+  test("builds volume scan chips that reset to null", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "min_rel_volume", group: "Volume", label: "rel vol ≥ 1.5", nextValue: null },
+      { id: "min_volume_m", group: "Volume", label: "vol ≥ 5M", nextValue: null },
+    ]);
+    expect(chips.find((c) => c.id === "min_rel_volume")?.key).toBe("min_rel_volume");
+    expect(chips.find((c) => c.id === "min_volume_m")?.key).toBe("min_volume_m");
+  });
 });
 
 describe("AppliedFilters", () => {
@@ -404,5 +417,37 @@ describe("AppliedFilters", () => {
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
+  });
+
+  test("shows the volume scan chips", () => {
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Volume: rel vol ≥ 1.5")).toBeInTheDocument();
+    expect(screen.getByText("Volume: vol ≥ 5M")).toBeInTheDocument();
+  });
+
+  test.each([
+    ["min_rel_volume", "patterns-applied-filter-min_rel_volume", "min_rel_volume", null],
+    ["min_volume_m", "patterns-applied-filter-min_volume_m", "min_volume_m", null],
+  ])("removing the %s chip clears it", (_name, testId, key, next) => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith(key, next);
   });
 });

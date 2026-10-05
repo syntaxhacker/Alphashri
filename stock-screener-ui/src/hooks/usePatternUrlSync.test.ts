@@ -103,10 +103,13 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(new URLSearchParams("lookback=abc")).lookback).toBeNull();
   });
 
-  it("parses gap52 into max_52w_gap and ignores blanks/non-numbers", () => {
-    expect(parsePatternParams(new URLSearchParams("gap52=3")).filters.max_52w_gap).toBe(3);
-    expect(parsePatternParams(new URLSearchParams("gap52=")).filters.max_52w_gap).toBeUndefined();
-    expect(parsePatternParams(new URLSearchParams("gap52=abc")).filters.max_52w_gap).toBeUndefined();
+  it("parses relvol/volm into the volume scan filters and ignores blanks/non-numbers", () => {
+    expect(parsePatternParams(new URLSearchParams("relvol=1.5")).filters.min_rel_volume).toBe(1.5);
+    expect(parsePatternParams(new URLSearchParams("volm=5")).filters.min_volume_m).toBe(5);
+    expect(parsePatternParams(new URLSearchParams("relvol=")).filters.min_rel_volume).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("volm=")).filters.min_volume_m).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("relvol=abc")).filters.min_rel_volume).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("volm=abc")).filters.min_volume_m).toBeUndefined();
   });
 });
 
@@ -277,6 +280,30 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS },
     });
     expect(clean.has("pos")).toBe(false);
+  });
+
+  it("round-trips relvol/volm (volume scan filters) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, min_rel_volume: 1.5, min_volume_m: 5 },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toContain("relvol=1.5");
+    expect(serialized).toContain("volm=5");
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.filters.min_rel_volume).toBe(1.5);
+    expect(parsed.filters.min_volume_m).toBe(5);
+    // Defaults (null) omit both params.
+    const clean = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(clean.has("relvol")).toBe(false);
+    expect(clean.has("volm")).toBe(false);
   });
 
   it("ignores unknown trendlines values", () => {

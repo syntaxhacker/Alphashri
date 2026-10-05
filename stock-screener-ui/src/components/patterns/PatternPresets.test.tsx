@@ -223,4 +223,11 @@ describe("PatternPresets", () => {
     expect(screen.getByTestId("patterns-preset-fresh_reversals")).toBeInTheDocument();
     expect(props.applyFilters).not.toHaveBeenCalled();
   });
+
+  test("applies the high_rel_vol built-in preset payload", async () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-high_rel_vol"));
+    expect(props.applyFilters).toHaveBeenCalledWith({ min_rel_volume: 1.5, min_volume_m: 5 });
+  });
 });

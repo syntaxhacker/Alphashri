@@ -520,4 +520,52 @@ describe("PatternFilterRail", () => {
     await userEvent.click(screen.getByTestId("patterns-filter-sort-range_pos"));
     expect(props.setFilter).toHaveBeenCalledWith("sort", "range_pos");
   });
+
+  test("renders the Volume scan inputs", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    expect(screen.getByText("Volume scan")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-rel-volume")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-volume-m")).toBeInTheDocument();
+    expect(screen.getByText("Rel vol ≥")).toBeInTheDocument();
+    expect(screen.getByText("Volume ≥ M")).toBeInTheDocument();
+  });
+
+  test("enters rel-vol and volume thresholds", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const relVol = within(screen.getByTestId("patterns-filter-min-rel-volume")).getByRole("spinbutton");
+    fireEvent.change(relVol, { target: { value: "2" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("min_rel_volume", 2);
+    const volM = within(screen.getByTestId("patterns-filter-min-volume-m")).getByRole("spinbutton");
+    fireEvent.change(volM, { target: { value: "10" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("min_volume_m", 10);
+  });
+
+  test("clearing the volume scan inputs stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, min_rel_volume: 1.5, min_volume_m: 5 } });
+    r(<PatternFilterRail {...props} />);
+    const relVol = within(screen.getByTestId("patterns-filter-min-rel-volume")).getByRole("spinbutton");
+    fireEvent.change(relVol, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("min_rel_volume", null);
+    const volM = within(screen.getByTestId("patterns-filter-min-volume-m")).getByRole("spinbutton");
+    fireEvent.change(volM, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("min_volume_m", null);
+  });
+
+  test("ignores partial volume scan input instead of storing NaN", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const relVol = within(screen.getByTestId("patterns-filter-min-rel-volume")).getByRole("spinbutton");
+    fireEvent.change(relVol, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("min_rel_volume", expect.anything());
+    const volM = within(screen.getByTestId("patterns-filter-min-volume-m")).getByRole("spinbutton");
+    fireEvent.change(volM, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("min_volume_m", expect.anything());
+  });
+
+  test("panel layout renders both volume scan inputs", () => {
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.getByTestId("patterns-filter-min-rel-volume")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-volume-m")).toBeInTheDocument();
+  });
 });

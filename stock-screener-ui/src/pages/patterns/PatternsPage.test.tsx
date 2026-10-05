@@ -65,12 +65,28 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
 }));
 
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ opened, onClose, hit, candles, trendlinesView = "both" }: any) => {
+  PatternFullscreenView: ({ opened, onClose, hit, candles, trendlinesView = "both", timeframe, timeframes = [], onTimeframeChange, loading = false }: any) => {
     fullscreenTrendlinesViews.push(trendlinesView);
     if (!opened) return null;
+    const options = (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: timeframe, label: timeframe }];
     return (
       <div data-testid="patterns-fullscreen-modal" data-trendlines-view={trendlinesView}>
         <div>{hit?.pattern_name}</div>
+        {onTimeframeChange && timeframe != null ? (
+          <select
+            data-testid="patterns-fullscreen-timeframe"
+            aria-label="Fullscreen timeframe"
+            value={timeframe}
+            onChange={(e) => onTimeframeChange(e.target.value)}
+          >
+            {options.map((tf: any) => (
+              <option key={tf.id} value={tf.id}>
+                {tf.label || tf.id}
+              </option>
+            ))}
+          </select>
+        ) : null}
+        {loading ? <div data-testid="patterns-fullscreen-loading" /> : null}
         <button type="button" onClick={onClose}>
           Close
         </button>
@@ -675,5 +691,103 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     expect(screen.getByTestId("patterns-loading")).toBeInTheDocument();
     expect(screen.getByText("Loading results…")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
+  });
+
+  test("opening a card loads the hit's timeframe into the fullscreen selector", async () => {
+    const hit = makeHit({ timeframe: "1h" });
+    r(
+      <PatternsPage
+        {...makeProps({
+          timeframe: "1D",
+          results: [hit],
+          total: 1,
+          timeframes: [
+            { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
+            { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    const select = await screen.findByTestId("patterns-fullscreen-timeframe");
+    expect(select).toHaveValue("1h");
+    expect(fetchSymbolChart).toHaveBeenCalledWith(
+      "IRCON",
+      "1h",
+      expect.objectContaining({ computeTrendlines: true }),
+    );
+  });
+
+  test("selecting a new fullscreen timeframe re-runs detection and promotes the best hit", async () => {
+    const low = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 60 });
+    const high = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", confidence: 90, start_date: "2026-07-01" });
+    r(
+      <PatternsPage
+        {...makeProps({
+          results: [low],
+          total: 1,
+          timeframes: [
+            { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
+            { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+    fetchSymbolChart.mockClear();
+    fetchSymbolChart.mockResolvedValueOnce({
+      symbol: "IRCON",
+      timeframe: "1h",
+      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
+      overlays: [{ pattern_id: "rising_wedge", pattern_name: "Rising Wedge", trendlines: [] }],
+      trend_lines: [],
+      hits: [low, high],
+    });
+
+    await userEvent.selectOptions(screen.getByTestId("patterns-fullscreen-timeframe"), "1h");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
+    );
+    // Highest-confidence hit is promoted; the new candles clear the empty state.
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge"),
+    );
+    expect(screen.queryByText("No chart data")).not.toBeInTheDocument();
+  });
+
+  test("a fullscreen timeframe switch with no hits clears the displayed hit", async () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          timeframes: [
+            { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
+            { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+          ],
+        })}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+    expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Falling Wedge");
+    fetchSymbolChart.mockClear();
+    fetchSymbolChart.mockResolvedValueOnce({
+      symbol: "IRCON",
+      timeframe: "1h",
+      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
+      overlays: [],
+      trend_lines: [],
+      hits: [],
+    });
+
+    await userEvent.selectOptions(screen.getByTestId("patterns-fullscreen-timeframe"), "1h");
+
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
+    );
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-modal")).not.toHaveTextContent("Falling Wedge"),
+    );
   });
 });

@@ -2,12 +2,36 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { PatternHitDTO } from "@/types/chartPatterns";
 import { PatternFullscreenView } from "./PatternFullscreenView";
 
 vi.mock("./PatternTradingViewChart", () => ({
   PatternTradingViewChart: () => <div data-testid="patterns-tv-chart" />,
+}));
+
+// Native-select stub so the fullscreen TF wiring is deterministic (the real MUI
+// Select needs popup interaction). Testids + onChange contracts preserved.
+vi.mock("./TimeframeSelect", () => ({
+  TimeframeSelect: ({ timeframes, value, onChange }: any) => {
+    const source =
+      (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: value, label: value }];
+    return (
+      <select
+        data-testid="patterns-timeframe-select"
+        aria-label="Timeframe"
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+      >
+        {source.map((tf: any) => (
+          <option key={tf.id} value={tf.id}>
+            {tf.label || tf.id}
+          </option>
+        ))}
+      </select>
+    );
+  },
 }));
 
 const HIT: PatternHitDTO = {
@@ -164,5 +188,69 @@ describe("PatternFullscreenView", () => {
     expect(screen.getByText("Higher lows into a falling wedge.")).toBeInTheDocument();
     expect(screen.getByText(/113\.40/)).toBeInTheDocument();
     expect(screen.getByText(/1\.20%/)).toBeInTheDocument();
+  });
+
+  test("renders the timeframe selector and fires onTimeframeChange", async () => {
+    const onTimeframeChange = vi.fn();
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        timeframe="1D"
+        timeframes={[
+          { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
+          { id: "1h", label: "1h", minutes: 60, native: "hours/1", source_tf: null, max_lookback_days: 365, min_bars: 60 },
+        ]}
+        onTimeframeChange={onTimeframeChange}
+      />,
+    );
+    const select = screen.getByTestId("patterns-fullscreen-timeframe");
+    expect(select).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-timeframe-select")).toHaveValue("1D");
+    await userEvent.selectOptions(screen.getByTestId("patterns-timeframe-select"), "1h");
+    expect(onTimeframeChange).toHaveBeenCalledWith("1h");
+  });
+
+  test("shows a loader while the fullscreen timeframe reloads", () => {
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        timeframe="1D"
+        timeframes={[]}
+        onTimeframeChange={vi.fn()}
+        loading
+      />,
+    );
+    expect(screen.getByTestId("patterns-fullscreen-loading")).toBeInTheDocument();
+  });
+
+  test("hides the timeframe selector when the TF props are absent", () => {
+    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
+
+    cleanup();
+    // onTimeframeChange without a timeframe: still hidden.
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={HIT}
+        candles={[]}
+        onTimeframeChange={vi.fn()}
+      />,
+    );
+    expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
+
+    cleanup();
+    // timeframe without a handler: still hidden.
+    r(
+      <PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} timeframe="1D" />,
+    );
+    expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
   });
 });
