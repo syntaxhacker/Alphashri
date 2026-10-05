@@ -164,14 +164,7 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
               </ToolbarRow>
             </Box>
           </ToolbarRow>
-        ) : (
-          <ToolbarRow gap={1.5} justify="space-between" wrap={false}>
-            <Level label="Breakout" value={price(hit.breakout_level)} />
-            <Level label="Target" value={price(hit.target)} />
-            <Level label="Stop" value={price(hit.stop)} />
-            <Level label="R:R" value={hit.rr > 0 ? hit.rr.toFixed(2) : "—"} />
-          </ToolbarRow>
-        )}
+        ) : null}
 
         {baseDays > 0 || hit.to_52w_high != null ? (
           <ToolbarRow justify="space-between" gap={1}>

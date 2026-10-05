@@ -81,14 +81,13 @@ describe("PatternCard", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
-  test("renders symbol, pattern, status and levels", () => {
+  test("renders symbol, pattern, status and meta", () => {
     r(<PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-card")).toBeInTheDocument();
     expect(screen.getByText("Falling Wedge")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-status-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-quality-strong")).toBeInTheDocument();
-    expect(screen.getByText("1.70")).toBeInTheDocument();
     expect(screen.getByText("2 1D candles ago")).toBeInTheDocument();
   });
 
@@ -135,12 +134,12 @@ describe("PatternCard", () => {
     expect(screen.queryByText(/Base \d+d/)).toBeNull();
   });
 
-  test("non-consolidation keeps the breakout/target/stop/rr row", () => {
+  test("non-consolidation omits the breakout/target/stop/rr row", () => {
     r(<PatternCard hit={HIT} />);
-    expect(screen.getByText("Breakout")).toBeInTheDocument();
-    expect(screen.getByText("Target")).toBeInTheDocument();
-    expect(screen.getByText("Stop")).toBeInTheDocument();
-    expect(screen.getByText("R:R")).toBeInTheDocument();
+    expect(screen.queryByText("Breakout")).toBeNull();
+    expect(screen.queryByText("Target")).toBeNull();
+    expect(screen.queryByText("Stop")).toBeNull();
+    expect(screen.queryByText("R:R")).toBeNull();
     expect(screen.queryByTestId("patterns-card-range-IRCON")).toBeNull();
     expect(screen.queryByTestId("patterns-card-breakout-both-IRCON")).toBeNull();
   });
