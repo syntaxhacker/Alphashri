@@ -1,6 +1,6 @@
 """Candle fetching + disk caching for the chart-patterns engine.
 
-Wraps the existing Upstox V3 transport (``market_data.market_data.fetch_candles``);
+Wraps the unified fetcher (``market_data.market_data.fetch_candles_for_timeframe``);
 never forks the broker client. Resolves the native source timeframe and any
 required resample target from ``chart_patterns.timeframes`` (CONTRACT.md §1).
 
@@ -16,7 +16,6 @@ stays fresh across weekends/holidays. Historical data never expires.
 from __future__ import annotations
 
 import json
-import math
 import pickle
 import time
 from datetime import date, datetime, timedelta
@@ -25,15 +24,18 @@ from typing import Any, Iterable, Optional, Union
 
 import pandas as pd
 
+from market_data.market_data import _lookback_days
+
 CACHE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / "pattern_cache" / "candles"
 TODAY_TTL_SECONDS = 60
 
 # Target minutes -> pandas resample rule for targets that are NOT native Upstox
-# units (3m is fetched as 1m; 2h/3h are fetched as 1h then resampled).
+# units (3m is fetched as 1m; 2h/3h/4h are fetched as 1h then resampled).
 _RESAMPLE_RULE = {
     3: "3min",
     120: "2h",
     180: "3h",
+    240: "4h",
 }
 
 
@@ -276,27 +278,13 @@ def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:
     return out
 
 
-def _lookback_days(spec_minutes: int, lookback_bars: int) -> int:
-    """Calendar days needed to cover ``lookback_bars`` of ``spec_minutes`` bars."""
-    minutes = int(spec_minutes or 0)
-    if minutes >= 43200:  # 1M
-        bars_per_day = 1.0 / 30.0
-    elif minutes >= 10080:  # 1W
-        bars_per_day = 1.0 / 7.0
-    elif minutes >= 1440:  # 1D (5 trading days per 7 calendar days)
-        bars_per_day = 5.0 / 7.0
-    else:  # intraday: ~375 trading minutes per NSE session
-        bars_per_day = max(1.0, 375.0 / minutes) if minutes > 0 else 1.0
-    days = math.ceil(lookback_bars / bars_per_day * 1.5)
-    return max(1, min(3650, days))
-
-
 def fetch_for_timeframe(
     symbol: str,
     tf_id: str,
     as_of_date: Optional[str] = None,
     api_client=None,
     lookback_bars: Optional[int] = None,
+    include_partial_today: bool = False,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -304,8 +292,18 @@ def fetch_for_timeframe(
     When ``lookback_bars`` is set, enough calendar history is fetched to cover
     N bars (variant cache key so the default cache is never poisoned); the
     caller slices to the last N bars before detection.
+
+    With ``include_partial_today=True`` on ``"1D"`` (used by the symbol
+    chart), today's in-progress daily bar — aggregated from the 1-minute tape
+    by the same helpers the unified fetcher uses — is appended unless the
+    tape is empty or the official daily bar already exists (official wins).
+    The synthetic bar is never written to the disk cache; the merged frame is
+    flagged via ``df.attrs["partial_today"]`` so the API can mark the trailing
+    series item ``is_partial``. The base frame is fetched through the unified
+    ``fetch_candles_for_timeframe`` core only (never the legacy wrapper), so
+    one tape fetch serves both the bar and the marker.
     """
-    from market_data.market_data import fetch_candles
+    from market_data.market_data import fetch_candles_for_timeframe
 
     spec = _resolve_timeframe(tf_id)
     minutes = int(_attr(spec, "minutes", 0) or 0)
@@ -335,42 +333,96 @@ def fetch_for_timeframe(
     cache_path = _cache_path(tf_id, symbol, as_of_date if as_of_date else None, variant=variant)
     cached = _read_cached(cache_path, is_today)
     if cached is not None:
-        return cached
-
-    if source_tf:
-        src_spec = _resolve_timeframe(source_tf)
-        src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
+        df = cached
     else:
-        src_minutes = minutes
+        if source_tf:
+            src_spec = _resolve_timeframe(source_tf)
+            src_minutes = int(_attr(src_spec, "minutes", minutes) or minutes)
+            fetch_tf_id = source_tf
+        else:
+            src_minutes = minutes
+            fetch_tf_id = tf_id
 
-    df = fetch_candles(
-        symbol=symbol,
-        tf=src_minutes,
-        from_date=from_date,
-        to_date=to_date,
-        resample_to=None,
-        api_client=api_client,
-    )
+        df = fetch_candles_for_timeframe(
+            symbol,
+            fetch_tf_id,
+            from_date=from_date,
+            to_date=to_date,
+            api_client=api_client,
+        )
 
-    if df is not None and not df.empty and source_tf and minutes and minutes != src_minutes:
-        df = _resample(df, minutes)
+        if df is not None and not df.empty and source_tf and minutes and minutes != src_minutes:
+            df = _resample(df, minutes)
 
-    if df is None or df.empty:
-        return None
+        if df is None or df.empty:
+            return None
 
-    _write_cached(cache_path, df, is_today)
+        _write_cached(cache_path, df, is_today)
+
+    if include_partial_today and tf_id == "1D" and is_today:
+        df = _with_partial_today(df, symbol, api_client)
     return df
 
 
+def _with_partial_today(
+    df: pd.DataFrame, symbol: str, api_client=None
+) -> Optional[pd.DataFrame]:
+    """Append today's synthetic daily bar aggregated from the 1-minute tape.
+
+    Returns ``df`` unchanged when the tape is empty (pre-market/holiday) or
+    the official daily bar for the session already exists (official wins).
+    The merged frame is flagged via ``df.attrs["partial_today"]`` and must
+    never be written to the disk cache — callers append after ``_write_cached``.
+    """
+    if df is None or df.empty:
+        return df
+    try:
+        from market_data.market_data import (
+            _concat_merge,
+            _has_session_bar,
+            _synthetic_today_bar,
+            get_api_client,
+        )
+    except Exception:
+        return df
+    try:
+        api = api_client if api_client is not None else get_api_client()
+        if api is None:
+            return df
+        synth = _synthetic_today_bar(api, str(symbol).upper())
+        if synth is None or synth.empty:
+            return df
+        if _has_session_bar(df, synth.index[0]):
+            return df
+        merged = _concat_merge(df, synth)
+        if merged is None or merged.empty:
+            return df
+        try:
+            merged.attrs["partial_today"] = True
+        except Exception:
+            pass
+        return merged
+    except Exception:
+        return df
+
+
 def frame_last_date(df: pd.DataFrame) -> Optional[str]:
-    """Return the last bar's date as ``YYYY-MM-DD`` (handles tz-aware index)."""
+    """Return the last bar's IST session date as ``YYYY-MM-DD``.
+
+    Candle indexes are UTC; a bar stamped 18:30 UTC or later belongs to the
+    next IST session date, so formatting the raw UTC index mislabels it
+    (e.g. a 1-Oct-IST bar reported as ``"2026-09-30"``). The return shape is
+    unchanged (``Optional[str]`` in ``YYYY-MM-DD``), so callers storing
+    ``data_through`` need no changes; only the 00:00-05:29 IST window reports
+    a different (correct) date than before.
+    """
     if df is None or df.empty:
         return None
     try:
-        idx = df.index[-1]
-        if hasattr(idx, "strftime"):
-            return idx.strftime("%Y-%m-%d")
-        return str(idx)[:10]
+        ts = pd.Timestamp(df.index[-1])
+        if ts.tz is None:
+            ts = ts.tz_localize("UTC")
+        return ts.tz_convert("Asia/Kolkata").strftime("%Y-%m-%d")
     except Exception:
         return None
 

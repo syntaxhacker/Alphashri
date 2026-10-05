@@ -1490,3 +1490,110 @@ def test_results_cards_lookback_bars_clamps_to_exactly_n(cp_client, monkeypatch)
     assert seen.get("lookback_bars") == 200
     assert len(resp.json()["items"][0]["candles"]) == 200
 
+
+# ---------------------------------------------------------------------------
+# 1D chart partial-today bar: today's in-progress session bar is appended and
+# the trailing series item is marked `is_partial` for distinct UI rendering.
+# ---------------------------------------------------------------------------
+
+
+def _partial_daily_base():
+    idx = pd.DatetimeIndex([
+        pd.Timestamp("2020-01-01", tz="UTC"),
+        pd.Timestamp("2020-01-02", tz="UTC"),
+        pd.Timestamp("2020-01-03", tz="UTC"),
+    ])
+    base = np.arange(len(idx), dtype=float) + 100.0
+    return pd.DataFrame(
+        {"open": base, "high": base + 1.0, "low": base - 1.0,
+         "close": base, "volume": np.full(len(idx), 1000.0)},
+        index=idx,
+    )
+
+
+def _partial_tape(day: str = "2020-06-01", n: int = 5):
+    from types import SimpleNamespace
+
+    idx = pd.date_range(f"{day} 09:15", periods=n, freq="min",
+                        tz="Asia/Kolkata").tz_convert("UTC")
+    base = np.arange(n, dtype=float) + 200.0
+    tape = pd.DataFrame(
+        {"open": base, "high": base + 0.5, "low": base - 0.5,
+         "close": base, "volume": np.full(n, 500.0)},
+        index=idx,
+    )
+    return SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: tape)
+
+
+def test_symbol_chart_1d_forwards_partial_flag(cp_client, monkeypatch):
+    """The chart passes `include_partial_today=True` for 1D only."""
+    store.save_hits("cpj_pflag", [_hit("IRCON")])
+    seen = {}
+
+    def _fetch(symbol, timeframe, **kwargs):
+        seen.update(symbol=symbol, timeframe=timeframe, **kwargs)
+        return _make_df(80)
+
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", _fetch)
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    assert seen.get("include_partial_today") is True
+
+    chart15 = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "15m"})
+    assert chart15.status_code == 200
+    assert seen.get("include_partial_today") is False
+
+
+def test_symbol_chart_1d_marks_synthetic_last_bar(cp_client, monkeypatch, tmp_path):
+    """With a mocked 1-min tape the chart gains one `is_partial` bar."""
+    store.save_hits("cpj_pmark", [_hit("IRCON")])
+    base = _partial_daily_base()
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: base,
+    )
+    monkeypatch.setattr(
+        "market_data.market_data.get_api_client", lambda: _partial_tape()
+    )
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    series = chart.json()["candles"]
+    assert len(series) == len(base) + 1
+    assert series[-1].get("is_partial") is True
+    assert all("is_partial" not in bar for bar in series[:-1])
+
+
+def test_symbol_chart_1d_empty_tape_has_no_partial_mark(cp_client, monkeypatch, tmp_path):
+    """An empty tape (pre-market/holiday) leaves the chart frame unchanged."""
+    from types import SimpleNamespace
+
+    store.save_hits("cpj_pempty", [_hit("IRCON")])
+    base = _partial_daily_base()
+    monkeypatch.setattr(cp_api.candles, "CACHE_DIR", tmp_path)
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: base,
+    )
+    empty = _partial_tape().fetch_intraday_data_v3().iloc[0:0]
+    monkeypatch.setattr(
+        "market_data.market_data.get_api_client",
+        lambda: SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: empty),
+    )
+    monkeypatch.setattr(
+        cp_api.trendlines_mod, "detect_trendlines",
+        lambda df, lookback_bars=None: {"support": None, "resistance": None},
+    )
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    series = chart.json()["candles"]
+    assert len(series) == len(base)
+    assert all("is_partial" not in bar for bar in series)
+

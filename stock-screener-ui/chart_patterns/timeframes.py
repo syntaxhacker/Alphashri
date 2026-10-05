@@ -48,7 +48,7 @@ TIMEFRAMES: list[TFSpec] = [
     TFSpec("1h", "1h", 60, True, None, 365, 60),
     TFSpec("2h", "2h", 120, False, "1h", 365, 60),
     TFSpec("3h", "3h", 180, False, "1h", 365, 60),
-    TFSpec("4h", "4h", 240, True, None, 365, 60),
+    TFSpec("4h", "4h", 240, False, "1h", 365, 60),
     TFSpec("1D", "1D", 1440, True, None, 730, 60),
     TFSpec("1W", "1W", 10080, True, None, 1825, 52),
     TFSpec("1M", "1M", 43200, True, None, 3650, 24),

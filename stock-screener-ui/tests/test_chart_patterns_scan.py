@@ -528,7 +528,8 @@ def test_historical_fetch_ignores_today_cache(cp_store, monkeypatch, tmp_path):
 
     fresh_df = _make_df(80) * 2.0
     monkeypatch.setattr(
-        "market_data.market_data.fetch_candles", lambda **kwargs: fresh_df
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: fresh_df,
     )
     monkeypatch.setattr(
         candles_mod, "_resolve_timeframe",
@@ -1016,3 +1017,210 @@ def test_run_job_force_bypasses_session_freshness(cp_store, monkeypatch):
 
     assert fetched == ["AAA"]
     assert store.get_job("cpj_sforce_new")["status"] == "completed"
+
+
+# ---------------------------------------------------------------------------
+# 4h resamples from 1h (Upstox V3 intraday serves 1-60min and hours/4 history
+# is quarter-capped, so 4h is non-native like 2h/3h).
+# ---------------------------------------------------------------------------
+
+
+def _hourly_bars(start: str, n: int) -> pd.DataFrame:
+    idx = pd.date_range(start, periods=n, freq="h", tz="UTC")
+    base = np.arange(n, dtype=float) + 100.0
+    return pd.DataFrame(
+        {"open": base, "high": base + 0.5, "low": base - 0.5,
+         "close": base, "volume": np.full(n, 100.0)},
+        index=idx,
+    )
+
+
+def test_4h_registry_resamples_from_1h():
+    from chart_patterns.timeframes import get_timeframe
+
+    spec = get_timeframe("4h")
+    assert spec.native is False
+    assert spec.source_tf == "1h"
+    assert spec.minutes == 240
+
+
+def test_4h_fetch_pulls_1h_then_resamples_to_240m(monkeypatch, tmp_path):
+    from chart_patterns import candles as candles_mod
+
+    monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
+    # 03:30-14:30 UTC = 09:00-20:00 IST: spans four IST-anchored 4h bins.
+    src = _hourly_bars("2026-09-29 03:30", 12)
+    seen = {}
+
+    def fake_core(symbol, timeframe, **kwargs):
+        seen.update(symbol=symbol, timeframe=timeframe, **kwargs)
+        return src
+
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe", fake_core
+    )
+
+    got = candles_mod.fetch_for_timeframe("AAA", "4h", as_of_date="2026-09-30")
+
+    assert seen["timeframe"] == "1h"
+    assert seen["from_date"] == "2025-09-30" and seen["to_date"] == "2026-09-30"
+    assert got is not None and not got.empty
+    diffs = got.index.to_series().diff().dropna().dt.total_seconds() / 60.0
+    assert len(diffs) == 3
+    assert all(abs(d - 240.0) < 1e-6 for d in diffs)
+    ist = got.index.tz_convert("Asia/Kolkata")
+    assert all(ts.minute == 0 and ts.hour % 4 == 0 for ts in ist)
+
+
+# ---------------------------------------------------------------------------
+# 1D partial-today bar (today's in-progress session aggregated from the tape).
+# ---------------------------------------------------------------------------
+
+
+def _daily_bars(dates: list) -> pd.DataFrame:
+    idx = pd.DatetimeIndex([pd.Timestamp(d, tz="UTC") for d in dates])
+    base = np.arange(len(idx), dtype=float) + 100.0
+    return pd.DataFrame(
+        {"open": base, "high": base + 1.0, "low": base - 1.0,
+         "close": base, "volume": np.full(len(idx), 1000.0)},
+        index=idx,
+    )
+
+
+def _minute_tape(day: str, n: int = 5) -> pd.DataFrame:
+    idx = pd.date_range(f"{day} 09:15", periods=n, freq="min",
+                        tz="Asia/Kolkata").tz_convert("UTC")
+    base = np.arange(n, dtype=float) + 200.0
+    return pd.DataFrame(
+        {"open": base, "high": base + 0.5, "low": base - 0.5,
+         "close": base, "volume": np.full(n, 500.0)},
+        index=idx,
+    )
+
+
+def test_1d_partial_appends_synthetic_bar_from_tape(monkeypatch, tmp_path):
+    from chart_patterns import candles as candles_mod
+
+    monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
+    base = _daily_bars(["2020-01-01", "2020-01-02", "2020-01-03"])
+    tape = _minute_tape("2020-06-01")
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: base,
+    )
+    api = SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: tape)
+
+    got = candles_mod.fetch_for_timeframe(
+        "AAA", "1D", api_client=api, include_partial_today=True
+    )
+
+    assert got is not None
+    assert len(got) == len(base) + 1
+    assert bool(getattr(got, "attrs", {}).get("partial_today", False)) is True
+    last = got.iloc[-1]
+    assert last["open"] == pytest.approx(tape["open"].iloc[0])
+    assert last["high"] == pytest.approx(tape["high"].max())
+    assert last["low"] == pytest.approx(tape["low"].min())
+    assert last["close"] == pytest.approx(tape["close"].iloc[-1])
+    assert last["volume"] == pytest.approx(tape["volume"].sum())
+    # The synthetic bar is never cached: the disk entry holds the base frame.
+    reread = candles_mod._read_cached(
+        candles_mod._cache_path("1D", "AAA"), is_today=True
+    )
+    assert reread is not None and len(reread) == len(base)
+
+
+def test_1d_partial_empty_tape_appends_nothing(monkeypatch, tmp_path):
+    from chart_patterns import candles as candles_mod
+
+    monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
+    base = _daily_bars(["2020-01-01", "2020-01-02", "2020-01-03"])
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: base,
+    )
+    api = SimpleNamespace(
+        fetch_intraday_data_v3=lambda **kwargs: _minute_tape("2020-06-01").iloc[0:0]
+    )
+
+    got = candles_mod.fetch_for_timeframe(
+        "AAA", "1D", api_client=api, include_partial_today=True
+    )
+
+    assert got is not None and len(got) == len(base)
+    assert not getattr(got, "attrs", {}).get("partial_today", False)
+
+
+def test_1d_partial_official_bar_wins(monkeypatch, tmp_path):
+    from chart_patterns import candles as candles_mod
+
+    monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
+    # Base already holds the tape session's UTC date: no duplicate bar.
+    base = _daily_bars(["2020-05-29", "2020-06-01"])
+    tape = _minute_tape("2020-06-01")
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: base,
+    )
+    api = SimpleNamespace(fetch_intraday_data_v3=lambda **kwargs: tape)
+
+    got = candles_mod.fetch_for_timeframe(
+        "AAA", "1D", api_client=api, include_partial_today=True
+    )
+
+    assert got is not None and len(got) == len(base)
+    assert not getattr(got, "attrs", {}).get("partial_today", False)
+
+
+def test_1d_without_flag_has_no_partial_bar(monkeypatch, tmp_path):
+    from chart_patterns import candles as candles_mod
+
+    monkeypatch.setattr(candles_mod, "CACHE_DIR", tmp_path)
+    base = _daily_bars(["2020-01-01", "2020-01-02", "2020-01-03"])
+    calls = []
+    monkeypatch.setattr(
+        "market_data.market_data.fetch_candles_for_timeframe",
+        lambda symbol, timeframe, **kwargs: base,
+    )
+
+    def _boom(**kwargs):
+        calls.append(1)
+        raise AssertionError("tape must not be consulted without the flag")
+
+    api = SimpleNamespace(fetch_intraday_data_v3=_boom)
+
+    got = candles_mod.fetch_for_timeframe("AAA", "1D", api_client=api)
+
+    assert got is not None and len(got) == len(base)
+    assert calls == []
+    assert not getattr(got, "attrs", {}).get("partial_today", False)
+
+
+# ---------------------------------------------------------------------------
+# frame_last_date reports the IST session date, not the UTC calendar date.
+# ---------------------------------------------------------------------------
+
+
+def test_frame_last_date_reports_ist_session_date():
+    from chart_patterns.candles import frame_last_date
+
+    # 2026-09-30 19:00 UTC is 2026-10-01 00:30 IST: the bar belongs to Oct 1.
+    late = pd.DataFrame(
+        {"close": [1.0]},
+        index=pd.DatetimeIndex([pd.Timestamp("2026-09-30 19:00", tz="UTC")]),
+    )
+    assert frame_last_date(late) == "2026-10-01"
+    # Mid-session bars are unaffected (UTC and IST dates agree).
+    mid = pd.DataFrame(
+        {"close": [1.0]},
+        index=pd.DatetimeIndex([pd.Timestamp("2026-09-30 10:00", tz="UTC")]),
+    )
+    assert frame_last_date(mid) == "2026-09-30"
+    # Naive indexes are assumed UTC (same convention as the fetcher).
+    naive = pd.DataFrame(
+        {"close": [1.0]},
+        index=pd.DatetimeIndex([pd.Timestamp("2026-09-30 19:00")]),
+    )
+    assert frame_last_date(naive) == "2026-10-01"
+    assert frame_last_date(pd.DataFrame()) is None
+    assert frame_last_date(None) is None

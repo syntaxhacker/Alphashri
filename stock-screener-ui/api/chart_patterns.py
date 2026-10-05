@@ -38,7 +38,7 @@ _FALLBACK_TIMEFRAMES = [
     {"id": "1h", "label": "1h", "minutes": 60, "native": True, "source_tf": None, "max_lookback_days": 365, "min_bars": 60},
     {"id": "2h", "label": "2h", "minutes": 120, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "3h", "label": "3h", "minutes": 180, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
-    {"id": "4h", "label": "4h", "minutes": 240, "native": True, "source_tf": None, "max_lookback_days": 365, "min_bars": 60},
+    {"id": "4h", "label": "4h", "minutes": 240, "native": False, "source_tf": "1h", "max_lookback_days": 365, "min_bars": 60},
     {"id": "1D", "label": "1D", "minutes": 1440, "native": True, "source_tf": None, "max_lookback_days": 730, "min_bars": 60},
     {"id": "1W", "label": "1W", "minutes": 10080, "native": True, "source_tf": None, "max_lookback_days": 1825, "min_bars": 52},
     {"id": "1M", "label": "1M", "minutes": 43200, "native": True, "source_tf": None, "max_lookback_days": 3650, "min_bars": 24},
@@ -791,12 +791,22 @@ async def get_symbol_chart(
 ):
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
-        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lb)
+        df = candles.fetch_for_timeframe(
+            symbol, timeframe, lookback_bars=lb,
+            include_partial_today=(timeframe == "1D"),
+        )
     except Exception:
         df = None
     # The fetch window carries ~1.5x headroom; clamp the displayed chart to
-    # exactly the requested Lookback (Auto keeps the whole window).
+    # exactly the requested Lookback (Auto keeps the whole window). A trailing
+    # synthetic session bar (1D only) is flagged for distinct UI rendering;
+    # tail-clamping always keeps the last row, so the flag maps to series[-1].
+    partial_last = bool(
+        df is not None and getattr(df, "attrs", {}).get("partial_today", False)
+    )
     series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if df is not None else []
+    if partial_last and series:
+        series[-1]["is_partial"] = True
     detail = store.get_symbol_detail(symbol, timeframe)
     overlays = []
     stored_fresh_lines: list = []
