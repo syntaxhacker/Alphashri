@@ -16,7 +16,11 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
 from chart_patterns import candles, config, jobs, store
+from chart_patterns import scan as scan_mod
 from chart_patterns import trendlines as trendlines_mod
+from chart_patterns import watch as watch_mod
+
+import config as root_config
 
 try:
     from chart_patterns import engine as engine_mod
@@ -531,6 +535,16 @@ class ScanRequest(BaseModel):
     # fetch). Percent for rel-volume, millions of shares for volume.
     min_rel_volume: Optional[float] = None
     min_volume_m: Optional[float] = None
+    # Optional as-of replay window (IST ``YYYY-MM-DD`` or
+    # ``YYYY-MM-DDTHH:MM[:SS]``). ``as_of_date`` pins the window end (and
+    # truncates detection input to it); ``from_date`` pins the window start
+    # and drops hits ending before it.
+    as_of_date: Optional[str] = None
+    from_date: Optional[str] = None
+    # Optional current-session bar for daily scans. None (default) means on
+    # for 1D (intraday frames already carry today's tape); explicit False
+    # forces it off. Never applied to an as-of replay (scan forces it off).
+    include_partial_today: Optional[bool] = None
 
 
 # Upper bound on a custom scan's symbol list (matches the picker's practical
@@ -597,6 +611,8 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
             )
         params = {"force": request.force}
     params["compute_trendlines"] = request.compute_trendlines
+    if request.include_partial_today is not None:
+        params["include_partial_today"] = request.include_partial_today
     if request.lookback_bars is not None:
         params["lookback_bars"] = request.lookback_bars
     if request.min_rel_volume is not None:
@@ -608,6 +624,45 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
             status_code=422,
             detail=f"unknown timeframe {request.timeframe!r}. Known: {sorted(_valid_timeframe_ids())}",
         )
+    if request.as_of_date is not None:
+        try:
+            candles.parse_asof_datetime(request.as_of_date)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        params["as_of_date"] = request.as_of_date
+    if request.from_date is not None:
+        try:
+            candles.parse_asof_datetime(request.from_date)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+        params["from_date"] = request.from_date
+    if "as_of_date" in params or "from_date" in params:
+        # Replays fetch explicit historical windows per symbol — cap the
+        # resolved scope so one request cannot enqueue a universe-sized job.
+        # Custom scopes count unique requested symbols *before* the
+        # MAX_CUSTOM_SYMBOLS truncation so an oversized list is rejected
+        # rather than silently truncated.
+        if symbols:
+            unique_requested = {
+                str(item or "").strip().upper() for item in (request.symbols or [])
+            }
+            unique_requested.discard("")
+            replay_count = len(unique_requested)
+        else:
+            try:
+                from chart_patterns import universes as _universes_mod
+
+                replay_count = _count_universe(_universes_mod, universe)
+            except Exception:
+                replay_count = 0
+        if replay_count > scan_mod.ASOF_SCAN_MAX_SYMBOLS:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    f"as-of replay is capped at {scan_mod.ASOF_SCAN_MAX_SYMBOLS} symbols "
+                    f"(requested {replay_count})"
+                ),
+            )
     if request.refresh:
         if symbols:
             candles.clear_cache(symbols=symbols, timeframe=request.timeframe)
@@ -658,7 +713,7 @@ def _build_filters(
     status=None, quality=None, formed_within_bars=None, volume_confirmed=None,
     min_rr=None, symbol=None, pattern_id=None,
     min_base_days=None, max_range_pct=None, q=None, sort="confidence",
-    max_52w_gap=None, min_range_pos=None,
+    max_52w_gap=None, min_range_pos=None, from_date=None, to_date=None,
 ) -> dict:
     return {
         "job_id": job_id,
@@ -679,6 +734,8 @@ def _build_filters(
         "sort": sort,
         "max_52w_gap": max_52w_gap,
         "min_range_pos": min_range_pos,
+        "from_date": from_date,
+        "to_date": to_date,
     }
 
 
@@ -706,12 +763,14 @@ async def get_results(
     compute_trendlines: bool = Query(True),
     max_52w_gap: Optional[float] = Query(None),
     min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
         min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos,
+        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
     )
     items, total, summary = store.query_results(filters, limit=limit, offset=offset)
     # Candle enrichment may hit the (disk-cached) Upstox API on a miss — keep it
@@ -747,12 +806,14 @@ async def get_summary(
     sort: str = Query("confidence"),
     max_52w_gap: Optional[float] = Query(None),
     min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
 ):
     filters = _build_filters(
         job_id, universe, timeframe, family, direction, status, quality,
         formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
         min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
-        min_range_pos=min_range_pos,
+        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
     )
     summary = store.compute_summary(filters)
     return _sanitize_for_json({
@@ -838,6 +899,88 @@ def _live_overlay(hit: dict) -> Optional[dict]:
         return None
 
 
+async def _asof_symbol_chart(
+    symbol: str,
+    timeframe: str,
+    limit: int,
+    lookback_bars: Optional[int],
+    compute_trendlines: bool,
+    detect_patterns: bool,
+    as_of_date: str,
+    from_date: Optional[str],
+) -> dict:
+    """Replay chart: the frame is truncated to ``as_of_date`` (IST).
+
+    Stored overlays/trend lines are "now" and never apply to a replay, so
+    they are omitted: ``trend_lines`` are recomputed on the truncated frame
+    and ``overlays``/``hits`` come only from live detection on it (windowed
+    by ``from_date`` when set). ``include_partial_today`` is forced off —
+    a replay frame ends at ``to_dt``, never with a synthetic today bar.
+    """
+    try:
+        to_dt = candles.parse_asof_datetime(as_of_date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+    from_part = None
+    if from_date is not None:
+        try:
+            from_part = candles.parse_asof_datetime(from_date).strftime("%Y-%m-%d")
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc))
+    lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
+    fetch_kwargs: dict = {"lookback_bars": lb, "as_of_date": to_dt.strftime("%Y-%m-%d")}
+    if from_part is not None:
+        fetch_kwargs["from_date"] = from_part
+    try:
+        df = candles.fetch_for_timeframe(
+            symbol, timeframe, include_partial_today=False, **fetch_kwargs
+        )
+    except Exception:
+        df = None
+    if df is not None and not getattr(df, "empty", True):
+        df = candles.truncate_frame_to(df, to_dt)
+    empty = df is None or getattr(df, "empty", True)
+    series = candles.candles_to_series(_clamp_to_lookback(df, lookback_bars), limit) if not empty else []
+    if not compute_trendlines:
+        trend_lines: list = []
+    else:
+        try:
+            _res = trendlines_mod.detect_trendlines(df, lookback_bars=lookback_bars) if not empty else {}
+            trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
+        except Exception:
+            trend_lines = []
+    hits: list = []
+    overlays: list = []
+    if detect_patterns:
+        live: list = []
+        if not empty and engine_mod is not None:
+            try:
+                live = engine_mod.detect_patterns(df, timeframe, symbol) or []
+            except Exception:
+                live = []
+        for hit in live:
+            record = _live_hit_to_dict(hit, symbol, timeframe)
+            if record is None:
+                continue
+            if from_part and str(record.get("end_date") or "")[:10] < from_part:
+                continue
+            hits.append(record)
+        for record in hits:
+            overlay = _live_overlay(record)
+            if overlay is not None:
+                overlays.append(overlay)
+    return {
+        "symbol": symbol.upper(),
+        "timeframe": timeframe,
+        "candles": series,
+        "overlays": overlays,
+        "trend_lines": trend_lines,
+        "hits": hits,
+        "as_of": to_dt.isoformat(),
+        "from_date": from_date,
+    }
+
+
 @router.get("/symbol/{symbol}/chart")
 async def get_symbol_chart(
     symbol: str,
@@ -846,7 +989,14 @@ async def get_symbol_chart(
     lookback_bars: Optional[int] = Query(None),
     compute_trendlines: bool = Query(True),
     detect_patterns: bool = Query(False),
+    as_of_date: Optional[str] = Query(None),
+    from_date: Optional[str] = Query(None),
 ):
+    if as_of_date is not None:
+        return _sanitize_for_json(await _asof_symbol_chart(
+            symbol, timeframe, limit, lookback_bars, compute_trendlines,
+            detect_patterns, as_of_date, from_date,
+        ))
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
         df = candles.fetch_for_timeframe(
@@ -917,3 +1067,100 @@ async def get_symbol_chart(
                 overlays.append(overlay)
         payload["hits"] = hits
     return _sanitize_for_json(payload)
+
+
+@router.get("/watch/setups")
+async def get_watch_setups():
+    return _sanitize_for_json({"setups": watch_mod.public_setups()})
+
+
+@router.get("/market-status")
+async def market_status():
+    """Holiday-aware market clock so the frontend can stop polling on holidays.
+
+    Contract: ``{"open": bool, "holiday": bool, "now_ist": iso, "reason": str}``
+    where ``reason`` is one of ``market open`` | ``trading holiday`` |
+    ``weekend`` | ``outside trading hours``. Uses the canonical
+    ``trading.utils.is_market_open()`` (holiday-aware); never raises —
+    degraded clock state reports closed with the error as the reason.
+    """
+    try:
+        from trading import utils as _market_utils
+        from trading.timezone import IST as _IST2
+    except Exception:
+        import config as _cfg2
+
+        _market_utils = None
+        _IST2 = getattr(_cfg2, "IST", None)
+    try:
+        from datetime import timezone as _tz
+
+        now = datetime.now(_IST2) if _IST2 is not None else datetime.now(_tz.utc)
+    except Exception:
+        from datetime import timezone as _tz2
+
+        now = datetime.now(_tz2.utc)
+    try:
+        is_open = bool(_market_utils.is_market_open(now)) if _market_utils is not None else False
+    except Exception:
+        return _sanitize_for_json({
+            "open": False, "holiday": False,
+            "now_ist": now.isoformat(), "reason": "clock unavailable",
+        })
+    try:
+        holiday = bool(_market_utils.is_trading_holiday(now))
+    except Exception:
+        holiday = False
+    if is_open:
+        reason = "market open"
+    elif holiday:
+        reason = "trading holiday"
+    elif now.weekday() >= 5:
+        reason = "weekend"
+    else:
+        reason = "outside trading hours"
+    return _sanitize_for_json({
+        "open": is_open,
+        "holiday": holiday,
+        "now_ist": now.isoformat(),
+        "reason": reason,
+    })
+
+
+@router.get("/watch")
+async def get_watch(
+    setup: str = Query("breakout"),
+    universe: Optional[str] = Query(None),
+    timeframe: str = Query("1D"),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    min_rel_volume: float = Query(1.5),
+):
+    if setup not in watch_mod.SETUPS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"unknown setup {setup!r}. Known: {sorted(watch_mod.SETUPS)}",
+        )
+    # Store reads + price/volume fan-out can block — keep them off the loop.
+    rows = await run_in_threadpool(
+        watch_mod.arm,
+        setup,
+        universe=universe,
+        timeframe=timeframe,
+        min_base_days=min_base_days,
+        max_range_pct=max_range_pct,
+    )
+    items = await run_in_threadpool(watch_mod.live, rows, min_rel_volume=min_rel_volume)
+    # Surface the actionable rows first: triggered, then armed, then invalidated,
+    # each ordered by proximity to the trigger (closest to 0% first).
+    _rank = {"triggered": 0, "armed": 1, "invalidated": 2}
+    items.sort(key=lambda it: (
+        _rank.get(it.get("state"), 3),
+        abs(it["pct_to_trigger"]) if it.get("pct_to_trigger") is not None else 1e9,
+    ))
+    return _sanitize_for_json({
+        "setup": setup,
+        "min_rel_volume": min_rel_volume,
+        "updated_at": datetime.now(root_config.IST).isoformat(),
+        "items": items,
+    })

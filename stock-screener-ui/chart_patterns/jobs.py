@@ -101,6 +101,35 @@ def _refresh_positions_locked() -> None:
         _mirror(job)
 
 
+# Extra job-state fields mirrored into ``params`` so they survive a restart.
+# ``store.save_job`` only persists ``_JOB_FIELDS`` + ``params_json`` for
+# extras, so ``scan.py`` records reuse/signature state in both places and
+# this module overlays the params mirror back onto the top-level DTO on read.
+_PERSISTED_EXTRA_FIELDS = (
+    "reused", "reused_from", "reused_age_sec", "reused_finished_at",
+    "reused_signature", "scan_signature",
+)
+
+
+def _overlay_persisted_extras(job: Optional[dict]) -> Optional[dict]:
+    """Copy reuse/signature fields from the ``params`` mirror to top level.
+
+    After a process restart the in-memory DTO (and Redis mirror) are gone and
+    the DB row carries these fields only inside ``params_json``; without this
+    overlay ``GET /jobs/{id}`` would drop them. Never overwrites a top-level
+    value that is already set. Mutates and returns ``job``.
+    """
+    if not isinstance(job, dict):
+        return job
+    params = job.get("params")
+    if not isinstance(params, dict):
+        return job
+    for key in _PERSISTED_EXTRA_FIELDS:
+        if job.get(key) is None and params.get(key) is not None:
+            job[key] = params[key]
+    return job
+
+
 def _runner_fn() -> Callable[[str], None]:
     if _runner is not None:
         return _runner
@@ -114,26 +143,42 @@ def _runner_fn() -> Callable[[str], None]:
 
 
 def _scope_signature(params: Optional[dict] = None) -> tuple:
-    """Coalescing scope of a job: ``(sorted symbols, lookback_bars)``.
+    """Coalescing scope: every scan param that changes the result.
 
     Two jobs for the same ``(universe, timeframe)`` coalesce only when their
-    scopes match; a scope change (Lookback or custom symbol set) supersedes
-    the in-flight job instead of being silently dropped.
+    scopes match; a scope change supersedes the in-flight job instead of
+    being silently dropped. ``universe``/``timeframe`` are matched separately
+    in :func:`submit` (they are top-level job fields, not params).
     """
     p = params if isinstance(params, dict) else {}
     symbols = p.get("symbols") or []
-    return (tuple(sorted(symbols)), p.get("lookback_bars"))
+    compute_trendlines = p.get("compute_trendlines", True)
+    if compute_trendlines is None:
+        compute_trendlines = True
+    return (
+        tuple(sorted(symbols)),
+        p.get("lookback_bars"),
+        bool(compute_trendlines),
+        p.get("min_rel_volume"),
+        p.get("min_volume_m"),
+        p.get("as_of_date"),
+        p.get("from_date"),
+        bool(p.get("force", False)),
+        bool(p.get("refresh", False)),
+        p.get("include_partial_today"),
+    )
 
 
 def submit(universe: str, timeframe: str, requested_by=None, params: Optional[dict] = None) -> dict:
     """Enqueue a job. Raises :class:`QueueFullError` when the queue is full.
 
     A ``queued``/``running`` job for the same ``(universe, timeframe)`` combo
-    with the same scope signature (symbols + lookback_bars) is coalesced:
+    with the same scope signature (symbols, lookback, trendlines flag, volume
+    filters, replay window, force/refresh, partial-today flag) is coalesced:
     the existing job is returned instead of enqueuing a second scan
     (concurrent same-combo scans race in scan.py's delete/save_hits). A
     same-combo job with a *different* scope is cancelled and superseded by
-    the new job, so a Lookback/symbol change is never silently dropped (the
+    the new job, so a param change is never silently dropped (the
     cancelled job stops at its next per-symbol check).
     """
     with _lock:
@@ -226,7 +271,7 @@ def update_state(job_id: str, persist: bool = True, **fields: Any) -> Optional[d
             if row is None:
                 return None
             row.pop("created_at", None)
-            job = row
+            job = _overlay_persisted_extras(row)
             _jobs[job_id] = job
         job.update(fields)
         _mirror(job)
@@ -242,7 +287,7 @@ def get_job(job_id: str) -> Optional[dict]:
             return dict(job)
     row = store.get_job(job_id)
     if row is not None:
-        return row
+        return _overlay_persisted_extras(row)
     try:
         from cache.redis_client import cache_get
 
@@ -258,7 +303,7 @@ def list_active() -> list[dict]:
     """Return queued + running jobs, overlaying live in-memory state."""
     with _lock:
         memory = {jid: dict(job) for jid, job in _jobs.items() if job.get("status") in ("queued", "running")}
-    rows = {row["job_id"]: row for row in store.list_jobs(active_only=True, limit=200)}
+    rows = {row["job_id"]: _overlay_persisted_extras(row) for row in store.list_jobs(active_only=True, limit=200)}
     rows.update(memory)
     # running first, then by created/start order
     def _key(job: dict):
@@ -281,6 +326,7 @@ def cancel(job_id: str) -> Optional[dict]:
             if job is None:
                 return None
             job.pop("created_at", None)
+            _overlay_persisted_extras(job)
             _jobs[job_id] = job
         status = job.get("status")
         if status not in ("queued", "running"):
@@ -316,6 +362,7 @@ def rehydrate(limit: int = 200) -> int:
                 continue
             row = dict(row)
             row.pop("created_at", None)
+            _overlay_persisted_extras(row)
             # A "running" row means the previous process died mid-job -> requeue.
             row["status"] = "queued"
             row["queue_position"] = None

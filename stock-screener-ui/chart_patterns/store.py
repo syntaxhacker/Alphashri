@@ -333,6 +333,14 @@ def _apply_filters(query, filters: dict, session=None):
         query = query.filter(PatternComputeJob.universe == filters["universe"])
     if filters.get("timeframe"):
         query = query.filter(PatternHit.timeframe == filters["timeframe"])
+    if filters.get("from_date"):
+        from_day = str(filters["from_date"])[:10]
+        if from_day:
+            query = query.filter(PatternHit.end_date >= from_day)
+    if filters.get("to_date"):
+        to_day = str(filters["to_date"])[:10]
+        if to_day:
+            query = query.filter(PatternHit.end_date <= to_day)
     symbols = filters.get("symbol")
     if symbols:
         if isinstance(symbols, str):

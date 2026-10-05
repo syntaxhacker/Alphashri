@@ -12,6 +12,7 @@ import threading
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from types import SimpleNamespace
+from typing import Optional
 
 from chart_patterns import candles, config, jobs as jobs_mod, store
 
@@ -46,10 +47,82 @@ except Exception:  # pragma: no cover - trading package always present in app en
 
 SYMBOL_WORKERS = int(os.environ.get("PATTERN_SCAN_SYMBOL_WORKERS", "4"))
 DEFAULT_MIN_BARS = 60
+# Upper bound on the resolved symbol count of an as-of (replay) scan. Replays
+# fetch explicit historical windows per symbol; without a cap one request
+# could enqueue a universe-sized replay by accident.
+ASOF_SCAN_MAX_SYMBOLS = 200
 _PERSIST_EVERY = 10
 # A non-forced scan for a universe/timeframe with a completed job younger than
 # this is a no-op (results are still fresh); ``force=True`` always recomputes.
 SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
+# Detector/data signature version for the freshness short-circuit. Bump when
+# any detector changes so a non-forced scan recomputes once instead of
+# silently reusing hits from the previous detector version.
+SCAN_DETECTOR_VERSION = 2
+
+
+def _detector_signature(data_through: Optional[str] = None) -> str:
+    """Cheap detector/data signature for the freshness key.
+
+    ``v{version}|tl:{trendline settings}`` identifies the detector build; the
+    trailing ``|data:{date}`` (the job's ``data_through``, when known) records
+    which session's data produced the hits. The reuse gate compares the
+    detector part — a detector change (or a job from before signatures
+    existed) forces a recompute. Intra-session data freshness stays bounded
+    by the ``_is_fresh`` TTL/session check, not by this string.
+    """
+    try:
+        tl_sig = config.trendline_signature()
+    except Exception:
+        tl_sig = "unknown"
+    base = f"v{SCAN_DETECTOR_VERSION}|tl:{tl_sig}"
+    if data_through:
+        return f"{base}|data:{data_through}"
+    return base
+
+
+def _stored_scan_signature(prev: dict) -> Optional[str]:
+    """Signature recorded on a previous job: top-level, else params mirror.
+
+    ``store.save_job`` only persists ``_JOB_FIELDS`` + ``params_json``, so the
+    signature is mirrored into ``params`` (which survives a restart) and read
+    back from either location.
+    """
+    if not isinstance(prev, dict):
+        return None
+    sig = prev.get("scan_signature")
+    if isinstance(sig, str) and sig:
+        return sig
+    try:
+        sig = _job_params(prev).get("scan_signature")
+    except Exception:
+        return None
+    return sig if isinstance(sig, str) and sig else None
+
+
+def _signature_matches(prev: dict) -> bool:
+    """True when a previous job's hits came from the current detector build."""
+    current = _detector_signature()
+    stored = _stored_scan_signature(prev)
+    if not stored:
+        return False
+    return stored == current or stored.startswith(current + "|")
+
+
+def _reuse_age_sec(finished_at) -> Optional[int]:
+    """Seconds since ``finished_at`` (ISO str or datetime), else ``None``."""
+    try:
+        if isinstance(finished_at, str):
+            finished = datetime.fromisoformat(finished_at)
+        else:
+            finished = finished_at
+        if not isinstance(finished, datetime):
+            return None
+        if finished.tzinfo is None:
+            finished = finished.replace(tzinfo=timezone.utc)
+        return max(0, int((datetime.now(timezone.utc) - finished).total_seconds()))
+    except (ValueError, TypeError, OverflowError):
+        return None
 
 
 def _now() -> str:
@@ -197,17 +270,60 @@ def _is_cancelled(job_id: str) -> bool:
 
 
 def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
-                   lookback_bars=None, compute_trendlines: bool = True) -> dict:
-    """Fetch + detect one symbol. Never raises; returns a status dict."""
+                   lookback_bars=None, compute_trendlines: bool = True,
+                   as_of_date=None, from_date=None,
+                   include_partial_today: Optional[bool] = None) -> dict:
+    """Fetch + detect one symbol. Never raises; returns a status dict.
+
+    With ``as_of_date`` set the fetch window ends on that date (its time
+    portion truncates the frame via :func:`candles.truncate_frame_to` so
+    detection only sees bars ``<= to_dt``); ``from_date`` pins the window
+    start (winning over lookback sizing) and drops hits ending before it.
+    Both default to ``None`` (live behaviour, unchanged).
+
+    ``include_partial_today`` appends the current-session bar for daily
+    frames so a breakout forming today is visible the same day (the detector
+    then classifies it, e.g. a same-day cross shows ``confirmed``). ``None``
+    (default) means on for ``1D`` — intraday frames already carry today's
+    tape — and off otherwise; explicit ``False`` forces it off. It is never
+    applied to an as-of replay. The partial bar is merged by
+    :func:`candles.fetch_for_timeframe` (official bar wins, empty tape
+    appends nothing, never cached), so it cannot be double-counted and
+    ``frame_last_date``/``data_through`` reflect the current session.
+    """
     if _is_cancelled(job_id):
         return {"status": "skipped", "data_through": None}
+    to_dt = None
+    from_part = None
+    fetch_kwargs: dict = {"lookback_bars": lookback_bars}
+    if as_of_date is not None or from_date is not None:
+        try:
+            if as_of_date is not None:
+                to_dt = candles.parse_asof_datetime(as_of_date)
+                fetch_kwargs["as_of_date"] = to_dt.strftime("%Y-%m-%d")
+            if from_date is not None:
+                from_part = candles.parse_asof_datetime(from_date).strftime("%Y-%m-%d")
+                fetch_kwargs["from_date"] = from_part
+        except ValueError:
+            return {"status": "failed", "data_through": None}
+    if include_partial_today is None:
+        want_partial = (timeframe == "1D")
+    else:
+        want_partial = bool(include_partial_today)
+    if want_partial and to_dt is None:
+        fetch_kwargs["include_partial_today"] = True
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=lookback_bars)
+        df = candles.fetch_for_timeframe(symbol, timeframe, **fetch_kwargs)
     except Exception:
         return {"status": "failed", "data_through": None}
 
     if df is None or getattr(df, "empty", True):
         return {"status": "failed", "data_through": None}
+
+    if to_dt is not None:
+        df = candles.truncate_frame_to(df, to_dt)
+        if df is None or getattr(df, "empty", True):
+            return {"status": "skipped", "data_through": None}
 
     data_through = candles.frame_last_date(df)
     if len(df) < _resolve_min_bars(timeframe):
@@ -246,6 +362,8 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
             record = _hit_to_dict(hit)
         except Exception:
             continue
+        if from_part and str(record.get("end_date") or "")[:10] < from_part:
+            continue
         record["symbol"] = symbol
         record["name"] = name
         record.setdefault("timeframe", timeframe)
@@ -282,6 +400,10 @@ def run_job(job_id: str) -> None:
     if compute_trendlines is None:
         compute_trendlines = True
     compute_trendlines = bool(compute_trendlines)
+    as_of_date = params.get("as_of_date")
+    from_date = params.get("from_date")
+    is_replay = as_of_date is not None or from_date is not None
+    include_partial_today = params.get("include_partial_today", None)
 
     try:
         if raw_symbols:
@@ -326,17 +448,46 @@ def run_job(job_id: str) -> None:
     # always run — their scope is explicit and may differ from the last custom
     # scan even when the (shared) ``custom`` universe looks fresh.
     force = bool(params.get("force"))
-    if not force and not raw_symbols:
+    if not force and not raw_symbols and not is_replay:
         try:
             prev = store.latest_completed_job(universe, timeframe)
         except Exception:
             prev = None
-        if prev and prev.get("job_id") != job_id and _is_fresh(prev.get("finished_at")):
+        if (prev and prev.get("job_id") != job_id
+                and _is_fresh(prev.get("finished_at"))
+                and _signature_matches(prev)):
+            # Fresh + same detector build: reuse the previous counts without
+            # re-detecting, but say so on the job state (reused*) so the UI
+            # can tell a reuse from a fresh compute. The reuse fields are
+            # mirrored into ``params`` because ``store.save_job`` only
+            # persists ``params_json`` for extras (see jobs._overlay).
+            # A detector change (signature mismatch) falls through and
+            # recomputes.
+            prev_finished = prev.get("finished_at")
+            prev_finished_iso = (
+                prev_finished if isinstance(prev_finished, str)
+                else (prev_finished.isoformat() if hasattr(prev_finished, "isoformat") else None)
+            )
+            reuse_params = dict(params)
+            reuse_params.update({
+                "reused": True,
+                "reused_from": prev.get("job_id"),
+                "reused_age_sec": _reuse_age_sec(prev_finished),
+                "reused_finished_at": prev_finished_iso,
+                "reused_signature": _stored_scan_signature(prev),
+                "scan_signature": _detector_signature(),
+            })
             jobs_mod.update_state(
                 job_id, status="completed",
                 total=int(prev.get("total") or 0), done=int(prev.get("done") or 0),
                 failed=int(prev.get("failed") or 0), skipped=int(prev.get("skipped") or 0),
                 data_through=prev.get("data_through"), finished_at=_now(),
+                reused=True, reused_from=prev.get("job_id"),
+                reused_age_sec=_reuse_age_sec(prev_finished),
+                reused_finished_at=prev_finished_iso,
+                reused_signature=_stored_scan_signature(prev),
+                scan_signature=_detector_signature(),
+                params=reuse_params,
             )
             return
 
@@ -360,6 +511,8 @@ def run_job(job_id: str) -> None:
         _empty_state: dict = {
             "status": "completed", "total": 0, "done": 0,
             "failed": 0, "skipped": 0, "finished_at": _now(),
+            "scan_signature": _detector_signature(),
+            "params": {**params, "scan_signature": _detector_signature()},
         }
         if prefilter_message:
             _empty_state["message"] = prefilter_message
@@ -369,7 +522,8 @@ def run_job(job_id: str) -> None:
     with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
         futures = {
             pool.submit(_process_symbol, symbol, timeframe, job_id, names.get(symbol), lookback_bars,
-                        compute_trendlines): symbol
+                        compute_trendlines, as_of_date, from_date,
+                        include_partial_today): symbol
             for symbol in symbols
         }
         cancelled = False
@@ -409,6 +563,8 @@ def run_job(job_id: str) -> None:
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
             "skipped": skipped, "data_through": max_date, "finished_at": _now(),
+            "scan_signature": _detector_signature(max_date),
+            "params": {**params, "scan_signature": _detector_signature(max_date)},
         }
         if prefilter_message:
             _done_state["message"] = prefilter_message
