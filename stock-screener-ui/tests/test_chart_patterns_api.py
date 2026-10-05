@@ -1597,3 +1597,160 @@ def test_symbol_chart_1d_empty_tape_has_no_partial_mark(cp_client, monkeypatch, 
     assert len(series) == len(base)
     assert all("is_partial" not in bar for bar in series)
 
+
+
+# ---------------------------------------------------------------------------
+# TV volume pre-filter params: /scan forwards min_rel_volume / min_volume_m.
+# ---------------------------------------------------------------------------
+
+
+def test_scan_forwards_volume_prefilter_params(cp_client, monkeypatch):
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(params=params)
+        return {
+            "job_id": "cpj_tv", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D",
+              "min_rel_volume": 1.5, "min_volume_m": 2.0},
+    )
+    assert resp.status_code == 200
+    assert captured["params"]["min_rel_volume"] == 1.5
+    assert captured["params"]["min_volume_m"] == 2.0
+
+
+def test_scan_without_volume_params_omits_them(cp_client, monkeypatch):
+    captured = {}
+
+    def fake_submit(universe, timeframe, requested_by=None, params=None):
+        captured.update(params=params)
+        return {
+            "job_id": "cpj_tvnone", "universe": universe, "timeframe": timeframe,
+            "status": "queued", "queue_position": 0,
+        }
+
+    monkeypatch.setattr(cp_api.jobs, "submit", fake_submit)
+    resp = cp_client.post(
+        "/api/chart-patterns/scan",
+        json={"universe": "nifty500", "timeframe": "1D"},
+    )
+    assert resp.status_code == 200
+    assert "min_rel_volume" not in captured["params"]
+    assert "min_volume_m" not in captured["params"]
+
+
+# ---------------------------------------------------------------------------
+# Live pattern detection: /symbol/{s}/chart?detect_patterns=1 adds `hits`.
+# ---------------------------------------------------------------------------
+
+
+def _live_hit(symbol: str = "IRCON"):
+    from chart_patterns.detectors.common import PatternHit
+
+    return PatternHit(
+        pattern_id="double_bottom",
+        pattern_name="Double Bottom",
+        family="reversal",
+        direction="bullish",
+        status="confirmed",
+        quality="strong",
+        confidence=70.0,
+        start_date="2026-01-01",
+        end_date="2026-02-01",
+        start_price=100.0,
+        end_price=110.0,
+        breakout_level=110.0,
+        target=120.0,
+        stop=95.0,
+        rr=2.0,
+        bars_ago=1,
+        volume_confirmed=True,
+        trendlines=[[{"t": "2026-01-01", "price": 100.0}, {"t": "2026-02-01", "price": 110.0}]],
+        notes="live",
+        pivots=[{"t": "2026-01-10", "price": 98.0, "kind": "low"}],
+        symbol=symbol,
+        timeframe="1D",
+    )
+
+
+def test_symbol_chart_detect_patterns_returns_hits(cp_client, monkeypatch):
+    from types import SimpleNamespace
+
+    store.save_hits("cpj_live", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    seen = {}
+
+    def fake_detect(df, timeframe, symbol):
+        seen.update(timeframe=timeframe, symbol=symbol, bars=len(df))
+        return [_live_hit(symbol)]
+
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=fake_detect))
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": 1},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert seen["symbol"] == "IRCON" and seen["timeframe"] == "1D"
+    assert seen["bars"] == 80
+    assert "hits" in body and len(body["hits"]) == 1
+    live = body["hits"][0]
+    for key in ("pattern_id", "trendlines", "pivots", "breakout_level", "target",
+                "stop", "rr", "confidence", "status"):
+        assert key in live, f"live hit missing {key}"
+    assert live["pattern_id"] == "double_bottom"
+    assert live["trendlines"][0][0]["price"] == 100.0
+    assert live["pivots"] == [{"t": "2026-01-10", "price": 98.0, "kind": "low"}]
+    # Overlays gain one entry built from the live hit (stored overlay + live).
+    assert len(body["overlays"]) == 2
+    assert body["overlays"][-1]["pattern_id"] == "double_bottom"
+    assert body["overlays"][-1]["start_date"] == "2026-01-01"
+    assert body["overlays"][-1]["end_date"] == "2026-02-01"
+    # Candles and trend_lines are unchanged.
+    assert len(body["candles"]) == 80
+    assert isinstance(body["trend_lines"], list)
+
+
+def test_symbol_chart_without_detect_patterns_keeps_old_shape(cp_client, monkeypatch):
+    from types import SimpleNamespace
+
+    def _boom(df, timeframe, symbol):
+        raise AssertionError("engine must not run when detect_patterns is absent")
+
+    store.save_hits("cpj_livedef", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=_boom))
+
+    chart = cp_client.get("/api/chart-patterns/symbol/IRCON/chart", params={"timeframe": "1D"})
+    assert chart.status_code == 200
+    body = chart.json()
+    assert "hits" not in body
+    assert set(body) == {"symbol", "timeframe", "candles", "overlays", "trend_lines"}
+    assert len(body["overlays"]) == 1
+
+
+def test_symbol_chart_detect_patterns_engine_error_still_200(cp_client, monkeypatch):
+    from types import SimpleNamespace
+
+    def _boom(df, timeframe, symbol):
+        raise RuntimeError("detector exploded")
+
+    store.save_hits("cpj_liveerr", [_hit("IRCON")])
+    monkeypatch.setattr(cp_api.candles, "fetch_for_timeframe", lambda *a, **k: _make_df(80))
+    monkeypatch.setattr(cp_api, "engine_mod", SimpleNamespace(detect_patterns=_boom))
+
+    chart = cp_client.get(
+        "/api/chart-patterns/symbol/IRCON/chart",
+        params={"timeframe": "1D", "detect_patterns": "true"},
+    )
+    assert chart.status_code == 200
+    body = chart.json()
+    assert body["hits"] == []
+    assert len(body["candles"]) == 80

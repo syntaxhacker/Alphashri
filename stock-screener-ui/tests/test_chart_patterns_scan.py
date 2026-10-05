@@ -1224,3 +1224,104 @@ def test_frame_last_date_reports_ist_session_date():
     assert frame_last_date(naive) == "2026-10-01"
     assert frame_last_date(pd.DataFrame()) is None
     assert frame_last_date(None) is None
+
+
+# ---------------------------------------------------------------------------
+# TV volume/rel-volume pre-filter: one bulk query before any candle fetch.
+# ---------------------------------------------------------------------------
+
+
+def test_run_scan_prefilter_called_once_and_limits_symbols(cp_store, monkeypatch):
+    """With volume filters, the prefilter runs once and only passing symbols fetch."""
+    monkeypatch.setattr(scan, "SYMBOL_WORKERS", 1)
+    fetched = []
+    prefilter_calls = []
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
+        fetched.append(symbol)
+        return _make_df(80)
+
+    def fake_prefilter(symbols, *, min_rel_volume=None, min_volume_m=None):
+        prefilter_calls.append({
+            "symbols": list(symbols),
+            "min_rel_volume": min_rel_volume,
+            "min_volume_m": min_volume_m,
+        })
+        return ["AAA"], {"before": 3, "after": 1, "message": "TV prefilter: 3 → 1"}
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB", "CCC"]))
+    monkeypatch.setattr(scan.tv_prefilter_mod, "prefilter_by_volume", fake_prefilter)
+
+    store.save_job({
+        "job_id": "cpj_tvpre", "universe": "nifty500", "timeframe": "1D",
+        "status": "queued", "params": {"min_rel_volume": 1.5, "min_volume_m": 1.0},
+    })
+    scan.run_scan("cpj_tvpre")
+
+    assert len(prefilter_calls) == 1
+    assert prefilter_calls[0]["symbols"] == ["AAA", "BBB", "CCC"]
+    assert prefilter_calls[0]["min_rel_volume"] == 1.5
+    assert prefilter_calls[0]["min_volume_m"] == 1.0
+    assert fetched == ["AAA"]
+    row = store.get_job("cpj_tvpre")
+    assert row["status"] == "completed"
+    assert row["total"] == 1
+    assert row["done"] == 1
+    message = jobs.get_job("cpj_tvpre").get("message")
+    assert message == "TV prefilter: 3 → 1"
+
+
+def test_run_scan_without_filters_never_calls_prefilter(cp_store, monkeypatch):
+    """No volume params: prefilter is bypassed, behaviour unchanged."""
+    def _boom(symbols, **kwargs):
+        raise AssertionError("prefilter must not run without volume filters")
+
+    fetched = []
+    monkeypatch.setattr(
+        scan.candles, "fetch_for_timeframe",
+        lambda symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None: (
+            fetched.append(symbol) or _make_df(80)
+        ),
+    )
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB"]))
+    monkeypatch.setattr(scan.tv_prefilter_mod, "prefilter_by_volume", _boom)
+
+    store.save_job({"job_id": "cpj_tvnofilt", "universe": "nifty50", "timeframe": "1D", "status": "queued"})
+    scan.run_scan("cpj_tvnofilt")
+
+    assert sorted(fetched) == ["AAA", "BBB"]
+    row = store.get_job("cpj_tvnofilt")
+    assert row["status"] == "completed"
+    assert row["total"] == 2
+
+
+def test_run_scan_prefilter_fail_open_scans_everything(cp_store, monkeypatch):
+    """TV unavailable (fail-open): every symbol is still scanned."""
+    monkeypatch.setattr(scan, "SYMBOL_WORKERS", 1)
+    fetched = []
+
+    def fake_fetch(symbol, timeframe, as_of_date=None, api_client=None, lookback_bars=None):
+        fetched.append(symbol)
+        return _make_df(80)
+
+    monkeypatch.setattr(scan.candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(scan, "engine_mod", SimpleNamespace(detect_patterns=lambda df, tf, s: [_hit(s)]))
+    monkeypatch.setattr(scan, "universes_mod", SimpleNamespace(get_universe=lambda uid: ["AAA", "BBB"]))
+    monkeypatch.setattr(
+        scan.tv_prefilter_mod, "prefilter_by_volume",
+        lambda symbols, **kwargs: (list(symbols), {"fail_open": True}),
+    )
+
+    store.save_job({
+        "job_id": "cpj_tvfailopen", "universe": "nifty50", "timeframe": "1D",
+        "status": "queued", "params": {"min_rel_volume": 2.0},
+    })
+    scan.run_job("cpj_tvfailopen")
+
+    assert sorted(fetched) == ["AAA", "BBB"]
+    row = store.get_job("cpj_tvfailopen")
+    assert row["status"] == "completed"
+    assert row["total"] == 2

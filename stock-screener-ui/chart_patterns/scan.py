@@ -16,6 +16,11 @@ from types import SimpleNamespace
 from chart_patterns import candles, config, jobs as jobs_mod, store
 
 try:
+    from chart_patterns import tv_prefilter as tv_prefilter_mod
+except Exception:  # pragma: no cover - tv_prefilter is a local module
+    tv_prefilter_mod = None
+
+try:
     from chart_patterns import engine as engine_mod
 except Exception:  # pragma: no cover - integration env always has it
     engine_mod = None
@@ -271,6 +276,8 @@ def run_job(job_id: str) -> None:
     params = _job_params(job)
     raw_symbols = params.get("symbols")
     lookback_bars = params.get("lookback_bars")
+    min_rel_volume = params.get("min_rel_volume")
+    min_volume_m = params.get("min_volume_m")
     compute_trendlines = params.get("compute_trendlines", True)
     if compute_trendlines is None:
         compute_trendlines = True
@@ -289,6 +296,29 @@ def run_job(job_id: str) -> None:
         return
 
     total = len(symbols)
+
+    # TV volume/rel-volume pre-filter: one bulk TradingView query BEFORE any
+    # candle fetch, so low-energy symbols never cost an Upstox call. Fail-open
+    # (all symbols pass) when TV is unavailable.
+    prefilter_message: str | None = None
+    if min_rel_volume is not None or min_volume_m is not None:
+        before = len(symbols)
+        try:
+            if tv_prefilter_mod is None:
+                raise RuntimeError("chart_patterns.tv_prefilter unavailable")
+            symbols, _prefilter_info = tv_prefilter_mod.prefilter_by_volume(
+                symbols,
+                min_rel_volume=min_rel_volume,
+                min_volume_m=min_volume_m,
+            )
+            prefilter_message = str(
+                _prefilter_info.get("message") or f"TV prefilter: {before} → {len(symbols)}"
+            )
+        except Exception as exc:
+            symbols = list(symbols)
+            prefilter_message = f"TV prefilter: {before} → {len(symbols)} (fail-open: {exc})"
+        names = {s: names.get(s) for s in symbols if s in names} if names else {}
+        total = len(symbols)
 
     # Staleness short-circuit: a fresh completed scan already covers this
     # combo, so a non-forced rescan would just recompute identical hits.
@@ -310,7 +340,10 @@ def run_job(job_id: str) -> None:
             )
             return
 
-    jobs_mod.update_state(job_id, status="running", total=total)
+    _running_state: dict = {"status": "running", "total": total}
+    if prefilter_message:
+        _running_state["message"] = prefilter_message
+    jobs_mod.update_state(job_id, **_running_state)
 
     # Supersede any previous hits for this universe/timeframe so results never
     # mix stale rows from an earlier scan.
@@ -324,10 +357,13 @@ def run_job(job_id: str) -> None:
     lock = threading.Lock()
 
     if not symbols:
-        jobs_mod.update_state(
-            job_id, status="completed", total=0, done=0,
-            failed=0, skipped=0, finished_at=_now(),
-        )
+        _empty_state: dict = {
+            "status": "completed", "total": 0, "done": 0,
+            "failed": 0, "skipped": 0, "finished_at": _now(),
+        }
+        if prefilter_message:
+            _empty_state["message"] = prefilter_message
+        jobs_mod.update_state(job_id, **_empty_state)
         return
 
     with ThreadPoolExecutor(max_workers=max(1, SYMBOL_WORKERS)) as pool:
@@ -370,7 +406,14 @@ def run_job(job_id: str) -> None:
             skipped=skipped, data_through=max_date, finished_at=_now(),
         )
     else:
-        jobs_mod.update_state(
-            job_id, status="completed", done=done, failed=failed,
-            skipped=skipped, data_through=max_date, finished_at=_now(),
-        )
+        _done_state: dict = {
+            "status": "completed", "done": done, "failed": failed,
+            "skipped": skipped, "data_through": max_date, "finished_at": _now(),
+        }
+        if prefilter_message:
+            _done_state["message"] = prefilter_message
+        jobs_mod.update_state(job_id, **_done_state)
+
+
+# Alias for the ``run_scan`` name used by the TV-prefilter contract.
+run_scan = run_job

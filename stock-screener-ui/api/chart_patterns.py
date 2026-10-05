@@ -6,6 +6,7 @@ precedent (open).
 """
 from __future__ import annotations
 
+import dataclasses
 from datetime import datetime
 from typing import Optional
 
@@ -16,6 +17,11 @@ from pydantic import BaseModel
 
 from chart_patterns import candles, config, jobs, store
 from chart_patterns import trendlines as trendlines_mod
+
+try:
+    from chart_patterns import engine as engine_mod
+except Exception:  # pragma: no cover - engine always present in app env
+    engine_mod = None
 from db.models.user import User
 from api.auth import get_current_user
 from api.utils import _sanitize_for_json
@@ -521,6 +527,10 @@ class ScanRequest(BaseModel):
     # no slicing). When set, history covers N bars and detection sees only
     # the last N bars.
     lookback_bars: Optional[int] = None
+    # Optional TradingView volume pre-filter (scan-time, before any candle
+    # fetch). Percent for rel-volume, millions of shares for volume.
+    min_rel_volume: Optional[float] = None
+    min_volume_m: Optional[float] = None
 
 
 # Upper bound on a custom scan's symbol list (matches the picker's practical
@@ -589,6 +599,10 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
     params["compute_trendlines"] = request.compute_trendlines
     if request.lookback_bars is not None:
         params["lookback_bars"] = request.lookback_bars
+    if request.min_rel_volume is not None:
+        params["min_rel_volume"] = request.min_rel_volume
+    if request.min_volume_m is not None:
+        params["min_volume_m"] = request.min_volume_m
     if request.timeframe not in _valid_timeframe_ids():
         raise HTTPException(
             status_code=422,
@@ -781,6 +795,49 @@ async def get_symbol(symbol: str, timeframe: str = Query("1D")):
     return _sanitize_for_json(detail)
 
 
+def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
+    """Serialize a live engine hit to a ``PatternHitDTO``-shaped dict.
+
+    Never raises: unserializable hits return ``None`` (caller drops them).
+    """
+    try:
+        if isinstance(hit, dict):
+            record = dict(hit)
+        elif dataclasses.is_dataclass(hit):
+            record = dataclasses.asdict(hit)
+        elif hasattr(hit, "to_dict"):
+            record = hit.to_dict()
+        elif hasattr(hit, "__dict__"):
+            record = {k: v for k, v in vars(hit).items() if not k.startswith("_")}
+        else:
+            return None
+    except Exception:
+        return None
+    if not isinstance(record, dict):
+        return None
+    record.setdefault("symbol", symbol.upper())
+    record.setdefault("timeframe", timeframe)
+    return record
+
+
+def _live_overlay(hit: dict) -> Optional[dict]:
+    """Overlay for one live hit — same shape as the stored-pattern overlays."""
+    try:
+        if not hit.get("trendlines"):
+            return None
+        return {
+            "pattern_id": hit.get("pattern_id"),
+            "pattern_name": hit.get("pattern_name"),
+            "direction": hit.get("direction"),
+            "trendlines": hit.get("trendlines"),
+            "start_date": hit.get("start_date"),
+            "end_date": hit.get("end_date"),
+            "id": hit.get("id"),
+        }
+    except Exception:
+        return None
+
+
 @router.get("/symbol/{symbol}/chart")
 async def get_symbol_chart(
     symbol: str,
@@ -788,6 +845,7 @@ async def get_symbol_chart(
     limit: int = Query(config.CHART_MAX_BARS, ge=1, le=config.CHART_MAX_BARS),
     lookback_bars: Optional[int] = Query(None),
     compute_trendlines: bool = Query(True),
+    detect_patterns: bool = Query(False),
 ):
     try:
         lb = lookback_bars if lookback_bars is not None else config.READ_LOOKBACK_BARS
@@ -835,10 +893,27 @@ async def get_symbol_chart(
             trend_lines = [v for v in (_res.get("support"), _res.get("resistance")) if v] if isinstance(_res, dict) else []
         except Exception:
             trend_lines = []
-    return _sanitize_for_json({
+    payload = {
         "symbol": symbol.upper(),
         "timeframe": timeframe,
         "candles": series,
         "overlays": overlays,
         "trend_lines": trend_lines,
-    })
+    }
+    if detect_patterns:
+        hits: list = []
+        if df is not None and not getattr(df, "empty", True) and engine_mod is not None:
+            try:
+                live = engine_mod.detect_patterns(df, timeframe, symbol) or []
+            except Exception:
+                live = []
+            for hit in live:
+                record = _live_hit_to_dict(hit, symbol, timeframe)
+                if record is not None:
+                    hits.append(record)
+        for record in hits:
+            overlay = _live_overlay(record)
+            if overlay is not None:
+                overlays.append(overlay)
+        payload["hits"] = hits
+    return _sanitize_for_json(payload)
