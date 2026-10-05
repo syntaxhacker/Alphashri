@@ -211,6 +211,20 @@ def _persist_52w_ranges_to_db(data: dict):
         db.close()
 
 
+def is_52w_batch_stale(job: dict | None) -> bool:
+    """True when the scheduler should treat a 'running' 52W job as stuck.
+
+    Pure check over the job dict (no Redis) — delegates to
+    trading.week52_job_status.is_job_stale with the SCREENER_52W_STALE_SEC threshold.
+    """
+    try:
+        from trading.week52_job_status import is_job_stale
+
+        return is_job_stale(job)
+    except Exception:
+        return False
+
+
 async def compute_52w_ranges_task():
     """Hourly Upstox 52W batch (daily staleness refresh) + screener cache invalidation when complete.
     Symbols already refreshed today are skipped, so the first run each day updates the full
@@ -221,7 +235,7 @@ async def compute_52w_ranges_task():
     instead of waiting the full interval.
     """
     import os
-    from trading.week52_job_status import get_job_status
+    from trading.week52_job_status import get_job_status, fail_job, job_age_sec
 
     interval = int(os.environ.get("SCREENER_52W_INTERVAL_SEC", "3600"))
     poll_sec = 30
@@ -245,8 +259,17 @@ async def compute_52w_ranges_task():
 
             job = get_job_status() or {}
             if job.get("status") == "running":
-                print("[52W Range] Scheduled run skipped — batch already running")
-                continue
+                if is_52w_batch_stale(job):
+                    age = job_age_sec(job)
+                    age_str = f"{age:.0f}s" if age is not None else "unknown age"
+                    print(f"[52W Range] Stale running job detected (age={age_str}) — resetting and starting fresh batch")
+                    try:
+                        fail_job("stale — reset by scheduler")
+                    except Exception as e:
+                        print(f"[52W Range] Stale reset failed: {e}")
+                else:
+                    print("[52W Range] Scheduled run skipped — batch already running")
+                    continue
 
             from api.admin_routes import _run_52w_batch_subprocess
 

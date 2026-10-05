@@ -87,11 +87,18 @@ def clear_52w_range_data(*, clear_db: bool) -> dict:
 async def get_52w_range_status(current_user=Depends(get_current_user)):
     """52W Upstox batch job progress + DB coverage (admin only)."""
     _require_admin(current_user)
-    from trading.week52_job_status import get_job_status
+    from trading.week52_job_status import get_job_status, is_job_stale, job_age_sec
 
     import os
 
-    job = get_job_status() or {"status": "idle", "message": "No batch job recorded yet"}
+    raw = get_job_status() or {"status": "idle", "message": "No batch job recorded yet"}
+    job = dict(raw) if isinstance(raw, dict) else {"status": "idle"}
+    age = job_age_sec(job) if isinstance(raw, dict) else None
+    job["age_sec"] = round(age, 1) if age is not None else None
+    try:
+        job["stale"] = bool(is_job_stale(raw))
+    except Exception:
+        job["stale"] = False
     interval = int(os.environ.get("SCREENER_52W_INTERVAL_SEC", "3600"))
     return {
         "job": job,
@@ -119,10 +126,8 @@ async def delete_52w_range_cache(
 ):
     """Clear 52W Redis cache; optionally wipe DB for a full refresh."""
     _require_admin(current_user)
-    from trading.week52_job_status import get_job_status
-
-    job = get_job_status()
-    if job and job.get("status") == "running":
+    blocking = _blocking_52w_job()
+    if blocking is not None:
         raise HTTPException(status_code=409, detail="Stop or wait for the running batch first")
 
     result = await asyncio.to_thread(clear_52w_range_data, clear_db=clear_db)
@@ -137,6 +142,66 @@ async def delete_52w_range_cache(
     }
 
 
+def _blocking_52w_job() -> dict | None:
+    """Return the job dict if a *fresh* batch is running, else None.
+
+    A 'running' job older than SCREENER_52W_STALE_SEC is reset to failed
+    (fail_job) so a crashed/hung subprocess cannot block the scheduler or
+    admin endpoints forever. Pure-stale jobs return None (not blocking).
+    """
+    from trading.week52_job_status import fail_job, get_job_status, is_job_stale, job_age_sec
+
+    job = get_job_status()
+    if not job or job.get("status") != "running":
+        return None
+    try:
+        stale = is_job_stale(job)
+    except Exception:
+        stale = False
+    if not stale:
+        return job
+    age = job_age_sec(job)
+    age_str = f"{age:.0f}s" if age is not None else "unknown age"
+    print(f"[52W Range] Stale running job detected (age={age_str}) — resetting")
+    try:
+        fail_job("stale — reset")
+    except Exception as e:
+        print(f"[52W Range] Stale reset failed: {e}")
+    return None
+
+
+def _watch_52w_batch_subprocess(proc: "subprocess.Popen") -> None:
+    """Wait for a detached 52W batch process; write a terminal status if it
+    exits without one (crash/hang-kill), so 'running' can never stick forever."""
+    import threading
+
+    def _wait() -> None:
+        try:
+            rc = proc.wait()
+        except Exception as e:
+            try:
+                from trading.week52_job_status import fail_job
+
+                fail_job(f"batch watcher error: {e}")
+            except Exception:
+                pass
+            return
+        try:
+            from trading.week52_job_status import fail_job, get_job_status
+
+            job = get_job_status() or {}
+            if job.get("status") == "running":
+                if rc != 0:
+                    fail_job(f"batch subprocess exited (code={rc}) without terminal status")
+                else:
+                    fail_job("batch subprocess exited without terminal status")
+        except Exception:
+            pass
+
+    t = threading.Thread(target=_wait, daemon=True, name="52w-batch-watcher")
+    t.start()
+
+
 def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip_updated_today: bool = False) -> None:
     script = _PROJECT_ROOT / "scripts" / "compute_52w_ranges_upstox.py"
     cmd = [sys.executable, str(script)]
@@ -148,13 +213,27 @@ def _run_52w_batch_subprocess(skip_existing: bool, redis: bool, limit: int, skip
         cmd.append("--redis")
     if limit > 0:
         cmd.extend(["--limit", str(limit)])
-    subprocess.Popen(
-        cmd,
-        cwd=str(_PROJECT_ROOT),
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        start_new_session=True,
-    )
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            cwd=str(_PROJECT_ROOT),
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            start_new_session=True,
+        )
+    except Exception as e:
+        # Launch failure must not leave a stale "running" status behind.
+        try:
+            from trading.week52_job_status import fail_job
+
+            fail_job(f"batch failed to start: {e}")
+        except Exception:
+            pass
+        raise
+    try:
+        _watch_52w_batch_subprocess(proc)
+    except Exception:
+        pass
 
 
 @router.post("/api/admin/52w-range/run")
@@ -164,10 +243,8 @@ async def run_52w_range_batch(
 ):
     """Start Upstox 52W range batch in background (admin only)."""
     _require_admin(current_user)
-    from trading.week52_job_status import get_job_status
-
-    job = get_job_status()
-    if job and job.get("status") == "running":
+    blocking = _blocking_52w_job()
+    if blocking is not None:
         raise HTTPException(status_code=409, detail="52W batch job is already running")
 
     skip_existing = body.skip_existing and not body.full_refresh
@@ -336,10 +413,7 @@ async def invalidate_screener_cache_endpoint(
         deleted = invalidate_screener_cache()
         batch_started = False
         if refresh_52w:
-            from trading.week52_job_status import get_job_status
-
-            job = get_job_status()
-            if not job or job.get("status") != "running":
+            if _blocking_52w_job() is None:
                 await asyncio.to_thread(_run_52w_batch_subprocess, True, True, 0)
                 batch_started = True
         msg = f"Invalidated {deleted} screener cache entries"
