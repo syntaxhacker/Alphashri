@@ -202,6 +202,11 @@ export interface ChartPayload {
   overlays: PatternOverlay[];
   /** Auto-computed standalone support/resistance lines (view-only overlay). */
   trend_lines?: TrendLine[];
+  /**
+   * Live pattern hits detected on this timeframe (`detect_patterns=1`).
+   * Absent unless detection was requested.
+   */
+  hits?: PatternHitDTO[];
 }
 
 /** User-facing result filters (the filter rail). */
@@ -234,6 +239,17 @@ export interface PatternFilters {
    * Shows consolidations whose price sits at/above this % of the base range.
    */
   min_range_pos?: number | null;
+  /**
+   * Minimum relative volume (null = any). Scan-time pre-filter: the scan
+   * pre-filters the universe via TradingView before fetching candles.
+   * Never sent to `/results`/`/summary` (not part of `baseQuery`).
+   */
+  min_rel_volume?: number | null;
+  /**
+   * Minimum watched volume in millions of shares (null = any). Scan-time
+   * pre-filter like `min_rel_volume`; never sent to `/results`/`/summary`.
+   */
+  min_volume_m?: number | null;
   /** Result ordering: `"confidence"` (default) or `"newest"` (freshest bars first). */
   sort: string;
   /**

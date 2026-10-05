@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Box, Modal, Text, ToolbarRow } from "@/ui";
+import { Box, Loader, Modal, Text, ToolbarRow } from "@/ui";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
-import type { ChartCandle, PatternHitDTO, PatternOverlay, TrendLine, TrendlinesView } from "@/types/chartPatterns";
+import type { ChartCandle, PatternHitDTO, PatternOverlay, TFSpec, TrendLine, TrendlinesView } from "@/types/chartPatterns";
 import { buildPatternTVData } from "./patternTVData";
 import { PatternChartLegend } from "./PatternChartLegend";
 import { PatternTradingViewChart } from "./PatternTradingViewChart";
+import { TimeframeSelect } from "./TimeframeSelect";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
@@ -25,6 +26,18 @@ export interface PatternFullscreenViewProps {
   trendLines?: TrendLine[];
   /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
+  /**
+   * Active fullscreen timeframe. When set together with `onTimeframeChange`
+   * the toolbar renders a Timeframe selector that re-runs detection on that
+   * timeframe.
+   */
+  timeframe?: string | null;
+  /** Timeframe ladder for the selector (falls back to the contract ladder). */
+  timeframes?: TFSpec[];
+  /** Re-fetch the symbol chart + live hits on the newly selected timeframe. */
+  onTimeframeChange?: (timeframe: string) => void;
+  /** Small loading state shown next to the selector while the TF reloads. */
+  loading?: boolean;
 }
 
 /**
@@ -193,6 +206,10 @@ export function PatternFullscreenView({
   overlays,
   trendLines,
   trendlinesView = "both",
+  timeframe,
+  timeframes,
+  onTimeframeChange,
+  loading = false,
 }: PatternFullscreenViewProps) {
   const title = hit ? `${hit.symbol} · ${hit.pattern_name}` : "Pattern chart";
 
@@ -200,7 +217,23 @@ export function PatternFullscreenView({
     <Modal
       opened={opened}
       onClose={onClose}
-      title={title}
+      title={
+        <ToolbarRow gap={8} align="center" wrap>
+          <Text size="sm" fw={600}>
+            {title}
+          </Text>
+          {onTimeframeChange && timeframe != null ? (
+            <Box data-testid="patterns-fullscreen-timeframe">
+              <TimeframeSelect
+                timeframes={timeframes ?? []}
+                value={timeframe}
+                onChange={onTimeframeChange}
+              />
+            </Box>
+          ) : null}
+          {loading ? <Loader size="xs" data-testid="patterns-fullscreen-loading" /> : null}
+        </ToolbarRow>
+      }
       fullScreen
       padding={0}
       data-testid="patterns-fullscreen-modal"

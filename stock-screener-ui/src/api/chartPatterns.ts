@@ -59,6 +59,10 @@ export interface ScanRequest {
   lookback_bars?: number | null;
   /** Skip server-side trendline computation (false = skip; omitted = compute). */
   compute_trendlines?: boolean;
+  /** Minimum relative volume pre-filter (scan-time only; omitted/null = any). */
+  min_rel_volume?: number | null;
+  /** Minimum watched volume in millions (scan-time only; omitted/null = any). */
+  min_volume_m?: number | null;
 }
 
 export interface ScanResponse {
@@ -250,6 +254,8 @@ export interface SymbolChartOptions {
   lookbackBars?: number | null;
   /** Skip server-side trendline computation (false = skip; omitted = compute). */
   computeTrendlines?: boolean;
+  /** Run live pattern detection on this timeframe (`detect_patterns=1`). */
+  detectPatterns?: boolean;
 }
 
 export async function fetchSymbolChart(
@@ -261,9 +267,11 @@ export async function fetchSymbolChart(
   const limit = typeof opts === "number" ? opts : opts?.limit;
   const lookbackBars = typeof opts === "number" ? undefined : opts?.lookbackBars;
   const computeTrendlines = typeof opts === "number" ? undefined : opts?.computeTrendlines;
+  const detectPatterns = typeof opts === "number" ? undefined : opts?.detectPatterns;
   if (limit != null) params.set("limit", String(limit));
   if (lookbackBars != null) params.set("lookback_bars", String(lookbackBars));
   if (computeTrendlines === false) params.set("compute_trendlines", "0");
+  if (detectPatterns) params.set("detect_patterns", "1");
   return getJson<ChartPayload>(
     `${CHART_PATTERNS_BASE}/symbol/${encodeURIComponent(symbol)}/chart?${params.toString()}`,
     `Failed to load ${symbol} chart`,

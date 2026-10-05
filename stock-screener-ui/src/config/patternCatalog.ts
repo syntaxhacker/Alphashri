@@ -188,4 +188,10 @@ export const BUILTIN_PRESETS: PatternPreset[] = [
       sort: "range_pos",
     },
   },
+  {
+    id: "high_rel_vol",
+    name: "High rel-vol",
+    description: "Only scan symbols with strong relative volume",
+    filters: { min_rel_volume: 1.5, min_volume_m: 5 },
+  },
 ];

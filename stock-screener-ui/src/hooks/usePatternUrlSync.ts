@@ -5,7 +5,7 @@
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
- *   gap52, pos, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   gap52, pos, relvol, volm, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
  *   `symbol=` values are the multi-symbol filter), q, trendlines,
  *   compute_trendlines (`=0` only, when trendline computation is skipped).
  *
@@ -91,6 +91,10 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   if (max52wGap != null) filters.max_52w_gap = max52wGap;
   const minRangePos = numberOrNull(params.get("pos"));
   if (minRangePos != null) filters.min_range_pos = minRangePos;
+  const minRelVolume = numberOrNull(params.get("relvol"));
+  if (minRelVolume != null) filters.min_rel_volume = minRelVolume;
+  const minVolumeM = numberOrNull(params.get("volm"));
+  if (minVolumeM != null) filters.min_volume_m = minVolumeM;
 
   const sort = params.get("sort");
   if (sort) filters.sort = sort;
@@ -175,6 +179,8 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.max_range_pct != null) params.set("range", String(filters.max_range_pct));
   if (filters.max_52w_gap != null) params.set("gap52", String(filters.max_52w_gap));
   if (filters.min_range_pos != null) params.set("pos", String(filters.min_range_pos));
+  if (filters.min_rel_volume != null) params.set("relvol", String(filters.min_rel_volume));
+  if (filters.min_volume_m != null) params.set("volm", String(filters.min_volume_m));
   if (filters.sort && filters.sort !== DEFAULT_PATTERN_FILTERS.sort) {
     params.set("sort", filters.sort);
   }
@@ -210,6 +216,8 @@ const PATTERN_PARAM_KEYS = new Set([
   "range",
   "gap52",
   "pos",
+  "relvol",
+  "volm",
   "sort",
   "symbol",
   "q",

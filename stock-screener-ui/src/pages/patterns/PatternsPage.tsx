@@ -44,6 +44,8 @@ function activeFilterCount(f: PatternFilters): number {
   if (f.q) n += 1;
   if (f.min_base_days != null) n += 1;
   if (f.max_range_pct != null) n += 1;
+  if (f.min_rel_volume != null) n += 1;
+  if (f.min_volume_m != null) n += 1;
   if (f.trendlines && f.trendlines !== "both") n += 1;
   return n;
 }
@@ -118,10 +120,15 @@ export function PatternsPage({
   forceRefresh,
 }: PatternsPageProps) {
   const [fullscreen, setFullscreen] = useState<{
-    hit: PatternHitDTO;
+    symbol: string;
+    hit: PatternHitDTO | null;
+    /** Fullscreen timeframe (defaults to the opened hit's timeframe). */
+    timeframe: string;
     candles: ChartCandle[];
     overlays: PatternOverlay[];
     trendLines: TrendLine[];
+    /** True while a fullscreen timeframe switch is reloading the chart. */
+    loading: boolean;
   } | null>(null);
   // Monotonic request token: clicking two cards of the same symbol in quick
   // succession must not let the stale fetch overwrite the newer selection.
@@ -181,7 +188,15 @@ export function PatternsPage({
     const token = chartRequestRef.current + 1;
     chartRequestRef.current = token;
     const identity = hitIdentity(hit);
-    setFullscreen({ hit, candles: hit.candles ?? [], overlays: [], trendLines: hit.trend_lines ?? [] });
+    setFullscreen({
+      symbol: hit.symbol,
+      hit,
+      timeframe: hit.timeframe,
+      candles: hit.candles ?? [],
+      overlays: [],
+      trendLines: hit.trend_lines ?? [],
+      loading: false,
+    });
     // Forward the TLS/TLR opt-out: with computation off the chart endpoint
     // skips the detector and returns empty `trend_lines`.
     void fetchSymbolChart(hit.symbol, hit.timeframe, {
@@ -192,7 +207,7 @@ export function PatternsPage({
         // Drop stale responses: only the latest request may update the view.
         if (chartRequestRef.current !== token) return;
         setFullscreen((prev) =>
-          prev && hitIdentity(prev.hit) === identity
+          prev && prev.hit && hitIdentity(prev.hit) === identity
             ? {
                 ...prev,
                 candles: chart.candles?.length ? chart.candles : prev.candles,
@@ -204,6 +219,51 @@ export function PatternsPage({
       })
       .catch(() => {
         /* non-fatal: keep the card's pattern + candles */
+      });
+  };
+
+  /**
+   * Fullscreen timeframe switch: re-runs pattern detection on the new
+   * timeframe (`detect_patterns=1`), swaps candles/overlays/trendlines, and
+   * promotes the highest-confidence hit (or null when there is none).
+   */
+  const changeFullscreenTimeframe = (tf: string) => {
+    const current = fullscreen;
+    if (!current || tf === current.timeframe) return;
+    const token = chartRequestRef.current + 1;
+    chartRequestRef.current = token;
+    const { symbol } = current;
+    setFullscreen({ ...current, timeframe: tf, loading: true });
+    void fetchSymbolChart(symbol, tf, { detectPatterns: true })
+      .then((chart) => {
+        // Drop stale responses: only the latest request may update the view.
+        if (chartRequestRef.current !== token) return;
+        const hits = chart.hits ?? [];
+        let best: PatternHitDTO | null = null;
+        for (const candidate of hits) {
+          if (!best || candidate.confidence > best.confidence) best = candidate;
+        }
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol && prev.timeframe === tf
+            ? {
+                ...prev,
+                hit: best,
+                candles: chart.candles ?? [],
+                overlays: chart.overlays ?? [],
+                trendLines: chart.trend_lines ?? [],
+                loading: false,
+              }
+            : prev,
+        );
+      })
+      .catch(() => {
+        // Non-fatal: keep the previous chart, just clear the spinner.
+        if (chartRequestRef.current !== token) return;
+        setFullscreen((prev) =>
+          prev && prev.symbol === symbol && prev.timeframe === tf
+            ? { ...prev, loading: false }
+            : prev,
+        );
       });
   };
 
@@ -438,6 +498,10 @@ export function PatternsPage({
         overlays={fullscreen?.overlays ?? []}
         trendLines={fullscreen?.trendLines ?? []}
         trendlinesView={effectiveTrendlinesView}
+        timeframe={fullscreen?.timeframe}
+        timeframes={timeframes}
+        onTimeframeChange={changeFullscreenTimeframe}
+        loading={fullscreen?.loading ?? false}
       />
     </Box>
   );

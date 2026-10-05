@@ -63,6 +63,8 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   max_range_pct: null,
   max_52w_gap: null,
   min_range_pos: null,
+  min_rel_volume: null,
+  min_volume_m: null,
   sort: "confidence",
   trendlines: "both",
 };
@@ -455,7 +457,9 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
     filters.min_base_days != null ||
     filters.max_range_pct != null ||
     filters.max_52w_gap != null ||
-    filters.min_range_pos != null
+    filters.min_range_pos != null ||
+    filters.min_rel_volume != null ||
+    filters.min_volume_m != null
   );
 }
 
@@ -549,6 +553,13 @@ export async function triggerScan(
       symbols,
       ...(lookback != null ? { lookback_bars: lookback } : {}),
       compute_trendlines: state.computeTrendlines,
+      // Scan-time volume pre-filters (only sent when set; never null).
+      ...(state.filters.min_rel_volume != null
+        ? { min_rel_volume: state.filters.min_rel_volume }
+        : {}),
+      ...(state.filters.min_volume_m != null
+        ? { min_volume_m: state.filters.min_volume_m }
+        : {}),
     });
     if (overrides.autoKey) autoScanRequested.add(overrides.autoKey);
     patch({

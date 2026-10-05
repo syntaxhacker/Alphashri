@@ -524,6 +524,63 @@ export function PatternFilterRail({
     </Section>
   );
 
+  // Scan-time volume pre-filters: the scan pre-filters the universe via
+  // TradingView before fetching candles (unlike the result-level filters).
+  const volumeScanSection = (
+    <Section title="Volume scan">
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Text size="xs" c="dimmed">
+            Rel vol ≥
+          </Text>
+          <NumberInput
+            value={filters.min_rel_volume ?? ""}
+            onChange={(v: number | string) => {
+              if (v === "" || v == null) {
+                setFilter("min_rel_volume", null);
+                return;
+              }
+              const n = Number(v);
+              // Ignore in-progress partials ("-", "1.") — never store NaN.
+              if (!Number.isNaN(n)) setFilter("min_rel_volume", n);
+            }}
+            min={0}
+            max={10}
+            step={0.5}
+            size="sm"
+            placeholder="Any"
+            w={110}
+            data-testid="patterns-filter-min-rel-volume"
+          />
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Text size="xs" c="dimmed">
+            Volume ≥ M
+          </Text>
+          <NumberInput
+            value={filters.min_volume_m ?? ""}
+            onChange={(v: number | string) => {
+              if (v === "" || v == null) {
+                setFilter("min_volume_m", null);
+                return;
+              }
+              const n = Number(v);
+              // Ignore in-progress partials ("-", "1.") — never store NaN.
+              if (!Number.isNaN(n)) setFilter("min_volume_m", n);
+            }}
+            min={0}
+            max={500}
+            step={5}
+            size="sm"
+            placeholder="Any"
+            w={110}
+            data-testid="patterns-filter-min-volume-m"
+          />
+        </Box>
+      </Box>
+    </Section>
+  );
+
   // View-only overlay toggle: controls which standalone support/resistance
   // lines are drawn on the card/fullscreen charts. Never sent to the API.
   const trendlinesSection = (
@@ -599,6 +656,7 @@ export function PatternFilterRail({
           {rangeSection}
           {gap52Section}
           {rangePosSection}
+          {volumeScanSection}
           {volumeSection}
         </Box>
       </Box>
@@ -635,6 +693,8 @@ export function PatternFilterRail({
       {gap52Section}
       <Divider />
       {rangePosSection}
+      <Divider />
+      {volumeScanSection}
       <Divider />
       {volumeSection}
     </Box>

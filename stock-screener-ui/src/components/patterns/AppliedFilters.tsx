@@ -158,6 +158,24 @@ export function buildAppliedFilterChips(
       nextValue: null,
     });
   }
+  if (filters.min_rel_volume != null) {
+    chips.push({
+      id: "min_rel_volume",
+      group: "Volume",
+      label: `rel vol ≥ ${filters.min_rel_volume}`,
+      key: "min_rel_volume",
+      nextValue: null,
+    });
+  }
+  if (filters.min_volume_m != null) {
+    chips.push({
+      id: "min_volume_m",
+      group: "Volume",
+      label: `vol ≥ ${filters.min_volume_m}M`,
+      key: "min_volume_m",
+      nextValue: null,
+    });
+  }
   if (filters.sort && filters.sort !== "confidence") {
     chips.push({
       id: `sort:${filters.sort}`,
