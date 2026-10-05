@@ -26,6 +26,7 @@ import { PatternGrid } from "@/components/patterns/PatternGrid";
 import { ScanProgress } from "@/components/patterns/ScanProgress";
 import { AppliedFilters } from "@/components/patterns/AppliedFilters";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
+import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
 
 /** Count of active (non-default) filters, shown on the Filters button. */
 function activeFilterCount(f: PatternFilters): number {
@@ -126,6 +127,23 @@ export function PatternsPage({
   // succession must not let the stale fetch overwrite the newer selection.
   const chartRequestRef = useRef(0);
   const [filtersOpen, setFiltersOpen] = useState(false);
+  // Filter edits are staged in a draft and only applied when the user clicks
+  // "Filter" — changing a control no longer triggers an instant reload.
+  const [draftFilters, setDraftFilters] = useState<PatternFilters>(filters);
+  useEffect(() => {
+    if (filtersOpen) setDraftFilters(filters);
+  }, [filtersOpen]);
+  const setDraftFilter = (key: string, value: unknown): void => {
+    setDraftFilters((prev) => ({ ...prev, [key]: value }) as PatternFilters);
+  };
+  const resetDraft = (): void => setDraftFilters(DEFAULT_PATTERN_FILTERS);
+  const applyDraftPreset = (patch: Partial<PatternFilters>): void => {
+    setDraftFilters((prev) => ({ ...prev, ...patch }));
+  };
+  const applyDraft = (): void => {
+    applyFilters(draftFilters);
+    setFiltersOpen(false);
+  };
   const [patternImages, setPatternImages] = useState<Record<string, string>>({});
   const activeFilters = activeFilterCount(filters);
   const scanActive = scanning || job?.status === "running" || job?.status === "queued";
@@ -381,10 +399,10 @@ export function PatternsPage({
             patterns={patterns}
             results={results}
             summary={summary}
-            filters={filters}
-            setFilter={setFilter}
-            resetFilters={resetFilters}
-            applyFilters={applyFilters}
+            filters={draftFilters}
+            setFilter={setDraftFilter}
+            resetFilters={resetDraft}
+            applyFilters={applyDraftPreset}
             images={patternImages}
           />
         </Box>
@@ -396,7 +414,7 @@ export function PatternsPage({
           <Button
             size="sm"
             variant="outline"
-            onClick={resetFilters}
+            onClick={resetDraft}
             data-testid="patterns-reset"
           >
             Reset all
@@ -404,10 +422,10 @@ export function PatternsPage({
           <Button
             size="sm"
             variant="filled"
-            onClick={() => setFiltersOpen(false)}
+            onClick={applyDraft}
             data-testid="patterns-filters-done"
           >
-            Done
+            Filter
           </Button>
         </ToolbarRow>
       </Modal>

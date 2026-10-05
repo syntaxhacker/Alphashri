@@ -354,12 +354,17 @@ describe("PatternsPage", () => {
     expect(props.scan).toHaveBeenCalledTimes(1);
   });
 
-  test("toggling a family chip calls setFilter", async () => {
+  test("filter edits are staged and applied only when Filter is clicked", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
     await userEvent.click(screen.getByTestId("patterns-open-filters"));
     await userEvent.click(await screen.findByTestId("patterns-family-reversal"));
-    expect(props.setFilter).toHaveBeenCalledWith("family", ["reversal"]);
+    // Staged locally — no instant store update / reload.
+    expect(props.setFilter).not.toHaveBeenCalled();
+    await userEvent.click(screen.getByTestId("patterns-filters-done"));
+    expect(props.applyFilters).toHaveBeenCalledWith(
+      expect.objectContaining({ family: ["reversal"] }),
+    );
   });
 
   test("shows the error alert instead of the generic empty copy when error is set", () => {
@@ -563,13 +568,14 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     expect(props.resetFilters).toHaveBeenCalledTimes(1);
   });
 
-  test("filters modal exposes the modal region and Reset all calls resetFilters", async () => {
+  test("filters modal exposes the modal region; Reset all stages a reset", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
     await userEvent.click(screen.getByTestId("patterns-open-filters"));
     expect(await screen.findByTestId("patterns-filter-modal")).toBeInTheDocument();
     await userEvent.click(screen.getByTestId("patterns-reset"));
-    expect(props.resetFilters).toHaveBeenCalledTimes(1);
+    // Reset is staged locally; nothing hits the store until Filter.
+    expect(props.resetFilters).not.toHaveBeenCalled();
   });
 
   test("expand button on a card opens the fullscreen chart", async () => {
