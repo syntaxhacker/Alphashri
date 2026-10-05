@@ -124,6 +124,8 @@ export interface PatternHitDTO {
   base_days?: number;
   /** Consolidation range as a percentage of price (`consolidation` pattern only). */
   range_pct?: number;
+  /** Distance to the 52-week high as a percentage (null when unavailable). */
+  to_52w_high?: number | null;
   /** Position within the consolidation range, 0..1 (`consolidation` pattern only). */
   range_pos?: number;
 }
@@ -222,6 +224,16 @@ export interface PatternFilters {
   min_base_days: number | null;
   /** Maximum consolidation range as % of price (null = any). */
   max_range_pct: number | null;
+  /**
+   * Maximum distance to the 52-week high as % of price (null = any).
+   * Shows patterns whose symbol is within this % of its 52-week high.
+   */
+  max_52w_gap?: number | null;
+  /**
+   * Minimum position within the consolidation range as % (0..100, null = any).
+   * Shows consolidations whose price sits at/above this % of the base range.
+   */
+  min_range_pos?: number | null;
   /** Result ordering: `"confidence"` (default) or `"newest"` (freshest bars first). */
   sort: string;
   /**

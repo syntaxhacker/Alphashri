@@ -61,6 +61,8 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   q: "",
   min_base_days: null,
   max_range_pct: null,
+  max_52w_gap: null,
+  min_range_pos: null,
   sort: "confidence",
   trendlines: "both",
 };
@@ -300,6 +302,8 @@ function baseQuery(): PatternsQuery {
     q: state.filters.q,
     min_base_days: state.filters.min_base_days,
     max_range_pct: state.filters.max_range_pct,
+    max_52w_gap: state.filters.max_52w_gap,
+    min_range_pos: state.filters.min_range_pos,
     sort: state.filters.sort,
     // Card candle window: the cards fetch the active Lookback so mini-charts
     // span it (omitted when Auto so the server default applies).
@@ -449,7 +453,9 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
     filters.symbols.length > 0 ||
     (filters.q != null && filters.q !== "") ||
     filters.min_base_days != null ||
-    filters.max_range_pct != null
+    filters.max_range_pct != null ||
+    filters.max_52w_gap != null ||
+    filters.min_range_pos != null
   );
 }
 

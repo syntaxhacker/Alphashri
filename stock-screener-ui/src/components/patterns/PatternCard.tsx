@@ -173,17 +173,34 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
           </ToolbarRow>
         )}
 
-        {baseDays > 0 ? (
-          <Text
-            size="xs"
-            c="dimmed"
-            truncate
-            data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
-          >
-            {hit.range_pct != null
-              ? `Base ${baseDays}d · ${rangePct(hit.range_pct)}%`
-              : `Base ${baseDays}d`}
-          </Text>
+        {baseDays > 0 || hit.to_52w_high != null ? (
+          <ToolbarRow justify="space-between" gap={1}>
+            {baseDays > 0 ? (
+              <Text
+                size="xs"
+                c="dimmed"
+                truncate
+                data-testid={`patterns-card-base-${hit.symbol}-${hit.pattern_id}`}
+              >
+                {hit.range_pct != null
+                  ? `Base ${baseDays}d · ${rangePct(hit.range_pct)}%`
+                  : `Base ${baseDays}d`}
+              </Text>
+            ) : (
+              <Box sx={{ flex: 1 }} />
+            )}
+            {hit.to_52w_high != null ? (
+              <Text
+                size="xs"
+                c="dimmed"
+                truncate
+                data-testid="patterns-card-52w-gap"
+                sx={{ textAlign: "right" }}
+              >
+                52W: {rangePct(hit.to_52w_high)}%
+              </Text>
+            ) : null}
+          </ToolbarRow>
         ) : null}
 
         <ToolbarRow justify="space-between" gap={1}>

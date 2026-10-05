@@ -280,4 +280,14 @@ describe("PatternCard missing coverage", () => {
       "resistance",
     );
   });
+
+  test("renders the 52W gap stat when to_52w_high is present", () => {
+    r(<PatternCard hit={{ ...HIT, to_52w_high: 1.7 }} />);
+    expect(screen.getByTestId("patterns-card-52w-gap")).toHaveTextContent("52W: 1.7%");
+  });
+
+  test("renders nothing for the 52W gap when to_52w_high is null", () => {
+    r(<PatternCard hit={{ ...HIT, to_52w_high: null }} />);
+    expect(screen.queryByTestId("patterns-card-52w-gap")).toBeNull();
+  });
 });

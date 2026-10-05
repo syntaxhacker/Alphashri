@@ -188,6 +188,32 @@ describe("PatternPresets", () => {
     expect(props.applyFilters).toHaveBeenCalledWith({ direction: ["bullish"] });
   });
 
+  test("applies the latest_formed built-in preset payload", async () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-latest_formed"));
+    expect(props.applyFilters).toHaveBeenCalledWith({ formed_within_bars: 3, sort: "newest" });
+  });
+
+  test("applies the near_52w_high built-in preset payload", async () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-near_52w_high"));
+    expect(props.applyFilters).toHaveBeenCalledWith({ max_52w_gap: 3, sort: "newest" });
+  });
+
+  test("applies the near_breakout built-in preset payload", async () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-near_breakout"));
+    expect(props.applyFilters).toHaveBeenCalledWith({
+      pattern_id: ["consolidation"],
+      min_base_days: 60,
+      min_range_pos: 80,
+      sort: "range_pos",
+    });
+  });
+
   test("ignores corrupt localStorage content and still renders built-ins", async () => {
     localStorage.setItem(PATTERN_PRESETS_STORAGE_KEY, "not-json{{{");
     const props = makeProps();

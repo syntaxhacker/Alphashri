@@ -140,6 +140,12 @@ export function buildPatternsQuery(query: PatternsQuery = {}): string {
   if (query.max_range_pct != null) {
     params.set("max_range_pct", String(query.max_range_pct));
   }
+  if (query.max_52w_gap != null) {
+    params.set("max_52w_gap", String(query.max_52w_gap));
+  }
+  if (query.min_range_pos != null) {
+    params.set("min_range_pos", String(query.min_range_pos));
+  }
   if (query.symbol) params.set("symbol", query.symbol);
   for (const symbol of query.symbols ?? []) params.append("symbol", symbol);
   if (query.q) params.set("q", query.q);

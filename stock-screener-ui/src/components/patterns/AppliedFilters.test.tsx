@@ -105,9 +105,34 @@ describe("buildAppliedFilterChips", () => {
   test("builds a sort chip that resets to confidence, omitted for the default", () => {
     const chips = buildAppliedFilterChips(makeFilters({ sort: "newest" }), PATTERNS);
     expect(chips).toMatchObject([
-      { id: "sort:newest", group: "Sort", label: "Newest first", nextValue: "confidence" },
+      { id: "sort:newest", group: "Sort", label: "Latest formed", nextValue: "confidence" },
     ]);
     expect(buildAppliedFilterChips(makeFilters({ sort: "confidence" }), PATTERNS)).toEqual([]);
+  });
+
+  test("builds a 52W gap chip that resets to null", () => {
+    const chips = buildAppliedFilterChips(makeFilters({ max_52w_gap: 3 }), PATTERNS);
+    expect(chips).toMatchObject([
+      { id: "max_52w_gap", group: "52W", label: "gap ≤ 3%", nextValue: null },
+    ]);
+    const chip = chips.find((c) => c.id === "max_52w_gap");
+    expect(chip?.key).toBe("max_52w_gap");
+  });
+
+  test("builds a range-pos chip that resets to null", () => {
+    const chips = buildAppliedFilterChips(makeFilters({ min_range_pos: 80 }), PATTERNS);
+    expect(chips).toMatchObject([
+      { id: "min_range_pos", group: "Range", label: "pos ≥ 80%", nextValue: null },
+    ]);
+    const chip = chips.find((c) => c.id === "min_range_pos");
+    expect(chip?.key).toBe("min_range_pos");
+  });
+
+  test("labels the range_pos sort chip as Near breakout", () => {
+    const chips = buildAppliedFilterChips(makeFilters({ sort: "range_pos" }), PATTERNS);
+    expect(chips).toMatchObject([
+      { id: "sort:range_pos", group: "Sort", label: "Near breakout", nextValue: "confidence" },
+    ]);
   });
 });
 
@@ -230,6 +255,7 @@ describe("AppliedFilters", () => {
           symbol: "RELIANCE",
           min_base_days: 90,
           max_range_pct: 20,
+          max_52w_gap: 3,
           sort: "newest",
           trendlines: "none",
         })}
@@ -250,7 +276,8 @@ describe("AppliedFilters", () => {
       "Symbol: RELIANCE",
       "Base: ≥ 90d",
       "Range: ≤ 20%",
-      "Sort: Newest first",
+      "52W: gap ≤ 3%",
+      "Sort: Latest formed",
       "Trendlines: Hidden",
     ]) {
       expect(screen.getByText(text)).toBeInTheDocument();
@@ -298,6 +325,7 @@ describe("AppliedFilters", () => {
     ["symbol", "patterns-applied-filter-symbol:RELIANCE", "symbol", null],
     ["min_base_days", "patterns-applied-filter-min_base_days", "min_base_days", null],
     ["max_range_pct", "patterns-applied-filter-max_range_pct", "max_range_pct", null],
+    ["max_52w_gap", "patterns-applied-filter-max_52w_gap", "max_52w_gap", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
     r(
@@ -309,6 +337,7 @@ describe("AppliedFilters", () => {
           symbol: "RELIANCE",
           min_base_days: 90,
           max_range_pct: 20,
+          max_52w_gap: 3,
         })}
         patterns={PATTERNS}
         setFilter={setFilter}
@@ -333,6 +362,44 @@ describe("AppliedFilters", () => {
     );
     fireEvent.click(
       screen.getByTestId("patterns-applied-filter-sort:newest").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
+  });
+
+  test("removing the range-pos chip clears it", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_range_pos: 80 })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Range: pos ≥ 80%")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_range_pos").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_range_pos", null);
+  });
+
+  test("removing the range_pos sort chip resets to confidence", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ sort: "range_pos" })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Sort: Near breakout")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-sort:range_pos").querySelector(
         ".MuiChip-deleteIcon",
       ) as Element,
     );

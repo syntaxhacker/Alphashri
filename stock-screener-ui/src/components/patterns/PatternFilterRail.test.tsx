@@ -311,6 +311,41 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).not.toHaveBeenCalledWith("max_range_pct", expect.anything());
   });
 
+  test("sort newest option renders as Latest formed", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    expect(screen.getByTestId("patterns-filter-sort-newest")).toHaveTextContent("Latest formed");
+    expect(screen.getByTestId("patterns-filter-sort-confidence")).toHaveTextContent("Confidence");
+  });
+
+  test("enters a 52W gap percentage", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-max-52w-gap")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "3" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("max_52w_gap", 3);
+  });
+
+  test("clearing the 52W gap input stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, max_52w_gap: 3 } });
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-max-52w-gap")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("max_52w_gap", null);
+  });
+
+  test("ignores partial 52W gap input instead of storing NaN", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-max-52w-gap")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("max_52w_gap", expect.anything());
+  });
+
+  test("panel layout renders the 52W gap control", () => {
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.getByTestId("patterns-filter-max-52w-gap")).toBeInTheDocument();
+  });
+
   test("labels the trendlines view options TLS/TLR", () => {
     r(<PatternFilterRail {...makeProps()} />);
     const select = screen.getByTestId("patterns-filter-trendlines");
@@ -461,5 +496,28 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).toHaveBeenCalledWith("direction", []);
     await userEvent.click(screen.getByTestId("patterns-status-filter-confirmed"));
     expect(props.setFilter).toHaveBeenCalledWith("status", []);
+  });
+
+  test("enters a range-pos percentage", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-min-range-pos")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "80" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("min_range_pos", 80);
+  });
+
+  test("clearing the range-pos input stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, min_range_pos: 80 } });
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-min-range-pos")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("min_range_pos", null);
+  });
+
+  test("selects the range_pos (Near breakout) sort", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-sort-range_pos"));
+    expect(props.setFilter).toHaveBeenCalledWith("sort", "range_pos");
   });
 });

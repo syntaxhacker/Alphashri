@@ -410,7 +410,16 @@ export function PatternFilterRail({
           onChange={() => setFilter("sort", "newest")}
           data-testid="patterns-filter-sort-newest"
         >
-          Newest
+          Latest formed
+        </Chip>
+        <Chip
+          size="sm"
+          variant="light"
+          checked={sort === "range_pos"}
+          onChange={() => setFilter("sort", "range_pos")}
+          data-testid="patterns-filter-sort-range_pos"
+        >
+          Near breakout
         </Chip>
       </Box>
     </Section>
@@ -463,6 +472,54 @@ export function PatternFilterRail({
         placeholder="Any"
         w={110}
         data-testid="patterns-filter-max-range"
+      />
+    </Section>
+  );
+
+  const gap52Section = (
+    <Section title="52W gap ≤ %">
+      <NumberInput
+        value={filters.max_52w_gap ?? ""}
+        onChange={(v: number | string) => {
+          if (v === "" || v == null) {
+            setFilter("max_52w_gap", null);
+            return;
+          }
+          const n = Number(v);
+          // Ignore in-progress partials ("-", "1.") — never store NaN.
+          if (!Number.isNaN(n)) setFilter("max_52w_gap", n);
+        }}
+        min={0}
+        max={25}
+        step={0.5}
+        size="sm"
+        placeholder="Any"
+        w={110}
+        data-testid="patterns-filter-max-52w-gap"
+      />
+    </Section>
+  );
+
+  const rangePosSection = (
+    <Section title="Range pos ≥ %">
+      <NumberInput
+        value={filters.min_range_pos ?? ""}
+        onChange={(v: number | string) => {
+          if (v === "" || v == null) {
+            setFilter("min_range_pos", null);
+            return;
+          }
+          const n = Number(v);
+          // Ignore in-progress partials ("-", "1.") — never store NaN.
+          if (!Number.isNaN(n)) setFilter("min_range_pos", n);
+        }}
+        min={0}
+        max={100}
+        step={5}
+        size="sm"
+        placeholder="Any"
+        w={110}
+        data-testid="patterns-filter-min-range-pos"
       />
     </Section>
   );
@@ -540,6 +597,8 @@ export function PatternFilterRail({
           {trendlinesSection}
           {baseSection}
           {rangeSection}
+          {gap52Section}
+          {rangePosSection}
           {volumeSection}
         </Box>
       </Box>
@@ -572,6 +631,10 @@ export function PatternFilterRail({
       {baseSection}
       <Divider />
       {rangeSection}
+      <Divider />
+      {gap52Section}
+      <Divider />
+      {rangePosSection}
       <Divider />
       {volumeSection}
     </Box>

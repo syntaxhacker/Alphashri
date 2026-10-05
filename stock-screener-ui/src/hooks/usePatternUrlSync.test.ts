@@ -102,6 +102,12 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(new URLSearchParams("")).lookback).toBeNull();
     expect(parsePatternParams(new URLSearchParams("lookback=abc")).lookback).toBeNull();
   });
+
+  it("parses gap52 into max_52w_gap and ignores blanks/non-numbers", () => {
+    expect(parsePatternParams(new URLSearchParams("gap52=3")).filters.max_52w_gap).toBe(3);
+    expect(parsePatternParams(new URLSearchParams("gap52=")).filters.max_52w_gap).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("gap52=abc")).filters.max_52w_gap).toBeUndefined();
+  });
 });
 
 describe("filterValuesEqual", () => {
@@ -229,6 +235,48 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS },
     });
     expect(omitted.has("compute_trendlines")).toBe(false);
+  });
+
+  it("round-trips gap52 (max_52w_gap) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, max_52w_gap: 3 },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toBe("gap52=3");
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.filters.max_52w_gap).toBe(3);
+    // Default (null) omits the param.
+    const clean = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(clean.has("gap52")).toBe(false);
+  });
+
+  it("round-trips pos (min_range_pos) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, min_range_pos: 80 },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toBe("pos=80");
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.filters.min_range_pos).toBe(80);
+    // Default (null) omits the param.
+    const clean = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(clean.has("pos")).toBe(false);
   });
 
   it("ignores unknown trendlines values", () => {

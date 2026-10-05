@@ -165,4 +165,27 @@ export const BUILTIN_PRESETS: PatternPreset[] = [
     description: "Bearish-direction patterns",
     filters: { direction: ["bearish"] },
   },
+  {
+    id: "latest_formed",
+    name: "Latest formed",
+    description: "Newest formations first (formed in the last 3 bars)",
+    filters: { formed_within_bars: 3, sort: "newest" },
+  },
+  {
+    id: "near_52w_high",
+    name: "Near 52W high",
+    description: "Patterns within 3% of the 52-week high",
+    filters: { max_52w_gap: 3, sort: "newest" },
+  },
+  {
+    id: "near_breakout",
+    name: "Near breakout",
+    description: "Long bases whose price is near the top of the range",
+    filters: {
+      pattern_id: ["consolidation"],
+      min_base_days: 60,
+      min_range_pos: 80,
+      sort: "range_pos",
+    },
+  },
 ];

@@ -140,11 +140,34 @@ export function buildAppliedFilterChips(
       nextValue: null,
     });
   }
+  if (filters.max_52w_gap != null) {
+    chips.push({
+      id: "max_52w_gap",
+      group: "52W",
+      label: `gap ≤ ${filters.max_52w_gap}%`,
+      key: "max_52w_gap",
+      nextValue: null,
+    });
+  }
+  if (filters.min_range_pos != null) {
+    chips.push({
+      id: "min_range_pos",
+      group: "Range",
+      label: `pos ≥ ${filters.min_range_pos}%`,
+      key: "min_range_pos",
+      nextValue: null,
+    });
+  }
   if (filters.sort && filters.sort !== "confidence") {
     chips.push({
       id: `sort:${filters.sort}`,
       group: "Sort",
-      label: filters.sort === "newest" ? "Newest first" : titleCase(filters.sort),
+      label:
+        filters.sort === "newest"
+          ? "Latest formed"
+          : filters.sort === "range_pos"
+            ? "Near breakout"
+            : titleCase(filters.sort),
       key: "sort",
       nextValue: "confidence",
     });
