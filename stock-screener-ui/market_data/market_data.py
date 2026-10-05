@@ -123,19 +123,26 @@ def fetch_candles(
     try:
         today_str = datetime.now(_IST).strftime("%Y-%m-%d")
 
-        if to_date == today_str and tf <= 60:
-            df = api.fetch_intraday_data_v3(
-                symbol=symbol.upper(),
-                interval=str(interval),
-            )
-            if df is None or df.empty:
-                df = api.fetch_historical_data_v3(
+        # Single-day window for today: today's session is still in progress, so
+        # the historical endpoint has nothing complete to add — fetch only
+        # intraday and skip the extra historical call. Multi-day windows keep
+        # the historical + intraday merge below.
+        single_day_today = from_date == to_date == today_str
+        if single_day_today and tf <= 60:
+            # The V3 intraday endpoint is minutes-based: `/minutes/{n}` where n is
+            # the target timeframe in minutes. Using the unit's interval value here
+            # would send 1 for tf=60 (unit "hours"), i.e. 1-minute candles.
+            try:
+                df = api.fetch_intraday_data_v3(
                     symbol=symbol.upper(),
-                    unit=unit,
-                    interval=interval,
-                    to_date=to_date,
-                    from_date=from_date,
+                    interval=str(tf),
                 )
+            except Exception:
+                df = None
+            # Historical covers the completed sessions in the lookback window but
+            # omits the in-progress one; the intraday endpoint supplies today's bars.
+            # Fetch both for a window ending today and splice them — otherwise a
+            # multi-day lookback collapses to today's handful of bars.
         else:
             df = api.fetch_historical_data_v3(
                 symbol=symbol.upper(),
@@ -144,6 +151,15 @@ def fetch_candles(
                 to_date=to_date,
                 from_date=from_date,
             )
+            if to_date == today_str and tf <= 60:
+                try:
+                    intraday = api.fetch_intraday_data_v3(
+                        symbol=symbol.upper(),
+                        interval=str(tf),
+                    )
+                except Exception:
+                    intraday = None
+                df = _concat_merge(df, intraday)
     except Exception:
         return None
 
@@ -167,6 +183,25 @@ def _normalize_tz(df: pd.DataFrame) -> pd.DataFrame:
     else:
         df.index = df.index.tz_convert("UTC")
     return df
+
+
+def _concat_merge(*frames: Optional[pd.DataFrame]) -> Optional[pd.DataFrame]:
+    """Concatenate candle frames into one series, normalizing tz and
+    de-duplicating by timestamp (later frames win) so historical bars and today's
+    intraday bars form a single continuous frame."""
+    parts: list[pd.DataFrame] = []
+    for frame in frames:
+        if frame is None or getattr(frame, "empty", True):
+            continue
+        try:
+            parts.append(_normalize_tz(frame))
+        except Exception:
+            parts.append(frame)
+    if not parts:
+        return None
+    out = pd.concat(parts)
+    out = out[~out.index.duplicated(keep="last")].sort_index()
+    return out
 
 
 def _resample(df: pd.DataFrame, tf_minutes: int) -> pd.DataFrame:

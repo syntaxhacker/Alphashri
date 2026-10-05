@@ -146,6 +146,7 @@ class TestFetchCandles:
     def test_intraday_path_today(self, mock_client):
         mock_api = MagicMock()
         mock_client.return_value = mock_api
+        mock_api.fetch_historical_data_v3.return_value = None
         mock_api.fetch_intraday_data_v3.return_value = _make_1m_candles(10)
 
         today = datetime.now().strftime("%Y-%m-%d")
@@ -153,6 +154,38 @@ class TestFetchCandles:
 
         mock_api.fetch_intraday_data_v3.assert_called_once()
         assert result is not None
+
+    @patch("market_data.market_data.get_api_client")
+    def test_intraday_1h_requests_60_minutes(self, mock_client):
+        # Regression: tf=60 maps to ("hours", 1), so the old code sent interval="1"
+        # to the minutes-based intraday endpoint → 1-minute candles.
+        mock_api = MagicMock()
+        mock_client.return_value = mock_api
+        mock_api.fetch_historical_data_v3.return_value = None
+        mock_api.fetch_intraday_data_v3.return_value = _make_1m_candles(2)
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        fetch_candles("RELIANCE", tf=60, from_date=today, to_date=today)
+
+        mock_api.fetch_intraday_data_v3.assert_called_once_with(
+            symbol="RELIANCE", interval="60"
+        )
+
+    @patch("market_data.market_data.get_api_client")
+    def test_today_window_merges_history_and_intraday(self, mock_client):
+        # Historical (prior sessions) + today's intraday must be spliced, so a
+        # multi-day lookback keeps its history instead of only today's bars.
+        mock_api = MagicMock()
+        mock_client.return_value = mock_api
+        mock_api.fetch_historical_data_v3.return_value = _make_1m_candles(5, start="2026-04-01 09:15:00")
+        mock_api.fetch_intraday_data_v3.return_value = _make_1m_candles(3, start="2026-04-02 09:15:00")
+
+        today = datetime.now().strftime("%Y-%m-%d")
+        result = fetch_candles("RELIANCE", tf=1, from_date="2026-04-01", to_date=today)
+
+        assert result is not None
+        assert len(result) == 8  # 5 historical + 3 intraday, no overlap
+        assert result.index.is_monotonic_increasing
 
     @patch("market_data.market_data.get_api_client")
     def test_resample_to(self, mock_client):
@@ -183,6 +216,43 @@ class TestFetchCandles:
 
         mock_api.fetch_historical_data_v3.assert_called_once()
         mock_client.assert_not_called()
+
+    @patch("market_data.market_data.get_api_client")
+    def test_single_day_today_skips_historical(self, mock_client):
+        # Single-day window for today must make only ONE call (intraday).
+        from market_data.market_data import _IST
+
+        mock_api = MagicMock()
+        mock_client.return_value = mock_api
+        mock_api.fetch_intraday_data_v3.return_value = _make_1m_candles(10)
+
+        today = datetime.now(_IST).strftime("%Y-%m-%d")
+        result = fetch_candles("RELIANCE", tf=5, from_date=today, to_date=today)
+
+        mock_api.fetch_intraday_data_v3.assert_called_once_with(
+            symbol="RELIANCE", interval="5"
+        )
+        mock_api.fetch_historical_data_v3.assert_not_called()
+        assert result is not None
+        assert len(result) == 10
+
+    @patch("market_data.market_data.get_api_client")
+    def test_multi_day_window_ending_today_still_merges(self, mock_client):
+        # Multi-day windows keep the historical + intraday merge (two calls).
+        from market_data.market_data import _IST
+
+        mock_api = MagicMock()
+        mock_client.return_value = mock_api
+        mock_api.fetch_historical_data_v3.return_value = _make_1m_candles(5, start="2026-04-01 09:15:00")
+        mock_api.fetch_intraday_data_v3.return_value = _make_1m_candles(3, start="2026-04-02 09:15:00")
+
+        today = datetime.now(_IST).strftime("%Y-%m-%d")
+        result = fetch_candles("RELIANCE", tf=5, from_date="2026-04-01", to_date=today)
+
+        mock_api.fetch_historical_data_v3.assert_called_once()
+        mock_api.fetch_intraday_data_v3.assert_called_once()
+        assert result is not None
+        assert len(result) == 8
 
 
 # ---------------------------------------------------------------------------
