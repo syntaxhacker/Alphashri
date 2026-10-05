@@ -413,6 +413,15 @@ async def lifespan(app: FastAPI):
         init_db()
         print("✅ Database initialized")
 
+        try:
+            from trading.holidays_seed import seed_missing_holidays
+
+            _added_holidays = seed_missing_holidays()
+            if _added_holidays:
+                print(f"✅ Seeded {_added_holidays} missing market holiday(s)")
+        except Exception as e:
+            print(f"⚠️ Holiday seeding skipped: {e}")
+
         if ci:
             print("⚙️ CI_MODE enabled — skipping Redis and background tasks")
             try:
