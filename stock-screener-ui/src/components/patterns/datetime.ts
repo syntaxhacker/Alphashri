@@ -1,5 +1,8 @@
 import { TZ_IST } from "@/config/constants";
 
+export type { ISTTickKind } from "@/utils/istChartTime";
+export { formatISTCrosshair, formatISTTick } from "@/utils/istChartTime";
+
 /**
  * Candle timestamps arrive from the detector as ISO strings (Upstox daily
  * candles land at 18:30 UTC = 00:00 IST the next trading day, intraday candles

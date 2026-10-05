@@ -1,10 +1,9 @@
 import type { ChartCandle, PatternHitDTO, PatternOverlay, Trendline, TrendLine, TrendlinesView } from "@/types/chartPatterns";
+import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import {
-  CHART_AVG_ENTRY,
   CHART_MUTED,
   CHART_OVERLAY,
   CHART_SPLIT,
-  CHART_TEXT,
   MARKER_SL,
   MARKER_TP,
   NEGATIVE,
@@ -23,16 +22,10 @@ export const BOUNDARY_COLORS = [PRIMARY, WARNING];
  * selected pattern takes the first colour, its siblings the next ones. A
  * pattern's two boundary lines share its colour and legend name, so the legend
  * answers "which pattern is which" instead of showing generic upper/lower edges.
+ * Single source of truth lives in `@/config/patterns` (`PATTERN_SERIES_COLORS`)
+ * so the ECharts and TradingView engines stay in sync.
  */
-const PATTERN_COLORS = [
-  PRIMARY,
-  WARNING,
-  POSITIVE,
-  CHART_TEXT,
-  NEGATIVE,
-  CHART_AVG_ENTRY,
-  CHART_MUTED,
-];
+const PATTERN_COLORS = PATTERN_SERIES_COLORS;
 
 interface TooltipParam {
   axisValue?: unknown;

@@ -1,12 +1,15 @@
-import { useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Box, Modal, Text, ToolbarRow } from "@/ui";
-import { useECharts } from "@/hooks/useECharts";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { ChartCandle, PatternHitDTO, PatternOverlay, TrendLine, TrendlinesView } from "@/types/chartPatterns";
-import { buildPatternChartOption } from "./patternChartOption";
+import { buildPatternTVData } from "./patternTVData";
+import { PatternChartLegend } from "./PatternChartLegend";
+import { PatternTradingViewChart } from "./PatternTradingViewChart";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
+import { PIVOT_LEGEND_NAME } from "@/config/patterns";
+import { TEXT_MUTED } from "@/ui/palette";
 
 export interface PatternFullscreenViewProps {
   opened: boolean;
@@ -22,76 +25,6 @@ export interface PatternFullscreenViewProps {
   trendLines?: TrendLine[];
   /** View-only filter for standalone support/resistance lines. */
   trendlinesView?: TrendlinesView;
-}
-
-function FullscreenCanvas({
-  hit,
-  candles,
-  overlays,
-  trendLines,
-  trendlinesView = "both",
-}: {
-  hit: PatternHitDTO | null;
-  candles: ChartCandle[];
-  overlays?: PatternOverlay[];
-  trendLines?: TrendLine[];
-  trendlinesView?: TrendlinesView;
-}) {
-  const { chartRef, setChartOption } = useECharts({ isDark: true });
-
-  useEffect(() => {
-    if (candles.length === 0) return;
-    // The breakout/target/stop level guides are intentionally suppressed while
-    // the levels panel is re-planned; only the box/pattern boundaries and the
-    // swing pivots are drawn. Passing zeroed levels keeps every other field
-    // (symbol, trendlines, pivots) intact for the shared option builder.
-    const chartHit = hit ? { ...hit, breakout_level: 0, target: 0, stop: 0 } : hit;
-    // Prefer the chart payload's lines (fresh for the drawn window); fall back
-    // to the hit's own lines when the payload carries none.
-    const standalone = (trendLines?.length ? trendLines : hit?.trend_lines) ?? [];
-    setChartOption(
-      buildPatternChartOption({
-        candles,
-        trendlines: hit?.trendlines,
-        hit: chartHit,
-        overlays,
-        selectedPatternId: hit?.pattern_id,
-        selectedStartDate: hit?.start_date,
-        standaloneTrendLines: standalone,
-        trendlinesView,
-        compact: false,
-        showZoom: true,
-        large: true,
-      }) as never,
-    );
-  }, [candles, hit, overlays, setChartOption, trendLines, trendlinesView]);
-
-  return (
-    <Box
-      data-testid="patterns-fullscreen-chart"
-      sx={{
-        position: "relative",
-        width: "100%",
-        flex: 1,
-        height: { xs: "60vh", lg: "100%" },
-        minHeight: 360,
-        border: "1px solid",
-        borderColor: "divider",
-        borderRadius: 1,
-        bgcolor: "background.default",
-        overflow: "hidden",
-      }}
-    >
-      <Box ref={chartRef} sx={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0 }} />
-      {candles.length === 0 ? (
-        <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Text size="sm" c="dimmed">
-            No chart data
-          </Text>
-        </Box>
-      ) : null}
-    </Box>
-  );
 }
 
 /**
@@ -155,10 +88,102 @@ function FullscreenPanel({ hit }: { hit: PatternHitDTO }) {
 }
 
 /**
+ * TradingView fullscreen chart: the lightweight-charts adapter with the compact
+ * HTML legend above it. The legend entries come from the same
+ * `buildPatternTVData(...).lines` the chart draws, so swatch colours always
+ * match the rendered lines.
+ */
+function FullscreenTV({
+  hit,
+  candles,
+  overlays,
+  trendLines,
+  trendlinesView = "both",
+}: {
+  hit: PatternHitDTO | null;
+  candles: ChartCandle[];
+  overlays?: PatternOverlay[];
+  trendLines?: TrendLine[];
+  trendlinesView?: TrendlinesView;
+}) {
+  const data = useMemo(
+    () => buildPatternTVData({ candles, hit, overlays, trendLines, trendlinesView }),
+    [candles, hit, overlays, trendLines, trendlinesView],
+  );
+  const levelEntries = useMemo(
+    () => data.levels.map((level) => ({ name: level.title, color: level.color })),
+    [data.levels],
+  );
+  const pivotEntries = useMemo(
+    () => (data.markers.length ? [{ name: PIVOT_LEGEND_NAME, color: TEXT_MUTED }] : []),
+    [data.markers],
+  );
+
+  // Per-series show/hide via the legend. Reset whenever the inspected pattern
+  // (or symbol) changes so toggles don't leak between charts.
+  const [hidden, setHidden] = useState<ReadonlySet<string>>(() => new Set<string>());
+  useEffect(() => {
+    setHidden(new Set<string>());
+  }, [hit?.symbol, hit?.pattern_id, hit?.start_date]);
+  const toggle = useCallback((name: string) => {
+    setHidden((prev) => {
+      const next = new Set(prev);
+      if (next.has(name)) next.delete(name);
+      else next.add(name);
+      return next;
+    });
+  }, []);
+
+  return (
+    <Box
+      sx={{
+        position: "relative",
+        width: "100%",
+        flex: 1,
+        height: { xs: "60vh", lg: "100%" },
+        minHeight: 360,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 1,
+        bgcolor: "background.default",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+      }}
+    >
+      <PatternChartLegend
+        lines={data.lines}
+        levels={levelEntries}
+        markers={pivotEntries}
+        hidden={hidden}
+        onToggle={toggle}
+      />
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex" }}>
+        <PatternTradingViewChart
+          hit={hit}
+          candles={candles}
+          overlays={overlays}
+          trendLines={trendLines}
+          trendlinesView={trendlinesView}
+          hiddenNames={hidden}
+        />
+      </Box>
+      {candles.length === 0 ? (
+        <Box sx={{ position: "absolute", inset: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+          <Text size="sm" c="dimmed">
+            No chart data
+          </Text>
+        </Box>
+      ) : null}
+    </Box>
+  );
+}
+
+/**
  * Full-page chart for inspecting a pattern at a readable size: real candles,
  * boundary trendlines, pivot markers, plus zoom/pan on an 80/20 split with a
- * narrow meta panel on the right. Stacks vertically below `lg`. The chart
- * canvas is mounted only while open so ECharts initialises against a live ref.
+ * narrow meta panel on the right. Stacks vertically below `lg`. The TV chart
+ * is mounted only while open so lightweight-charts initialises against a live ref.
  */
 export function PatternFullscreenView({
   opened,
@@ -199,7 +224,7 @@ export function PatternFullscreenView({
             minHeight: 0,
           }}
         >
-          <FullscreenCanvas hit={hit} candles={candles} overlays={overlays} trendLines={trendLines} trendlinesView={trendlinesView} />
+          <FullscreenTV hit={hit} candles={candles} overlays={overlays} trendLines={trendLines} trendlinesView={trendlinesView} />
         </Box>
 
         <Box

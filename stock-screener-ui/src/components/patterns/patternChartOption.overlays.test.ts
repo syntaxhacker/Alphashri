@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { ChartCandle, PatternHitDTO, Trendline } from "@/types/chartPatterns";
-import { NEGATIVE, POSITIVE, PRIMARY, WARNING } from "@/ui/palette";
+import { NEGATIVE, POSITIVE } from "@/ui/palette";
+import { PATTERN_SERIES_COLORS } from "@/config/patterns";
 import { buildPatternChartOption, type SiblingOverlay } from "./patternChartOption";
 
 const CANDLES: ChartCandle[] = [
@@ -118,8 +119,8 @@ describe("buildPatternChartOption overlay grouping and legend naming", () => {
     expect(sibling.length).toBeGreaterThan(0);
     expect(selected[0].lineStyle?.type).toBe("solid");
     expect(sibling[0].lineStyle?.type).toBe("dashed");
-    expect(selected[0].lineStyle?.color).toBe(PRIMARY);
-    expect(sibling[0].lineStyle?.color).toBe(WARNING);
+    expect(selected[0].lineStyle?.color).toBe(PATTERN_SERIES_COLORS[0]);
+    expect(sibling[0].lineStyle?.color).toBe(PATTERN_SERIES_COLORS[1]);
     expect(selected[0].silent).toBe(true);
   });
 

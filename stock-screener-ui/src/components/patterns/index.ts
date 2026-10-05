@@ -32,6 +32,8 @@ export { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
 export type { AppliedFiltersProps, AppliedFilterChip } from "./AppliedFilters";
 export { PatternFullscreenView } from "./PatternFullscreenView";
 export type { PatternFullscreenViewProps } from "./PatternFullscreenView";
+export { PatternChartLegend } from "./PatternChartLegend";
+export type { PatternChartLegendProps, PatternLegendLine } from "./PatternChartLegend";
 export { PatternImage } from "./PatternImage";
 export type { PatternImageProps } from "./PatternImage";
 export { PatternImageManager } from "./PatternImageManager";
