@@ -112,6 +112,144 @@ def svg_bars(groups, w=860, h=260, title="", fmt="{:,.1f}M"):
     return "\n".join(parts)
 
 
+ZONES = [
+    ("A", "09:15", "09:47", "open dip + OR break"),
+    ("B", "09:47", "11:30", "morning drive"),
+    ("C", "11:30", "14:00", "midday writer grind"),
+    ("D", "14:00", "14:30", "dip + dead-cat bounce"),
+    ("E", "15:18", "15:23", "strike whipsaw"),
+    ("F", "15:15", "15:29", "freeze"),
+    ("G", "15:29", "15:30", "settlement spike"),
+]
+
+ZONE_COLORS = ["#38BDF8", "#16A34A", "#64748B", "#F59E0B", "#DC2626", "#7C3AED", "#F59E0B"]
+
+
+def echarts_section(bundle, spot, m1, idx, vwap, s26, s27, ce_groups, pe_groups):
+    import json as J
+
+    labels = idx
+    ohlc = [[round(float(r[1]["first"]), 2), round(float(r[1]["max"]), 2),
+             round(float(r[1]["min"]), 2), round(float(r[1]["last"]), 2)]
+            for r in m1.iterrows()]
+    vols = []
+    mark_areas = []
+    for i, (z, t0, t1, desc) in enumerate(ZONES):
+        mark_areas.append({
+            "name": f"{z}: {desc}",
+            "itemStyle": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "opacity": 0.08},
+            "label": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "fontSize": 10},
+            "xAxis": t0,
+        })
+        # end bound needs explicit second dict in ECharts markArea pairs
+        mark_areas[-1] = [{"name": f"{z}: {desc}",
+                           "itemStyle": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "opacity": 0.08},
+                           "label": {"color": ZONE_COLORS[i % len(ZONE_COLORS)], "fontSize": 10},
+                           "xAxis": t0},
+                          {"xAxis": t1}]
+    opt1 = {
+        "tooltip": {"trigger": "axis"},
+        "grid": {"left": 64, "right": 20, "top": 30, "bottom": 30},
+        "xAxis": {"type": "category", "data": labels},
+        "yAxis": {"type": "value", "scale": True},
+        "series": [{
+            "type": "candlestick", "name": "NIFTY 1m",
+            "data": ohlc,
+            "itemStyle": {"color": "#16A34A", "color0": "#DC2626",
+                          "borderColor": "#16A34A", "borderColor0": "#DC2626"},
+            "markLine": {"symbol": "none",
+                         "data": [{"yAxis": round(vwap, 1), "name": "VWAP",
+                                   "lineStyle": {"color": "#94A3B8", "type": "dashed"}}]},
+            "markArea": {"data": mark_areas},
+            "markPoint": {"symbolSize": 42,
+                         "data": [{"coord": ["15:29", 22776.1], "value": "settle 22776",
+                                   "itemStyle": {"color": "#F59E0B"}}]},
+        }],
+    }
+    slabels = [t for t, _ in s26]
+    opt2 = {
+        "tooltip": {"trigger": "axis"},
+        "legend": {"textStyle": {"color": "#94A3B8"}},
+        "grid": {"left": 56, "right": 20, "top": 34, "bottom": 30},
+        "xAxis": {"type": "category", "data": slabels},
+        "yAxis": {"type": "value", "name": "₹"},
+        "series": [
+            {"name": "22600 straddle (fixed @ open)", "type": "line", "showSymbol": False,
+             "data": [round(v, 1) for _, v in s26], "lineStyle": {"color": "#38BDF8", "width": 2}},
+            {"name": "22700 straddle (pinned)", "type": "line", "showSymbol": False,
+             "data": [round(v, 1) for _, v in s27], "lineStyle": {"color": "#F59E0B", "width": 2}},
+        ],
+    }
+
+    def bars(groups, title):
+        cats = [g[0] for g in groups]
+        return {
+            "title": {"text": title, "textStyle": {"color": "#E2E8F0", "fontSize": 12}},
+            "tooltip": {"trigger": "axis"},
+            "legend": {"textStyle": {"color": "#94A3B8"}},
+            "grid": {"left": 64, "right": 20, "top": 40, "bottom": 30},
+            "xAxis": {"type": "category", "data": cats},
+            "yAxis": {"type": "value"},
+            "series": [
+                {"name": "14:38 OI", "type": "bar", "data": [g[1][0][1] for g in groups],
+                 "itemStyle": {"color": "#38BDF8"}},
+                {"name": "15:30 OI", "type": "bar", "data": [g[1][1][1] for g in groups],
+                 "itemStyle": {"color": "#F59E0B"}},
+            ],
+        }
+
+    # per-zone stats from 5s closes
+    ce = bundle["NSE:NIFTY26O0622700CE"].set_index("dt").between_time("09:15", "15:30")
+    pe = bundle["NSE:NIFTY26O0622700PE"].set_index("dt").between_time("09:15", "15:30")
+    zrows = []
+    for z, t0, t1, desc in ZONES:
+        s = spot.between_time(t0, t1)["c"]
+        c = ce.between_time(t0, t1)["c"]
+        p = pe.between_time(t0, t1)["c"]
+        if len(s) == 0:
+            continue
+        schg = (s.iloc[-1] - s.iloc[0])
+        srg = (s.max() - s.min())
+        crun = (c.max() / c.iloc[0] - 1) * 100 if len(c) and c.iloc[0] else 0
+        prun = (p.max() / p.iloc[0] - 1) * 100 if len(p) and p.iloc[0] else 0
+        zrows.append(
+            f"<tr><td><b>{z}</b> {t0}–{t1}<br><span style='color:#94A3B8'>{desc}</span></td>"
+            f"<td class='r'>{schg:+.0f} / {srg:.0f}</td>"
+            f"<td class='r pos'>+{crun:.0f}%</td><td class='r pos'>+{prun:.0f}%</td></tr>")
+    ztable = ("<table><tr><th>Zone</th><th style='text-align:right'>Spot net/range</th>"
+              "<th style='text-align:right'>Best 22700CE</th><th style='text-align:right'>Best 22700PE</th></tr>"
+              + "".join(zrows) + "</table>")
+
+    return f"""
+<script src="https://cdn.jsdelivr.net/npm/echarts@6/dist/echarts.min.js"></script>
+<div class="card"><h2 style="margin-top:0">8 · Replay the day — our tape in charts</h2>
+<p style="font-size:14px;color:#94A3B8">Every chart below is drawn from our own 5-second Fyers tape — no external charts. Zones A–G match the story above.</p>
+<h3 style="font-size:15px">NIFTY 1-minute — the full day with zones</h3>
+<div id="ec-spot" style="width:100%;height:380px"></div>
+<h3 style="font-size:15px">What each zone did (from the tape)</h3>
+{ztable}
+<h3 style="font-size:15px">Straddle decay — fixed 22600 vs pinned 22700</h3>
+<div id="ec-decay" style="width:100%;height:280px"></div>
+<h3 style="font-size:15px">OI walls — CE top strikes, 14:38 vs 15:30</h3>
+<div id="ec-ce" style="width:100%;height:260px"></div>
+<h3 style="font-size:15px">OI walls — PE top strikes, 14:38 vs 15:30</h3>
+<div id="ec-pe" style="width:100%;height:260px"></div>
+</div>
+<script>
+try {{
+["ec-spot","ec-decay","ec-ce","ec-pe"].forEach(id => {{
+  const el = document.getElementById(id);
+  if (el && window.echarts) echarts.init(el, null).setOption(
+    {{ "ec-spot": {J.dumps(opt1)}, "ec-decay": {J.dumps(opt2)},
+       "ec-ce": {J.dumps(bars(ce_groups, ""))}, "ec-pe": {J.dumps(bars(pe_groups, ""))} }}[id]);
+}});
+window.addEventListener("resize", () => document.querySelectorAll("[id^=ec-]").forEach(el => {{
+  const c = window.echarts && echarts.getInstanceByDom(el); if (c) c.resize();
+}}));
+}} catch (e) {{ document.body.insertAdjacentHTML("beforeend", "<p style='color:red'>charts need internet (ECharts CDN): " + e + "</p>"); }}
+</script>"""
+
+
 def main():
     import pandas as pd
 
@@ -186,7 +324,7 @@ def main():
         o, hi, lo, c = d["c"].iloc[0], d["h"].max(), d["l"].min(), d["c"].iloc[-1]
         import re
 
-        m = re.search(r"(\d+)(CE|PE)$", sym)
+        m = re.search(r"(\d{5})(CE|PE)$", sym)
         label = f"{m.group(1)} {m.group(2)}" if m else sym
         ret = (c - o) / o * 100 if o else 0
         mfe = (hi - o) / o * 100 if o else 0
@@ -200,6 +338,7 @@ def main():
     )
 
     so, sh, sl, sc = (spot["c"].iloc[0], spot["h"].max(), spot["l"].min(), spot["c"].iloc[-1])
+    echarts_html = echarts_section(bundle, spot, m1, idx, vwap, s26, s27, ce_groups, pe_groups)
     html = f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -346,18 +485,11 @@ table.trap{{font-size:13px}}
 <li>15:20 whipsaw with frozen spot = stand down, don't touch wicks.</li>
 </ol></div>
 
-<div class="card"><h2 style="margin-top:0">8 · Replay the day — live charts</h2>
-<p style="font-size:14px;color:#94A3B8">Scroll each chart back to 06 Oct 2026 and walk zones A–G above. Nifty 1-min for the grind, BankNifty for comparison, India VIX for the fear drain.</p>
-{{tv_section}}
-</div>
-
+{echarts_html}
 <div class="foot">Sources: experiments/data/expiry_snapshots/2026-10-06/ (57 chain_*.json, 22 ticks_*.jsonl, candles_5s.pkl, spot_yf_1m.csv) · Nifty lot 75 · all times IST</div>
 </div></body></html>"""
 
     out = REPO_ROOT / "reports" / "EXPIRY_2026-10-06_EDA.html"
-    tv_path = REPO_ROOT / "scripts" / "expiry_tv_section.html.tpl"
-    tv_section = tv_path.read_text() if tv_path.exists() else "<p>TV section missing.</p>"
-    html = html.replace("{tv_section}", tv_section)
     out.write_text(html)
     print(f"wrote {out} ({len(html)//1024} KB)")
 
