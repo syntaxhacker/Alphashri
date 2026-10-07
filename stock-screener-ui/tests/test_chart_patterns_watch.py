@@ -27,13 +27,28 @@ def test_registry_breakout_shape():
         "id": "breakout",
         "label": "Long-base breakout",
         "description": "Long tight base; trigger = box high, invalidate = box low",
+        "kind": "pattern",
         "source_pattern": "consolidation",
         "statuses": ["forming", "failed", "marginal"],
         "min_base_days": 60,
         "max_range_pct": 20.0,
         "trigger": "breakout_level",
         "invalidate": "base_low",
-        "default_min_rel_volume": 1.5,
+        "default_min_rel_volume": 0.7,
+    }
+
+
+def test_registry_near_52w_shape():
+    setup = watch_mod.SETUPS["near_52w"]
+    assert setup == {
+        "id": "near_52w",
+        "label": "Near 52W high + accumulation",
+        "description": "Within ~5% of the prior 52W high with volume accumulation (OBV, up/down volume, rising volume/lows)",
+        "kind": "computed",
+        "max_gap": 5.0,
+        "trigger": "prior_52w_high",
+        "invalidate": "recent_low",
+        "default_min_rel_volume": 0.7,
     }
 
 
@@ -44,8 +59,14 @@ def test_public_setups_hides_internals():
             "id": "breakout",
             "label": "Long-base breakout",
             "description": "Long tight base; trigger = box high, invalidate = box low",
-            "default_min_rel_volume": 1.5,
-        }
+            "default_min_rel_volume": 0.7,
+        },
+        {
+            "id": "near_52w",
+            "label": "Near 52W high + accumulation",
+            "description": "Within ~5% of the prior 52W high with volume accumulation (OBV, up/down volume, rising volume/lows)",
+            "default_min_rel_volume": 0.7,
+        },
     ]
 
 
@@ -252,7 +273,13 @@ def _row(symbol: str, trigger: float = 105.0, low: float = 95.0, fresh: bool = F
 
 @pytest.fixture
 def mock_quotes(monkeypatch):
-    """Seed LTP + TV rel-vol: ``{symbol: (ltp, rel_volume)}`` (None = missing)."""
+    """Seed LTP + TV rel-vol + vol_adj: ``{symbol: (ltp, vol)}`` (None = missing).
+
+    The ``vol`` leg doubles as TV ``rel_volume`` (daily context) and as the
+    time-adjusted ``vol_adj`` gate, so gate tests read plainly; tests that
+    need the two to differ stub ``vol_adj_map`` (or the candle fetch)
+    directly.
+    """
     state: dict = {}
 
     def fake_ltp(symbols):
@@ -264,8 +291,12 @@ def mock_quotes(monkeypatch):
     def fake_tv(symbols):
         return {s: {"rel_volume": rel} for s, (_px, rel) in state.items() if s in symbols}
 
+    def fake_vol(symbols, now=None):
+        return {s: rel for s, (_px, rel) in state.items() if s in symbols and rel is not None}
+
     monkeypatch.setattr(watch_mod, "_ltp_prices", fake_ltp)
     monkeypatch.setattr(watch_mod, "_tape_price", fake_tape)
+    monkeypatch.setattr(watch_mod, "vol_adj_map", fake_vol)
     import chart_patterns.tv_prefilter as tv
 
     monkeypatch.setattr(tv, "fetch_tv_volume_metrics", fake_tv)
@@ -277,6 +308,7 @@ def test_live_triggered(mock_quotes):
     (row,) = watch_mod.live([_row("AAA")])
     assert row["ltp"] == pytest.approx(110.0)
     assert row["rel_volume"] == pytest.approx(2.0)
+    assert row["vol_adj"] == pytest.approx(2.0)
     assert row["pct_to_trigger"] == pytest.approx(4.76, abs=0.01)
     assert row["state"] == "triggered"
 
@@ -289,7 +321,7 @@ def test_live_armed_below_trigger(mock_quotes):
 
 
 def test_live_armed_when_volume_light(mock_quotes):
-    mock_quotes["AAA"] = (106.0, 1.0)
+    mock_quotes["AAA"] = (106.0, 0.5)
     (row,) = watch_mod.live([_row("AAA")])
     assert row["state"] == "armed"
 
@@ -338,6 +370,7 @@ def test_tape_fallback_parallel_and_cached(monkeypatch):
 
     monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
     monkeypatch.setattr(watch_mod, "_ltp_prices", lambda symbols: {})
+    monkeypatch.setattr(watch_mod, "vol_adj_map", lambda symbols, now=None: {s: 2.0 for s in symbols})
     monkeypatch.setattr(
         tv, "fetch_tv_volume_metrics",
         lambda symbols: {s: {"rel_volume": 2.0} for s in symbols},
@@ -364,6 +397,7 @@ def test_tape_fallback_total_failure_stays_armed(monkeypatch):
     watch_mod._TAPE_CACHE.clear()
     monkeypatch.setattr(watch_mod, "_ltp_prices", lambda symbols: {})
     monkeypatch.setattr(watch_mod, "_tape_price", lambda symbol, timeframe="1m": None)
+    monkeypatch.setattr(watch_mod, "vol_adj_map", lambda symbols, now=None: {})
     monkeypatch.setattr(tv, "fetch_tv_volume_metrics", lambda symbols: {})
     try:
         (row,) = watch_mod.live([_row("AAA")])
@@ -521,8 +555,14 @@ def test_watch_setups_contract(cp_client):
                 "id": "breakout",
                 "label": "Long-base breakout",
                 "description": "Long tight base; trigger = box high, invalidate = box low",
-                "default_min_rel_volume": 1.5,
-            }
+                "default_min_rel_volume": 0.7,
+            },
+            {
+                "id": "near_52w",
+                "label": "Near 52W high + accumulation",
+                "description": "Within ~5% of the prior 52W high with volume accumulation (OBV, up/down volume, rising volume/lows)",
+                "default_min_rel_volume": 0.7,
+            },
         ]
     }
 
@@ -534,14 +574,14 @@ def test_watch_contract(cp_client, mock_quotes):
     assert resp.status_code == 200
     data = resp.json()
     assert data["setup"] == "breakout"
-    assert data["min_rel_volume"] == pytest.approx(1.5)
+    assert data["min_rel_volume"] == pytest.approx(0.7)
     assert data["updated_at"]
     assert len(data["items"]) == 1
     item = data["items"][0]
     assert set(item) == {
         "symbol", "setup_id", "trigger_level", "invalidate_level", "base_days",
         "range_pct", "confidence", "status", "end_date", "fresh",
-        "ltp", "rel_volume", "pct_to_trigger", "state",
+        "ltp", "rel_volume", "vol_adj", "pct_to_trigger", "state",
     }
     assert item["state"] == "triggered"
 
@@ -555,3 +595,434 @@ def test_watch_empty_store(cp_client):
     resp = cp_client.get("/api/chart-patterns/watch?setup=breakout")
     assert resp.status_code == 200
     assert resp.json()["items"] == []
+
+
+def test_watch_empty_store(cp_client):
+    resp = cp_client.get("/api/chart-patterns/watch?setup=breakout")
+    assert resp.status_code == 200
+    assert resp.json()["items"] == []
+
+
+# ---------------------------------------------------------------------------
+# near_52w (computed arm)
+# ---------------------------------------------------------------------------
+
+
+def _near52w_frame(n=30, start=90.0, step=0.3, vol_start=1000.0, vol_step=100.0):
+    """Rising 1D frame: prior high = high[-2], latest bar spikes through it."""
+    import pandas as pd
+
+    idx = pd.date_range("2026-01-01", periods=n, freq="D", tz="UTC")
+    close = [start + i * step for i in range(n)]
+    return pd.DataFrame(
+        {
+            "open": [c - 0.1 for c in close],
+            "high": [c + 0.5 for c in close],
+            "low": [c - 0.5 for c in close],
+            "close": close,
+            "volume": [vol_start + i * vol_step for i in range(n)],
+        },
+        index=idx,
+    )
+
+
+@pytest.fixture
+def near52w_env(monkeypatch, tmp_path):
+    """Isolated computed arm: tmp disk cache, fixed session, fake universe."""
+    from chart_patterns import universes
+
+    monkeypatch.setattr(watch_mod, "_NEAR52W_CACHE_DIR", tmp_path / "watch")
+    monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-09-30")
+    monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
+    return tmp_path
+
+
+def test_near52w_row_fields():
+    """Prior high excludes the latest bar; gaps + accumulation are exact."""
+    row = watch_mod._near52w_row("aaa", _near52w_frame())
+    assert row["symbol"] == "AAA"
+    assert row["setup_id"] == "near_52w"
+    # Prior high = max high of the first 29 bars = 90 + 28*0.3 + 0.5.
+    assert row["trigger_level"] == pytest.approx(98.9)
+    assert row["last_high"] == pytest.approx(99.2)
+    assert row["close"] == pytest.approx(98.7)
+    assert row["touched"] is True
+    assert row["high_gap"] == pytest.approx((98.9 - 99.2) / 98.9 * 100.0)
+    assert row["close_gap"] == pytest.approx((98.9 - 98.7) / 98.9 * 100.0)
+    # Invalidate = min low of the last 10 bars = close[20] - 0.5.
+    assert row["invalidate_level"] == pytest.approx(95.5)
+    # Accumulation: rising prices on rising volume.
+    assert row["obv_slope"] > 0
+    assert row["updown"] == pytest.approx(34500.0)  # all 10 up, no down volume
+    assert row["vol_ratio"] == pytest.approx(3700.0 / 2950.0)
+    assert row["rising_lows"] is True
+    assert row["base_days"] == 0
+    assert row["range_pct"] == 0
+    assert row["status"] == ""
+    assert row["confidence"] == 0
+
+
+def test_near52w_row_short_frame_skipped():
+    import pandas as pd
+
+    assert watch_mod._near52w_row("AAA", None) is None
+    assert watch_mod._near52w_row("AAA", pd.DataFrame()) is None
+    assert watch_mod._near52w_row("AAA", _near52w_frame(n=10)) is None
+
+
+def test_near52w_arm_filter_gap_or_touched(monkeypatch, near52w_env):
+    """close_gap <= 5 armed; far-below excluded; touched-with-weak-close armed."""
+    import pandas as pd
+
+    from chart_patterns import candles
+
+    near = _near52w_frame()  # close_gap ~0.2% -> armed
+    near.loc[near.index[-1], ["high", "low", "close"]] = [98.8, 97.5, 98.7]  # just shy: not touched
+    far = _near52w_frame()
+    far.loc[far.index[-1], ["high", "low", "close"]] = [86.0, 84.0, 85.0]
+    dip = _near52w_frame()
+    dip.loc[dip.index[-1], ["high", "low", "close"]] = [99.5, 83.0, 84.0]
+    frames = {"NEAR": near, "FAR": far, "DIP": dip}
+
+    from chart_patterns import universes
+
+    monkeypatch.setattr(universes, "get_universe", lambda uid: list(frames))
+    monkeypatch.setattr(candles, "fetch_for_timeframe", lambda sym, tf: frames[sym])
+
+    rows = watch_mod.arm("near_52w", universe="nifty500")
+    assert sorted(r["symbol"] for r in rows) == ["DIP", "NEAR"]
+    dip_row = next(r for r in rows if r["symbol"] == "DIP")
+    assert dip_row["touched"] is True
+    assert dip_row["close_gap"] == pytest.approx((98.9 - 84.0) / 98.9 * 100.0)
+    # Ordered by close_gap ascending: NEAR (~0.2%) before DIP (~15%).
+    assert [r["symbol"] for r in rows] == ["NEAR", "DIP"]
+    # Gap override tightens the screen but never drops a touched name.
+    assert [r["symbol"] for r in watch_mod.arm("near_52w", universe="nifty500", max_gap=0.1)] == ["DIP"]
+    assert [r["symbol"] for r in watch_mod.arm("near_52w", universe="nifty500", max_gap=0.3)] == ["NEAR", "DIP"]
+
+
+def test_near52w_arm_cache_reused_and_session_invalidates(monkeypatch, near52w_env):
+    """Second call serves the disk cache (no fetches); a session roll
+    recomputes. Fetch failures never raise (``[]``)."""
+    from chart_patterns import candles
+
+    calls: list = []
+
+    def fake_fetch(sym, tf):
+        calls.append(sym)
+        return _near52w_frame()
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+
+    first = watch_mod.arm("near_52w", universe="nifty500")
+    assert [r["symbol"] for r in first] == ["AAA"]
+    assert calls == ["AAA"]
+
+    second = watch_mod.arm("near_52w", universe="nifty500")
+    assert second == first
+    assert calls == ["AAA"]  # cache hit: no refetch
+
+    monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-10-01")
+    third = watch_mod.arm("near_52w", universe="nifty500")
+    assert [r["symbol"] for r in third] == ["AAA"]
+    assert calls == ["AAA", "AAA"]  # new session: recomputed
+    assert len(list((near52w_env / "watch").glob("*.pkl"))) == 1  # old session pruned
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", lambda sym, tf: None)
+    monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-10-02")
+    assert watch_mod.arm("near_52w", universe="nifty500") == []
+
+    def _boom(sym, tf):
+        raise RuntimeError("tape down")
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", _boom)
+    monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-10-03")
+    assert watch_mod.arm("near_52w", universe="nifty500") == []
+
+
+def test_near52w_arm_symbol_scope_and_unknown_universe(monkeypatch, near52w_env):
+    from chart_patterns import candles
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", lambda sym, tf: _near52w_frame())
+    rows = watch_mod.arm("near_52w", symbol="aaa")
+    assert [r["symbol"] for r in rows] == ["AAA"]
+    assert watch_mod.arm("near_52w") == []
+
+    from chart_patterns import universes
+
+    def _boom(uid):
+        raise ValueError(f"Unknown universe {uid!r}")
+
+    monkeypatch.setattr(universes, "get_universe", _boom)
+    assert watch_mod.arm("near_52w", universe="nope") == []
+
+
+def test_near52w_live_passthrough(mock_quotes):
+    """live() classifies computed rows and keeps the extra keys untouched."""
+    row = watch_mod._near52w_row("AAA", _near52w_frame())
+    mock_quotes["AAA"] = (105.0, 2.0)  # above the 98.9 prior high, heavy volume
+    (out,) = watch_mod.live([row])
+    assert out["state"] == "triggered"
+    assert out["ltp"] == pytest.approx(105.0)
+    assert out["pct_to_trigger"] == pytest.approx(round((105.0 - 98.9) / 98.9 * 100.0, 2))
+    for key in ("touched", "high_gap", "close_gap", "obv_slope", "updown",
+                "vol_ratio", "rising_lows", "close", "last_high"):
+        assert out[key] == row[key]
+
+
+def test_watch_near52w_contract(cp_client, mock_quotes, monkeypatch, tmp_path):
+    """GET /watch?setup=near_52w: computed item shape + live keys."""
+    from chart_patterns import candles, universes
+
+    monkeypatch.setattr(watch_mod, "_NEAR52W_CACHE_DIR", tmp_path / "watch")
+    monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-09-30")
+    monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
+    monkeypatch.setattr(candles, "fetch_for_timeframe", lambda sym, tf: _near52w_frame())
+    mock_quotes["AAA"] = (105.0, 2.0)
+
+    resp = cp_client.get("/api/chart-patterns/watch?setup=near_52w&universe=nifty500")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["setup"] == "near_52w"
+    assert len(data["items"]) == 1
+    item = data["items"][0]
+    assert set(item) == {
+        "symbol", "setup_id", "trigger_level", "invalidate_level", "close",
+        "last_high", "touched", "high_gap", "close_gap", "obv_slope",
+        "updown", "vol_ratio", "rising_lows", "base_days", "range_pct",
+        "status", "confidence",
+        "ltp", "rel_volume", "vol_adj", "pct_to_trigger", "state",
+    }
+    assert item["state"] == "triggered"
+    assert item["setup_id"] == "near_52w"
+
+
+# ---------------------------------------------------------------------------
+# near_52w: per-symbol detection cache + process fan-out wiring
+# ---------------------------------------------------------------------------
+
+
+def test_near52w_detect_cache_reused_across_scopes(monkeypatch, near52w_env):
+    """Whole-screen miss + per-symbol hit: a symbol-scoped re-screen of the
+    same session performs zero fetches (detection cache, no re-detection)."""
+    from chart_patterns import candles, universes
+
+    calls: list = []
+
+    def fake_fetch(sym, tf):
+        calls.append(sym)
+        return _near52w_frame()
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
+
+    first = watch_mod.arm("near_52w", universe="nifty500")
+    assert [r["symbol"] for r in first] == ["AAA"]
+    assert calls == ["AAA"]
+    assert len(list((near52w_env / "watch" / "detect").glob("*.pkl"))) == 1
+
+    second = watch_mod.arm("near_52w", symbol="aaa")  # new screen key, same session
+    assert second == first
+    assert calls == ["AAA"]  # no refetch: per-symbol detection cache hit
+
+
+def test_near52w_detect_cache_version_bump_recomputes(monkeypatch, near52w_env):
+    """A ``DETECTOR_VERSION`` bump invalidates both cache levels (re-detect)."""
+    from chart_patterns import candles, universes
+
+    calls: list = []
+
+    def fake_fetch(sym, tf):
+        calls.append(sym)
+        return _near52w_frame()
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
+
+    watch_mod.arm("near_52w", universe="nifty500")
+    assert calls == ["AAA"]
+    watch_mod.arm("near_52w", universe="nifty500")
+    assert calls == ["AAA"]  # screen hit: no refetch
+
+    monkeypatch.setattr(watch_mod, "DETECTOR_VERSION", 999)
+    rows = watch_mod.arm("near_52w", universe="nifty500")
+    assert [r["symbol"] for r in rows] == ["AAA"]
+    assert calls == ["AAA", "AAA"]  # version mismatch: recomputed
+
+
+def test_near52w_arm_passes_use_processes_through(monkeypatch, near52w_env):
+    """``arm(..., use_processes=True)`` reaches ``run_symbols``; the default
+    stays ``False`` so the API path never forks a web worker."""
+    from chart_patterns import candles, universes
+
+    monkeypatch.setattr(universes, "get_universe", lambda uid: ["AAA"])
+    monkeypatch.setattr(candles, "fetch_for_timeframe", lambda sym, tf: _near52w_frame())
+
+    seen: dict = {}
+    real = watch_mod.run_symbols
+
+    def spy(fn, symbols, *, workers=None, use_processes=None):
+        seen["use_processes"] = use_processes
+        # Stay in-process under test (no fork); the recorded flag is the point.
+        return real(fn, list(symbols), workers=workers, use_processes=False)
+
+    monkeypatch.setattr(watch_mod, "run_symbols", spy)
+    watch_mod.arm("near_52w", universe="nifty500")
+    assert seen["use_processes"] is False
+
+    # New session forces a re-screen so run_symbols is entered again.
+    monkeypatch.setattr(watch_mod, "_near52w_session", lambda: "2026-10-01")
+    watch_mod.arm("near_52w", universe="nifty500", use_processes=True)
+    assert seen["use_processes"] is True
+
+
+# ---------------------------------------------------------------------------
+# vol_adj: time-adjusted intraday relative volume (the ``triggered`` gate)
+# ---------------------------------------------------------------------------
+
+
+def _vol_adj_frames(today_vols=(100.0, 100.0, 100.0, 100.0), avg_vol=1000.0):
+    """(1m tape, 1D frame) pair: today's IST-session tape sums to
+    ``sum(today_vols)``; the daily frame's last-10 mean is ``avg_vol``."""
+    import pandas as pd
+
+    from datetime import datetime
+
+    import config
+
+    now = datetime.now(config.IST)
+    day = now.date()
+    open_ist = datetime(day.year, day.month, day.day, 9, 15, tzinfo=config.IST)
+    idx_utc = pd.date_range(start=open_ist, periods=len(today_vols), freq="min").tz_convert("UTC")
+    tape = pd.DataFrame(
+        {"close": [100.0] * len(today_vols), "volume": list(today_vols)},
+        index=idx_utc,
+    )
+    daily = pd.DataFrame(
+        {"close": [100.0] * 15, "volume": [avg_vol] * 15},
+        index=pd.date_range("2026-01-01", periods=15, freq="D", tz="UTC"),
+    )
+    return tape, daily, now
+
+
+def test_vol_adj_formula(monkeypatch):
+    """400 shares by 09:18 on a 1000/day name at fraction 0.16 → 2.5×."""
+    from chart_patterns import candles
+
+    tape, daily, now = _vol_adj_frames()
+
+    def fake_fetch(symbol, tf_id, **kwargs):
+        return tape if tf_id == "1m" else daily
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(watch_mod, "_vol_adj_session_fraction", lambda now=None: 0.16)
+    assert watch_mod._vol_adj_one("AAA", now) == pytest.approx(400.0 / (1000.0 * 0.16))
+
+
+def test_vol_adj_session_fraction_clamps():
+    """Pre-open pins at 0.05, mid-session is proportional, close pins at 1.0."""
+    from datetime import datetime
+
+    import config
+
+    def at(hour: int, minute: int):
+        return datetime(2026, 10, 6, hour, minute, tzinfo=config.IST)
+
+    assert watch_mod._vol_adj_session_fraction(at(8, 0)) == pytest.approx(0.05)
+    assert watch_mod._vol_adj_session_fraction(at(9, 15)) == pytest.approx(0.05)
+    assert watch_mod._vol_adj_session_fraction(at(12, 22)) == pytest.approx(187.0 / 375.0)
+    assert watch_mod._vol_adj_session_fraction(at(15, 30)) == pytest.approx(1.0)
+    assert watch_mod._vol_adj_session_fraction(at(18, 0)) == pytest.approx(1.0)
+
+
+def test_vol_adj_none_on_missing_or_zero_inputs(monkeypatch):
+    """Empty tape, missing volume column, zero 10d average, or a down fetcher
+    all yield ``None`` — never raise."""
+    import pandas as pd
+
+    from chart_patterns import candles
+
+    tape, daily, now = _vol_adj_frames()
+    monkeypatch.setattr(watch_mod, "_vol_adj_session_fraction", lambda now=None: 0.5)
+
+    def fake_fetch(symbol, tf_id, **kwargs):
+        if tf_id == "1m":
+            return tape
+        return daily
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    assert watch_mod._vol_adj_one("AAA", now) == pytest.approx(400.0 / (1000.0 * 0.5))
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", lambda *a, **k: pd.DataFrame())
+    assert watch_mod._vol_adj_one("AAA", now) is None
+
+    no_vol = tape.drop(columns=["volume"])
+    monkeypatch.setattr(
+        candles, "fetch_for_timeframe",
+        lambda sym, tf, **k: no_vol if tf == "1m" else daily,
+    )
+    assert watch_mod._vol_adj_one("AAA", now) is None
+
+    flat = daily.assign(volume=0.0)
+    monkeypatch.setattr(
+        candles, "fetch_for_timeframe",
+        lambda sym, tf, **k: tape if tf == "1m" else flat,
+    )
+    assert watch_mod._vol_adj_one("AAA", now) is None
+
+    def _boom(*a, **k):
+        raise RuntimeError("tape down")
+
+    monkeypatch.setattr(candles, "fetch_for_timeframe", _boom)
+    assert watch_mod._vol_adj_one("AAA", now) is None
+    assert watch_mod.vol_adj_map(["AAA", "BBB"]) == {}
+
+
+def test_vol_adj_map_memoised(monkeypatch):
+    """A repeat poll serves the TTL cache: no refetch of tape/daily."""
+    from chart_patterns import candles
+
+    tape, daily, _now = _vol_adj_frames()
+    calls: list = []
+
+    def fake_fetch(symbol, tf_id, **kwargs):
+        calls.append((symbol, tf_id))
+        return tape if tf_id == "1m" else daily
+
+    watch_mod._VOL_ADJ_CACHE.clear()
+    monkeypatch.setattr(candles, "fetch_for_timeframe", fake_fetch)
+    monkeypatch.setattr(watch_mod, "_vol_adj_session_fraction", lambda now=None: 0.5)
+    try:
+        first = watch_mod.vol_adj_map(["AAA"])
+        second = watch_mod.vol_adj_map(["AAA"])
+        assert first == second
+        assert first["AAA"] == pytest.approx(400.0 / (1000.0 * 0.5))
+        assert sorted(calls) == [("AAA", "1D"), ("AAA", "1m")]
+    finally:
+        watch_mod._VOL_ADJ_CACHE.clear()
+
+
+def test_live_gate_uses_vol_adj_not_tv_rel(mock_quotes, monkeypatch):
+    """Above the trigger with a hot TV rel-vol but cold vol_adj stays armed —
+    the gate no longer reads TradingView's full-day-average field."""
+    mock_quotes["AAA"] = (110.0, 5.0)
+    monkeypatch.setattr(watch_mod, "vol_adj_map", lambda symbols, now=None: {"AAA": 0.3})
+    (row,) = watch_mod.live([_row("AAA")])
+    assert row["rel_volume"] == pytest.approx(5.0)
+    assert row["vol_adj"] == pytest.approx(0.3)
+    assert row["state"] == "armed"
+
+    monkeypatch.setattr(watch_mod, "vol_adj_map", lambda symbols, now=None: {"AAA": 2.5})
+    (row,) = watch_mod.live([_row("AAA")])
+    assert row["vol_adj"] == pytest.approx(2.5)
+    assert row["state"] == "triggered"
+
+
+def test_live_vol_adj_none_stays_armed(mock_quotes, monkeypatch):
+    """Tape failure (``vol_adj=None``) on a non-fresh row above the trigger
+    stays ``armed`` — never raises, even with a hot TV rel-vol."""
+    mock_quotes["AAA"] = (110.0, 5.0)
+    monkeypatch.setattr(watch_mod, "vol_adj_map", lambda symbols, now=None: {})
+    (row,) = watch_mod.live([_row("AAA")])
+    assert row["vol_adj"] is None
+    assert row["state"] == "armed"

@@ -469,10 +469,19 @@ test.describe("Chart Patterns page", () => {
     await loginAsTestUser(page);
     await setupChartPatternsMocks(page);
     await page.goto("/patterns");
+    // The dense list is the default view; this spec covers the card grid.
+    await page.getByRole("button", { name: "Grid" }).click();
   });
 
   test("renders the patterns page", async ({ page }) => {
     await expect(page.locator('[data-testid="patterns-page"]')).toBeVisible();
+  });
+
+  test("list view is the default and a row opens the fullscreen chart", async ({ page }) => {
+    await page.getByRole("button", { name: "List" }).click();
+    await expect(page.locator('[data-testid="patterns-list"]')).toBeVisible();
+    await page.locator('[data-testid="patterns-list-row-IRCON-falling_wedge-101"]').click();
+    await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
   });
 
   test("shows the universe bar and scan-again control", async ({ page }) => {
