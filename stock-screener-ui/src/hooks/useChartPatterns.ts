@@ -57,6 +57,8 @@ export interface UseChartPatternsResult {
   summary: ReturnType<typeof getChartPatternsState>["summary"];
   results: ReturnType<typeof getChartPatternsState>["results"];
   total: number;
+  /** True while `/results/stream` is still appending items. */
+  streaming: boolean;
   selectedSymbol: string | null;
   setSelectedSymbol: (s: string | null) => void;
   detail: ReturnType<typeof getChartPatternsState>["detail"];
@@ -120,6 +122,7 @@ export function useChartPatterns(): UseChartPatternsResult {
     summary: state.summary,
     results: state.results,
     total: state.total,
+    streaming: state.streaming,
     selectedSymbol: state.selectedSymbol,
     setSelectedSymbol,
     detail: state.detail,

@@ -29,6 +29,9 @@ vi.mock("../api/chartPatterns", async () => {
     fetchSummary: vi.fn(pending),
     fetchSymbolDetail: vi.fn(pending),
     fetchSymbolChart: vi.fn(pending),
+    // Suspend like the other loaders: store-triggered reloads stay pending so
+    // the synchronous patch+notify under test applies deterministically.
+    streamResults: vi.fn(pending),
   };
 });
 
@@ -67,6 +70,7 @@ const CONTRACT_KEYS = [
   "summary",
   "results",
   "total",
+  "streaming",
   "selectedSymbol",
   "setSelectedSymbol",
   "detail",
@@ -96,6 +100,7 @@ describe("useChartPatterns", () => {
     expect(result.current.scanning).toBe(false);
     expect(result.current.results).toEqual([]);
     expect(result.current.total).toBe(0);
+    expect(result.current.streaming).toBe(false);
     expect(result.current.loading).toBe(false);
     expect(result.current.error).toBeNull();
   });

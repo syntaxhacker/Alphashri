@@ -12,7 +12,7 @@ import pandas as pd
 # Import the detectors package for its side effect: every detector registers
 # itself into ``detectors.common.DETECTORS``.
 from . import detectors  # noqa: F401
-from .detectors.common import DETECTORS
+from .detectors.common import DETECTORS, PATTERN_MIN_BARS
 from .features import normalize_ohlcv
 from .timeframes import get_timeframe
 
@@ -61,9 +61,19 @@ def detect_patterns(
         "timeframe": timeframe,
         "min_bars": spec.min_bars,
     }
+    # One ``ctx`` is shared by every detector in this call, so the frame-level
+    # ``get_swings`` cache is computed once per symbol, not once per detector.
+    # Detectors that cannot fire on a frame this short are skipped up front;
+    # each threshold mirrors the detector's own early exit (see
+    # ``PATTERN_MIN_BARS``), so skipping never changes the hit set. Cache-only
+    # ``ctx`` entries are pure functions of the frame, so skipping a detector
+    # cannot alter what a later detector computes.
+    n_bars = len(data)
 
     hits: list = []
-    for _pattern_id, detect in DETECTORS:
+    for pattern_id, detect in DETECTORS:
+        if n_bars < PATTERN_MIN_BARS.get(pattern_id, 0):
+            continue
         try:
             produced = detect(data, ctx) or []
         except Exception:

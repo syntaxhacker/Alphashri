@@ -93,6 +93,42 @@ def register(pattern_id: str, fn: Callable) -> None:
     DETECTORS.append((pattern_id, fn))
 
 
+# pattern_id -> minimum bars below which the detector provably returns ``[]``.
+#
+# Each value mirrors the detector's own early exit, so the engine pre-gate
+# (skip when ``len(data) < min``) never changes results — it only skips work
+# the detector would discard anyway:
+#
+# * window scanners (wedges 30, channels 30, rectangle 40, triangles 30,
+#   diamond/rounding/H&S 40, double bottom 30, curve 40, cup 60): every window
+#   comes from ``window_slice(df, lookback, m)`` which is ``None`` below ``m``
+#   bars, and every ``None`` path returns ``[]``/is skipped;
+# * flags: ``_find_pole_flag`` needs ``pole + flag >= 11`` bars, otherwise
+#   every combo is skipped and it returns ``None``;
+# * pennant / consolidation: explicit ``n < 20`` early return.
+PATTERN_MIN_BARS: dict[str, int] = {
+    "falling_wedge": 30,
+    "rising_wedge": 30,
+    "diamond_bottom": 40,
+    "triple_bottom": 40,
+    "double_bottom": 30,
+    "head_shoulders": 40,
+    "inverse_head_shoulders": 40,
+    "rounding_bottom": 40,
+    "ascending_channel": 30,
+    "descending_channel": 30,
+    "bull_flag": 11,
+    "bear_flag": 11,
+    "pennant": 20,
+    "rectangle": 40,
+    "ascending_triangle": 30,
+    "descending_triangle": 30,
+    "curve_bearish": 40,
+    "cup_handle": 60,
+    "consolidation": 20,
+}
+
+
 # ---------------------------------------------------------------------------
 # Date / line serialisation
 # ---------------------------------------------------------------------------

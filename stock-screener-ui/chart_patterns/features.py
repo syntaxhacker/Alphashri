@@ -38,6 +38,13 @@ def normalize_ohlcv(df: pd.DataFrame | None) -> pd.DataFrame | None:
 
     out = df.copy()
     out.columns = [str(c).lower() for c in out.columns]
+    # Drop any memoized ATR (see ``atr_value``): the copy inherits the input's
+    # ``attrs``, but filtering/sorting below can change the rows, so a cached
+    # value from the source frame must never be reused here.
+    try:
+        out.attrs.pop("_atr_cache", None)
+    except AttributeError:
+        pass
     for col in ("open", "high", "low", "close"):
         if col not in out.columns:
             raise ValueError(f"OHLCV frame missing required column {col!r}")
@@ -235,27 +242,51 @@ def curvature_sign(coeffs: Sequence[float]) -> int:
 
 def atr(df: pd.DataFrame, period: int = 14) -> pd.Series:
     """Average True Range (Wilder-style EMA of true range)."""
-    high = df["high"].astype(float)
-    low = df["low"].astype(float)
-    close = df["close"].astype(float)
-    prev = close.shift(1)
-    tr = pd.concat(
-        [(high - low), (high - prev).abs(), (low - prev).abs()], axis=1
-    ).max(axis=1)
-    return tr.ewm(alpha=1.0 / max(period, 1), adjust=False, min_periods=1).mean()
+    if df is None or len(df) == 0:
+        return pd.Series(dtype=float)
+    high = df["high"].to_numpy(dtype=float)
+    low = df["low"].to_numpy(dtype=float)
+    close = df["close"].to_numpy(dtype=float)
+    prev = np.empty_like(close)
+    prev[0] = np.nan
+    prev[1:] = close[:-1]
+    # ``np.fmax`` skips NaN like pandas ``max(axis=1, skipna=True)``: the first
+    # bar has no previous close, so its true range is just ``high - low``.
+    tr = np.fmax.reduce(
+        [high - low, np.abs(high - prev), np.abs(low - prev)]
+    )
+    return pd.Series(tr, index=df.index).ewm(
+        alpha=1.0 / max(period, 1), adjust=False, min_periods=1
+    ).mean()
 
 
 def atr_value(df: pd.DataFrame, period: int = 14) -> float:
-    """Last ATR value, with a sane fallback for very short frames."""
+    """Last ATR value, with a sane fallback for very short frames.
+
+    Memoized on the frame itself (``df.attrs``): one ``detect_patterns`` call
+    runs ~19 detectors over the same normalised frame and each asks for the
+    ATR, so the ~1ms EMA is computed once per frame instead of ~28 times. The
+    cache dies with the frame, so distinct symbols/frames never share values.
+    """
     if df is None or df.empty:
         return 0.0
+    try:
+        cache = df.attrs.get("_atr_cache")
+    except AttributeError:
+        cache = None
+    if isinstance(cache, dict) and period in cache:
+        return cache[period]
     series = atr(df, period)
     val = float(series.iloc[-1]) if not series.empty else 0.0
     if not np.isfinite(val) or val <= 0:
         rng = (df["high"] - df["low"]).astype(float)
         val = float(rng.tail(min(len(rng), period)).mean())
     if not np.isfinite(val) or val < 0:
-        return 0.0
+        val = 0.0
+    try:
+        df.attrs.setdefault("_atr_cache", {})[period] = val
+    except (AttributeError, TypeError):
+        pass
     return val
 
 
@@ -314,39 +345,60 @@ def envelope_line(
     P = sorted(pivots, key=lambda t: t[0]) if pivots else []
     if len(P) < 2:
         return None
-    highs = df["high"].to_numpy(dtype=float)
-    lows = df["low"].to_numpy(dtype=float)
+    # Fully vectorised over pivot pairs: one NumPy pass scores every ``(i, j)``
+    # pair instead of a Python loop per pair per bar. The per-cell arithmetic
+    # (``q0 + slope * (x - x0)``, ``d > tol``) is the same IEEE-754 float64
+    # sequence as the scalar loop, rows run in the same ``(i, j)`` order, and
+    # the winner is the first row with the minimal ``(viol, -span)`` key —
+    # exactly the scalar loop's strict-``<`` pick. Rows are chunked so peak
+    # memory stays bounded on pivot-dense frames.
+    boundary = df["high"].to_numpy(dtype=float) if side == "upper" else df["low"].to_numpy(dtype=float)
+    n = len(boundary)
+    xs = np.array([int(p) for p, _ in P])
+    qs = np.array([float(q) for _, q in P])
+    m = len(P)
+    rows_i, rows_j = np.triu_indices(m, k=1)
+    keep = xs[rows_j] > xs[rows_i]
+    if not bool(keep.all()):
+        if not bool(keep.any()):
+            return None
+        rows_i, rows_j = rows_i[keep], rows_j[keep]
+    X0 = xs[rows_i]
+    X1 = xs[rows_j]
+    Q0 = qs[rows_i]
+    Q1 = qs[rows_j]
+    span = X1 - X0
+    slopes = (Q1 - Q0) / span
+    grid = np.arange(n, dtype=float)
     best = None
-    n = len(P)
-    for i in range(n):
-        for j in range(i + 1, n):
-            x0, q0 = P[i]
-            x1, q1 = P[j]
-            if x1 <= x0:
-                continue
-            slope = (q1 - q0) / (x1 - x0)
-            viol = 0
-            worst = 0.0
-            for x in range(int(x0), int(x1) + 1):
-                y = q0 + slope * (x - x0)
-                d = (highs[x] - y) if side == "upper" else (y - lows[x])
-                if d > tol:
-                    viol += 1
-                    if d > worst:
-                        worst = d
-            key = (viol, -(x1 - x0))
-            if best is None or key < best["key"]:
-                best = {
-                    "key": key,
-                    "slope": slope,
-                    "intercept": q0 - slope * x0,
-                    "x0": int(x0),
-                    "q0": float(q0),
-                    "x1": int(x1),
-                    "q1": float(q1),
-                    "viol": viol,
-                    "worst": float(worst),
-                }
+    rows_per_chunk = max(1, min(len(X0), 1_000_000 // max(n, 1)))
+    for blk in range(0, len(X0), rows_per_chunk):
+        s = slice(blk, blk + rows_per_chunk)
+        y = Q0[s, None] + slopes[s, None] * (grid[None, :] - X0[s, None])
+        seg = (grid[None, :] >= X0[s, None]) & (grid[None, :] <= X1[s, None])
+        if side == "upper":
+            d = boundary[None, :] - y
+        else:
+            d = y - boundary[None, :]
+        over = seg & (d > tol)
+        viol = over.sum(axis=1)
+        worst = np.where(over, d, -np.inf).max(axis=1)
+        w = int(np.lexsort((-(span[s]), viol))[0])
+        key = (int(viol[w]), -int(span[s][w]))
+        if best is None or key < best["key"]:
+            slope = float(slopes[s][w])
+            x0 = int(X0[s][w])
+            best = {
+                "key": key,
+                "slope": slope,
+                "intercept": float(Q0[s][w]) - slope * x0,
+                "x0": x0,
+                "q0": float(Q0[s][w]),
+                "x1": int(X1[s][w]),
+                "q1": float(Q1[s][w]),
+                "viol": int(viol[w]),
+                "worst": float(worst[w]) if viol[w] > 0 else 0.0,
+            }
     return best
 
 
