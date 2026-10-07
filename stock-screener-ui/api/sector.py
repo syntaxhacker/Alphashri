@@ -19,6 +19,8 @@ import requests
 from tradingview_screener import Query as TVQuery, col
 
 from config import IST
+from db.database import SessionLocal
+from db.models.taxonomy import Theme, ThemeConstituent
 from api.utils import (
     _to_float,
     make_cache_helpers,
@@ -536,4 +538,347 @@ async def get_sector_correlation(
 
     _write_cache(cache_key, response_obj.model_dump())
     return response_obj
+
+
+# ===== Group performance (Themes/Industry) =====
+
+PERIOD_COLUMN_MAP: Dict[str, str] = {
+    "1D": "change",
+    "1W": "Perf.W",
+    "1M": "Perf.1M",
+    "3M": "Perf.3M",
+    "6M": "Perf.6M",
+    "YTD": "Perf.YTD",
+    "1Y": "Perf.Y",
+}
+
+GROUP_COLUMNS = (
+    'name', 'sector', 'industry', 'change',
+    'Perf.W', 'Perf.1M', 'Perf.3M', 'Perf.6M', 'Perf.YTD', 'Perf.Y',
+    'market_cap_basic',
+)
+
+GROUP_CACHE_TTL_SECONDS = 60
+# key: (market, classify, period, limit) -> (expires_at_monotonic, response dump)
+_group_cache: Dict[Tuple[str, str, str, int], Tuple[float, Dict[str, Any]]] = {}
+
+
+class GroupPerformanceItem(BaseModel):
+    name: str
+    change: float
+    stock_count: int
+    advances: int
+    declines: int
+    # Stable key for themes (/themes/{slug}); null for sector/industry groups.
+    slug: Optional[str] = None
+
+
+class GroupPerformanceResponse(BaseModel):
+    classify: str
+    period: str
+    market: str
+    last_updated: datetime
+    groups: List[GroupPerformanceItem]
+
+
+def _make_group_cache_key(market: str, classify: str, period: str, limit: int) -> Tuple[str, str, str, int]:
+    return (market, classify, period, limit)
+
+
+def _fetch_group_data(market: str, limit: int) -> pd.DataFrame:
+    """Synchronous TradingView query for group performance — must not be called directly in an async context."""
+    q = TVQuery().select(*GROUP_COLUMNS).set_markets(market)
+    if market == 'india':
+        q = q.where(col('sector') != '', col('market_cap_basic') > 5_000_000_000)
+    else:
+        q = q.where(col('sector') != '')
+    q = q.order_by('market_cap_basic', ascending=False).limit(limit)
+    _, df = q.get_scanner_data()
+    return df
+
+
+def _aggregate_groups(
+    df: pd.DataFrame, classify: str, period_col: str
+) -> List[GroupPerformanceItem]:
+    """Market-cap-weighted average % change per group, sorted desc."""
+    df_unique = df.drop_duplicates(subset=['name']).copy()
+    df_unique[period_col] = pd.to_numeric(df_unique[period_col], errors='coerce')
+    df_unique = df_unique[
+        df_unique[classify].notna()
+        & (df_unique[classify].astype(str).str.strip() != '')
+    ]
+    if df_unique.empty:
+        return []
+
+    df_unique['market_cap_basic'] = pd.to_numeric(
+        df_unique['market_cap_basic'], errors='coerce'
+    )
+
+    items: List[GroupPerformanceItem] = []
+    for group_name, group in df_unique.groupby(classify):
+        vals = group[period_col]
+        weights = group['market_cap_basic']
+        valid = vals.notna() & weights.notna()
+        total_w = float(weights[valid].sum()) if valid.any() else 0.0
+        if total_w > 0:
+            change = float((vals[valid] * weights[valid]).sum() / total_w)
+        else:
+            change = 0.0
+        items.append(GroupPerformanceItem(
+            name=str(group_name),
+            change=round(change, 2),
+            stock_count=int(len(group)),
+            advances=int((vals > 0).sum()),
+            declines=int((vals < 0).sum()),
+        ))
+
+    items.sort(key=lambda g: g.change, reverse=True)
+    return items
+
+
+# ===== Themes taxonomy (DB-backed) =====
+
+# Wide fetch window for theme classification so small-cap theme members
+# that fall outside the default top-N market-cap frame are still covered.
+THEME_FETCH_LIMIT = 3000
+
+
+def _load_theme_membership(db_session=None) -> Tuple[Dict[str, Dict[str, Any]], Dict[str, set]]:
+    """Load active themes from the DB.
+
+    Returns ``(info, slug_to_members)`` where ``info[slug]`` is
+    ``{"name": ..., "category": ...}`` and ``slug_to_members[slug]`` is a
+    set of uppercased member symbols. Fail-soft: returns ``({}, {})`` on
+    any error. When ``db_session`` is None a short-lived session is opened
+    (and closed) via ``SessionLocal``.
+    """
+    close = False
+    if db_session is None:
+        try:
+            db_session = SessionLocal()
+            close = True
+        except Exception:
+            return {}, {}
+    try:
+        themes = db_session.query(Theme).filter(Theme.is_active.is_(True)).all()
+        if not themes:
+            return {}, {}
+        by_id = {t.id: t.slug for t in themes}
+        slug_to_members: Dict[str, set] = {t.slug: set() for t in themes}
+        rows = db_session.query(ThemeConstituent).filter(
+            ThemeConstituent.theme_id.in_(list(by_id.keys()))
+        ).all()
+        for row in rows:
+            slug = by_id.get(row.theme_id)
+            if slug is not None and row.symbol:
+                slug_to_members[slug].add(str(row.symbol).strip().upper())
+        info = {
+            t.slug: {"name": t.name, "category": t.category}
+            for t in themes
+        }
+        return info, slug_to_members
+    except Exception:
+        return {}, {}
+    finally:
+        if close:
+            try:
+                db_session.close()
+            except Exception:
+                pass
+
+
+def _aggregate_theme_groups(
+    df: pd.DataFrame,
+    period_col: str,
+    slug_to_members: Dict[str, set],
+    slug_to_info: Optional[Dict[str, Dict[str, Any]]] = None,
+) -> List[GroupPerformanceItem]:
+    """Market-cap-weighted average % change per theme, sorted desc.
+
+    Same weighting/counting contract as ``_aggregate_groups`` but over
+    DB-backed theme membership (a stock may belong to several themes, so a
+    groupby on a frame column cannot be reused). Only members present in
+    the frame contribute; themes with no frame coverage are skipped.
+    The group ``name`` is the theme **display name** and ``slug`` the stable
+    key for /themes/{slug}. Fail-soft: returns [] on any error/empty input.
+    """
+    try:
+        if df is None or df.empty or not slug_to_members:
+            return []
+        if 'name' not in df.columns or period_col not in df.columns:
+            return []
+        df_unique = df.drop_duplicates(subset=['name']).copy()
+        df_unique[period_col] = pd.to_numeric(df_unique[period_col], errors='coerce')
+        df_unique['market_cap_basic'] = pd.to_numeric(
+            df_unique['market_cap_basic'], errors='coerce'
+        )
+        norm_names = df_unique['name'].astype(str).str.strip().str.upper()
+
+        info = slug_to_info or {}
+        items: List[GroupPerformanceItem] = []
+        for slug, members in slug_to_members.items():
+            wanted = {str(m).strip().upper() for m in members}
+            if not wanted:
+                continue
+            sub = df_unique[norm_names.isin(wanted)]
+            if sub.empty:
+                continue
+            vals = sub[period_col]
+            weights = sub['market_cap_basic']
+            valid = vals.notna() & weights.notna()
+            total_w = float(weights[valid].sum()) if valid.any() else 0.0
+            if total_w > 0:
+                change = float((vals[valid] * weights[valid]).sum() / total_w)
+            else:
+                change = 0.0
+            items.append(GroupPerformanceItem(
+                name=str(info.get(slug, {}).get("name") or slug),
+                slug=str(slug),
+                change=round(change, 2),
+                stock_count=int(len(sub)),
+                advances=int((vals > 0).sum()),
+                declines=int((vals < 0).sum()),
+            ))
+
+        items.sort(key=lambda g: g.change, reverse=True)
+        return items
+    except Exception:
+        return []
+
+
+class ThemeSummary(BaseModel):
+    slug: str
+    name: str
+    category: Optional[str] = None
+    description: str = ""
+    member_count: int = 0
+
+
+class ThemeListResponse(BaseModel):
+    themes: List[ThemeSummary]
+
+
+class ThemeDetailResponse(BaseModel):
+    theme: ThemeSummary
+    constituents: List[str]
+
+
+def _theme_to_summary(theme: Theme, member_count: int) -> ThemeSummary:
+    return ThemeSummary(
+        slug=theme.slug,
+        name=theme.name,
+        category=theme.category,
+        description=theme.description or "",
+        member_count=member_count,
+    )
+
+
+@router.get("/themes", response_model=ThemeListResponse)
+async def list_themes():
+    """List active curated themes with member counts, sorted by name."""
+    db = SessionLocal()
+    try:
+        themes = db.query(Theme).filter(Theme.is_active.is_(True)).order_by(Theme.name).all()
+        counts: Dict[int, int] = {}
+        if themes:
+            rows = db.query(ThemeConstituent).filter(
+                ThemeConstituent.theme_id.in_([t.id for t in themes])
+            ).all()
+            for row in rows:
+                counts[row.theme_id] = counts.get(row.theme_id, 0) + 1
+        return ThemeListResponse(
+            themes=[_theme_to_summary(t, counts.get(t.id, 0)) for t in themes]
+        )
+    finally:
+        db.close()
+
+
+@router.get("/themes/{slug}", response_model=ThemeDetailResponse)
+async def get_theme_detail(slug: str):
+    """Theme detail + sorted constituent symbols. 404 for unknown slug."""
+    db = SessionLocal()
+    try:
+        theme = db.query(Theme).filter(
+            Theme.slug == slug, Theme.is_active.is_(True)
+        ).first()
+        if theme is None:
+            raise HTTPException(status_code=404, detail=f"Unknown theme: {slug}")
+        rows = db.query(ThemeConstituent).filter(
+            ThemeConstituent.theme_id == theme.id
+        ).order_by(ThemeConstituent.symbol).all()
+        symbols = [r.symbol for r in rows]
+        return ThemeDetailResponse(
+            theme=_theme_to_summary(theme, len(symbols)),
+            constituents=symbols,
+        )
+    finally:
+        db.close()
+
+
+@router.get("/groups", response_model=GroupPerformanceResponse)
+async def get_group_performance(
+    classify: str = Query("sector", enum=["sector", "industry", "theme"]),
+    period: str = Query("1D", enum=["1D", "1W", "1M", "3M", "6M", "YTD", "1Y"]),
+    market: str = Query("india", enum=["india", "america"]),
+    limit: int = Query(800, ge=100, le=1000),
+):
+    """
+    Market-cap-weighted average % change per sector/industry/theme group.
+
+    classify=theme ranks DB-backed curated themes (see /themes): the
+    TradingView frame is fetched with a wide limit so small-cap theme
+    members are covered, and each theme aggregates over the members
+    present in the frame.
+
+    Fail-soft: returns an empty `groups` list on any error (never 500),
+    so the frontend Themes/Industry bar list degrades gracefully.
+    """
+    try:
+        cache_key = _make_group_cache_key(market, classify, period, limit)
+        cached = _group_cache.get(cache_key)
+        if cached is not None:
+            expires_at, dump = cached
+            if time.monotonic() < expires_at:
+                return GroupPerformanceResponse(**dump)
+            _group_cache.pop(cache_key, None)
+
+        fetch_limit = THEME_FETCH_LIMIT if classify == "theme" else limit
+        df = await asyncio.to_thread(_fetch_group_data, market, fetch_limit)
+
+        if df is None or df.empty:
+            return GroupPerformanceResponse(
+                classify=classify,
+                period=period,
+                market=market,
+                last_updated=datetime.now(),
+                groups=[],
+            )
+
+        period_col = PERIOD_COLUMN_MAP[period]
+        if classify == "theme":
+            info, slug_to_members = _load_theme_membership()
+            groups = _aggregate_theme_groups(df, period_col, slug_to_members, info)
+        else:
+            groups = _aggregate_groups(df, classify, period_col)
+
+        response_obj = GroupPerformanceResponse(
+            classify=classify,
+            period=period,
+            market=market,
+            last_updated=datetime.now(),
+            groups=groups,
+        )
+        _group_cache[cache_key] = (
+            time.monotonic() + GROUP_CACHE_TTL_SECONDS,
+            response_obj.model_dump(),
+        )
+        return response_obj
+    except Exception:
+        return GroupPerformanceResponse(
+            classify=classify,
+            period=period,
+            market=market,
+            last_updated=datetime.now(),
+            groups=[],
+        )
 
