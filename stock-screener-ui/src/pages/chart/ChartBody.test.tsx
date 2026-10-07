@@ -59,7 +59,7 @@ describe("ChartControls", () => {
   });
 
   it("reflects checked state", () => {
-    renderWithProviders(<ChartControls timeframe={5} orMinutes={15} showPivots={false} show52wHigh={true} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />);
+    renderWithProviders(<ChartControls timeframe={5} orMinutes={30} showPivots={false} show52wHigh={true} onTimeframeChange={() => {}} onOrMinutesChange={() => {}} onPivotsChange={() => {}} on52wHighChange={() => {}} />);
     expect((screen.getByTestId("chart-pivots-checkbox") as HTMLInputElement).checked).toBe(false);
     expect((screen.getByTestId("chart-52w-checkbox") as HTMLInputElement).checked).toBe(true);
   });

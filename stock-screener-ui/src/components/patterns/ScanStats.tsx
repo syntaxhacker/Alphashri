@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, Divider, Paper, Text, ToolbarRow } from "@/ui";
+import { Box, Divider, Text, ToolbarRow } from "@/ui";
 import type { PatternSummary } from "@/types/chartPatterns";
 
 export interface ScanStatsProps {
@@ -47,7 +47,7 @@ function buildCells(summary: PatternSummary | null): StatCell[] {
   ];
 }
 
-/** Top stat strip: scanned / patterns / in view / confirmed / bull-bear / data through. */
+/** Dense inline stat strip (~32px): `LABEL value` pairs separated by dividers, no Card. */
 export function ScanStats({ summary }: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
@@ -58,28 +58,42 @@ export function ScanStats({ summary }: ScanStatsProps) {
   }, []);
   const cells = buildCells(summary);
   return (
-    <Paper
+    <Box
       data-testid="patterns-stats"
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, overflow: "hidden" }}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        minHeight: 32,
+        overflowX: "auto",
+        fontVariantNumeric: "tabular-nums",
+      }}
     >
       <ToolbarRow gap={0} wrap={false} style={{ overflowX: "auto" }}>
         {cells.map((cell, index) => (
-          <Box key={cell.key} sx={{ display: "flex", alignItems: "stretch", flex: 1, minWidth: 120 }}>
-            {index > 0 ? <Divider orientation="vertical" /> : null}
+          <Box key={cell.key} sx={{ display: "flex", alignItems: "center", flexShrink: 0 }}>
+            {index > 0 ? (
+              <Divider orientation="vertical" sx={{ height: 16, mx: 1.5 }} />
+            ) : null}
             <Box
               data-testid={`patterns-stat-${cell.key}`}
-              sx={{ display: "flex", flexDirection: "column", justifyContent: "center", gap: 0.25, px: 2, py: 1, minWidth: 0, flex: 1 }}
+              sx={{
+                display: "flex",
+                alignItems: "baseline",
+                gap: 0.75,
+                whiteSpace: "nowrap",
+                minWidth: 0,
+              }}
             >
               <Text size="xs" c="dimmed" style={{ textTransform: "uppercase" }} fw={700} truncate>
                 {cell.label}
               </Text>
-              <Text size="md" fw={700} c={cell.tone ?? "text.primary"} truncate>
+              <Text size="xs" fw={700} c={cell.tone ?? "text.primary"} truncate>
                 {cell.value}
               </Text>
             </Box>
           </Box>
         ))}
       </ToolbarRow>
-    </Paper>
+    </Box>
   );
 }

@@ -117,9 +117,11 @@ export function SymbolFilter({
           </Button>
         )}
       </Box>
-      <Text size="xs" c="dimmed">
-        {helperText}
-      </Text>
+      {helperText ? (
+        <Text size="xs" c="dimmed">
+          {helperText}
+        </Text>
+      ) : null}
       {selected.length > 0 && (
         <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
           {selected.map((symbol) => (

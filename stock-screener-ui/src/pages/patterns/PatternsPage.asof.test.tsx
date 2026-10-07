@@ -42,6 +42,25 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
   ),
 }));
 
+// Dense list stub so the page default (list view) renders deterministically;
+// tests that need cards switch to the grid view first.
+vi.mock("@/components/patterns/PatternListView", () => ({
+  PatternListView: ({ hits, onSelect }: any) => (
+    <div data-testid="patterns-list">
+      {(hits as any[]).map((hit: any) => (
+        <button
+          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}
+          type="button"
+          data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
+          onClick={() => onSelect?.(hit)}
+        >
+          {hit.symbol} {hit.pattern_name}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
 // Passthrough stub for the fullscreen view: renders the real contract testids
 // for the as-of replay controls so page wiring is observable.
 vi.mock("@/components/patterns/PatternFullscreenView", () => ({
@@ -136,6 +155,7 @@ function makeProps(overrides: Partial<PatternsPageProps> = {}): PatternsPageProp
       min_range_pos: null,
       min_rel_volume: null,
       min_volume_m: null,
+      min_avg_volume_10d: 150,
       from_date: null,
       to_date: null,
       sort: "confidence",
@@ -182,6 +202,7 @@ describe("PatternsPage fullscreen as-of replay", () => {
 
   test("opening a card starts live (no as-of banner, no asOf in the fetch)", async () => {
     r(<PatternsPage {...makeProps()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-asof-from")).toBeInTheDocument();
@@ -194,16 +215,21 @@ describe("PatternsPage fullscreen as-of replay", () => {
     );
   });
 
-  test("changing as-of re-fetches with detectPatterns + asOf/fromDate and promotes the best hit", async () => {
-    const low = makeHit({ id: 11, pattern_name: "Falling Wedge", confidence: 60 });
-    const high = makeHit({
+  test("changing as-of re-fetches with detectPatterns + asOf/fromDate and promotes the newest hit", async () => {
+    // Newest wins over confidence: the older hit is far more confident but
+    // the fullscreen must default to the newest formation in the window.
+    const oldConfident = makeHit({ id: 11, pattern_name: "Falling Wedge", confidence: 95, end_date: "2026-08-01", bars_ago: 40 });
+    const newWeak = makeHit({
       id: 22,
       pattern_id: "rising_wedge",
       pattern_name: "Rising Wedge",
-      confidence: 90,
+      confidence: 60,
+      end_date: "2026-09-28",
+      bars_ago: 1,
       start_date: "2026-07-01",
     });
-    r(<PatternsPage {...makeProps({ results: [low], total: 1 })} />);
+    r(<PatternsPage {...makeProps({ results: [oldConfident], total: 1 })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
 
@@ -236,11 +262,11 @@ describe("PatternsPage fullscreen as-of replay", () => {
         candles: [{ t: "2026-09-30T09:15:00+05:30", o: 1, h: 1, l: 1, c: 1, v: 1 }],
         overlays: [],
         trend_lines: [],
-        hits: [low, high],
+        hits: [oldConfident, newWeak],
       });
     });
 
-    // Highest-confidence hit promoted; replay candles swapped in; banner shown.
+    // Newest hit promoted; replay candles swapped in; banner shown.
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge"),
     );
@@ -255,6 +281,7 @@ describe("PatternsPage fullscreen as-of replay", () => {
 
   test("a replay window with no hits clears the displayed hit", async () => {
     r(<PatternsPage {...makeProps()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Falling Wedge");

@@ -61,6 +61,7 @@ export function PatternsContainer() {
       summary={vm.summary}
       results={vm.results}
       total={vm.total}
+      streaming={vm.streaming}
       loading={vm.loading}
       error={vm.error}
       scan={vm.scan}

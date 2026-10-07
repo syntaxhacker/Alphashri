@@ -132,6 +132,8 @@ describe("PatternFilterRail", () => {
     expect(screen.getByTestId("patterns-filter-sort")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-sort-confidence")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-sort-newest")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort-range_pos")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-sort-breakout")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-volume-confirmed")).toBeInTheDocument();
@@ -521,6 +523,13 @@ describe("PatternFilterRail", () => {
     expect(props.setFilter).toHaveBeenCalledWith("sort", "range_pos");
   });
 
+  test("selects the breakout sort", async () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-filter-sort-breakout"));
+    expect(props.setFilter).toHaveBeenCalledWith("sort", "breakout");
+  });
+
   test("renders the Volume scan inputs", () => {
     r(<PatternFilterRail {...makeProps()} />);
     expect(screen.getByText("Volume scan")).toBeInTheDocument();
@@ -567,5 +576,40 @@ describe("PatternFilterRail", () => {
     r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
     expect(screen.getByTestId("patterns-filter-min-rel-volume")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-volume-m")).toBeInTheDocument();
+  });
+
+  test("renders the 10d avg volume input with its label", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    expect(screen.getByTestId("patterns-filter-min-avg-volume-10d")).toBeInTheDocument();
+    expect(screen.getByText("10d avg vol ≥ K")).toBeInTheDocument();
+  });
+
+  test("enters a 10d avg volume threshold", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-min-avg-volume-10d")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "150" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("min_avg_volume_10d", 150);
+  });
+
+  test("clearing the 10d avg volume input stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, min_avg_volume_10d: 150 } });
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-min-avg-volume-10d")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("min_avg_volume_10d", null);
+  });
+
+  test("ignores partial 10d avg volume input instead of storing NaN", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const input = within(screen.getByTestId("patterns-filter-min-avg-volume-10d")).getByRole("spinbutton");
+    fireEvent.change(input, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("min_avg_volume_10d", expect.anything());
+  });
+
+  test("panel layout renders the 10d avg volume input", () => {
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.getByTestId("patterns-filter-min-avg-volume-10d")).toBeInTheDocument();
   });
 });

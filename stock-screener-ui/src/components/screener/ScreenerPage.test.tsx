@@ -112,6 +112,12 @@ vi.mock("./ScreenerEmpty", () => ({
   ),
 }));
 
+vi.mock("./GroupPerformancePanel", () => ({
+  GroupPerformancePanel: () => (
+    <div data-testid="group-performance-panel">Groups</div>
+  ),
+}));
+
 vi.mock("./ScreenerLoading", () => ({
   ScreenerLoading: ({ message }: any) => (
     <div data-testid="screener-loading" data-message={message}>
@@ -492,5 +498,17 @@ describe("ScreenerPage", () => {
     );
     expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();
+  });
+
+  it("renders the groups performance panel beside the screener table", () => {
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("group-performance-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-page")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-content")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-controls")).toBeInTheDocument();
   });
 });

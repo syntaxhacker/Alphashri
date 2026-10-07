@@ -164,8 +164,11 @@ describe("ChartView", () => {
     await waitFor(() => {
       expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
     });
-    const select = screen.getByTestId("chart-timeframe-select");
-    await user.selectOptions(select, "5");
+    const outer = screen.getByTestId("chart-timeframe-select");
+    const combo = outer.querySelector('[role="combobox"]') ?? outer;
+    await user.click(combo as Element);
+    const option = await screen.findByRole("option", { name: "5m" });
+    await user.click(option);
     expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 5, 5, 45);
   });
 
@@ -194,8 +197,11 @@ describe("ChartView", () => {
     await waitFor(() => {
       expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 45);
     });
-    const select = screen.getByTestId("chart-or-select");
-    await user.selectOptions(select, "30");
+    const outer = screen.getByTestId("chart-or-select");
+    const combo = outer.querySelector('[role="combobox"]') ?? outer;
+    await user.click(combo as Element);
+    const option = await screen.findByRole("option", { name: "OR 30m" });
+    await user.click(option);
     expect(fetchChartPreview).toHaveBeenCalledWith("TEST", 15, 5, 30);
   });
 

@@ -23,18 +23,26 @@ afterEach(() => cleanup());
 
 describe("buildAppliedFilterChips", () => {
   test("returns nothing when no filters are applied", () => {
-    expect(buildAppliedFilterChips(makeFilters(), PATTERNS)).toEqual([]);
+    expect(
+      buildAppliedFilterChips(makeFilters({ min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
   });
 
   test("renders pattern ids as readable names", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ pattern_id: ["double_bottom"] }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ pattern_id: ["double_bottom"], min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toHaveLength(1);
     expect(chips[0].group).toBe("Pattern");
     expect(chips[0].label).toBe("Double Bottom");
   });
 
   test("omits symbols and q (already shown inline in the toolbar)", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ symbols: ["BSE"], q: "foo" }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ symbols: ["BSE"], q: "foo", min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toEqual([]);
   });
 
@@ -45,12 +53,18 @@ describe("buildAppliedFilterChips", () => {
   });
 
   test("omits the trendlines chip when the view is both", () => {
-    expect(buildAppliedFilterChips(makeFilters({ trendlines: "both" }), PATTERNS)).toEqual([]);
+    expect(
+      buildAppliedFilterChips(makeFilters({ trendlines: "both", min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
   });
 
   test("builds family / status chips with readable labels and drop-one nextValue", () => {
     const chips = buildAppliedFilterChips(
-      makeFilters({ family: ["reversal", "continuation"], status: ["confirmed"] }),
+      makeFilters({
+        family: ["reversal", "continuation"],
+        status: ["confirmed"],
+        min_avg_volume_10d: null,
+      }),
       PATTERNS,
     );
     expect(chips).toMatchObject([
@@ -64,7 +78,11 @@ describe("buildAppliedFilterChips", () => {
 
   test("falls back to title case for unknown family and pattern ids", () => {
     const chips = buildAppliedFilterChips(
-      makeFilters({ family: ["mystery_family"], pattern_id: ["mystery_pattern"] }),
+      makeFilters({
+        family: ["mystery_family"],
+        pattern_id: ["mystery_pattern"],
+        min_avg_volume_10d: null,
+      }),
       PATTERNS,
     );
     expect(chips.find((c) => c.id === "family:mystery_family")?.label).toBe("Mystery Family");
@@ -83,6 +101,7 @@ describe("buildAppliedFilterChips", () => {
         symbol: "RELIANCE",
         min_base_days: 90,
         max_range_pct: 20,
+        min_avg_volume_10d: null,
       }),
       PATTERNS,
     );
@@ -98,20 +117,31 @@ describe("buildAppliedFilterChips", () => {
   });
 
   test("labels an explicit volume-false chip as Unconfirmed", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ volume_confirmed: false }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ volume_confirmed: false, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toMatchObject([{ id: "volume_confirmed", label: "Unconfirmed" }]);
   });
 
   test("builds a sort chip that resets to confidence, omitted for the default", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ sort: "newest" }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ sort: "newest", min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toMatchObject([
       { id: "sort:newest", group: "Sort", label: "Latest formed", nextValue: "confidence" },
     ]);
-    expect(buildAppliedFilterChips(makeFilters({ sort: "confidence" }), PATTERNS)).toEqual([]);
+    expect(
+      buildAppliedFilterChips(makeFilters({ sort: "confidence", min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
   });
 
   test("builds a 52W gap chip that resets to null", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ max_52w_gap: 3 }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ max_52w_gap: 3, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toMatchObject([
       { id: "max_52w_gap", group: "52W", label: "gap ≤ 3%", nextValue: null },
     ]);
@@ -120,7 +150,10 @@ describe("buildAppliedFilterChips", () => {
   });
 
   test("builds a range-pos chip that resets to null", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ min_range_pos: 80 }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ min_range_pos: 80, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toMatchObject([
       { id: "min_range_pos", group: "Range", label: "pos ≥ 80%", nextValue: null },
     ]);
@@ -129,7 +162,10 @@ describe("buildAppliedFilterChips", () => {
   });
 
   test("labels the range_pos sort chip as Near breakout", () => {
-    const chips = buildAppliedFilterChips(makeFilters({ sort: "range_pos" }), PATTERNS);
+    const chips = buildAppliedFilterChips(
+      makeFilters({ sort: "range_pos", min_avg_volume_10d: null }),
+      PATTERNS,
+    );
     expect(chips).toMatchObject([
       { id: "sort:range_pos", group: "Sort", label: "Near breakout", nextValue: "confidence" },
     ]);
@@ -143,16 +179,27 @@ describe("buildAppliedFilterChips", () => {
     expect(chips).toMatchObject([
       { id: "min_rel_volume", group: "Volume", label: "rel vol ≥ 1.5", nextValue: null },
       { id: "min_volume_m", group: "Volume", label: "vol ≥ 5M", nextValue: null },
+      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 150K", nextValue: null },
     ]);
     expect(chips.find((c) => c.id === "min_rel_volume")?.key).toBe("min_rel_volume");
     expect(chips.find((c) => c.id === "min_volume_m")?.key).toBe("min_volume_m");
+    expect(chips.find((c) => c.id === "min_avg_volume_10d")?.key).toBe("min_avg_volume_10d");
+  });
+
+  test("builds a 10d avg volume chip from the default that resets to null", () => {
+    const chips = buildAppliedFilterChips(makeFilters(), PATTERNS);
+    expect(chips).toMatchObject([
+      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 150K", nextValue: null },
+    ]);
+    const chip = chips.find((c) => c.id === "min_avg_volume_10d");
+    expect(chip?.key).toBe("min_avg_volume_10d");
   });
 });
 
 describe("AppliedFilters", () => {
   test("renders nothing when no filters are applied", () => {
     const { container } = r(
-      <AppliedFilters filters={makeFilters()} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
+      <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
     );
     expect(container).toBeEmptyDOMElement();
   });
@@ -430,11 +477,32 @@ describe("AppliedFilters", () => {
     );
     expect(screen.getByText("Volume: rel vol ≥ 1.5")).toBeInTheDocument();
     expect(screen.getByText("Volume: vol ≥ 5M")).toBeInTheDocument();
+    expect(screen.getByText("Volume: 10d vol ≥ 150K")).toBeInTheDocument();
+  });
+
+  test("shows the default 10d avg volume chip and clears it", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters()}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Volume: 10d vol ≥ 150K")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_avg_volume_10d").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_avg_volume_10d", null);
   });
 
   test.each([
     ["min_rel_volume", "patterns-applied-filter-min_rel_volume", "min_rel_volume", null],
     ["min_volume_m", "patterns-applied-filter-min_volume_m", "min_volume_m", null],
+    ["min_avg_volume_10d", "patterns-applied-filter-min_avg_volume_10d", "min_avg_volume_10d", null],
   ])("removing the %s chip clears it", (_name, testId, key, next) => {
     const setFilter = vi.fn();
     r(

@@ -105,7 +105,7 @@ export function PatternTradingViewChart({
     if (!containerRef.current) return;
     const initialHeight = containerRef.current.clientHeight || 360;
     const chart = createChart(containerRef.current, {
-      layout: { background: { type: ColorType.Solid, color: palette.BG }, textColor: palette.TEXT },
+      layout: { background: { type: ColorType.Solid, color: palette.CHART_TV_BG }, textColor: palette.TEXT },
       grid: { vertLines: { color: palette.BORDER }, horzLines: { color: palette.BORDER } },
       width: containerRef.current.clientWidth,
       height: initialHeight,

@@ -112,6 +112,12 @@ describe("parsePatternParams", () => {
     expect(parsePatternParams(new URLSearchParams("relvol=abc")).filters.min_rel_volume).toBeUndefined();
     expect(parsePatternParams(new URLSearchParams("volm=abc")).filters.min_volume_m).toBeUndefined();
   });
+
+  it("parses avgvol into the 10d avg volume filter and ignores blanks/non-numbers", () => {
+    expect(parsePatternParams(new URLSearchParams("avgvol=150")).filters.min_avg_volume_10d).toBe(150);
+    expect(parsePatternParams(new URLSearchParams("avgvol=")).filters.min_avg_volume_10d).toBeUndefined();
+    expect(parsePatternParams(new URLSearchParams("avgvol=abc")).filters.min_avg_volume_10d).toBeUndefined();
+  });
 });
 
 describe("filterValuesEqual", () => {
@@ -124,10 +130,10 @@ describe("filterValuesEqual", () => {
 });
 
 describe("buildPatternParams", () => {
-  it("omits empty + default values so a clean view yields a clean URL", () => {
+  it("omits empty values so a default view yields only the default-on avgvol", () => {
     expect(
       buildPatternParams({ universe: "", timeframe: "1D", lookbackBars: null, filters: { ...DEFAULT_PATTERN_FILTERS } }).toString(),
-    ).toBe("");
+    ).toBe("avgvol=150");
   });
 
   it("writes lookback only when set", () => {
@@ -197,7 +203,7 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS, trendlines: "support" as const },
     };
     const serialized = buildPatternParams(state).toString();
-    expect(serialized).toBe("trendlines=support");
+    expect(serialized).toBe("avgvol=150&trendlines=support");
     expect(parsePatternParams(new URLSearchParams(serialized)).filters.trendlines).toBe(
       "support",
     );
@@ -230,7 +236,7 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS },
     });
     expect(on.has("compute_trendlines")).toBe(false);
-    expect(on.toString()).toBe("");
+    expect(on.toString()).toBe("avgvol=150");
 
     const omitted = buildPatternParams({
       universe: "",
@@ -249,7 +255,7 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS, max_52w_gap: 3 },
     };
     const serialized = buildPatternParams(state).toString();
-    expect(serialized).toBe("gap52=3");
+    expect(serialized).toBe("gap52=3&avgvol=150");
     const parsed = parsePatternParams(new URLSearchParams(serialized));
     expect(parsed.filters.max_52w_gap).toBe(3);
     // Default (null) omits the param.
@@ -270,7 +276,7 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS, min_range_pos: 80 },
     };
     const serialized = buildPatternParams(state).toString();
-    expect(serialized).toBe("pos=80");
+    expect(serialized).toBe("pos=80&avgvol=150");
     const parsed = parsePatternParams(new URLSearchParams(serialized));
     expect(parsed.filters.min_range_pos).toBe(80);
     // Default (null) omits the param.
@@ -293,18 +299,44 @@ describe("buildPatternParams", () => {
     const serialized = buildPatternParams(state).toString();
     expect(serialized).toContain("relvol=1.5");
     expect(serialized).toContain("volm=5");
+    expect(serialized).toContain("avgvol=150");
     const parsed = parsePatternParams(new URLSearchParams(serialized));
     expect(parsed.filters.min_rel_volume).toBe(1.5);
     expect(parsed.filters.min_volume_m).toBe(5);
+    expect(parsed.filters.min_avg_volume_10d).toBe(150);
     // Defaults (null) omit both params.
     const clean = buildPatternParams({
       universe: "",
       timeframe: "1D",
       lookbackBars: null,
-      filters: { ...DEFAULT_PATTERN_FILTERS },
+      filters: { ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: null },
     });
     expect(clean.has("relvol")).toBe(false);
     expect(clean.has("volm")).toBe(false);
+    expect(clean.has("avgvol")).toBe(false);
+  });
+
+  it("round-trips avgvol (10d avg volume filter) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: 150 },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toBe("avgvol=150");
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.filters.min_avg_volume_10d).toBe(150);
+    // Back again without loss.
+    expect(buildPatternParams(state).toString()).toBe(serialized);
+    // Cleared (null) omits the param.
+    const cleared = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: null },
+    });
+    expect(cleared.has("avgvol")).toBe(false);
   });
 
   it("ignores unknown trendlines values", () => {
@@ -579,7 +611,8 @@ describe("universe/tf/lookback/compute_trendlines round-trip", () => {
 
     expect(setSearchParams).toHaveBeenCalledTimes(2);
     const second = setSearchParams.mock.calls[1][0] as URLSearchParams;
-    expect(second.toString()).toBe("");
+    // Only the default-on 10d avg volume filter survives; everything else is omitted.
+    expect(second.toString()).toBe("avgvol=150");
     expect(second.has("universe")).toBe(false);
     expect(second.has("tf")).toBe(false);
     expect(second.has("lookback")).toBe(false);

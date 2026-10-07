@@ -16,6 +16,11 @@ vi.mock("../api/chartPatterns", async () => {
     fetchSummary: vi.fn(),
     fetchSymbolDetail: vi.fn(),
     fetchSymbolChart: vi.fn(),
+    // Pin the stream to "unavailable" so every test deterministically exercises
+    // the non-streaming `fetchResults` fallback (real SSE would hit the network).
+    streamResults: vi.fn(async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
+      handlers.onError?.(new Error("stream unavailable"));
+    }),
   };
 });
 
@@ -31,6 +36,7 @@ import {
   fetchSummary,
   fetchSymbolDetail,
   fetchSymbolChart,
+  streamResults,
 } from "../api/chartPatterns";
 import {
   POLL_INTERVAL_MS,
@@ -74,6 +80,7 @@ const mocked = {
   fetchSummary: vi.mocked(fetchSummary),
   fetchSymbolDetail: vi.mocked(fetchSymbolDetail),
   fetchSymbolChart: vi.mocked(fetchSymbolChart),
+  streamResults: vi.mocked(streamResults),
 };
 
 const SUMMARY: PatternSummary = {
@@ -183,8 +190,9 @@ describe("setters + notification", () => {
 });
 
 describe("selectTimeframe / selectUniverse", () => {
-  it("selectTimeframe reloads results + summary", () => {
+  it("selectTimeframe reloads results + summary", async () => {
     selectTimeframe("1h");
+    await flush();
     expect(getChartPatternsState().timeframe).toBe("1h");
     expect(mocked.fetchResults).toHaveBeenCalledWith(expect.objectContaining({ timeframe: "1h" }));
     expect(mocked.fetchSummary).toHaveBeenCalledWith(expect.objectContaining({ timeframe: "1h" }));
@@ -195,18 +203,20 @@ describe("selectTimeframe / selectUniverse", () => {
     expect(mocked.fetchResults).not.toHaveBeenCalled();
   });
 
-  it("selectUniverse reloads with the new universe", () => {
+  it("selectUniverse reloads with the new universe", async () => {
     selectUniverse("nifty50");
+    await flush();
     expect(getChartPatternsState().universe).toBe("nifty50");
     expect(mocked.fetchResults).toHaveBeenCalledWith(expect.objectContaining({ universe: "nifty50" }));
   });
 });
 
 describe("custom symbol scope", () => {
-  it("selectSymbols switches to the custom universe and queries by symbol", () => {
+  it("selectSymbols switches to the custom universe and queries by symbol", async () => {
     setUniverse("nifty500");
     mocked.fetchResults.mockClear();
     selectSymbols(["bse", " infy ", "BSE"]);
+    await flush();
     const state = getChartPatternsState();
     expect(state.universe).toBe(CUSTOM_UNIVERSE);
     expect(state.filters.symbols).toEqual(["BSE", "INFY"]);
@@ -215,10 +225,11 @@ describe("custom symbol scope", () => {
     );
   });
 
-  it("selecting a preset universe clears the custom symbols", () => {
+  it("selecting a preset universe clears the custom symbols", async () => {
     selectSymbols(["BSE"]);
     mocked.fetchResults.mockClear();
     selectUniverse("nifty50");
+    await flush();
     const state = getChartPatternsState();
     expect(state.universe).toBe("nifty50");
     expect(state.filters.symbols).toEqual([]);
@@ -249,6 +260,9 @@ describe("custom symbol scope", () => {
 describe("auto-scan on empty universe|timeframe", () => {
   it("auto-scans once per universe|timeframe and not again for the same combo", async () => {
     setUniverse("nifty500");
+    // The default-on 10d avg volume pre-filter counts as restrictive, so it
+    // must be cleared for the empty-results auto-scan to fire.
+    setFilter("min_avg_volume_10d", null);
 
     selectTimeframe("15m");
     await flush();
@@ -349,15 +363,17 @@ describe("auto-scan on empty universe|timeframe", () => {
 });
 
 describe("filters", () => {
-  it("setFilter persists the value and reloads", () => {
+  it("setFilter persists the value and reloads", async () => {
     setFilter("min_rr", 1.5);
+    await flush();
     expect(getChartPatternsState().filters.min_rr).toBe(1.5);
     expect(mocked.fetchResults).toHaveBeenCalled();
     expect(mocked.fetchSummary).toHaveBeenCalled();
   });
 
-  it("setFilter pattern_id persists it and includes it in the reload query", () => {
+  it("setFilter pattern_id persists it and includes it in the reload query", async () => {
     setFilter("pattern_id", ["ascending_channel"]);
+    await flush();
     expect(getChartPatternsState().filters.pattern_id).toEqual(["ascending_channel"]);
     expect(mocked.fetchResults).toHaveBeenCalledWith(
       expect.objectContaining({ pattern_id: ["ascending_channel"] }),
@@ -367,8 +383,9 @@ describe("filters", () => {
     );
   });
 
-  it("setFilter sort persists it and forwards it to results + summary", () => {
+  it("setFilter sort persists it and forwards it to results + summary", async () => {
     setFilter("sort", "newest");
+    await flush();
     expect(getChartPatternsState().filters.sort).toBe("newest");
     expect(mocked.fetchResults).toHaveBeenCalledWith(
       expect.objectContaining({ sort: "newest" }),
@@ -378,9 +395,10 @@ describe("filters", () => {
     );
   });
 
-  it("setFilter symbols + q persist and forward to results + summary", () => {
+  it("setFilter symbols + q persist and forward to results + summary", async () => {
     setFilter("symbols", ["SBIN", "TCS"]);
     setFilter("q", "bank");
+    await flush();
     expect(getChartPatternsState().filters.symbols).toEqual(["SBIN", "TCS"]);
     expect(getChartPatternsState().filters.q).toBe("bank");
     expect(mocked.fetchResults).toHaveBeenCalledWith(
@@ -391,17 +409,19 @@ describe("filters", () => {
     );
   });
 
-  it("resetFilters restores defaults and reloads", () => {
+  it("resetFilters restores defaults and reloads", async () => {
     setFilter("family", ["reversal"]);
     mocked.fetchResults.mockClear();
     resetFilters();
+    await flush();
     expect(getChartPatternsState().filters).toEqual(DEFAULT_PATTERN_FILTERS);
     expect(mocked.fetchResults).toHaveBeenCalled();
   });
 
-  it("trendlines defaults to both and is client-only (never in query args)", () => {
+  it("trendlines defaults to both and is client-only (never in query args)", async () => {
     expect(DEFAULT_PATTERN_FILTERS.trendlines).toBe("both");
     setFilter("trendlines", "support");
+    await flush();
     expect(getChartPatternsState().filters.trendlines).toBe("support");
     expect(mocked.fetchResults).toHaveBeenCalledWith(
       expect.not.objectContaining({ trendlines: expect.anything() }),
@@ -412,17 +432,22 @@ describe("filters", () => {
   });
 
   it("trendlines is not a restrictive filter", () => {
-    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "support" })).toBe(false);
-    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "none" })).toBe(false);
+    expect(
+      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "support", min_avg_volume_10d: null }),
+    ).toBe(false);
+    expect(
+      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "none", min_avg_volume_10d: null }),
+    ).toBe(false);
   });
 
-  it("applyFilters merges onto defaults, resets unspecified keys, and reloads", () => {
+  it("applyFilters merges onto defaults, resets unspecified keys, and reloads", async () => {
     setFilter("family", ["reversal"]);
     setFilter("direction", ["bullish"]);
     mocked.fetchResults.mockClear();
     mocked.fetchSummary.mockClear();
 
     applyFilters({ pattern_id: ["ascending_channel"], min_base_days: 90 });
+    await flush();
 
     const filters = getChartPatternsState().filters;
     expect(filters.pattern_id).toEqual(["ascending_channel"]);
@@ -450,6 +475,7 @@ describe("computeTrendlines", () => {
 
     setComputeTrendlines(false);
 
+    await flush();
     expect(getChartPatternsState().computeTrendlines).toBe(false);
     expect(mocked.fetchResults).toHaveBeenCalledWith(
       expect.objectContaining({ compute_trendlines: false }),
@@ -469,6 +495,7 @@ describe("computeTrendlines", () => {
 
     setComputeTrendlines(true);
 
+    await flush();
     expect(getChartPatternsState().computeTrendlines).toBe(true);
     expect(mocked.fetchResults).toHaveBeenCalledWith(
       expect.objectContaining({ compute_trendlines: true }),
@@ -489,6 +516,37 @@ describe("computeTrendlines", () => {
 
     expect(mocked.startScan).toHaveBeenCalledWith(
       expect.objectContaining({ compute_trendlines: false, force: true }),
+    );
+  });
+
+  it("triggerScan sends the default-on min_avg_volume_10d and omits it when cleared", async () => {
+    setUniverse("nifty500");
+    await flush();
+    mocked.startScan.mockClear();
+    mocked.fetchJob.mockImplementation(() => new Promise(() => {}));
+
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.objectContaining({ min_avg_volume_10d: 150 }),
+    );
+
+    setFilter("min_avg_volume_10d", null);
+    await flush();
+    mocked.startScan.mockClear();
+    await triggerScan(true);
+    expect(mocked.startScan).toHaveBeenCalledWith(
+      expect.not.objectContaining({ min_avg_volume_10d: expect.anything() }),
+    );
+  });
+
+  it("never sends min_avg_volume_10d to /results or /summary", async () => {
+    setFilter("min_avg_volume_10d", 200);
+    await flush();
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.not.objectContaining({ min_avg_volume_10d: expect.anything() }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.not.objectContaining({ min_avg_volume_10d: expect.anything() }),
     );
   });
 
@@ -550,14 +608,23 @@ describe("loaders", () => {
 
 describe("stale async responses", () => {
   it("ignores a loadResults response that resolves after a newer one", async () => {
-    let resolveSlow!: (value: { items: never[]; total: number; summary: PatternSummary; data_through: string }) => void;
-    mocked.fetchResults
-      .mockImplementationOnce(
-        () => new Promise((resolve) => { resolveSlow = resolve; }),
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve({ items: [], total: 7, summary: SUMMARY, data_through: "2026-10-01" }),
-      );
+    // Slow load hangs inside its stream; the fast load completes first via
+    // its own stream. When the slow stream finally delivers, the stale
+    // generation must not clobber the newer results.
+    let releaseSlow!: () => void;
+    const slowGate = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    mocked.streamResults
+      .mockImplementationOnce(async (_query, handlers) => {
+        await slowGate;
+        handlers.onItem?.({ id: 1, symbol: "STALE", pattern_id: "flag" } as never);
+        handlers.onDone?.();
+      })
+      .mockImplementationOnce(async (_query, handlers) => {
+        handlers.onMeta?.({ total: 7, summary: SUMMARY, data_through: "2026-10-01" });
+        handlers.onDone?.();
+      });
 
     const slow = loadResults();
     const fast = loadResults();
@@ -565,7 +632,7 @@ describe("stale async responses", () => {
     await flush();
     expect(getChartPatternsState().total).toBe(7);
 
-    resolveSlow({ items: [], total: 1, summary: SUMMARY, data_through: "2020-01-01" });
+    releaseSlow();
     await slow;
     await flush();
     expect(getChartPatternsState().total).toBe(7);
@@ -573,14 +640,27 @@ describe("stale async responses", () => {
   });
 
   it("ignores a stale loadResults failure after a newer success", async () => {
-    let rejectSlow!: (reason: unknown) => void;
-    mocked.fetchResults
-      .mockImplementationOnce(
-        () => new Promise((_resolve, reject) => { rejectSlow = reject; }),
-      )
-      .mockImplementationOnce(() =>
-        Promise.resolve({ items: [], total: 3, summary: SUMMARY, data_through: "2026-10-01" }),
-      );
+    // Slow load hangs inside its stream; the fast load fails its stream and
+    // succeeds via the fallback fetch. The slow stream's late failure must
+    // not surface an error for the recovered view.
+    let releaseSlow!: () => void;
+    const slowGate = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+    mocked.streamResults
+      .mockImplementationOnce(async (_query, handlers) => {
+        await slowGate;
+        handlers.onError?.(new Error("slow boom"));
+      })
+      .mockImplementationOnce(async (_query, handlers) => {
+        handlers.onError?.(new Error("fast stream down"));
+      });
+    mocked.fetchResults.mockResolvedValueOnce({
+      items: [],
+      total: 3,
+      summary: SUMMARY,
+      data_through: "2026-10-01",
+    });
 
     const slow = loadResults();
     const fast = loadResults();
@@ -588,7 +668,7 @@ describe("stale async responses", () => {
     await flush();
     expect(getChartPatternsState().error).toBeNull();
 
-    rejectSlow(new Error("slow boom"));
+    releaseSlow();
     await slow;
     await flush();
     expect(getChartPatternsState().error).toBeNull();
@@ -669,6 +749,7 @@ describe("loadActiveJobs", () => {
 describe("auto-scan bookkeeping", () => {
   it("retries a combo whose enqueue failed (key added only on success)", async () => {
     setUniverse("nifty500");
+    setFilter("min_avg_volume_10d", null);
     mocked.startScan.mockRejectedValueOnce(new Error("boom"));
 
     selectTimeframe("15m");
@@ -690,15 +771,20 @@ describe("auto-scan bookkeeping", () => {
   });
 
   it("does not auto-scan when a restrictive filter is active and results are empty", async () => {
+    // The default-on 10d avg volume pre-filter is baseline, not user narrowing.
     expect(hasRestrictiveFilter(DEFAULT_PATTERN_FILTERS)).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: 200 })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: null })).toBe(false);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, q: "bank" })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: "IRCON" })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbols: ["IRCON"] })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, volume_confirmed: true })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_rr: 1.5 })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, pattern_id: ["falling_wedge"] })).toBe(true);
-    // Ordering-only `sort` is not restrictive.
-    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, sort: "newest" })).toBe(false);
+    // Ordering-only `sort` is not restrictive (with the default-on volume pre-filter cleared).
+    expect(
+      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, sort: "newest", min_avg_volume_10d: null }),
+    ).toBe(false);
 
     setUniverse("nifty500");
     setFilter("q", "bank");
@@ -802,6 +888,7 @@ describe("triggerScan", () => {
       timeframe: "15m",
       force: false,
       compute_trendlines: true,
+      min_avg_volume_10d: 150,
     });
     const state = getChartPatternsState();
     expect(state.job?.universe).toBe("nifty50");
@@ -1074,6 +1161,8 @@ describe("setComputeTrendlines lifecycle", () => {
   it("computeTrendlines:false does not suppress the empty-view auto-scan", async () => {
     setUniverse("nifty500");
     setComputeTrendlines(false);
+    // Clear the default-on volume pre-filter so the empty view stays auto-scannable.
+    setFilter("min_avg_volume_10d", null);
     await flush();
     mocked.startScan.mockClear();
     selectTimeframe("15m");
@@ -1094,11 +1183,26 @@ describe("hasRestrictiveFilter exhaustive", () => {
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, volume_confirmed: false })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_base_days: 30 })).toBe(true);
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, max_range_pct: 20 })).toBe(true);
-    // Empty symbol string is not restrictive; view-only trendlines never is.
-    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: "" })).toBe(false);
-    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: null })).toBe(false);
-    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, trendlines: "resistance" })).toBe(false);
+    // Empty symbol string is not restrictive; view-only trendlines never is
+    // (with the default-on volume pre-filter cleared).
+    expect(
+      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: "", min_avg_volume_10d: null }),
+    ).toBe(false);
+    expect(
+      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, symbol: null, min_avg_volume_10d: null }),
+    ).toBe(false);
+    expect(
+      hasRestrictiveFilter({
+        ...DEFAULT_PATTERN_FILTERS,
+        trendlines: "resistance",
+        min_avg_volume_10d: null,
+      }),
+    ).toBe(false);
+    // The default-on 10d avg volume pre-filter is baseline, not narrowing;
+    // a non-default floor is restrictive.
     expect(hasRestrictiveFilter(DEFAULT_PATTERN_FILTERS)).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: 200 })).toBe(true);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: null })).toBe(false);
   });
 });
 

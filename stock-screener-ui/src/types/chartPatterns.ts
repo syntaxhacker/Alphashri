@@ -147,6 +147,11 @@ export interface PatternHitDTO {
   to_52w_high?: number | null;
   /** Position within the consolidation range, 0..1 (`consolidation` pattern only). */
   range_pos?: number;
+  /**
+   * Breakout conviction score (0–100, server-computed from stored columns
+   * only: range_pos/confidence/status/direction — not pattern-fit geometry).
+   */
+  breakout_score?: number | null;
 }
 
 /** Aggregate counts (`GET /summary`). */
@@ -210,6 +215,9 @@ export interface PatternOverlay {
   pattern_name?: string;
   direction?: PatternDirection;
   status?: PatternStatus;
+  start_date?: string;
+  end_date?: string;
+  id?: number;
   trendlines: Trendline[];
 }
 
@@ -275,6 +283,12 @@ export interface PatternFilters {
    */
   min_volume_m?: number | null;
   /**
+   * Minimum 10-day average volume in thousands of shares (K) (null = any).
+   * Scan-time pre-filter like `min_rel_volume`; never sent to `/results`/`/summary`.
+   * Defaults to 150 (150K shares/day).
+   */
+  min_avg_volume_10d?: number | null;
+  /**
    * Lower bound of the formation window (ISO local datetime, null = any).
    * Filters hits formed at/after this timestamp (`from_date` query param).
    */
@@ -285,7 +299,7 @@ export interface PatternFilters {
    * also doubles as the as-of replay cutoff for scans/charts.
    */
   to_date: string | null;
-  /** Result ordering: `"confidence"` (default) or `"newest"` (freshest bars first). */
+  /** Result ordering: `"confidence"` (default), `"newest"`, `"range_pos"`, or `"breakout"`. */
   sort: string;
   /**
    * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
@@ -316,6 +330,10 @@ export interface WatchSetup {
   id: string;
   label: string;
   description: string;
+  /**
+   * Default gate for the time-adjusted intraday volume (`vol_adj`).
+   * `min_rel_volume` applies to `vol_adj`, not the daily TradingView `rel_volume`.
+   */
   default_min_rel_volume: number;
 }
 
@@ -332,12 +350,39 @@ export interface WatchRow {
   confidence: number;
   status: string;
   end_date: string;
-  ltp: number;
-  rel_volume: number;
-  pct_to_trigger: number;
+  ltp: number | null;
+  rel_volume: number | null;
+  /**
+   * Time-adjusted intraday relative volume = today's cumulative volume /
+   * (10-day average daily volume * session_fraction), where session_fraction
+   * = elapsed-minutes-since-09:15 / 375 (clamped 0.05–1.0). Null when
+   * unavailable. The `triggered` state gates on price + this metric; the
+   * `min_rel_volume` request param applies to it. The daily TradingView
+   * `rel_volume` is kept as context only.
+   */
+  vol_adj?: number | null;
+  pct_to_trigger: number | null;
   state: WatchState;
   /** True for a fresh cross that was already above the box on the last completed bar. */
   fresh?: boolean;
+  /** Latest close (`near_52w` setup only). */
+  close?: number | null;
+  /** Most recent swing high (`near_52w` setup only). */
+  last_high?: number | null;
+  /** True when price touched the prior 52W high recently (`near_52w` only). */
+  touched?: boolean;
+  /** Intraday gap to the 52W high as %; <0 = exceeded (`near_52w` only). */
+  high_gap?: number | null;
+  /** Close gap to the 52W high as % (`near_52w` only). */
+  close_gap?: number | null;
+  /** OBV slope (`near_52w` accumulation only). */
+  obv_slope?: number | null;
+  /** Up/down volume ratio (`near_52w` accumulation only). */
+  updown?: number | null;
+  /** Volume ratio vs average (`near_52w` accumulation only). */
+  vol_ratio?: number | null;
+  /** True when recent swing lows are rising (`near_52w` accumulation only). */
+  rising_lows?: boolean;
 }
 
 /** Breakout-watch payload (`GET /api/chart-patterns/watch`). */

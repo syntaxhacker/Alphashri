@@ -15,6 +15,11 @@ vi.mock("../api/chartPatterns", async () => {
     fetchSummary: vi.fn(),
     fetchSymbolDetail: vi.fn(),
     fetchSymbolChart: vi.fn(),
+    // Pin the stream to "unavailable" so tests deterministically exercise the
+    // non-streaming `fetchResults` fallback (real SSE would hit the network).
+    streamResults: vi.fn(async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
+      handlers.onError?.(new Error("stream unavailable"));
+    }),
   };
 });
 
@@ -56,7 +61,9 @@ describe("chartPatterns from/to date filters", () => {
   });
 
   it("treats from_date/to_date as restrictive filters", () => {
+    // The default-on 10d avg volume pre-filter is baseline, not user narrowing.
     expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS })).toBe(false);
+    expect(hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_avg_volume_10d: null })).toBe(false);
     expect(
       hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, from_date: "2026-06-01" }),
     ).toBe(true);

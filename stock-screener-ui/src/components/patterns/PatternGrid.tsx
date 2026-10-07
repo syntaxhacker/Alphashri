@@ -10,11 +10,12 @@ export interface PatternGridProps {
   trendlinesView?: TrendlinesView;
 }
 
-/** Responsive card grid of pattern hits. */
+/** Responsive card grid of pattern hits (4-up on wide desktop). */
 export function PatternGrid({ hits, onSelect, onExpand, trendlinesView = "both" }: PatternGridProps) {
+  const isWide = useMediaQuery("(min-width: 1400px)");
   const isDesktop = useMediaQuery("(min-width: 1200px)");
   const isTablet = useMediaQuery("(min-width: 900px)");
-  const cols = isDesktop ? 3 : isTablet ? 2 : 1;
+  const cols = isWide ? 4 : isDesktop ? 3 : isTablet ? 2 : 1;
 
   return (
     <SimpleGrid cols={cols} spacing={16} data-testid="patterns-grid">

@@ -32,6 +32,7 @@ import {
   fetchSummary,
   fetchSymbolDetail,
   fetchSymbolChart,
+  streamResults,
 } from "../api/chartPatterns";
 
 /** Poll cadence while a scan job is queued/running. */
@@ -65,6 +66,7 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   min_range_pos: null,
   min_rel_volume: null,
   min_volume_m: null,
+  min_avg_volume_10d: 150,
   from_date: null,
   to_date: null,
   sort: "confidence",
@@ -90,6 +92,8 @@ export interface ChartPatternsState {
   results: PatternHitDTO[];
   total: number;
   dataThrough: string | null;
+  /** True while a `/results/stream` connection is still appending items. */
+  streaming: boolean;
   /** Echo of the last replay scan request (null = live scan). Surfaces the job's as-of label. */
   lastScanAsOf: string | null;
   /** Echo of the last replay scan window start (null = any). */
@@ -119,6 +123,7 @@ function createInitialState(): ChartPatternsState {
     results: [],
     total: 0,
     dataThrough: null,
+    streaming: false,
     lastScanAsOf: null,
     lastScanFrom: null,
     selectedSymbol: null,
@@ -142,6 +147,47 @@ let inflight = 0;
  */
 let resultsGeneration = 0;
 let summaryGeneration = 0;
+/** AbortController for the in-flight `/results/stream` connection (if any). */
+let resultsStreamController: AbortController | null = null;
+
+/**
+ * Keep streamed hits in the active result order: `newest` = freshest bars
+ * first (`bars_ago` asc), `range_pos` = consolidation position desc,
+ * `breakout` = breakout-conviction score desc, anything else = `confidence`
+ * desc (server default).
+ */
+function sortStreamedHits(hits: PatternHitDTO[], sort: string | undefined): PatternHitDTO[] {
+  const ordered = [...hits];
+  // The stream arrives in worker-completion order, so the client must sort.
+  // Keys + nulls-last + `id DESC` tie-break mirror the server's order_by
+  // (store.py) so the final order matches `GET /results` deterministically.
+  const byId = (a: PatternHitDTO, b: PatternHitDTO) => (b.id ?? 0) - (a.id ?? 0);
+  if (sort === "newest") {
+    ordered.sort(
+      (a, b) =>
+        (a.bars_ago ?? 0) - (b.bars_ago ?? 0) ||
+        (b.confidence ?? 0) - (a.confidence ?? 0) ||
+        byId(a, b),
+    );
+  } else if (sort === "range_pos") {
+    ordered.sort(
+      (a, b) =>
+        (b.range_pos ?? -Infinity) - (a.range_pos ?? -Infinity) ||
+        (b.confidence ?? 0) - (a.confidence ?? 0) ||
+        byId(a, b),
+    );
+  } else if (sort === "breakout") {
+    ordered.sort(
+      (a, b) =>
+        (b.breakout_score ?? -Infinity) - (a.breakout_score ?? -Infinity) ||
+        (b.confidence ?? 0) - (a.confidence ?? 0) ||
+        byId(a, b),
+    );
+  } else {
+    ordered.sort((a, b) => (b.confidence ?? 0) - (a.confidence ?? 0) || byId(a, b));
+  }
+  return ordered;
+}
 
 /**
  * `universe|timeframe` combinations we have already auto-requested a scan for
@@ -362,23 +408,77 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
   // Custom scope with no symbols has nothing to show — and must never fall back
   // to an unscoped query, which would return every universe's hits.
   if (state.universe === CUSTOM_UNIVERSE && state.filters.symbols.length === 0) {
-    patch({ results: [], total: 0 });
+    resultsStreamController?.abort();
+    resultsStreamController = null;
+    patch({ results: [], total: 0, streaming: false });
     return;
   }
   const generation = ++resultsGeneration;
+  resultsStreamController?.abort();
+  const controller = new AbortController();
+  resultsStreamController = controller;
   startLoading();
+  // Progressive path: open `/results/stream`, render `meta` (total/summary)
+  // immediately and append each `item` in result order. Any stream failure
+  // falls back to the plain `GET /results` fetch below.
+  patch({ results: [], total: 0, streaming: true, error: null });
+  const query = {
+    ...baseQuery(),
+    limit: DEFAULT_RESULTS_LIMIT,
+    offset: 0,
+    ...overrides,
+  };
+  let streamOk = false;
+  let streamFailed = false;
   try {
-    const data = await fetchResults({
-      ...baseQuery(),
-      limit: DEFAULT_RESULTS_LIMIT,
-      offset: 0,
-      ...overrides,
-    });
+    try {
+      await streamResults(query, {
+        signal: controller.signal,
+        onMeta: (meta) => {
+          if (generation !== resultsGeneration) return;
+          patch({
+            total: meta.total ?? 0,
+            summary: meta.summary ?? state.summary,
+            dataThrough: meta.data_through ?? state.dataThrough,
+          });
+        },
+        onItem: (item) => {
+          if (generation !== resultsGeneration) return;
+          patch({ results: sortStreamedHits([...state.results, item], query.sort) });
+        },
+        onDone: () => {
+          streamOk = true;
+        },
+        onError: () => {
+          streamFailed = true;
+        },
+      });
+    } catch {
+      streamFailed = true;
+    }
     if (generation !== resultsGeneration) return;
-    patch({ results: data.items, total: data.total, dataThrough: data.data_through ?? null });
-  } catch (error) {
-    if (generation !== resultsGeneration) return;
-    patch({ error: toMessage(error, "Failed to load pattern results") });
+    if (streamOk && !streamFailed) {
+      if (resultsStreamController === controller) resultsStreamController = null;
+      patch({ streaming: false });
+      return;
+    }
+    // Aborted by a newer load: stay silent, the newer generation owns state.
+    if (controller.signal.aborted) return;
+    // Fallback: plain non-streaming fetch (also covers stream-capable backends
+    // that error mid-stream — the full payload still renders).
+    try {
+      const data = await fetchResults(query);
+      if (generation !== resultsGeneration) return;
+      patch({
+        results: data.items,
+        total: data.total,
+        dataThrough: data.data_through ?? null,
+        streaming: false,
+      });
+    } catch (error) {
+      if (generation !== resultsGeneration) return;
+      patch({ streaming: false, error: toMessage(error, "Failed to load pattern results") });
+    }
   } finally {
     finishLoading();
   }
@@ -470,6 +570,10 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
     filters.min_range_pos != null ||
     filters.min_rel_volume != null ||
     filters.min_volume_m != null ||
+    // The 10d-avg-volume floor is a system default, not user narrowing: only a
+    // non-default value means the user deliberately shrank the result set.
+    (filters.min_avg_volume_10d != null &&
+      filters.min_avg_volume_10d !== DEFAULT_PATTERN_FILTERS.min_avg_volume_10d) ||
     (filters.from_date != null && filters.from_date !== "") ||
     (filters.to_date != null && filters.to_date !== "")
   );
@@ -604,6 +708,9 @@ export async function triggerScan(
         : {}),
       ...(state.filters.min_volume_m != null
         ? { min_volume_m: state.filters.min_volume_m }
+        : {}),
+      ...(state.filters.min_avg_volume_10d != null
+        ? { min_avg_volume_10d: state.filters.min_avg_volume_10d }
         : {}),
       // Replay window (only sent when set; never null).
       ...(asOfValue != null ? { as_of_date: asOfValue } : {}),
@@ -811,6 +918,8 @@ export async function loadSymbolDetail(symbol: string, timeframe?: string): Prom
 /** Reset all chart-pattern state (primarily for tests and route unmount). */
 export function resetChartPatternsState(): void {
   stopPolling();
+  resultsStreamController?.abort();
+  resultsStreamController = null;
   inflight = 0;
   resultsGeneration = 0;
   summaryGeneration = 0;

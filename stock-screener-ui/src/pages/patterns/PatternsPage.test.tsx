@@ -28,6 +28,9 @@ vi.mock("@/api/patternImages", () => ({
 // Rendered-prop spies for the trendlines-view wiring tests.
 const gridTrendlinesViews = vi.hoisted(() => [] as unknown[]);
 const fullscreenTrendlinesViews = vi.hoisted(() => [] as unknown[]);
+// Records the `overlays` prop per fullscreen render (single-pattern contract:
+// the page always passes an empty list so only the active hit is drawn).
+const fullscreenOverlays = vi.hoisted(() => [] as unknown[]);
 
 // Faithful stubs: preserve the contract testids the page relies on
 // (card buttons incl. expand affordance, fullscreen modal + chart +
@@ -64,14 +67,43 @@ vi.mock("@/components/patterns/PatternGrid", () => ({
   },
 }));
 
-vi.mock("@/components/patterns/PatternFullscreenView", () => ({
-  PatternFullscreenView: ({ opened, onClose, hit, candles, trendlinesView = "both", timeframe, timeframes = [], onTimeframeChange, loading = false }: any) => {
+// Dense list stub: mirrors the grid contract (row buttons + onSelect) so the
+// page tests stay deterministic without mounting the real TanStackTable.
+vi.mock("@/components/patterns/PatternListView", () => ({
+  PatternListView: ({ hits, onSelect }: any) => (
+    <div data-testid="patterns-list">
+      {(hits as any[]).map((hit: any) => (
+        <button
+          key={hit.id ?? `${hit.symbol}-${hit.pattern_id}-${hit.start_date}`}
+          type="button"
+          data-testid={`patterns-list-row-${hit.symbol}-${hit.pattern_id}`}
+          onClick={() => onSelect?.(hit)}
+        >
+          {hit.symbol} {hit.pattern_name}
+        </button>
+      ))}
+    </div>
+  ),
+}));
+
+vi.mock("@/components/patterns/PatternFullscreenView", () => ({  PatternFullscreenView: ({ opened, onClose, hit, hits = [], onSelectHit, candles, overlays, trendlinesView = "both", timeframe, timeframes = [], onTimeframeChange, loading = false }: any) => {
     fullscreenTrendlinesViews.push(trendlinesView);
+    fullscreenOverlays.push(overlays);
     if (!opened) return null;
     const options = (timeframes as any[]).length > 0 ? (timeframes as any[]) : [{ id: timeframe, label: timeframe }];
     return (
       <div data-testid="patterns-fullscreen-modal" data-trendlines-view={trendlinesView}>
-        <div>{hit?.pattern_name}</div>
+        <div data-testid="patterns-fullscreen-active-hit">{hit?.pattern_name}</div>
+        {(hits as any[]).map((h: any, i: number) => (
+          <button
+            key={h.id ?? `${h.symbol}-${h.pattern_id}-${h.start_date}`}
+            type="button"
+            data-testid={`patterns-fullscreen-list-item-${i}`}
+            onClick={() => onSelectHit?.(h)}
+          >
+            {h.pattern_name}
+          </button>
+        ))}
         {onTimeframeChange && timeframe != null ? (
           <select
             data-testid="patterns-fullscreen-timeframe"
@@ -242,6 +274,7 @@ describe("PatternsPage", () => {
     vi.clearAllMocks();
     gridTrendlinesViews.length = 0;
     fullscreenTrendlinesViews.length = 0;
+    fullscreenOverlays.length = 0;
     fetchPatternImages.mockResolvedValue({
       falling_wedge: "/api/chart-patterns/image/falling_wedge",
     });
@@ -268,8 +301,31 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-stats")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-timeframe-select")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-open-filters")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-view-toggle")).toBeInTheDocument();
+    // List is the default dense view; the grid mounts only after toggling.
+    expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-list-row-IRCON-falling_wedge")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
+  });
+
+  test("view toggle switches between the dense list and the card grid", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
+    expect(await screen.findByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-list")).not.toBeInTheDocument();
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "List" }));
+    expect(await screen.findByTestId("patterns-list")).toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-grid")).not.toBeInTheDocument();
+  });
+
+  test("clicking a list row opens the fullscreen chart", async () => {
+    r(<PatternsPage {...makeProps()} />);
+    expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByTestId("patterns-list-row-IRCON-falling_wedge"));
+    expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
   });
 
   test("Filters button opens the modal with the full rail", async () => {
@@ -357,6 +413,7 @@ describe("PatternsPage", () => {
 
   test("clicking a card opens the fullscreen chart", async () => {
     r(<PatternsPage {...makeProps()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
@@ -389,10 +446,10 @@ describe("PatternsPage", () => {
     expect(screen.getByTestId("patterns-empty")).toBeInTheDocument();
   });
 
-  test("keeps the grid mounted with a refresh overlay while reloading", () => {
+  test("keeps the list mounted with a refresh overlay while reloading", () => {
     r(<PatternsPage {...makeProps({ loading: true })} />);
-    // Existing results stay visible (no mini-chart remount churn)…
-    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    // Existing results stay visible (no remount churn)…
+    expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
     // …with an overlay spinner instead of the full-page loader.
     expect(screen.getByTestId("patterns-refreshing")).toBeInTheDocument();
     expect(screen.queryByTestId("patterns-loading")).not.toBeInTheDocument();
@@ -426,6 +483,7 @@ describe("PatternsPage", () => {
     const first = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", start_date: "2026-04-26" });
     const second = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", start_date: "2026-07-01" });
     r(<PatternsPage {...makeProps({ results: [first, second], total: 2 })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
 
     // Click two cards of the same symbol in quick succession.
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
@@ -461,6 +519,7 @@ describe("PatternsPage toolbar", () => {
     vi.clearAllMocks();
     gridTrendlinesViews.length = 0;
     fullscreenTrendlinesViews.length = 0;
+    fullscreenOverlays.length = 0;
     fetchPatternImages.mockResolvedValue({});
     fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
   });
@@ -524,6 +583,23 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters (2)");
   });
 
+  test("Filters button counts a non-default 10d avg volume filter", () => {
+    const props = makeProps({
+      filters: { ...makeProps().filters, min_avg_volume_10d: 200 },
+    });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters (1)");
+  });
+
+  test("Filters button ignores the default 10d avg volume floor", () => {
+    const props = makeProps({
+      filters: { ...makeProps().filters, min_avg_volume_10d: 150 },
+    });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
+    expect(screen.getByTestId("patterns-open-filters")).not.toHaveTextContent("(");
+  });
+
   test("Filters button shows no count when filters are pristine", () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters");
@@ -533,16 +609,23 @@ describe("PatternsPage toolbar", () => {
   test("Force refresh button calls forceRefresh", async () => {
     const props = makeProps();
     r(<PatternsPage {...props} />);
-    await userEvent.click(screen.getByTestId("patterns-force-refresh"));
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    await userEvent.click(await screen.findByTestId("patterns-force-refresh"));
     expect(props.forceRefresh).toHaveBeenCalledTimes(1);
   });
 
-  test("Force refresh button is disabled while scanning", () => {
+  test("Force refresh button is disabled while scanning", async () => {
     r(<PatternsPage {...makeProps({ scanning: true })} />);
-    expect(screen.getByTestId("patterns-force-refresh")).toBeDisabled();
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    // Overflow items are menu items: MUI signals disabled via aria-disabled
+    // (pointer-events:none blocks real clicks, same as the old button).
+    expect(await screen.findByTestId("patterns-force-refresh")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
-  test("shows the reused notice next to Force refresh when the job was reused", () => {
+  test("shows the reused notice next to Force refresh when the job was reused", async () => {
     r(
       <PatternsPage
         {...makeProps({
@@ -572,8 +655,9 @@ describe("PatternsPage toolbar", () => {
     const notice = screen.getByTestId("patterns-scan-reused");
     expect(notice).toHaveTextContent("Reused scan from 12 min ago");
     expect(notice).toHaveTextContent("Force to re-run");
-    // The existing Force refresh action stays available right beside it.
-    expect(screen.getByTestId("patterns-force-refresh")).toBeInTheDocument();
+    // The existing Force refresh action stays available in the overflow menu.
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    expect(await screen.findByTestId("patterns-force-refresh")).toBeInTheDocument();
   });
 
   test("no reused notice for a freshly computed scan", () => {
@@ -587,6 +671,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     vi.clearAllMocks();
     gridTrendlinesViews.length = 0;
     fullscreenTrendlinesViews.length = 0;
+    fullscreenOverlays.length = 0;
     fetchPatternImages.mockResolvedValue({});
     fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
   });
@@ -635,21 +720,24 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
 
   test("expand button on a card opens the fullscreen chart", async () => {
     r(<PatternsPage {...makeProps()} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(screen.queryByTestId("patterns-fullscreen-modal")).not.toBeInTheDocument();
     await userEvent.click(screen.getByTestId("patterns-card-expand-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-fullscreen-chart")).toBeInTheDocument();
-    expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { computeTrendlines: true });
+    expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1D", { detectPatterns: true, computeTrendlines: true });
   });
 
-  test("grid + fullscreen default to the both trendlines view when computing", () => {
+  test("grid + fullscreen default to the both trendlines view when computing", async () => {
     r(<PatternsPage {...makeProps({ computeTrendlines: true })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(gridTrendlinesViews.at(-1)).toBe("both");
     expect(screen.getByTestId("patterns-grid")).toHaveAttribute("data-trendlines-view", "both");
   });
 
   test("TLS/TLR toggle off passes trendlinesView=none to grid and fullscreen", async () => {
     r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(gridTrendlinesViews.at(-1)).toBe("none");
     expect(screen.getByTestId("patterns-grid")).toHaveAttribute("data-trendlines-view", "none");
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
@@ -662,6 +750,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
 
   test("opening a card opts the chart fetch out of trendline computation when TLS/TLR is off", async () => {
     r(<PatternsPage {...makeProps({ computeTrendlines: false })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(fetchSymbolChart).toHaveBeenCalledWith(
@@ -673,16 +762,17 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
 
   test("opening a card forwards computeTrendlines when TLS/TLR is on", async () => {
     r(<PatternsPage {...makeProps({ computeTrendlines: true, lookbackBars: 250 })} />);
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     expect(await screen.findByTestId("patterns-fullscreen-modal")).toBeInTheDocument();
     expect(fetchSymbolChart).toHaveBeenCalledWith(
       "IRCON",
       "1D",
-      { lookbackBars: 250, computeTrendlines: true },
+      { detectPatterns: true, lookbackBars: 250, computeTrendlines: true },
     );
   });
 
-  test("view-only trendlines filter flows through when computation stays on", () => {
+  test("view-only trendlines filter flows through when computation stays on", async () => {
     r(
       <PatternsPage
         {...makeProps({
@@ -691,10 +781,11 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
         })}
       />,
     );
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     expect(gridTrendlinesViews.at(-1)).toBe("support");
   });
 
-  test("scan banner stays above the grid while a scan runs with results", () => {
+  test("scan banner stays above the results while a scan runs with results", async () => {
     r(
       <PatternsPage
         {...makeProps({
@@ -717,6 +808,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
         })}
       />,
     );
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     // Banner variant (compact count, no spaces around the slash) + grid kept.
     expect(screen.getByTestId("patterns-scan-progress")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-scan-progress-count")).toHaveTextContent("12/50 stocks");
@@ -747,6 +839,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
         })}
       />,
     );
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     const select = await screen.findByTestId("patterns-fullscreen-timeframe");
     expect(select).toHaveValue("1h");
@@ -757,13 +850,15 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     );
   });
 
-  test("selecting a new fullscreen timeframe re-runs detection and promotes the best hit", async () => {
-    const low = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 60 });
-    const high = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", confidence: 90, start_date: "2026-07-01" });
+  test("selecting a new fullscreen timeframe re-runs detection and promotes the newest hit", async () => {
+    // Newest wins over confidence: the older hit is far more confident but
+    // the fullscreen must default to the newest formation.
+    const oldConfident = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 95, end_date: "2026-08-01", bars_ago: 40 });
+    const newWeak = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", confidence: 60, end_date: "2026-09-28", bars_ago: 1, start_date: "2026-07-01" });
     r(
       <PatternsPage
         {...makeProps({
-          results: [low],
+          results: [oldConfident],
           total: 1,
           timeframes: [
             { id: "1D", label: "1D", minutes: 1440, native: "days/1", source_tf: null, max_lookback_days: 730, min_bars: 60 },
@@ -772,6 +867,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
         })}
       />,
     );
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
     fetchSymbolChart.mockClear();
@@ -781,7 +877,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
       candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
       overlays: [{ pattern_id: "rising_wedge", pattern_name: "Rising Wedge", trendlines: [] }],
       trend_lines: [],
-      hits: [low, high],
+      hits: [oldConfident, newWeak],
     });
 
     await userEvent.selectOptions(screen.getByTestId("patterns-fullscreen-timeframe"), "1h");
@@ -789,11 +885,13 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     await waitFor(() =>
       expect(fetchSymbolChart).toHaveBeenCalledWith("IRCON", "1h", { detectPatterns: true }),
     );
-    // Highest-confidence hit is promoted; the new candles clear the empty state.
+    // Newest hit is promoted (not highest confidence); the new candles clear the empty state.
     await waitFor(() =>
-      expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Rising Wedge"),
+      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Rising Wedge"),
     );
     expect(screen.queryByText("No chart data")).not.toBeInTheDocument();
+    // Single-pattern contract: no dashed sibling overlays reach the chart.
+    expect(fullscreenOverlays.at(-1)).toEqual([]);
   });
 
   test("a fullscreen timeframe switch with no hits clears the displayed hit", async () => {
@@ -807,6 +905,7 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
         })}
       />,
     );
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
     await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
     await screen.findByTestId("patterns-fullscreen-modal");
     expect(screen.getByTestId("patterns-fullscreen-modal")).toHaveTextContent("Falling Wedge");
@@ -827,6 +926,148 @@ describe("PatternsPage applied filters + modal + fullscreen", () => {
     );
     await waitFor(() =>
       expect(screen.getByTestId("patterns-fullscreen-modal")).not.toHaveTextContent("Falling Wedge"),
+    );
+  });
+
+  test("opening a card defaults to the newest hit and list selection switches it", async () => {
+    const cardHit = makeHit({ id: 11, pattern_id: "falling_wedge", pattern_name: "Falling Wedge", confidence: 95, end_date: "2026-08-01", bars_ago: 40 });
+    const newerHit = makeHit({ id: 22, pattern_id: "rising_wedge", pattern_name: "Rising Wedge", confidence: 60, end_date: "2026-09-28", bars_ago: 1, start_date: "2026-07-01" });
+    r(<PatternsPage {...makeProps({ results: [cardHit], total: 1 })} />);
+    fetchSymbolChart.mockClear();
+    fetchSymbolChart.mockResolvedValueOnce({
+      symbol: "IRCON",
+      timeframe: "1D",
+      candles: [{ t: "2026-09-26T09:15:00+05:30", o: 100, h: 115, l: 98, c: 112, v: 1000 }],
+      overlays: [],
+      trend_lines: [],
+      hits: [newerHit],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-falling_wedge"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+    // The open fetch runs detection so the panel can list every pattern.
+    await waitFor(() =>
+      expect(fetchSymbolChart).toHaveBeenCalledWith(
+        "IRCON",
+        "1D",
+        expect.objectContaining({ detectPatterns: true }),
+      ),
+    );
+    // Default shown pattern is the newest — not the clicked card.
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Rising Wedge"),
+    );
+    // Both hits are listed, newest first.
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Rising Wedge");    expect(screen.getByTestId("patterns-fullscreen-list-item-1")).toHaveTextContent("Falling Wedge");
+
+    // Selecting the older row replaces the shown pattern (single active).
+    await userEvent.click(screen.getByTestId("patterns-fullscreen-list-item-1"));
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Falling Wedge"),
+    );
+  });
+
+  test("de-duplicates a stored card hit against the same live hit returned with id:null", async () => {
+    const cardHit = makeHit({
+      id: 34562,
+      pattern_id: "ascending_channel",
+      pattern_name: "Ascending Channel",
+      start_date: "2026-05-21",
+      end_date: "2026-09-08",
+      bars_ago: 17,
+    });
+    r(<PatternsPage {...makeProps({ results: [cardHit], total: 1 })} />);
+    fetchSymbolChart.mockClear();
+    fetchSymbolChart.mockResolvedValueOnce({
+      symbol: "IRCON",
+      timeframe: "1D",
+      candles: [],
+      overlays: [],
+      trend_lines: [],
+      // Live detection returns the SAME pattern with no DB id.
+      hits: [{ ...cardHit, id: null }],
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Grid" }));
+    await userEvent.click(screen.getByTestId("patterns-card-IRCON-ascending_channel"));
+    await screen.findByTestId("patterns-fullscreen-modal");
+    await waitFor(() =>
+      expect(screen.getByTestId("patterns-fullscreen-active-hit")).toHaveTextContent("Ascending Channel"),
+    );
+    // One row, not two: the id-carrying card hit and the id-less live hit are the same.
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Ascending Channel");
+    expect(screen.queryByTestId("patterns-fullscreen-list-item-1")).not.toBeInTheDocument();
+  });
+});
+
+describe("PatternsPage copy CSV", () => {
+  const writeText = vi.fn();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    writeText.mockReset();
+    writeText.mockResolvedValue(undefined);
+    vi.stubGlobal("navigator", { clipboard: { writeText } });
+    fetchPatternImages.mockResolvedValue({});
+    fetchSymbolChart.mockResolvedValue({ symbol: "IRCON", timeframe: "1D", candles: [], overlays: [] });
+  });
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  test("Copy CSV copies the result rows and shows a confirmation", async () => {
+    const second = makeHit({
+      id: 2,
+      symbol: "TCS",
+      name: "Tata Consultancy Services Ltd.",
+      pattern_id: "rising_wedge",
+      pattern_name: "Rising Wedge",
+    });
+    r(<PatternsPage {...makeProps({ results: [makeHit(), second], total: 2 })} />);
+
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    await userEvent.click(await screen.findByTestId("patterns-copy-csv"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    const text = String(writeText.mock.calls[0][0]);
+    const [header, ...lines] = text.split("\n");
+    expect(header).toContain("Symbol");
+    expect(header).toContain("Pattern");
+    expect(text).toContain("IRCON");
+    expect(text).toContain("TCS");
+    expect(lines).toHaveLength(2);
+
+    const toast = await screen.findByTestId("patterns-copy-toast");
+    expect(toast).toHaveTextContent("Copied 2 rows");
+  });
+
+  test("Copy symbols copies the result symbols as a comma list", async () => {
+    r(<PatternsPage {...makeProps()} />);
+
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    await userEvent.click(await screen.findByTestId("patterns-copy-symbols"));
+
+    await waitFor(() => expect(writeText).toHaveBeenCalledTimes(1));
+    expect(String(writeText.mock.calls[0][0])).toBe("NSE:IRCON");
+
+    const toast = await screen.findByTestId("patterns-copy-toast");
+    expect(toast).toHaveTextContent("Copied 1 symbol");
+  });
+
+  test("copy buttons are disabled when there are no results", async () => {
+    r(<PatternsPage {...makeProps({ results: [], total: 0 })} />);
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    // Overflow items are menu items: MUI signals disabled via aria-disabled
+    // (pointer-events:none blocks real clicks, same as the old buttons).
+    expect(await screen.findByTestId("patterns-copy-csv")).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
+    expect(await screen.findByTestId("patterns-copy-symbols")).toHaveAttribute(
+      "aria-disabled",
+      "true",
     );
   });
 });

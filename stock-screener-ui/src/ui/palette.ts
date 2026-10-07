@@ -84,6 +84,8 @@ export const TOOLTIP_TEXT = "#F0F6FC";
 export const AXIS_LINE = "#30363D";
 export const AXIS_SPLIT = "#21262D";
 export const CHART_BG = "#0D1117";
+/** Pure-black plot background for the TradingView (lightweight-charts) panels. */
+export const CHART_TV_BG = "#000000";
 export const CHART_TEXT = "#F0F6FC";
 export const CHART_MUTED = "#8B949E";
 export const CHART_BORDER = "#30363D";

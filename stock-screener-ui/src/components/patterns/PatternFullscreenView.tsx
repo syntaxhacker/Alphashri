@@ -9,6 +9,7 @@ import { TimeframeSelect } from "./TimeframeSelect";
 import { PivotList } from "./PatternPivotList";
 import { QualityBadge } from "./QualityBadge";
 import { StatusBadge } from "./StatusBadge";
+import { FullscreenPatternList, fullscreenHitKey } from "./FullscreenPatternList";
 import { PIVOT_LEGEND_NAME } from "@/config/patterns";
 import { TEXT_MUTED } from "@/ui/palette";
 
@@ -17,7 +18,14 @@ export interface PatternFullscreenViewProps {
   onClose: () => void;
   hit: PatternHitDTO | null;
   candles: ChartCandle[];
-  /** All detected patterns for the symbol, drawn as dashed siblings. */
+  /** Detected patterns for the symbol (newest-first single-select list). */
+  hits?: PatternHitDTO[];
+  /** Switch the chart to the selected single pattern (replaces the active hit). */
+  onSelectHit?: (hit: PatternHitDTO) => void;
+  /**
+   * Kept for API compatibility; the parent passes an empty list so only the
+   * active pattern is drawn (no dashed siblings).
+   */
   overlays?: PatternOverlay[];
   /**
    * Standalone support/resistance lines from the symbol-chart payload. Falls
@@ -55,9 +63,28 @@ export interface PatternFullscreenViewProps {
  * audit list. Intentionally leaves vertical room free so future panels (levels,
  * trade plan, checklist) can be added without touching the chart layout.
  */
-function FullscreenPanel({ hit }: { hit: PatternHitDTO }) {
-  const dayChange = hit.day_change_pct ?? null;
-  const lastClose = hit.last_close ?? null;
+function FullscreenPanel({
+  hit,
+  hits,
+  onSelectHit,
+  candles = [],
+}: {
+  hit: PatternHitDTO;
+  hits?: PatternHitDTO[];
+  onSelectHit?: (hit: PatternHitDTO) => void;
+  candles?: ChartCandle[];
+}) {
+  // Live-detected hits carry no enrichment, so fall back to the chart's own
+  // last two candles for Last close / Day.
+  const lastCandle = candles.length ? candles[candles.length - 1] : null;
+  const prevCandle = candles.length > 1 ? candles[candles.length - 2] : null;
+  const dayChange =
+    hit.day_change_pct ??
+    (lastCandle && prevCandle && prevCandle.c
+      ? ((lastCandle.c - prevCandle.c) / prevCandle.c) * 100
+      : null);
+  const lastClose = hit.last_close ?? lastCandle?.c ?? null;
+  const activeKey = fullscreenHitKey(hit);
 
   return (
     <Box
@@ -71,6 +98,12 @@ function FullscreenPanel({ hit }: { hit: PatternHitDTO }) {
         overflowY: "auto",
       }}
     >
+      {hits && onSelectHit ? (
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
+          <FullscreenPatternList hits={hits} activeKey={activeKey} onSelect={onSelectHit} />
+          <Box sx={{ borderTop: "1px solid", borderColor: "divider" }} />
+        </Box>
+      ) : null}
       <Box sx={{ display: "flex", flexDirection: "column", gap: 1 }}>
         <ToolbarRow gap={4} wrap>
           <StatusBadge status={hit.status} />
@@ -223,6 +256,8 @@ export function PatternFullscreenView({
   asOf = null,
   fromDate = null,
   onAsOfChange,
+  hits,
+  onSelectHit,
 }: PatternFullscreenViewProps) {
   const title = hit ? `${hit.symbol} · ${hit.pattern_name}` : "Pattern chart";
   const asOfLabel = typeof asOf === "string" && asOf !== "" ? asOf.replace("T", " ") : null;
@@ -320,7 +355,9 @@ export function PatternFullscreenView({
             minHeight: 0,
           }}
         >
-          {hit ? <FullscreenPanel hit={hit} /> : null}
+          {hit ? (
+            <FullscreenPanel hit={hit} hits={hits} onSelectHit={onSelectHit} candles={candles} />
+          ) : null}
         </Box>
       </Box>
     </Modal>

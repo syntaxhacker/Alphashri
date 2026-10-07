@@ -24,7 +24,11 @@ afterEach(() => cleanup());
 describe("AppliedFilters date chips", () => {
   test("builds Date chips for from_date/to_date that reset to null", () => {
     const chips = buildAppliedFilterChips(
-      makeFilters({ from_date: "2026-06-01", to_date: "2026-09-30T14:30" }),
+      makeFilters({
+        from_date: "2026-06-01",
+        to_date: "2026-09-30T14:30",
+        min_avg_volume_10d: null,
+      }),
       PATTERNS,
     );
     expect(chips).toMatchObject([
@@ -36,7 +40,9 @@ describe("AppliedFilters date chips", () => {
   });
 
   test("omits date chips when unset", () => {
-    expect(buildAppliedFilterChips(makeFilters(), PATTERNS)).toEqual([]);
+    expect(
+      buildAppliedFilterChips(makeFilters({ min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
   });
 
   test("renders date chips with Date group prefix", () => {

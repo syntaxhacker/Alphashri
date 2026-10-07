@@ -10,6 +10,7 @@ import { ScreenerHeader } from "./ScreenerHeader";
 import { ScreenerContent } from "./ScreenerContent";
 import { SelectionBar } from "./SelectionBar";
 import { screenerHasSideFilters } from "./ScreenerSidePanel";
+import { GroupPerformancePanel } from "./GroupPerformancePanel";
 import { ScreenerInlineFilters } from "./ScreenerInlineFilters";
 
 const CorrelationTab = lazy(() => import("./CorrelationTab").then((m) => ({ default: m.CorrelationTab })));
@@ -228,7 +229,8 @@ export function ScreenerPage({
           data-testid="screener-content"
           sx={{ flex: 1, minHeight: 0, display: "flex", overflow: "hidden" }}
         >
-          <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0 }}>
+          <Box sx={{ display: activeTab === "screener" ? "flex" : "none", flex: 1, minWidth: 0, minHeight: 0, gap: 1 }}>
+            <GroupPerformancePanel />
             <Paper
               elevation={0}
               sx={{

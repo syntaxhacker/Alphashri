@@ -253,4 +253,76 @@ describe("PatternFullscreenView", () => {
     );
     expect(screen.queryByTestId("patterns-fullscreen-timeframe")).not.toBeInTheDocument();
   });
+
+  test("omits the patterns list when hits/onSelectHit are absent", () => {
+    r(<PatternFullscreenView opened onClose={vi.fn()} hit={HIT} candles={[]} />);
+    expect(screen.queryByTestId("patterns-fullscreen-list")).not.toBeInTheDocument();
+  });
+});
+
+describe("PatternFullscreenView patterns list (single-select)", () => {
+  beforeEach(() => vi.clearAllMocks());
+  afterEach(() => cleanup());
+
+  const OLD: PatternHitDTO = {
+    ...HIT,
+    id: 11,
+    pattern_id: "falling_wedge",
+    pattern_name: "Falling Wedge",
+    end_date: "2026-08-01",
+    bars_ago: 40,
+    confidence: 95,
+  };
+  const NEW: PatternHitDTO = {
+    ...HIT,
+    id: 33,
+    pattern_id: "bull_flag",
+    pattern_name: "Bull Flag",
+    end_date: "2026-09-26",
+    bars_ago: 2,
+    confidence: 70,
+  };
+
+  test("renders the list newest-first above the active-pattern meta", () => {
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={NEW}
+        hits={[OLD, NEW]}
+        onSelectHit={vi.fn()}
+        candles={[]}
+      />,
+    );
+    expect(screen.getByTestId("patterns-fullscreen-list")).toBeInTheDocument();
+    expect(screen.getByText("Patterns (2)")).toBeInTheDocument();
+    // Newest first.
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveTextContent("Bull Flag");
+    expect(screen.getByTestId("patterns-fullscreen-list-item-1")).toHaveTextContent("Falling Wedge");
+    // The newest (active) row is selected…
+    expect(screen.getByTestId("patterns-fullscreen-list-item-0")).toHaveAttribute(
+      "data-selected",
+      "true",
+    );
+    // …while the active-pattern meta below still shows the hit.
+    expect(screen.getByTestId("patterns-fullscreen-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-detail-pivots")).toBeInTheDocument();
+  });
+
+  test("clicking a row calls onSelectHit with that hit (single replace)", () => {
+    const onSelectHit = vi.fn();
+    r(
+      <PatternFullscreenView
+        opened
+        onClose={vi.fn()}
+        hit={NEW}
+        hits={[OLD, NEW]}
+        onSelectHit={onSelectHit}
+        candles={[]}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("patterns-fullscreen-list-item-1"));
+    expect(onSelectHit).toHaveBeenCalledTimes(1);
+    expect(onSelectHit).toHaveBeenCalledWith(OLD);
+  });
 });

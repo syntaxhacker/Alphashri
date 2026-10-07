@@ -1,4 +1,4 @@
-import { Box, Typography } from "@mui/material";
+import { Box, Text } from "@/ui";
 import type { ChartPreviewData } from "../../api/chartPreview";
 
 interface ChartFooterProps {
@@ -12,21 +12,24 @@ export function ChartFooter({ data, timeframe, orMinutes }: ChartFooterProps) {
     <Box
       id="chart-footer"
       data-testid="chart-footer"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, bgcolor: "background.paper", typography: "body2", color: "text.secondary", flexWrap: "wrap", width: "100%" }}
+      sx={{
+        display: "flex",
+        alignItems: "center",
+        height: 30,
+        minHeight: 30,
+        maxHeight: 30,
+        px: 1.5,
+        borderTop: "1px solid var(--mui-palette-divider)",
+        width: "100%",
+        flexShrink: 0,
+        overflow: "hidden",
+        whiteSpace: "nowrap",
+      }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap" }}>
-        <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>{data.candles.length} candles</Typography>
-        <Typography variant="body2" color="text.secondary" component="span">•</Typography>
-        <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>TF: {timeframe}m</Typography>
-        <Typography variant="body2" color="text.secondary" component="span">•</Typography>
-        <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>OR: {orMinutes}m</Typography>
-        {data.high_52w && (
-          <>
-            <Typography variant="body2" color="text.secondary" component="span">•</Typography>
-            <Typography variant="body2" color="text.secondary" component="span" sx={{ textAlign: "center" }}>52W High: ₹{data.high_52w.toFixed(2)}</Typography>
-          </>
-        )}
-      </Box>
+      <Text size="xs" c="dimmed" truncate>
+        {data.candles.length} candles · TF: {timeframe}m · OR: {orMinutes}m
+        {data.high_52w ? ` · 52W High: ₹${data.high_52w.toFixed(2)}` : ""}
+      </Text>
     </Box>
   );
 }

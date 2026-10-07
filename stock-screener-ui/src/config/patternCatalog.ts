@@ -203,7 +203,7 @@ export const BUILTIN_PRESETS: PatternPreset[] = [
     id: "high_rel_vol",
     name: "High rel-vol",
     description: "Only scan symbols with strong relative volume",
-    filters: { min_rel_volume: 1.5, min_volume_m: 5 },
+    filters: { min_rel_volume: 1.5, min_volume_m: 5, min_avg_volume_10d: 150 },
   },
   {
     id: "last_30d",

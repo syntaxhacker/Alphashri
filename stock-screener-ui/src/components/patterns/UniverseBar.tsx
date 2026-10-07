@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { Box, Button, Chip, Text, ToolbarRow } from "@/ui";
 import { IconPencil } from "@tabler/icons-react";
 import type { JobDTO, Universe } from "@/types/chartPatterns";
@@ -16,12 +17,16 @@ export interface UniverseBarProps {
   job: JobDTO | null;
   queuePosition: number | null;
   error: string | null;
+  /** Right-side controls rendered in the same toolbar row (timeframe, filters…). */
+  actions?: ReactNode;
 }
 
 /**
  * Scan-scope bar: universe pills plus a "Custom" pill for a hand-picked symbol
  * set, a live job status and the scan action. The action label adapts to the
  * scope — "Scan again" for a universe, "Scan N symbols" for a custom set.
+ * Borderless single row: the caller passes the results controls as `actions`
+ * so universe + toolbar share one 48px `ToolbarRow`.
  */
 export function UniverseBar({
   universes,
@@ -34,6 +39,7 @@ export function UniverseBar({
   job,
   queuePosition,
   error,
+  actions,
 }: UniverseBarProps) {
   const customActive = universe === customUniverse;
   const customCount = customSymbolCount ?? 0;
@@ -44,15 +50,9 @@ export function UniverseBar({
       : "Scan again";
 
   return (
-    <Box
-      data-testid="patterns-universe-bar"
-      sx={{ border: "1px solid", borderColor: "divider", borderRadius: 1, bgcolor: "background.paper", p: 1 }}
-    >
-      <ToolbarRow justify="space-between" gap={1.5}>
-        <ToolbarRow gap={0.75}>
-          <Text size="xs" fw={700} style={{ textTransform: "uppercase" }} c="dimmed">
-            Scan
-          </Text>
+    <Box data-testid="patterns-universe-bar" sx={{ minWidth: 0 }}>
+      <ToolbarRow justify="space-between" gap={8} style={{ rowGap: 8 }}>
+        <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 6 }}>
           {universes.map((u) => (
             <Chip
               key={u.id}
@@ -78,11 +78,9 @@ export function UniverseBar({
               Custom
             </Box>
           </Chip>
-        </ToolbarRow>
-        <ToolbarRow gap={1.5} justify="flex-end">
           <JobStatus job={job} queuePosition={queuePosition} scanning={scanning} />
           <Button
-            size="sm"
+            size="xs"
             variant="filled"
             onClick={scan}
             loading={scanning}
@@ -92,6 +90,11 @@ export function UniverseBar({
             {scanLabel}
           </Button>
         </ToolbarRow>
+        {actions ? (
+          <ToolbarRow gap={8} justify="flex-end" style={{ flexWrap: "wrap", rowGap: 6 }}>
+            {actions}
+          </ToolbarRow>
+        ) : null}
       </ToolbarRow>
       {error ? (
         <Box sx={{ mt: 0.5 }}>

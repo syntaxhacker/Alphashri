@@ -176,6 +176,15 @@ export function buildAppliedFilterChips(
       nextValue: null,
     });
   }
+  if (filters.min_avg_volume_10d != null) {
+    chips.push({
+      id: "min_avg_volume_10d",
+      group: "Volume",
+      label: `10d vol ≥ ${filters.min_avg_volume_10d}K`,
+      key: "min_avg_volume_10d",
+      nextValue: null,
+    });
+  }
   if (filters.from_date) {
     chips.push({
       id: "from_date",

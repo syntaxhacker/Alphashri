@@ -5,7 +5,7 @@
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
- *   gap52, pos, relvol, volm, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   gap52, pos, relvol, volm, avgvol, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
  *   `symbol=` values are the multi-symbol filter), q, trendlines,
  *   compute_trendlines (`=0` only, when trendline computation is skipped).
  *
@@ -101,6 +101,8 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   if (minRelVolume != null) filters.min_rel_volume = minRelVolume;
   const minVolumeM = numberOrNull(params.get("volm"));
   if (minVolumeM != null) filters.min_volume_m = minVolumeM;
+  const minAvgVolume10d = numberOrNull(params.get("avgvol"));
+  if (minAvgVolume10d != null) filters.min_avg_volume_10d = minAvgVolume10d;
 
   const from = params.get("from");
   if (from) filters.from_date = from;
@@ -193,6 +195,7 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.min_range_pos != null) params.set("pos", String(filters.min_range_pos));
   if (filters.min_rel_volume != null) params.set("relvol", String(filters.min_rel_volume));
   if (filters.min_volume_m != null) params.set("volm", String(filters.min_volume_m));
+  if (filters.min_avg_volume_10d != null) params.set("avgvol", String(filters.min_avg_volume_10d));
   if (filters.from_date) params.set("from", filters.from_date);
   if (filters.to_date) params.set("to", filters.to_date);
   if (filters.sort && filters.sort !== DEFAULT_PATTERN_FILTERS.sort) {
@@ -236,6 +239,7 @@ const PATTERN_PARAM_KEYS = new Set([
   "pos",
   "relvol",
   "volm",
+  "avgvol",
   "from",
   "to",
   "sort",

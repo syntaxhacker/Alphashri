@@ -24,6 +24,11 @@ vi.mock("@/api/chartPatterns", () => ({
   fetchWatchSetups: (...args: unknown[]) => fetchWatchSetups(...args),
   fetchWatch: (...args: unknown[]) => fetchWatch(...args),
   fetchMarketStatus: (...args: unknown[]) => fetchMarketStatus(...args),
+  // No live stream in these tests: fail fast so every load exercises the
+  // non-streaming `fetchWatch` fallback deterministically.
+  streamWatch: async (_query: unknown, handlers: { onError?: (e: Error) => void }) => {
+    handlers.onError?.(new Error("stream unavailable"));
+  },
 }));
 
 const fetchPatternImages = vi.fn();
@@ -34,6 +39,17 @@ vi.mock("@/api/patternImages", () => ({
 vi.mock("@/components/patterns/PatternGrid", () => ({
   PatternGrid: ({ hits }: any) => (
     <div data-testid="patterns-grid">
+      {(hits as any[]).map((hit: any) => (
+        <div key={hit.id}>{hit.symbol}</div>
+      ))}
+    </div>
+  ),
+}));
+
+// Dense list stub so the page default (list view) renders deterministically.
+vi.mock("@/components/patterns/PatternListView", () => ({
+  PatternListView: ({ hits }: any) => (
+    <div data-testid="patterns-list">
       {(hits as any[]).map((hit: any) => (
         <div key={hit.id}>{hit.symbol}</div>
       ))}
@@ -207,7 +223,7 @@ describe("PatternsPage watch tab", () => {
     r(<PatternsPage {...makeProps()} />);
     expect(screen.getByTestId("patterns-tab-scan")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-tab-watch")).toBeInTheDocument();
-    expect(screen.getByTestId("patterns-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-list")).toBeInTheDocument();
     expect(screen.queryByTestId("watch-view")).not.toBeInTheDocument();
   });
 

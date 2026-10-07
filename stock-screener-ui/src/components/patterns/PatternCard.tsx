@@ -97,7 +97,7 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
         borderColor: selected ? "primary.main" : "divider",
         borderRadius: 1,
         bgcolor: "background.paper",
-        p: 1.5,
+        p: 1,
         cursor: onClick ? "pointer" : "default",
       }}
     >

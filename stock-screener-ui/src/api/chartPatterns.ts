@@ -20,6 +20,7 @@ import type {
   ChartPayload,
   PatternsQuery,
   WatchPayload,
+  WatchRow,
   WatchSetup,
 } from "../types/chartPatterns";
 import { fetchWithAuth } from "../state/auth";
@@ -66,6 +67,8 @@ export interface ScanRequest {
   min_rel_volume?: number | null;
   /** Minimum watched volume in millions (scan-time only; omitted/null = any). */
   min_volume_m?: number | null;
+  /** Minimum 10-day average volume in thousands (K); scan-time only. */
+  min_avg_volume_10d?: number | null;
   /** Replay cutoff: detect patterns as of this timestamp (omitted/null = live). */
   as_of_date?: string | null;
   /** Replay window start: only consider formations at/after this (omitted/null = any). */
@@ -309,6 +312,230 @@ export interface WatchQuery {
   timeframe: string;
   minBaseDays?: number | null;
   minRelVolume?: number | null;
+}
+
+/** `meta` event payload for `GET /results/stream` (same fields as `/results`). */
+export interface ResultsStreamMeta {
+  total: number;
+  summary: PatternSummary;
+  data_through: string | null;
+}
+
+/** `meta` event payload for `GET /watch/stream`. */
+export interface WatchStreamMeta {
+  setup: string;
+  min_rel_volume: number;
+  updated_at?: string | null;
+}
+
+export interface StreamHandlers<TMeta, TItem> {
+  onMeta?: (meta: TMeta) => void;
+  onItem?: (item: TItem) => void;
+  onDone?: () => void;
+  onError?: (error: Error) => void;
+  signal?: AbortSignal;
+}
+
+type SseHandler = (event: string, data: string) => void;
+
+/**
+ * Shared SSE reader (mirrors `src/hooks/useLivePrices.ts`): buffers
+ * `ReadableStream` chunks, splits frames on `\n\n`, parses `event:`/`data:`
+ * lines and dispatches each event. Never throws — transport/parse failures
+ * are reported via `onStreamError` (abort is silent).
+ */
+async function readSseStream(
+  response: Response,
+  onEvent: SseHandler,
+  onStreamError: (error: Error) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const body = response.body;
+  if (!body) {
+    onStreamError(new Error("Empty stream response"));
+    return;
+  }
+  const reader = body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  const onAbort = (): void => {
+    try {
+      void reader.cancel();
+    } catch {
+      /* non-fatal */
+    }
+  };
+  signal?.addEventListener("abort", onAbort, { once: true });
+  try {
+    for (;;) {
+      if (signal?.aborted) return;
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const parts = buffer.split("\n\n");
+      buffer = parts.pop() ?? "";
+      for (const part of parts) {
+        if (!part.trim()) continue;
+        let eventType = "";
+        const dataLines: string[] = [];
+        for (const line of part.split("\n")) {
+          if (line.startsWith("event:")) eventType = line.slice(6).trim();
+          else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+          else if (line.startsWith(":")) continue;
+        }
+        if (!eventType) continue;
+        onEvent(eventType, dataLines.join("\n"));
+      }
+    }
+    if (buffer.trim()) {
+      let eventType = "";
+      const dataLines: string[] = [];
+      for (const line of buffer.split("\n")) {
+        if (line.startsWith("event:")) eventType = line.slice(6).trim();
+        else if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
+      }
+      if (eventType) onEvent(eventType, dataLines.join("\n"));
+    }
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
+    onStreamError(err instanceof Error ? err : new Error("Stream read failed"));
+  } finally {
+    signal?.removeEventListener("abort", onAbort);
+    try {
+      reader.releaseLock();
+    } catch {
+      /* non-fatal */
+    }
+  }
+}
+
+function dispatchSse<TMeta, TItem>(
+  event: string,
+  data: string,
+  handlers: StreamHandlers<TMeta, TItem>,
+): void {
+  try {
+    if (event === "meta" && handlers.onMeta) {
+      handlers.onMeta((data ? JSON.parse(data) : {}) as TMeta);
+    } else if (event === "item" && handlers.onItem) {
+      handlers.onItem(JSON.parse(data) as TItem);
+    } else if (event === "done") {
+      handlers.onDone?.();
+    } else if (event === "error") {
+      let message = "Stream failed";
+      if (data) {
+        try {
+          const parsed = JSON.parse(data) as { message?: unknown; detail?: unknown };
+          const raw = parsed.message ?? parsed.detail;
+          if (typeof raw === "string" && raw) message = raw;
+        } catch {
+          message = data;
+        }
+      }
+      handlers.onError?.(new Error(message));
+    }
+  } catch (err) {
+    handlers.onError?.(err instanceof Error ? err : new Error("Malformed stream event"));
+  }
+}
+
+/**
+ * Stream enriched pattern results (`GET /results/stream`): `meta` carries the
+ * total/summary up front, then one `item` per result, then `done`. Uses
+ * `fetchWithAuth` (NOT `EventSource`) so the `Authorization` header is sent.
+ * Never throws — failures go to `onError`.
+ */
+export async function streamResults(
+  query: PatternsQuery = {},
+  handlers: StreamHandlers<ResultsStreamMeta, PatternHitDTO> = {},
+): Promise<void> {
+  const { signal, onError, ...rest } = handlers;
+  let response: Response;
+  try {
+    response = await fetchWithAuth(`${CHART_PATTERNS_BASE}/results/stream${buildPatternsQuery(query)}`, {
+      headers: { Accept: "text/event-stream" },
+      signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
+    onError?.(err instanceof Error ? err : new Error("Stream request failed"));
+    return;
+  }
+  if (signal?.aborted) return;
+  if (!response.ok) {
+    const { detail } = await readError(response, "Failed to stream pattern results");
+    onError?.(new Error(detail));
+    return;
+  }
+  let finished = false;
+  const wrapped: StreamHandlers<ResultsStreamMeta, PatternHitDTO> = {
+    ...rest,
+    onDone: () => {
+      finished = true;
+      rest.onDone?.();
+    },
+    onError: (err) => {
+      finished = true;
+      onError?.(err);
+    },
+  };
+  await readSseStream(
+    response,
+    (event, data) => dispatchSse(event, data, wrapped),
+    (err) => {
+      if (!finished) onError?.(err);
+    },
+    signal,
+  );
+}
+
+/**
+ * Stream breakout-watch rows (`GET /watch/stream`): `meta` carries the setup
+ * echo + gate up front, then one `item` per row, then `done`. Same transport
+ * contract as `streamResults` (auth header via `fetchWithAuth`, never throws).
+ */
+export async function streamWatch(
+  query: WatchQuery,
+  handlers: StreamHandlers<WatchStreamMeta, WatchRow> = {},
+): Promise<void> {
+  const { signal, onError, ...rest } = handlers;
+  let response: Response;
+  try {
+    response = await fetchWithAuth(`${CHART_PATTERNS_BASE}/watch/stream${buildWatchQuery(query)}`, {
+      headers: { Accept: "text/event-stream" },
+      signal,
+    });
+  } catch (err) {
+    if ((err as Error)?.name === "AbortError" || signal?.aborted) return;
+    onError?.(err instanceof Error ? err : new Error("Stream request failed"));
+    return;
+  }
+  if (signal?.aborted) return;
+  if (!response.ok) {
+    const { detail } = await readError(response, "Failed to stream breakout watch");
+    onError?.(new Error(detail));
+    return;
+  }
+  let finished = false;
+  const wrapped: StreamHandlers<WatchStreamMeta, WatchRow> = {
+    ...rest,
+    onDone: () => {
+      finished = true;
+      rest.onDone?.();
+    },
+    onError: (err) => {
+      finished = true;
+      onError?.(err);
+    },
+  };
+  await readSseStream(
+    response,
+    (event, data) => dispatchSse(event, data, wrapped),
+    (err) => {
+      if (!finished) onError?.(err);
+    },
+    signal,
+  );
 }
 
 /** Serialize a `WatchQuery` into a query string for `GET /watch`. */

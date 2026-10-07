@@ -483,7 +483,7 @@ export function PatternFilterRail({
         <Chip
           size="sm"
           variant="light"
-          checked={sort !== "newest"}
+          checked={sort === "confidence"}
           onChange={() => setFilter("sort", "confidence")}
           data-testid="patterns-filter-sort-confidence"
         >
@@ -506,6 +506,15 @@ export function PatternFilterRail({
           data-testid="patterns-filter-sort-range_pos"
         >
           Near breakout
+        </Chip>
+        <Chip
+          size="sm"
+          variant="light"
+          checked={sort === "breakout"}
+          onChange={() => setFilter("sort", "breakout")}
+          data-testid="patterns-filter-sort-breakout"
+        >
+          Breakout
         </Chip>
       </Box>
     </Section>
@@ -661,6 +670,30 @@ export function PatternFilterRail({
             placeholder="Any"
             w={110}
             data-testid="patterns-filter-min-volume-m"
+          />
+        </Box>
+        <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+          <Text size="xs" c="dimmed">
+            10d avg vol ≥ K
+          </Text>
+          <NumberInput
+            value={filters.min_avg_volume_10d ?? ""}
+            onChange={(v: number | string) => {
+              if (v === "" || v == null) {
+                setFilter("min_avg_volume_10d", null);
+                return;
+              }
+              const n = Number(v);
+              // Ignore in-progress partials ("-", "1.") — never store NaN.
+              if (!Number.isNaN(n)) setFilter("min_avg_volume_10d", n);
+            }}
+            min={0}
+            max={500000}
+            step={50}
+            size="sm"
+            placeholder="Any"
+            w={110}
+            data-testid="patterns-filter-min-avg-volume-10d"
           />
         </Box>
       </Box>
