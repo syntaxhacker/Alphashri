@@ -6,19 +6,25 @@ precedent (open).
 """
 from __future__ import annotations
 
+import asyncio
 import dataclasses
+import json
+import queue as _queue
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, StreamingResponse
 from pydantic import BaseModel
 
 from chart_patterns import candles, config, jobs, store
 from chart_patterns import scan as scan_mod
 from chart_patterns import trendlines as trendlines_mod
 from chart_patterns import watch as watch_mod
+from chart_patterns.parallel import max_workers as _parallel_max_workers
 
 import config as root_config
 
@@ -432,6 +438,75 @@ def _clamp_to_lookback(df, lookback_bars: Optional[int]):
     return df.tail(n)
 
 
+def _finalize_item(item, df, *, key, lookback_bars, compute_trendlines, tl_cache, lock=None):
+    """Attach a candle window + last close/day change + trend lines to one item.
+
+    Phase-2 of :func:`_enrich_with_candles`, factored so the SSE stream
+    (``GET /results/stream``) reuses the exact per-item logic — a streamed
+    item is byte-identical to its batched twin. ``key`` is the
+    ``(symbol, timeframe)`` fetch key (``None`` when the item carries no
+    symbol/timeframe); ``tl_cache`` maps keys to detector results. Pass
+    ``lock`` when calling from worker threads (guards the shared caches).
+    Mutates and returns ``item``; never raises for a dict item.
+    """
+    if key is None:
+        if isinstance(item, dict):
+            fresh = _stored_lines_fresh(item)
+            stored_lines = _stored_trend_lines(item) if fresh else None
+            item.setdefault("candles", [])
+            item.setdefault("last_close", None)
+            item.setdefault("day_change_pct", None)
+            item["trend_lines"] = [] if not compute_trendlines else (stored_lines if stored_lines is not None else [])
+        return item
+    fresh = _stored_lines_fresh(item)
+    stored_lines = _stored_trend_lines(item) if fresh else None
+    try:
+        if df is not None and not getattr(df, "empty", True):
+            frame = _clamp_to_lookback(df, lookback_bars)
+            item["candles"] = candles.candles_to_series(frame, config.CHART_MAX_BARS)
+        else:
+            item["candles"] = []
+    except Exception:
+        item["candles"] = []
+    if df is not None and not getattr(df, "empty", True):
+        try:
+            last = float(df["close"].iloc[-1])
+            prev = float(df["close"].iloc[-2]) if len(df) > 1 else last
+            item["last_close"] = last
+            item["day_change_pct"] = round(((last - prev) / prev * 100.0) if prev else 0.0, 2)
+        except Exception:
+            item["last_close"] = None
+            item["day_change_pct"] = None
+    else:
+        item["last_close"] = None
+        item["day_change_pct"] = None
+    if not compute_trendlines:
+        item["trend_lines"] = []
+        return item
+    if stored_lines is not None:
+        item["trend_lines"] = stored_lines
+        return item
+    if key not in tl_cache:
+        try:
+            if df is not None and not getattr(df, "empty", True):
+                computed = trendlines_mod.detect_trendlines(df)
+            else:
+                computed = {"support": None, "resistance": None}
+        except Exception:
+            computed = {"support": None, "resistance": None}
+        if lock is not None:
+            with lock:
+                tl_cache.setdefault(key, computed)
+        else:
+            tl_cache[key] = computed
+    try:
+        res = tl_cache[key] or {}
+        item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
+    except Exception:
+        item["trend_lines"] = []
+    return item
+
+
 def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bars: int = config.CARD_MAX_BARS,
                           lookback_bars: Optional[int] = None, compute_trendlines: bool = True):
     """Attach a real candle window + last close/day change to each result item.
@@ -449,66 +524,65 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     """
     _ = max_bars  # kept for backwards compatibility; cards now span the Lookback
     fetch_lb = lookback_bars or config.READ_LOOKBACK_BARS
-    cache: dict = {}
-    tl_cache: dict = {}
-    for item in items or []:
-        fresh = _stored_lines_fresh(item)
-        stored_lines = _stored_trend_lines(item) if fresh else None
+    items = list(items or [])
+
+    def _fetch_one(key) -> object:
+        """One ``(symbol, timeframe)`` frame; ``None`` on any failure."""
+        symbol, timeframe = key
+        try:
+            return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
+        except Exception:
+            return None
+
+    # Phase 1: collect the distinct fetch keys in first-seen order, then fan
+    # the disk-cached ``fetch_for_timeframe`` calls out over a bounded thread
+    # pool. Serial fetching here is the market-hours bottleneck (each fetch
+    # is ~0.5-3s under contention, so a 24-card page takes 20-40s); threads
+    # overlap the I/O waits while pandas work stays on this thread below.
+    # ``run_symbols`` does not fit (its worker takes a bare symbol, but each
+    # key also carries its own timeframe), so only ``max_workers()`` is
+    # reused for the pool bound.
+    ordered_keys: list = []
+    seen_keys: set = set()
+    for item in items:
         symbol = item.get("symbol") if isinstance(item, dict) else None
         timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
         if not symbol or not timeframe:
-            if isinstance(item, dict):
-                item.setdefault("candles", [])
-                item.setdefault("last_close", None)
-                item.setdefault("day_change_pct", None)
-                item["trend_lines"] = [] if not compute_trendlines else (stored_lines if stored_lines is not None else [])
             continue
         key = (symbol, timeframe)
-        if key not in cache:
-            try:
-                cache[key] = candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
-            except Exception:
-                cache[key] = None
-        df = cache[key]
+        if key not in seen_keys:
+            seen_keys.add(key)
+            ordered_keys.append(key)
+    cache: dict = {}
+    if len(ordered_keys) == 1:
+        cache[ordered_keys[0]] = _fetch_one(ordered_keys[0])
+    elif ordered_keys:
         try:
-            if df is not None and not getattr(df, "empty", True):
-                frame = _clamp_to_lookback(df, lookback_bars)
-                item["candles"] = candles.candles_to_series(frame, config.CHART_MAX_BARS)
-            else:
-                item["candles"] = []
+            workers = max(1, min(int(_parallel_max_workers()), len(ordered_keys)))
         except Exception:
-            item["candles"] = []
-        if df is not None and not getattr(df, "empty", True):
-            try:
-                last = float(df["close"].iloc[-1])
-                prev = float(df["close"].iloc[-2]) if len(df) > 1 else last
-                item["last_close"] = last
-                item["day_change_pct"] = round(((last - prev) / prev * 100.0) if prev else 0.0, 2)
-            except Exception:
-                item["last_close"] = None
-                item["day_change_pct"] = None
-        else:
-            item["last_close"] = None
-            item["day_change_pct"] = None
-        if not compute_trendlines:
-            item["trend_lines"] = []
-            continue
-        if stored_lines is not None:
-            item["trend_lines"] = stored_lines
-            continue
-        if key not in tl_cache:
-            try:
-                if df is not None and not getattr(df, "empty", True):
-                    tl_cache[key] = trendlines_mod.detect_trendlines(df)
-                else:
-                    tl_cache[key] = {"support": None, "resistance": None}
-            except Exception:
-                tl_cache[key] = {"support": None, "resistance": None}
+            workers = min(8, len(ordered_keys))
         try:
-            res = tl_cache[key] or {}
-            item["trend_lines"] = [v for v in (res.get("support"), res.get("resistance")) if v]
+            with ThreadPoolExecutor(max_workers=workers) as pool:
+                for key, df in zip(ordered_keys, pool.map(_fetch_one, ordered_keys)):
+                    cache[key] = df
         except Exception:
-            item["trend_lines"] = []
+            # Pool failure (never expected): fall back to serial fetches so
+            # the endpoint still returns rather than raising.
+            for key in ordered_keys:
+                if key not in cache:
+                    cache[key] = _fetch_one(key)
+    tl_cache: dict = {}
+    # Phase 2: per-item enrichment in the original order (clamp, series,
+    # last close/day change, stored-vs-recomputed trendlines) — unchanged.
+    for item in items:
+        symbol = item.get("symbol") if isinstance(item, dict) else None
+        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
+        key = (symbol, timeframe) if (symbol and timeframe) else None
+        _finalize_item(
+            item, cache.get(key) if key is not None else None, key=key,
+            lookback_bars=lookback_bars, compute_trendlines=compute_trendlines,
+            tl_cache=tl_cache,
+        )
     return items
 
 
@@ -535,6 +609,8 @@ class ScanRequest(BaseModel):
     # fetch). Percent for rel-volume, millions of shares for volume.
     min_rel_volume: Optional[float] = None
     min_volume_m: Optional[float] = None
+    # Optional 10-day average volume floor in thousands of shares (K).
+    min_avg_volume_10d: Optional[float] = None
     # Optional as-of replay window (IST ``YYYY-MM-DD`` or
     # ``YYYY-MM-DDTHH:MM[:SS]``). ``as_of_date`` pins the window end (and
     # truncates detection input to it); ``from_date`` pins the window start
@@ -619,6 +695,8 @@ async def create_scan(request: ScanRequest, user: User = Depends(get_current_use
         params["min_rel_volume"] = request.min_rel_volume
     if request.min_volume_m is not None:
         params["min_volume_m"] = request.min_volume_m
+    if request.min_avg_volume_10d is not None:
+        params["min_avg_volume_10d"] = request.min_avg_volume_10d
     if request.timeframe not in _valid_timeframe_ids():
         raise HTTPException(
             status_code=422,
@@ -739,6 +817,194 @@ def _build_filters(
     }
 
 
+# ---------------------------------------------------------------------------
+# SSE streaming (Patterns screen progressive render).
+# ---------------------------------------------------------------------------
+
+#: Defensive cap on streamed items per response (the ``limit`` query param is
+#: already bounded by ``RESULTS_MAX_LIMIT``; this guards programmatic callers
+#: of the generator against unbounded lists).
+_STREAM_MAX_ITEMS = 1000
+
+#: Bounded fan-out for per-item enrichment workers (mirrors the batch path's
+#: ``max_workers()`` bound; never exceeds the item count).
+_STREAM_POOL_WORKERS = 8
+
+#: SSE keep-alive: the drain emits ``event: heartbeat`` after this many idle
+#: seconds so proxies do not close a slow stream.
+_STREAM_HEARTBEAT_SEC = 15.0
+
+_SSE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Connection": "keep-alive",
+    "X-Accel-Buffering": "no",
+}
+
+
+def _sse_event(name: str, payload) -> str:
+    """One SSE frame. Payloads are pre-sanitized, then ``json.dumps``-ed.
+
+    ``sse_starlette`` does NOT auto-serialize dicts, so every payload goes
+    through :func:`json.dumps` explicitly (same discipline as
+    ``api/paper/live_stream.py`` and the trading-agents stream).
+    """
+    return f"event: {name}\ndata: {json.dumps(payload)}\n\n"
+
+
+def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
+                           compute_trendlines, out, stop):
+    """Enrich each item on a bounded pool, enqueueing as results arrive.
+
+    Queue protocol: ``("item", sanitized_dict)`` per enriched card,
+    ``("error", message)`` on a task failure, always terminated by
+    ``("end", None)``. Never raises (the terminator is sent from ``finally``).
+    """
+    df_cache: dict = {}
+    tl_cache: dict = {}
+    lock = threading.Lock()
+
+    def _cached_fetch(key):
+        with lock:
+            if key in df_cache:
+                return df_cache[key]
+        try:
+            df = candles.fetch_for_timeframe(key[0], key[1], lookback_bars=fetch_lb)
+        except Exception:
+            df = None
+        with lock:
+            df_cache.setdefault(key, df)
+        return df_cache.get(key)
+
+    def _task(item):
+        if stop.is_set():
+            return None
+        symbol = item.get("symbol") if isinstance(item, dict) else None
+        timeframe = (item.get("timeframe") if isinstance(item, dict) else None) or default_timeframe
+        key = (symbol, timeframe) if (symbol and timeframe) else None
+        df = _cached_fetch(key) if key is not None else None
+        return _finalize_item(
+            item, df, key=key, lookback_bars=lookback_bars,
+            compute_trendlines=compute_trendlines, tl_cache=tl_cache, lock=lock,
+        )
+
+    try:
+        workers = max(1, min(_STREAM_POOL_WORKERS, len(items) or 1))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = [pool.submit(_task, item) for item in items]
+            for fut in as_completed(futs):
+                if stop.is_set():
+                    for pending in futs:
+                        pending.cancel()
+                    break
+                try:
+                    enriched = fut.result()
+                except Exception as exc:
+                    try:
+                        out.put(("error", str(exc)[:300]))
+                    except Exception:
+                        pass
+                    for pending in futs:
+                        pending.cancel()
+                    break
+                if enriched is None:
+                    continue
+                try:
+                    out.put(("item", _sanitize_for_json(enriched)))
+                except Exception:
+                    pass
+    except Exception as exc:  # pragma: no cover - defensive; worker never raises
+        try:
+            out.put(("error", str(exc)[:300]))
+        except Exception:
+            pass
+    finally:
+        try:
+            out.put(("end", None))
+        except Exception:
+            pass
+
+
+async def _drain_stream_queue(out, request, stop):
+    """Yield ``(kind, payload)`` queue entries; ``("closed", None)`` on disconnect.
+
+    Polls ``request.is_disconnected()`` (when a request is attached) while
+    waiting so a gone client stops production promptly.
+    """
+    loop = asyncio.get_running_loop()
+    while True:
+        if request is not None:
+            try:
+                if await request.is_disconnected():
+                    stop.set()
+                    yield ("closed", None)
+                    return
+            except Exception:
+                pass
+        try:
+            kind, payload = await loop.run_in_executor(
+                None, lambda: out.get(timeout=_STREAM_HEARTBEAT_SEC)
+            )
+        except _queue.Empty:
+            yield ("heartbeat", {})
+            continue
+        yield (kind, payload)
+        if kind in ("end", "error"):
+            return
+
+
+async def _results_sse_events(items, *, default_timeframe, lookback_bars,
+                              compute_trendlines, total, summary, data_through,
+                              request=None):
+    """Async SSE body for ``GET /results/stream`` (also drives the tests).
+
+    Emits ``meta`` immediately (before any candle fetch), one ``item`` per
+    fully enriched card as each enrichment completes, then ``done``. Never
+    raises mid-stream: unexpected failures become ``event: error`` and close
+    the stream.
+    """
+    try:
+        yield _sse_event("meta", _sanitize_for_json({
+            "total": total, "summary": summary, "data_through": data_through,
+        }))
+    except Exception as exc:
+        yield _sse_event("error", {"message": str(exc)[:300]})
+        return
+    stream_items = list(items or [])[:_STREAM_MAX_ITEMS]
+    if not stream_items:
+        yield _sse_event("done", {})
+        return
+    fetch_lb = lookback_bars or config.READ_LOOKBACK_BARS
+    out: _queue.Queue = _queue.Queue(maxsize=_STREAM_MAX_ITEMS + 10)
+    stop = threading.Event()
+    worker = threading.Thread(
+        target=_stream_results_worker,
+        kwargs={
+            "items": stream_items, "default_timeframe": default_timeframe,
+            "fetch_lb": fetch_lb, "lookback_bars": lookback_bars,
+            "compute_trendlines": compute_trendlines, "out": out, "stop": stop,
+        },
+        daemon=True,
+    )
+    worker.start()
+    try:
+        async for kind, payload in _drain_stream_queue(out, request, stop):
+            if kind == "item":
+                yield _sse_event("item", payload)
+            elif kind == "error":
+                message = payload if isinstance(payload, str) else "enrichment failed"
+                yield _sse_event("error", {"message": message})
+                return
+            elif kind == "heartbeat":
+                yield _sse_event("heartbeat", {})
+            elif kind == "end":
+                yield _sse_event("done", {})
+                return
+            elif kind == "closed":
+                return
+    finally:
+        stop.set()
+
+
 @router.get("/results")
 async def get_results(
     job_id: Optional[str] = Query(None),
@@ -784,6 +1050,68 @@ async def get_results(
         "summary": summary,
         "data_through": summary.get("data_through"),
     })
+
+
+@router.get("/results/stream")
+async def stream_results(
+    request: Request,
+    job_id: Optional[str] = Query(None),
+    universe: Optional[str] = Query(None),
+    timeframe: Optional[str] = Query(None),
+    family: Optional[list[str]] = Query(None),
+    direction: Optional[list[str]] = Query(None),
+    status: Optional[list[str]] = Query(None),
+    quality: Optional[str] = Query(None),
+    formed_within_bars: Optional[int] = Query(None),
+    volume_confirmed: Optional[bool] = Query(None),
+    min_rr: Optional[float] = Query(None),
+    symbol: Optional[list[str]] = Query(None),
+    pattern_id: Optional[list[str]] = Query(None),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    q: Optional[str] = Query(None),
+    sort: str = Query("confidence"),
+    limit: int = Query(100, ge=1, le=config.RESULTS_MAX_LIMIT),
+    offset: int = Query(0, ge=0),
+    lookback_bars: Optional[int] = Query(None),
+    compute_trendlines: bool = Query(True),
+    max_52w_gap: Optional[float] = Query(None),
+    min_range_pos: Optional[float] = Query(None),
+    from_date: Optional[str] = Query(None),
+    to_date: Optional[str] = Query(None),
+):
+    """SSE twin of ``GET /results`` (same query params, read-only, open).
+
+    Events: ``meta`` → ``{total, summary, data_through}`` (immediately, before
+    any candle fetch); ``item`` → one fully enriched card (byte-identical to
+    the ``/results`` item via :func:`_finalize_item`); ``done`` → ``{}``.
+    Items stream as each enrichment completes on a bounded pool (a
+    ``queue.Queue`` bridge, like ``api/paper/live_stream.py``); the store
+    query itself is instant, only the enrichment is slow. Client disconnect
+    stops production. Never raises mid-stream (``event: error`` + close).
+    """
+    filters = _build_filters(
+        job_id, universe, timeframe, family, direction, status, quality,
+        formed_within_bars, volume_confirmed, min_rr, symbol, pattern_id,
+        min_base_days, max_range_pct, q, sort=sort, max_52w_gap=max_52w_gap,
+        min_range_pos=min_range_pos, from_date=from_date, to_date=to_date,
+    )
+
+    async def _body():
+        try:
+            items, total, summary = store.query_results(filters, limit=limit, offset=offset)
+        except Exception as exc:
+            yield _sse_event("error", {"message": str(exc)[:300]})
+            return
+        async for frame in _results_sse_events(
+            items, default_timeframe=timeframe, lookback_bars=lookback_bars,
+            compute_trendlines=compute_trendlines, total=total,
+            summary=summary, data_through=summary.get("data_through"),
+            request=request,
+        ):
+            yield frame
+
+    return StreamingResponse(_body(), media_type="text/event-stream", headers=dict(_SSE_HEADERS))
 
 
 @router.get("/summary")
@@ -878,6 +1206,10 @@ def _live_hit_to_dict(hit, symbol: str, timeframe: str) -> Optional[dict]:
         return None
     record.setdefault("symbol", symbol.upper())
     record.setdefault("timeframe", timeframe)
+    try:
+        record["breakout_score"] = store.breakout_score(record)
+    except Exception:
+        pass
     return record
 
 
@@ -1127,6 +1459,33 @@ async def market_status():
     })
 
 
+def _watch_snapshot(setup: str, universe: Optional[str], timeframe: str) -> Optional[dict]:
+    """Fresh precomputed ``/watch`` payload, or ``None`` (caller falls back).
+
+    A parallel change adds ``watch.get_snapshot(setup, universe, timeframe)``;
+    until it lands (or when it reports a miss/stale cache) this returns
+    ``None`` and the endpoint keeps the ``arm`` + ``live`` path. Never raises.
+    """
+    try:
+        getter = getattr(watch_mod, "get_snapshot", None)
+    except Exception:
+        return None
+    if not callable(getter):
+        return None
+    try:
+        snap = getter(setup, universe=universe, timeframe=timeframe)
+    except TypeError:
+        try:
+            snap = getter(setup)
+        except Exception:
+            return None
+    except Exception:
+        return None
+    if not isinstance(snap, dict) or not isinstance(snap.get("items"), list):
+        return None
+    return snap
+
+
 @router.get("/watch")
 async def get_watch(
     setup: str = Query("breakout"),
@@ -1134,13 +1493,18 @@ async def get_watch(
     timeframe: str = Query("1D"),
     min_base_days: Optional[int] = Query(None),
     max_range_pct: Optional[float] = Query(None),
-    min_rel_volume: float = Query(1.5),
+    min_rel_volume: float = Query(0.7),
 ):
     if setup not in watch_mod.SETUPS:
         raise HTTPException(
             status_code=404,
             detail=f"unknown setup {setup!r}. Known: {sorted(watch_mod.SETUPS)}",
         )
+    # Fast path: a fresh precomputed snapshot (rebuilt by a background job)
+    # returns instantly; only a miss/stale cache falls through to arm + live.
+    snap = _watch_snapshot(setup, universe, timeframe)
+    if snap is not None:
+        return _sanitize_for_json(snap)
     # Store reads + price/volume fan-out can block — keep them off the loop.
     rows = await run_in_threadpool(
         watch_mod.arm,
@@ -1164,3 +1528,156 @@ async def get_watch(
         "updated_at": datetime.now(root_config.IST).isoformat(),
         "items": items,
     })
+
+
+def _stream_watch_live_worker(rows, *, min_rel_volume, out, stop):
+    """Run ``watch.live`` per armed row on a bounded pool, streaming each row.
+
+    Each single-row ``live([row])`` call reuses the exact batch logic, so a
+    streamed row matches its ``/watch`` twin; rows are enqueued as computed
+    (completion order, not the batch endpoint's ranked order — clients
+    re-sort). Queue protocol mirrors :func:`_stream_results_worker`.
+    """
+    try:
+        workers = max(1, min(_STREAM_POOL_WORKERS, len(rows) or 1))
+        with ThreadPoolExecutor(max_workers=workers) as pool:
+            futs = [
+                pool.submit(watch_mod.live, [row], min_rel_volume=min_rel_volume)
+                for row in rows
+            ]
+            for fut in as_completed(futs):
+                if stop.is_set():
+                    for pending in futs:
+                        pending.cancel()
+                    break
+                try:
+                    computed = fut.result()
+                except Exception as exc:
+                    try:
+                        out.put(("error", str(exc)[:300]))
+                    except Exception:
+                        pass
+                    for pending in futs:
+                        pending.cancel()
+                    break
+                for live_row in computed or []:
+                    try:
+                        out.put(("item", _sanitize_for_json(live_row)))
+                    except Exception:
+                        pass
+    except Exception as exc:  # pragma: no cover - defensive; worker never raises
+        try:
+            out.put(("error", str(exc)[:300]))
+        except Exception:
+            pass
+    finally:
+        try:
+            out.put(("end", None))
+        except Exception:
+            pass
+
+
+async def _watch_sse_events(setup, *, universe, timeframe, min_base_days,
+                            max_range_pct, min_rel_volume, request=None):
+    """Async SSE body for ``GET /watch/stream`` (also drives the tests).
+
+    Emits ``meta`` → ``{setup, min_rel_volume}`` immediately, then one
+    ``item`` per live row (snapshot rows first when a fresh snapshot exists,
+    else each ``live()`` row as computed), then ``done``. Never raises
+    mid-stream: unexpected failures become ``event: error`` and close.
+    """
+    try:
+        yield _sse_event("meta", _sanitize_for_json({
+            "setup": setup, "min_rel_volume": min_rel_volume,
+        }))
+    except Exception as exc:
+        yield _sse_event("error", {"message": str(exc)[:300]})
+        return
+    try:
+        snap = _watch_snapshot(setup, universe, timeframe)
+    except Exception:
+        snap = None
+    if snap is not None:
+        try:
+            for row in list(snap.get("items") or [])[:_STREAM_MAX_ITEMS]:
+                yield _sse_event("item", _sanitize_for_json(row))
+            yield _sse_event("done", {})
+        except Exception as exc:
+            yield _sse_event("error", {"message": str(exc)[:300]})
+        return
+    try:
+        rows = await run_in_threadpool(
+            watch_mod.arm, setup, universe=universe, timeframe=timeframe,
+            min_base_days=min_base_days, max_range_pct=max_range_pct,
+        )
+    except Exception as exc:
+        yield _sse_event("error", {"message": str(exc)[:300]})
+        return
+    rows = list(rows or [])[:_STREAM_MAX_ITEMS]
+    if not rows:
+        yield _sse_event("done", {})
+        return
+    out: _queue.Queue = _queue.Queue(maxsize=_STREAM_MAX_ITEMS + 10)
+    stop = threading.Event()
+    worker = threading.Thread(
+        target=_stream_watch_live_worker,
+        kwargs={"rows": rows, "min_rel_volume": min_rel_volume, "out": out, "stop": stop},
+        daemon=True,
+    )
+    worker.start()
+    try:
+        async for kind, payload in _drain_stream_queue(out, request, stop):
+            if kind == "item":
+                yield _sse_event("item", payload)
+            elif kind == "error":
+                message = payload if isinstance(payload, str) else "watch failed"
+                yield _sse_event("error", {"message": message})
+                return
+            elif kind == "heartbeat":
+                yield _sse_event("heartbeat", {})
+            elif kind == "end":
+                yield _sse_event("done", {})
+                return
+            elif kind == "closed":
+                return
+    finally:
+        stop.set()
+
+
+@router.get("/watch/stream")
+async def stream_watch(
+    request: Request,
+    setup: str = Query("breakout"),
+    universe: Optional[str] = Query(None),
+    timeframe: str = Query("1D"),
+    min_base_days: Optional[int] = Query(None),
+    max_range_pct: Optional[float] = Query(None),
+    min_rel_volume: float = Query(0.7),
+):
+    """SSE twin of ``GET /watch`` (same query params, read-only, open).
+
+    Events: ``meta`` → ``{setup, min_rel_volume}`` (immediately);
+    ``item`` → one live row; ``done`` → ``{}``. ``arm()`` rows are cheap
+    (store read / session cache) so they resolve fast; each ``live()`` row
+    streams as computed on a bounded pool (``queue.Queue`` bridge, like
+    ``api/paper/live_stream.py``). A fresh precomputed snapshot
+    (``watch.get_snapshot``) is emitted item-by-item instead. Client
+    disconnect stops production. Never raises mid-stream (``event: error``
+    + close). Unknown setups 404 before the stream starts (same as
+    ``/watch``).
+    """
+    if setup not in watch_mod.SETUPS:
+        raise HTTPException(
+            status_code=404,
+            detail=f"unknown setup {setup!r}. Known: {sorted(watch_mod.SETUPS)}",
+        )
+
+    async def _body():
+        async for frame in _watch_sse_events(
+            setup, universe=universe, timeframe=timeframe,
+            min_base_days=min_base_days, max_range_pct=max_range_pct,
+            min_rel_volume=min_rel_volume, request=request,
+        ):
+            yield frame
+
+    return StreamingResponse(_body(), media_type="text/event-stream", headers=dict(_SSE_HEADERS))

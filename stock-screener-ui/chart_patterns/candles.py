@@ -9,9 +9,10 @@ Cache layout (mirrors ``api/paper/chart_cache.py``)::
     experiments/data/pattern_cache/candles/{tf}/{SYMBOL}.pkl
     experiments/data/pattern_cache/candles/{tf}/{SYMBOL}.meta
 
-Today's data has a 60s TTL while the market is open; once the session is
-complete the entry is pinned to that session (``meta["session"]``) so it
-stays fresh across weekends/holidays. Historical data never expires.
+While the market is open, today's entry has a short TTL (intraday bars keep
+moving); once the session is complete the entry is pinned to that session
+(``meta["session"]``) so it stays fresh across weekends/holidays.
+Historical data never expires.
 """
 from __future__ import annotations
 
@@ -32,8 +33,12 @@ CACHE_DIR = Path(__file__).resolve().parent.parent / "experiments" / "data" / "p
 #: completed-session backfill from the 1-minute tape) so pre-existing entries on
 #: disk are ignored rather than served as if still fresh — the session pin only
 #: tracks *which* session a frame ends on, not what it contains.
-CACHE_VERSION = 2
-TODAY_TTL_SECONDS = 60
+CACHE_VERSION = 3
+#: TTL for today's entry while the market is open. Completed-session bars
+#: are immutable, and the in-progress session never enters the cache, so a
+#: 5-minute window keeps repeat screens instant without serving stale data
+#: across sessions (the session pin takes over once the market closes).
+TODAY_TTL_SECONDS = 300
 
 # Target minutes -> pandas resample rule for targets that are NOT native Upstox
 # units (3m is fetched as 1m; 2h/3h/4h are fetched as 1h then resampled).
@@ -240,7 +245,9 @@ def _read_cached(path: Path, is_today: bool) -> Optional[pd.DataFrame]:
         return None
 
 
-def _write_cached(path: Path, df: pd.DataFrame, is_today: bool) -> None:
+def _write_cached(
+    path: Path, df: pd.DataFrame, is_today: bool, session_pin: Optional[str] = None
+) -> None:
     if df is None or df.empty:
         return
     try:
@@ -248,11 +255,13 @@ def _write_cached(path: Path, df: pd.DataFrame, is_today: bool) -> None:
         with open(path, "wb") as f:
             pickle.dump(df, f)
         if is_today:
+            # Pin to the frame's own last session when provided (1D): a frame
+            # that stops short of the last completed session (the official
+            # daily endpoint lags the tape) must not be stamped as current, or
+            # the wall-clock session pin would serve it as fresh all session.
+            stamp = session_pin or _last_completed_session().isoformat()
             with open(path.with_suffix(".meta"), "w") as f:
-                json.dump(
-                    {"ts": time.time(), "session": _last_completed_session().isoformat()},
-                    f,
-                )
+                json.dump({"ts": time.time(), "session": stamp}, f)
     except Exception:
         pass
 
@@ -366,6 +375,7 @@ def fetch_for_timeframe(
     lookback_bars: Optional[int] = None,
     include_partial_today: bool = False,
     from_date: Optional[str] = None,
+    force_refresh: bool = False,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -379,7 +389,8 @@ def fetch_for_timeframe(
     window end (its date part; a time portion only affects replay truncation
     by callers). Either one namespaces the cache entry so a ``(from, to)``
     window or an intraday as-of never poisons the default cache. Behaviour
-    is identical when both are ``None``.
+    is identical when both are ``None``. ``force_refresh=True`` skips the
+    cache read (the fresh frame is still written back).
 
     On ``"1D"`` with a live-edge window the base frame already contains the
     core's completed-session backfill (missing recent sessions synthesized
@@ -443,7 +454,7 @@ def fetch_for_timeframe(
 
     is_today = _is_today(to_date)
     cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
-    cached = _read_cached(cache_path, is_today)
+    cached = None if force_refresh else _read_cached(cache_path, is_today)
     if cached is not None:
         df = cached
     else:
@@ -469,7 +480,12 @@ def fetch_for_timeframe(
         if df is None or df.empty:
             return None
 
-        _write_cached(cache_path, df, is_today)
+        _write_cached(
+            cache_path,
+            df,
+            is_today,
+            session_pin=(frame_last_date(df) if tf_id == "1D" else None),
+        )
 
     if include_partial_today and tf_id == "1D" and is_today:
         df = _with_partial_today(df, symbol, api_client)

@@ -302,3 +302,61 @@ def test_sort_range_pos_orders_desc(cp_store):
 
     assert total == 3
     assert [item["symbol"] for item in items] == ["HIGHC", "LOWC", "NULLC"]
+
+
+def test_breakout_score_formula():
+    """Breakout score: 0.45*range_pos + 0.25*confidence + 0.20*status_w + 0.10*direction_w."""
+    # 0.45*90 + 0.25*80 + 0.20*100 + 0.10*100 = 40.5 + 20 + 20 + 10 = 90.5
+    assert store.breakout_score({
+        "range_pos": 90.0, "confidence": 80.0,
+        "status": "confirmed", "direction": "bullish",
+    }) == 90.5
+    # 0.45*50 + 0.25*60 + 0.20*60 + 0.10*50 = 22.5 + 15 + 12 + 5 = 54.5
+    assert store.breakout_score({
+        "range_pos": 50.0, "confidence": 60.0,
+        "status": "forming", "direction": "neutral",
+    }) == 54.5
+    # bearish/other statuses contribute 0; Nones coalesce to 0.
+    assert store.breakout_score({
+        "range_pos": None, "confidence": None,
+        "status": "failed", "direction": "bearish",
+    }) == 0.0
+    assert store.breakout_score({}) == 0.0
+
+
+def test_query_results_attach_breakout_score(cp_store):
+    store.save_job({"job_id": "cpj_bs", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_bs", [_hit("AAA", range_pos=90.0, confidence=80.0)])
+
+    items, total, _ = store.query_results({"job_id": "cpj_bs"})
+
+    assert total == 1
+    assert items[0]["breakout_score"] == 90.5
+
+
+def test_sort_breakout_orders_by_conviction(cp_store):
+    """`sort="breakout"` ranks confirmed/bullish/high-range_pos first, not confidence."""
+    store.save_job({"job_id": "cpj_bo", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_bo", [
+        # High confidence but weak conviction: forming/bearish/low range_pos.
+        _hit("WEAK", range_pos=10.0, confidence=99.0, status="forming", direction="bearish"),
+        # Lower confidence but strong conviction: confirmed/bullish/high range_pos.
+        _hit("STRONG", range_pos=90.0, confidence=10.0, status="confirmed", direction="bullish"),
+        _hit("MID", range_pos=50.0, confidence=50.0, status="forming", direction="neutral"),
+    ])
+
+    items, total, _ = store.query_results({"job_id": "cpj_bo", "sort": "breakout"})
+
+    assert total == 3
+    assert [item["symbol"] for item in items] == ["STRONG", "MID", "WEAK"]
+    scores = [item["breakout_score"] for item in items]
+    assert scores == sorted(scores, reverse=True)
+
+
+def test_symbol_detail_attaches_breakout_score(cp_store):
+    store.save_job({"job_id": "cpj_bsd", "universe": "nifty50", "timeframe": "1D", "status": "completed"})
+    store.save_hits("cpj_bsd", [_hit("AAA", range_pos=90.0, confidence=80.0)])
+
+    detail = store.get_symbol_detail("AAA", "1D")
+
+    assert detail["patterns"][0]["breakout_score"] == 90.5

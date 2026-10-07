@@ -1129,8 +1129,10 @@ def test_1d_partial_appends_synthetic_bar_from_tape(monkeypatch, tmp_path):
     assert last["close"] == pytest.approx(tape["close"].iloc[-1])
     assert last["volume"] == pytest.approx(tape["volume"].sum())
     # The synthetic bar is never cached: the disk entry holds the base frame.
+    # Read unvalidated: the mocked base frame is dated 2020, so the session pin
+    # would (correctly) reject it as stale on the today path.
     reread = candles_mod._read_cached(
-        candles_mod._cache_path("1D", "AAA"), is_today=True
+        candles_mod._cache_path("1D", "AAA"), is_today=False
     )
     assert reread is not None and len(reread) == len(base)
 
@@ -1246,11 +1248,12 @@ def test_run_scan_prefilter_called_once_and_limits_symbols(cp_store, monkeypatch
         fetched.append(symbol)
         return _make_df(80)
 
-    def fake_prefilter(symbols, *, min_rel_volume=None, min_volume_m=None):
+    def fake_prefilter(symbols, *, min_rel_volume=None, min_volume_m=None, min_avg_volume_10d=None):
         prefilter_calls.append({
             "symbols": list(symbols),
             "min_rel_volume": min_rel_volume,
             "min_volume_m": min_volume_m,
+            "min_avg_volume_10d": min_avg_volume_10d,
         })
         return ["AAA"], {"before": 3, "after": 1, "message": "TV prefilter: 3 → 1"}
 
@@ -1261,7 +1264,7 @@ def test_run_scan_prefilter_called_once_and_limits_symbols(cp_store, monkeypatch
 
     store.save_job({
         "job_id": "cpj_tvpre", "universe": "nifty500", "timeframe": "1D",
-        "status": "queued", "params": {"min_rel_volume": 1.5, "min_volume_m": 1.0},
+        "status": "queued", "params": {"min_rel_volume": 1.5, "min_volume_m": 1.0, "min_avg_volume_10d": 150},
     })
     scan.run_scan("cpj_tvpre")
 
@@ -1269,6 +1272,7 @@ def test_run_scan_prefilter_called_once_and_limits_symbols(cp_store, monkeypatch
     assert prefilter_calls[0]["symbols"] == ["AAA", "BBB", "CCC"]
     assert prefilter_calls[0]["min_rel_volume"] == 1.5
     assert prefilter_calls[0]["min_volume_m"] == 1.0
+    assert prefilter_calls[0]["min_avg_volume_10d"] == 150
     assert fetched == ["AAA"]
     row = store.get_job("cpj_tvpre")
     assert row["status"] == "completed"

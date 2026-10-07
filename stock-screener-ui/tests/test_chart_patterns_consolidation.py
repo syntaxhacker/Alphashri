@@ -198,6 +198,24 @@ def test_trends_and_flat_lines_are_rejected(closes):
     assert _detect(frame(closes)) == []
 
 
+def test_gradual_uptrend_with_stale_low_is_rejected():
+    """A slow drift under the near-flat threshold whose low is only at the
+    start is a trend, not a base: the oscillation check must require the box
+    edges to be retested in the second half (regression: KOTAKBANK 1D,
+    Apr-Oct 2026 — ~+9% drift with a low last touched months before the end)."""
+    i = np.arange(200)
+    closes = 100.0 + 0.6 * np.sin(i * 2.0 * np.pi / 20.0) + np.linspace(0.0, 8.0, len(i))
+    assert _detect(frame(closes)) == []
+
+
+def test_v_shape_decline_then_rally_is_rejected():
+    """A decline to a low then a rally to the box top (a reversal) is not a
+    base: one half never touches the opposite edge (regression: DRREDDY 1D,
+    Aug-Oct 2026 — low sat at the midpoint, both edges "touched" once)."""
+    closes = np.concatenate([np.linspace(100.0, 88.0, 32), np.linspace(88.0, 108.0, 32)])
+    assert _detect(frame(closes)) == []
+
+
 # ---------------------------------------------------------------------------
 # Store round-trip + filters
 # ---------------------------------------------------------------------------

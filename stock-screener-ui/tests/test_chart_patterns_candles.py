@@ -120,6 +120,23 @@ def test_write_cached_stamps_session(cache_dir, monkeypatch):
     assert meta["ts"] > 0
 
 
+def test_write_cached_honours_explicit_session_pin(cache_dir, monkeypatch):
+    """A 1D frame that stops short of the last completed session is pinned to
+    its own last session, so the read-side check invalidates it instead of
+    serving it as fresh (regression: 1D cache stamped one session ahead)."""
+    monkeypatch.setattr("trading.utils.is_market_open", lambda *a, **k: False)
+    monkeypatch.setattr(
+        candles_mod, "_last_completed_session", lambda now=None: date(2026, 10, 6)
+    )
+    path = cache_dir / "1D" / "AAA.pkl"
+    candles_mod._write_cached(path, _make_df(), is_today=True, session_pin="2026-10-05")
+    with open(path.with_suffix(".meta")) as f:
+        meta = json.load(f)
+    assert meta["session"] == "2026-10-05"
+    # Pinned behind the last completed session -> served as stale (None).
+    assert candles_mod._read_cached(path, True) is None
+
+
 # ---------------------------------------------------------------------------
 # TTL still applies while the market is open
 # ---------------------------------------------------------------------------

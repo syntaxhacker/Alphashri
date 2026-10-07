@@ -164,11 +164,14 @@ def fetch_candles_for_timeframe(
       ``"1D"`` with a window ending today, sessions present in the recent
       1-minute tape but missing from the official daily frame (the daily
       endpoint lags the minute tape by >= 1 session) are backfilled as
-      ordinary completed-session bars (always, not opt-in). With
-      ``include_partial_today=True`` on ``"1D"``, one synthetic bar for the
-      current session (aggregated from today's 1-minute tape, never a
-      "daily intraday" fetch) is appended unless the official daily bar
-      for that date already exists (official wins).
+      ordinary completed-session bars (always, not opt-in) — except the
+      tape is not fetched at all when the frame already ends at the last
+      completed session. With ``include_partial_today=True`` on ``"1D"``,
+      one synthetic bar for the current session (aggregated from today's
+      1-minute tape, never a "daily intraday" fetch) is appended unless the
+      official daily bar for that date already exists (official wins);
+      today's rows are reused from the backfill tape when it carries them
+      so the provider sees at most one extra call.
     - non-native (registry ``source_tf`` set: ``3m`` from ``1m``,
       ``2h``/``3h`` from ``1h``): the source timeframe is fetched as above
       then resampled to the target width.
@@ -251,21 +254,12 @@ def fetch_candles_for_timeframe(
                 # Live edge: the official daily frame lags the minute tape by
                 # >= 1 session, so top up missing *completed* sessions first.
                 # Today's in-progress session stays opt-in (see below).
-                df = _backfill_completed_daily_sessions(api, sym, df, today_str)
-            if (
-                df is not None
-                and not df.empty
-                and include_partial_today
-                and timeframe == "1D"
-                and eff_to == today_str
-            ):
-                synth = _synthetic_today_bar(api, sym)
-                if (
-                    synth is not None
-                    and not synth.empty
-                    and not _has_session_bar(df, synth.index[0])
-                ):
-                    df = _concat_merge(df, synth)
+                # The tape is fetched at most once and skipped entirely when
+                # the frame already ends at the last completed session.
+                df = _daily_live_edge(
+                    api, sym, df, today_str,
+                    include_partial_today=bool(include_partial_today),
+                )
     except Exception:
         return None
 
@@ -411,6 +405,62 @@ def _fetch_historical_window(
         return None
 
 
+def _daily_last_session_date(df: pd.DataFrame):
+    """IST session date (``datetime.date``) of the frame's last bar, else None.
+
+    Daily bars are stamped 18:30 UTC of the prior day, so the UTC calendar
+    date is wrong — normalize through IST first. Never raises.
+    """
+    try:
+        if df is None or getattr(df, "empty", True):
+            return None
+        return pd.Timestamp(df.index[-1]).tz_convert(_IST).normalize().date()
+    except Exception:
+        try:
+            return pd.Timestamp(df.index[-1]).date()
+        except Exception:
+            return None
+
+
+def _fetch_backfill_tape(api, symbol: str, today_str: str) -> Optional[pd.DataFrame]:
+    """Fetch the recent 1-minute tape used for the 1D live edge.
+
+    Single chunk (10 days < the 30-day minutes chunk size): one HTTP call.
+    Returns the tz-normalized, sorted tape, or None on any failure.
+    """
+    try:
+        window_from = (
+            datetime.strptime(today_str, "%Y-%m-%d")
+            - timedelta(days=_DAILY_BACKFILL_LOOKBACK_DAYS)
+        ).strftime("%Y-%m-%d")
+        tape = api.fetch_historical_data_v3(
+            symbol=symbol,
+            unit="minutes",
+            interval=1,
+            to_date=today_str,
+            from_date=window_from,
+        )
+    except Exception:
+        return None
+    if tape is None or tape.empty:
+        return None
+    try:
+        tape = _normalize_tz(tape).sort_index()
+    except Exception:
+        return None
+    return None if tape.empty else tape
+
+
+def _tape_session_rows(tape: pd.DataFrame, session_date) -> Optional[pd.DataFrame]:
+    """Rows of ``tape`` belonging to one IST ``session_date`` (a date)."""
+    try:
+        day = pd.Timestamp(session_date).tz_localize("UTC").tz_convert(_IST).normalize()
+        rows = tape[tape.index.tz_convert(_IST).normalize() == day]
+        return rows if not rows.empty else None
+    except Exception:
+        return None
+
+
 def _synthesize_bar_from_tape(tape: pd.DataFrame) -> Optional[pd.DataFrame]:
     """Aggregate one session's 1-minute tape into a single daily bar.
 
@@ -447,21 +497,27 @@ def _synthesize_bar_from_tape(tape: pd.DataFrame) -> Optional[pd.DataFrame]:
 
 
 def _backfill_completed_daily_sessions(
-    api, symbol: str, df: pd.DataFrame, today_str: str
+    api, symbol: str, df: pd.DataFrame, today_str: str,
+    tape: Optional[pd.DataFrame] = None,
 ) -> pd.DataFrame:
     """Top up a live-edge 1D frame with completed sessions missing from it.
 
     The official daily endpoint lags the minute tape by >= 1 session, so a
     session present in the recent 1-minute tape but absent from the daily
     frame gets a synthesized OHLCV bar (same aggregation as
-    :func:`_synthesize_bar_from_tape`). Only sessions strictly *before* the
-    current IST date are backfilled — today's in-progress session stays
+    :func:`_synthesize_bar_from_tape`). Only sessions up to the last
+    *completed* session are backfilled — the in-progress session stays
     opt-in via ``include_partial_today`` — and only sessions within
     ``_DAILY_BACKFILL_LOOKBACK_DAYS`` of today (the official endpoint owns
     older history; this also ignores stale mock tapes). Backfilled bars are
     ordinary completed-session bars: never flagged partial and safe to cache.
     Never raises: returns ``df`` unchanged on any failure. No-op when ``df``
     is empty (error contract: empty stays empty).
+
+    ``tape`` is an already-fetched 1-minute tape (normalized or not); when
+    None it is fetched once via :func:`_fetch_backfill_tape`. Passing the
+    tape lets the 1D live edge share one fetch between the backfill and the
+    opt-in synthetic today bar instead of hitting the provider twice.
     """
     if df is None or df.empty:
         return df
@@ -469,20 +525,18 @@ def _backfill_completed_daily_sessions(
         today_date = datetime.strptime(today_str, "%Y-%m-%d").date()
     except (ValueError, TypeError):
         return df
+    # Backfill through the last *completed* session — not merely "before
+    # today": between the 15:30 close and midnight the just-closed session is
+    # already final, and the official daily endpoint lags it by >= 1 session.
+    # The in-progress session still stays opt-in via ``include_partial_today``.
     try:
-        window_from = (
-            datetime.strptime(today_str, "%Y-%m-%d")
-            - timedelta(days=_DAILY_BACKFILL_LOOKBACK_DAYS)
-        ).strftime("%Y-%m-%d")
-        tape = api.fetch_historical_data_v3(
-            symbol=symbol,
-            unit="minutes",
-            interval=1,
-            to_date=today_str,
-            from_date=window_from,
-        )
+        from chart_patterns.candles import _last_completed_session
+
+        last_done = _last_completed_session()
     except Exception:
-        return df
+        last_done = None
+    if tape is None:
+        tape = _fetch_backfill_tape(api, symbol, today_str)
     if tape is None or tape.empty:
         return df
     try:
@@ -501,8 +555,9 @@ def _backfill_completed_daily_sessions(
             session_date = pd.Timestamp(day).tz_convert(_IST).date()
         except Exception:
             continue
-        if session_date >= today_date:
-            continue  # today's session stays opt-in (include_partial_today)
+        cutoff = last_done if last_done is not None else (today_date - timedelta(days=1))
+        if session_date > cutoff:
+            continue  # in-progress/future session stays opt-in (include_partial_today)
         if (today_date - session_date).days > _DAILY_BACKFILL_LOOKBACK_DAYS:
             continue  # official history, not a recent gap
         if _has_session_bar(df, group.index[0]):
@@ -516,6 +571,82 @@ def _backfill_completed_daily_sessions(
         return _concat_merge(*parts)
     except Exception:
         return df
+
+
+def _daily_live_edge(
+    api, symbol: str, df: pd.DataFrame, today_str: str,
+    include_partial_today: bool,
+) -> pd.DataFrame:
+    """Apply the 1D live edge: gap backfill + optional synthetic today bar.
+
+    Fast path (the common case): when the official daily frame already ends
+    at the last completed session there is no gap to fill, so the 1-minute
+    tape is never fetched — unless ``include_partial_today`` needs today's
+    rows (one intraday call). Slow path: fetch the 10-day 1-minute tape
+    once and share it between the completed-session backfill and the
+    synthetic today bar, so the provider sees at most two calls (one without
+    the flag) instead of three. Never raises: returns ``df`` unchanged on
+    any failure.
+    """
+    if df is None or df.empty:
+        return df
+    try:
+        today_date = datetime.strptime(today_str, "%Y-%m-%d").date()
+    except (ValueError, TypeError):
+        return df
+    try:
+        from chart_patterns.candles import (  # lazy: candles imports this module
+            _last_completed_session,
+        )
+        last_done = _last_completed_session()
+    except Exception:
+        last_done = None
+    try:
+        last_bar = _daily_last_session_date(df)
+    except Exception:
+        last_bar = None
+
+    tape: Optional[pd.DataFrame] = None
+    if (
+        last_done is not None
+        and last_bar is not None
+        and last_bar >= last_done
+        and not include_partial_today
+    ):
+        return df  # current: no gap, no tape fetch
+    if last_done is not None and last_bar is not None and last_bar >= last_done:
+        tape = None  # current, but the flag below still needs today's rows
+    else:
+        tape = _fetch_backfill_tape(api, symbol, today_str)
+        if tape is not None and not tape.empty:
+            df = _backfill_completed_daily_sessions(
+                api, symbol, df, today_str, tape=tape
+            )
+    if include_partial_today and not _has_session_bar(df, pd.Timestamp.now(tz="UTC")):
+        # Reuse today's rows from the already-fetched tape when present
+        # (the historical minutes leg can carry the in-progress session);
+        # otherwise fall back to one intraday fetch.
+        synth: Optional[pd.DataFrame] = None
+        if tape is not None and not tape.empty:
+            try:
+                today_rows = _tape_session_rows(tape, today_date)
+                synth = _synthesize_bar_from_tape(today_rows)
+            except Exception:
+                synth = None
+        if (synth is None or synth.empty):
+            # Tape had no rows for today (usual: the historical leg omits
+            # the in-progress session) — one intraday fetch, as before.
+            synth = _synthetic_today_bar(api, symbol)
+        if (
+            synth is not None
+            and not synth.empty
+            and not _has_session_bar(df, synth.index[0])
+        ):
+            try:
+                df = _concat_merge(df, synth)
+            except Exception:
+                pass
+    return df
 
 
 def _synthetic_today_bar(api, symbol: str) -> Optional[pd.DataFrame]:

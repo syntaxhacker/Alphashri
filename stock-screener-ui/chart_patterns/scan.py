@@ -58,7 +58,7 @@ SCAN_FRESH_SECONDS = int(os.environ.get("PATTERN_SCAN_FRESH_SEC", "300"))
 # Detector/data signature version for the freshness short-circuit. Bump when
 # any detector changes so a non-forced scan recomputes once instead of
 # silently reusing hits from the previous detector version.
-SCAN_DETECTOR_VERSION = 2
+SCAN_DETECTOR_VERSION = 5
 
 
 def _detector_signature(data_through: Optional[str] = None) -> str:
@@ -396,6 +396,7 @@ def run_job(job_id: str) -> None:
     lookback_bars = params.get("lookback_bars")
     min_rel_volume = params.get("min_rel_volume")
     min_volume_m = params.get("min_volume_m")
+    min_avg_volume_10d = params.get("min_avg_volume_10d")
     compute_trendlines = params.get("compute_trendlines", True)
     if compute_trendlines is None:
         compute_trendlines = True
@@ -423,7 +424,7 @@ def run_job(job_id: str) -> None:
     # candle fetch, so low-energy symbols never cost an Upstox call. Fail-open
     # (all symbols pass) when TV is unavailable.
     prefilter_message: str | None = None
-    if min_rel_volume is not None or min_volume_m is not None:
+    if min_rel_volume is not None or min_volume_m is not None or min_avg_volume_10d is not None:
         before = len(symbols)
         try:
             if tv_prefilter_mod is None:
@@ -432,6 +433,7 @@ def run_job(job_id: str) -> None:
                 symbols,
                 min_rel_volume=min_rel_volume,
                 min_volume_m=min_volume_m,
+                min_avg_volume_10d=min_avg_volume_10d,
             )
             prefilter_message = str(
                 _prefilter_info.get("message") or f"TV prefilter: {before} → {len(symbols)}"

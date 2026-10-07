@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any, Iterable, Optional
 
-from sqlalchemy import func
+from sqlalchemy import case, func
 
 from db.database import SessionLocal
 
@@ -60,6 +60,72 @@ def _parse_params(raw) -> dict:
 def _with_params(row_dict: dict, raw) -> dict:
     row_dict["params"] = _parse_params(raw)
     return row_dict
+
+
+def _coalesce_num(value) -> float:
+    """Coerce ``value`` to float, returning 0.0 for None/NaN/Inf/garbage."""
+    if value is None:
+        return 0.0
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return 0.0
+    try:
+        import math
+
+        if not math.isfinite(out):
+            return 0.0
+    except Exception:
+        return 0.0
+    return out
+
+
+def breakout_score(dto: dict) -> float:
+    """Breakout conviction score (0–100) from stored columns only.
+
+    ``score = round(0.45*range_pos + 0.25*confidence + 0.20*status_w
+    + 0.10*direction_w, 1)`` where ``status_w`` is confirmed=100 /
+    forming=60 / else=0 and ``direction_w`` is bullish=100 / neutral=50 /
+    bearish=0 (anything else=0). ``range_pos``/``confidence`` coalesce to 0.
+    ``to_52w_high`` is intentionally NOT an input (it is attached post-query).
+    Never raises: non-dict input yields 0.0.
+    """
+    try:
+        item = dto if isinstance(dto, dict) else {}
+        status_w = {"confirmed": 100.0, "forming": 60.0}.get(str(item.get("status") or ""), 0.0)
+        direction_w = {"bullish": 100.0, "neutral": 50.0, "bearish": 0.0}.get(
+            str(item.get("direction") or ""), 0.0
+        )
+        score = (
+            0.45 * _coalesce_num(item.get("range_pos"))
+            + 0.25 * _coalesce_num(item.get("confidence"))
+            + 0.20 * status_w
+            + 0.10 * direction_w
+        )
+        return round(score, 1)
+    except Exception:
+        return 0.0
+
+
+def _breakout_score_expr():
+    """SQLAlchemy expression mirroring :func:`breakout_score` for ORDER BY."""
+    status_w = case(
+        (PatternHit.status == "confirmed", 100.0),
+        (PatternHit.status == "forming", 60.0),
+        else_=0.0,
+    )
+    direction_w = case(
+        (PatternHit.direction == "bullish", 100.0),
+        (PatternHit.direction == "neutral", 50.0),
+        (PatternHit.direction == "bearish", 0.0),
+        else_=0.0,
+    )
+    return (
+        0.45 * func.coalesce(PatternHit.range_pos, 0.0)
+        + 0.25 * func.coalesce(PatternHit.confidence, 0.0)
+        + 0.20 * status_w
+        + 0.10 * direction_w
+    )
 
 
 def set_session_factory(factory) -> None:
@@ -477,6 +543,11 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
     breaking ties by confidence then insertion order.
     ``filters["sort"] == "range_pos"`` orders by consolidation ``range_pos``
     descending (NULLs last), breaking ties by confidence then insertion order.
+    ``filters["sort"] == "breakout"`` orders by the breakout-conviction
+    expression ``0.45*range_pos + 0.25*confidence + 0.20*status_w +
+    0.10*direction_w`` descending (see :func:`breakout_score`), breaking
+    ties by confidence then insertion order. Every returned hit carries
+    ``breakout_score`` (rounded to 1dp).
     """
     session = _new_session()
     try:
@@ -496,6 +567,12 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
                 PatternHit.confidence.desc().nullslast(),
                 PatternHit.id.desc(),
             )
+        elif filters.get("sort") == "breakout":
+            order_by = (
+                _breakout_score_expr().desc(),
+                PatternHit.confidence.desc().nullslast(),
+                PatternHit.id.desc(),
+            )
         else:
             order_by = (PatternHit.confidence.desc().nullslast(), PatternHit.id.desc())
         rows = (
@@ -507,6 +584,7 @@ def query_results(filters: dict, limit: int = 100, offset: int = 0):
         items = []
         for row in rows:
             dto = row.to_dict()
+            dto["breakout_score"] = breakout_score(dto)
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
             items.append(dto)
@@ -691,6 +769,7 @@ def get_symbol_detail(symbol: str, timeframe: Optional[str] = None) -> dict:
         patterns = []
         for row in best.values():
             dto = row.to_dict()
+            dto["breakout_score"] = breakout_score(dto)
             dto["trend_lines"] = _payload_trend_lines(row.payload_json)
             dto["trend_lines_sig"] = _payload_trend_lines_sig(row.payload_json)
             patterns.append(dto)

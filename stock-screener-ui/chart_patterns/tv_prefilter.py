@@ -158,11 +158,13 @@ def prefilter_by_volume(
     *,
     min_rel_volume: float | None = None,
     min_volume_m: float | None = None,
+    min_avg_volume_10d: float | None = None,
 ) -> tuple[list[str], dict]:
     """Keep symbols passing the volume gates. Fail-open when TV is unavailable.
 
     - ``min_rel_volume``: keep ``rel_volume >= min_rel_volume`` (when set).
     - ``min_volume_m``: keep ``volume >= min_volume_m * 1e6`` (when set).
+    - ``min_avg_volume_10d``: keep ``avg_volume_10d >= min_avg_volume_10d * 1e3`` (value in thousands of shares).
     - Symbols absent from a successful TV response are excluded (no data ≠ liquid).
     - A batch that errored is kept (fail open) — a transient TV failure must not
       silently drop symbols.
@@ -176,7 +178,7 @@ def prefilter_by_volume(
         if sym and sym not in seen:
             seen.add(sym)
             ordered.append(sym)
-    if min_rel_volume is None and min_volume_m is None:
+    if min_rel_volume is None and min_volume_m is None and min_avg_volume_10d is None:
         return ordered, {}
     try:
         metrics = fetch_tv_volume_metrics(ordered)
@@ -187,6 +189,7 @@ def prefilter_by_volume(
         log.warning("TV prefilter: no metrics, failing open for %d symbols", len(ordered))
         return ordered, {"fail_open": True}
     volume_floor = float(min_volume_m) * 1e6 if min_volume_m is not None else None
+    avg_floor = float(min_avg_volume_10d) * 1e3 if min_avg_volume_10d is not None else None
     kept: list[str] = []
     dropped: list[str] = []
     for sym in ordered:
@@ -207,6 +210,10 @@ def prefilter_by_volume(
         if volume_floor is not None and (vol is None or vol < volume_floor):
             dropped.append(sym)
             continue
+        avg = metric.get("avg_volume_10d")
+        if avg_floor is not None and (avg is None or avg < avg_floor):
+            dropped.append(sym)
+            continue
         kept.append(sym)
     info = {
         "before": len(ordered),
@@ -214,6 +221,6 @@ def prefilter_by_volume(
         "dropped": dropped,
         "message": f"TV prefilter: {len(ordered)} → {len(kept)}",
     }
-    log.info("TV prefilter: %d → %d (min_rel_volume=%s min_volume_m=%s)",
-             len(ordered), len(kept), min_rel_volume, min_volume_m)
+    log.info("TV prefilter: %d → %d (min_rel_volume=%s min_volume_m=%s min_avg_volume_10d=%s)",
+             len(ordered), len(kept), min_rel_volume, min_volume_m, min_avg_volume_10d)
     return kept, info

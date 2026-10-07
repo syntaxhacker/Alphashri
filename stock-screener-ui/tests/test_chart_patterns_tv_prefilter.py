@@ -228,3 +228,67 @@ def test_full_coverage_logs_no_warning(fake_tv, caplog):
         got = tv_prefilter.fetch_tv_volume_metrics(["AAA"])
     assert set(got) == {"AAA"}
     assert not [r for r in caplog.records if "low coverage" in r.getMessage()]
+
+
+def test_prefilter_avg_volume_floor(monkeypatch):
+    metrics = {
+        "HOT": {"volume": 5_000_000.0, "rel_volume": 2.5, "avg_volume_10d": 200_000.0,
+                "close": 100.0, "change": 1.0, "market_cap": 1e9},
+        "COLD": {"volume": 5_000_000.0, "rel_volume": 2.5, "avg_volume_10d": 100_000.0,
+                 "close": 50.0, "change": -0.5, "market_cap": 1e8},
+    }
+    monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: metrics)
+    kept, info = tv_prefilter.prefilter_by_volume(
+        ["HOT", "COLD"], min_avg_volume_10d=150,
+    )
+    assert kept == ["HOT"]
+    assert info["before"] == 2 and info["after"] == 1
+
+
+def test_prefilter_avg_volume_none_dropped(monkeypatch):
+    metrics = {
+        "AAA": {"volume": 5_000_000.0, "rel_volume": 2.0, "avg_volume_10d": None,
+                "close": 100.0, "change": 1.0, "market_cap": 1e9},
+    }
+    monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: metrics)
+    kept, _ = tv_prefilter.prefilter_by_volume(["AAA"], min_avg_volume_10d=150)
+    assert kept == []
+
+
+def test_prefilter_avg_volume_unqueried_kept(monkeypatch):
+    metrics = {
+        "AAA": {"volume": 5_000_000.0, "rel_volume": 2.0, "avg_volume_10d": 200_000.0,
+                "close": 100.0, "change": 1.0, "market_cap": 1e9},
+        "BBB": {"unqueried": True},
+    }
+    monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: metrics)
+    kept, info = tv_prefilter.prefilter_by_volume(
+        ["AAA", "BBB", "GHOST"], min_avg_volume_10d=150,
+    )
+    assert kept == ["AAA", "BBB"], "failed-batch symbols must be kept (fail open)"
+    assert "GHOST" not in kept
+    assert info["after"] == 2
+
+
+def test_prefilter_avg_volume_boundary_kept(monkeypatch):
+    metrics = {
+        "EDGE": {"volume": 5_000_000.0, "rel_volume": 2.0, "avg_volume_10d": 150_000.0,
+                 "close": 100.0, "change": 1.0, "market_cap": 1e9},
+    }
+    monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: metrics)
+    kept, _ = tv_prefilter.prefilter_by_volume(["EDGE"], min_avg_volume_10d=150)
+    assert kept == ["EDGE"]
+
+
+def test_prefilter_avg_volume_k_conversion(monkeypatch):
+    metrics = {
+        "BELOW": {"volume": 5_000_000.0, "rel_volume": 2.0, "avg_volume_10d": 149_999.0,
+                  "close": 100.0, "change": 1.0, "market_cap": 1e9},
+        "AT": {"volume": 5_000_000.0, "rel_volume": 2.0, "avg_volume_10d": 150_000.0,
+               "close": 100.0, "change": 1.0, "market_cap": 1e9},
+    }
+    monkeypatch.setattr(tv_prefilter, "fetch_tv_volume_metrics", lambda syms, **k: metrics)
+    kept, _ = tv_prefilter.prefilter_by_volume(
+        ["BELOW", "AT"], min_avg_volume_10d=150,
+    )
+    assert kept == ["AT"]

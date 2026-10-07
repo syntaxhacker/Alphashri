@@ -161,6 +161,7 @@ def _scope_signature(params: Optional[dict] = None) -> tuple:
         bool(compute_trendlines),
         p.get("min_rel_volume"),
         p.get("min_volume_m"),
+        p.get("min_avg_volume_10d"),
         p.get("as_of_date"),
         p.get("from_date"),
         bool(p.get("force", False)),

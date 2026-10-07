@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 import config
+import chart_patterns.candles as candles_mod
 from market_data.market_data import fetch_candles_for_timeframe
 
 IST = config.IST
@@ -184,8 +185,15 @@ class TestTodaySessionStaysOptIn:
         tape_hist = pd.concat([tape_hist, tape_today]).sort_index()
         return missing, today, history, tape_hist, tape_today
 
-    def test_today_absent_without_flag(self):
+    def test_today_absent_without_flag(self, monkeypatch):
         missing, today, history, tape_hist, _ = self._today_tapes()
+        # Simulate the in-progress session: the last *completed* session is the
+        # previous business day, so today's rows stay opt-in.
+        monkeypatch.setattr(
+            candles_mod,
+            "_last_completed_session",
+            lambda now=None: pd.Timestamp(missing[-1]).date(),
+        )
         api = _make_api(history, tape_hist,
                         intraday=pd.DataFrame())  # pre-market: no tape
 
@@ -196,6 +204,26 @@ class TestTodaySessionStaysOptIn:
         assert df is not None
         assert today not in _ist_dates(df)
         assert _ist_dates(df)[-len(missing):] == missing
+
+    def test_just_closed_session_backfilled_without_flag(self, monkeypatch):
+        """After the 15:30 close the session is final: it must be backfilled on
+        the default (no-flag) path, not left out until the next calendar day."""
+        missing, today, history, tape_hist, _ = self._today_tapes()
+        monkeypatch.setattr(
+            candles_mod,
+            "_last_completed_session",
+            lambda now=None: pd.Timestamp(today).date(),
+        )
+        api = _make_api(history, tape_hist, intraday=pd.DataFrame())
+
+        df = fetch_candles_for_timeframe(
+            "RELIANCE", "1D", lookback_bars=60, api_client=api,
+        )
+
+        assert df is not None
+        assert _ist_dates(df)[-1] == today
+        assert _ist_dates(df)[-len(missing) - 1:-1] == missing
+        assert not getattr(df, "attrs", {}).get("partial_today", False)
 
     def test_today_present_with_flag(self):
         missing, today, history, tape_hist, tape_today = self._today_tapes()

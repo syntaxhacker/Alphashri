@@ -6,9 +6,10 @@ of the box high, which can happen any time after 09:15, not at the open):
 
   1. build   — (evening / pre-open) detect long bases on **completed** daily
                bars and save each box's high/low. Fast to re-run.
-  2. watch   — (09:20 onward) batch LTP + TradingView rel-vol for the
-               watchlist and flag names trading **above their box high** with
-               rel-vol >= threshold. ``--loop N`` keeps re-checking every N sec.
+  2. watch   — (09:20 onward) batch LTP + time-adjusted intraday volume for
+               the watchlist and flag names trading **above their box high**
+               with vol_adj >= threshold. ``--loop N`` keeps re-checking
+               every N sec.
 
 Usage
 -----
@@ -16,15 +17,19 @@ Usage
   python scripts/breakout_watch.py build --universe nifty500 --min-base-days 60
 
   # at/after 09:20 (once)
-  python scripts/breakout_watch.py watch --min-rel-vol 1.5
+  python scripts/breakout_watch.py watch --min-rel-vol 0.7
 
   # from 09:20 keep scanning every 60s
-  python scripts/breakout_watch.py watch --min-rel-vol 1.5 --loop 60
+  python scripts/breakout_watch.py watch --min-rel-vol 0.7 --loop 60
 
 Caveats
 -------
-* rel-vol from TradingView is time-of-day adjusted, but at 09:20 it is built on
-  only a few minutes of tape — noisier than the close. Consider 09:30-10:00.
+* TradingView's ``relative_volume_10d_calc`` is NOT time-of-day adjusted
+  (today's cumulative volume ÷ the full-day 10d average), so it reads ~0.0x
+  all morning and can only gate breakouts near the close. The watch therefore
+  gates on ``vol_adj`` — today's cumulative 1m-tape volume ÷ (10-day average
+  daily volume × session fraction) — but at 09:20 it is built on only a few
+  minutes of tape, noisier than the close. Consider 09:30-10:00.
 * A signal is a *candidate*, not advice: confirm price holds above the box high
   and the volume is real. Use a stop back inside the box (base_low / the box).
 """
@@ -32,6 +37,7 @@ Caveats
 from __future__ import annotations
 
 import argparse
+import functools
 import json
 import os
 import sys
@@ -50,6 +56,7 @@ from chart_patterns.detectors.consolidation import (  # noqa: E402
     _trailing_base_end,
     _window_base,
 )
+from chart_patterns.parallel import run_symbols  # noqa: E402
 from chart_patterns.tv_prefilter import fetch_tv_volume_metrics  # noqa: E402
 
 WATCH_FILE = ROOT / "experiments" / "data" / "breakout_watch.json"
@@ -101,26 +108,28 @@ def _find_long_base(df, min_days: int, max_range_pct: float):
     return best
 
 
-def cmd_build(args: argparse.Namespace) -> int:
-    from concurrent.futures import ThreadPoolExecutor
+def _build_symbol_box(symbol: str, min_base_days: int = 60, max_range_pct: float = 20.0):
+    """One symbol's long-base box row (or ``None`` when there is no base).
 
-    syms = ([s.strip().upper() for s in args.symbols.split(",") if s.strip()]
-            if args.symbols else _universe(args.universe))
-    print(f"universe {args.symbols or args.universe}: {len(syms)} symbols")
-
-    def work(sym: str):
+    Top-level and picklable so :func:`run_symbols` can run it in worker
+    processes — ``functools.partial`` binding the thresholds stays
+    picklable, while closures/lambdas do not. The 1D candles are already
+    disk-cached per session, so the fan-out parallelises the CPU-bound box
+    search, not the fetch. Never raises.
+    """
+    try:
         try:
             # No ``include_partial_today``: the box is measured on completed bars.
-            df = candles.fetch_for_timeframe(sym, "1D")
+            df = candles.fetch_for_timeframe(symbol, "1D")
         except Exception:
             return None
         if df is None or df.empty:
             return None
-        base = _find_long_base(df, args.min_base_days, args.max_range_pct)
+        base = _find_long_base(df, int(min_base_days), float(max_range_pct))
         if base is None:
             return None
         return {
-            "symbol": sym,
+            "symbol": symbol,
             "base_high": round(float(base["hi"]), 2),
             "base_low": round(float(base["lo"]), 2),
             "base_days": int(base["days"]),
@@ -128,13 +137,25 @@ def cmd_build(args: argparse.Namespace) -> int:
             "end_date": df.index[base["box_end"]].strftime("%Y-%m-%d"),
             "last_close": round(float(df["close"].iloc[-1]), 2),
         }
-        return best
+    except Exception:
+        return None
 
-    rows = []
-    with ThreadPoolExecutor(max_workers=args.workers) as pool:
-        for r in pool.map(work, syms):
-            if r:
-                rows.append(r)
+
+def cmd_build(args: argparse.Namespace) -> int:
+    syms = ([s.strip().upper() for s in args.symbols.split(",") if s.strip()]
+            if args.symbols else _universe(args.universe))
+    print(f"universe {args.symbols or args.universe}: {len(syms)} symbols")
+
+    worker = functools.partial(
+        _build_symbol_box,
+        min_base_days=args.min_base_days,
+        max_range_pct=args.max_range_pct,
+    )
+    # Multi-core: the box search is CPU-bound pure Python/numpy work that a
+    # ThreadPoolExecutor leaves GIL-bound (~1 core). This is a CLI (never the
+    # API server), so worker processes are safe here.
+    results = run_symbols(worker, syms, workers=args.workers, use_processes=True)
+    rows = [r for r in results if r]
     rows.sort(key=lambda r: -r["base_days"])
     WATCH_FILE.parent.mkdir(parents=True, exist_ok=True)
     payload = {"built_at": datetime.now(config.IST).isoformat(), "universe": args.symbols or args.universe,
@@ -227,6 +248,8 @@ def _tape_prices(symbols: list[str], timeframe: str = "1m") -> dict[str, float]:
 
 
 def _watch_once(args: argparse.Namespace, items: list[dict]) -> None:
+    from chart_patterns.watch import vol_adj_map
+
     syms = [it["symbol"] for it in items]
     prices: dict[str, float] = {}
     token = _token()
@@ -240,6 +263,11 @@ def _watch_once(args: argparse.Namespace, items: list[dict]) -> None:
         for s, px in tape.items():
             prices.setdefault(s, px)
     metrics = fetch_tv_volume_metrics(syms)
+    # Time-adjusted intraday volume (today's cumulative tape ÷ the 10d daily
+    # average scaled to the elapsed session); this — not TradingView's
+    # full-day-average rel-vol — is the volume gate.
+
+    vols = vol_adj_map(syms)
 
     now = datetime.now(config.IST).strftime("%H:%M:%S")
     rows = []
@@ -248,9 +276,8 @@ def _watch_once(args: argparse.Namespace, items: list[dict]) -> None:
         px = prices.get(sym)
         if px is None:
             continue
-        m = metrics.get(sym) or {}
-        rel = m.get("rel_volume")
-        if rel is None or rel < args.min_rel_vol:
+        va = vols.get(sym)
+        if va is None or va < args.min_rel_vol:
             continue
         if px <= it["base_high"]:
             continue
@@ -258,13 +285,15 @@ def _watch_once(args: argparse.Namespace, items: list[dict]) -> None:
         # completed session (a stale breakout, not today's event).
         if it.get("last_close") is not None and it["last_close"] > it["base_high"]:
             continue
+        m = metrics.get(sym) or {}
         rows.append((sym, px, it["base_high"], (px - it["base_high"]) / it["base_high"] * 100,
-                     rel, it["base_days"], it["base_low"]))
-    rows.sort(key=lambda r: -r[4])
-    print(f"[{now} IST] breakouts (rel-vol >= {args.min_rel_vol}, LTP > box high): {len(rows)}")
-    print(f"{'SYMBOL':<12}{'ltp':>10}{'box_hi':>10}{'%>box':>8}{'relvol':>8}{'base_d':>7}{'box_lo':>10}")
-    for sym, px, bh, pct, rel, bd, bl in rows:
-        print(f"{sym:<12}{px:>10.2f}{bh:>10.2f}{pct:>8.2f}{rel:>8.2f}{bd:>7}{bl:>10.2f}")
+                     m.get("rel_volume"), va, it["base_days"], it["base_low"]))
+    rows.sort(key=lambda r: -r[5])
+    print(f"[{now} IST] breakouts (vol_adj >= {args.min_rel_vol}, LTP > box high): {len(rows)}")
+    print(f"{'SYMBOL':<12}{'ltp':>10}{'box_hi':>10}{'%>box':>8}{'relvol':>8}{'vol_adj':>8}{'base_d':>7}{'box_lo':>10}")
+    for sym, px, bh, pct, rel, va, bd, bl in rows:
+        rel_txt = f"{rel:>8.2f}" if rel is not None else f"{'-':>8}"
+        print(f"{sym:<12}{px:>10.2f}{bh:>10.2f}{pct:>8.2f}{rel_txt}{va:>8.2f}{bd:>7}{bl:>10.2f}")
 
 
 def cmd_watch(args: argparse.Namespace) -> int:
@@ -297,7 +326,8 @@ def main() -> int:
     b.set_defaults(func=cmd_build)
 
     w = sub.add_parser("watch", help="monitor the watchlist for crosses (at/after 09:20)")
-    w.add_argument("--min-rel-vol", type=float, default=1.5)
+    w.add_argument("--min-rel-vol", type=float, default=0.7,
+                   help="time-adjusted intraday volume (vol_adj) gate (default 0.7)")
     w.add_argument("--loop", type=int, default=0, help="seconds between checks (0 = once)")
     w.set_defaults(func=cmd_watch)
 
