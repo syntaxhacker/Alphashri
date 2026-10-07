@@ -8,8 +8,9 @@ import {
   payoffCurve,
   type PayoffLeg,
 } from "./payoff";
+import { NT_HLINE, CHART_MUTED, CHART_AVG_ENTRY } from "@/ui/palette";
 
-const LINE_COLOR = "#38BDF8";
+const LINE_COLOR = NT_HLINE;
 
 interface PayoffChartProps {
   legs: PayoffLeg[];
@@ -39,10 +40,10 @@ export function PayoffChart({
     const curve = payoffCurve(legs, spots);
     const bes = breakevens(legs, spots[0] ?? 0, spots[spots.length - 1] ?? 0);
     const markLineData: Record<string, unknown>[] = [
-      { yAxis: 0, lineStyle: { color: "#94A3B8", type: "dashed" } },
+      { yAxis: 0, lineStyle: { color: CHART_MUTED, type: "dashed" } },
       ...bes.map((be) => ({
         xAxis: be,
-        lineStyle: { color: "#F59E0B", type: "dotted" },
+        lineStyle: { color: CHART_AVG_ENTRY, type: "dotted" },
         label: { formatter: String(be), fontSize: 10 },
       })),
     ];
@@ -53,7 +54,7 @@ export function PayoffChart({
             {
               coord: [spot, payoffAtExpiry(legs, spot)],
               symbolSize: 12,
-              itemStyle: { color: "#38BDF8" },
+              itemStyle: { color: LINE_COLOR },
             },
           ];
     void setChartOption({

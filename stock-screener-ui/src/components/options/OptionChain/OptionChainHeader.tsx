@@ -19,7 +19,6 @@ export function OptionChainHeader({
     <ToolbarRow
       id="chain-header-controls"
       data-testid="options-chain-header-controls"
-      justify="center"
       gap={8}
     >
       <Select

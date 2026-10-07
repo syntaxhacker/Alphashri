@@ -1,7 +1,4 @@
-import { Box, Stack } from "@/ui";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
+import { Box, Stack, Text } from "@/ui";
 import { alpha } from "@mui/material/styles";
 import { useMemo } from "react";
 import ReactECharts from "echarts-for-react";
@@ -109,22 +106,14 @@ export function SectorBarView({ stocks, metric, getMetricValue, getMetricColor, 
   }, [stocks, metric, getMetricValue, getMetricColor, fmt, label, isDark, tooltipBg, tooltipText, axisLineColor, splitLineColor]);
 
   return (
-    <Stack spacing={1} sx={{ height: "100%", flex: 1, p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
-      <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Typography variant="subtitle2" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Avg {label} by Sector</Typography>
-            <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>({stocks.length} stocks)</Typography>
-          </Box>
-        </CardContent>
-      </Card>
-      <Card elevation={1} sx={{ width: "100%", flex: 1, p: 1, display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", flex: 1, "&:last-child": { pb: 1 } }}>
-          <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
-          </Box>
-        </CardContent>
-      </Card>
+    <Stack spacing={0} sx={{ height: "100%", flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+        <Text size="sm" fw={600}>Avg {label} by Sector</Text>
+        <Text size="xs" c="dimmed">({stocks.length} stocks)</Text>
+      </Box>
+      <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex", p: 1 }}>
+        <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+      </Box>
     </Stack>
   );
 }

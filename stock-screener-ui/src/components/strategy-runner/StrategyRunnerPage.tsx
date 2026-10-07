@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from "react";
-import { Stack, Box, Text, Title, Progress } from "@/ui";
+import { Box, Text, Title, Progress, ToolbarRow } from "@/ui";
 import { StrategyRunnerConfig as StrategyRunnerConfigComp } from "./StrategyRunnerConfig";
 import { StrategyRunnerStats } from "./StrategyRunnerStats";
 import { StrategyRunnerTabs } from "./StrategyRunnerTabs";
@@ -104,13 +104,23 @@ export function StrategyRunnerPage() {
   }, []);
 
   return (
-    <Stack gap="md" p="md" style={{ height: "100%", display: "flex", flexDirection: "column", overflow: "auto" }}>
-      <Box flex="0 0 auto" data-testid="sr-header">
+    <Box sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.default" }}>
+      <ToolbarRow
+        gap={8}
+        wrap={false}
+        data-testid="sr-header"
+        style={{ flex: "0 0 auto", height: 48, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}
+      >
         <Title order={2} size="h4">Strategy Runner</Title>
-        <Text size="sm" c="dimmed">Compare bot strategies side by side</Text>
-      </Box>
+        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          Compare bot strategies side by side
+          {config.bot_uuids.length > 0 || config.symbols.length > 0
+            ? ` · ${config.bot_uuids.length} bot${config.bot_uuids.length === 1 ? "" : "s"} · ${config.symbols.length} symbol${config.symbols.length === 1 ? "" : "s"}`
+            : ""}
+        </Text>
+      </ToolbarRow>
 
-      <Box flex="0 0 auto" data-testid="sr-config">
+      <Box flex="0 0 auto" data-testid="sr-config" sx={{ borderBottom: "1px solid var(--mui-palette-divider)", px: 2, py: 1 }}>
         <StrategyRunnerConfigComp
           config={config}
           bots={bots}
@@ -125,26 +135,26 @@ export function StrategyRunnerPage() {
       </Box>
 
       {isRunning && (
-        <Box flex="0 0 auto" data-testid="sr-progress">
+        <Box flex="0 0 auto" data-testid="sr-progress" sx={{ px: 2, pt: 1 }}>
           <Progress value={progress.totalBots > 0 ? ((progress.currentBot + (progress.currentBotName.includes("done") ? 1 : 0)) / progress.totalBots) * 100 : 0} size="sm" animated />
           <Text size="xs" c="dimmed" mt={2}>{progress.currentBotName}</Text>
         </Box>
       )}
 
       {error && (
-        <Box flex="0 0 auto" data-testid="sr-error">
+        <Box flex="0 0 auto" data-testid="sr-error" sx={{ px: 2, pt: 1 }}>
           <Text size="sm" c="error">{error}</Text>
         </Box>
       )}
 
-      <Box flex="0 0 auto" data-testid="sr-stats">
+      <Box flex="0 0 auto" data-testid="sr-stats" sx={{ px: 2, py: 1, borderBottom: "1px solid var(--mui-palette-divider)" }}>
         <StrategyRunnerStats trades={trades} summary={summary} isRunning={isRunning} progress={progress} />
       </Box>
 
-      <Box style={{ flex: 1, minHeight: 300 }} data-testid="sr-tabs">
+      <Box style={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="sr-tabs">
         <StrategyRunnerTabs trades={trades} summary={summary} bots={bots} />
       </Box>
-    </Stack>
+    </Box>
   );
 }
 

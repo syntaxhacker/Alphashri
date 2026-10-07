@@ -11,7 +11,6 @@ export function OptionChainFilters({
     <ToolbarRow
       id="chain-filters"
       data-testid="options-chain-filters"
-      justify="center"
       gap={8}
     >
       <Select

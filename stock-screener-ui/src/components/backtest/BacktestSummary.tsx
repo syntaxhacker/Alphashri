@@ -83,7 +83,7 @@ export const BacktestSummary = memo(function BacktestSummary({ totals }: Backtes
         tone={pnlColor === "success" ? "success.main" : "error.main"}
         testid="summary-net-pnl"
       />
-      <Metric label="Costs" value={`₹${(totalCosts / 1000).toFixed(1)}K`} tone="#FF7B72" testid="summary-costs" />
+      <Metric label="Costs" value={`₹${(totalCosts / 1000).toFixed(1)}K`} tone="error.main" testid="summary-costs" />
       <Metric label="WR" value={`${winRate.toFixed(0)}%`} testid="summary-wr" />
       <Metric label="Trades" value={String(totals.trades ?? 0)} testid="summary-trades" />
     </Stack>

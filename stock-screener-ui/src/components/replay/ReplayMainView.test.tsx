@@ -32,14 +32,16 @@ const baseProps = {
 };
 
 describe("ReplayMainView", () => {
-  it("renders container with fixed height", () => {
+  it("renders a flex-fill container that fills its parent", () => {
     render(
       <UIProvider>
         <ReplayMainView {...baseProps} />
       </UIProvider>,
     );
-    const container = screen.getByTestId("replay-chart-empty").closest('[style*="height: 500px"]');
+    const container = screen.getByTestId("replay-main-view");
     expect(container).toBeInTheDocument();
+    expect(container.getAttribute("style")).toContain("flex-grow: 1");
+    expect(container.getAttribute("style")).toContain("height: 100%");
   });
 
   it("flex layout includes both chart and trade log", () => {

@@ -60,22 +60,29 @@ export function OptionChainPanel({
     <Stack
       id="chain-panel"
       spacing={1}
-      sx={{ height: "100%", width: "100%", alignItems: "center" }}
+      sx={{ height: "100%", width: "100%", alignItems: "stretch" }}
       data-testid="options-chain-panel"
     >
       <OptionChainGuide opened={guideOpened} onClose={close} />
 
-      {/* Header Row - title + spot on line 1, actions on line 2 */}
-      <Box
+      {/* Header: title + spot left, actions pinned right */}
+      <ToolbarRow
         id="chain-header"
         data-testid="options-chain-header"
-        sx={{ display: "flex", flexDirection: "column", alignItems: "center", width: "100%", gap: 1, p: 1 }}
+        gap={8}
+        justify="space-between"
+        wrap={false}
+        clip
+        style={{ width: "100%", paddingLeft: 8, paddingRight: 8 }}
       >
-        <ToolbarRow justify="center" gap={8} style={{ width: "100%" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
           <Text size="md" fw={600} sx={{ whiteSpace: "nowrap" }}>
             Option Chain
           </Text>
           <LiveSpotChart underlying={selectedUnderlying} />
+          <Text size="xs" c="dimmed" data-testid="options-chain-selection" sx={{ whiteSpace: "nowrap" }}>
+            {selectedUnderlying} · {selectedExpiry}
+          </Text>
           {timestamp && !loading && (
             <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
               <Badge variant="light" color="secondary" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
@@ -83,11 +90,8 @@ export function OptionChainPanel({
               </Badge>
             </Tooltip>
           )}
-        </ToolbarRow>
-        <ToolbarRow justify="center" gap={8} style={{ width: "100%" }}>
-          <Text size="xs" c="dimmed" data-testid="options-chain-selection">
-            {selectedUnderlying} · {selectedExpiry}
-          </Text>
+        </Box>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
           <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
             Guide
           </Button>
@@ -105,11 +109,11 @@ export function OptionChainPanel({
               <IconRefresh size={18} />
             </ActionIcon>
           </Tooltip>
-        </ToolbarRow>
-      </Box>
+        </Box>
+      </ToolbarRow>
 
       {/* Controls + filters share one wrapping row */}
-      <Box sx={{ display: "flex", flexWrap: "wrap", alignItems: "center", justifyContent: "center", gap: 8, width: "100%" }}>
+      <ToolbarRow gap={8} style={{ width: "100%", paddingLeft: 8, paddingRight: 8 }}>
         <OptionChainHeader
           selectedUnderlying={selectedUnderlying}
           selectedExpiry={selectedExpiry}
@@ -119,7 +123,7 @@ export function OptionChainPanel({
           availableExpiries={availableExpiries}
         />
         <OptionChainFilters filters={filters} setFilters={setFilters} />
-      </Box>
+      </ToolbarRow>
 
       {/* Error State */}
       {error && (
@@ -146,10 +150,10 @@ export function OptionChainPanel({
           No options data available. Select an underlying and expiry to view the chain.
         </Alert>
       ) : (
-        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "center" }}>
+        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
           <Tabs id="chain-view-tabs" defaultValue="table" data-testid="chain-view-tabs" style={{ width: "100%" }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-              <TabsList data-testid="options-chain-view-tabs-list" sx={{ display: "flex", alignItems: "center", justifyContent: "center" } as any}>
+            <ToolbarRow gap={8} style={{ width: "100%" }}>
+              <TabsList data-testid="options-chain-view-tabs-list">
                 <Tab value="table" leftSection={<IconTable size={14} />} data-testid="chain-tab-table">
                   Option Chain Table
                 </Tab>
@@ -157,21 +161,21 @@ export function OptionChainPanel({
                   Deep OI Analysis
                 </Tab>
               </TabsList>
-            </Box>
+            </ToolbarRow>
 
             <TabsPanel value="table" data-testid="options-chain-table-panel">
-              <Stack spacing={1} sx={{ width: "100%", alignItems: "center" }}>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+              <Stack spacing={1} sx={{ width: "100%", alignItems: "stretch" }}>
+                <Box sx={{ display: "flex", width: "100%" }}>
                   <ChainSummary strikeMatrix={strikeMatrix} spotPrice={spotPrice} selectedExpiry={selectedExpiry} summary={summary} />
                 </Box>
-                <Box sx={{ display: "flex", alignItems: "center", justifyContent: "safe center", gap: 1, p: 1, width: "100%", overflowX: "auto" }}>
+                <Box sx={{ display: "flex", width: "100%", overflowX: "auto" }}>
                   <OptionChainTable strikeMatrix={strikeMatrix} filters={filters} spotPrice={spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
                 </Box>
               </Stack>
             </TabsPanel>
 
             <TabsPanel value="analysis" data-testid="options-chain-analysis-panel">
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
+              <Box sx={{ display: "flex", width: "100%" }}>
                 <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
               </Box>
             </TabsPanel>

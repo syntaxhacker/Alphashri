@@ -235,9 +235,10 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
         px: 1,
         py: 0.5,
         gap: 1,
+        rowGap: 1,
         alignItems: "center",
         flex: "0 0 auto",
-        flexWrap: "nowrap",
+        flexWrap: "wrap",
       }}
       data-testid="paper-chart-header"
       id="chart-header"

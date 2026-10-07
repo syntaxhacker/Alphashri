@@ -1,8 +1,4 @@
-import { Text, Badge, Button } from "@/ui";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
+import { Text, Badge, Button, ToolbarRow, Box, Stack } from "@/ui";
 import { IconPlugConnected, IconPlugX, IconRefresh } from "@tabler/icons-react";
 import type { BrokerStatus } from "../../api/brokers";
 
@@ -67,50 +63,41 @@ export function BrokerConnectionCard({
     broker === "upstox" ? "broker-expires-text" : `${broker}-expires-text`;
 
   return (
-    <Card elevation={1} id={cardTestId} data-testid={cardTestId} sx={{ width: "100%", maxWidth: 560 }}>
-      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-        <Stack spacing={1} sx={{ alignItems: "center", width: "100%" }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Text fw={600} size="lg" sx={{ textAlign: "center" }}>
+    <Box id={cardTestId} data-testid={cardTestId} sx={{ width: "100%" }}>
+      <Stack gap={4}>
+        <ToolbarRow justify="space-between" gap={8} style={{ flexWrap: "wrap", rowGap: 8 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0, flexWrap: "wrap" }}>
+            <Text fw={600} size="sm">
               {title}
             </Text>
-          </Box>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
             <span data-testid={statusTestId}>{getStatusBadge(status)}</span>
-          </Box>
-
-          {isConnected && status?.expires_in_hours !== null && (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-              <Text size="sm" c="dimmed" data-testid={expiresTestId} sx={{ textAlign: "center" }}>
+            {isConnected && status?.expires_in_hours !== null && (
+              <Text size="xs" c="dimmed" data-testid={expiresTestId}>
                 Expires in {formatExpiresIn(status.expires_in_hours)}
               </Text>
-            </Box>
-          )}
-
-          {!isConnected && (
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-              <Text size="sm" c="dimmed" sx={{ textAlign: "center" }}>
-                {hint}
-              </Text>
-            </Box>
-          )}
-
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, flexWrap: "wrap", width: "100%" }}>
+            )}
+          </Box>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             {isConnected ? (
-              <Button leftSection={<IconPlugX size={16} />} variant="filled" color="error" onClick={onDisconnect} loading={loading} data-testid={`disconnect-${suffix}-btn`}>
+              <Button size="sm" leftSection={<IconPlugX size={16} />} variant="filled" color="error" onClick={onDisconnect} loading={loading} data-testid={`disconnect-${suffix}-btn`}>
                 Disconnect
               </Button>
             ) : (
-              <Button leftSection={<IconPlugConnected size={16} />} variant="filled" color="success" onClick={onConnect} loading={loading} data-testid={`connect-${suffix}-btn`}>
+              <Button size="sm" leftSection={<IconPlugConnected size={16} />} variant="filled" color="success" onClick={onConnect} loading={loading} data-testid={`connect-${suffix}-btn`}>
                 Connect
               </Button>
             )}
-            <Button leftSection={<IconRefresh size={16} />} variant="subtle" onClick={onRefresh} loading={loading} data-testid={refreshTestId}>
+            <Button size="sm" leftSection={<IconRefresh size={16} />} variant="subtle" onClick={onRefresh} loading={loading} data-testid={refreshTestId}>
               Refresh
             </Button>
           </Box>
-        </Stack>
-      </CardContent>
-    </Card>
+        </ToolbarRow>
+        {!isConnected && (
+          <Text size="xs" c="dimmed">
+            {hint}
+          </Text>
+        )}
+      </Stack>
+    </Box>
   );
 }

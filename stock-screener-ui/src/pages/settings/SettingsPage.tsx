@@ -1,12 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import { Switch, Text } from "@/ui";
+import Typography from "@mui/material/Typography";
+import { Divider, Switch, Text, ToolbarRow } from "@/ui";
 import { useSearchParams } from "react-router-dom";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
 import {
@@ -19,7 +15,7 @@ import {
 } from "../../api/brokers";
 import { useAppDispatch } from "../../state/store/hooks";
 import { addNotification } from "../../state/store/notificationsSlice";
-import { CompactPage } from "../../components/common/compact";
+import { CompactPanel } from "../../components/common/compact";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
@@ -146,62 +142,68 @@ export function SettingsPage() {
       id="settings-page"
       className="settings-page"
       data-testid="settings-page"
-      sx={{ py: 1, height: "100%", overflow: "auto", display: "flex", justifyContent: "center", width: "100%" }}
+      sx={{
+        height: "100%",
+        minHeight: 0,
+        overflow: "auto",
+        p: 2,
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        alignItems: "stretch",
+      }}
     >
-      <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "flex-start", width: "100%", maxWidth: 900, mx: "auto" }}>
-        <Grid size={{ xs: 12 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%" }}>
-            <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-              <TableContainer component={Paper} elevation={1}>
-                <CompactPage title="Settings" description="Broker connection and account integration controls.">
-                  <Stack spacing={1} sx={{ alignItems: "center", width: "100%" }}>
-                    <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
-                      <BrokerConnectionCard
-                        status={status}
-                        loading={loading}
-                        onConnect={handleConnect}
-                        onDisconnect={handleDisconnect}
-                        onRefresh={fetchStatus}
-                      />
-                    </Box>
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5 }}>
+        <Typography variant="h5" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+          Settings
+        </Typography>
+        <Typography variant="body2" color="text.secondary">
+          Broker connection and account integration controls.
+        </Typography>
+      </Box>
 
-                    <Box sx={{ width: "100%", display: "flex", justifyContent: "center" }}>
-                      <BrokerConnectionCard
-                        broker="fyers"
-                        title="Fyers Connection"
-                        hint="Connect your Fyers account to enable Fyers order flow (5-level depth)"
-                        status={fyersStatus}
-                        loading={loading}
-                        onConnect={handleFyersConnect}
-                        onDisconnect={handleFyersDisconnect}
-                        onRefresh={fetchStatus}
-                      />
-                    </Box>
+      <Stack spacing={2} sx={{ alignItems: "stretch" }}>
+        <CompactPanel title="Broker connections">
+          <Stack spacing={1}>
+            <BrokerConnectionCard
+              status={status}
+              loading={loading}
+              onConnect={handleConnect}
+              onDisconnect={handleDisconnect}
+              onRefresh={fetchStatus}
+            />
+            <Divider />
+            <BrokerConnectionCard
+              broker="fyers"
+              title="Fyers Connection"
+              hint="Connect your Fyers account to enable Fyers order flow (5-level depth)"
+              status={fyersStatus}
+              loading={loading}
+              onConnect={handleFyersConnect}
+              onDisconnect={handleFyersDisconnect}
+              onRefresh={fetchStatus}
+            />
+          </Stack>
+        </CompactPanel>
 
-                    <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                      <Box component="span" sx={{ minWidth: 80, fontSize: "0.75rem", color: "text.secondary", textAlign: "center", flexShrink: 0 }}>
-                        Market Ticker
-                      </Box>
-                      <Box sx={{ flex: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                        <Text size="xs" c="dimmed" sx={{ textAlign: "center" }}>
-                          Show live indices and commodities in the header (Nifty, Gold, USD/INR, etc.)
-                        </Text>
-                        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                          <Switch
-                            size="sm"
-                            checked={showMarketTicker}
-                            onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
-                          />
-                        </Box>
-                      </Box>
-                    </Box>
-                  </Stack>
-                </CompactPage>
-              </TableContainer>
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+        <CompactPanel title="Display">
+          <ToolbarRow justify="space-between" gap={8}>
+            <Box sx={{ minWidth: 0 }}>
+              <Text size="sm" fw={600}>
+                Market Ticker
+              </Text>
+              <Text size="xs" c="dimmed">
+                Show live indices and commodities in the header (Nifty, Gold, USD/INR, etc.)
+              </Text>
+            </Box>
+            <Switch
+              size="sm"
+              checked={showMarketTicker}
+              onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
+            />
+          </ToolbarRow>
+        </CompactPanel>
+      </Stack>
     </Box>
   );
 }

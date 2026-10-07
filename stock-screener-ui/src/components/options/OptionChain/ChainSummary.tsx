@@ -77,7 +77,7 @@ export function ChainSummary({
   const pcrColor = computePcrColor(stats.pcr);
 
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "stretch", width: "100%" }}>
+    <Box sx={{ display: "flex", alignItems: "stretch", width: "100%" }}>
       <CompactStatGrid data-testid="chain-summary" style={{ alignItems: "stretch" }}>
         <CompactPanel className="chain-summary-card chain-summary-pcr" data-testid="options-chain-summary-pcr" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>

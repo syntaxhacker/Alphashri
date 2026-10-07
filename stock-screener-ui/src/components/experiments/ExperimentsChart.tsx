@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Box, Flex, Group, Loader, Select, Text, useColorScheme } from "@/ui";
+import { Box, Flex, Loader, Select, Text, useColorScheme } from "@/ui";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import {
   fetchRunChart,
@@ -139,10 +139,10 @@ export function ExperimentsChart() {
   return (
     <Box
       data-testid="experiments-chart"
-      sx={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 1, gap: 1, alignItems: "center" }}
+      sx={{ display: "flex", flexDirection: "column", minHeight: 0, height: "100%", bgcolor: "background.paper", borderRadius: 1, p: 1, gap: 1, alignItems: "stretch" }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, width: "100%", p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, width: "100%" }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
           <Text fw={600} size="sm">
             Run {selectedRun.run}
           </Text>
@@ -153,7 +153,7 @@ export function ExperimentsChart() {
             {selectedRun.strategy}
           </Text>
         </Box>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Text size="sm" c="dimmed">
             {selectedRun.tf}m
           </Text>
@@ -169,7 +169,7 @@ export function ExperimentsChart() {
         </Box>
       </Box>
 
-      <Box sx={{ flex: 1, minHeight: 0, position: "relative", width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <Box sx={{ flex: 1, minHeight: 0, position: "relative", width: "100%" }}>
         {showChartLoading ? (
           <Flex
             align="center"
