@@ -57,6 +57,22 @@ footer{color:#64748B;font-size:12px;text-align:center;padding:30px}
 <a href="#ch4" data-spy="ch4">4 · Timing</a>
 </div></nav>
 <div class="wrap">
+<section id="play" class="chap"><div class="chaphead">Playground — press play, watch premium move</div>
+<div class="card reveal" style="background:#111C33;border:1px solid #1E3A5F;border-radius:10px;padding:16px;margin:14px 0">
+<h3 style="margin:0 0 4px">1 · Theta eater — 22700 straddle, expiry day</h3>
+<p style="color:#94A3B8;font-size:13px;margin:0 0 10px">₹146.50 at 09:15 → ₹48.90 at 15:25. Press play and watch time eat it.</p>
+<div style="font-size:34px;font-weight:800;font-variant-numeric:tabular-nums"><span id="theta-num">₹146.50</span> <span id="theta-t" style="font-size:14px;color:#94A3B8">09:15</span></div>
+<div style="height:10px;background:#0B1220;border-radius:6px;margin:10px 0;overflow:hidden"><div id="theta-bar" style="height:100%;width:100%;background:#F59E0B;border-radius:6px"></div></div>
+<button id="theta-play" style="background:#38BDF8;border:0;border-radius:8px;padding:8px 22px;font-weight:700;cursor:pointer">▶ Play the decay</button>
+</div>
+<div class="card reveal" style="background:#111C33;border:1px solid #1E3A5F;border-radius:10px;padding:16px;margin:14px 0">
+<h3 style="margin:0 0 4px">2 · RBI vertical replay — 22650CE, Oct 07</h3>
+<p style="color:#94A3B8;font-size:13px;margin:0 0 10px">₹116.70 at 14:20 → ₹148.90 top → ₹128 fade. This is what +27% then −14% looks like.</p>
+<div style="font-size:34px;font-weight:800;font-variant-numeric:tabular-nums"><span id="spike-num">₹116.70</span> <span id="spike-t" style="font-size:14px;color:#94A3B8">14:20</span></div>
+<div style="height:10px;background:#0B1220;border-radius:6px;margin:10px 0;overflow:hidden"><div id="spike-bar" style="height:100%;width:20%;background:#16A34A;border-radius:6px"></div></div>
+<button id="spike-play" style="background:#16A34A;border:0;border-radius:8px;padding:8px 22px;font-weight:700;cursor:pointer">▶ Replay the spike</button>
+</div>
+</section>
 __SECTIONS__
 <footer>Built from live Nifty sessions (Sep–Oct 2026) · paper trade only · not financial advice</footer>
 </div>
@@ -82,6 +98,38 @@ document.querySelectorAll("[data-count]").forEach(function(el){
 var bar=document.getElementById("progress");
 ScrollTrigger.create({start:0,end:"max",onUpdate:function(s){bar.style.width=(s.progress*100)+"%";}});
 var links=document.querySelectorAll("nav.toc a");
+["ch1","ch2","ch3","ch4"].forEach(function(id){
+  ScrollTrigger.create({trigger:"#"+id,start:"top 40%",end:"bottom 40%",
+    onToggle:function(s){links.forEach(function(a){a.classList.toggle("on",s.isActive&&a.getAttribute("data-spy")===id);});}});
+});
+function player(numId,tId,barId,btnId,pts,color){
+  var num=document.getElementById(numId),t=document.getElementById(tId),
+      bar=document.getElementById(barId),btn=document.getElementById(btnId);
+  if(!num||!btn) return;
+  var max=Math.max.apply(null,pts.map(function(p){return p[1];}));
+  var tl=gsap.timeline({paused:true,onComplete:function(){btn.textContent="↻ Replay";}});
+  pts.forEach(function(p,i){
+    tl.call(function(){
+      num.textContent="₹"+p[1].toFixed(2);t.textContent=p[0];
+      bar.style.width=Math.max(2,(p[1]/max*100))+"%";
+      num.style.color=color;
+    },null,i*0.45);
+  });
+  tl.call(function(){num.style.color="";},null,"+=0.2");
+  btn.addEventListener("click",function(){tl.restart();btn.textContent="▶ Playing…";});
+}
+var theta=[[ "09:15",146.50],["09:45",136.65],["10:00",122.65],["10:30",119.55],["11:00",110.60],["11:30",104.75],["12:00",94.75],["12:30",90.35],["13:00",84.00],["13:30",78.65],["14:00",73.10],["14:30",65.35],["15:00",53.15],["15:15",47.45],["15:25",48.90]];
+var spike=[["14:20",116.70],["14:22",116.95],["14:24",119.40],["14:26",128.75],["14:27",133.80],["14:28",139.75],["14:29",144.60],["14:30",142.80],["14:32",144.15],["14:34",137.00],["14:36",130.60],["14:38",129.95],["14:40",128.50]];
+player("theta-num","theta-t","theta-bar","theta-play",theta,"#F59E0B");
+player("spike-num","spike-t","spike-bar","spike-play",spike,"#16A34A");
+gsap.utils.toArray("svg polyline, svg path.hockey").forEach(function(line){
+  try{
+    var len=line.getTotalLength();
+    gsap.fromTo(line,{strokeDasharray:len,strokeDashoffset:len},
+      {strokeDashoffset:0,duration:1.6,ease:"power2.out",
+       scrollTrigger:{trigger:line,start:"top 90%",once:true}});
+  }catch(e){}
+});
 ["ch1","ch2","ch3","ch4"].forEach(function(id){
   ScrollTrigger.create({trigger:"#"+id,start:"top 40%",end:"bottom 40%",
     onToggle:function(s){links.forEach(function(a){a.classList.toggle("on",s.isActive&&a.getAttribute("data-spy")===id);});}});
