@@ -19,6 +19,7 @@ from api.reports_api.nifty import (
     compute_max_pain,
     compute_pcr,
     create_nifty_snapshot,
+    get_nifty_expiries,
     get_nifty_live,
     get_nifty_report,
     get_sentiment,
@@ -244,6 +245,37 @@ class TestLiveEndpoint:
             nifty._live_cache.clear()
             with pytest.raises(HTTPException) as exc:
                 await get_nifty_live(expiry="2026-10-13")
+        assert exc.value.status_code == 502
+
+    async def test_candles_attached(self):
+        from api.reports_api import nifty as n_mod
+        p1, p2 = _mock_chain(_chain_payload())
+        fake = [{"time": "2026-10-12T09:15:00+05:30", "open": 1.0,
+                 "high": 2.0, "low": 0.5, "close": 1.5, "volume": 0}]
+        with p1, p2, patch.object(n_mod, "_fetch_nifty_candles",
+                                  return_value=fake) as fc:
+            nifty._live_cache.clear()
+            rep = await get_nifty_live(expiry="2026-10-13")
+        fc.assert_called_once()
+        assert rep["candles"] == fake
+
+    def test_fetch_candles_never_raises(self):
+        from api.reports_api import nifty as n_mod
+        with patch("yfinance.download", side_effect=RuntimeError("down")):
+            assert n_mod._fetch_nifty_candles("2026-10-12") == []
+
+
+class TestExpiriesEndpoint:
+    async def test_returns_expiries(self):
+        _, p2 = _mock_chain(_chain_payload())
+        with p2:
+            out = await get_nifty_expiries()
+        assert out == {"expiries": [{"date": "2026-10-13"}]}
+
+    async def test_failure_is_502(self):
+        with patch("api.options.get_expiries", side_effect=RuntimeError("boom")):
+            with pytest.raises(HTTPException) as exc:
+                await get_nifty_expiries()
         assert exc.value.status_code == 502
 
 

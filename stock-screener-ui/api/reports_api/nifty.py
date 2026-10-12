@@ -143,7 +143,53 @@ def top_walls(rows: list[dict], side: str, n: int = _TOP_WALLS) -> list[dict]:
     return [{"strike": r["strike"], "oi": r[side]["oi"]} for r in ranked[:n]]
 
 
-def build_report(expiry: str, spot: float, rows: list[dict], mode: str) -> dict:
+def _fetch_nifty_candles(date_str: str, walkback_days: int = 0) -> list[dict]:
+    """15m Nifty candles for ``date_str`` via yfinance (^NSEI).
+
+    Upstox intraday endpoints return no rows for the NSE index, so the
+    report chart uses yfinance. Never raises — returns [] on any failure.
+    With ``walkback_days`` > 0, retries previous calendar days so a
+    pre-market/holiday session still charts the latest trading day.
+    """
+    try:
+        import yfinance as yf
+    except ImportError:
+        return []
+    try:
+        from datetime import timedelta
+        day = datetime.strptime(date_str, "%Y-%m-%d")
+        for back in range(walkback_days + 1):
+            target = (day - timedelta(days=back)).strftime("%Y-%m-%d")
+            nxt = (day - timedelta(days=back - 1)).strftime("%Y-%m-%d")
+            df = yf.download("^NSEI", start=target, end=nxt,
+                             interval="15m", progress=False, auto_adjust=False)
+            if df is None or len(df) == 0:
+                continue
+            # Flatten MultiIndex columns (^NSEI single ticker)
+            if hasattr(df.columns, "droplevel"):
+                try:
+                    df.columns = df.columns.droplevel(1)
+                except (ValueError, IndexError):
+                    pass
+            out = []
+            for ts, row in df.iterrows():
+                out.append({
+                    "time": ts.isoformat(),
+                    "open": round(float(row["Open"]), 2),
+                    "high": round(float(row["High"]), 2),
+                    "low": round(float(row["Low"]), 2),
+                    "close": round(float(row["Close"]), 2),
+                    "volume": int(row.get("Volume", 0) or 0),
+                })
+            if out:
+                return out
+        return []
+    except Exception:
+        return []
+
+
+def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
+                 candles: Optional[list[dict]] = None) -> dict:
     """Assemble the report envelope shared by live and snapshot responses."""
     total_ce_oi = sum(r["ce"]["oi"] for r in rows)
     total_pe_oi = sum(r["pe"]["oi"] for r in rows)
@@ -164,6 +210,7 @@ def build_report(expiry: str, spot: float, rows: list[dict], mode: str) -> dict:
         "max_pain": compute_max_pain(pain_rows),
         "walls": {"calls": top_walls(rows, "ce"), "puts": top_walls(rows, "pe")},
         "strikes": rows,
+        "candles": candles or [],
     }
 
 
@@ -222,7 +269,8 @@ def _validate_date(date_str: str) -> str:
 # Live computation (Upstox)
 # ---------------------------------------------------------------------------
 
-async def _compute_live(expiry: Optional[str]) -> dict:
+async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
+                      walkback_days: int = 5) -> dict:
     """Fetch the Upstox chain + spot and build a live report (no caching)."""
     # Lazy imports: keeps this module import-light and avoids import cycles.
     from api.options import fetch_upstox, get_instrument_key, get_spot_price
@@ -251,7 +299,10 @@ async def _compute_live(expiry: Optional[str]) -> dict:
             spot = (await get_spot_price("NIFTY")).get("spot", 0)
         except Exception:
             pass
-    return build_report(chain_expiry or expiry, spot, rows, mode="live")
+    candles = _fetch_nifty_candles(for_date or _today_str(),
+                                    walkback_days=walkback_days)
+    return build_report(chain_expiry or expiry, spot, rows, mode="live",
+                        candles=candles)
 
 
 @router.get("/nifty/expiries")
@@ -305,7 +356,7 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
     date_str = _validate_date(body.date or _today_str())
     if body.expiry:
         _validate_date(body.expiry)
-    report = await _compute_live(body.expiry)
+    report = await _compute_live(body.expiry, for_date=date_str, walkback_days=0)
     snapshot = {
         **report,
         "mode": "snapshot",
