@@ -1,9 +1,10 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import "@testing-library/jest-dom/vitest";
-import { OptionChainTable } from "./OptionChainTable";
+import { OptionChainTable, findAtmIndex } from "./OptionChainTable";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
 
 beforeEach(() => setupBrowserMocks());
@@ -282,6 +283,135 @@ describe("OptionChainTable", () => {
         <OptionChainTable {...defaultProps} strikeMatrix={[]} />,
       );
       expect(screen.getByTestId("options-scroll-atm-btn")).toBeInTheDocument();
+    });
+
+    it("auto-scrolls ATM inside the table viewport (never escapes to page)", async () => {
+      const scrollIntoView = vi.fn();
+      (window.HTMLElement.prototype as any).scrollIntoView = scrollIntoView;
+      try {
+        const strikeMatrix = [
+          { strike: 24000, ce: makeContract({ strike: 24000 }), pe: makeContract({ strike: 24000, type: "PE" }) },
+          { strike: 24500, ce: makeContract({ strike: 24500 }), pe: makeContract({ strike: 24500, type: "PE" }) },
+          { strike: 25000, ce: makeContract({ strike: 25000 }), pe: makeContract({ strike: 25000, type: "PE" }) },
+        ];
+        renderWithProviders(
+          <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={strikeMatrix} />,
+        );
+        // ATM row renders (effects flushed) — page-level scroll must stay untouched
+        await screen.findByTestId("options-chain-atm-badge");
+        expect(scrollIntoView).not.toHaveBeenCalled();
+      } finally {
+        delete (window.HTMLElement.prototype as any).scrollIntoView;
+      }
+    });
+  });
+
+  describe("findAtmIndex", () => {
+    it("returns index of strike closest to spot", () => {
+      expect(findAtmIndex([24000, 24500, 25000], 24500)).toBe(1);
+      expect(findAtmIndex([24000, 24500, 25000], 24520)).toBe(1);
+      expect(findAtmIndex([24000, 24500, 25000], 24980)).toBe(2);
+    });
+
+    it("returns -1 when spot is null or matrix is empty", () => {
+      expect(findAtmIndex([24000, 24500], null)).toBe(-1);
+      expect(findAtmIndex([], 24500)).toBe(-1);
+    });
+  });
+
+  describe("ATM highlight", () => {
+    const threeRows = [
+      { strike: 24000, ce: makeContract({ strike: 24000 }), pe: makeContract({ strike: 24000, type: "PE" }) },
+      { strike: 24500, ce: makeContract({ strike: 24500 }), pe: makeContract({ strike: 24500, type: "PE" }) },
+      { strike: 25000, ce: makeContract({ strike: 25000 }), pe: makeContract({ strike: 25000, type: "PE" }) },
+    ];
+
+    it("marks the closest-to-spot row with data-atm", () => {
+      const { container } = renderWithProviders(
+        <OptionChainTable {...defaultProps} spotPrice={24520} strikeMatrix={threeRows} />,
+      );
+      const atmRow = container.querySelector('[data-atm="true"]');
+      expect(atmRow).toBeInTheDocument();
+      expect(atmRow).toHaveAttribute("data-testid", "options-chain-row-24500");
+    });
+
+    it("renders an ATM badge on the ATM strike cell", () => {
+      renderWithProviders(
+        <OptionChainTable {...defaultProps} spotPrice={24500} strikeMatrix={threeRows} />,
+      );
+      expect(screen.getByTestId("options-chain-atm-badge")).toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-atm-badge")).toHaveTextContent("ATM");
+    });
+  });
+
+  describe("ATM window toggle", () => {
+    function wideMatrix() {
+      const rows = [];
+      for (let strike = 24000; strike <= 25500; strike += 50) {
+        rows.push({
+          strike,
+          ce: makeContract({ strike }),
+          pe: makeContract({ strike, type: "PE" }),
+        });
+      }
+      return rows;
+    }
+
+    it("renders the ATM window toggle defaulting to ±10", () => {
+      renderWithProviders(
+        <OptionChainTable {...defaultProps} spotPrice={24750} strikeMatrix={wideMatrix()} />,
+      );
+      expect(screen.getByTestId("options-chain-atm-window")).toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-window-count")).toHaveTextContent(
+        "Showing 21 of 31 strikes",
+      );
+    });
+
+    it("hides far-OTM strikes by default and shows them with All", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <OptionChainTable {...defaultProps} spotPrice={24750} strikeMatrix={wideMatrix()} />,
+      );
+      // 20050-style far strikes are out of the default ±10 window
+      expect(screen.queryByTestId("options-chain-row-25500")).not.toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-row-24750")).toBeInTheDocument();
+
+      await user.click(screen.getByRole("button", { name: "All" }));
+      expect(screen.getByTestId("options-chain-row-25500")).toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-row-24000")).toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-window-count")).toHaveTextContent(
+        "Showing 31 of 31 strikes",
+      );
+    });
+
+    it("narrows to ±5 strikes on selection", async () => {
+      const user = userEvent.setup();
+      renderWithProviders(
+        <OptionChainTable {...defaultProps} spotPrice={24750} strikeMatrix={wideMatrix()} />,
+      );
+      await user.click(screen.getByRole("button", { name: "ATM ±5" }));
+      expect(screen.getByTestId("options-chain-row-24750")).toBeInTheDocument();
+      expect(screen.queryByTestId("options-chain-row-24000")).not.toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-window-count")).toHaveTextContent(
+        "Showing 11 of 31 strikes",
+      );
+    });
+  });
+
+  describe("OI/Vol full-value tooltips", () => {
+    it("exposes full OI value via title while showing compact format", () => {
+      const strikeMatrix = [
+        {
+          strike: 24500,
+          ce: makeContract({ strike: 24500, market_data: { oi: 1500000, prev_oi: 1000000, volume: 50000, ltp: 100, bid_price: 99, ask_price: 101 } }),
+          pe: null,
+        },
+      ];
+      const { container } = renderWithProviders(
+        <OptionChainTable {...defaultProps} strikeMatrix={strikeMatrix} />,
+      );
+      expect(screen.getByText("15.0L")).toBeInTheDocument();
+      expect(container.querySelector('[title="OI 15,00,000"]')).toBeInTheDocument();
     });
   });
 });

@@ -7,10 +7,11 @@ import {
   ScrollArea,
   Progress,
   Stack,
+  SegmentedControl,
   useColorScheme,
   useTheme,
 } from "@/ui";
-import { memo, useEffect, useRef, useState, type CSSProperties } from "react";
+import { memo, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
@@ -21,11 +22,31 @@ import { ChainSubHeader } from "./ChainSubHeader";
 import { ChainFooter } from "./ChainFooter";
 import { ChainScrollActions } from "./ChainScrollActions";
 
+export type AtmWindow = "all" | "5" | "10";
+
+export const ATM_WINDOW_OPTIONS = [
+  { value: "all", label: "All" },
+  { value: "5", label: "ATM ±5" },
+  { value: "10", label: "ATM ±10" },
+] as Array<{ value: AtmWindow; label: string }>;
+
+/** Index of the strike closest to spot (the ATM row). -1 when unknown. */
+export function findAtmIndex(strikes: number[], spotPrice: number | null): number {
+  if (spotPrice === null || spotPrice === undefined || strikes.length === 0) return -1;
+  let best = 0;
+  for (let i = 1; i < strikes.length; i += 1) {
+    if (Math.abs(strikes[i] - spotPrice) < Math.abs(strikes[best] - spotPrice)) best = i;
+  }
+  return best;
+}
+
 interface OptionChainTableProps {
   strikeMatrix: Array<{ strike: number; ce: OptionContract | null; pe: OptionContract | null }>;
   filters: any;
   spotPrice: number | null;
   onRowClick: (contract: OptionContract) => void;
+  /** Expiry key (e.g. "25MAY") — re-centers on ATM when it changes. */
+  selectedExpiry?: string;
 }
 
 function OptionColumn({
@@ -84,22 +105,24 @@ function OptionColumn({
   const cellMeta = (
     type === "CE"
       ? [
-          { value: formatNumber(oi), kind: "oi", isOI: true },
+          { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${oi.toLocaleString("en-IN")}` },
           {
             value: formatNumber(oiChange),
             kind: "change",
             c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
+            title: `OI change ${oiChange.toLocaleString("en-IN")} (${oiChangePct.toFixed(2)}%)`,
           },
-          { value: formatNumber(volume), kind: "volume" },
-          { value: iv.toFixed(1), kind: "iv", c: "dimmed" },
+          { value: formatNumber(volume), kind: "volume", title: `Volume ${volume.toLocaleString("en-IN")}` },
+          { value: iv.toFixed(1), kind: "iv", c: "dimmed", title: `IV ${iv.toFixed(2)}%` },
           {
             value: ltp.toFixed(2),
             kind: "ltp",
             fw: 700,
             c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
             isLTP: true,
+            title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           },
         ]
       : [
@@ -109,17 +132,19 @@ function OptionColumn({
             fw: 700,
             c: isITM ? (type === "CE" ? "green.8" : "red.8") : undefined,
             isLTP: true,
+            title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           },
-          { value: iv.toFixed(1), kind: "iv", c: "dimmed" },
-          { value: formatNumber(volume), kind: "volume" },
+          { value: iv.toFixed(1), kind: "iv", c: "dimmed", title: `IV ${iv.toFixed(2)}%` },
+          { value: formatNumber(volume), kind: "volume", title: `Volume ${volume.toLocaleString("en-IN")}` },
           {
             value: formatNumber(oiChange),
             kind: "change",
             c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
+            title: `OI change ${oiChange.toLocaleString("en-IN")} (${oiChangePct.toFixed(2)}%)`,
           },
-          { value: formatNumber(oi), kind: "oi", isOI: true },
+          { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${oi.toLocaleString("en-IN")}` },
         ]
   ) as Array<{
     value: string;
@@ -130,6 +155,7 @@ function OptionColumn({
     isLTP?: boolean;
     fw?: number;
     positive?: boolean;
+    title?: string;
   }>;
 
   const sideIntensity = clamp(
@@ -214,7 +240,7 @@ function OptionColumn({
             multiline
             w={220}
           >
-            <Box sx={cellStyle} onClick={() => onRowClick(contract)}>
+            <Box sx={cellStyle} title={cell.title} onClick={() => onRowClick(contract)}>
               {cell.isOI && (
                 <Box
                   sx={{
@@ -282,6 +308,7 @@ function OptionChainTableInner({
   filters: _filters,
   spotPrice,
   onRowClick,
+  selectedExpiry,
 }: OptionChainTableProps) {
   const theme = useTheme();
   const { colorScheme } = useColorScheme();
@@ -294,16 +321,54 @@ function OptionChainTableInner({
   const viewportRef = useRef<HTMLDivElement>(null);
   const atmRowRef = useRef<HTMLDivElement>(null);
   const [hoveredStrike, setHoveredStrike] = useState<number | null>(null);
+  // ATM-first: default to a ±10 strike window so users land near the money
+  // instead of scrolling from far-OTM strikes.
+  const [atmWindow, setAtmWindow] = useState<AtmWindow>("10");
+
+  // ATM strike = closest strike to spot (not a fixed ±25pt band, which breaks
+  // on non-50pt step underlyings).
+  const atmIndex = useMemo(
+    () => findAtmIndex(strikeMatrix.map((s) => s.strike), spotPrice),
+    [strikeMatrix, spotPrice],
+  );
+  // Strike-set identity: changes on expiry switch but not on OI/LTP ticks, so
+  // auto-scroll fires on load/expiry change without yanking the user on every tick.
+  const strikeKey = useMemo(() => strikeMatrix.map((s) => s.strike).join(","), [strikeMatrix]);
+
+  const visibleRows = useMemo(() => {
+    if (atmWindow === "all" || atmIndex < 0) {
+      return strikeMatrix.map((row, index) => ({ ...row, index }));
+    }
+    const half = Number(atmWindow);
+    return strikeMatrix
+      .map((row, index) => ({ ...row, index }))
+      .filter((row) => Math.abs(row.index - atmIndex) <= half);
+  }, [strikeMatrix, atmIndex, atmWindow]);
 
   const scrollToATM = (behavior: ScrollBehavior = "smooth") => {
-    if (atmRowRef.current && viewportRef.current) {
+    const atmRow = atmRowRef.current;
+    if (!atmRow) return;
+    // Contained: scroll the table viewport only. Native scrollIntoView would
+    // escape to the page scroller (AppLayout shell) and bury the toolbar.
+    if (viewportRef.current) {
       const viewport = viewportRef.current;
-      const atmRow = atmRowRef.current;
       const viewportHeight = viewport.clientHeight;
       const rowTop = atmRow.offsetTop;
       const rowHeight = atmRow.clientHeight;
       const scrollTo = rowTop - viewportHeight / 2 + rowHeight / 2;
-      viewport.scrollTo({ top: Math.max(0, scrollTo), behavior });
+      if (typeof viewport.scrollTo === "function") {
+        viewport.scrollTo({ top: Math.max(0, scrollTo), behavior });
+      } else {
+        viewport.scrollTop = Math.max(0, scrollTo);
+      }
+      return;
+    }
+    try {
+      if (typeof atmRow.scrollIntoView === "function") {
+        atmRow.scrollIntoView({ block: "center", behavior });
+      }
+    } catch {
+      /* noop */
     }
   };
 
@@ -316,10 +381,10 @@ function OptionChainTableInner({
     }
   };
 
-  useEffect(() => {
-    const timer = setTimeout(() => scrollToATM("auto"), 200);
-    return () => clearTimeout(timer);
-  }, [spotPrice, strikeMatrix.length]);
+  // NOTE: no auto-scroll on load. The ATM ±window keeps ATM in view, and
+  // programmatic scrolling escapes to the page scroller (AppLayout shell),
+  // burying the toolbar. Users re-center via the Jump-to-ATM button, which
+  // scrolls the table viewport only (see scrollToATM).
 
   return (
     <Box
@@ -328,6 +393,22 @@ function OptionChainTableInner({
       data-testid="options-chain-table"
     >
       <ChainScrollActions scrollToATM={scrollToATM} scrollToEdge={scrollToEdge} />
+
+      <Box sx={styles.windowBar}>
+        <Text size="sm" c="dimmed" fw={600}>
+          ATM window
+        </Text>
+        <SegmentedControl
+          size="xs"
+          value={atmWindow}
+          onChange={(v) => setAtmWindow(v as AtmWindow)}
+          data={ATM_WINDOW_OPTIONS}
+          data-testid="options-chain-atm-window"
+        />
+        <Text size="sm" c="dimmed" data-testid="options-chain-window-count">
+          Showing {visibleRows.length} of {strikeMatrix.length} strikes
+        </Text>
+      </Box>
 
       <ChainTableHeader theme={theme} styles={styles} />
       <ChainSubHeader styles={styles} />
@@ -341,9 +422,10 @@ function OptionChainTableInner({
         data-testid="options-chain-table-scrollarea"
       >
         <Box sx={{ minWidth: 800, pb: 19 }}>
-          {strikeMatrix.map(({ strike, ce, pe }) => {
-            const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
+          {visibleRows.map(({ strike, ce, pe, index }) => {
+            const isATM = index === atmIndex && atmIndex >= 0;
             const isHovered = hoveredStrike === strike;
+            const isZebra = index % 2 === 1 && !isATM;
             const proximity = spotPrice
               ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
               : 0;
@@ -361,8 +443,11 @@ function OptionChainTableInner({
                 key={strike}
                 ref={isATM ? atmRowRef : null}
                 className={isATM ? "chain-row-atm" : undefined}
+                data-atm={isATM ? "true" : undefined}
                 sx={{
                   ...styles.row,
+                  ...(isZebra ? styles.zebraRow : {}),
+                  ...(isATM ? styles.atmRow : {}),
                   background: `linear-gradient(90deg, ${rowCallBg} 0%, transparent 37%, ${isATM ? hexToRgba(theme.palette.warning.light, 0.12 + proximity * 0.12) : "transparent"} 50%, transparent 63%, ${rowPutBg} 100%)`,
                   boxShadow: isHovered
                     ? `inset 0 0 0 1px ${hexToRgba(theme.palette.warning.light, 0.5)}, 0 6px 16px ${hexToRgba(theme.palette.common.black, 0.08)}`
@@ -398,6 +483,16 @@ function OptionChainTableInner({
                   <Text size="sm" fw={800}>
                     {strike}
                   </Text>
+                  {isATM && (
+                    <Badge
+                      size="sm"
+                      variant="filled"
+                      color="warning"
+                      data-testid="options-chain-atm-badge"
+                    >
+                      ATM
+                    </Badge>
+                  )}
                 </Box>
 
                 <OptionColumn
