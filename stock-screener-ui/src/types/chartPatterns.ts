@@ -46,6 +46,25 @@ export interface PatternDef {
 
 export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
 
+/**
+ * Per-layer cache provenance for a scan job. Added alongside the scan-reuse
+ * markers; always treat as optional — older backends omit it entirely.
+ */
+export interface ScanProvenance {
+  /** True when the scan reused a previous scan without re-detecting. */
+  scan_reused: boolean;
+  /** Candle payloads served from the disk cache (never hit the vendor). */
+  candles_cached: number;
+  /** Candle payloads freshly fetched from the vendor. */
+  candles_fetched: number;
+  /** Symbols dropped by the volume pre-filter (null when unknown). */
+  prefilter_dropped: number | null;
+  /** Detector version that produced the results. */
+  detector_version: number;
+  /** Data cutoff timestamp (null when unknown). */
+  data_through: string | null;
+}
+
 /** Compute job state (`JobDTO`, `GET /jobs/{id}`). */
 export interface JobDTO {
   job_id: string;
@@ -72,6 +91,12 @@ export interface JobDTO {
   reused_age_sec?: number | null;
   /** Finish timestamp of the reused scan (null when not reused/unknown). */
   reused_finished_at?: string | null;
+  /**
+   * Per-layer cache provenance (`scan_reused`, candle hit/miss counts,
+   * prefilter drops, detector version). Absent/null on older backends —
+   * always code defensively against a missing value.
+   */
+  provenance?: ScanProvenance | null;
 }
 
 /** Market open state (`GET /api/chart-patterns/market-status`, holiday-aware). */
@@ -271,6 +296,18 @@ export interface PatternFilters {
    * Shows consolidations whose price sits at/above this % of the base range.
    */
   min_range_pos?: number | null;
+  /**
+   * Minimum pattern-fit confidence score (0..100, null = any). RESULT-LEVEL,
+   * CLIENT-ONLY filter: applied in the store's `applyResultFilters` selector,
+   * never sent to `/results`/`/summary` (not part of `baseQuery`).
+   */
+  min_confidence?: number | null;
+  /**
+   * Minimum breakout-conviction score (0..100, null = any). RESULT-LEVEL,
+   * CLIENT-ONLY filter like `min_confidence`: applied in the store's
+   * `applyResultFilters` selector, never sent to the API.
+   */
+  min_breakout_score?: number | null;
   /**
    * Minimum relative volume (null = any). Scan-time pre-filter: the scan
    * pre-filters the universe via TradingView before fetching candles.

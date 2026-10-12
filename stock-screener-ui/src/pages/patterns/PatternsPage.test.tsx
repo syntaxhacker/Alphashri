@@ -583,6 +583,23 @@ describe("PatternsPage toolbar", () => {
     expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters (2)");
   });
 
+  test("Filters button counts the score and breakout floors", () => {
+    const props = makeProps({
+      filters: { ...makeProps().filters, min_confidence: 70, min_breakout_score: 60 },
+    });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByTestId("patterns-open-filters")).toHaveTextContent("Filters (2)");
+  });
+
+  test("results toolbar drops the redundant count label (stats strip owns the count)", () => {
+    r(<PatternsPage {...makeProps({ results: [makeHit()], total: 1 })} />);
+    const toolbar = screen.getByTestId("patterns-results-toolbar");
+    expect(within(toolbar).queryByText("1 patterns")).not.toBeInTheDocument();
+    expect(within(toolbar).queryByText("Patterns")).not.toBeInTheDocument();
+    // The stats strip still reports the pattern count.
+    expect(screen.getByTestId("patterns-stat-patterns")).toHaveTextContent("12");
+  });
+
   test("Filters button counts a non-default 10d avg volume filter", () => {
     const props = makeProps({
       filters: { ...makeProps().filters, min_avg_volume_10d: 200 },
@@ -625,7 +642,42 @@ describe("PatternsPage toolbar", () => {
     );
   });
 
-  test("shows the reused notice next to Force refresh when the job was reused", async () => {
+  test("shows the cached chip with age + force re-run when the job was reused", async () => {
+    const props = makeProps({
+      job: {
+        job_id: "cpj_reused",
+        universe: "nifty500",
+        timeframe: "1D",
+        status: "completed" as const,
+        total: 500,
+        done: 500,
+        failed: 0,
+        skipped: 0,
+        queue_position: null,
+        started_at: null,
+        finished_at: null,
+        data_through: "2026-09-30",
+        error: null,
+        reused: true,
+        reused_from: "cpj_prev",
+        reused_age_sec: 720,
+        reused_finished_at: null,
+      },
+      scanning: false,
+    });
+    r(<PatternsPage {...props} />);
+    expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 12 min ago");
+    expect(screen.getByTestId("patterns-scan-data-through")).toHaveTextContent("as of 2026-09-30");
+    // The chip's own Force re-run action re-runs fresh.
+    await userEvent.click(screen.getByTestId("patterns-scan-reused-force"));
+    expect(props.forceRefresh).toHaveBeenCalledTimes(1);
+    // The existing Force refresh action stays available in the overflow menu.
+    await userEvent.click(screen.getByTestId("patterns-overflow"));
+    expect(await screen.findByTestId("patterns-force-refresh")).toBeInTheDocument();
+  });
+
+  test("reused chip tooltip lists the cache layers", () => {
     r(
       <PatternsPage
         {...makeProps({
@@ -647,17 +699,126 @@ describe("PatternsPage toolbar", () => {
             reused_from: "cpj_prev",
             reused_age_sec: 720,
             reused_finished_at: null,
+            provenance: {
+              scan_reused: true,
+              candles_cached: 480,
+              candles_fetched: 20,
+              prefilter_dropped: 12,
+              detector_version: 3,
+              data_through: "2026-09-30",
+            },
           },
           scanning: false,
         })}
       />,
     );
-    const notice = screen.getByTestId("patterns-scan-reused");
-    expect(notice).toHaveTextContent("Reused scan from 12 min ago");
-    expect(notice).toHaveTextContent("Force to re-run");
-    // The existing Force refresh action stays available in the overflow menu.
-    await userEvent.click(screen.getByTestId("patterns-overflow"));
-    expect(await screen.findByTestId("patterns-force-refresh")).toBeInTheDocument();
+    // MUI surfaces a string tooltip title as the wrapper's aria-label.
+    expect(screen.getByLabelText(/Scan reused: yes \(12 min ago\)/)).toHaveAttribute(
+      "aria-label",
+      "Scan reused: yes (12 min ago) — data unchanged · Candle cache: 480 cached / 20 fetched · Prefilter dropped: 12 · Detector v3 · Data as of 2026-09-30",
+    );
+  });
+
+  test("shows the fresh chip for a freshly computed completed scan", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          job: {
+            job_id: "cpj_fresh",
+            universe: "nifty500",
+            timeframe: "1D",
+            status: "completed" as const,
+            total: 500,
+            done: 500,
+            failed: 0,
+            skipped: 0,
+            queue_position: null,
+            started_at: null,
+            finished_at: null,
+            data_through: "2026-09-30",
+            error: null,
+            provenance: {
+              scan_reused: false,
+              candles_cached: 0,
+              candles_fetched: 500,
+              prefilter_dropped: 0,
+              detector_version: 3,
+              data_through: "2026-09-30",
+            },
+          },
+          scanning: false,
+        })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Fresh");
+    expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-data-through")).toHaveTextContent("as of 2026-09-30");
+    expect(
+      screen.getByLabelText("Scan reused: no — freshly computed · Candle cache: 0 cached / 500 fetched · Prefilter dropped: 0 · Detector v3 · Data as of 2026-09-30"),
+    ).toBeInTheDocument();
+  });
+
+  test("shows the mixed cache share when candles were partly cached", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          job: {
+            job_id: "cpj_mixed",
+            universe: "nifty500",
+            timeframe: "1D",
+            status: "completed" as const,
+            total: 500,
+            done: 500,
+            failed: 0,
+            skipped: 0,
+            queue_position: null,
+            started_at: null,
+            finished_at: null,
+            data_through: "2026-09-30",
+            error: null,
+            provenance: {
+              scan_reused: false,
+              candles_cached: 335,
+              candles_fetched: 165,
+              prefilter_dropped: null,
+              detector_version: 3,
+              data_through: "2026-09-30",
+            },
+          },
+          scanning: false,
+        })}
+      />,
+    );
+    // 335/500 → 67%.
+    expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Cache 67%");
+    expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
+  });
+
+  test("no cache chip while a scan is active", () => {
+    r(
+      <PatternsPage
+        {...makeProps({
+          scanning: true,
+          job: {
+            job_id: "cpj_run",
+            universe: "nifty500",
+            timeframe: "1D",
+            status: "running" as const,
+            total: 50,
+            done: 12,
+            failed: 0,
+            skipped: 0,
+            queue_position: null,
+            started_at: null,
+            finished_at: null,
+            data_through: null,
+            error: null,
+          },
+        })}
+      />,
+    );
+    expect(screen.queryByTestId("patterns-scan-status")).not.toBeInTheDocument();
   });
 
   test("no reused notice for a freshly computed scan", () => {

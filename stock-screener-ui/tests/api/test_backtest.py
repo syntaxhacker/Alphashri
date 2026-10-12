@@ -358,6 +358,15 @@ class TestBacktestProgressEndpoint:
 class TestBacktestRunEndpoint:
     """Test POST /api/backtest/run endpoint."""
 
+    def test_run_endpoint_unknown_strategy_returns_400(self, auth_client):
+        """An unsupported strategy must fail loudly, not return a 200 null payload."""
+        resp = auth_client.post(
+            "/api/backtest/run",
+            json={"strategy": "adx_trend", "symbols": ["NETWEB"], "params": {}, "days": 30},
+        )
+        assert resp.status_code == 400
+        assert "Unknown strategy" in resp.json()["detail"]
+
     def test_run_backtest_missing_symbols(self):
         """Test running backtest without symbols returns error."""
         body = {

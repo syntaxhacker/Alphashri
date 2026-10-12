@@ -1,19 +1,15 @@
 import { useEffect, useRef, useState } from "react";
-import { ActionIcon, Alert, Box, Button, Divider, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Switch, Tabs, Text, ToolbarRow } from "@/ui";
+import { ActionIcon, Alert, Box, Button, Loader, LoadingOverlay, Menu, MenuDropdown, MenuItem, MenuTarget, Modal, SegmentedControl, Switch, Tabs, Text, ToolbarRow } from "@/ui";
 import { IconAdjustmentsHorizontal, IconDotsVertical } from "@tabler/icons-react";
 import type {
-  ChartCandle,
   JobDTO,
   PatternDef,
   PatternFilters,
   PatternHitDTO,
-  PatternOverlay,
   PatternSummary,
   TFSpec,
-  TrendLine,
   Universe,
 } from "@/types/chartPatterns";
-import { fetchSymbolChart } from "@/api/chartPatterns";
 import { fetchPatternImages } from "@/api/patternImages";
 import { UniverseBar } from "@/components/patterns/UniverseBar";
 import { ScanStats } from "@/components/patterns/ScanStats";
@@ -24,10 +20,10 @@ import { SymbolFilter } from "@/components/patterns/SymbolFilter";
 import { ResultsSearch } from "@/components/patterns/ResultsSearch";
 import { PatternGrid } from "@/components/patterns/PatternGrid";
 import { PatternListView } from "@/components/patterns/PatternListView";
-import { ScanProgress, ReusedScanNotice } from "@/components/patterns/ScanProgress";
+import { ScanProgress, ScanCacheChip } from "@/components/patterns/ScanProgress";
 import { AppliedFilters } from "@/components/patterns/AppliedFilters";
 import { PatternFullscreenView } from "@/components/patterns/PatternFullscreenView";
-import { newestHit, sortHitsNewest } from "@/components/patterns/FullscreenPatternList";
+import { usePatternFullscreen } from "@/hooks/usePatternFullscreen";
 import { ReplayScanControl, type ReplayScanArgs } from "@/components/patterns/ReplayScanControl";
 import { WatchView } from "@/components/patterns/WatchView";
 import { formatAsOfLabel } from "@/components/patterns/datetime";
@@ -73,6 +69,8 @@ function activeFilterCount(f: PatternFilters): number {
   if (f.max_range_pct != null) n += 1;
   if (f.max_52w_gap != null) n += 1;
   if (f.min_range_pos != null) n += 1;
+  if (f.min_confidence != null) n += 1;
+  if (f.min_breakout_score != null) n += 1;
   if (f.from_date) n += 1;
   if (f.to_date) n += 1;
   if (f.min_rel_volume != null) n += 1;
@@ -171,26 +169,20 @@ export function PatternsPage({
   tab: tabProp,
   setTab: setTabProp,
 }: PatternsPageProps) {
-  const [fullscreen, setFullscreen] = useState<{
-    symbol: string;
-    hit: PatternHitDTO | null;
-    /** All detected patterns for the symbol (newest-first single-select list). */
-    hits: PatternHitDTO[];
-    /** Fullscreen timeframe (defaults to the opened hit's timeframe). */
-    timeframe: string;
-    candles: ChartCandle[];
-    overlays: PatternOverlay[];
-    trendLines: TrendLine[];
-    /** True while a fullscreen timeframe switch is reloading the chart. */
-    loading: boolean;
-    /** As-of replay cutoff (ISO local datetime, null = live). */
-    asOf: string | null;
-    /** Replay window start (ISO local datetime, null = any). */
-    fromDate: string | null;
-  } | null>(null);
-  // Monotonic request token: clicking two cards of the same symbol in quick
-  // succession must not let the stale fetch overwrite the newer selection.
-  const chartRequestRef = useRef(0);
+  // Fullscreen pattern chart, shared with the Daily Report page: identical
+  // open/timeframe/as-of/select behaviour via `usePatternFullscreen`.
+  // Top-level compute toggle off: draw no standalone trendlines anywhere,
+  // regardless of the view-only `trendlines` filter.
+  const effectiveTrendlinesView = computeTrendlines ? (filters.trendlines ?? "both") : "none";
+  const {
+    fullscreen,
+    openFromCard,
+    openFromSymbol,
+    changeFullscreenTimeframe,
+    changeFullscreenAsOf,
+    selectFullscreenHit,
+    closeFullscreen,
+  } = usePatternFullscreen({ timeframe, lookbackBars, computeTrendlines });
   const [filtersOpen, setFiltersOpen] = useState(false);
   /** Dense results view: `list` (default) or the card `grid`. */
   const [view, setView] = useState<"list" | "grid">("list");
@@ -276,234 +268,6 @@ export function PatternsPage({
     };
   }, [filtersOpen]);
 
-  /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
-  // Top-level compute toggle off: draw no standalone trendlines anywhere,
-  // regardless of the view-only `trendlines` filter.
-  const effectiveTrendlinesView = computeTrendlines ? (filters.trendlines ?? "both") : "none";
-
-  /** Full hit identity — distinguishes two instances on the same symbol/timeframe. */
-  const hitIdentity = (hit: PatternHitDTO): string =>
-    `${hit.id ?? `${hit.symbol}|${hit.timeframe}|${hit.pattern_id}|${hit.start_date}`}`;
-
-  /**
-   * Structural identity for de-duplicating the clicked card hit against the
-   * live-detected hits. Live detection returns the same pattern with
-   * ``id: null`` while the stored card hit carries a DB id, so the id-based
-   * ``hitIdentity`` would keep both as separate rows.
-   */
-  const dedupeKey = (hit: PatternHitDTO): string =>
-    `${hit.symbol}|${hit.timeframe}|${hit.pattern_id}|${hit.start_date}|${hit.end_date}`;
-
-  /** De-duplicated union of hits by structure, preferring the fetched record. */
-  const mergeHits = (clicked: PatternHitDTO, fetched: PatternHitDTO[]): PatternHitDTO[] => {
-    const byKey = new Map<string, PatternHitDTO>();
-    byKey.set(dedupeKey(clicked), clicked);
-    for (const hit of fetched) byKey.set(dedupeKey(hit), hit);
-    return [...byKey.values()];
-  };
-
-  // On open, load every detected pattern for the symbol so the fullscreen
-  // right-hand panel can list them newest-first; the chart shows only the
-  // single newest pattern (radio-style select, no dashed siblings). Falls
-  // back to the card's own candles if the fetch fails.
-  const openFromCard = (hit: PatternHitDTO) => {
-    const token = chartRequestRef.current + 1;
-    chartRequestRef.current = token;
-    const identity = hitIdentity(hit);
-    setFullscreen({
-      symbol: hit.symbol,
-      hit,
-      hits: [],
-      timeframe: hit.timeframe,
-      candles: hit.candles ?? [],
-      overlays: [],
-      trendLines: hit.trend_lines ?? [],
-      loading: false,
-      asOf: null,
-      fromDate: null,
-    });
-    // Forward the TLS/TLR opt-out: with computation off the chart endpoint
-    // skips the detector and returns empty `trend_lines`.
-    void fetchSymbolChart(hit.symbol, hit.timeframe, {
-      detectPatterns: true,
-      ...(lookbackBars != null ? { lookbackBars } : {}),
-      computeTrendlines,
-    })
-      .then((chart) => {
-        // Drop stale responses: only the latest request may update the view.
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.hit && hitIdentity(prev.hit) === identity
-            ? {
-                ...prev,
-                hits: sortHitsNewest(mergeHits(hit, chart.hits ?? [])),
-                hit: newestHit(mergeHits(hit, chart.hits ?? [])),
-                candles: chart.candles?.length ? chart.candles : prev.candles,
-                overlays: [],
-                trendLines: chart.trend_lines ?? prev.trendLines,
-              }
-            : prev,
-        );
-      })
-      .catch(() => {
-        /* non-fatal: keep the card's pattern + candles */
-      });
-  };
-
-  /**
-   * Watch-row open: fetch the symbol chart with live pattern detection and
-   * show it fullscreen, promoting the newest hit (or null when there is
-   * none). Mirrors `openFromCard` without needing a card hit.
-   */
-  const openFromSymbol = (symbol: string) => {
-    const token = chartRequestRef.current + 1;
-    chartRequestRef.current = token;
-    setFullscreen({
-      symbol,
-      hit: null,
-      hits: [],
-      timeframe,
-      candles: [],
-      overlays: [],
-      trendLines: [],
-      loading: true,
-      asOf: null,
-      fromDate: null,
-    });
-    void fetchSymbolChart(symbol, timeframe, {
-      detectPatterns: true,
-      ...(lookbackBars != null ? { lookbackBars } : {}),
-      computeTrendlines,
-    })
-      .then((chart) => {
-        if (chartRequestRef.current !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === timeframe
-            ? {
-                ...prev,
-                hit: newestHit(hits),
-                hits,
-                candles: chart.candles ?? [],
-                overlays: [],
-                trendLines: chart.trend_lines ?? [],
-                loading: false,
-              }
-            : prev,
-        );
-      })
-      .catch(() => {
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === timeframe
-            ? { ...prev, loading: false }
-            : prev,
-        );
-      });
-  };
-
-  /**
-   * Fullscreen timeframe switch: re-runs pattern detection on the new
-   * timeframe (`detect_patterns=1`), swaps candles/trendlines, and promotes
-   * the newest hit (or null when there is none). Only the active pattern is
-   * drawn — no dashed siblings. Preserves the active as-of replay window
-   * when one is set.
-   */
-  const changeFullscreenTimeframe = (tf: string) => {
-    const current = fullscreen;
-    if (!current || tf === current.timeframe) return;
-    const token = chartRequestRef.current + 1;
-    chartRequestRef.current = token;
-    const { symbol, asOf, fromDate } = current;
-    setFullscreen({ ...current, timeframe: tf, loading: true });
-    void fetchSymbolChart(symbol, tf, {
-      detectPatterns: true,
-      ...(asOf ? { asOf } : {}),
-      ...(fromDate ? { fromDate } : {}),
-    })
-      .then((chart) => {
-        // Drop stale responses: only the latest request may update the view.
-        if (chartRequestRef.current !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? {
-                ...prev,
-                hit: newestHit(hits),
-                hits,
-                candles: chart.candles ?? [],
-                overlays: [],
-                trendLines: chart.trend_lines ?? [],
-                loading: false,
-              }
-            : prev,
-        );
-      })
-      .catch(() => {
-        // Non-fatal: keep the previous chart, just clear the spinner.
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? { ...prev, loading: false }
-            : prev,
-        );
-      });
-  };
-
-  /**
-   * Fullscreen as-of replay: re-runs detection truncated at the cutoff
-   * (`detect_patterns=1` + `asOf`/`fromDate`), swaps candles, and promotes
-   * the newest hit in the window (or null when there is none). Only the
-   * active pattern is drawn — no dashed siblings. Keeps the loading state
-   * while the replay fetch is in flight.
-   */
-  const changeFullscreenAsOf = (asOf: string | null, fromDate: string | null) => {
-    const current = fullscreen;
-    if (!current) return;
-    const token = chartRequestRef.current + 1;
-    chartRequestRef.current = token;
-    const { symbol, timeframe: tf } = current;
-    setFullscreen({ ...current, asOf, fromDate, loading: true });
-    void fetchSymbolChart(symbol, tf, {
-      detectPatterns: true,
-      asOf: asOf ?? undefined,
-      fromDate: fromDate ?? undefined,
-    })
-      .then((chart) => {
-        // Drop stale responses: only the latest request may update the view.
-        if (chartRequestRef.current !== token) return;
-        const hits = sortHitsNewest(chart.hits ?? []);
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? {
-                ...prev,
-                asOf,
-                fromDate,
-                hit: newestHit(hits),
-                hits,
-                candles: chart.candles ?? [],
-                overlays: [],
-                trendLines: chart.trend_lines ?? [],
-                loading: false,
-              }
-            : prev,
-        );
-      })
-      .catch(() => {
-        // Non-fatal: keep the previous chart, just clear the spinner.
-        if (chartRequestRef.current !== token) return;
-        setFullscreen((prev) =>
-          prev && prev.symbol === symbol && prev.timeframe === tf
-            ? { ...prev, asOf, fromDate, loading: false }
-            : prev,
-        );
-      });
-  };
-
-  /** Fullscreen single-select: switch the chart to the chosen pattern. */
-  const selectFullscreenHit = (hit: PatternHitDTO) => {
-    setFullscreen((prev) => (prev ? { ...prev, hit } : prev));
-  };
 
   return (
     <Box
@@ -532,7 +296,8 @@ export function PatternsPage({
         <ToolbarRow
           data-testid="patterns-scan-scope"
           gap={8}
-          style={{ minHeight: 40, flexWrap: "wrap", rowGap: 4 }}
+          justify="space-between"
+          style={{ minHeight: 32, flexWrap: "wrap", rowGap: 2 }}
         >
           <span title="Add symbols to scan just those — skips the whole universe">
             <SymbolFilter
@@ -550,111 +315,121 @@ export function PatternsPage({
             </Text>
           ) : null}
         </ToolbarRow>
-        <Divider />
         <ScanStats summary={summary} />
-        <UniverseBar
-          universes={universes}
-          universe={universe}
-          setUniverse={setUniverse}
-          customUniverse={customUniverse}
-          customSymbolCount={filters.symbols?.length ?? 0}
-          scan={scan}
-          scanning={scanning}
-          job={job}
-          queuePosition={queuePosition}
-          error={error}
-          actions={
-            <ToolbarRow
-              justify="flex-end"
-              align="center"
-              gap={8}
-              data-testid="patterns-results-toolbar"
-              style={{ flexWrap: "wrap", rowGap: 6 }}
-            >
-              <Text size="xs" c="dimmed" fw={700} style={{ textTransform: "uppercase" }}>
-                {total > 0 ? `${total} patterns` : "Patterns"}
-              </Text>
-              {streaming && results.length > 0 ? (
-                <Text size="xs" c="dimmed" data-testid="patterns-streaming">
-                  {`loading more… ${results.length} of ${total}`}
-                </Text>
-              ) : null}
-              <SegmentedControl
-                data={[
-                  { value: "list", label: "List" },
-                  { value: "grid", label: "Grid" },
-                ]}
-                value={view}
-                onChange={(v) => {
-                  if (v === "list" || v === "grid") setView(v);
-                }}
-                size="xs"
-                data-testid="patterns-view-toggle"
-              />
-              <TimeframeSelect timeframes={timeframes} value={timeframe} onChange={setTimeframe} />
-              <LookbackSelect value={lookbackBars} onChange={setLookbackBars} />
-              <ResultsSearch filters={filters} setFilter={setFilter} />
-              <Switch
-                label="TLS/TLR"
-                size="sm"
-                checked={computeTrendlines}
-                onChange={(e) => setComputeTrendlines(e.target.checked)}
-                data-testid="patterns-compute-trendlines"
-              />
-              <Button
-                size="xs"
-                variant="filled"
-                leftSection={<IconAdjustmentsHorizontal size={14} />}
-                onClick={() => setFiltersOpen(true)}
-                data-testid="patterns-open-filters"
-              >
-                Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
-              </Button>
-              <Menu data-testid="patterns-overflow-menu">
-                <MenuTarget>
-                  <ActionIcon
-                    variant="outline"
-                    size="sm"
-                    aria-label="More actions"
-                    data-testid="patterns-overflow"
-                  >
-                    <IconDotsVertical size={15} />
-                  </ActionIcon>
-                </MenuTarget>
-                <MenuDropdown data-testid="patterns-overflow-dropdown">
-                  <MenuItem
-                    onClick={handleCopyCsv}
-                    disabled={results.length === 0}
-                    data-testid="patterns-copy-csv"
-                  >
-                    Copy CSV
-                  </MenuItem>
-                  <MenuItem
-                    onClick={handleCopySymbols}
-                    disabled={results.length === 0}
-                    data-testid="patterns-copy-symbols"
-                  >
-                    Copy symbols
-                  </MenuItem>
-                  <MenuItem
-                    onClick={forceRefresh}
-                    disabled={scanning}
-                    data-testid="patterns-force-refresh"
-                  >
-                    Force refresh
-                  </MenuItem>
-                </MenuDropdown>
-              </Menu>
-              {copyMsg ? (
-                <Text size="xs" c={copyFailed ? "error" : "success"} data-testid="patterns-copy-toast">
-                  {copyMsg}
-                </Text>
-              ) : null}
-              {job?.reused && !scanActive ? <ReusedScanNotice job={job} /> : null}
-            </ToolbarRow>
-          }
-        />
       </Box>
+      <UniverseBar
+        universes={universes}
+        universe={universe}
+        setUniverse={setUniverse}
+        customUniverse={customUniverse}
+        customSymbolCount={filters.symbols?.length ?? 0}
+        scan={scan}
+        scanning={scanning}
+        job={job}
+        queuePosition={queuePosition}
+        error={error}
+        actions={
+          <ToolbarRow
+            justify="flex-start"
+            align="center"
+            gap={8}
+            wrap={true}
+            data-testid="patterns-results-toolbar"
+          >
+            {streaming && results.length > 0 ? (
+              <Text size="xs" c="dimmed" data-testid="patterns-streaming">
+                {`loading more… ${results.length} of ${total}`}
+              </Text>
+            ) : null}
+            <SegmentedControl
+              data={[
+                { value: "list", label: "List" },
+                { value: "grid", label: "Grid" },
+              ]}
+              value={view}
+              onChange={(v) => {
+                if (v === "list" || v === "grid") setView(v);
+              }}
+              size="xs"
+              data-testid="patterns-view-toggle"
+            />
+            <TimeframeSelect timeframes={timeframes} value={timeframe} onChange={setTimeframe} />
+            <LookbackSelect value={lookbackBars} onChange={setLookbackBars} />
+            <ResultsSearch filters={filters} setFilter={setFilter} />
+            <Switch
+              label="TLS/TLR"
+              size="sm"
+              checked={computeTrendlines}
+              onChange={(e) => setComputeTrendlines(e.target.checked)}
+              data-testid="patterns-compute-trendlines"
+            />
+            <Button
+              size="xs"
+              variant="filled"
+              leftSection={<IconAdjustmentsHorizontal size={14} />}
+              onClick={() => setFiltersOpen(true)}
+              data-testid="patterns-open-filters"
+            >
+              Filters{activeFilters > 0 ? ` (${activeFilters})` : ""}
+            </Button>
+            <Menu data-testid="patterns-overflow-menu">
+              <MenuTarget>
+                <ActionIcon
+                  variant="outline"
+                  size="sm"
+                  aria-label="More actions"
+                  data-testid="patterns-overflow"
+                >
+                  <IconDotsVertical size={15} />
+                </ActionIcon>
+              </MenuTarget>
+              <MenuDropdown data-testid="patterns-overflow-dropdown">
+                <MenuItem
+                  onClick={handleCopyCsv}
+                  disabled={results.length === 0}
+                  data-testid="patterns-copy-csv"
+                >
+                  Copy CSV
+                </MenuItem>
+                <MenuItem
+                  onClick={handleCopySymbols}
+                  disabled={results.length === 0}
+                  data-testid="patterns-copy-symbols"
+                >
+                  Copy symbols
+                </MenuItem>
+                <MenuItem
+                  onClick={forceRefresh}
+                  disabled={scanning}
+                  data-testid="patterns-force-refresh"
+                >
+                  Force refresh
+                </MenuItem>
+              </MenuDropdown>
+            </Menu>
+            {copyMsg ? (
+              <Text size="xs" c={copyFailed ? "error" : "success"} data-testid="patterns-copy-toast">
+                {copyMsg}
+              </Text>
+            ) : null}
+            {job?.status === "completed" && !scanActive ? (
+              <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
+                <ScanCacheChip job={job} onForceRefresh={forceRefresh} />
+                {job.data_through ? (
+                  <Text
+                    size="xs"
+                    c="dimmed"
+                    style={{ whiteSpace: "nowrap" }}
+                    data-testid="patterns-scan-data-through"
+                  >
+                    {`as of ${job.data_through}`}
+                  </Text>
+                ) : null}
+              </Box>
+            ) : null}
+          </ToolbarRow>
+        }
+      />
 
       <Box sx={{ minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }}>
 
@@ -821,7 +596,7 @@ export function PatternsPage({
 
       <PatternFullscreenView
         opened={!!fullscreen}
-        onClose={() => setFullscreen(null)}
+        onClose={closeFullscreen}
         hit={fullscreen?.hit ?? null}
         hits={fullscreen?.hits ?? []}
         onSelectHit={selectFullscreenHit}

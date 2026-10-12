@@ -1,8 +1,9 @@
-import { useMemo, useRef } from "react";
+import { useMemo, useRef, type ReactNode } from "react";
 import Autocomplete from "@mui/material/Autocomplete";
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import type { UIMultiSelectProps } from "../types";
+import { stripLegacyInputProps } from "./legacyProps";
 
 type Option = { value: string; label: string; disabled?: boolean };
 
@@ -42,12 +43,18 @@ export function MultiSelect({
   className,
   style,
   "data-testid": testId,
+  // Legacy Mantine-isms — accepted for backward compat, never forwarded.
+  allowDeselect: _allowDeselect,
+  maxDropdownHeight: _maxDropdownHeight,
+  comboboxProps: _comboboxProps,
+  withinPortal: _withinPortal,
+  InputProps: _InputProps,
   ...rest
 }: UIMultiSelectProps) {
   const options = useMemo(() => normalizeOptions(data), [data]);
   const muiSize = mapSize(size);
   const isError = Boolean(error);
-  const { w: widthProp, h: heightProp, ...restProps } = rest as {
+  const { w: widthProp, h: heightProp, ...restProps } = stripLegacyInputProps(rest as Record<string, unknown>) as {
     w?: number | string;
     h?: number | string;
   } & Record<string, unknown>;
@@ -125,33 +132,52 @@ export function MultiSelect({
       style={style as React.CSSProperties}
       data-testid={testId}
       renderValue={hideTags ? () => null : undefined}
-      renderInput={(params) => (
+      renderInput={(params) => {
+        // MUI v9 TextField no longer accepts `InputProps` (it leaks to the
+        // DOM as `inputprops`); merge Autocomplete's input params into
+        // `slotProps.input` instead, preserving params.slotProps (htmlInput
+        // carries role="combobox" and the aria wiring).
+        const { InputProps: autoInputProps, ...textFieldParams } = params as typeof params & {
+          InputProps?: Record<string, unknown>;
+        };
+        const autoSlotProps = (textFieldParams as { slotProps?: Record<string, unknown> }).slotProps ?? {};
+        const autoSlotInput = (autoSlotProps.input as Record<string, unknown> | undefined) ?? {};
+        // Selected-tag chips arrive via slotProps.input in MUI v9 (or via
+        // InputProps on older shapes) — consult both so tags never vanish.
+        const autoStartAdornment = (autoSlotInput.startAdornment ?? autoInputProps?.startAdornment) as ReactNode;
+        const autoEndAdornment = (autoSlotInput.endAdornment ?? autoInputProps?.endAdornment) as ReactNode;
+        return (
         <TextField
-          {...params}
+          {...textFieldParams}
           label={label as string | undefined}
           placeholder={placeholder}
           helperText={helperText}
           error={isError}
           required={required}
           size={muiSize}
-          InputProps={{
-            ...(params.InputProps ?? {}),
-            startAdornment: (
-              <>
-                {leftSection ? <InputAdornment position="start">{leftSection}</InputAdornment> : null}
-                {params.InputProps?.startAdornment}
-              </>
-            ),
-            endAdornment: (
-              <>
-                {params.InputProps?.endAdornment}
-                {rightSection ? <InputAdornment position="end">{rightSection}</InputAdornment> : null}
-              </>
-            ),
+          slotProps={{
+            ...autoSlotProps,
+            input: {
+              ...autoInputProps,
+              ...(autoSlotProps.input as Record<string, unknown> | undefined),
+              startAdornment: (
+                <>
+                  {leftSection ? <InputAdornment position="start">{leftSection}</InputAdornment> : null}
+                  {autoStartAdornment ?? null}
+                </>
+              ),
+              endAdornment: (
+                <>
+                  {autoEndAdornment ?? null}
+                  {rightSection ? <InputAdornment position="end">{rightSection}</InputAdornment> : null}
+                </>
+              ),
+            },
           }}
           sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" } }}
         />
-      )}
+        );
+      }}
       sx={{ width: explicitWidth ?? "100%", ...(explicitHeight && { height: explicitHeight }) }}
       {...(restProps as object)}
     />

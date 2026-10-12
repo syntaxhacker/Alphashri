@@ -26,7 +26,12 @@ IST = root_config.IST
 
 from backtest.costs import calculate_trading_costs
 from trading.pivot_utils import calculate_pivot_points
-from trading.ema_utils import calculate_ema
+from trading.indicators import ema as calculate_ema
+from trading.indicators import (
+    bbands as _adapter_bbands,
+    rsi as _adapter_rsi,
+    supertrend as _adapter_supertrend,
+)
 
 # Default market windows (IST minutes from midnight)
 MKT_OPEN = 9 * 60 + 15       # 09:15
@@ -258,8 +263,8 @@ def simulate_ema_cross(df: pd.DataFrame, params: Dict) -> List[dict]:
     df["ist_time"] = df.index.map(lambda x: x.tz_convert(IST))
     df["tmin"] = df["ist_time"].map(_minutes)
     closes = df["close"].tolist()
-    ema_fast = calculate_ema(closes, fast, return_full=True)
-    ema_slow = calculate_ema(closes, slow, return_full=True)
+    ema_fast = calculate_ema(closes, fast, full=True)
+    ema_slow = calculate_ema(closes, slow, full=True)
 
     trades: List[dict] = []
     pos = None
@@ -326,31 +331,11 @@ def simulate_ema_cross(df: pd.DataFrame, params: Dict) -> List[dict]:
 # ---------------------------------------------------------------------------
 def supertrend(high: np.ndarray, low: np.ndarray, close: np.ndarray,
                period: int = 10, multiplier: float = 3.0):
-    hi, lo, cl = np.asarray(high, float), np.asarray(low, float), np.asarray(close, float)
-    hl2 = (hi + lo) / 2
-    tr = np.maximum(hi[1:] - lo[1:], np.abs(hi[1:] - cl[:-1]))
-    tr = np.maximum(tr, np.abs(lo[1:] - cl[:-1]))
-    tr = np.concatenate([[tr[0]], tr])
-    atr = pd.Series(tr).rolling(period).mean().values
-    basic_up = hl2 - multiplier * atr
-    basic_down = hl2 + multiplier * atr
-    st = np.full(len(close), np.nan)
-    direction = np.ones(len(close))
-    for i in range(period, len(close)):
-        if direction[i - 1] == 1:
-            if cl[i] < basic_up[i]:
-                direction[i] = -1
-            else:
-                direction[i] = 1
-        else:
-            if cl[i] > basic_down[i]:
-                direction[i] = 1
-            else:
-                direction[i] = -1
-        if direction[i] == 1:
-            st[i] = max(basic_up[i], st[i - 1]) if not np.isnan(st[i - 1]) else basic_up[i]
-        else:
-            st[i] = min(basic_down[i], st[i - 1]) if not np.isnan(st[i - 1]) else basic_down[i]
+    frame = _adapter_supertrend(high, low, close, length=period, multiplier=multiplier)
+    st_col = next(c for c in frame.columns if c.startswith("SUPERT_"))
+    dir_col = next(c for c in frame.columns if c.startswith("SUPERTd_"))
+    st = frame[st_col].to_numpy(dtype=float)
+    direction = frame[dir_col].fillna(1.0).to_numpy(dtype=float)
     return st, direction
 
 
@@ -421,11 +406,10 @@ def simulate_supertrend(df: pd.DataFrame, params: Dict) -> List[dict]:
 # Bollinger Bands (bounce / breakout / squeeze)
 # ---------------------------------------------------------------------------
 def _bb(closes: np.ndarray, period: int = 20, num_std: float = 2.0):
-    s = pd.Series(closes)
-    mid = s.rolling(period).mean().values
-    std = s.rolling(period).std().values
-    up = mid + num_std * std
-    lo = mid - num_std * std
+    frame = _adapter_bbands(closes, length=period, std=num_std)
+    mid = frame[next(c for c in frame.columns if c.startswith("BBM_"))].to_numpy(dtype=float)
+    up = frame[next(c for c in frame.columns if c.startswith("BBU_"))].to_numpy(dtype=float)
+    lo = frame[next(c for c in frame.columns if c.startswith("BBL_"))].to_numpy(dtype=float)
     width = (up - lo) / mid * 100
     return mid, up, lo, width
 
@@ -536,19 +520,7 @@ def simulate_bollinger(df: pd.DataFrame, params: Dict) -> List[dict]:
 # Short-only strategies (s1_breakdown / rsi_overbought / breakout_fail / ema_extended)
 # ---------------------------------------------------------------------------
 def calc_rsi(prices, period: int = 14) -> list:
-    deltas = np.diff(prices)
-    gains = np.where(deltas > 0, deltas, 0)
-    losses = np.where(deltas < 0, -deltas, 0)
-    avg_gain = np.mean(gains[:period])
-    avg_loss = np.mean(losses[:period])
-    rsi_vals = [50] * period
-    rsi_vals.append(100 - 100 / (1 + avg_gain / avg_loss) if avg_loss > 0 else 100)
-    for i in range(period + 1, len(prices)):
-        gain, loss = gains[i - 1], losses[i - 1]
-        avg_gain = (avg_gain * (period - 1) + gain) / period
-        avg_loss = (avg_loss * (period - 1) + loss) / period
-        rsi_vals.append(100 - 100 / (1 + avg_gain / avg_loss) if avg_loss > 0 else 100)
-    return rsi_vals
+    return _adapter_rsi(prices, period, full=True)
 
 
 def simulate_short(df: pd.DataFrame, params: Dict) -> List[dict]:
@@ -609,7 +581,7 @@ def simulate_short(df: pd.DataFrame, params: Dict) -> List[dict]:
         lows = day_df["low"].tolist()
         idxs = day_df.index.tolist()
         rsi_vals = calc_rsi(closes, rsi_period) if mode == "rsi_overbought" else None
-        ema_vals = calculate_ema(closes, ema_period, return_full=True) if mode == "ema_extended" else None
+        ema_vals = calculate_ema(closes, ema_period, full=True) if mode == "ema_extended" else None
 
         for j in range(rsi_period if mode == "rsi_overbought" else 1, len(closes)):
             c, h, lo = closes[j], highs[j], lows[j]

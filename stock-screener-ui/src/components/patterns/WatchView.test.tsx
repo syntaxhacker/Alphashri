@@ -5,7 +5,7 @@ import { render, screen, cleanup, waitFor, within, fireEvent } from "@testing-li
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { WatchPayload, WatchRow, WatchSetup } from "@/types/chartPatterns";
-import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME } from "./WatchView";
+import { WatchView, WATCH_POLL_MS, WATCH_DEFAULT_WITHIN_PCT, WATCH_DEFAULT_MIN_REL_VOLUME, WATCH_SNAPSHOT_TICK_MS, WATCH_AUTO_REFRESH, formatSnapshotAge } from "./WatchView";
 
 const mockFetchWatchSetups = vi.fn();
 const mockFetchWatch = vi.fn();
@@ -605,6 +605,120 @@ describe("WatchView near_52w", () => {
     expect(screen.queryByText("52W high")).not.toBeInTheDocument();
     expect(screen.queryByText(/Close gap %/)).not.toBeInTheDocument();
     expect(screen.queryByTestId("watch-touched-RELIANCE")).not.toBeInTheDocument();
+  });
+});
+
+describe("WatchView snapshot age", () => {
+  const UPDATED_AT = "2026-09-30T15:30:00+05:30";
+  const at = (iso: string) => new Date(iso).getTime();
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockFetchWatchSetups.mockResolvedValue(SETUPS);
+    mockFetchWatch.mockResolvedValue(makePayload());
+    mockFetchMarketStatus.mockResolvedValue({
+      open: true,
+      holiday: false,
+      now_ist: "2026-09-30T10:00:00+05:30",
+      reason: "open",
+    });
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.useRealTimers();
+  });
+
+  test("formatSnapshotAge renders snapshot HH:MM plus seconds/minutes/hours", () => {
+    expect(formatSnapshotAge(UPDATED_AT, at("2026-09-30T15:30:45+05:30"))).toBe(
+      "snapshot 15:30 · 45s ago",
+    );
+    expect(formatSnapshotAge(UPDATED_AT, at("2026-09-30T15:32:00+05:30"))).toBe(
+      "snapshot 15:30 · 2m ago",
+    );
+    expect(formatSnapshotAge(UPDATED_AT, at("2026-09-30T17:30:00+05:30"))).toBe(
+      "snapshot 15:30 · 2h ago",
+    );
+  });
+
+  test("formatSnapshotAge returns null when updated_at is missing or invalid", () => {
+    expect(formatSnapshotAge(null, at("2026-09-30T15:32:00+05:30"))).toBeNull();
+    expect(formatSnapshotAge(undefined, at("2026-09-30T15:32:00+05:30"))).toBeNull();
+    expect(formatSnapshotAge("", at("2026-09-30T15:32:00+05:30"))).toBeNull();
+    expect(formatSnapshotAge("not-a-date", at("2026-09-30T15:32:00+05:30"))).toBeNull();
+  });
+
+  test("renders the snapshot age next to the live indicator", async () => {
+    expect(WATCH_AUTO_REFRESH).toBe(false);
+    vi.setSystemTime(new Date("2026-09-30T15:32:00+05:30"));
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+
+    const age = screen.getByTestId("watch-snapshot-age");
+    expect(age).toHaveTextContent("snapshot 15:30");
+    expect(age).toHaveTextContent("2m ago");
+    // Live/paused behavior is unchanged.
+    expect(screen.getByTestId("watch-live-indicator")).toHaveTextContent("live");
+  });
+
+  test("omits the snapshot age when updated_at is missing", async () => {
+    mockFetchWatch.mockResolvedValueOnce({ ...makePayload(), updated_at: null });
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+
+    expect(screen.queryByTestId("watch-snapshot-age")).not.toBeInTheDocument();
+    expect(screen.getByTestId("watch-live-indicator")).toBeInTheDocument();
+  });
+
+  test("the age tick recomputes the label without refetching (polling stays off)", async () => {
+    vi.setSystemTime(new Date("2026-09-30T15:32:00+05:30"));
+    const fns: Array<() => void> = [];
+    const setSpy = vi
+      .spyOn(globalThis, "setInterval")
+      .mockImplementation(((fn: () => void) => {
+        fns.push(fn);
+        return (fns.length * 1000) as unknown as NodeJS.Timeout;
+      }) as never);
+    try {
+      r(<WatchView universe="nifty500" timeframe="1D" />);
+      await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+      expect(mockFetchWatch).toHaveBeenCalledTimes(1);
+
+      // The cheap age ticker is installed on its own cadence — never the
+      // disabled WATCH_POLL_MS auto-refresh.
+      expect(setSpy).toHaveBeenCalledWith(expect.any(Function), WATCH_SNAPSHOT_TICK_MS);
+      expect(setSpy).not.toHaveBeenCalledWith(expect.any(Function), WATCH_POLL_MS);
+      expect(screen.getByTestId("watch-snapshot-age")).toHaveTextContent("2m ago");
+
+      // Advance the clock and fire the cached tickers: the label ages, the
+      // list does not refetch.
+      vi.setSystemTime(new Date("2026-09-30T15:35:00+05:30"));
+      for (const fn of fns) fn();
+      await waitFor(() =>
+        expect(screen.getByTestId("watch-snapshot-age")).toHaveTextContent("5m ago"),
+      );
+      expect(mockFetchWatch).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("watch-live-indicator")).toHaveTextContent("live");
+    } finally {
+      setSpy.mockRestore();
+    }
+  });
+
+  test("paused indicator still renders alongside the snapshot age", async () => {
+    mockFetchMarketStatus.mockResolvedValue({
+      open: false,
+      holiday: true,
+      now_ist: "2026-10-04T10:00:00+05:30",
+      reason: "holiday",
+    });
+    vi.setSystemTime(new Date("2026-09-30T15:32:00+05:30"));
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+
+    await waitFor(() =>
+      expect(screen.getByTestId("watch-live-indicator")).toHaveTextContent("paused"),
+    );
+    expect(screen.getByTestId("watch-snapshot-age")).toHaveTextContent("snapshot 15:30");
   });
 });
 

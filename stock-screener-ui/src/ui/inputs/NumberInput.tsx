@@ -1,6 +1,7 @@
 import TextField from "@mui/material/TextField";
 import InputAdornment from "@mui/material/InputAdornment";
 import type { UINumberInputProps } from "../types";
+import { stripLegacyInputProps } from "./legacyProps";
 function mapSize(size?: UINumberInputProps["size"]): "small" | "medium" {
   return size === "xs" || size === "sm" ? "small" : "medium";
 }
@@ -113,7 +114,7 @@ export function NumberInput({
         formHelperText: isError && errorProps ? (errorProps as any) : undefined,
       }}
       sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" }, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
-      {...(rest as object)}
+      {...(stripLegacyInputProps(rest as Record<string, unknown>) as object)}
     />
   );
 }

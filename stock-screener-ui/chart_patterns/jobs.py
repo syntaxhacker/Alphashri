@@ -103,16 +103,17 @@ def _refresh_positions_locked() -> None:
 
 # Extra job-state fields mirrored into ``params`` so they survive a restart.
 # ``store.save_job`` only persists ``_JOB_FIELDS`` + ``params_json`` for
-# extras, so ``scan.py`` records reuse/signature state in both places and
-# this module overlays the params mirror back onto the top-level DTO on read.
+# extras, so ``scan.py`` records reuse/signature/provenance state in both
+# places and this module overlays the params mirror back onto the top-level
+# DTO on read (which is what ``GET /jobs/{id}`` returns).
 _PERSISTED_EXTRA_FIELDS = (
     "reused", "reused_from", "reused_age_sec", "reused_finished_at",
-    "reused_signature", "scan_signature",
+    "reused_signature", "scan_signature", "provenance",
 )
 
 
 def _overlay_persisted_extras(job: Optional[dict]) -> Optional[dict]:
-    """Copy reuse/signature fields from the ``params`` mirror to top level.
+    """Copy reuse/signature/provenance fields from the ``params`` mirror to top level.
 
     After a process restart the in-memory DTO (and Redis mirror) are gone and
     the DB row carries these fields only inside ``params_json``; without this

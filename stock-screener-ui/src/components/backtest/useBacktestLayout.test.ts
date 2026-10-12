@@ -11,6 +11,7 @@ describe("useBacktestLayout", () => {
     expect(result.current.panels.config).toBe(true);
     expect(result.current.panels.results).toBe(false);
     expect(result.current.panels.trades).toBe(false);
+    expect(result.current.panels.edge).toBe(false);
   });
 
   test("toggle/flatten panel open state", () => {

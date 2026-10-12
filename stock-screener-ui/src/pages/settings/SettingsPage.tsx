@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from "react";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { Divider, Switch, Text, ToolbarRow } from "@/ui";
+import { Divider, Switch, Text, ToolbarRow, SegmentedControl, useDensity, type Density } from "@/ui";
 import { useSearchParams } from "react-router-dom";
 import { BrokerConnectionCard } from "../../components/settings/BrokerConnectionCard";
 import {
@@ -28,6 +28,7 @@ export function SettingsPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const dispatch = useAppDispatch();
   const [showMarketTicker, setShowMarketTicker] = useMarketTickerEnabled();
+  const { density, setDensity } = useDensity();
 
   const fetchStatus = useCallback(async () => {
     setLoading(true);
@@ -200,6 +201,27 @@ export function SettingsPage() {
               size="sm"
               checked={showMarketTicker}
               onChange={(event) => setShowMarketTicker(event.currentTarget.checked)}
+            />
+          </ToolbarRow>
+          <Divider />
+          <ToolbarRow justify="space-between" gap={8}>
+            <Box sx={{ minWidth: 0 }}>
+              <Text size="sm" fw={600}>
+                Table density
+              </Text>
+              <Text size="xs" c="dimmed">
+                Compact is the default dense layout; Comfortable adds row and card padding.
+              </Text>
+            </Box>
+            <SegmentedControl
+              size="xs"
+              value={density}
+              onChange={(value) => setDensity(value as Density)}
+              data={[
+                { value: "compact", label: "Compact" },
+                { value: "comfortable", label: "Comfortable" },
+              ]}
+              data-testid="density-control"
             />
           </ToolbarRow>
         </CompactPanel>

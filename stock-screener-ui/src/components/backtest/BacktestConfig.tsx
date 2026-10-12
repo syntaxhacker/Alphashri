@@ -8,7 +8,7 @@ import {
   Box,
   Text,
 } from "@/ui";
-import { IconPlayerPlay, IconChevronDown, IconRotate, IconPlayerPause } from "@tabler/icons-react";
+import { IconPlayerPlay, IconChevronDown, IconRotate } from "@tabler/icons-react";
 import type { Strategy, StrategyVariation } from "../../types/backtest";
 import { ParamInput } from "./ParamInput";
 import { SymbolChips } from "./SymbolChips";
@@ -60,7 +60,7 @@ export function BacktestConfig({
   includeCosts,
   isRunning,
   saveToHistory: _saveToHistory,
-  onStrategyChange: _onStrategyChange,
+  onStrategyChange,
   onVariationChange,
   onParamChange,
   onDaysChange,
@@ -86,17 +86,65 @@ export function BacktestConfig({
     return () => document.removeEventListener("keydown", handler);
   }, [isRunning, selectedSymbols, onRun]);
 
+  // Only variations whose strategy the backtest engine can actually run. The bot
+  // strategies list is broader (e.g. adx_trend), and selecting an unsupported one
+  // previously produced a 200 with a null payload.
+  const supportedIds = useMemo(
+    () => new Set(strategies.map((s) => s.id.toLowerCase())),
+    [strategies],
+  );
+  const runnableVariations = useMemo(
+    () => variations.filter((v) => supportedIds.has((v.strategy_type || "").toLowerCase())),
+    [variations, supportedIds],
+  );
+
+  // Every backtestable strategy must be selectable — including ones with no saved
+  // variation (e.g. `smc`). Those get a synthetic "run with defaults" option.
+  const coveredStrategyIds = useMemo(
+    () => new Set(runnableVariations.map((v) => (v.strategy_type || "").toLowerCase())),
+    [runnableVariations],
+  );
+  const strategyOptions = useMemo(
+    () =>
+      strategies
+        .filter((s) => !coveredStrategyIds.has(s.id.toLowerCase()))
+        .map((s) => ({ value: `strategy:${s.id}`, label: `${s.name} (strategy)` })),
+    [strategies, coveredStrategyIds],
+  );
+
   const selectData = useMemo(
     () => [
-      ...variations
+      ...runnableVariations
         .filter((v) => v.is_template)
         .map((v) => ({ value: v.id, label: `${v.name} (${v.strategy_type})` })),
-      ...variations
+      ...runnableVariations
         .filter((v) => !v.is_template)
         .map((v) => ({ value: v.id, label: v.name })),
+      ...strategyOptions,
+      // Keep a label (instead of a raw UUID) if a persisted selection is no longer runnable.
+      ...(selectedVariation && !runnableVariations.some((v) => v.id === selectedVariation)
+        ? [{
+            value: selectedVariation,
+            label: `${selectedVariationData?.name ?? selectedVariationData?.strategy_type ?? "Selection"} (unsupported)`,
+          }]
+        : []),
     ],
-    [variations],
+    [runnableVariations, strategyOptions, selectedVariation, selectedVariationData],
   );
+
+  const selectValue =
+    selectedVariation ??
+    (strategyOptions.some((o) => o.value === `strategy:${selectedStrategy}`)
+      ? `strategy:${selectedStrategy}`
+      : undefined);
+
+  const handleVariationChange = (value: string | null) => {
+    if (value && value.startsWith("strategy:")) {
+      onStrategyChange(value.slice("strategy:".length));
+      return;
+    }
+    onVariationChange(value);
+  };
 
   const handleRunAndSave = () => {
     onSaveToHistoryChange(true);
@@ -117,8 +165,8 @@ export function BacktestConfig({
           className="config-variation-select"
           data-testid="variation-select"
           placeholder="Select strategy or template"
-          value={selectedVariation}
-          onChange={(v) => onVariationChange(v)}
+          value={selectValue}
+          onChange={(v) => handleVariationChange(v)}
           data={selectData}
           size="sm"
           clearable
@@ -185,9 +233,9 @@ export function BacktestConfig({
           disabled={isRunning || selectedSymbols.length === 0}
           loading={isRunning}
           data-testid="run-backtest-btn"
-          leftSection={isRunning ? <IconPlayerPause size={12} /> : <IconPlayerPlay size={12} />}
+          leftSection={isRunning ? undefined : <IconPlayerPlay size={12} />}
         >
-          {isRunning ? "Running..." : "Run"}
+          {isRunning ? null : "Run"}
         </Button>
         <Menu>
           <Menu.Target>

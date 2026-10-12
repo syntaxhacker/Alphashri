@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import type { JobDTO, PatternSummary } from "../types/chartPatterns";
+import type { JobDTO, PatternHitDTO, PatternSummary } from "../types/chartPatterns";
 
 vi.mock("../api/chartPatterns", async () => {
   const actual = await vi.importActual<typeof import("../api/chartPatterns")>("../api/chartPatterns");
@@ -56,6 +56,8 @@ import {
   setComputeTrendlines,
   resetFilters,
   applyFilters,
+  passesResultFilters,
+  applyResultFilters,
   loadCatalog,
   loadResults,
   loadSummary,
@@ -458,6 +460,112 @@ describe("filters", () => {
     expect(filters.sort).toBe("confidence");
     expect(mocked.fetchResults).toHaveBeenCalled();
     expect(mocked.fetchSummary).toHaveBeenCalled();
+  });
+
+  it("min_confidence defaults to null", () => {
+    expect(DEFAULT_PATTERN_FILTERS.min_confidence).toBeNull();
+    expect(DEFAULT_PATTERN_FILTERS.min_breakout_score).toBeNull();
+  });
+});
+
+describe("result-level client filters", () => {
+  function makeHit(overrides: Partial<PatternHitDTO> = {}): PatternHitDTO {
+    return {
+      id: 1,
+      symbol: "AAA",
+      name: null,
+      timeframe: "1D",
+      pattern_id: "falling_wedge",
+      pattern_name: "Falling Wedge",
+      family: "reversal",
+      direction: "bullish",
+      status: "confirmed",
+      quality: "strong",
+      confidence: 80,
+      breakout_score: 70,
+      start_date: "2026-01-01",
+      end_date: "2026-02-01",
+      start_price: 100,
+      end_price: 110,
+      breakout_level: 110,
+      target: 120,
+      stop: 95,
+      rr: 2,
+      bars_ago: 1,
+      volume_confirmed: true,
+      trendlines: [],
+      notes: "",
+      ...overrides,
+    };
+  }
+
+  it("passesResultFilters honors the score and breakout floors", () => {
+    expect(passesResultFilters(makeHit(), DEFAULT_PATTERN_FILTERS)).toBe(true);
+    expect(
+      passesResultFilters(makeHit({ confidence: 69.9 }), { ...DEFAULT_PATTERN_FILTERS, min_confidence: 70 }),
+    ).toBe(false);
+    expect(
+      passesResultFilters(makeHit({ confidence: 70 }), { ...DEFAULT_PATTERN_FILTERS, min_confidence: 70 }),
+    ).toBe(true);
+    expect(
+      passesResultFilters(makeHit({ breakout_score: 59 }), {
+        ...DEFAULT_PATTERN_FILTERS,
+        min_breakout_score: 60,
+      }),
+    ).toBe(false);
+    // A missing score never passes an active bound.
+    expect(
+      passesResultFilters(makeHit({ breakout_score: null }), {
+        ...DEFAULT_PATTERN_FILTERS,
+        min_breakout_score: 10,
+      }),
+    ).toBe(false);
+  });
+
+  it("applyResultFilters is a no-op when both floors are unset", () => {
+    const hits = [makeHit({ symbol: "AAA", confidence: 10 })];
+    expect(applyResultFilters(hits, DEFAULT_PATTERN_FILTERS)).toBe(hits);
+  });
+
+  it("loadResults narrows rows client-side and reports the filtered total", async () => {
+    mocked.fetchResults.mockResolvedValue({
+      items: [
+        makeHit({ id: 1, symbol: "HI", confidence: 90, breakout_score: 80 }),
+        makeHit({ id: 2, symbol: "LO", confidence: 40, breakout_score: 20 }),
+      ],
+      total: 2,
+      summary: SUMMARY,
+      data_through: "2026-09-30",
+    });
+    setFilter("min_confidence", 70);
+    await flush();
+    const state = getChartPatternsState();
+    expect(state.results.map((r) => r.symbol)).toEqual(["HI"]);
+    expect(state.total).toBe(1);
+  });
+
+  it("min_confidence / min_breakout_score are restrictive but never sent to the API", async () => {
+    expect(
+      hasRestrictiveFilter({ ...DEFAULT_PATTERN_FILTERS, min_confidence: 70, min_avg_volume_10d: null }),
+    ).toBe(true);
+    expect(
+      hasRestrictiveFilter({
+        ...DEFAULT_PATTERN_FILTERS,
+        min_breakout_score: 60,
+        min_avg_volume_10d: null,
+      }),
+    ).toBe(true);
+    mocked.fetchResults.mockClear();
+    mocked.fetchSummary.mockClear();
+    setFilter("min_breakout_score", 60);
+    await flush();
+    expect(getChartPatternsState().filters.min_breakout_score).toBe(60);
+    expect(mocked.fetchResults).toHaveBeenCalledWith(
+      expect.not.objectContaining({ min_confidence: expect.anything(), min_breakout_score: expect.anything() }),
+    );
+    expect(mocked.fetchSummary).toHaveBeenCalledWith(
+      expect.not.objectContaining({ min_confidence: expect.anything(), min_breakout_score: expect.anything() }),
+    );
   });
 });
 

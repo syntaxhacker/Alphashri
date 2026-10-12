@@ -226,11 +226,15 @@ class TestWeek52ChaserSignalGenerator:
     def test_check_entry_with_filters_adx_fail(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 510.0, "high_52w": 500.0, "adx": 20.0,
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 20.0, "rsi": 60.0,
+            "volume": 200000, "avg_volume_20d": 100000,
         })
         assert signal is None
 
     def test_check_entry_with_filters_rsi_fail(self):
+        # Missing companion inputs fail closed even when RSI itself is fine
+        # (no RSI lower bound anymore — this vetoes on missing ADX/volume).
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
             "current_price": 510.0, "high_52w": 500.0, "rsi": 40.0,
@@ -239,25 +243,60 @@ class TestWeek52ChaserSignalGenerator:
 
     def test_check_entry_with_filters_rsi_overbought(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
-        signal = gen.check_entry("TEST", {
-            "current_price": 510.0, "high_52w": 500.0, "rsi": 75.0,
+        # RSI 75 is AT the veto line (rsi_hi=75) -> passes; 76 is vetoed.
+        passing = gen.check_entry("TEST", {
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 75.0,
+            "volume": 200000, "avg_volume_20d": 100000,
         })
-        assert signal is None
+        assert passing is not None
+        vetoed = gen.check_entry("TEST", {
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 76.0,
+            "volume": 200000, "avg_volume_20d": 100000,
+        })
+        assert vetoed is None
+
+    def test_check_entry_with_filters_rsi_low_passes_no_lower_bound(self):
+        # Ablation removed the RSI lower bound: weak RSI alone never vetoes.
+        gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
+        signal = gen.check_entry("TEST", {
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 30.0,
+            "volume": 200000, "avg_volume_20d": 100000,
+        })
+        assert signal is not None
 
     def test_check_entry_with_filters_volume_fail(self):
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
             "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 60.0,
             "volume": 100, "avg_volume_20d": 100,
         })
         assert signal is None
 
-    def test_check_entry_with_filters_ma50_fail(self):
+    def test_check_entry_with_filters_volume_threshold_is_1_8x(self):
+        # 1.7x average -> vetoed; 1.8x -> passes (volume is the kept gate).
+        gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
+        base = {
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 60.0, "avg_volume_20d": 100000,
+        }
+        assert gen.check_entry("TEST", {**base, "volume": 170000}) is None
+        assert gen.check_entry("TEST", {**base, "volume": 180000}) is not None
+
+    def test_check_entry_with_filters_ma50_removed(self):
+        # MA50/MA200 gates removed (ablation: ~100% pass) — price below MA
+        # no longer vetoes.
         gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
         signal = gen.check_entry("TEST", {
-            "current_price": 510.0, "high_52w": 500.0, "ma50": 520.0,
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 60.0,
+            "volume": 200000, "avg_volume_20d": 100000,
+            "ma50": 520.0, "ma200": 600.0,
         })
-        assert signal is None
+        assert signal is not None
 
     def test_check_entry_filters_disabled_by_default(self):
         signal = self.gen.check_entry("TEST", {

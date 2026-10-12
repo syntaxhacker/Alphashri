@@ -51,7 +51,7 @@ describe("PatternListView", () => {
     r(<PatternListView hits={hits} onSelect={vi.fn()} />);
     const table = screen.getByTestId("patterns-list");
     expect(table).toBeInTheDocument();
-    for (const header of ["Symbol", "Pattern", "Dir", "Status", "Quality", "52W gap %", "Pos %", "Breakout", "Bars ago", "Price", "Chg %"]) {
+    for (const header of ["Symbol", "Pattern", "Dir", "Status", "Q", "52W gap %", "Pos %", "Breakout", "Bars ago", "Price", "Chg %"]) {
       // A sticky header may clone a cell, so assert presence (>=1), not uniqueness.
       expect(within(table).getAllByText(header).length).toBeGreaterThanOrEqual(1);
     }
@@ -128,7 +128,46 @@ describe("PatternListView", () => {
     expect(within(row).getByText("+2.50%")).toBeInTheDocument();
     expect(within(row).getByText("13.4%")).toBeInTheDocument();
     expect(within(row).getByText("Confirmed")).toBeInTheDocument();
-    expect(within(row).getByText("Strong")).toBeInTheDocument();
+    // Direction is a glyph (value in title/aria); quality is a letter (tier in title).
+    const dir = within(row).getByText("▲");
+    expect(dir.getAttribute("title")).toBe("bullish");
+    expect(dir.getAttribute("aria-label")).toBe("bullish");
+    const quality = within(row).getByTestId("patterns-quality-strong");
+    expect(quality).toHaveTextContent("S");
+    expect(quality.getAttribute("title")).toMatch(/Strong/);
+    expect(quality.getAttribute("aria-label")).toBe("Strong");
+  });
+
+  test("renders bearish and neutral direction glyphs with the value in title/aria", () => {
+    const hits = [
+      makeHit({ id: 1, symbol: "AAA", direction: "bearish" }),
+      makeHit({ id: 2, symbol: "BBB", direction: "neutral" }),
+    ];
+    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    const bear = within(screen.getByTestId("patterns-list-row-AAA-falling_wedge-1")).getByText("▼");
+    expect(bear.getAttribute("title")).toBe("bearish");
+    expect(bear.getAttribute("aria-label")).toBe("bearish");
+    const neutral = within(screen.getByTestId("patterns-list-row-BBB-falling_wedge-2")).getByText("◆");
+    expect(neutral.getAttribute("title")).toBe("neutral");
+    expect(neutral.getAttribute("aria-label")).toBe("neutral");
+  });
+
+  test("renders quality letters for every tier with the tier in the title", () => {
+    const hits = (["textbook", "strong", "fair", "marginal"] as const).map((q, i) =>
+      makeHit({ id: i + 1, symbol: `S${i}`, quality: q }),
+    );
+    r(<PatternListView hits={hits} onSelect={vi.fn()} />);
+    const expected: Array<[string, string]> = [
+      ["textbook", "T"],
+      ["strong", "S"],
+      ["fair", "F"],
+      ["marginal", "M"],
+    ];
+    for (const [tier, letter] of expected) {
+      const el = screen.getByTestId(`patterns-quality-${tier}`);
+      expect(el).toHaveTextContent(letter);
+      expect(el.getAttribute("title")).toMatch(new RegExp(tier.charAt(0).toUpperCase() + tier.slice(1)));
+    }
   });
 
   test("falls back to the pattern-window move and shows — for a missing 52W gap", () => {

@@ -59,6 +59,7 @@ export function ResultsSearch({ filters, setFilter }: ResultsSearchProps) {
       w={220}
       value={value}
       onChange={setValue}
+      style={{ flexShrink: 0 }}
     />
   );
 }

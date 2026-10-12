@@ -5,9 +5,11 @@
  * Short keys keep links compact:
  *   universe, tf, pattern (repeat), family (repeat), direction (repeat),
  *   status (repeat), quality, within, volume_confirmed, min_rr, base, range,
- *   gap52, pos, relvol, volm, avgvol, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
+ *   gap52, pos, score, breakout, relvol, volm, avgvol, from, to, sort, symbol (a lone `symbol=` is the singular symbol filter; repeated
  *   `symbol=` values are the multi-symbol filter), q, trendlines,
  *   compute_trendlines (`=0` only, when trendline computation is skipped).
+ *   Compact comma-separated forms are also accepted on parse: `symbols=a,b`,
+ *   `patterns=a,b`, `families=a,b`, `directions=a,b`, `statuses=a,b`.
  *
  * Reads the URL once on mount (so a bookmarked view is restored) and writes
  * non-default state back on change. After hydration it also adopts later URL
@@ -67,16 +69,33 @@ function numberOrNull(value: string | null): number | null {
  * patch. Unknown/blank params are ignored; repeated keys map to array filters.
  * Blank `universe`/`tf` parse as null (no selection), never as "".
  */
+/**
+ * Multi-value query param with a compact comma-separated plural form.
+ * `key` may repeat (`pattern=a&pattern=b`); `plural` holds `a,b`.
+ * Returns deduped values preserving order. Values are upper-cased for
+ * symbols, left as-is otherwise.
+ */
+function multiParam(params: URLSearchParams, key: string, plural: string, upper = false): string[] {
+  const out: string[] = [];
+  const push = (v: string) => {
+    const val = upper ? v.trim().toUpperCase() : v.trim();
+    if (val !== "" && !out.includes(val)) out.push(val);
+  };
+  for (const v of params.getAll(key)) push(v);
+  for (const v of (params.get(plural) ?? "").split(",")) push(v);
+  return out;
+}
+
 export function parsePatternParams(params: URLSearchParams): ParsedPatternParams {
   const filters: Partial<PatternFilters> = {};
 
-  const pattern = params.getAll("pattern").filter((v) => v !== "");
+  const pattern = multiParam(params, "pattern", "patterns");
   if (pattern.length > 0) filters.pattern_id = pattern;
-  const family = params.getAll("family").filter((v) => v !== "");
+  const family = multiParam(params, "family", "families");
   if (family.length > 0) filters.family = family;
-  const direction = params.getAll("direction").filter((v) => v !== "");
+  const direction = multiParam(params, "direction", "directions");
   if (direction.length > 0) filters.direction = direction;
-  const status = params.getAll("status").filter((v) => v !== "");
+  const status = multiParam(params, "status", "statuses");
   if (status.length > 0) filters.status = status;
 
   const quality = params.get("quality");
@@ -97,6 +116,10 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
   if (max52wGap != null) filters.max_52w_gap = max52wGap;
   const minRangePos = numberOrNull(params.get("pos"));
   if (minRangePos != null) filters.min_range_pos = minRangePos;
+  const minConfidence = numberOrNull(params.get("score"));
+  if (minConfidence != null) filters.min_confidence = minConfidence;
+  const minBreakoutScore = numberOrNull(params.get("breakout"));
+  if (minBreakoutScore != null) filters.min_breakout_score = minBreakoutScore;
   const minRelVolume = numberOrNull(params.get("relvol"));
   if (minRelVolume != null) filters.min_rel_volume = minRelVolume;
   const minVolumeM = numberOrNull(params.get("volm"));
@@ -114,7 +137,8 @@ export function parsePatternParams(params: URLSearchParams): ParsedPatternParams
 
   // One `symbol=` is the singular symbol filter; several are the multi-symbol
   // filter (mirrors how the API layer serializes them onto one key).
-  const symbols = params.getAll("symbol").filter((v) => v !== "");
+  // A compact `symbols=a,b,c` form is also accepted (hand-typed URLs).
+  const symbols = multiParam(params, "symbol", "symbols", true);
   if (symbols.length > 1) filters.symbols = symbols;
   else if (symbols.length === 1) filters.symbol = symbols[0];
 
@@ -193,6 +217,8 @@ export function buildPatternParams(state: PatternUrlState): URLSearchParams {
   if (filters.max_range_pct != null) params.set("range", String(filters.max_range_pct));
   if (filters.max_52w_gap != null) params.set("gap52", String(filters.max_52w_gap));
   if (filters.min_range_pos != null) params.set("pos", String(filters.min_range_pos));
+  if (filters.min_confidence != null) params.set("score", String(filters.min_confidence));
+  if (filters.min_breakout_score != null) params.set("breakout", String(filters.min_breakout_score));
   if (filters.min_rel_volume != null) params.set("relvol", String(filters.min_rel_volume));
   if (filters.min_volume_m != null) params.set("volm", String(filters.min_volume_m));
   if (filters.min_avg_volume_10d != null) params.set("avgvol", String(filters.min_avg_volume_10d));
@@ -237,6 +263,8 @@ const PATTERN_PARAM_KEYS = new Set([
   "range",
   "gap52",
   "pos",
+  "score",
+  "breakout",
   "relvol",
   "volm",
   "avgvol",

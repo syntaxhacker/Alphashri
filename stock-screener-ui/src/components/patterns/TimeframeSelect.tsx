@@ -50,6 +50,7 @@ export function TimeframeSelect({ timeframes, value, onChange }: TimeframeSelect
       size="sm"
       searchable
       data-testid="patterns-timeframe-select"
+      style={{ flexShrink: 0 }}
     />
   );
 }

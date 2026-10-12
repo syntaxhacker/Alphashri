@@ -337,6 +337,16 @@ export interface UISelectProps extends UIInputWrapperProps {
   rightSection?: ReactNode;
   nothingFoundMessage?: string;
   placeholder?: string;
+  /**
+   * Legacy Mantine-compat props. Accepted so existing call sites keep
+   * typechecking, but intentionally swallowed — never forwarded to the DOM.
+   * @see stripLegacyInputProps
+   */
+  allowDeselect?: boolean;
+  maxDropdownHeight?: number | string;
+  comboboxProps?: unknown;
+  withinPortal?: boolean;
+  InputProps?: unknown;
 }
 
 export interface UIMultiSelectProps extends UIInputWrapperProps {
@@ -366,6 +376,16 @@ export interface UIMultiSelectProps extends UIInputWrapperProps {
   hidePickedOptions?: boolean;
   /** Hide the inline selected tags (the caller renders its own chip row). */
   hideTags?: boolean;
+  /**
+   * Legacy Mantine-compat props. Accepted so existing call sites keep
+   * typechecking, but intentionally swallowed — never forwarded to the DOM.
+   * @see stripLegacyInputProps
+   */
+  allowDeselect?: boolean;
+  maxDropdownHeight?: number | string;
+  comboboxProps?: unknown;
+  withinPortal?: boolean;
+  InputProps?: unknown;
 }
 
 export interface UITextareaProps extends UIInputWrapperProps {
@@ -455,6 +475,12 @@ export interface UITooltipProps extends UIBaseProps {
   disabled?: boolean;
   multiline?: boolean;
   color?: UIColor;
+  /**
+   * Legacy Mantine-compat prop. Accepted so existing call sites keep
+   * typechecking, but intentionally swallowed — MUI renders in a portal
+   * handling of its own and must never receive this as a DOM attribute.
+   */
+  withinPortal?: boolean;
 }
 
 export interface UIPopoverProps extends UIBaseProps {

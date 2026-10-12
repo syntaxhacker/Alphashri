@@ -264,17 +264,26 @@ def _get_fyers_status() -> dict:
             token_time = datetime.fromisoformat(ts.replace("Z", "+00:00")) if isinstance(ts, str) else ts
             if token_time.tzinfo is None:
                 token_time = token_time.replace(tzinfo=timezone.utc)
-            # Fyers access tokens expire the next morning (~06:00 IST).
+            # Fyers access tokens expire at 06:00 IST (the next occurrence).
             ist = timezone(timedelta(hours=5, minutes=30))
             token_ist = token_time.astimezone(ist)
-            expires = (token_ist + timedelta(days=1)).replace(
-                hour=6, minute=0, second=0, microsecond=0
-            )
+            expires = token_ist.replace(hour=6, minute=0, second=0, microsecond=0)
+            if expires <= token_ist:
+                expires = expires + timedelta(days=1)
             now = datetime.now(ist)
             expires_in_hours = round((expires - now).total_seconds() / 3600, 2)
             expires_at = expires.isoformat()
         except Exception:
             pass
+
+    if expires_in_hours is not None and expires_in_hours <= 0:
+        return {
+            "connected": False,
+            "broker": "fyers",
+            "expires_in_hours": 0,
+            "expires_at": expires_at,
+            "source": "database",
+        }
 
     return {
         "connected": True,

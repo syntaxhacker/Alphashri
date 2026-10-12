@@ -9,6 +9,7 @@ The strategy is intentionally small and explicit:
   break the prior structure low;
 * confirmation mode can wait for one bar to hold below BOS, then fill at the
   first tick of the following bar;
+* the default entry guard rejects expansion/BOS candles wider than 30 points;
 * the default exit bracket is a 25-point stop and 1.5R target;
 * exits are resolved from bid/ask ticks, with stop loss winning on ambiguity.
 * an optional opening-drive gate can block shorts after a strong bullish first
@@ -62,6 +63,21 @@ class ReversionConfig:
     # when the first 15-minute close is more than 25 points above fair price.
     opening_drive_max_points: float | None = None
     opening_drive_minutes: int = 15
+    # Optional completed opening-range volatility gate. Entries wait until the
+    # range is complete and are blocked when its high-low exceeds the limit.
+    opening_range_max_points: float | None = None
+    opening_range_minutes: int = 30
+    # Optional short-term regime gate. When enabled, only take shorts while
+    # the fast session EMA is at or below the slow session EMA.
+    require_bearish_ema: bool = False
+    ema_fast_period: int = 9
+    ema_slow_period: int = 20
+    # News/expansion-bar guard. Large BOS candles are more likely to be
+    # continuation impulses than controlled reversals.
+    max_signal_range_points: float | None = 30.0
+    # Optional daily circuit breaker. A value of 2 stops new entries after
+    # two consecutive stop-outs, which limits repeated fades on trend days.
+    max_consecutive_losses: int | None = None
     contracts: int = 6
     point_value: float = 2.0
     entry_start: str | None = None
@@ -127,6 +143,37 @@ def _opening_drive_summary(
     return open_time, ready_time, float(drive_bars[-1]["close"]) - fair_price
 
 
+def _opening_range_summary(
+    bars: list[dict[str, Any]], fair_price: float, minutes: int
+) -> tuple[int, int, float] | None:
+    """Return (open_time, ready_time, high-low) for a completed opening range."""
+
+    if minutes < 1:
+        raise ValueError("opening_range_minutes must be at least 1")
+    open_bar = next(
+        (
+            bar
+            for bar in bars
+            if _et_minutes(int(bar["time"])) == 9 * 60 + 30
+            and abs(float(bar["open"]) - fair_price) < 1e-6
+        ),
+        None,
+    )
+    if open_bar is None:
+        return None
+    open_time = int(open_bar["time"])
+    ready_time = open_time + minutes * 60
+    range_bars = [bar for bar in bars if open_time <= int(bar["time"]) < ready_time]
+    if not range_bars:
+        return None
+    return (
+        open_time,
+        ready_time,
+        max(float(bar["high"]) for bar in range_bars)
+        - min(float(bar["low"]) for bar in range_bars),
+    )
+
+
 def fair_price_at_et_open(bars: list[dict[str, Any]], session_date: str, open_clock: str = "09:30") -> float:
     """Return the bar open containing ``open_clock`` in New York time."""
 
@@ -186,6 +233,16 @@ def run_timeless_reversion(
         raise ValueError("bos_confirmation_bars cannot be negative")
     if cfg.opening_drive_minutes < 1:
         raise ValueError("opening_drive_minutes must be at least 1")
+    if cfg.opening_range_minutes < 1:
+        raise ValueError("opening_range_minutes must be at least 1")
+    if cfg.ema_fast_period < 1 or cfg.ema_slow_period <= cfg.ema_fast_period:
+        raise ValueError("ema_slow_period must be greater than ema_fast_period")
+    if cfg.max_signal_range_points is not None and cfg.max_signal_range_points <= 0:
+        raise ValueError("max_signal_range_points must be positive")
+    if cfg.opening_range_max_points is not None and cfg.opening_range_max_points <= 0:
+        raise ValueError("opening_range_max_points must be positive")
+    if cfg.max_consecutive_losses is not None and cfg.max_consecutive_losses < 1:
+        raise ValueError("max_consecutive_losses must be at least 1")
     if cfg.stop_points <= 0 or cfg.target_r <= 0:
         raise ValueError("stop_points and target_r must be positive")
 
@@ -198,6 +255,10 @@ def run_timeless_reversion(
     zone_entries = 0
     rearm_required = False
     rearm_low: float | None = None
+    consecutive_losses = 0
+    day_halted = False
+    ema_fast: float | None = None
+    ema_slow: float | None = None
     pivot_low: float | None = None
     pivot_broken = False
     short_zone = fair_price + cfg.min_distance
@@ -206,9 +267,21 @@ def run_timeless_reversion(
         if cfg.opening_drive_max_points is not None
         else None
     )
+    opening_range = (
+        _opening_range_summary(bars, fair_price, cfg.opening_range_minutes)
+        if cfg.opening_range_max_points is not None
+        else None
+    )
 
     for index, bar in enumerate(bars):
         bar_ticks = ticks_by_bar.get(bar["time"], [])
+
+        if _et_minutes(int(bar["time"])) >= 9 * 60 + 30:
+            close = float(bar["close"])
+            fast_alpha = 2.0 / (cfg.ema_fast_period + 1.0)
+            slow_alpha = 2.0 / (cfg.ema_slow_period + 1.0)
+            ema_fast = close if ema_fast is None else fast_alpha * close + (1.0 - fast_alpha) * ema_fast
+            ema_slow = close if ema_slow is None else slow_alpha * close + (1.0 - slow_alpha) * ema_slow
 
         if rearm_required:
             rearm_low = min(rearm_low, float(bar["low"])) if rearm_low is not None else float(bar["low"])
@@ -270,6 +343,12 @@ def run_timeless_reversion(
             for tick in bar_ticks:
                 if float(tick["askPrice"]) >= position["sl"]:
                     trades.append(_trade(position, position["sl"], "SL", int(tick["timestamp"])))
+                    consecutive_losses += 1
+                    if (
+                        cfg.max_consecutive_losses is not None
+                        and consecutive_losses >= cfg.max_consecutive_losses
+                    ):
+                        day_halted = True
                     cooldown_until_ms = int(tick["timestamp"]) + int(cfg.cooldown_minutes * 60_000)
                     zone_entries += 1
                     if zone_entries >= cfg.max_entries_per_zone:
@@ -279,6 +358,7 @@ def run_timeless_reversion(
                     break
                 if float(tick["bidPrice"]) <= position["tp"]:
                     trades.append(_trade(position, position["tp"], "TP", int(tick["timestamp"])))
+                    consecutive_losses = 0
                     cooldown_until_ms = int(tick["timestamp"]) + int(cfg.cooldown_minutes * 60_000)
                     zone_entries += 1
                     if zone_entries >= cfg.max_entries_per_zone:
@@ -299,7 +379,7 @@ def run_timeless_reversion(
             pivot_low = None
             pivot_broken = False
 
-        if position is not None or pending_signal is not None or rearm_required:
+        if day_halted or position is not None or pending_signal is not None or rearm_required:
             continue
         if index < cfg.bos_lookback or len(trades) >= cfg.max_trades:
             continue
@@ -320,6 +400,23 @@ def run_timeless_reversion(
                 continue
             if opening_drive_delta > cfg.opening_drive_max_points:
                 continue
+        if cfg.opening_range_max_points is not None:
+            if opening_range is None:
+                continue
+            _, opening_range_ready_time, opening_range_points = opening_range
+            if bar["time"] < opening_range_ready_time:
+                continue
+            if opening_range_points > cfg.opening_range_max_points:
+                continue
+        if cfg.require_bearish_ema and (
+            ema_fast is None or ema_slow is None or ema_fast > ema_slow
+        ):
+            continue
+        if (
+            cfg.max_signal_range_points is not None
+            and float(bar["high"]) - float(bar["low"]) > cfg.max_signal_range_points
+        ):
+            continue
         if index + 1 >= len(bars):
             continue
 
@@ -427,6 +524,13 @@ def main() -> None:
     parser.add_argument("--entry-end", default="11:00")
     parser.add_argument("--bos-confirmation-bars", type=int, default=0)
     parser.add_argument("--opening-drive-max-points", type=float, default=None)
+    parser.add_argument("--opening-range-max-points", type=float, default=None)
+    parser.add_argument("--opening-range-minutes", type=int, default=30)
+    parser.add_argument("--require-bearish-ema", action="store_true")
+    parser.add_argument("--ema-fast-period", type=int, default=9)
+    parser.add_argument("--ema-slow-period", type=int, default=20)
+    parser.add_argument("--max-signal-range-points", type=float, default=30.0)
+    parser.add_argument("--max-consecutive-losses", type=int, default=None)
     args = parser.parse_args()
 
     from scripts.smc_tick_eval import build_1m_bars
@@ -439,6 +543,13 @@ def main() -> None:
         entry_end=args.entry_end,
         bos_confirmation_bars=args.bos_confirmation_bars,
         opening_drive_max_points=args.opening_drive_max_points,
+        opening_range_max_points=args.opening_range_max_points,
+        opening_range_minutes=args.opening_range_minutes,
+        require_bearish_ema=args.require_bearish_ema,
+        ema_fast_period=args.ema_fast_period,
+        ema_slow_period=args.ema_slow_period,
+        max_signal_range_points=args.max_signal_range_points,
+        max_consecutive_losses=args.max_consecutive_losses,
     )
     trades = run_timeless_reversion(bars, ticks, fair_price=fair, config=config)
 

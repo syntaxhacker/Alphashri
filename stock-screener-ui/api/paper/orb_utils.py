@@ -25,12 +25,8 @@ def compute_orb_score(current_price: float, or_high: float, or_low: float) -> fl
 
 
 def calculate_pivot_points(prev_high: float, prev_low: float, prev_close: float) -> dict:
-    """Calculate classic pivot points."""
-    pp = (prev_high + prev_low + prev_close) / 3
-    return {
-        "PP": pp,
-        "R1": 2 * pp - prev_low,
-        "S1": 2 * pp - prev_high,
-        "R2": pp + (prev_high - prev_low),
-        "S2": pp - (prev_high - prev_low),
-    }
+    """Classic pivot points — delegates to the single source of truth."""
+    from trading.pivot_utils import calculate_pivot_points as _pivot
+
+    p = _pivot(prev_high, prev_low, prev_close, "classic")
+    return {"PP": p.pp, "R1": p.r1, "S1": p.s1, "R2": p.r2, "S2": p.s2}

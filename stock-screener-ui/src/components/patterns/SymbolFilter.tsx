@@ -83,9 +83,9 @@ export function SymbolFilter({
   return (
     <Box
       data-testid="patterns-symbol-filter"
-      sx={{ display: "flex", flexDirection: "column", gap: 0.5, width: 280, minWidth: 0 }}
+      sx={{ display: "flex", flexDirection: "column", gap: 0.5, flex: 1, minWidth: 0 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0, maxWidth: 380 }}>
         <Box sx={{ flex: 1, minWidth: 0 }}>
           <MultiSelect
             data={options}
@@ -123,13 +123,13 @@ export function SymbolFilter({
         </Text>
       ) : null}
       {selected.length > 0 && (
-        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
+        <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5, maxHeight: 60, overflowY: "auto" }}>
           {selected.map((symbol) => (
             <Badge
               key={symbol}
-              size="sm"
+              size="xs"
               variant="light"
-              color="secondary"
+              color="info"
               data-testid={`patterns-symbol-chip-${symbol}`}
               rightSection={
                 <ActionIcon
@@ -139,7 +139,7 @@ export function SymbolFilter({
                   data-testid={`patterns-symbol-remove-${symbol}`}
                   onClick={() => removeSymbol(symbol)}
                 >
-                  <IconX size={10} />
+                  <IconX size={8} />
                 </ActionIcon>
               }
             >

@@ -355,6 +355,56 @@ async def chart_patterns_bootstrap_task():
             await asyncio.sleep(60)
 
 
+async def run_watch_snapshot_once() -> int:
+    """One breakout-watch snapshot refresh, off the event loop.
+
+    Returns the number of combos built (0 on failure). Never raises — the
+    background task and tests share this seam.
+    """
+    try:
+        from chart_patterns import watch as _watch
+
+        return await asyncio.to_thread(_watch.refresh_snapshot)
+    except Exception as e:
+        print(f"[Watch] Snapshot refresh failed: {e}")
+        return 0
+
+
+async def watch_snapshot_task():
+    """Precompute breakout-watch snapshots so ``GET /watch`` stays instant.
+
+    ``watch.live()`` fans out per symbol (LTP → tape, TV metrics, vol_adj),
+    which takes ~50s for 20 rows under market-hours contention when run
+    inside the request. This task rebuilds the in-memory (+ Redis-mirrored)
+    snapshot shortly after startup, then every
+    ``WATCH_SNAPSHOT_INTERVAL_SEC`` (default 60) — gated to market hours via
+    :func:`_is_market_hours`, off the event loop, and never blocking startup.
+    """
+    import os
+
+    interval = int(os.environ.get("WATCH_SNAPSHOT_INTERVAL_SEC", "60"))
+
+    first = True
+    while True:
+        try:
+            if first:
+                await asyncio.sleep(5)
+                first = False
+            else:
+                await asyncio.sleep(interval)
+
+            if not _is_market_hours():
+                continue
+
+            n = await run_watch_snapshot_once()
+            print(f"[Watch] Snapshot refreshed ({n} combos)")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Watch] Snapshot task error: {e}")
+            await asyncio.sleep(60)
+
+
 async def db_backup_task():
     """Daily local SQLite backup with retention (see scripts/backup_db.py).
 
@@ -406,6 +456,9 @@ async def lifespan(app: FastAPI):
     _db_backup_task = None
     _orderflow_recorder_task = None
     _patterns_task = None
+    _watch_task = None
+    _dashboard_task = None
+    _digest_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -499,6 +552,29 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ Chart-patterns task failed: {e}")
                 _patterns_task = None
+
+            try:
+                _watch_task = asyncio.create_task(watch_snapshot_task())
+                print("👀 Watch snapshot background task started")
+            except Exception as e:
+                print(f"⚠️ Watch snapshot task failed: {e}")
+                _watch_task = None
+
+            try:
+                from api.screener_api.dashboard import dashboard_prewarm_task
+                _dashboard_task = asyncio.create_task(dashboard_prewarm_task())
+                print("📊 Screener dashboard prewarm task started")
+            except Exception as e:
+                print(f"⚠️ Screener dashboard prewarm failed: {e}")
+                _dashboard_task = None
+
+            try:
+                from api.reports_api.digest import report_digest_task
+                _digest_task = asyncio.create_task(report_digest_task())
+                print("📨 EOD report digest task started")
+            except Exception as e:
+                print(f"⚠️ EOD report digest task failed: {e}")
+                _digest_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -529,6 +605,12 @@ async def lifespan(app: FastAPI):
         _orderflow_recorder_task.cancel()
     if _patterns_task:
         _patterns_task.cancel()
+    if _watch_task:
+        _watch_task.cancel()
+    if _dashboard_task:
+        _dashboard_task.cancel()
+    if _digest_task:
+        _digest_task.cancel()
     try:
         from api import orderflow_journal
         orderflow_journal.close_all()
@@ -1095,6 +1177,62 @@ try:
     print("✅ Order Flow bridge loaded at /ws/orderflow")
 except Exception as e:
     print(f"⚠️ Could not load Order Flow bridge: {e}")
+
+try:
+    from api.screener_api.dashboard import router as screener_dashboard_router
+    app.include_router(screener_dashboard_router)
+    print("✅ Screener Dashboard API loaded at /api/screener/dashboard")
+except Exception as e:
+    print(f"⚠️ Could not load screener dashboard API: {e}")
+
+try:
+    from api.reports_api.delivery import router as reports_delivery_router
+    app.include_router(reports_delivery_router)
+    print("✅ Reports delivery/events API loaded at /api/reports")
+except Exception as e:
+    print(f"⚠️ Could not load reports delivery API: {e}")
+
+try:
+    from api.reports_api.events_feed import router as reports_events_feed_router
+    app.include_router(reports_events_feed_router)
+    print("✅ Reports events feed API loaded at /api/reports/events/upcoming|recent")
+except Exception as e:
+    print(f"⚠️ Could not load reports events feed API: {e}")
+
+try:
+    from api.reports_api.breakouts import router as reports_breakouts_router
+    app.include_router(reports_breakouts_router)
+    print("✅ Reports API loaded at /api/reports")
+except Exception as e:
+    print(f"⚠️ Could not load reports API: {e}")
+
+try:
+    from api.reports_api.followthrough import router as reports_followthrough_router
+    app.include_router(reports_followthrough_router)
+    print("✅ Reports follow-through API loaded at /api/reports/follow-through")
+except Exception as e:
+    print(f"⚠️ Could not load reports follow-through API: {e}")
+
+try:
+    from api.reports_api.profitability import router as reports_profitability_router
+    app.include_router(reports_profitability_router)
+    print("✅ Reports profitability API loaded at /api/reports/profitability")
+except Exception as e:
+    print(f"⚠️ Could not load reports profitability API: {e}")
+
+try:
+    from api.reports_api.market import router as reports_router
+    app.include_router(reports_router)
+    print("✅ Reports API loaded at /api/reports")
+except Exception as e:
+    print(f"⚠️ Could not load reports API: {e}")
+
+try:
+    from api.reports_api.digest import router as reports_digest_router
+    app.include_router(reports_digest_router)
+    print("✅ Reports digest API loaded at /api/reports/digest/send")
+except Exception as e:
+    print(f"⚠️ Could not load reports digest API: {e}")
 
 if __name__ == '__main__':
     port = config.PORT

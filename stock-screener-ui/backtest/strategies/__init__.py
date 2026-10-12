@@ -42,6 +42,19 @@ STRATEGIES = {
     '52w_target': _LazyStrategy('week52_target', 'Week52TargetStrategy'),
     'ema_cross': _LazyStrategy('ema_cross', 'EMACrossStrategy'),
     'smc': _LazyStrategy('smc', 'SMCStrategy'),
+    # Week-42 new-pattern research variants (pure-pandas daily, no nautilus).
+    'accum_breakout': _LazyStrategy('new_patterns_week42', 'AccumBreakoutStrategy'),
+    'accum_adx_gated': _LazyStrategy('new_patterns_week42', 'AccumAdxGatedStrategy'),
+    'gap_and_go': _LazyStrategy('new_patterns_week42', 'GapAndGoStrategy'),
+    'high52w_vol': _LazyStrategy('new_patterns_week42', 'High52WVolStrategy'),
+    'failed_breakdown': _LazyStrategy('new_patterns_week42', 'FailedBreakdownStrategy'),
+    'ema_stack': _LazyStrategy('new_patterns_week42', 'EmaStackBreakoutStrategy'),
+    'ema_stack_nogate': _LazyStrategy('new_patterns_week42', 'EmaStackNoGateStrategy'),
+    'adx_breakout': _LazyStrategy('new_patterns_week42', 'AdxBreakoutStrategy'),
+    'adx_breakout_nogate': _LazyStrategy('new_patterns_week42', 'AdxBreakoutNoGateStrategy'),
+    'rsi_thrust': _LazyStrategy('new_patterns_week42', 'RsiThrustStrategy'),
+    'base_20d': _LazyStrategy('new_patterns_week42', 'Base20dBreakoutStrategy'),
+    'base_52w': _LazyStrategy('new_patterns_week42', 'Base52wProximityStrategy'),
 }
 
 

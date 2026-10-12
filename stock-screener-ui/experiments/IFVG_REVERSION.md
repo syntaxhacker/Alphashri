@@ -44,20 +44,49 @@ selection still need to be specified and tested over a larger sample.
 
 ## Strict-profile replay
 
-The strict profile was evaluated on the authoritative cached tick sessions
-from March 2 through September 14, split chronologically:
+The strict profile was rerun after restoring the five missing September tick
+sessions. The forward-validation harness replays 160 cached sessions in date
+order, resets HTF context after long data gaps, and uses Yahoo `NQ=F` only for
+daily regime labels; all entries and exits still come from Dukascopy bid/ask
+ticks.
 
-| Period | Trades | W/L | Result |
-|---|---:|---:|---:|
-| March–May train | 15 | 7/8 | +2.50R |
-| June–July validation | 12 | 6/5 | +3.38R |
-| August–September holdout | 5 | 3/2 | +2.50R |
-| **Total** | **32** | **16/15** | **+8.38R** |
+| Period | Sessions | Trades | W/L | Result |
+|---|---:|---:|---:|---:|
+| March–May train | 65 | 14 | 6/8 | +1.00R |
+| June–July validation | 53 | 10 | 5/5 | +2.50R |
+| August–September holdout | 37 | 10 | 5/5 | +2.50R |
+| **March–September total** | **155** | **34** | **16/18** | **+6.00R** |
 
-This is the best measured profile so far, but the trade count is still small;
-it is a research candidate, not a guarantee of future profitability. The CLI
-uses this strict profile by default and loads five prior sessions for HTF
-warm-up. Use `--profile baseline` to reproduce the unfiltered detector.
+For comparison, the unfiltered baseline produced 660 trades and -30.44R on
+the same March–September sessions. The strict profile traded on only 31 days,
+so the improvement is primarily a loss-avoidance filter, not evidence of a
+high-frequency edge.
+
+Additional checks from the full report:
+
+- 141/160 sessions joined to Yahoo daily data; tick-versus-Yahoo direction
+  agreed on 85.82% of joined sessions. This is a coarse data/regime check,
+  not an execution match because the session boundaries differ.
+- Strict result after an additional 0.5-point round-trip cost stress:
+  +5.46R / +172.28 points before commissions; at two NQ contracts this is
+  approximately +$6,891 gross of commissions.
+- Four of seven 2026 calendar months were positive, two negative, and one
+  flat. The deterministic random five-session windows were sparse: several
+  had no trades, which is consistent with the strict filter's low activity.
+
+This is the best measured profile so far, but 34 trades is still a small
+sample. It remains a research candidate for forward paper trading, not a
+guarantee of future profitability. The CLI uses this strict profile by
+default and loads five prior sessions for HTF warm-up. Use
+`--profile baseline` to reproduce the unfiltered detector.
+
+The reproducible report command is:
+
+```bash
+../.venv/bin/python research/nq_ifvg_reversion/forward_validation.py \
+  --start 2025-07-01 --end 2026-09-14 \
+  --output research/nq_ifvg_reversion/forward_validation.json
+```
 
 ## Run
 

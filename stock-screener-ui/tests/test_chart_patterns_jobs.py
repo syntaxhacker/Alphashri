@@ -162,13 +162,15 @@ def test_get_job_falls_back_to_db(cp_store):
 
 
 def test_scope_signature_defaults():
-    assert jobs._scope_signature(None) == ((), None, True, None, None, None, None, False, False, None)
-    assert jobs._scope_signature("not-a-dict") == ((), None, True, None, None, None, None, False, False, None)
-    assert jobs._scope_signature({}) == ((), None, True, None, None, None, None, False, False, None)
-    assert jobs._scope_signature({"symbols": ["B", "A"]}) == (("A", "B"), None, True, None, None, None, None, False, False, None)
+    assert jobs._scope_signature(None) == ((), None, True, None, None, None, None, None, False, False, None)
+    assert jobs._scope_signature("not-a-dict") == ((), None, True, None, None, None, None, None, False, False, None)
+    assert jobs._scope_signature({}) == ((), None, True, None, None, None, None, None, False, False, None)
+    assert jobs._scope_signature({"symbols": ["B", "A"]}) == (("A", "B"), None, True, None, None, None, None, None, False, False, None)
     # No dedupe at this layer (the API normalizes before submit); sorting only.
-    assert jobs._scope_signature({"symbols": ["B", "A", "B"]}) == (("A", "B", "B"), None, True, None, None, None, None, False, False, None)
-    assert jobs._scope_signature({"lookback_bars": 250}) == ((), 250, True, None, None, None, None, False, False, None)
+    assert jobs._scope_signature({"symbols": ["B", "A", "B"]}) == (("A", "B", "B"), None, True, None, None, None, None, None, False, False, None)
+    assert jobs._scope_signature({"lookback_bars": 250}) == ((), 250, True, None, None, None, None, None, False, False, None)
+    # The TV 10d-avg-volume floor is part of the scope (index 5).
+    assert jobs._scope_signature({"min_avg_volume_10d": 150})[5] == 150
     # Missing compute_trendlines normalizes to True (the scan default).
     assert jobs._scope_signature({"compute_trendlines": None}) == jobs._scope_signature({})
     assert jobs._scope_signature({"compute_trendlines": False})[2] is False

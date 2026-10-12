@@ -150,6 +150,22 @@ def wrangle_bars(bar_type: Any, instrument: Any, df_utc: pd.DataFrame):
     """Return list of Nautilus bars from full (warmup incl) df."""
     from nautilus_trader.persistence.wranglers import BarDataWrangler
     wrangler = BarDataWrangler(bar_type=bar_type, instrument=instrument)
+    # Nautilus 1.231's Cython ``_build_bar`` demands a *writable* buffer for
+    # the float volume column; under pandas Copy-on-Write every ``.values``
+    # accessor is a read-only view (and int volume takes a different path, so
+    # only float volume trips it). Rebuild plain owned arrays: volume as
+    # int64 (equity volumes are whole shares), OHLC as float64.
+    try:
+        import numpy as np
+
+        cols = ["open", "high", "low", "close"]
+        data = {c: np.array(list(df_utc[c].astype(float)), dtype=np.float64) for c in cols}
+        data["volume"] = np.array(
+            [int(v) for v in df_utc["volume"].astype(float)], dtype=np.int64
+        )
+        df_utc = pd.DataFrame(data, index=pd.DatetimeIndex(df_utc.index.tz_convert("UTC")))
+    except Exception:
+        pass
     return wrangler.process(df_utc)
 
 

@@ -3,7 +3,7 @@
 // is full-bleed to the left. Panel open-state and rail width are persisted.
 import { useCallback, useState, useEffect } from "react";
 
-export type BacktestPanelId = "config" | "results" | "trades";
+export type BacktestPanelId = "config" | "results" | "trades" | "edge";
 export type BacktestChartMode = "all" | "trades";
 
 export interface BacktestLayoutState {
@@ -22,6 +22,7 @@ const DEFAULT_PANELS: Record<BacktestPanelId, boolean> = {
   config: true,
   results: false,
   trades: false,
+  edge: false,
 };
 
 function clampWidth(w: number): number {

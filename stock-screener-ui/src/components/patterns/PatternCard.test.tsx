@@ -81,6 +81,18 @@ describe("PatternCard", () => {
   beforeEach(() => vi.clearAllMocks());
   afterEach(() => cleanup());
 
+  test("flags cards with missing candles (red border + No chart badge)", () => {
+    const { container } = r(<PatternCard hit={HIT} />);
+    expect(screen.getByTestId("patterns-card-no-data-IRCON")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-card-no-data-IRCON")).toHaveTextContent("No chart");
+  });
+
+  test("no flag when candles are present", () => {
+    r(<PatternCard hit={{ ...HIT, candles: [{ t: "2026-09-26", o: 100, h: 110, l: 99, c: 108, v: 1000 }] }} />);
+    expect(screen.queryByTestId("patterns-card-no-data-IRCON")).not.toBeInTheDocument();
+  });
+
+
   test("renders symbol, pattern, status and meta", () => {
     r(<PatternCard hit={HIT} />);
     expect(screen.getByTestId("patterns-card-IRCON-falling_wedge")).toBeInTheDocument();

@@ -1,5 +1,5 @@
-import { Alert, Box, Button, Progress, Text } from "@/ui";
-import type { JobDTO } from "@/types/chartPatterns";
+import { Alert, Badge, Box, Button, Progress, Text, Tooltip } from "@/ui";
+import type { JobDTO, ScanProvenance } from "@/types/chartPatterns";
 
 export interface ScanProgressProps {
   job: JobDTO | null;
@@ -74,6 +74,113 @@ export interface ReusedScanNoticeProps {
   job: JobDTO;
   /** Optional re-run action rendered as a compact button next to the notice. */
   onForceRefresh?: () => void;
+}
+
+/** Fresh-vs-cached classification of a finished scan job. */
+export type ScanCacheKind = "fresh" | "reused" | "mixed";
+
+export interface ScanCacheState {
+  kind: ScanCacheKind;
+  /** Cache-hit share 0..100 (`mixed` only, null otherwise). */
+  pct: number | null;
+  /** Human reuse age (`reused` only, null when unknown). */
+  age: string | null;
+}
+
+/**
+ * Pure classification of a job's cache state. Defensive: `provenance` may be
+ * absent (older backend) — a non-reused job without provenance reads as
+ * fresh, and a `reused` flag (or `provenance.scan_reused`) always wins.
+ */
+export function getScanCacheState(job: JobDTO): ScanCacheState {
+  const prov: ScanProvenance | null = job.provenance ?? null;
+  if (job.reused === true || prov?.scan_reused === true) {
+    return { kind: "reused", pct: null, age: formatReusedAge(job) };
+  }
+  const cached = prov?.candles_cached ?? 0;
+  const fetched = prov?.candles_fetched ?? 0;
+  if (cached > 0 && cached + fetched > 0) {
+    return { kind: "mixed", pct: Math.round((cached / (cached + fetched)) * 100), age: null };
+  }
+  return { kind: "fresh", pct: null, age: null };
+}
+
+/** Tooltip layer lines for the cache chip (scan → candles → prefilter → detector → data). */
+export function scanCacheDetails(job: JobDTO, cache: ScanCacheState): string[] {
+  const prov: ScanProvenance | null = job.provenance ?? null;
+  const lines: string[] = [];
+  if (cache.kind === "reused") {
+    lines.push(`Scan reused: yes${cache.age ? ` (${cache.age})` : ""} — data unchanged`);
+  } else {
+    lines.push("Scan reused: no — freshly computed");
+  }
+  if (prov) {
+    lines.push(`Candle cache: ${prov.candles_cached} cached / ${prov.candles_fetched} fetched`);
+    lines.push(`Prefilter dropped: ${prov.prefilter_dropped ?? "n/a"}`);
+    lines.push(`Detector v${prov.detector_version}`);
+    lines.push(`Data as of ${prov.data_through ?? job.data_through ?? "n/a"}`);
+  } else {
+    lines.push(`Data as of ${job.data_through ?? "n/a"}`);
+  }
+  return lines;
+}
+
+export interface ScanCacheChipProps {
+  job: JobDTO | null;
+  /** Re-run action shown next to the chip when the scan was reused. */
+  onForceRefresh?: () => void;
+}
+
+/**
+ * Compact fresh-vs-cached status chip for the scan toolbar. Always renders
+ * when a job is present so the state is visible in every case:
+ * green `Fresh` (fully computed), amber `Cached · {age}` (scan reused), or
+ * grey `Cache {pct}%` (partially candle-cached). A tooltip lists the layers.
+ * Keeps the `patterns-scan-reused` testid on the reused chip so the reuse
+ * contract (and its Force re-run action) keeps working.
+ */
+export function ScanCacheChip({ job, onForceRefresh }: ScanCacheChipProps) {
+  if (!job) return null;
+  const cache = getScanCacheState(job);
+  const label =
+    cache.kind === "reused"
+      ? cache.age
+        ? `Cached · ${cache.age}`
+        : "Cached"
+      : cache.kind === "mixed" && cache.pct != null
+        ? `Cache ${cache.pct}%`
+        : "Fresh";
+  const color = cache.kind === "reused" ? "warning" : cache.kind === "mixed" ? "default" : "success";
+  const lines = scanCacheDetails(job, cache);
+  // One accessible string: MUI surfaces a string title as the wrapper's
+  // aria-label, so the layers stay queryable without hovering.
+  const summary = lines.join(" · ");
+  return (
+    <Box
+      data-testid="patterns-scan-status"
+      sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}
+    >
+      <Tooltip position="bottom" withArrow multiline label={summary}>
+        <Badge
+          size="xs"
+          color={color}
+          data-testid={cache.kind === "reused" ? "patterns-scan-reused" : "patterns-scan-fresh"}
+        >
+          {label}
+        </Badge>
+      </Tooltip>
+      {cache.kind === "reused" && onForceRefresh ? (
+        <Button
+          size="xs"
+          variant="outline"
+          onClick={onForceRefresh}
+          data-testid="patterns-scan-reused-force"
+        >
+          Force re-run
+        </Button>
+      ) : null}
+    </Box>
+  );
 }
 
 /**

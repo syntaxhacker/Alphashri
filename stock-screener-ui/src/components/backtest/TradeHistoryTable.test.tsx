@@ -462,4 +462,44 @@ describe("TradeHistoryTable rendering", () => {
     expect(row0.getAttribute("style")).not.toContain(TINT_LOSS_ROW);
     expect(row1.getAttribute("style")).toContain(TINT_LOSS_ROW);
   });
+
+  test("result filter narrows rows and updates the count", async () => {
+    const user = userEvent.setup();
+    const trades = [makeTrade({ net_pnl: 100 }), makeTrade({ net_pnl: -50 })];
+    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+      wrapper: Wrapper,
+    });
+    expect(screen.getByTestId("filter-count")).toHaveTextContent("2/2");
+
+    await user.click(screen.getByRole("button", { name: "Win" }));
+
+    expect(screen.getByTestId("filter-count")).toHaveTextContent("1/2");
+    expect(screen.getByTestId("trade-history-row-0")).toBeInTheDocument();
+    expect(screen.queryByTestId("trade-history-row-1")).toBeNull();
+  });
+
+  test("filters renumber-safely and clear resets them", async () => {
+    const user = userEvent.setup();
+    const trades = [makeTrade({ net_pnl: -50 }), makeTrade({ net_pnl: 100 })];
+    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+      wrapper: Wrapper,
+    });
+    await user.click(screen.getByRole("button", { name: "Win" }));
+    // the surviving trade keeps its original stable number (#2), not #1
+    expect(screen.getByTestId("trade-history-row-0")).toHaveAttribute("data-trade-number", "2");
+
+    await user.click(screen.getByTestId("filter-clear"));
+    expect(screen.getByTestId("filter-count")).toHaveTextContent("2/2");
+    expect(screen.getByTestId("trade-history-row-1")).toBeInTheDocument();
+  });
+
+  test("empty filter result shows a message", async () => {
+    const user = userEvent.setup();
+    const trades = [makeTrade({ net_pnl: 100 })];
+    render(<TradeHistoryTable symbol="TCS" trades={trades} {...defaultProps} />, {
+      wrapper: Wrapper,
+    });
+    await user.click(screen.getByRole("button", { name: "Loss" }));
+    expect(screen.getByText("No trades match the current filters.")).toBeInTheDocument();
+  });
 });

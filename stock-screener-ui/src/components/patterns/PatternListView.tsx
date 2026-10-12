@@ -4,7 +4,7 @@ import { Text } from "@/ui";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO } from "@/types/chartPatterns";
-import { QualityBadge } from "./QualityBadge";
+import { QUALITY_INFO } from "@/config/patternCatalog";
 import { StatusBadge } from "./StatusBadge";
 
 export interface PatternListViewProps {
@@ -39,7 +39,43 @@ function gapPct(value: number | null | undefined): string {
   return `${Number.isInteger(value) ? String(value) : value.toFixed(1)}%`;
 }
 
-/** Dense scanner table: one row per hit, ~28px rows, sticky header. */
+/** Compact direction glyph: ▲ bullish / ▼ bearish / ◆ otherwise (value kept in title/aria). */
+function DirectionGlyph({ direction }: { direction: string | null | undefined }) {
+  const raw = String(direction ?? "—").toLowerCase();
+  const glyph = raw === "bullish" ? "▲" : raw === "bearish" ? "▼" : "◆";
+  const tone = raw === "bullish" ? "success" : raw === "bearish" ? "error" : "dimmed";
+  return (
+    <Text size="sm" fw={700} c={tone} title={raw} aria-label={raw} truncate>
+      {glyph}
+    </Text>
+  );
+}
+
+/** Compact shape-quality letter: T/S/F/M with the tier color (full label in the title tooltip). */
+function QualityGlyph({ quality }: { quality: string | null | undefined }) {
+  const key = String(quality ?? "").toLowerCase();
+  const info = QUALITY_INFO[key as keyof typeof QUALITY_INFO];
+  const label = info?.label ?? (key ? key.charAt(0).toUpperCase() + key.slice(1) : "Unknown");
+  const letter = (info?.label ?? label).charAt(0).toUpperCase();
+  const tone =
+    key === "textbook" ? "success" : key === "strong" ? "primary" : key === "fair" ? "info" : "warning";
+  const title = info ? `${info.label}: ${info.description}` : label;
+  return (
+    <Text
+      size="sm"
+      fw={700}
+      c={tone}
+      title={title}
+      aria-label={label}
+      data-testid={`patterns-quality-${key || "unknown"}`}
+      truncate
+    >
+      {letter}
+    </Text>
+  );
+}
+
+/** Dense scanner table: one row per hit, ~28px rows, no sticky thead (see below). */
 export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) {
   const columns = useMemo<ColumnDef<PatternHitDTO>[]>(
     () => [
@@ -108,13 +144,9 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
         id: "direction",
         header: "Dir",
         accessorFn: (hit) => hit.direction,
-        size: 80,
+        size: 44,
         meta: { align: "center" },
-        cell: (info) => (
-          <Text size="xs" fw={600} style={{ textTransform: "uppercase" }}>
-            {String(info.getValue<string>() ?? "—")}
-          </Text>
-        ),
+        cell: (info) => <DirectionGlyph direction={info.getValue<string>()} />,
       },
       {
         id: "status",
@@ -126,11 +158,11 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
       },
       {
         id: "quality",
-        header: "Quality",
+        header: "Q",
         accessorKey: "quality",
-        size: 110,
+        size: 44,
         meta: { align: "center" },
-        cell: (info) => <QualityBadge quality={info.row.original.quality} />,
+        cell: (info) => <QualityGlyph quality={info.row.original.quality} />,
       },
       {
         id: "gap52w",
@@ -208,6 +240,9 @@ export function PatternListView({ hits, onSelect, sort }: PatternListViewProps) 
       data={hits}
       columns={columns}
       dataTestId="patterns-list"
+      // No sticky thead: the merged universe/results toolbar above is sticky
+      // (`top: 0`, higher z) and would cover a `top: 0` thead while scrolling.
+      stickyHeader={false}
       // Seed the header sort indicator from the active rail sort; the parent
       // remounts (key=sort) so changing the rail re-seeds it. Sort keys match
       // the server ordering (confidence desc / bars_ago asc / range_pos desc /

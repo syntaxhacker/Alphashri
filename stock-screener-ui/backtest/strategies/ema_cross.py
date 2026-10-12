@@ -56,14 +56,14 @@ except ImportError:
 
 from .base import BaseStrategy, StrategyParam, get_ist_time
 from ..costs import calculate_trading_costs
-from trading.ema_utils import calculate_ema as _calculate_ema
+from trading.indicators import ema as _calculate_ema
 
 
 def calculate_ema(prices: List[float], period: int) -> float:
     """Calculate Exponential Moving Average from a list of prices.
     Wrapper for backward compatibility. Delegates to shared utility.
     """
-    return _calculate_ema(prices, period, return_full=False)
+    return _calculate_ema(prices, period)
 
 
 def run_single_stock_backtest(args):
@@ -646,11 +646,10 @@ class EMACrossStrategy(BaseStrategy):
         if not closes:
             return {}
 
-        import pandas as pd
         ema_fast_period = int(params.get('ema_fast_period', 9))
         ema_slow_period = int(params.get('ema_slow_period', 21))
-        ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
-        ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
+        ema_fast = [None if v is None else round(v, 2) for v in _calculate_ema(closes, ema_fast_period, full=True)]
+        ema_slow = [None if v is None else round(v, 2) for v in _calculate_ema(closes, ema_slow_period, full=True)]
 
         return {
             'ema_series': [

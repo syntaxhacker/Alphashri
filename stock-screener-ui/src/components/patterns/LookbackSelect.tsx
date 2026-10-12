@@ -31,6 +31,7 @@ export function LookbackSelect({ value, onChange }: LookbackSelectProps) {
       w={130}
       size="sm"
       data-testid="patterns-lookback-select"
+      style={{ flexShrink: 0 }}
     />
   );
 }

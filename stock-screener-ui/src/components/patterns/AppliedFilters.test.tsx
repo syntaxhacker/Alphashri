@@ -161,6 +161,19 @@ describe("buildAppliedFilterChips", () => {
     expect(chip?.key).toBe("min_range_pos");
   });
 
+  test("builds score and breakout chips that reset to null", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ min_confidence: 70, min_breakout_score: 60, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "min_confidence", group: "Score", label: "≥ 70", nextValue: null },
+      { id: "min_breakout_score", group: "Breakout", label: "≥ 60", nextValue: null },
+    ]);
+    expect(chips.find((c) => c.id === "min_confidence")?.key).toBe("min_confidence");
+    expect(chips.find((c) => c.id === "min_breakout_score")?.key).toBe("min_breakout_score");
+  });
+
   test("labels the range_pos sort chip as Near breakout", () => {
     const chips = buildAppliedFilterChips(
       makeFilters({ sort: "range_pos", min_avg_volume_10d: null }),
@@ -445,6 +458,32 @@ describe("AppliedFilters", () => {
       ) as Element,
     );
     expect(setFilter).toHaveBeenCalledWith("min_range_pos", null);
+  });
+
+  test("shows and removes the score and breakout chips", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_confidence: 70, min_breakout_score: 60 })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Score: ≥ 70")).toBeInTheDocument();
+    expect(screen.getByText("Breakout: ≥ 60")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_confidence").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_confidence", null);
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_breakout_score").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_breakout_score", null);
   });
 
   test("removing the range_pos sort chip resets to confidence", () => {

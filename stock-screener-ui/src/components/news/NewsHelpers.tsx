@@ -69,16 +69,18 @@ function ArticleSymbols({
                 : `Open ${symbol.code} on Moneycontrol`
             }
           >
-            <Badge
-              size="sm"
+            <Button
+              type="button"
+              size="xs"
               variant="light"
               color={symbol.instrument_key ? "primary" : "secondary"}
               onClick={() => onSymbolClick(symbol)}
+              aria-label={`${symbol.instrument_key ? "View" : "Open"} ${symbol.trading_symbol || symbol.code}`}
               data-testid={`news-symbol-${symbol.code}`}
             >
               {symbol.name || symbol.code}
-              {symbol.instrument_key && <IconChartLine size={12} style={{ marginLeft: 4 }} />}
-            </Badge>
+              {symbol.instrument_key ? <IconChartLine size={12} style={{ marginLeft: 4 }} /> : null}
+            </Button>
           </Tooltip>
         ))}
       </Group>
@@ -218,6 +220,7 @@ export function NewsItemCard({
   meta,
   testId = "news-item",
   onClick,
+  variant = "default",
 }: {
   item: NewsItem;
   isUnread: boolean;
@@ -225,18 +228,38 @@ export function NewsItemCard({
   meta?: ReactNode;
   testId?: string;
   onClick: (item: NewsItem) => void;
+  variant?: "default" | "desk";
 }) {
+  const isDesk = variant === "desk";
   return (
-    <ListItem disablePadding>
+    <ListItem disablePadding component={isDesk ? "div" : undefined}>
       <MuiListItemButton
         selected={selected}
         onClick={() => onClick(item)}
         aria-label={item.headline}
+        aria-current={selected ? "true" : undefined}
         className={`news-item-card ${isUnread ? "unread" : ""}`}
         data-testid={testId}
-        sx={{ alignItems: "flex-start", gap: 1, py: 1 }}
+        sx={
+          isDesk
+            ? {
+                alignItems: "flex-start",
+                gap: 1,
+                minHeight: 64,
+                px: 1.5,
+                py: 1,
+                borderRadius: 0,
+                borderLeft: 3,
+                borderLeftColor: selected ? "primary.main" : "transparent",
+                transitionProperty: "background-color, border-color, transform",
+                transitionDuration: "120ms",
+                "&:hover": { bgcolor: "action.hover" },
+                "&:active": { transform: "scale(0.995)" },
+              }
+            : { alignItems: "flex-start", gap: 1, py: 1 }
+        }
       >
-        <ListItemIcon sx={{ minWidth: 20, mt: 0.5, justifyContent: "center" }}>
+        <ListItemIcon sx={{ minWidth: 18, mt: 0.55, justifyContent: "center" }}>
           {isUnread ? (
             <FiberManualRecordIcon sx={{ fontSize: 8 }} color="primary" aria-hidden="true" />
           ) : null}
@@ -244,21 +267,47 @@ export function NewsItemCard({
         <ListItemText
           primary={item.headline}
           secondary={
-            <>
-              {meta}
-              <Typography variant="caption" className="news-item-meta">
+            <Box
+              component="div"
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+                minHeight: 18,
+              }}
+            >
+              <Box component="span" sx={{ minWidth: 0 }}>
+                {meta}
+              </Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                className="news-item-meta"
+                sx={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums" }}
+              >
                 {formatTimeAgo(item.publishedAt)}
               </Typography>
-            </>
+            </Box>
           }
           slotProps={{
             primary: {
               variant: "body2",
               fontWeight: isUnread ? 600 : 400,
-              noWrap: true,
+              noWrap: !isDesk,
               className: "news-item-headline",
+              ...(isDesk && {
+                sx: {
+                  display: "-webkit-box",
+                  WebkitBoxOrient: "vertical",
+                  WebkitLineClamp: 2,
+                  overflow: "hidden",
+                  lineHeight: 1.35,
+                  pr: 0.5,
+                },
+              }),
             },
-            secondary: { component: "div", variant: "caption" },
+            secondary: { component: "div", variant: "caption", sx: { mt: isDesk ? 0.5 : 0 } },
           }}
         />
       </MuiListItemButton>
@@ -275,6 +324,7 @@ export function NewsSourceGroup({
   onItemClick,
   renderItem,
   itemTestId,
+  variant = "default",
 }: {
   source: string;
   items: NewsItem[];
@@ -284,15 +334,34 @@ export function NewsSourceGroup({
   onItemClick: (item: NewsItem) => void;
   renderItem?: (item: NewsItem, isUnread: boolean) => ReactNode;
   itemTestId?: string;
+  variant?: "default" | "desk";
 }) {
+  const isDesk = variant === "desk";
   return (
-    <Box component="li" className="news-source-group" sx={{ listStyle: "none" }}>
-      <ListItem disablePadding>
+    <Box component={isDesk ? "section" : "div"} className="news-source-group" sx={{ listStyle: "none" }}>
+      <ListItem disablePadding component="div">
         <MuiListItemButton
           onClick={onToggle}
           aria-expanded={isExpanded}
           data-testid={`news-source-group-${source}`}
-          sx={{ borderRadius: 1 }}
+          sx={
+            isDesk
+              ? {
+                  position: "sticky",
+                  top: 0,
+                  zIndex: 1,
+                  minHeight: 36,
+                  px: 1.5,
+                  borderRadius: 0,
+                  borderTop: 1,
+                  borderColor: "divider",
+                  bgcolor: "background.default",
+                  transitionProperty: "background-color",
+                  transitionDuration: "120ms",
+                  "&:hover": { bgcolor: "action.hover" },
+                }
+              : { borderRadius: 1 }
+          }
         >
           <ListItemText
             primary={source}
@@ -310,7 +379,7 @@ export function NewsSourceGroup({
       </ListItem>
 
       <MuiCollapse in={isExpanded} timeout="auto" unmountOnExit>
-        <List dense disablePadding sx={{ py: 0.5 }}>
+        <List dense disablePadding component={isDesk ? "div" : undefined} sx={{ py: isDesk ? 0 : 0.5 }}>
           {items.map((item) => {
             const isUnread = !readIds.has(item.id);
             if (renderItem) return <Fragment key={item.id}>{renderItem(item, isUnread)}</Fragment>;
@@ -321,6 +390,7 @@ export function NewsSourceGroup({
                 isUnread={isUnread}
                 testId={itemTestId}
                 onClick={onItemClick}
+                variant={variant}
               />
             );
           })}
@@ -405,6 +475,8 @@ export function NewsFilterControls({
   );
 }
 
+const normalizeNewsSource = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+
 export function NewsListContent({
   loading,
   error,
@@ -419,6 +491,7 @@ export function NewsListContent({
   onArticleClick,
   renderItemMeta,
   itemTestId,
+  variant = "default",
 }: {
   loading: boolean;
   error: string | null;
@@ -433,6 +506,7 @@ export function NewsListContent({
   onArticleClick: (item: NewsItem) => void;
   renderItemMeta?: (item: NewsItem) => ReactNode;
   itemTestId?: string;
+  variant?: "default" | "desk";
 }) {
   if (loading && newsItems.length === 0) {
     return (
@@ -469,13 +543,22 @@ export function NewsListContent({
       </Box>
     );
   }
+  const normalizedSelectedSource = normalizeNewsSource(selectedSource);
   const visibleSources = sourceNames.filter(
-    (source) => selectedSource === "all" || selectedSource === source,
+    (source) => selectedSource === "all" || normalizeNewsSource(source) === normalizedSelectedSource,
   );
+  const isDesk = variant === "desk";
   return (
-    <List dense disablePadding className="news-source-groups" sx={{ width: "100%" }}>
+    <List
+      dense
+      disablePadding
+      component={isDesk ? "section" : undefined}
+      className="news-source-groups"
+      aria-label="News stories by source"
+      sx={{ width: "100%" }}
+    >
       {visibleSources.map((source, index) => (
-        <Box component="li" key={source} sx={{ listStyle: "none" }}>
+        <Box component={isDesk ? "section" : "li"} key={source} sx={{ listStyle: "none" }}>
           <NewsSourceGroup
             source={source}
             items={groupedNewsItems[source]}
@@ -483,6 +566,7 @@ export function NewsListContent({
             readIds={readIds}
             onToggle={() => onToggleSource(source)}
             onItemClick={onArticleClick}
+            variant={variant}
             renderItem={(item, isUnread) => (
               <NewsItemCard
                 item={item}
@@ -491,10 +575,11 @@ export function NewsListContent({
                 meta={renderItemMeta?.(item)}
                 testId={itemTestId}
                 onClick={onArticleClick}
+                variant={variant}
               />
             )}
           />
-          {index < visibleSources.length - 1 ? <MuiDivider component="li" /> : null}
+          {!isDesk && index < visibleSources.length - 1 ? <MuiDivider component="div" /> : null}
         </Box>
       ))}
     </List>

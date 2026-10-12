@@ -139,6 +139,16 @@ async def run_backtest(
 
     result = await asyncio.to_thread(handle_run_backtest, body, _backtest_handler.progress_state)
 
+    # Surface run failures instead of returning a 200 with an all-null payload
+    # (which left the UI stuck in the running state).
+    if isinstance(result, dict) and result.get('error'):
+        detail = result['error']
+        details = result.get('details')
+        if details:
+            detail = f"{detail}: {details}"
+        _backtest_handler.set_progress_done()
+        raise HTTPException(status_code=400, detail=detail)
+
     _backtest_handler.apply_result_to_cache(result, user_id)
 
     if 'error' not in result:

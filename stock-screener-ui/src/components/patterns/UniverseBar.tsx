@@ -23,10 +23,10 @@ export interface UniverseBarProps {
 
 /**
  * Scan-scope bar: universe pills plus a "Custom" pill for a hand-picked symbol
- * set, a live job status and the scan action. The action label adapts to the
- * scope — "Scan again" for a universe, "Scan N symbols" for a custom set.
- * Borderless single row: the caller passes the results controls as `actions`
- * so universe + toolbar share one 48px `ToolbarRow`.
+ * set, a live job status and the scan action. Two rows (scope, then the
+ * caller-passed results controls) so nothing clips or needs a horizontal
+ * scrollbar at desktop widths; the whole bar is sticky (`top: 0`) so both rows
+ * stay visible while the result list scrolls.
  */
 export function UniverseBar({
   universes,
@@ -50,9 +50,23 @@ export function UniverseBar({
       : "Scan again";
 
   return (
-    <Box data-testid="patterns-universe-bar" sx={{ minWidth: 0 }}>
-      <ToolbarRow justify="space-between" gap={8} style={{ rowGap: 8 }}>
-        <ToolbarRow gap={6} style={{ flexWrap: "wrap", rowGap: 6 }}>
+    <Box
+      data-testid="patterns-universe-bar"
+      sx={{
+        minWidth: 0,
+        position: "sticky",
+        top: 0,
+        zIndex: 5,
+        bgcolor: "background.paper",
+      }}
+    >
+      <ToolbarRow
+        justify="space-between"
+        gap={8}
+        wrap={false}
+        style={{ minHeight: 40 }}
+      >
+        <ToolbarRow gap={6} wrap={false} style={{ flexShrink: 0, overflowX: "auto" }}>
           {universes.map((u) => (
             <Chip
               key={u.id}
@@ -90,12 +104,17 @@ export function UniverseBar({
             {scanLabel}
           </Button>
         </ToolbarRow>
-        {actions ? (
-          <ToolbarRow gap={8} justify="flex-end" style={{ flexWrap: "wrap", rowGap: 6 }}>
-            {actions}
-          </ToolbarRow>
-        ) : null}
       </ToolbarRow>
+      {actions ? (
+        <ToolbarRow
+          gap={8}
+          justify="flex-start"
+          wrap={true}
+          style={{ minHeight: 40, rowGap: 4 }}
+        >
+          {actions}
+        </ToolbarRow>
+      ) : null}
       {error ? (
         <Box sx={{ mt: 0.5 }}>
           <Text size="xs" c="error" data-testid="patterns-status-line">

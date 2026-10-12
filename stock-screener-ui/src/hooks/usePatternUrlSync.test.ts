@@ -83,6 +83,27 @@ describe("parsePatternParams", () => {
     expect(parsed.filters.symbols).toBeUndefined();
   });
 
+  it("parses compact comma-separated symbols=a,b,c", () => {
+    const parsed = parsePatternParams(new URLSearchParams("symbols=niacl,pwl,cupid"));
+    expect(parsed.filters.symbols).toEqual(["NIACL", "PWL", "CUPID"]);
+    expect(parsed.filters.symbol).toBeUndefined();
+  });
+
+  it("merges repeated symbol= with compact symbols=, deduped", () => {
+    const parsed = parsePatternParams(new URLSearchParams("symbol=NIACL&symbols=niacl,PWL"));
+    expect(parsed.filters.symbols).toEqual(["NIACL", "PWL"]);
+  });
+
+  it("parses compact patterns=/families=/directions=/statuses=", () => {
+    const parsed = parsePatternParams(
+      new URLSearchParams("patterns=double_bottom,flag&families=reversal&directions=bullish&statuses=confirmed,forming"),
+    );
+    expect(parsed.filters.pattern_id).toEqual(["double_bottom", "flag"]);
+    expect(parsed.filters.family).toEqual(["reversal"]);
+    expect(parsed.filters.direction).toEqual(["bullish"]);
+    expect(parsed.filters.status).toEqual(["confirmed", "forming"]);
+  });
+
   it("maps volume_confirmed=false and min_rr", () => {
     const parsed = parsePatternParams(
       new URLSearchParams("volume_confirmed=false&min_rr=2"),
@@ -287,6 +308,29 @@ describe("buildPatternParams", () => {
       filters: { ...DEFAULT_PATTERN_FILTERS },
     });
     expect(clean.has("pos")).toBe(false);
+  });
+
+  it("round-trips score/breakout (result-level floors) through build/parse", () => {
+    const state = {
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null as number | null,
+      filters: { ...DEFAULT_PATTERN_FILTERS, min_confidence: 70, min_breakout_score: 60 },
+    };
+    const serialized = buildPatternParams(state).toString();
+    expect(serialized).toBe("score=70&breakout=60&avgvol=150");
+    const parsed = parsePatternParams(new URLSearchParams(serialized));
+    expect(parsed.filters.min_confidence).toBe(70);
+    expect(parsed.filters.min_breakout_score).toBe(60);
+    // Defaults (null) omit the params.
+    const clean = buildPatternParams({
+      universe: "",
+      timeframe: "1D",
+      lookbackBars: null,
+      filters: { ...DEFAULT_PATTERN_FILTERS },
+    });
+    expect(clean.has("score")).toBe(false);
+    expect(clean.has("breakout")).toBe(false);
   });
 
   it("round-trips relvol/volm (volume scan filters) through build/parse", () => {

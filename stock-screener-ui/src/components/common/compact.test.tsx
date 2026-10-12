@@ -175,6 +175,28 @@ describe("CompactStat", () => {
   });
 });
 
+describe("CompactPage centering", () => {
+  it("is left/stretch by default (no forced centering)", () => {
+    const { container } = render(
+      <CompactPage title="T">
+        <div data-testid="page-child">x</div>
+      </CompactPage>,
+    );
+    const outer = container.firstElementChild as HTMLElement;
+    expect(outer.style.alignItems).toBe("stretch");
+  });
+
+  it("centers when center=true (backward-compat opt-in)", () => {
+    const { container } = render(
+      <CompactPage title="T" center>
+        <div data-testid="page-child">x</div>
+      </CompactPage>,
+    );
+    const outer = container.firstElementChild as HTMLElement;
+    expect(outer.style.alignItems).toBe("center");
+  });
+});
+
 describe("CompactStatGrid", () => {
   it("renders children", () => {
     render(
@@ -202,5 +224,27 @@ describe("CompactStatGrid", () => {
     const { container } = render(<CompactStatGrid data-testid="empty-grid" />);
     expect(container.firstChild).toBeInTheDocument();
     expect(screen.queryByTestId("empty-grid")).toBeInTheDocument();
+  });
+
+  it("is left/stretch by default (no forced centering)", () => {
+    const { container } = render(
+      <CompactStatGrid>
+        <div>Stat 1</div>
+      </CompactStatGrid>,
+    );
+    const outer = container.firstElementChild as HTMLElement;
+    expect(outer.style.justifyContent).toBe("flex-start");
+    expect(outer.style.alignItems).toBe("stretch");
+  });
+
+  it("centers when center=true (backward-compat opt-in)", () => {
+    const { container } = render(
+      <CompactStatGrid center>
+        <div>Stat 1</div>
+      </CompactStatGrid>,
+    );
+    const outer = container.firstElementChild as HTMLElement;
+    expect(outer.style.justifyContent).toBe("center");
+    expect(outer.style.alignItems).toBe("center");
   });
 });

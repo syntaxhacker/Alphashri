@@ -200,6 +200,12 @@ export const BUILTIN_PRESETS: PatternPreset[] = [
     },
   },
   {
+    id: "high_conviction",
+    name: "High conviction",
+    description: "Score ≥ 70 and breakout conviction ≥ 60, breakout first",
+    filters: { min_confidence: 70, min_breakout_score: 60, sort: "breakout" },
+  },
+  {
     id: "high_rel_vol",
     name: "High rel-vol",
     description: "Only scan symbols with strong relative volume",

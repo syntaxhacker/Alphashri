@@ -158,6 +158,24 @@ export function buildAppliedFilterChips(
       nextValue: null,
     });
   }
+  if (filters.min_confidence != null) {
+    chips.push({
+      id: "min_confidence",
+      group: "Score",
+      label: `≥ ${filters.min_confidence}`,
+      key: "min_confidence",
+      nextValue: null,
+    });
+  }
+  if (filters.min_breakout_score != null) {
+    chips.push({
+      id: "min_breakout_score",
+      group: "Breakout",
+      label: `≥ ${filters.min_breakout_score}`,
+      key: "min_breakout_score",
+      nextValue: null,
+    });
+  }
   if (filters.min_rel_volume != null) {
     chips.push({
       id: "min_rel_volume",

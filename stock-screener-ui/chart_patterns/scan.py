@@ -290,9 +290,13 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
     :func:`candles.fetch_for_timeframe` (official bar wins, empty tape
     appends nothing, never cached), so it cannot be double-counted and
     ``frame_last_date``/``data_through`` reflect the current session.
+
+    The returned dict always carries ``from_cache`` (True = candles served
+    from disk, False = freshly fetched, None = no fetch attempted) so
+    :func:`run_job` can aggregate cache provenance.
     """
     if _is_cancelled(job_id):
-        return {"status": "skipped", "data_through": None}
+        return {"status": "skipped", "data_through": None, "from_cache": None}
     to_dt = None
     from_part = None
     fetch_kwargs: dict = {"lookback_bars": lookback_bars}
@@ -305,29 +309,38 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
                 from_part = candles.parse_asof_datetime(from_date).strftime("%Y-%m-%d")
                 fetch_kwargs["from_date"] = from_part
         except ValueError:
-            return {"status": "failed", "data_through": None}
+            return {"status": "failed", "data_through": None, "from_cache": None}
     if include_partial_today is None:
         want_partial = (timeframe == "1D")
     else:
         want_partial = bool(include_partial_today)
     if want_partial and to_dt is None:
         fetch_kwargs["include_partial_today"] = True
+    prov: dict = {}
     try:
-        df = candles.fetch_for_timeframe(symbol, timeframe, **fetch_kwargs)
+        try:
+            df = candles.fetch_for_timeframe(
+                symbol, timeframe, **{**fetch_kwargs, "provenance": prov}
+            )
+        except TypeError:
+            # Backward compatible: patched/custom fetchers without the
+            # ``provenance`` out-param.
+            df = candles.fetch_for_timeframe(symbol, timeframe, **fetch_kwargs)
     except Exception:
-        return {"status": "failed", "data_through": None}
+        return {"status": "failed", "data_through": None, "from_cache": False}
+    from_cache = bool(prov.get("from_cache", False))
 
     if df is None or getattr(df, "empty", True):
-        return {"status": "failed", "data_through": None}
+        return {"status": "failed", "data_through": None, "from_cache": from_cache}
 
     if to_dt is not None:
         df = candles.truncate_frame_to(df, to_dt)
         if df is None or getattr(df, "empty", True):
-            return {"status": "skipped", "data_through": None}
+            return {"status": "skipped", "data_through": None, "from_cache": from_cache}
 
     data_through = candles.frame_last_date(df)
     if len(df) < _resolve_min_bars(timeframe):
-        return {"status": "skipped", "data_through": data_through}
+        return {"status": "skipped", "data_through": data_through, "from_cache": from_cache}
 
     # Opt-in trailing window: cap the detection input at the last N bars.
     # The min_bars gate above runs on the full fetched frame so an explicit
@@ -336,12 +349,12 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         df = df.iloc[-lookback_bars:]
 
     if _is_cancelled(job_id):
-        return {"status": "skipped", "data_through": data_through}
+        return {"status": "skipped", "data_through": data_through, "from_cache": from_cache}
 
     try:
         hits = _detect(df, timeframe, symbol) or []
     except Exception:
-        return {"status": "failed", "data_through": data_through}
+        return {"status": "failed", "data_through": data_through, "from_cache": from_cache}
 
     # Scan-time trendlines: computed once per symbol so read-time results can
     # reuse the stored lines instead of re-running the detector per item.
@@ -376,9 +389,27 @@ def _process_symbol(symbol: str, timeframe: str, job_id: str, name=None,
         try:
             store.save_hits(job_id, enriched)
         except Exception:
-            return {"status": "failed", "data_through": data_through}
+            return {"status": "failed", "data_through": data_through, "from_cache": from_cache}
 
-    return {"status": "ok", "data_through": data_through}
+    return {"status": "ok", "data_through": data_through, "from_cache": from_cache}
+
+
+def _provenance(
+    scan_reused: bool,
+    candles_cached: int,
+    candles_fetched: int,
+    prefilter_dropped: Optional[int],
+    data_through: Optional[str],
+) -> dict:
+    """Cache provenance for a job (also mirrored into ``params`` for DB restarts)."""
+    return {
+        "scan_reused": bool(scan_reused),
+        "candles_cached": int(candles_cached),
+        "candles_fetched": int(candles_fetched),
+        "prefilter_dropped": prefilter_dropped,
+        "detector_version": SCAN_DETECTOR_VERSION,
+        "data_through": data_through,
+    }
 
 
 def run_job(job_id: str) -> None:
@@ -424,6 +455,7 @@ def run_job(job_id: str) -> None:
     # candle fetch, so low-energy symbols never cost an Upstox call. Fail-open
     # (all symbols pass) when TV is unavailable.
     prefilter_message: str | None = None
+    prefilter_dropped: Optional[int] = None
     if min_rel_volume is not None or min_volume_m is not None or min_avg_volume_10d is not None:
         before = len(symbols)
         try:
@@ -441,6 +473,7 @@ def run_job(job_id: str) -> None:
         except Exception as exc:
             symbols = list(symbols)
             prefilter_message = f"TV prefilter: {before} → {len(symbols)} (fail-open: {exc})"
+        prefilter_dropped = before - len(symbols)
         names = {s: names.get(s) for s in symbols if s in names} if names else {}
         total = len(symbols)
 
@@ -471,6 +504,9 @@ def run_job(job_id: str) -> None:
                 else (prev_finished.isoformat() if hasattr(prev_finished, "isoformat") else None)
             )
             reuse_params = dict(params)
+            reuse_provenance = _provenance(
+                True, 0, 0, prefilter_dropped, prev.get("data_through")
+            )
             reuse_params.update({
                 "reused": True,
                 "reused_from": prev.get("job_id"),
@@ -478,6 +514,7 @@ def run_job(job_id: str) -> None:
                 "reused_finished_at": prev_finished_iso,
                 "reused_signature": _stored_scan_signature(prev),
                 "scan_signature": _detector_signature(),
+                "provenance": reuse_provenance,
             })
             jobs_mod.update_state(
                 job_id, status="completed",
@@ -489,6 +526,7 @@ def run_job(job_id: str) -> None:
                 reused_finished_at=prev_finished_iso,
                 reused_signature=_stored_scan_signature(prev),
                 scan_signature=_detector_signature(),
+                provenance=reuse_provenance,
                 params=reuse_params,
             )
             return
@@ -506,15 +544,19 @@ def run_job(job_id: str) -> None:
         pass
 
     done = failed = skipped = 0
+    candles_cached = candles_fetched = 0
     max_date = None
     lock = threading.Lock()
 
     if not symbols:
+        _empty_provenance = _provenance(False, 0, 0, prefilter_dropped, None)
         _empty_state: dict = {
             "status": "completed", "total": 0, "done": 0,
             "failed": 0, "skipped": 0, "finished_at": _now(),
             "scan_signature": _detector_signature(),
-            "params": {**params, "scan_signature": _detector_signature()},
+            "provenance": _empty_provenance,
+            "params": {**params, "scan_signature": _detector_signature(),
+                       "provenance": _empty_provenance},
         }
         if prefilter_message:
             _empty_state["message"] = prefilter_message
@@ -546,6 +588,10 @@ def run_job(job_id: str) -> None:
                     failed += 1
                 elif result.get("status") == "skipped":
                     skipped += 1
+                if result.get("from_cache") is True:
+                    candles_cached += 1
+                elif result.get("from_cache") is False:
+                    candles_fetched += 1
                 data_through = result.get("data_through")
                 if data_through and (max_date is None or data_through > max_date):
                     max_date = data_through
@@ -557,16 +603,26 @@ def run_job(job_id: str) -> None:
             )
 
     if cancelled or jobs_mod.is_cancelled(job_id):
+        _cancel_provenance = _provenance(
+            False, candles_cached, candles_fetched, prefilter_dropped, max_date
+        )
         jobs_mod.update_state(
             job_id, status="cancelled", done=done, failed=failed,
             skipped=skipped, data_through=max_date, finished_at=_now(),
+            provenance=_cancel_provenance,
+            params={**params, "provenance": _cancel_provenance},
         )
     else:
+        _done_provenance = _provenance(
+            False, candles_cached, candles_fetched, prefilter_dropped, max_date
+        )
         _done_state: dict = {
             "status": "completed", "done": done, "failed": failed,
             "skipped": skipped, "data_through": max_date, "finished_at": _now(),
             "scan_signature": _detector_signature(max_date),
-            "params": {**params, "scan_signature": _detector_signature(max_date)},
+            "provenance": _done_provenance,
+            "params": {**params, "scan_signature": _detector_signature(max_date),
+                       "provenance": _done_provenance},
         }
         if prefilter_message:
             _done_state["message"] = prefilter_message

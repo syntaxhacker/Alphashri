@@ -27,6 +27,8 @@ const AdminPage = lazy(() => import("./pages/AdminPage"));
 const HeatmapPage = lazy(() => import("./pages/heatmap/HeatmapPage").then(m => ({ default: m.HeatmapPage })));
 const OrderFlowPage = lazy(() => import("./pages/orderflow/OrderFlowPage").then(m => ({ default: m.OrderFlowPage })));
 const PatternsContainer = lazy(() => import("./pages/patterns/PatternsContainer").then(m => ({ default: m.PatternsContainer })));
+const ReportContainer = lazy(() => import("./pages/report/ReportContainer").then(m => ({ default: m.ReportContainer })));
+const ProfitabilityPage = lazy(() => import("./pages/report/Profitability").then(m => ({ default: m.ProfitabilityPage })));
 const SmcPoc = lazy(() => import("./pages/poc/SmcPoc"));
 const SmcTrades = lazy(() => import("./pages/poc/SmcTrades"));
 const TickReplay = lazy(() => import("./pages/poc/TickReplay"));
@@ -95,6 +97,8 @@ function AppContent() {
             <Route path="/heatmap" element={<HeatmapPage />} />
             <Route path="/orderflow" element={<OrderFlowPage />} />
             <Route path="/patterns" element={<PatternsContainer />} />
+            <Route path="/report" element={<ReportContainer />} />
+            <Route path="/report/profit" element={<ProfitabilityPage />} />
             <Route path="/poc/smc" element={<SmcPoc />} />
             <Route path="/poc/smc-trades" element={<SmcTrades />} />
             <Route path="/poc/tick-replay" element={<TickReplay />} />

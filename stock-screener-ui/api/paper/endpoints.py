@@ -4,6 +4,8 @@ Additional endpoints: signals, risk, health, chart, config.
 
 import asyncio
 import math
+
+from trading.indicators import ema as _ema
 import sys
 from pathlib import Path
 from datetime import datetime, timedelta
@@ -493,10 +495,10 @@ async def get_paper_chart(
             ema_fast_period = strategy_config.ema_fast_period if strategy_config else 9
             ema_slow_period = strategy_config.ema_slow_period if strategy_config else 21
             closes = df['close'].tolist()
-            ema_fast_raw = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2)
-            ema_slow_raw = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2)
-            ema_fast = [0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else v for v in ema_fast_raw.tolist()]
-            ema_slow = [0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else v for v in ema_slow_raw.tolist()]
+            ema_fast_raw = _ema(closes, ema_fast_period, full=True)
+            ema_slow_raw = _ema(closes, ema_slow_period, full=True)
+            ema_fast = [0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else v for v in ema_fast_raw]
+            ema_slow = [0.0 if (v is None or (isinstance(v, float) and (math.isnan(v) or math.isinf(v)))) else v for v in ema_slow_raw]
             ema_series = {
                 'ema_fast': {'label': f'EMA {ema_fast_period}', 'color': '#10ac84', 'data': ema_fast},
                 'ema_slow': {'label': f'EMA {ema_slow_period}', 'color': '#ee5253', 'data': ema_slow},

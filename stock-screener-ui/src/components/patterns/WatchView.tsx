@@ -16,6 +16,8 @@ export const WATCH_POLL_MS = 60000;
 export const WATCH_AUTO_REFRESH = false;
 /** Refresh cadence for the holiday-aware market-status probe. */
 export const MARKET_STATUS_POLL_MS = 180000;
+/** Re-render cadence for the snapshot-age label. Ticks `Date.now()` only — never fetches. */
+export const WATCH_SNAPSHOT_TICK_MS = 30000;
 /** Default "Within % of trigger" filter: open focused on actionable rows. */
 export const WATCH_DEFAULT_WITHIN_PCT = 5;
 /**
@@ -38,6 +40,31 @@ export function isWatchLiveNow(now: Date = new Date()): boolean {
   if (day === 0 || day === 6) return false;
   const minutes = ist.getUTCHours() * 60 + ist.getUTCMinutes();
   return minutes >= MARKET_OPEN_MIN && minutes <= MARKET_CLOSE_MIN;
+}
+
+/**
+ * Dimmed `snapshot HH:MM · Ns/m/h ago` label derived from the watch
+ * `updated_at`. Returns null when `updated_at` is missing/invalid so the
+ * caller omits the label. Pure + deterministic (`nowMs` injectable for tests).
+ */
+export function formatSnapshotAge(
+  updatedAt: string | null | undefined,
+  nowMs: number = Date.now(),
+): string | null {
+  if (!updatedAt) return null;
+  const ts = new Date(updatedAt).getTime();
+  if (!Number.isFinite(ts)) return null;
+  const ist = new Date(ts + IST_OFFSET_MS);
+  const hh = String(ist.getUTCHours()).padStart(2, "0");
+  const mm = String(ist.getUTCMinutes()).padStart(2, "0");
+  const diffSec = Math.max(0, Math.floor((nowMs - ts) / 1000));
+  const age =
+    diffSec < 60
+      ? `${diffSec}s ago`
+      : diffSec < 3600
+        ? `${Math.floor(diffSec / 60)}m ago`
+        : `${Math.floor(diffSec / 3600)}h ago`;
+  return `snapshot ${hh}:${mm} · ${age}`;
 }
 
 export interface WatchViewProps {
@@ -384,6 +411,13 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
   const [copyFailed, setCopyFailed] = useState(false);
   const copyTimerRef = useRef<number | null>(null);
 
+  // Clock for the snapshot-age label only: recomputes the relative age string,
+  // never fetches (polling stays OFF via WATCH_AUTO_REFRESH).
+  const [nowMs, setNowMs] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNowMs(Date.now()), WATCH_SNAPSHOT_TICK_MS);
+    return () => clearInterval(timer);
+  }, []);
   useEffect(
     () => () => {
       if (copyTimerRef.current != null) window.clearTimeout(copyTimerRef.current);
@@ -595,6 +629,7 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
   const columns = useMemo(() => columnsFor(setup), [setup]);
   const initialSorting = useMemo(() => sortFor(setup), [setup]);
   const csvColumns = useMemo(() => watchCsvColumns(setup), [setup]);
+  const snapshotAge = useMemo(() => formatSnapshotAge(updatedAt, nowMs), [updatedAt, nowMs]);
 
   const handleCopyCsv = useCallback(async () => {
     const csv = toCsv(filtered as unknown as Array<Record<string, unknown>>, csvColumns);
@@ -658,6 +693,11 @@ export function WatchView({ universe, timeframe, minBaseDays = null, onOpenSymbo
           {updatedAt ? (
             <Text size="xs" c="dimmed" data-testid="watch-updated-at">
               {`Updated ${updatedAt}`}
+            </Text>
+          ) : null}
+          {snapshotAge ? (
+            <Text size="xs" c="dimmed" data-testid="watch-snapshot-age">
+              {snapshotAge}
             </Text>
           ) : null}
           {live ? (

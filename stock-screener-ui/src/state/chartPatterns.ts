@@ -15,6 +15,7 @@ import type {
   JobStatus,
   PatternHitDTO,
   PatternSummary,
+  ScanProvenance,
   SymbolDetail,
   ChartPayload,
   PatternFilters,
@@ -64,6 +65,8 @@ export const DEFAULT_PATTERN_FILTERS: PatternFilters = {
   max_range_pct: null,
   max_52w_gap: null,
   min_range_pos: null,
+  min_confidence: null,
+  min_breakout_score: null,
   min_rel_volume: null,
   min_volume_m: null,
   min_avg_volume_10d: 150,
@@ -403,6 +406,34 @@ export async function loadCatalog(): Promise<void> {
   maybeAutoScan();
 }
 
+/**
+ * True when a result row survives the client-only result-level filters
+ * (`min_confidence` on `confidence`, `min_breakout_score` on
+ * `breakout_score`). Missing scores never pass an active bound (null =
+ * unknown conviction, not zero conviction).
+ */
+export function passesResultFilters(hit: PatternHitDTO, filters: PatternFilters): boolean {
+  if (filters.min_confidence != null && (hit.confidence ?? -Infinity) < filters.min_confidence)
+    return false;
+  if (
+    filters.min_breakout_score != null &&
+    (hit.breakout_score ?? -Infinity) < filters.min_breakout_score
+  )
+    return false;
+  return true;
+}
+
+/** Narrow a result page to the client-only result-level filters (no-op when unset). */
+export function applyResultFilters(hits: PatternHitDTO[], filters: PatternFilters): PatternHitDTO[] {
+  if (filters.min_confidence == null && filters.min_breakout_score == null) return hits;
+  return hits.filter((hit) => passesResultFilters(hit, filters));
+}
+
+/** True when any client-only result-level filter is active (server `total` is stale). */
+function hasClientResultFilter(filters: PatternFilters): boolean {
+  return filters.min_confidence != null || filters.min_breakout_score != null;
+}
+
 /** Load the current result page for the active universe/timeframe/filters. */
 export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promise<void> {
   // Custom scope with no symbols has nothing to show — and must never fall back
@@ -444,6 +475,7 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
         },
         onItem: (item) => {
           if (generation !== resultsGeneration) return;
+          if (!passesResultFilters(item, state.filters)) return;
           patch({ results: sortStreamedHits([...state.results, item], query.sort) });
         },
         onDone: () => {
@@ -459,7 +491,12 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     if (generation !== resultsGeneration) return;
     if (streamOk && !streamFailed) {
       if (resultsStreamController === controller) resultsStreamController = null;
-      patch({ streaming: false });
+      // The streamed `meta.total` is the server count; a client-only filter
+      // narrows the rows, so the visible total is the filtered length.
+      patch({
+        streaming: false,
+        ...(hasClientResultFilter(state.filters) ? { total: state.results.length } : {}),
+      });
       return;
     }
     // Aborted by a newer load: stay silent, the newer generation owns state.
@@ -469,9 +506,10 @@ export async function loadResults(overrides: Partial<PatternsQuery> = {}): Promi
     try {
       const data = await fetchResults(query);
       if (generation !== resultsGeneration) return;
+      const items = applyResultFilters(data.items, state.filters);
       patch({
-        results: data.items,
-        total: data.total,
+        results: items,
+        total: hasClientResultFilter(state.filters) ? items.length : data.total,
         dataThrough: data.data_through ?? null,
         streaming: false,
       });
@@ -568,6 +606,8 @@ export function hasRestrictiveFilter(filters: PatternFilters): boolean {
     filters.max_range_pct != null ||
     filters.max_52w_gap != null ||
     filters.min_range_pos != null ||
+    filters.min_confidence != null ||
+    filters.min_breakout_score != null ||
     filters.min_rel_volume != null ||
     filters.min_volume_m != null ||
     // The 10d-avg-volume floor is a system default, not user narrowing: only a
@@ -631,6 +671,7 @@ function jobFromScan(
     reused_from?: string | null;
     reused_age_sec?: number | null;
     reused_finished_at?: string | null;
+    provenance?: ScanProvenance | null;
   },
 ): JobDTO {
   return {
@@ -655,6 +696,9 @@ function jobFromScan(
           reused_finished_at: reused.reused_finished_at ?? null,
         }
       : {}),
+    // Provenance rides along independently of reuse (a fresh scan still
+    // reports its candle hit/miss counts); absent on older backends.
+    ...(reused?.provenance ? { provenance: reused.provenance } : {}),
   };
 }
 

@@ -136,6 +136,8 @@ describe("PatternFilterRail", () => {
     expect(screen.getByTestId("patterns-filter-sort-breakout")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-min-base")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-filter-max-range")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-confidence")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-breakout")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-volume-confirmed")).toBeInTheDocument();
     expect(screen.getByTestId("patterns-reset")).toBeInTheDocument();
   });
@@ -611,5 +613,52 @@ describe("PatternFilterRail", () => {
   test("panel layout renders the 10d avg volume input", () => {
     r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
     expect(screen.getByTestId("patterns-filter-min-avg-volume-10d")).toBeInTheDocument();
+  });
+
+  test("renders the Score and Breakout result-level filters", () => {
+    r(<PatternFilterRail {...makeProps()} />);
+    expect(screen.getByText("Score ≥")).toBeInTheDocument();
+    expect(screen.getByText("Breakout ≥")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-confidence")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-breakout")).toBeInTheDocument();
+  });
+
+  test("enters score and breakout thresholds", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const score = within(screen.getByTestId("patterns-filter-min-confidence")).getByRole("spinbutton");
+    fireEvent.change(score, { target: { value: "70" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("min_confidence", 70);
+    const breakout = within(screen.getByTestId("patterns-filter-min-breakout")).getByRole("spinbutton");
+    fireEvent.change(breakout, { target: { value: "60" } });
+    expect(props.setFilter).toHaveBeenLastCalledWith("min_breakout_score", 60);
+  });
+
+  test("clearing the score/breakout inputs stores null", () => {
+    const props = makeProps({ filters: { ...FILTERS, min_confidence: 70, min_breakout_score: 60 } });
+    r(<PatternFilterRail {...props} />);
+    const score = within(screen.getByTestId("patterns-filter-min-confidence")).getByRole("spinbutton");
+    fireEvent.change(score, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("min_confidence", null);
+    const breakout = within(screen.getByTestId("patterns-filter-min-breakout")).getByRole("spinbutton");
+    fireEvent.change(breakout, { target: { value: "" } });
+    expect(props.setFilter).toHaveBeenCalledWith("min_breakout_score", null);
+  });
+
+  test("ignores partial score/breakout input instead of storing NaN", () => {
+    const props = makeProps();
+    r(<PatternFilterRail {...props} />);
+    const score = within(screen.getByTestId("patterns-filter-min-confidence")).getByRole("spinbutton");
+    fireEvent.change(score, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("min_confidence", expect.anything());
+    const breakout = within(screen.getByTestId("patterns-filter-min-breakout")).getByRole("spinbutton");
+    fireEvent.change(breakout, { target: { value: "-" } });
+    expect(props.setFilter).not.toHaveBeenCalledWith("min_breakout_score", expect.anything());
+  });
+
+  test("panel layout renders the score and breakout controls", () => {
+    r(<PatternFilterRail {...makeProps({ layout: "panel" })} />);
+    expect(screen.getByTestId("patterns-filter-min-confidence")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-filter-min-breakout")).toBeInTheDocument();
   });
 });

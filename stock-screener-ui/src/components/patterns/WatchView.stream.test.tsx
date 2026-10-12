@@ -121,4 +121,31 @@ describe("WatchView streaming", () => {
     expect(mockFetchWatch).toHaveBeenCalledTimes(1);
     expect(screen.queryByTestId("watch-error")).not.toBeInTheDocument();
   });
+
+  test("stream meta updated_at drives the snapshot age label", async () => {
+    const { formatSnapshotAge } = await import("./WatchView");
+    // Pure helper check against the SSE meta shape (deterministic, no timers).
+    const updatedAt = "2026-09-30T15:30:00+05:30";
+    const nowMs = new Date("2026-09-30T15:31:10+05:30").getTime();
+    expect(formatSnapshotAge(updatedAt, nowMs)).toBe("snapshot 15:30 · 1m ago");
+
+    mockStreamWatch.mockImplementation(async (_query: unknown, handlers: any) => {
+      handlers.onMeta?.({
+        setup: "breakout",
+        min_rel_volume: 0.7,
+        updated_at: updatedAt,
+      });
+      handlers.onItem?.(makeRow("RELIANCE", 1.69, "armed"));
+      handlers.onDone?.();
+    });
+
+    r(<WatchView universe="nifty500" timeframe="1D" />);
+
+    await waitFor(() => expect(screen.getByTestId("watch-row-RELIANCE")).toBeInTheDocument());
+    // The SSE meta path sets updatedAt, so the snapshot age renders.
+    await waitFor(() =>
+      expect(screen.getByTestId("watch-snapshot-age")).toHaveTextContent("snapshot 15:30"),
+    );
+    expect(screen.getByTestId("watch-live-indicator")).toBeInTheDocument();
+  });
 });

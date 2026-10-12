@@ -20,6 +20,26 @@ import {
 
 const chartHandles = new Map<string, TradingViewChartHandle>();
 
+// Candle time/date lookup maps are O(n) to build; cache them per chartData.
+const candleIndexCache = new WeakMap<
+  SymbolChartData,
+  { candleTimeMap: Map<string, number>; candleDateMap: Map<string, number> }
+>();
+function getCandleIndexMaps(chartData: SymbolChartData) {
+  let cached = candleIndexCache.get(chartData);
+  if (!cached) {
+    const candleTimeMap = new Map(chartData.candles.map((c, i) => [normalizeTime(c.time), i]));
+    const candleDateMap = new Map<string, number>();
+    chartData.candles.forEach((c, i) => {
+      if (c.date) candleDateMap.set(c.date, i);
+      if (c.date_raw) candleDateMap.set(c.date_raw!, i);
+    });
+    cached = { candleTimeMap, candleDateMap };
+    candleIndexCache.set(chartData, cached);
+  }
+  return cached;
+}
+
 interface BacktestChartProps {
   symbol: string;
   chartData: SymbolChartData | null | undefined;
@@ -100,12 +120,8 @@ export function zoomToTrade(
   const exitMarker = chartData.trades.find((t) => t.type === "exit" && t.trade_id === tradeNumber);
   if (!entryMarker) return;
 
-  const candleTimeMap = new Map(chartData.candles.map((c, i) => [normalizeTime(c.time), i]));
-  const candleDateMap = new Map<string, number>();
-  chartData.candles.forEach((c, i) => {
-    if (c.date) candleDateMap.set(c.date, i);
-    if (c.date_raw) candleDateMap.set(c.date_raw!, i);
-  });
+  const candleTimeMap = getCandleIndexMaps(chartData).candleTimeMap;
+  const candleDateMap = getCandleIndexMaps(chartData).candleDateMap;
 
   const entryIdx = findCandleIdx(entryMarker, candleTimeMap, candleDateMap);
   const exitIdx = exitMarker ? findCandleIdx(exitMarker, candleTimeMap, candleDateMap) : undefined;
@@ -181,7 +197,7 @@ export function mapTrades(chartData: SymbolChartData): ReplayTrade[] {
       id,
       strategy: "",
       symbol: chartData.symbol,
-      side: "BUY",
+      side: entry.trade.side ?? "LONG",
       entry_price: entry.trade.entry_price,
       exit_price: exit?.trade.exit_price ?? entry.trade.exit_price,
       entry_time: entry.trade.entry_time || entry.time,
@@ -299,6 +315,7 @@ export function BacktestChart({
         showAllTrades={showAllTrades}
         markLines={markLines}
         emaData={input.emaData}
+        rsiData={input.rsiData}
         onTradeClick={onTradeClick}
       />
     </Box>

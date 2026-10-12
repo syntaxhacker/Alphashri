@@ -266,6 +266,32 @@ def _write_cached(
         pass
 
 
+def _fill_provenance(prov: dict, path: Path, hit: bool) -> None:
+    """Populate a ``fetch_for_timeframe`` provenance out-param (never raises).
+
+    ``prov["from_cache"]`` is True on a cache hit; ``cache_age_sec`` (now −
+    the ``.meta`` ``ts``) and ``session_pin`` (the ``.meta`` ``session``) are
+    filled when a ``.meta`` sidecar exists (today-path entries) and left None
+    otherwise (historical entries carry no sidecar).
+    """
+    prov["from_cache"] = bool(hit)
+    age = None
+    session = None
+    if hit:
+        try:
+            with open(path.with_suffix(".meta"), "r") as f:
+                meta = json.load(f)
+            ts = meta.get("ts") if isinstance(meta, dict) else None
+            if isinstance(ts, (int, float)):
+                age = max(0, int(time.time() - ts))
+            sess = meta.get("session") if isinstance(meta, dict) else None
+            session = str(sess) if sess else None
+        except Exception:
+            pass
+    prov["cache_age_sec"] = age
+    prov["session_pin"] = session
+
+
 def _normalize_filter(value: Optional[Union[str, Iterable[str]]]) -> Optional[set]:
     if value is None:
         return None
@@ -376,6 +402,7 @@ def fetch_for_timeframe(
     include_partial_today: bool = False,
     from_date: Optional[str] = None,
     force_refresh: bool = False,
+    provenance: Optional[dict] = None,
 ) -> Optional[pd.DataFrame]:
     """Fetch candles for a symbol at a registered timeframe id.
 
@@ -455,6 +482,11 @@ def fetch_for_timeframe(
     is_today = _is_today(to_date)
     cache_path = _cache_path(tf_id, symbol, as_of_part if as_of_part else None, variant=variant)
     cached = None if force_refresh else _read_cached(cache_path, is_today)
+    if provenance is not None:
+        try:
+            _fill_provenance(provenance, cache_path, cached is not None)
+        except Exception:
+            pass
     if cached is not None:
         df = cached
     else:

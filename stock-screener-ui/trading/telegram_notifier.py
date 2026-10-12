@@ -105,6 +105,11 @@ def _send_message(text: str, cooldown_key: Optional[str] = None) -> None:
         pass
 
 
+def send_alert(text: str, cooldown_key: Optional[str] = None) -> None:
+    """Generic alert sender for non-trading surfaces (e.g. the UW dashboard)."""
+    _send_message(text, cooldown_key=cooldown_key)
+
+
 def send_trade_entry(
     bot_name: str,
     strategy_name: str,

@@ -527,12 +527,29 @@ def _enrich_with_candles(items, default_timeframe: Optional[str] = None, max_bar
     items = list(items or [])
 
     def _fetch_one(key) -> object:
-        """One ``(symbol, timeframe)`` frame; ``None`` on any failure."""
+        """One ``(symbol, timeframe)`` frame; ``None`` on any failure.
+
+        Retries once: candle fetches routinely hit transient Upstox 429s
+        (especially with bots consuming the shared budget), and a single
+        retry turns most of those into hits instead of candle-less cards.
+        """
+        import logging as _logging
+        import time as _time
+
         symbol, timeframe = key
-        try:
-            return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
-        except Exception:
-            return None
+        last_exc: Exception | None = None
+        for attempt in (0, 1):
+            try:
+                return candles.fetch_for_timeframe(symbol, timeframe, lookback_bars=fetch_lb)
+            except Exception as exc:  # noqa: BLE001 - fail-soft per card
+                last_exc = exc
+                if attempt == 0:
+                    _time.sleep(0.5)
+        _logging.getLogger(__name__).warning(
+            "card enrich: candle fetch failed for %s %s: %s",
+            symbol, timeframe, last_exc,
+        )
+        return None
 
     # Phase 1: collect the distinct fetch keys in first-seen order, then fan
     # the disk-cached ``fetch_for_timeframe`` calls out over a bounded thread
@@ -867,10 +884,16 @@ def _stream_results_worker(items, *, default_timeframe, fetch_lb, lookback_bars,
         with lock:
             if key in df_cache:
                 return df_cache[key]
-        try:
-            df = candles.fetch_for_timeframe(key[0], key[1], lookback_bars=fetch_lb)
-        except Exception:
-            df = None
+        df = None
+        for attempt in (0, 1):
+            try:
+                df = candles.fetch_for_timeframe(key[0], key[1], lookback_bars=fetch_lb)
+                break
+            except Exception:
+                if attempt == 0:
+                    import time as _time
+
+                    _time.sleep(0.5)
         with lock:
             df_cache.setdefault(key, df)
         return df_cache.get(key)

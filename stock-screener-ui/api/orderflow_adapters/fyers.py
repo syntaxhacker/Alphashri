@@ -431,7 +431,6 @@ class FyersTbtAdapter(OrderFlowAdapter):
     max_symbols_per_connection = 5
     max_connections = 3
     has_order_counts = True
-    persistent = True
 
     def __init__(self, access_token: Optional[str] = None):
         self.access_token = access_token
@@ -439,6 +438,9 @@ class FyersTbtAdapter(OrderFlowAdapter):
         self._data = None
         self._tbt_alive = False
         self._quotes: dict[str, dict] = {}
+        #: last accepted volume/vwap per symbol, so a rejected quote cannot make
+        #: cumulative volume regress to 0 and fabricate a huge trade
+        self._last_quote: dict[str, dict] = {}
         self._quote_symbols: list[str] = []
         self._subscribed: set[str] = set()
 
@@ -569,10 +571,21 @@ class FyersTbtAdapter(OrderFlowAdapter):
             if dq_day is not None:
                 day = dq_day
 
+        # Never emit volume 0 for a rejected/missing quote: cumulative volume
+        # dropping to 0 and back is read as a giant trade by the volume-delta
+        # trade detector (live: 217 regressions in one session produced a CVD in
+        # the tens of millions for a stock that trades ~7M shares a day).
+        # Carry the last accepted value forward so the series stays monotonic.
+        last = self._last_quote.get(symbol) or {}
+        volume = quote.get("volume", 0.0) or last.get("volume", 0.0)
+        vwap = quote.get("vwap", 0.0) or last.get("vwap", 0.0)
+        if volume:
+            self._last_quote[symbol] = {"volume": volume, "vwap": vwap}
+
         tick = {
             "ltp": ltp,
-            "volume": quote.get("volume", 0.0),
-            "vwap": quote.get("vwap", 0.0),
+            "volume": volume,
+            "vwap": vwap,
             "ltt": ltt_ms or quote.get("ltt", 0),
             "ltq": quote.get("ltq", 0.0),
             "cp": quote.get("cp", 0.0),
@@ -677,19 +690,7 @@ class FyersTbtAdapter(OrderFlowAdapter):
                 if on_error is not None:
                     on_error(sanitize_adapter_error(self.name, f"fyers quote socket unavailable: {exc}"))
 
-        # TBT socket (50-level depth).
-        # FyersTbtSocket is a process-wide singleton: constructing it again
-        # returns the FIRST instance and re-runs __init__, which does not rebuild
-        # the websocket or its reader thread. Reusing a disconnected singleton
-        # made subscribe()/switchChannel() silent no-ops — no data, no error.
-        # Drop a stale instance so this connect gets a real socket.
-        try:
-            from fyers_apiv3.FyersWebsocket.tbt_ws import FyersTbtSocket as _Tbt
-
-            if _Tbt._instance is not None and not getattr(self, "_tbt_alive", False):
-                _Tbt._instance = None
-        except Exception:  # noqa: BLE001 - SDK optional / fake factories in tests
-            pass
+        # TBT socket (50-level depth)
         tbt = tbt_factory or _default_tbt_socket_factory
         self._tbt = tbt(
             access_token=token,

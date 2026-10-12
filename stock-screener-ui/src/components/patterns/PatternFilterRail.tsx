@@ -619,6 +619,56 @@ export function PatternFilterRail({
     </Section>
   );
 
+  // Result-level client-side floors (filtered in the store selector, never sent
+  // to the API): pattern-fit confidence and breakout conviction.
+  const scoreSection = (
+    <Section title="Score ≥">
+      <NumberInput
+        value={filters.min_confidence ?? ""}
+        onChange={(v: number | string) => {
+          if (v === "" || v == null) {
+            setFilter("min_confidence", null);
+            return;
+          }
+          const n = Number(v);
+          // Ignore in-progress partials ("-", "1.") — never store NaN.
+          if (!Number.isNaN(n)) setFilter("min_confidence", n);
+        }}
+        min={0}
+        max={100}
+        step={5}
+        size="sm"
+        placeholder="Any"
+        w={110}
+        data-testid="patterns-filter-min-confidence"
+      />
+    </Section>
+  );
+
+  const breakoutSection = (
+    <Section title="Breakout ≥">
+      <NumberInput
+        value={filters.min_breakout_score ?? ""}
+        onChange={(v: number | string) => {
+          if (v === "" || v == null) {
+            setFilter("min_breakout_score", null);
+            return;
+          }
+          const n = Number(v);
+          // Ignore in-progress partials ("-", "1.") — never store NaN.
+          if (!Number.isNaN(n)) setFilter("min_breakout_score", n);
+        }}
+        min={0}
+        max={100}
+        step={5}
+        size="sm"
+        placeholder="Any"
+        w={110}
+        data-testid="patterns-filter-min-breakout"
+      />
+    </Section>
+  );
+
   // Scan-time volume pre-filters: the scan pre-filters the universe via
   // TradingView before fetching candles (unlike the result-level filters).
   const volumeScanSection = (
@@ -776,6 +826,8 @@ export function PatternFilterRail({
           {rangeSection}
           {gap52Section}
           {rangePosSection}
+          {scoreSection}
+          {breakoutSection}
           {volumeScanSection}
           {replaySection}
           {volumeSection}
@@ -816,6 +868,10 @@ export function PatternFilterRail({
       {gap52Section}
       <Divider />
       {rangePosSection}
+      <Divider />
+      {scoreSection}
+      <Divider />
+      {breakoutSection}
       <Divider />
       {volumeScanSection}
       <Divider />

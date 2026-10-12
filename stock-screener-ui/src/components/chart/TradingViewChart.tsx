@@ -1,4 +1,4 @@
-import { forwardRef, useCallback, useEffect, useImperativeHandle, useRef, useState } from "react";
+import { forwardRef, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import {
   createChart,
   ColorType,
@@ -6,6 +6,7 @@ import {
   HistogramSeries,
   LineSeries,
   LineStyle,
+  TickMarkType,
   createSeriesMarkers,
   type IChartApi,
   type ISeriesApi,
@@ -22,6 +23,7 @@ import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
 import type { MarkLineData, UnifiedLivePosition } from "@/utils/chart/types";
 import { filterVisibleTrades } from "@/utils/chart/normalizeCommon";
+import { formatISTCrosshair, formatISTTick } from "@/utils/istChartTime";
 
 export interface TradingViewChartProps {
   candles: ReplayCandle[];
@@ -35,6 +37,8 @@ export interface TradingViewChartProps {
   markLines?: MarkLineData[];
   /** EMA overlays, each aligned index-wise to `candles` */
   emaData?: { label: string; color: string; data: (number | null)[] }[];
+  /** RSI(period) series aligned index-wise to `candles`; rendered in its own pane. */
+  rsiData?: { period: number; data: (number | null)[] };
   /** Active position entry / SL / TP levels */
   livePosition?: UnifiedLivePosition;
   /** Colour theme: "nt" = NinjaTrader high-contrast (tick-replay palette). */
@@ -56,6 +60,34 @@ export interface TradingViewChartHandle {
 }
 
 const toTime = (t: string): Time => (new Date(t.replace(" ", "T")).getTime() / 1000) as Time;
+
+/** Crosshair time label — IST (lightweight-charts otherwise shows UTC). */
+function tvTimeFormatter(time: Time): string {
+  return typeof time === "number" ? formatISTCrosshair(time) : "";
+}
+
+/** Axis tick labels — IST, granularity-aware. */
+function tvTickMarkFormatter(time: Time, tickMarkType: TickMarkType): string {
+  if (typeof time !== "number") return "";
+  switch (tickMarkType) {
+    case TickMarkType.Year:
+      return formatISTTick(time, "year");
+    case TickMarkType.Month:
+      return formatISTTick(time, "month");
+    case TickMarkType.DayOfMonth:
+      return formatISTTick(time, "day");
+    case TickMarkType.TimeWithSeconds:
+      return formatISTTick(time, "timeSeconds");
+    default:
+      return formatISTTick(time, "time");
+  }
+}
+
+/** Buy unless explicitly a short/sell side. Accepts BUY/SELL and LONG/SHORT. */
+function isBuySide(side?: string): boolean {
+  const v = (side || "BUY").toUpperCase();
+  return v !== "SELL" && v !== "SHORT";
+}
 
 function toLineStyle(type: string): LineStyle {
   switch (type) {
@@ -84,6 +116,11 @@ const EXIT_TP_COLOR = "#00E676";
 const EXIT_SL_COLOR = "#FF5252";
 const EXIT_OTHER_COLOR = "#FFD166";
 
+// Muted volume tints — deliberately lower-contrast than the candles so volume
+// never competes with price action.
+const NT_VOL_UP = "rgba(148, 163, 184, 0.40)";
+const NT_VOL_DOWN = "rgba(100, 116, 139, 0.40)";
+
 export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewChartProps>(function TradingViewChart({
   candles,
   trades = [],
@@ -92,6 +129,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   height,
   markLines,
   emaData,
+  rsiData,
   livePosition,
   theme = "default",
   entryLabels = false,
@@ -104,6 +142,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   const markersRef = useRef<ReturnType<typeof createSeriesMarkers> | null>(null);
   const priceLinesRef = useRef<IPriceLine[]>([]);
   const emaSeriesRef = useRef<ISeriesApi<"Line">[]>([]);
+  const rsiSeriesRef = useRef<ISeriesApi<"Line"> | null>(null);
+  const rsiPriceLinesRef = useRef<IPriceLine[]>([]);
   const heightRef = useRef(height);
   const onReadyRef = useRef(onChartReady);
   onReadyRef.current = onChartReady;
@@ -124,8 +164,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       bull: nt ? palette.NT_CANDLE_BULL : palette.MARKER_BORDER,
       bear: nt ? palette.NT_CANDLE_BEAR : palette.SCALE_BLUE[6],
       volMuted: withAlpha(palette.TEXT_MUTED, 0.3),
-      volUp: nt ? palette.NT_FVG_BULL_STROKE : withAlpha(palette.POSITIVE, 0.9),
-      volDown: nt ? palette.NT_FVG_BEAR_STROKE : withAlpha(palette.NEGATIVE, 0.9),
+      volUp: nt ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9),
+      volDown: nt ? NT_VOL_DOWN : withAlpha(palette.NEGATIVE, 0.9),
     };
     const chart = createChart(containerRef.current, {
       layout: { background: { type: ColorType.Solid, color: c.bg }, textColor: c.text },
@@ -133,7 +173,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       ...(fixedHeight != null
         ? { width: containerRef.current.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5 },
+      timeScale: { borderColor: c.grid, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: tvTickMarkFormatter },
+      localization: { locale: "en-IN", timeFormatter: tvTimeFormatter },
       rightPriceScale: { borderColor: c.grid },
       crosshair: { mode: 1 },
       handleScroll: true,
@@ -186,6 +227,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       volumeSeriesRef.current = null;
       priceLinesRef.current = [];
       emaSeriesRef.current = [];
+      rsiSeriesRef.current = null;
+      rsiPriceLinesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [theme]);
@@ -195,6 +238,66 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     heightRef.current = height;
     if (height != null) chartRef.current?.applyOptions({ height });
   }, [height]);
+
+  // RSI pane (pane 1, below the candles) — only when rsiData is supplied.
+  useEffect(() => {
+    const chart = chartRef.current;
+    if (!chart) return;
+
+    if (rsiSeriesRef.current) {
+      rsiPriceLinesRef.current.forEach((l) => {
+        try { rsiSeriesRef.current?.removePriceLine(l); } catch { /* noop */ }
+      });
+      rsiPriceLinesRef.current = [];
+      try { chart.removeSeries(rsiSeriesRef.current); } catch { /* noop */ }
+      rsiSeriesRef.current = null;
+    }
+
+    const data = rsiData?.data;
+    if (!rsiData || !data || data.length === 0 || candles.length === 0) return;
+
+    const nt = theme === "nt";
+    const series = chart.addSeries(
+      LineSeries,
+      {
+        color: nt ? "#E5E7EB" : palette.PRIMARY,
+        lineWidth: 1 as LineWidth,
+        priceLineVisible: false,
+        lastValueVisible: true,
+        crosshairMarkerVisible: false,
+      },
+      1,
+    );
+    rsiSeriesRef.current = series;
+
+    const points = data
+      .map((v, i) => (v == null || !isFinite(v) || !candles[i] ? null : { time: toTime(candles[i].time), value: v }))
+      .filter((d): d is LineData => d !== null)
+      .sort((a, b) => (a.time as number) - (b.time as number));
+    series.setData(points);
+    series.priceScale().applyOptions({ scaleMargins: { top: 0.1, bottom: 0.1 } });
+
+    const addGuide = (value: number, color: string) => {
+      rsiPriceLinesRef.current.push(
+        series.createPriceLine({
+          price: value,
+          color,
+          lineWidth: 1 as LineWidth,
+          lineStyle: LineStyle.Dashed,
+          axisLabelVisible: true,
+          title: String(value),
+        }),
+      );
+    };
+    addGuide(70, nt ? "#FF5252" : palette.NEGATIVE);
+    addGuide(30, nt ? "#00E676" : palette.POSITIVE);
+
+    const panes = chart.panes();
+    if (panes.length > 1) {
+      panes[0].setStretchFactor(3);
+      panes[1].setStretchFactor(1);
+    }
+  }, [rsiData, candles, theme, ready]);
 
   useImperativeHandle(ref, () => ({
     getChart: () => chartRef.current,
@@ -246,8 +349,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         time: toTime(c.time),
         value: c.volume,
         color: c.close >= c.open
-          ? (theme === "nt" ? palette.NT_FVG_BULL_STROKE : withAlpha(palette.POSITIVE, 0.9))
-          : (theme === "nt" ? palette.NT_FVG_BEAR_STROKE : withAlpha(palette.NEGATIVE, 0.9)),
+          ? (theme === "nt" ? NT_VOL_UP : withAlpha(palette.POSITIVE, 0.9))
+          : (theme === "nt" ? NT_VOL_DOWN : withAlpha(palette.NEGATIVE, 0.9)),
       }))
       .sort((a: any, b: any) => (a.time as number) - (b.time as number));
     volumeSeriesRef.current.setData(volData as any);
@@ -338,7 +441,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     const markers = visibleTrades
       .filter((t) => t.entry_time)
       .map((t) => {
-        const isBuy = t.side === "BUY";
+        const isBuy = isBuySide(t.side);
         const isHighlighted = highlightedTradeId === (t as any).id;
         return {
           time: toTime(t.entry_time),
@@ -353,7 +456,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       .filter((t) => t.exit_time)
       .map((t) => {
         const isHighlighted = highlightedTradeId === (t as any).id;
-        const isBuy = (t.side || "BUY").toUpperCase() !== "SELL";
+        const isBuy = isBuySide(t.side);
         return {
           time: toTime(t.exit_time),
           position: (isBuy ? "aboveBar" : "belowBar") as "aboveBar" | "belowBar",
@@ -372,6 +475,21 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
 
   // Larger BUY/SELL pills over entry markers (opt-in): lightweight-charts marker
   // text size is fixed, so draw our own canvas labels for readability.
+  // Sorted bar times + time→candle index, rebuilt only when the candle set
+  // changes — the overlay redraws on every pan/zoom frame and must not re-sort.
+  const entryGeometry = useMemo(() => {
+    const barTimes = candles
+      .map((c) => toTime(c.time) as number)
+      .filter((n) => Number.isFinite(n))
+      .sort((a, b) => a - b);
+    const byTime = new Map<number, (typeof candles)[number]>();
+    for (const c of candles) {
+      const tn = toTime(c.time) as number;
+      if (Number.isFinite(tn)) byTime.set(tn, c);
+    }
+    return { barTimes, byTime };
+  }, [candles]);
+
   const drawEntryLabels = useCallback(() => {
     const chart = chartRef.current;
     const series = candleSeriesRef.current;
@@ -399,12 +517,9 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     ctx.textBaseline = "middle";
     ctx.textAlign = "left";
 
+    const { barTimes, byTime } = entryGeometry;
     // Trades may carry an intraday entry time while bars are daily — snap to the
     // nearest candle time that actually exists on the scale.
-    const barTimes = candles
-      .map((c) => toTime(c.time) as number)
-      .filter((n) => Number.isFinite(n))
-      .sort((a, b) => a - b);
     const snapTime = (secs: number): number | null => {
       if (barTimes.length === 0) return null;
       let lo = 0, hi = barTimes.length - 1, ans = -1;
@@ -414,12 +529,6 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       }
       return ans >= 0 ? barTimes[ans] : barTimes[0];
     };
-
-    const byTime = new Map<number, (typeof candles)[number]>();
-    for (const c of candles) {
-      const tn = toTime(c.time) as number;
-      if (Number.isFinite(tn)) byTime.set(tn, c);
-    }
 
     // Rounded pill with dark fill + colored border/text, drawn above/below a price.
     const drawPill = (x: number, y: number, label: string, color: string, above: boolean) => {
@@ -461,7 +570,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     };
 
     for (const t of visible) {
-      const isBuy = (t.side || "BUY").toUpperCase() !== "SELL";
+      const isBuy = isBuySide(t.side);
 
       if (t.entry_time) {
         const c = coordFor(t.entry_time, isBuy, t.entry_price, false);
@@ -475,7 +584,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         if (c) drawPill(c.x, c.y, reason, color, isBuy);
       }
     }
-  }, [entryLabels, trades, highlightedTradeId, showAllTrades, candles]);
+  }, [entryLabels, trades, highlightedTradeId, showAllTrades, entryGeometry]);
 
   useEffect(() => { drawEntryLabels(); }, [drawEntryLabels, ready]);
 

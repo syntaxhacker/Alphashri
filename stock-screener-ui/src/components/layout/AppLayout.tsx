@@ -59,7 +59,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <MarketTicker />
           </Box>
           <NewsPanel2 />
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <Tooltip title={surgeTotal > 0 ? `${surgeTotal} surge alerts` : "Notifications"}>
               <IconButton
                 color="inherit"

@@ -248,11 +248,6 @@ class AdapterHub:
         adapter = entry.adapter
         if adapter is None:
             return
-        if not force and getattr(adapter, "persistent", False):
-            # Keep the connection up: its transport cannot be revived once
-            # disconnected, so the next subscribe would get a dead object and
-            # stream nothing. Ticks with no listeners are simply dropped.
-            return
         try:
             adapter.disconnect()
         except Exception:  # noqa: BLE001 - best effort teardown

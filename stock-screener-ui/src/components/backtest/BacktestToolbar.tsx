@@ -1,8 +1,7 @@
 // BacktestToolbar — always-visible control strip above the full-bleed chart.
-// Panel toggles expand/collapse the right-rail panels; Run/Reset are always here.
+// Chart mode + Run/Reset live here; right-rail panels collapse from their own headers.
 import { Box, Button, Text } from "@/ui";
-import { IconPlayerPlay, IconLayoutGrid, IconAdjustments, IconTable, IconList } from "@tabler/icons-react";
-import type { BacktestPanelId } from "./useBacktestLayout";
+import { IconPlayerPlay, IconLayoutGrid } from "@tabler/icons-react";
 
 interface BacktestToolbarProps {
   strategyLabel: string;
@@ -10,19 +9,11 @@ interface BacktestToolbarProps {
   days: number;
   isRunning: boolean;
   canRun: boolean;
-  panels: Record<BacktestPanelId, boolean>;
   chartMode: "all" | "trades";
-  onTogglePanel: (id: BacktestPanelId) => void;
   onChartModeChange: (mode: "all" | "trades") => void;
   onRun: () => void;
   onReset: () => void;
 }
-
-const TOGGLES: { id: BacktestPanelId; label: string; icon: React.ReactNode }[] = [
-  { id: "config", label: "Config", icon: <IconAdjustments size={12} /> },
-  { id: "results", label: "Results", icon: <IconTable size={12} /> },
-  { id: "trades", label: "Trades", icon: <IconList size={12} /> },
-];
 
 export function BacktestToolbar({
   strategyLabel,
@@ -30,9 +21,7 @@ export function BacktestToolbar({
   days,
   isRunning,
   canRun,
-  panels,
   chartMode,
-  onTogglePanel,
   onChartModeChange,
   onRun,
   onReset,
@@ -53,27 +42,6 @@ export function BacktestToolbar({
       data-testid="backtest-toolbar"
     >
       <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-        {TOGGLES.map((t) => {
-          const open = panels[t.id];
-          return (
-            <Button
-              key={t.id}
-              size="sm"
-              variant={open ? "filled" : "subtle"}
-              color={open ? "primary" : "secondary"}
-              onClick={() => onTogglePanel(t.id)}
-              leftSection={t.icon}
-              data-testid={`toolbar-toggle-${t.id}`}
-              data-state={open ? "open" : "closed"}
-              title={open ? `Collapse ${t.label}` : `Expand ${t.label}`}
-            >
-              {t.label}
-            </Button>
-          );
-        })}
-      </Box>
-
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, pl: 1, borderLeft: "1px solid", borderColor: "divider" }}>
         <Button
           size="sm"
           variant={chartMode === "all" ? "filled" : "subtle"}
@@ -111,10 +79,10 @@ export function BacktestToolbar({
         onClick={onRun}
         disabled={!canRun || isRunning}
         loading={isRunning}
-        leftSection={<IconPlayerPlay size={12} />}
+        leftSection={isRunning ? undefined : <IconPlayerPlay size={12} />}
         data-testid="toolbar-run-btn"
       >
-        {isRunning ? "Running..." : "Run"}
+        {isRunning ? null : "Run"}
       </Button>
       <Button
         size="sm"

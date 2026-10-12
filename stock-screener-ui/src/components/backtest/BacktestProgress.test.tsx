@@ -94,6 +94,11 @@ describe("BacktestProgress", () => {
     expect(progressBar).toBeInTheDocument();
   });
 
+  it("renders an MUI spinner while running", () => {
+    render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
+    expect(screen.getByTestId("progress-spinner")).toBeInTheDocument();
+  });
+
   it("displays 'Running...' title", () => {
     render(<BacktestProgress progress={defaultProgress} />, { wrapper: Wrapper });
     expect(screen.getByText("Running...")).toBeInTheDocument();

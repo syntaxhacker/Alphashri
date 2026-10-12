@@ -2,9 +2,10 @@
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test, vi } from "vitest";
 import { cleanup, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import type { JobDTO } from "@/types/chartPatterns";
-import { ScanProgress } from "./ScanProgress";
+import { ScanProgress, ScanCacheChip, getScanCacheState } from "./ScanProgress";
 
 function r(ui: React.ReactElement) {
   return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
@@ -209,5 +210,181 @@ describe("ScanProgress", () => {
       />,
     );
     expect(screen.getByTestId("patterns-scan-reused-force")).toBeInTheDocument();
+  });
+});
+
+describe("getScanCacheState", () => {
+  test("fresh when provenance shows a full recompute with no cached candles", () => {
+    const job = makeJob({
+      status: "completed",
+      provenance: {
+        scan_reused: false,
+        candles_cached: 0,
+        candles_fetched: 500,
+        prefilter_dropped: 0,
+        detector_version: 3,
+        data_through: "2026-09-30",
+      },
+    });
+    expect(getScanCacheState(job)).toEqual({ kind: "fresh", pct: null, age: null });
+  });
+
+  test("fresh without provenance (older backend, non-reused job)", () => {
+    expect(getScanCacheState(makeJob({ status: "completed" }))).toEqual({
+      kind: "fresh",
+      pct: null,
+      age: null,
+    });
+  });
+
+  test("reused wins over any candle counts", () => {
+    const job = makeJob({
+      status: "completed",
+      reused: true,
+      reused_age_sec: 720,
+      provenance: {
+        scan_reused: true,
+        candles_cached: 480,
+        candles_fetched: 20,
+        prefilter_dropped: 12,
+        detector_version: 3,
+        data_through: "2026-09-30",
+      },
+    });
+    expect(getScanCacheState(job)).toEqual({ kind: "reused", pct: null, age: "12 min ago" });
+  });
+
+  test("reused via provenance alone even when the flag is absent", () => {
+    const job = makeJob({
+      status: "completed",
+      provenance: {
+        scan_reused: true,
+        candles_cached: 500,
+        candles_fetched: 0,
+        prefilter_dropped: null,
+        detector_version: 3,
+        data_through: null,
+      },
+    });
+    const cache = getScanCacheState(job);
+    expect(cache.kind).toBe("reused");
+    expect(cache.age).toBeNull();
+  });
+
+  test("mixed reports the rounded cache-hit share", () => {
+    const job = makeJob({
+      status: "completed",
+      provenance: {
+        scan_reused: false,
+        candles_cached: 335,
+        candles_fetched: 165,
+        prefilter_dropped: null,
+        detector_version: 3,
+        data_through: "2026-09-30",
+      },
+    });
+    expect(getScanCacheState(job)).toEqual({ kind: "mixed", pct: 67, age: null });
+  });
+});
+
+describe("ScanCacheChip", () => {
+  test("renders nothing without a job", () => {
+    const { container } = r(<ScanCacheChip job={null} />);
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test("fresh chip for a fully computed scan", () => {
+    r(
+      <ScanCacheChip
+        job={makeJob({
+          status: "completed",
+          provenance: {
+            scan_reused: false,
+            candles_cached: 0,
+            candles_fetched: 500,
+            prefilter_dropped: 0,
+            detector_version: 3,
+            data_through: "2026-09-30",
+          },
+        })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Fresh");
+    expect(screen.queryByTestId("patterns-scan-reused")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("patterns-scan-reused-force")).not.toBeInTheDocument();
+  });
+
+  test("cached chip with age keeps the reused testid when reused", () => {
+    r(<ScanCacheChip job={makeJob({ status: "completed", reused: true, reused_age_sec: 720 })} />);
+    expect(screen.getByTestId("patterns-scan-status")).toBeInTheDocument();
+    expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached · 12 min ago");
+  });
+
+  test("cached chip without an age signal still labels the reuse", () => {
+    r(<ScanCacheChip job={makeJob({ status: "completed", reused: true })} />);
+    expect(screen.getByTestId("patterns-scan-reused")).toHaveTextContent("Cached");
+  });
+
+  test("mixed chip shows the cache-hit percent", () => {
+    r(
+      <ScanCacheChip
+        job={makeJob({
+          status: "completed",
+          provenance: {
+            scan_reused: false,
+            candles_cached: 1,
+            candles_fetched: 3,
+            prefilter_dropped: null,
+            detector_version: 3,
+            data_through: null,
+          },
+        })}
+      />,
+    );
+    expect(screen.getByTestId("patterns-scan-fresh")).toHaveTextContent("Cache 25%");
+  });
+
+  test("force re-run action calls the handler when reused", async () => {
+    const onForceRefresh = vi.fn();
+    r(
+      <ScanCacheChip
+        job={makeJob({ status: "completed", reused: true, reused_age_sec: 60 })}
+        onForceRefresh={onForceRefresh}
+      />,
+    );
+    await userEvent.click(screen.getByTestId("patterns-scan-reused-force"));
+    expect(onForceRefresh).toHaveBeenCalledTimes(1);
+  });
+
+  test("tooltip exposes the cache layers as its accessible label", () => {
+    r(
+      <ScanCacheChip
+        job={makeJob({
+          status: "completed",
+          reused: true,
+          reused_age_sec: 720,
+          data_through: "2026-09-30",
+          provenance: {
+            scan_reused: true,
+            candles_cached: 480,
+            candles_fetched: 20,
+            prefilter_dropped: 12,
+            detector_version: 3,
+            data_through: "2026-09-30",
+          },
+        })}
+      />,
+    );
+    // MUI surfaces a string tooltip title as the wrapper's aria-label.
+    expect(screen.getByLabelText(/Scan reused: yes \(12 min ago\)/)).toHaveAttribute(
+      "aria-label",
+      "Scan reused: yes (12 min ago) — data unchanged · Candle cache: 480 cached / 20 fetched · Prefilter dropped: 12 · Detector v3 · Data as of 2026-09-30",
+    );
+  });
+
+  test("tooltip degrades gracefully without provenance", () => {
+    r(<ScanCacheChip job={makeJob({ status: "completed", data_through: "2026-09-30" })} />);
+    expect(screen.getByLabelText("Scan reused: no — freshly computed · Data as of 2026-09-30")).toBeInTheDocument();
   });
 });

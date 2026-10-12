@@ -67,6 +67,7 @@ export interface ChartInput {
   trades: UnifiedTrade[];
   overlays: UnifiedOverlay[];
   emaData?: { label: string; color: string; data: (number | null)[] }[];
+  rsiData?: { period: number; data: (number | null)[] };
   livePosition?: UnifiedLivePosition;
   markLines?: MarkLineData[];
   markAreas?: MarkAreaItem[];

@@ -16,6 +16,7 @@ import type {
   MarketStatus,
   PatternHitDTO,
   PatternSummary,
+  ScanProvenance,
   SymbolDetail,
   ChartPayload,
   PatternsQuery,
@@ -88,6 +89,11 @@ export interface ScanResponse {
   reused_from?: string | null;
   reused_age_sec?: number | null;
   reused_finished_at?: string | null;
+  /**
+   * Per-layer cache provenance echoed when the backend supplies it
+   * (mirrors `JobDTO.provenance`; absent = older backend).
+   */
+  provenance?: ScanProvenance | null;
 }
 
 export interface ResultsResponse {

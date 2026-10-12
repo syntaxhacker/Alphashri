@@ -47,7 +47,7 @@ function buildCells(summary: PatternSummary | null): StatCell[] {
   ];
 }
 
-/** Dense inline stat strip (~32px): `LABEL value` pairs separated by dividers, no Card. */
+/** Dense inline stat strip (~28px): `LABEL value` pairs separated by dividers, no Card. */
 export function ScanStats({ summary }: ScanStatsProps) {
   // `relativeAge` derives from `Date.now()`, so without a tick it freezes until
   // the next store update. Re-render every 60s to keep "x min ago" fresh.
@@ -63,7 +63,7 @@ export function ScanStats({ summary }: ScanStatsProps) {
       sx={{
         display: "flex",
         alignItems: "center",
-        minHeight: 32,
+        minHeight: 28,
         overflowX: "auto",
         fontVariantNumeric: "tabular-nums",
       }}

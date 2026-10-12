@@ -11,7 +11,7 @@ import importlib
 from datetime import datetime
 
 from config import IST
-from trading.ema_utils import calculate_ema
+from trading.indicators import ema as calculate_ema
 from trading.orb_utils import calculate_or_levels
 from trading.pivot_utils import calculate_pivot_points
 from trading.replay.contract import ParamSpec, ReplayContext, StrategyResult
@@ -148,8 +148,8 @@ class IntradaySignalReplay:
     def _market_data(candles, highs, lows, closes, or_minutes, pivot_points, ts, params) -> dict:
         fast_period = int(params.get("ema_fast_period", 9))
         slow_period = int(params.get("ema_slow_period", 21))
-        fast = calculate_ema(closes, fast_period, return_full=True)
-        slow = calculate_ema(closes, slow_period, return_full=True)
+        fast = calculate_ema(closes, fast_period, full=True)
+        slow = calculate_ema(closes, slow_period, full=True)
         return {
             "current_price": closes[-1],
             "timestamp": ts,

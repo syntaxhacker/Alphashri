@@ -17,6 +17,18 @@ QA_EMAIL="${QA_EMAIL:-qa@test.com}"
 QA_PASS="${QA_PASS:-qa123}"
 RELOAD_FLAG="${RELOAD_FLAG---reload}"
 
+# ── Upstox rate-limit budget ─────────────────────────────────────────────
+# Per-consumer minute caps share the global 500/min window. Defaults sum to
+# exactly 500 — api(150) + bot(300) + orderflow(50) — so the interactive
+# `api` slice is always reserved even when background scanners are maxed.
+# UPSTOX_RL_CONSUMER applies to the API process; bot/orderflow subprocesses
+# resolve their own slice via entry-point autodetect (see rate_limiter.py).
+UPSTOX_RL_CONSUMER="${UPSTOX_RL_CONSUMER:-api}"
+UPSTOX_RL_CAP_API="${UPSTOX_RL_CAP_API:-150}"
+UPSTOX_RL_CAP_BOT="${UPSTOX_RL_CAP_BOT:-300}"
+UPSTOX_RL_CAP_ORDERFLOW="${UPSTOX_RL_CAP_ORDERFLOW:-50}"
+export UPSTOX_RL_CONSUMER UPSTOX_RL_CAP_API UPSTOX_RL_CAP_BOT UPSTOX_RL_CAP_ORDERFLOW
+
 RED='\033[0;31m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'

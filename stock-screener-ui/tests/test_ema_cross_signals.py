@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime
 
-from trading.ema_utils import calculate_ema
+from trading.indicators import ema as calculate_ema
 from trading.ema_cross_signals import EMACrossSignalGenerator
 from trading.orb_signals import SignalType
 
@@ -14,7 +14,7 @@ class TestEMACrossSignalGenerator:
 
     def test_calculate_ema_basic(self):
         closes = [10, 11, 12, 11, 13]
-        result = calculate_ema(closes, 3, return_full=True)
+        result = calculate_ema(closes, 3, full=True)
         assert len(result) == 5
         assert result[0] is None  # First period-1 values are None
         assert result[1] is None
@@ -26,15 +26,16 @@ class TestEMACrossSignalGenerator:
         assert abs(result[4] - 12.0) < 0.01
 
     def test_calculate_ema_insufficient_data(self):
-        assert calculate_ema([], 5, return_full=True) == []
-        assert calculate_ema([42], 5, return_full=True) == []
-        assert calculate_ema([10, 11], 3, return_full=True) == []
+        # Canonical contract: full output is aligned to the input (None while undefined).
+        assert calculate_ema([], 5, full=True) == []
+        assert calculate_ema([42], 5, full=True) == [None]
+        assert calculate_ema([10, 11], 3, full=True) == [None, None]
 
     def test_config_defaults(self):
         gen = EMACrossSignalGenerator({})
         assert gen.ema_fast_period == 9
         assert gen.ema_slow_period == 21
-        assert gen.sl_pct == 0.5
+        assert gen.sl_pct == 1.0
         assert gen.tp_pct == 1.5
 
     def test_config_custom_values(self):
@@ -111,7 +112,7 @@ class TestEMACrossSignalGenerator:
         }
         long_signal = gen.check_entry("RELIANCE", market_data)
         assert long_signal is not None
-        assert long_signal.stop_loss == round(200.0 * (1 - 0.5 / 100), 2)
+        assert long_signal.stop_loss == round(200.0 * (1 - 1.0 / 100), 2)
         assert long_signal.take_profit == round(200.0 * (1 + 1.5 / 100), 2)
 
     def test_check_entry_sl_tp_calculated_shorts(self):
@@ -125,7 +126,7 @@ class TestEMACrossSignalGenerator:
         }
         short_signal = gen.check_entry("RELIANCE", market_data_bearish)
         assert short_signal is not None
-        assert short_signal.stop_loss == round(200.0 * (1 + 0.5 / 100), 2)
+        assert short_signal.stop_loss == round(200.0 * (1 + 1.0 / 100), 2)
         assert short_signal.take_profit == round(200.0 * (1 - 1.5 / 100), 2)
 
     def test_check_entry_notes_contain_periods(self, gen):
@@ -201,7 +202,7 @@ class TestEMACrossSignalGenerator:
 
     def test_check_entry_cooldown(self):
         """Test cooldown logic prevents immediate re-entry after exit."""
-        gen = EMACrossSignalGenerator({"cooldown_bars": 3})
+        gen = EMACrossSignalGenerator({"cooldown_minutes": 15, "ema_interval_minutes": 5})
         gen._bar_number = 10
         gen._last_exit_bar = 9  # Exit just happened
 

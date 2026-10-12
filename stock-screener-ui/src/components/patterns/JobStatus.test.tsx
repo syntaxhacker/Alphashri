@@ -159,4 +159,54 @@ describe("JobStatus", () => {
     expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
     expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("reused (data unchanged)");
   });
+
+  test("marks a reused scan inline when only provenance is present", () => {
+    r(
+      <JobStatus
+        job={{
+          ...JOB,
+          status: "completed",
+          data_through: "2026-09-30",
+          provenance: {
+            scan_reused: true,
+            candles_cached: 480,
+            candles_fetched: 20,
+            prefilter_dropped: 12,
+            detector_version: 3,
+            data_through: "2026-09-30",
+          },
+        }}
+        queuePosition={null}
+        scanning={false}
+      />,
+    );
+    // Provenance is a toolbar-chip concern; the status line keeps its contract
+    // and must never crash on the extra payload.
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("Last scan complete");
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("through 2026-09-30");
+  });
+
+  test("reports a fresh completed scan with provenance normally", () => {
+    r(
+      <JobStatus
+        job={{
+          ...JOB,
+          status: "completed",
+          data_through: "2026-09-30",
+          provenance: {
+            scan_reused: false,
+            candles_cached: 0,
+            candles_fetched: 500,
+            prefilter_dropped: 0,
+            detector_version: 3,
+            data_through: "2026-09-30",
+          },
+        }}
+        queuePosition={null}
+        scanning={false}
+      />,
+    );
+    expect(screen.getByTestId("patterns-job-status")).toHaveTextContent("Last scan complete");
+    expect(screen.getByTestId("patterns-job-status")).not.toHaveTextContent("reused");
+  });
 });

@@ -1,4 +1,4 @@
-import { ActionIcon, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
+import { ActionIcon, Badge, Box, Card, Text, ToolbarRow, Tooltip } from "@/ui";
 import { IconArrowsMaximize } from "@tabler/icons-react";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "@/utils/ui-helpers";
 import type { PatternHitDTO, TrendlinesView } from "@/types/chartPatterns";
@@ -75,6 +75,10 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
   const baseDays = hit.base_days ?? 0;
   const isConsolidation = hit.pattern_id === "consolidation" || baseDays > 0;
   const bounds = isConsolidation ? consolidationBounds(hit) : null;
+  // Enrichment failed for this card (rate-limit/fetch error): the mini chart
+  // falls back to a boundary sketch with no candles. Flag it visibly so a
+  // candle-less card is never mistaken for a clean one.
+  const missingCandles = (hit.candles ?? []).length === 0;
 
   return (
     <Card
@@ -94,7 +98,7 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
       }
       sx={{
         border: "1px solid",
-        borderColor: selected ? "primary.main" : "divider",
+        borderColor: selected ? "primary.main" : missingCandles ? "error.main" : "divider",
         borderRadius: 1,
         bgcolor: "background.paper",
         p: 1,
@@ -113,6 +117,13 @@ export function PatternCard({ hit, selected = false, onClick, onExpand, trendlin
           </Box>
           <ToolbarRow gap={0.5} wrap={false} sx={{ flexShrink: 0 }}>
             <StatusBadge status={hit.status} />
+            {missingCandles ? (
+              <Tooltip label="Chart data failed to load (rate limit or fetch error) — pattern levels only. Refresh or force-rescan to retry." withArrow position="left">
+                <Badge color="error" size="xs" data-testid={`patterns-card-no-data-${hit.symbol}`}>
+                  No chart
+                </Badge>
+              </Tooltip>
+            ) : null}
             {onExpand ? (
               <Tooltip label="Open fullscreen chart" withArrow position="left">
                 <ActionIcon

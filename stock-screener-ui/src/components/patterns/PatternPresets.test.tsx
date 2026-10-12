@@ -214,6 +214,17 @@ describe("PatternPresets", () => {
     });
   });
 
+  test("applies the high_conviction built-in preset payload", async () => {
+    const props = makeProps();
+    r(<PatternPresets {...props} />);
+    await userEvent.click(screen.getByTestId("patterns-preset-high_conviction"));
+    expect(props.applyFilters).toHaveBeenCalledWith({
+      min_confidence: 70,
+      min_breakout_score: 60,
+      sort: "breakout",
+    });
+  });
+
   test("ignores corrupt localStorage content and still renders built-ins", async () => {
     localStorage.setItem(PATTERN_PRESETS_STORAGE_KEY, "not-json{{{");
     const props = makeProps();
