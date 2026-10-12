@@ -4,6 +4,7 @@ import { ScrollArea, ToolbarRow } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
+import { PositioningPanel } from "./Positioning/PositioningPanel";
 import { OptionsNav } from "./OptionsNav";
 
 interface OptionsPageProps {
@@ -116,6 +117,17 @@ export function OptionsPage({
                 sx={{ display: "flex", flexDirection: "column", width: "100%" }}
               >
                 <PremiumTrackerPanel strikeMatrix={strikeMatrix} selectedUnderlying={selectedUnderlying} />
+              </Box>
+            )}
+
+            {activeTab === "positioning" && (
+              <Box
+                id="positioning-container"
+                className="options-tab-content"
+                data-testid="options-positioning-tab"
+                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
+              >
+                <PositioningPanel underlying={selectedUnderlying} expiry={selectedExpiry} />
               </Box>
             )}
           </ScrollArea>

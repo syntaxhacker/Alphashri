@@ -34,6 +34,9 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
           <Tab value="premium" className="options-nav-tab" data-testid="nav-tab-premium">
             Premium
           </Tab>
+          <Tab value="positioning" className="options-nav-tab" data-testid="nav-tab-positioning">
+            Positioning
+          </Tab>
         </TabsList>
       </Tabs>
     </Box>

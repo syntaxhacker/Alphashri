@@ -116,6 +116,40 @@ export interface PositionsResponse {
   positions: Position[];
 }
 
+export type {
+  PositioningBiggestMove,
+  PositioningData,
+  PositioningMode,
+  PositioningStrikeRow,
+  PositioningVerdict,
+  PositioningView,
+} from "../utils/positioning";
+export type PositioningResponse = import("../utils/positioning").PositioningData & {
+  mode?: string;
+};
+
+export class PositioningApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "PositioningApiError";
+    this.status = status;
+  }
+}
+
+export async function getPositioning(
+  underlying: string,
+  expiryDate: string,
+  mode = "since_open",
+): Promise<PositioningResponse> {
+  const params = new URLSearchParams({ expiry: expiryDate, mode });
+  const res = await fetchWithAuth(
+    `${API_BASE}/api/options/positioning/${underlying}?${params.toString()}`,
+  );
+  if (!res.ok) throw new PositioningApiError("Failed to fetch positioning", res.status);
+  return res.json();
+}
+
 export async function getUnderlyings(): Promise<Underlying[]> {
   const res = await fetchWithAuth(`${API_BASE}/api/options/underlyings`);
   if (!res.ok) throw new Error("Failed to fetch underlyings");
