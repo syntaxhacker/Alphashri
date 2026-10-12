@@ -38,6 +38,18 @@ export interface TradingViewChartProps {
 
 const toTime = (t: string): Time => (new Date(t.replace(" ", "T")).getTime() / 1000) as Time;
 
+/** NSE screens show IST wall-clock whatever the viewer's timezone is. */
+const istClock = new Intl.DateTimeFormat("en-IN", {
+  timeZone: "Asia/Kolkata",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function formatIST(time: Time): string {
+  return typeof time === "number" ? istClock.format(new Date(time * 1000)) : "";
+}
+
 function toLineStyle(type: string): LineStyle {
   switch (type) {
     case "dashed":
@@ -88,7 +100,8 @@ export function TradingViewChart({
       ...(fixedHeight != null
         ? { width: containerRef.current.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: palette.BORDER, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5 },
+      timeScale: { borderColor: palette.BORDER, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: formatIST },
+      localization: { timeFormatter: formatIST },
       rightPriceScale: { borderColor: palette.BORDER },
       crosshair: { mode: 1 },
       handleScroll: true,

@@ -31,29 +31,29 @@ function buildMarkLines(report: NiftyReport): MarkLineData[] {
   const lines: MarkLineData[] = [];
   const topCalls = [...report.walls.calls]
     .sort((a, b) => b.oi - a.oi)
-    .slice(0, 3);
+    .slice(0, 2);
   const topPuts = [...report.walls.puts]
     .sort((a, b) => b.oi - a.oi)
-    .slice(0, 3);
+    .slice(0, 2);
   for (const wall of topCalls) {
     lines.push({
       yAxis: wall.strike,
       lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `Call wall ${wall.strike}` },
+      label: { position: "insideEndTop", formatter: `CW ${wall.strike}` },
     });
   }
   for (const wall of topPuts) {
     lines.push({
       yAxis: wall.strike,
       lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `Put wall ${wall.strike}` },
+      label: { position: "insideEndTop", formatter: `PW ${wall.strike}` },
     });
   }
   if (Number.isFinite(report.maxPain) && report.maxPain > 0) {
     lines.push({
       yAxis: report.maxPain,
-      lineStyle: { color: palette.PRIMARY, type: "solid", width: 1 },
-      label: { position: "insideEndTop", formatter: `Max pain ${report.maxPain}` },
+      lineStyle: { color: palette.PRIMARY, type: "solid", width: 2 },
+      label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
     });
   }
   return lines;
@@ -67,9 +67,26 @@ function sentimentBadge(sentiment: string) {
         ? palette.NEGATIVE
         : palette.TEXT_MUTED;
   return (
-    <Text size="xs" fw={600} ta="center" c={tone}>
+    <Text size="xs" fw={600} ta="center" c={tone} truncate>
       {sentiment}
     </Text>
+  );
+}
+
+/** Numeric cell with tabular figures + ellipsis so 1440px needs no h-scroll. */
+function tabularCell(value: string) {
+  return (
+    <Box
+      component="span"
+      sx={{
+        display: "block",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        fontVariantNumeric: "tabular-nums",
+      }}
+    >
+      {value}
+    </Box>
   );
 }
 
@@ -78,32 +95,40 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
     header: "CE Chg%",
     accessorKey: "ce.priceChange",
     accessorFn: (row) => row.ce.priceChange,
+    size: 84,
     meta: { align: "right" },
-    cell: (info) => Number(info.getValue()).toFixed(2),
+    cell: (info) => tabularCell(Number(info.getValue()).toFixed(2)),
   },
   {
     header: "CE OI Chg",
     accessorKey: "ce.oiChange",
     accessorFn: (row) => row.ce.oiChange,
+    size: 110,
     meta: { align: "right" },
-    cell: (info) => Number(info.getValue()).toLocaleString("en-IN"),
+    cell: (info) =>
+      tabularCell(Number(info.getValue()).toLocaleString("en-IN")),
   },
   {
     header: "CE Signal",
     accessorKey: "ce.sentiment",
     accessorFn: (row) => row.ce.sentiment,
+    size: 96,
     meta: { align: "center" },
     cell: (info) => sentimentBadge(String(info.getValue() ?? "")),
   },
   {
     header: "Strike",
     accessorKey: "strike",
+    size: 88,
     meta: { align: "right" },
+    cell: (info) =>
+      tabularCell(Number(info.getValue()).toLocaleString("en-IN")),
   },
   {
     header: "PE Signal",
     accessorKey: "pe.sentiment",
     accessorFn: (row) => row.pe.sentiment,
+    size: 96,
     meta: { align: "center" },
     cell: (info) => sentimentBadge(String(info.getValue() ?? "")),
   },
@@ -111,15 +136,18 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
     header: "PE OI Chg",
     accessorKey: "pe.oiChange",
     accessorFn: (row) => row.pe.oiChange,
+    size: 110,
     meta: { align: "right" },
-    cell: (info) => Number(info.getValue()).toLocaleString("en-IN"),
+    cell: (info) =>
+      tabularCell(Number(info.getValue()).toLocaleString("en-IN")),
   },
   {
     header: "PE Chg%",
     accessorKey: "pe.priceChange",
     accessorFn: (row) => row.pe.priceChange,
+    size: 84,
     meta: { align: "right" },
-    cell: (info) => Number(info.getValue()).toFixed(2),
+    cell: (info) => tabularCell(Number(info.getValue()).toFixed(2)),
   },
 ];
 
@@ -203,7 +231,17 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   return (
     <Box
       data-testid="nifty-report-panel"
-      sx={{ display: "flex", flexDirection: "column", gap: 2, p: 2 }}
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 2,
+        p: 2,
+        width: "100%",
+        maxWidth: "100%",
+        minWidth: 0,
+        boxSizing: "border-box",
+        overflowX: "hidden",
+      }}
     >
       <CompactPanel>
         <Box
@@ -212,7 +250,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             display: "flex",
             alignItems: "center",
             gap: 2,
-            flexWrap: "wrap",
+            flexWrap: "nowrap",
+            width: "100%",
+            maxWidth: "100%",
+            minWidth: 0,
+            overflowX: "auto",
           }}
         >
           <SegmentedControl
@@ -296,7 +338,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
         <>
           <Box
             data-testid="nifty-stat-strip"
-            sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}
+            sx={{ display: "flex", width: "100%", minWidth: 0 }}
           >
             <CompactStatGrid>
               <CompactStat
@@ -324,11 +366,23 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
 
           <CompactPanel title="Nifty chart" testId="nifty-chart-panel">
             {report.candles && report.candles.length > 0 ? (
-              <TradingViewChart
-                candles={report.candles}
-                markLines={markLines}
-                height={320}
-              />
+              <Box
+                data-testid="nifty-chart-wrap"
+                sx={{
+                  display: "flex",
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                  minHeight: 380,
+                  height: "min(62vh, 600px)",
+                  overflow: "hidden",
+                }}
+              >
+                <TradingViewChart
+                  candles={report.candles}
+                  markLines={markLines}
+                />
+              </Box>
             ) : (
               <EmptyCompact
                 data-testid="nifty-chart-empty"
@@ -347,7 +401,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     data-testid={`nifty-timeline-item-${idx}`}
                     title={`${event.time} — ${event.title}`}
                   >
-                    <Text size="sm" c="dimmed">
+                    <Text size="xs" c="dimmed" lh={1.4}>
                       {event.detail}
                     </Text>
                   </TimelineItem>
@@ -365,15 +419,32 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             />
           </CompactPanel>
 
-          <Box sx={{ display: "flex", gap: 2, flexWrap: "wrap" }}>
-            <CompactPanel title="BTST note" testId="nifty-btst-note">
+          <Box
+            data-testid="nifty-notes-row"
+            sx={{
+              display: "flex",
+              gap: 2,
+              flexWrap: "wrap",
+              width: "100%",
+              minWidth: 0,
+            }}
+          >
+            <CompactPanel
+              title="BTST note"
+              testId="nifty-btst-note"
+              sx={{ flex: "1 1 320px", minWidth: 0 }}
+            >
               <Text size="sm" c="dimmed">
                 BTST setups historically print 43-52% on roughly half the
                 signals, versus 25-36% for same-day intraday exits. Prefer
                 carrying only A-grade wall-break structures overnight.
               </Text>
             </CompactPanel>
-            <CompactPanel title="Model note" testId="nifty-model-note">
+            <CompactPanel
+              title="Model note"
+              testId="nifty-model-note"
+              sx={{ flex: "1 1 320px", minWidth: 0 }}
+            >
               <Text size="sm" c="dimmed">
                 CE pricing model tracks within ~2% of market; PE shows a
                 persistent skew premium into event expiries. Fade extreme PCR

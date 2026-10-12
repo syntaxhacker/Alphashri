@@ -1862,6 +1862,128 @@ export async function setupStrategiesErrorMocks(page: import("@playwright/test")
   });
 }
 
+// Nifty report API mocks
+export const mockNiftyReport = {
+  mode: "live",
+  date: "2026-10-12",
+  expiry: "2026-10-14",
+  spot: 22363.35,
+  ohlc: { open: 22300, high: 22410.5, low: 22280, close: 22363.35 },
+  pcr_oi: 0.6,
+  pcr_vol: 1.21,
+  max_pain: 22400,
+  walls: {
+    calls: [
+      { strike: 22500, oi: 5000 },
+      { strike: 22400, oi: 4000 },
+    ],
+    puts: [
+      { strike: 22200, oi: 6000 },
+      { strike: 22300, oi: 4500 },
+    ],
+  },
+  strikes: [22100, 22200, 22300, 22400, 22500].map((strike) => ({
+    strike,
+    ce: {
+      ltp: 120,
+      close: 110,
+      oi: 2000,
+      prev_oi: 1800,
+      oi_change: 200,
+      price_change: 9.09,
+      sentiment: "Bullish",
+    },
+    pe: {
+      ltp: 100,
+      close: 105,
+      oi: 2500,
+      prev_oi: 2600,
+      oi_change: -100,
+      price_change: -4.76,
+      sentiment: "Bearish",
+    },
+  })),
+  timeline: [
+    { time: "09:15", title: "Open", detail: "Nifty opened flat above 22300" },
+    { time: "11:30", title: "Midday", detail: "PCR slipped as calls added" },
+    { time: "15:20", title: "Close", detail: "Settled near max pain 22400" },
+  ],
+  candles: Array.from({ length: 10 }, (_, i) => ({
+    time: `2026-10-12T${String(9 + Math.floor((15 + i * 5) / 60)).padStart(2, "0")}:${String((15 + i * 5) % 60).padStart(2, "0")}:00`,
+    open: 22300 + i * 6,
+    high: 22320 + i * 6,
+    low: 22290 + i * 6,
+    close: 22310 + i * 6,
+    volume: 100000 + i * 1000,
+  })),
+  fetched_at: "2026-10-12T10:00:00",
+};
+
+export const mockNiftyEodReport = {
+  ...mockNiftyReport,
+  mode: "eod",
+  date: "2026-10-10",
+  timeline: [
+    { time: "09:15", title: "EOD Open", detail: "Nifty opened gap-up on Friday" },
+    { time: "11:30", title: "EOD Midday", detail: "Walls held into the afternoon" },
+    { time: "15:30", title: "EOD Close", detail: "Closed above max pain" },
+  ],
+};
+
+export const mockNiftyExpiries = {
+  expiries: [
+    { date: "2026-10-14", weekly: true, days_to_expiry: 2 },
+    { date: "2026-10-21", weekly: true, days_to_expiry: 9 },
+  ],
+};
+
+export async function setupNiftyReportMocks(page: import("@playwright/test").Page) {
+  // IMPORTANT: Playwright gives higher priority to handlers registered LATER.
+  // apiRoute("reports/nifty") also matches /live, /expiries and /snapshot,
+  // so the broad EOD handler is registered FIRST (lower priority).
+  await page.route(apiRoute("reports/nifty"), async (route) => {
+    const url = route.request().url();
+    const path = new URL(url).pathname;
+    // Only handle the EOD-by-date endpoint; let specific handlers take the rest
+    if (path !== "/api/reports/nifty" || !url.includes("date=")) {
+      await route.fallback();
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockNiftyEodReport),
+    });
+  });
+
+  await page.route(apiRoute("reports/nifty/live"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockNiftyReport),
+    });
+  });
+
+  await page.route(apiRoute("reports/nifty/expiries"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockNiftyExpiries),
+    });
+  });
+
+  await page.route(apiRoute("reports/nifty/snapshot"), async (route) => {
+    if (route.request().method() === "POST") {
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(mockNiftyReport),
+      });
+    } else {
+      await route.continue();
+    }
+  });
+}
 // Delayed response mocks (5 second delay)
 export async function setupStrategiesLoadingMocks(page: import("@playwright/test").Page) {
   const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

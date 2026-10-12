@@ -194,4 +194,75 @@ describe("niftyOiColumns alignment meta", () => {
     expect(byKey.get("ce.oiChange")?.align).toBe("right");
     expect(byKey.get("pe.oiChange")?.align).toBe("right");
   });
+
+  test("every column declares an explicit fixed width fitting 1440px", () => {
+    for (const col of niftyOiColumns) {
+      const size = (col as { size?: number }).size;
+      expect(typeof size).toBe("number");
+      expect(size as number).toBeGreaterThan(0);
+    }
+    const total = niftyOiColumns.reduce(
+      (sum, c) => sum + ((c as { size?: number }).size ?? 0),
+      0,
+    );
+    // 7 fixed columns must fit a 1440px panel with room for panel padding
+    expect(total).toBeLessThanOrEqual(900);
+  });
+});
+
+describe("NiftyReportPanel fit-to-screen", () => {
+  function candles() {
+    return [
+      { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+      { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25750.5, volume: 1200 },
+    ];
+  }
+
+  function strikeAt(strike: number) {
+    return {
+      strike,
+      ce: { ltp: 120, close: 110, oi: 2000, prevOi: 1800, oiChange: 200, priceChange: 9.09, sentiment: "Bullish" },
+      pe: { ltp: 100, close: 105, oi: 2500, prevOi: 2600, oiChange: -100, priceChange: -4.76, sentiment: "Bearish" },
+    };
+  }
+
+  test("chart panel fills width and wall mark lines are top-2 plus max pain", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({ candles: candles() }),
+    );
+    r(<NiftyReportPanel />);
+    expect(await screen.findByTestId("nifty-chart-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
+    const chart = screen.getByTestId("tradingview-chart");
+    // top-2 call walls + top-2 put walls + max-pain line
+    expect(chart).toHaveAttribute("data-marklines", "5");
+  });
+
+  test("OI table windows to ATM ±750 so strike and signals stay visible", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        spot: 25750.5,
+        strikes: [strikeAt(25700), strikeAt(24000), strikeAt(27500)],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const table = await screen.findByTestId("nifty-oi-table");
+    expect(table).toBeInTheDocument();
+    expect(within(table).getByText("25,700")).toBeInTheDocument();
+    expect(within(table).queryByText("24,000")).not.toBeInTheDocument();
+    expect(within(table).queryByText("27,500")).not.toBeInTheDocument();
+    // signals still rendered for the visible row
+    expect(within(table).getByText("Bullish")).toBeInTheDocument();
+    expect(within(table).getByText("Bearish")).toBeInTheDocument();
+  });
+
+  test("timeline items and side-by-side notes render", async () => {
+    r(<NiftyReportPanel />);
+    expect(await screen.findByTestId("nifty-timeline-item-0")).toBeInTheDocument();
+    expect(screen.getByText("Nifty opened flat")).toBeInTheDocument();
+    const notesRow = screen.getByTestId("nifty-notes-row");
+    expect(notesRow).toBeInTheDocument();
+    expect(within(notesRow).getByTestId("nifty-btst-note")).toBeInTheDocument();
+    expect(within(notesRow).getByTestId("nifty-model-note")).toBeInTheDocument();
+  });
 });
