@@ -21,13 +21,11 @@ import type {
   NiftyReportMode,
   NiftyStrike,
 } from "@/types/niftyReport";
-import { fetchLiveNifty, fetchNiftyByDate, snapshotNifty } from "@/api/reportNifty";
+import { fetchLiveNifty, fetchNiftyByDate, fetchNiftyExpiries, snapshotNifty } from "@/api/reportNifty";
 
 export interface NiftyReportPanelProps {
   onOpenSymbol?: (s: string) => void;
 }
-
-const EXPIRY_OPTIONS = ["weekly", "monthly"];
 
 function buildMarkLines(report: NiftyReport): MarkLineData[] {
   const lines: MarkLineData[] = [];
@@ -127,7 +125,8 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
 
 export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const [mode, setMode] = useState<NiftyReportMode>("live");
-  const [expiry, setExpiry] = useState<string>(EXPIRY_OPTIONS[0]);
+  const [expiry, setExpiry] = useState<string>("");
+  const [expiryOptions, setExpiryOptions] = useState<string[]>([]);
   const [date, setDate] = useState<string>("");
   const [report, setReport] = useState<NiftyReport | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
@@ -150,6 +149,20 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       setLoading(false);
     }
   }, [mode, expiry, date]);
+
+  useEffect(() => {
+    let active = true;
+    fetchNiftyExpiries()
+      .then((list) => {
+        if (active) setExpiryOptions(list.map((e) => e.date));
+      })
+      .catch(() => {
+        /* non-fatal: picker falls back to nearest */
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   useEffect(() => {
     if (mode === "live" || (mode === "eod" && date)) {
@@ -175,6 +188,15 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
 
   const markLines = useMemo(
     () => (report ? buildMarkLines(report) : []),
+    [report],
+  );
+
+  /** Readability: full chain is noise — show the ATM window only. */
+  const visibleStrikes = useMemo(
+    () =>
+      report
+        ? report.strikes.filter((s) => Math.abs(s.strike - report.spot) <= 750)
+        : [],
     [report],
   );
 
@@ -206,8 +228,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <Select
             data-testid="nifty-expiry-select"
             value={expiry}
-            onChange={(v) => v && setExpiry(v)}
-            data={EXPIRY_OPTIONS}
+            onChange={(v) => setExpiry(v ?? "")}
+            data={[
+              { value: "", label: "Nearest expiry" },
+              ...expiryOptions.map((d) => ({ value: d, label: d })),
+            ]}
             size="sm"
             w={180}
           />
@@ -331,9 +356,9 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             </CompactPanel>
           )}
 
-          <CompactPanel title="Option-chain OI" testId="nifty-oi-panel">
+          <CompactPanel title="Option-chain OI (±750 ATM)" testId="nifty-oi-panel">
             <TanStackTable<NiftyStrike>
-              data={report.strikes}
+              data={visibleStrikes}
               columns={niftyOiColumns}
               dataTestId="nifty-oi-table"
               emptyMessage="No strikes for this expiry"

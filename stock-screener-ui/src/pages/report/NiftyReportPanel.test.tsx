@@ -10,6 +10,7 @@ import type { NiftyReport } from "@/types/niftyReport";
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
   fetchNiftyByDate: vi.fn(),
+  fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
   snapshotNifty: vi.fn(),
 }));
 
@@ -119,7 +120,7 @@ describe("NiftyReportPanel toolbar", () => {
     });
     await user.click(screen.getByTestId("nifty-snapshot-button"));
     await waitFor(() => {
-      expect(vi.mocked(snapshotNifty)).toHaveBeenCalledWith(undefined, "weekly");
+      expect(vi.mocked(snapshotNifty)).toHaveBeenCalledWith(undefined, "");
     });
   });
 });

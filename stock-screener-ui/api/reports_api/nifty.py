@@ -254,6 +254,17 @@ async def _compute_live(expiry: Optional[str]) -> dict:
     return build_report(chain_expiry or expiry, spot, rows, mode="live")
 
 
+@router.get("/nifty/expiries")
+async def get_nifty_expiries():
+    """Available NIFTY expiry dates for the report expiry picker."""
+    from api.options import get_expiries as _get_expiries
+    try:
+        listing = await _get_expiries("NIFTY")
+        return {"expiries": listing.get("expiries", [])}
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"expiries fetch failed: {e}")
+
+
 @router.get("/nifty/live")
 async def get_nifty_live(expiry: Optional[str] = Query(default=None, description="Expiry YYYY-MM-DD (default: nearest)")):
     """On-demand Nifty report from the live Upstox option chain (60s TTL)."""
