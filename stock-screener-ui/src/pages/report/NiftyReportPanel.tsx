@@ -59,22 +59,75 @@ function buildMarkLines(report: NiftyReport): MarkLineData[] {
   return lines;
 }
 
-function sentimentBadge(sentiment: string) {
-  const tone =
-    sentiment.toLowerCase().includes("bull")
-      ? palette.POSITIVE
-      : sentiment.toLowerCase().includes("bear")
-        ? palette.NEGATIVE
-        : palette.TEXT_MUTED;
+/** Overnight levels derived from the live chain — no static copy. */
+export function buildOvernightLevels(report: NiftyReport): {
+  resistance: { strike: number; pct: number }[];
+  support: { strike: number; pct: number }[];
+  painPull: { dir: string; pct: number };
+  pcrVerdict: string;
+} {
+  const pct = (s: number) =>
+    report.spot > 0 ? ((s - report.spot) / report.spot) * 100 : 0;
+  const resistance = [...report.walls.calls]
+    .map((w) => w.strike)
+    .filter((s) => s > report.spot)
+    .sort((a, b) => a - b)
+    .slice(0, 2)
+    .map((strike) => ({ strike, pct: pct(strike) }));
+  const support = [...report.walls.puts]
+    .map((w) => w.strike)
+    .filter((s) => s < report.spot)
+    .sort((a, b) => b - a)
+    .slice(0, 2)
+    .map((strike) => ({ strike, pct: pct(strike) }));
+  const painPct = pct(report.maxPain);
+  const painPull = {
+    dir: painPct > 0.05 ? "up" : painPct < -0.05 ? "down" : "flat",
+    pct: painPct,
+  };
+  const pcrVerdict =
+    report.pcrOi < 0.7
+      ? `Bearish (PCR-OI ${report.pcrOi.toFixed(2)} — call writers in control)`
+      : report.pcrOi > 1.0
+        ? `Bullish (PCR-OI ${report.pcrOi.toFixed(2)} — put writers in control)`
+        : `Neutral (PCR-OI ${report.pcrOi.toFixed(2)})`;
+  return { resistance, support, painPull, pcrVerdict };
+}
+
+function sentimentBadge(sentiment: string, side: "ce" | "pe") {
+  const code = sentiment.trim().toUpperCase();
+  const label = SENTIMENT_NAMES[code] ?? sentiment;
+  // Same buildup code means opposite things per side:
+  // calls rise on buying (LB/SC bullish), puts rise on fear (LB bearish).
+  const bullish =
+    side === "ce" ? code === "LB" || code === "SC" : code === "SB" || code === "SC";
+  const tone = code === "NEUTRAL" || !SENTIMENT_NAMES[code] ? palette.TEXT_MUTED : bullish ? palette.POSITIVE : palette.NEGATIVE;
   return (
-    <Text size="xs" fw={600} ta="center" c={tone} truncate>
-      {sentiment}
-    </Text>
+    <Box
+      component="span"
+      sx={{
+        display: "inline-block",
+        border: "1px solid",
+        borderColor: tone,
+        borderRadius: 999,
+        px: 1,
+        py: 0.25,
+        maxWidth: "100%",
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        whiteSpace: "nowrap",
+        verticalAlign: "middle",
+      }}
+    >
+      <Text size="xs" fw={600} c={tone} span truncate>
+        {label}
+      </Text>
+    </Box>
   );
 }
 
 /** Numeric cell with tabular figures + ellipsis so 1440px needs no h-scroll. */
-function tabularCell(value: string) {
+function tabularCell(value: string, tone?: "success" | "error") {
   return (
     <Box
       component="span"
@@ -85,9 +138,24 @@ function tabularCell(value: string) {
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      {value}
+      <Text size="xs" span c={tone ?? "default"} fw={tone ? 600 : 400}>
+        {value}
+      </Text>
     </Box>
   );
+}
+
+const SENTIMENT_NAMES: Record<string, string> = {
+  LB: "Long Buildup",
+  SB: "Short Buildup",
+  SC: "Short Cover",
+  LU: "Long Unwind",
+};
+
+function signedTone(v: number): "success" | "error" | undefined {
+  if (v > 0) return "success";
+  if (v < 0) return "error";
+  return undefined;
 }
 
 export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
@@ -97,7 +165,10 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
     accessorFn: (row) => row.ce.priceChange,
     size: 84,
     meta: { align: "right" },
-    cell: (info) => tabularCell(Number(info.getValue()).toFixed(2)),
+    cell: (info) => {
+      const v = Number(info.getValue());
+      return tabularCell(v.toFixed(2), signedTone(v));
+    },
   },
   {
     header: "CE OI Chg",
@@ -105,32 +176,47 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
     accessorFn: (row) => row.ce.oiChange,
     size: 110,
     meta: { align: "right" },
-    cell: (info) =>
-      tabularCell(Number(info.getValue()).toLocaleString("en-IN")),
+    cell: (info) => {
+      const v = Number(info.getValue());
+      return tabularCell(v.toLocaleString("en-IN"), signedTone(v));
+    },
   },
   {
     header: "CE Signal",
     accessorKey: "ce.sentiment",
     accessorFn: (row) => row.ce.sentiment,
-    size: 96,
+    size: 112,
     meta: { align: "center" },
-    cell: (info) => sentimentBadge(String(info.getValue() ?? "")),
+    cell: (info) => sentimentBadge(String(info.getValue() ?? ""), "ce"),
   },
   {
     header: "Strike",
     accessorKey: "strike",
     size: 88,
     meta: { align: "right" },
-    cell: (info) =>
-      tabularCell(Number(info.getValue()).toLocaleString("en-IN")),
+    cell: (info) => (
+      <Box
+        component="span"
+        sx={{
+          display: "block",
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          fontVariantNumeric: "tabular-nums",
+        }}
+      >
+        <Text size="xs" span fw={700}>
+          {Number(info.getValue()).toLocaleString("en-IN")}
+        </Text>
+      </Box>
+    ),
   },
   {
     header: "PE Signal",
     accessorKey: "pe.sentiment",
     accessorFn: (row) => row.pe.sentiment,
-    size: 96,
+    size: 112,
     meta: { align: "center" },
-    cell: (info) => sentimentBadge(String(info.getValue() ?? "")),
+    cell: (info) => sentimentBadge(String(info.getValue() ?? ""), "pe"),
   },
   {
     header: "PE OI Chg",
@@ -138,8 +224,10 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
     accessorFn: (row) => row.pe.oiChange,
     size: 110,
     meta: { align: "right" },
-    cell: (info) =>
-      tabularCell(Number(info.getValue()).toLocaleString("en-IN")),
+    cell: (info) => {
+      const v = Number(info.getValue());
+      return tabularCell(v.toLocaleString("en-IN"), signedTone(v));
+    },
   },
   {
     header: "PE Chg%",
@@ -147,7 +235,10 @@ export const niftyOiColumns: ColumnDef<NiftyStrike>[] = [
     accessorFn: (row) => row.pe.priceChange,
     size: 84,
     meta: { align: "right" },
-    cell: (info) => tabularCell(Number(info.getValue()).toFixed(2)),
+    cell: (info) => {
+      const v = Number(info.getValue());
+      return tabularCell(v.toFixed(2), signedTone(v));
+    },
   },
 ];
 
@@ -225,6 +316,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       report
         ? report.strikes.filter((s) => Math.abs(s.strike - report.spot) <= 750)
         : [],
+    [report],
+  );
+
+  const levels = useMemo(
+    () => (report ? buildOvernightLevels(report) : null),
     [report],
   );
 
@@ -419,39 +515,42 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             />
           </CompactPanel>
 
-          <Box
-            data-testid="nifty-notes-row"
-            sx={{
-              display: "flex",
-              gap: 2,
-              flexWrap: "wrap",
-              width: "100%",
-              minWidth: 0,
-            }}
-          >
-            <CompactPanel
-              title="BTST note"
-              testId="nifty-btst-note"
-              sx={{ flex: "1 1 320px", minWidth: 0 }}
-            >
-              <Text size="sm" c="dimmed">
-                BTST setups historically print 43-52% on roughly half the
-                signals, versus 25-36% for same-day intraday exits. Prefer
-                carrying only A-grade wall-break structures overnight.
+          <CompactPanel title="Tomorrow's levels" testId="nifty-tomorrow-panel">
+            {levels && (
+            <Box data-testid="nifty-levels-row">
+              <CompactStatGrid>
+                {levels.resistance.map((r, i) => (
+                  <CompactStat
+                    key={`r-${r.strike}`}
+                    data-testid={`nifty-level-r${i + 1}`}
+                    label={i === 0 ? "Resistance R1" : "Resistance R2"}
+                    value={`${r.strike.toLocaleString("en-IN")} (${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%)`}
+                  />
+                ))}
+                <CompactStat
+                  data-testid="nifty-level-pain"
+                  label={`Max-pain pull ${levels.painPull.dir}`}
+                  value={`${report.maxPain.toLocaleString("en-IN")} (${levels.painPull.pct >= 0 ? "+" : ""}${levels.painPull.pct.toFixed(2)}%)`}
+                />
+                {levels.support.map((s, i) => (
+                  <CompactStat
+                    key={`s-${s.strike}`}
+                    data-testid={`nifty-level-s${i + 1}`}
+                    label={i === 0 ? "Support S1" : "Support S2"}
+                    value={`${s.strike.toLocaleString("en-IN")} (${s.pct.toFixed(2)}%)`}
+                  />
+                ))}
+              </CompactStatGrid>
+              <Text data-testid="nifty-levels-verdict" size="sm" c="dimmed">
+                {levels.pcrVerdict}. Gap above{" "}
+                {levels.resistance[0]?.strike.toLocaleString("en-IN") ?? "—"}{" "}
+                squeezes call writers; acceptance below{" "}
+                {levels.support[0]?.strike.toLocaleString("en-IN") ?? "—"}{" "}
+                opens the next put wall.
               </Text>
-            </CompactPanel>
-            <CompactPanel
-              title="Model note"
-              testId="nifty-model-note"
-              sx={{ flex: "1 1 320px", minWidth: 0 }}
-            >
-              <Text size="sm" c="dimmed">
-                CE pricing model tracks within ~2% of market; PE shows a
-                persistent skew premium into event expiries. Fade extreme PCR
-                prints back toward the max-pain magnet.
-              </Text>
-            </CompactPanel>
-          </Box>
+            </Box>
+            )}
+          </CompactPanel>
 
           {onOpenSymbol && (
             <Button

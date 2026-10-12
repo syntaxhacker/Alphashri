@@ -256,13 +256,60 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(within(table).getByText("Bearish")).toBeInTheDocument();
   });
 
-  test("timeline items and side-by-side notes render", async () => {
+  test("timeline items and tomorrow's levels render from chain data", async () => {
     r(<NiftyReportPanel />);
     expect(await screen.findByTestId("nifty-timeline-item-0")).toBeInTheDocument();
     expect(screen.getByText("Nifty opened flat")).toBeInTheDocument();
-    const notesRow = screen.getByTestId("nifty-notes-row");
-    expect(notesRow).toBeInTheDocument();
-    expect(within(notesRow).getByTestId("nifty-btst-note")).toBeInTheDocument();
-    expect(within(notesRow).getByTestId("nifty-model-note")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-tomorrow-panel")).toBeInTheDocument();
+    const row = screen.getByTestId("nifty-levels-row");
+    expect(within(row).getByTestId("nifty-level-r1")).toHaveTextContent("25,800 (+0.19%)");
+    expect(within(row).getByTestId("nifty-level-r2")).toHaveTextContent("25,900 (+0.58%)");
+    expect(within(row).getByTestId("nifty-level-pain")).toHaveTextContent("25,700 (-0.20%)");
+    expect(within(row).getByTestId("nifty-level-s1")).toHaveTextContent("25,600 (-0.58%)");
+    expect(within(row).getByTestId("nifty-level-s2")).toHaveTextContent("25,500 (-0.97%)");
+    expect(screen.getByTestId("nifty-levels-verdict")).toHaveTextContent("Bullish (PCR-OI 1.12");
+  });
+
+  test("levels ignore walls on the wrong side of spot", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        walls: {
+          calls: [{ strike: 25000, oi: 9000 }],
+          puts: [{ strike: 26000, oi: 9000 }],
+        },
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const row = await screen.findByTestId("nifty-levels-row");
+    expect(within(row).queryByTestId("nifty-level-r1")).not.toBeInTheDocument();
+    expect(within(row).queryByTestId("nifty-level-s1")).not.toBeInTheDocument();
+  });
+
+  test("buildOvernightLevels math: empty walls, flat pain, threshold verdicts", async () => {
+    const { buildOvernightLevels } = await import("./NiftyReportPanel");
+    const base = mockReport({ walls: { calls: [], puts: [] }, pcrOi: 0.85, maxPain: 25750.5 });
+    const flat = buildOvernightLevels(base);
+    expect(flat.resistance).toEqual([]);
+    expect(flat.support).toEqual([]);
+    expect(flat.painPull.dir).toBe("flat");
+    expect(flat.pcrVerdict).toMatch(/^Neutral/);
+    expect(buildOvernightLevels({ ...base, pcrOi: 0.5 }).pcrVerdict).toMatch(/^Bearish/);
+  });
+
+  test("signal pills show full names with per-side tone", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        strikes: [
+          {
+            strike: 25700,
+            ce: { ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange: 1, priceChange: 1, sentiment: "LB" },
+            pe: { ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange: 1, priceChange: 1, sentiment: "LB" },
+          },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const table = await screen.findByTestId("nifty-oi-table");
+    expect(within(table).getAllByText("Long Buildup")).toHaveLength(2);
   });
 });
