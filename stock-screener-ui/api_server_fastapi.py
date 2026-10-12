@@ -951,6 +951,13 @@ try:
 except Exception as e:
     print(f"⚠️ Could not load POC NQ API: {e}")
 
+try:
+    from api.reports_api.nifty import router as nifty_report_router
+    app.include_router(nifty_report_router)
+    print("✅ Nifty Report API loaded at /api/reports/nifty")
+except Exception as e:
+    print(f"⚠️ Could not load Nifty Report API: {e}")
+
 if __name__ == '__main__':
     port = config.PORT
     print(f'🚀 Alphashri FastAPI running on http://localhost:{port}')
