@@ -19,6 +19,7 @@ from pathlib import Path
 from db.models import get_shared_broker_token
 import config
 from api.fyers_options import resolve_fyers_option_symbol
+from api.positioning import compute_positioning
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
@@ -321,57 +322,82 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
     }
 
 
+async def _fetch_chain_rows(underlying: str, expiry: str):
+    """Fetch Upstox chain and return (rows, spot).
+
+    Shared by /chain and /positioning so both see identical rows/spot.
+    """
+    instrument_key = get_instrument_key(underlying)
+    data = await fetch_upstox("/option/chain", {
+        "instrument_key": instrument_key,
+        "expiry_date": expiry
+    })
+
+    contracts = data.get("data", [])
+    # Reliability fix: Fallback for spot price
+    spot_price = data.get("underlying_spot_price", 0)
+    if not spot_price:
+        spot_price = contracts[0].get("underlying_spot_price", 0) if contracts else 0
+
+    # Third-level fallback: Fetch from OHLC if still 0
+    if not spot_price:
+        try:
+            spot_data = await get_spot_price(underlying)
+            spot_price = spot_data.get("spot", 0)
+        except Exception:
+            pass
+
+    strike_map = {}
+    for item in contracts:
+        strike = item.get("strike_price")
+        if strike not in strike_map:
+            strike_map[strike] = {"strike": strike, "ce": None, "pe": None, "pcr": item.get("pcr")}
+
+        if item.get("call_options"):
+            # Reliability fix: some fields might be at parent level in some API versions
+            call_data = item["call_options"]
+            if not call_data.get("trading_symbol"):
+                call_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}CE"
+            if not call_data.get("expiry"):
+                call_data["expiry"] = expiry
+
+            ce_contract = transform_option_contract(call_data, strike, "CE")
+            strike_map[strike]["ce"] = ce_contract
+
+        if item.get("put_options"):
+            put_data = item["put_options"]
+            if not put_data.get("trading_symbol"):
+                put_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}PE"
+            if not put_data.get("expiry"):
+                put_data["expiry"] = expiry
+
+            pe_contract = transform_option_contract(put_data, strike, "PE")
+            strike_map[strike]["pe"] = pe_contract
+
+    chain = sorted(strike_map.values(), key=lambda x: x["strike"])
+    return chain, spot_price
+
+
 @router.get("/chain/{underlying}")
 async def get_option_chain(
     underlying: str,
     expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
 ):
     """Get complete option chain with server-side analysis."""
-    instrument_key = get_instrument_key(underlying)
-
     try:
-        data = await fetch_upstox("/option/chain", {
-            "instrument_key": instrument_key,
-            "expiry_date": expiry
-        })
+        chain, spot_price = await _fetch_chain_rows(underlying, expiry)
 
-        contracts = data.get("data", [])
-        # Reliability fix: Fallback for spot price
-        spot_price = data.get("underlying_spot_price", 0)
-        if not spot_price:
-            spot_price = contracts[0].get("underlying_spot_price", 0) if contracts else 0
-        
-        # Third-level fallback: Fetch from OHLC if still 0
-        if not spot_price:
-            try:
-                spot_data = await get_spot_price(underlying)
-                spot_price = spot_data.get("spot", 0)
-            except Exception:
-                pass
-
-        strike_map = {}
         total_ce_oi = 0
         total_pe_oi = 0
         atm_iv = 0
         closest_strike_diff = float('inf')
 
-        for item in contracts:
-            strike = item.get("strike_price")
-            if strike not in strike_map:
-                strike_map[strike] = {"strike": strike, "ce": None, "pe": None, "pcr": item.get("pcr")}
-
-            if item.get("call_options"):
-                # Reliability fix: some fields might be at parent level in some API versions
-                call_data = item["call_options"]
-                if not call_data.get("trading_symbol"):
-                    call_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}CE"
-                if not call_data.get("expiry"):
-                    call_data["expiry"] = expiry
-                    
-                ce_contract = transform_option_contract(call_data, strike, "CE")
-                strike_map[strike]["ce"] = ce_contract
+        for row in chain:
+            strike = row["strike"]
+            ce_contract = row.get("ce")
+            if ce_contract:
                 total_ce_oi += ce_contract["market_data"]["oi"]
-                
+
                 # Check for ATM IV
                 diff = abs(strike - spot_price)
                 if diff < closest_strike_diff:
@@ -380,17 +406,10 @@ async def get_option_chain(
                         closest_strike_diff = diff
                         atm_iv = iv
 
-            if item.get("put_options"):
-                put_data = item["put_options"]
-                if not put_data.get("trading_symbol"):
-                    put_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}PE"
-                if not put_data.get("expiry"):
-                    put_data["expiry"] = expiry
-
-                pe_contract = transform_option_contract(put_data, strike, "PE")
-                strike_map[strike]["pe"] = pe_contract
+            pe_contract = row.get("pe")
+            if pe_contract:
                 total_pe_oi += pe_contract["market_data"]["oi"]
-                
+
                 # Check for ATM IV (only if CE didn't give us a better one)
                 diff = abs(strike - spot_price)
                 if diff < closest_strike_diff:
@@ -398,8 +417,6 @@ async def get_option_chain(
                     if iv > 0:
                         closest_strike_diff = diff
                         atm_iv = iv
-
-        chain = sorted(strike_map.values(), key=lambda x: x["strike"])
         
         # Calculate DS Summary
         expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
@@ -430,6 +447,43 @@ async def get_option_chain(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch option chain: {str(e)}")
+
+
+@router.get("/positioning/{underlying}")
+async def get_positioning(
+    underlying: str,
+    expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
+    mode: str = Query("since_open", description="Baseline mode (v1: only 'since_open')"),
+):
+    """Delta-weighted positioning: who initiated today (writers vs buyers).
+
+    v1 note: ``mode`` is echoed back but does not change the numbers —
+    Upstox ``prev_oi`` is the prior-session close OI, so "since open"
+    ≈ "vs prev close". A second baseline mode may arrive in v2.
+    """
+    try:
+        chain, spot_price = await _fetch_chain_rows(underlying, expiry)
+        lot_size = next(
+            (u["lot_size"] for u in AVAILABLE_UNDERLYINGS if u["symbol"] == underlying),
+            1,
+        )
+        pos = compute_positioning(chain, spot_price, lot_size)
+        return {
+            "status": "ok",
+            "underlying": underlying,
+            "expiry": expiry,
+            "mode": mode,
+            "spot": spot_price,
+            "lot_size": lot_size,
+            "timestamp": datetime.now(config.IST).isoformat(),
+            "baseline": "prev_close_oi",
+            "baseline_note": "Upstox prev_oi is prior-session close OI; 'since open' ≈ 'vs prev close'.",
+            **pos,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch positioning: {str(e)}")
 
 
 def _fetch_spot_history_sync(underlying: str):
