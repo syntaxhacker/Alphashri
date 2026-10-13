@@ -230,7 +230,7 @@ def score_recent_articles(limit: int = MAX_HEADLINES) -> dict[str, int]:
     (move=false) still get an impact score so they are not re-scored forever.
     Returns ``{"scored": n, "moved": n}``; never raises.
     """
-    stats = {"scored": 0, "moved": 0, "throttled": 0}
+    stats = {"scored": 0, "moved": 0, "throttled": 0, "skipped": 0}
     if _throttled():
         stats["throttled"] = 1
         return stats
@@ -250,13 +250,37 @@ def score_recent_articles(limit: int = MAX_HEADLINES) -> dict[str, int]:
             if not rows:
                 return stats
 
+            # Rows with no usable headline can never be scored. Mark them
+            # terminal so they are not re-selected every cycle — otherwise the
+            # same dead rows keep consuming a free-tier call for zero work.
+            scorable: list = []
+            for row in rows:
+                if row.headline and str(row.headline).strip():
+                    scorable.append(row)
+                else:
+                    row.impact_score = 0
+                    row.sentiment = "neutral"
+                    row.analysis_json = json.dumps({
+                        "market_moving": False,
+                        "skipped": "empty headline",
+                        "source": "openrouter_news_impact",
+                    })
+                    stats["skipped"] += 1
+
+            if not scorable:
+                db.commit()
+                return stats
+
+            # Only consume free-tier quota once there is real work to do.
             _record_call()
-            verdicts = score_headlines([r.headline for r in rows])
+            verdicts = score_headlines([r.headline for r in scorable])
             if not verdicts:
+                db.commit()  # keep the skipped-row marks
                 return stats
 
             for v in verdicts:
-                row = rows[v["index"]]
+                # `index` maps into `scorable`, NOT into `rows`.
+                row = scorable[v["index"]]
                 row.impact_score = v["impact"] if v["move"] else 0
                 row.sentiment = v["dir"]
                 row.analysis_json = json.dumps({

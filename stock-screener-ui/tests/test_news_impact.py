@@ -253,3 +253,126 @@ class TestFreeTierThrottle:
         assert out["throttled"] == 1
         assert out["scored"] == 0
         assert called["post"] == 0
+
+
+# --------------------------------------------------- score_recent_articles
+
+class _Row:
+    def __init__(self, headline):
+        self.headline = headline
+        self.impact_score = None
+        self.sentiment = None
+        self.analysis_json = None
+
+
+class _ChainableQuery:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def filter(self, *a, **k):
+        return self
+
+    def order_by(self, *a, **k):
+        return self
+
+    def limit(self, *a, **k):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _Session:
+    def __init__(self, rows):
+        self._rows = rows
+        self.committed = 0
+        self.closed = False
+
+    def query(self, *a, **k):
+        return _ChainableQuery(self._rows)
+
+    def commit(self):
+        self.committed += 1
+
+    def close(self):
+        self.closed = True
+
+
+class _Col:
+    """Stub SQLAlchemy column: supports the expressions the query builds."""
+    def is_(self, other):
+        return self
+
+    def desc(self):
+        return self
+
+    def nullslast(self):
+        return self
+
+
+class _FakeModel:
+    impact_score = _Col()
+    published_at = _Col()
+
+
+def _patch_db(monkeypatch, rows):
+    """Point score_recent_articles at a fake session holding `rows`."""
+    import db.database as database
+    import db.models.news as news_models
+    session = _Session(rows)
+    monkeypatch.setattr(database, "SessionLocal", lambda: session)
+    monkeypatch.setattr(news_models, "NewsArticle", _FakeModel)
+    return session
+
+
+class TestScoreRecentArticles:
+    def setup_method(self):
+        news_impact._last_call_ts = 0.0
+        news_impact._calls_today = 0
+        news_impact._calls_day = ""
+
+    def test_blank_headline_rows_are_marked_terminal_without_a_model_call(self, monkeypatch):
+        """Regression: blank headlines stayed impact_score=NULL, so every cycle
+        re-selected them and burnt a free-tier call for zero work."""
+        rows = [_Row("   "), _Row("")]
+        session = _patch_db(monkeypatch, rows)
+        called = {"n": 0}
+        monkeypatch.setattr(news_impact, "score_headlines",
+                            lambda *a, **k: called.__setitem__("n", called["n"] + 1) or [])
+
+        stats = news_impact.score_recent_articles()
+
+        assert stats["skipped"] == 2
+        assert stats["scored"] == 0
+        assert called["n"] == 0                      # no quota burnt
+        assert news_impact._calls_today == 0
+        assert all(r.impact_score == 0 for r in rows)  # now terminal
+        assert session.committed == 1
+
+    def test_verdict_indexes_map_into_the_scorable_list_not_the_raw_rows(self, monkeypatch):
+        """The filter shifts indices; using the raw row list would mis-assign."""
+        rows = [_Row("   "), _Row("Real headline one is long enough"), _Row("Real headline two is long enough")]
+        session = _patch_db(monkeypatch, rows)
+        # model returns index 0 -> must hit the FIRST SCORABLE row (index 1 overall)
+        monkeypatch.setattr(news_impact, "score_headlines", lambda *a, **k: [
+            {"index": 0, "move": True, "symbol": "NIFTY", "dir": "bullish",
+             "impact": 5, "why": "w", "model": "m"},
+        ])
+
+        stats = news_impact.score_recent_articles()
+
+        assert stats["skipped"] == 1
+        assert stats["scored"] == 1
+        assert stats["moved"] == 1
+        assert rows[0].impact_score == 0            # blank -> terminal 0
+        assert rows[1].impact_score == 5            # verdict landed here
+        assert rows[2].impact_score is None         # untouched
+        assert news_impact._calls_today == 1
+        assert session.committed == 1
+
+    def test_quota_is_only_consumed_when_there_is_real_work(self, monkeypatch):
+        rows = [_Row("A perfectly good headline that is long enough")]
+        _patch_db(monkeypatch, rows)
+        monkeypatch.setattr(news_impact, "score_headlines", lambda *a, **k: [])
+        news_impact.score_recent_articles()
+        assert news_impact._calls_today == 1  # a real call was attempted
