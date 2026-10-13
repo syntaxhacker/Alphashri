@@ -65,10 +65,14 @@ export interface OiBurst {
   news?: NiftyBurstNews[];
   /** Session trend at this minute (attached by the panel from the tape). */
   trend?: "up" | "down" | null;
-  /** "squeeze" = wall break with unwinding OI (momentum), absent = OI burst (fade). */
-  type?: "burst" | "squeeze";
+  /** "squeeze" = wall break (momentum); "strike" = single-strike explosion. */
+  type?: "burst" | "squeeze" | "strike";
   /** Wall strike the squeeze broke through. */
   wall?: number;
+  /** Exact strike a per-strike burst names (overrides nearest-to-spot). */
+  strike?: number;
+  /** "CE" | "PE" for a per-strike burst. */
+  leg?: string;
 }
 
 /* ------------------------------------------------------------------ signal */
@@ -186,7 +190,14 @@ export function deriveOiSignal(
   const pick = candidates[0];
   if (!pick) return null;
 
-  const entry = round2(pick.ltp);
+  // A per-strike burst names its own strike — use it instead of nearest-to-spot.
+  const wantStrike = typeof burst.strike === "number" ? burst.strike : undefined;
+  const exact = wantStrike !== undefined
+    ? candidates.find((c) => c.strike === wantStrike)
+    : undefined;
+  const chosen = exact ?? pick;
+
+  const entry = round2(chosen.ltp);
   const sl = round2(entry * (1 - slPct / 100));
   const target = round2(entry * (1 + tpPct / 100));
   const riskPerUnit = Math.max(0.05, entry - sl);
@@ -217,7 +228,7 @@ export function deriveOiSignal(
     if (!aligned) basis = `COUNTER-TREND (session ${trend}) — skip: ${basis}`;
   }
 
-  return { leg, strike: pick.strike, entry, sl, target, qty, lots, basis, trend, aligned };
+  return { leg, strike: chosen.strike, entry, sl, target, qty, lots, basis, trend, aligned };
 }
 
 function median(values: number[]): number {

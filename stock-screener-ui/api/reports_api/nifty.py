@@ -33,6 +33,7 @@ from api.reports_api.nifty_bursts import (
     derive_oi_signal,
     detect_oi_bursts,
     detect_squeezes,
+    detect_strike_bursts,
     session_trend,
 )
 
@@ -601,6 +602,34 @@ def _atm_premium_snapshot(strikes: list, spot: float) -> tuple[Optional[float], 
     return best[1], best[2], best[3]
 
 
+def _strike_oi_snapshot(strikes: list, spot: float, n: int = 3) -> list[dict]:
+    """ATM ± ``n`` strikes with both legs' OI, for per-strike burst detection.
+
+    The index totals in a tape row dilute a single strike exploding (16M at one
+    strike is a rounding error across 100+ strikes), so the alert could never
+    say WHICH strike. Empty list when nothing is usable.
+    """
+    rows = []
+    for r in strikes or []:
+        try:
+            strike = _safe_float(r.get("strike"))
+        except Exception:
+            continue
+        if not strike:
+            continue
+        rows.append({
+            "strike": strike,
+            "ce_oi": _safe_int((r.get("ce") or {}).get("oi")),
+            "pe_oi": _safe_int((r.get("pe") or {}).get("oi")),
+        })
+    if not rows or not spot:
+        return []
+    rows.sort(key=lambda x: abs(x["strike"] - spot))
+    kept = rows[: max(1, 2 * n + 1)]
+    kept.sort(key=lambda x: x["strike"])
+    return kept
+
+
 async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dict]:
     """Record ONE per-minute tape row from the live chain; never raises.
     Reuses ``_compute_live(None)`` (nearest expiry, no candle walkback) and
@@ -649,6 +678,9 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             "atm_strike": atm_strike,
             "atm_ce_ltp": atm_ce_ltp,
             "atm_pe_ltp": atm_pe_ltp,
+            # ATM +/-3 strikes with both legs' OI — lets a future alert name the
+            # exact strike instead of only the index total.
+            "strikes_top": _strike_oi_snapshot(strikes, _safe_float(report.get("spot"))),
         }
         path = tape_path(date_str)
         minute = t_iso[:16]
@@ -852,9 +884,13 @@ def get_nifty_bursts(
     bursts = detect_oi_bursts(rows, window=window, min_abs=min_abs)
     try:
         bursts += detect_squeezes(rows)
-        bursts.sort(key=lambda b: str(b.get("t") or ""))
     except Exception:
         pass
+    try:
+        bursts += detect_strike_bursts(rows)
+    except Exception:
+        pass
+    bursts.sort(key=lambda b: str(b.get("t") or ""))
     strikes, spot = _snapshot_oi_context(date_str)
     try:
         trend = session_trend(rows)

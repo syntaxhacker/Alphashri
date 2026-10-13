@@ -313,6 +313,15 @@ describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
     expect(burst.news?.[1].minutesAway).toBe(5);
   });
 
+  test("maps a per-strike burst's type, strike and leg", () => {
+    const b = normalizeBurst({
+      id: "s1", side: "call", t: "14:33", type: "strike", strike: 22750, leg: "CE",
+    });
+    expect(b.type).toBe("strike");
+    expect(b.strike).toBe(22750);
+    expect(b.leg).toBe("CE");
+  });
+
   test("missing or malformed news yields an empty list, never null", () => {
     expect(normalizeBurst({ side: "call" }).news).toEqual([]);
     expect(normalizeBurst({ side: "call", news: "nope" }).news).toEqual([]);

@@ -281,6 +281,87 @@ def detect_squeezes(
     return out
 
 
+# -------------------------------------------------------- per-strike bursts
+
+#: A single strike must move at least this much OI to be worth an alert —
+#: higher than the index threshold because one strike is a much sharper event.
+STRIKE_BURST_MIN_ABS = 1_000_000.0
+#: Per-strike alerts are stricter than index ones (score >= alert tier).
+STRIKE_BURST_MIN_SCORE = 4.0
+
+
+def detect_strike_bursts(
+    rows: list[dict],
+    min_abs: float = STRIKE_BURST_MIN_ABS,
+    window: int = 10,
+    warmup: int = 3,
+) -> list[dict[str, Any]]:
+    """Single-strike OI explosions — names the exact strike and leg.
+
+    Index totals dilute a strike: 16M contracts at one strike is invisible
+    against a 300M total. Every series is (strike, leg), so the alert can say
+    "22,750 CE +6.2M" instead of only "call OI burst". Needs the tape's
+    ``strikes_top`` field, so it is a no-op on tapes recorded before it.
+    """
+    by_t: dict[str, dict] = {}
+    for r in rows or []:
+        t = r.get("t")
+        if isinstance(t, str) and t:
+            by_t[t] = r
+    ordered = [by_t[k] for k in sorted(by_t)]
+
+    def oi_map(row: dict) -> dict[tuple[float, str], float]:
+        out: dict[tuple[float, str], float] = {}
+        for s in (row.get("strikes_top") or []):
+            if not isinstance(s, dict):
+                continue
+            strike = _f(s.get("strike"))
+            if not strike:
+                continue
+            out[(strike, "ce")] = _f(s.get("ce_oi"))
+            out[(strike, "pe")] = _f(s.get("pe_oi"))
+        return out
+
+    history: dict[tuple[float, str], list[float]] = {}
+    out: list[dict[str, Any]] = []
+
+    for i in range(1, len(ordered)):
+        prev_oi = oi_map(ordered[i - 1])
+        cur_row = ordered[i]
+        cur_oi = oi_map(cur_row)
+        if not prev_oi or not cur_oi:
+            continue
+
+        for key, cur in cur_oi.items():
+            if key not in prev_oi:
+                continue
+            strike, leg = key
+            d = cur - prev_oi[key]
+            magnitude = abs(d)
+            hist = history.setdefault(key, [])
+            if len(hist) >= warmup:
+                baseline = max(min_abs / 3.0, statistics.median(hist[-window:]))
+                score = magnitude / baseline if baseline > 0 else 0.0
+                if magnitude >= min_abs and score >= STRIKE_BURST_MIN_SCORE:
+                    out.append({
+                        "id": f"{cur_row['t']}-strike-{strike:.0f}-{leg}",
+                        "type": "strike",
+                        "side": "call" if leg == "ce" else "put",
+                        "leg": leg.upper(),
+                        "strike": strike,
+                        "t": cur_row["t"],
+                        "delta": d,
+                        "baseline": baseline,
+                        "score": round(score, 3),
+                        "severity": severity_for_score(score),
+                        "cumDoi": _f(cur_row.get(f"{'call' if leg == 'ce' else 'put'}_doi")),
+                        "spot": _f(cur_row.get("spot")),
+                        "tickVol": 0.0,
+                    })
+            hist.append(magnitude)
+    return out
+
+
 def _round2(v: float) -> float:
     return round(v, 2)
 
@@ -421,8 +502,14 @@ def derive_oi_signal(
     if not candidates:
         return None
 
-    candidates.sort(key=lambda c: c[0])
-    _, strike, entry = candidates[0]
+    # A per-strike burst names its own strike — use it instead of nearest-to-spot.
+    want_strike = _f(burst.get("strike"))
+    exact = [c for c in candidates if want_strike and c[1] == want_strike]
+    if exact:
+        _, strike, entry = exact[0]
+    else:
+        candidates.sort(key=lambda c: c[0])
+        _, strike, entry = candidates[0]
     entry = _round2(entry)
     sl = _round2(entry * (1 - sl_pct / 100.0))
     target = _round2(entry * (1 + tp_pct / 100.0))

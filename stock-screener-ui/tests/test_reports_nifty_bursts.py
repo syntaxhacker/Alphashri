@@ -430,3 +430,85 @@ class TestDetectSqueezes:
         sq = [b for b in out["bursts"] if b.get("type") == "squeeze"][0]
         assert sq["signal"]["leg"] == "CE"
         assert sq["signal"]["aligned"] is True
+
+
+# ---------------------------------------------------- per-strike bursts
+
+class TestDetectStrikeBursts:
+    """A single strike exploding is invisible in the index total — these
+    alerts name the exact strike and leg."""
+
+    @staticmethod
+    def _row(t, strike, ce_oi, pe_oi):
+        return {"t": t, "spot": 22700, "call_doi": 0, "put_doi": 0,
+                "call_tick": 0, "put_tick": 0,
+                "strikes_top": [{"strike": strike, "ce_oi": ce_oi, "pe_oi": pe_oi}]}
+
+    def _tape(self, ce_series):
+        return [self._row(f"2026-10-13T14:{20 + i:02d}:00+05:30", 22750.0, ce, 1_000_000)
+                for i, ce in enumerate(ce_series)]
+
+    def test_single_strike_explosion_is_detected(self):
+        from api.reports_api.nifty_bursts import detect_strike_bursts
+        ce = [100_000 * i for i in range(14)]
+        ce[-1] += 6_200_000
+        out = detect_strike_bursts(self._tape(ce))
+        assert len(out) == 1
+        b = out[0]
+        assert b["type"] == "strike"
+        assert b["leg"] == "CE"
+        assert b["side"] == "call"
+        assert b["strike"] == 22750.0
+        assert b["delta"] == 6_300_000     # +6.2M spike on a +100k/minute series
+        assert b["severity"] == "critical"
+
+    def test_small_move_is_ignored(self):
+        from api.reports_api.nifty_bursts import detect_strike_bursts
+        ce = [100_000 * i for i in range(14)]
+        ce[-1] += 400_000          # below STRIKE_BURST_MIN_ABS
+        assert detect_strike_bursts(self._tape(ce)) == []
+
+    def test_old_tape_without_strikes_top_is_a_noop(self):
+        from api.reports_api.nifty_bursts import detect_strike_bursts
+        rows = [{"t": "09:15", "spot": 100}, {"t": "09:16", "spot": 101}]
+        assert detect_strike_bursts(rows) == []
+
+    def test_put_leg_explosion_names_the_put(self):
+        from api.reports_api.nifty_bursts import detect_strike_bursts
+        rows = []
+        pe = 0
+        for i in range(14):
+            pe += 100_000
+            rows.append(self._row(f"2026-10-13T14:{20 + i:02d}:00+05:30", 22500.0, 1_000_000, pe))
+        rows[-1]["strikes_top"] = [{"strike": 22500.0, "ce_oi": 1_000_000,
+                                    "pe_oi": pe + 5_000_000}]
+        out = detect_strike_bursts(rows)
+        assert out and out[0]["leg"] == "PE" and out[0]["side"] == "put"
+
+    def test_signal_uses_the_named_strike_not_the_nearest(self):
+        from api.reports_api.nifty_bursts import derive_oi_signal
+        chain = [{"strike": 22700.0, "ce": {"ltp": 22.0}, "pe": {"ltp": 28.0}},
+                 {"strike": 22750.0, "ce": {"ltp": 9.0}, "pe": {"ltp": 60.0}}]
+        burst = {"type": "strike", "side": "call", "strike": 22750.0, "delta": 6_200_000.0}
+        sig = derive_oi_signal(burst, chain, 22_720.0, trend="up")
+        assert sig["strike"] == 22750.0     # named, even though 22,700 is nearer
+
+    def test_endpoint_includes_strike_bursts(self, _tmp_tape, _tmp_snapshots):
+        rows = []
+        for i in range(14):
+            rows.append({
+                "t": f"2026-10-13T14:{20 + i:02d}:00+05:30", "spot": 22700.0,
+                "ce_oi": 1000 * i, "pe_oi": 0, "ce_vol": 0, "pe_vol": 0,
+                "pcr_oi": 1.0, "max_pain": 22700, "flip": 22700,
+                "walls": {"calls": [{"strike": 23000.0, "oi": 9_000_000}],
+                          "puts": [{"strike": 22000.0, "oi": 9_000_000}]},
+                "strikes_top": [{"strike": 22750.0, "ce_oi": 100_000 * i,
+                                 "pe_oi": 1_000_000}],
+            })
+        rows[-1]["strikes_top"] = [{"strike": 22750.0, "ce_oi": 100_000 * 13 + 6_200_000,
+                                    "pe_oi": 1_000_000}]
+        _write_tape(_tmp_tape, rows)
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        strikes = [b for b in out["bursts"] if b.get("type") == "strike"]
+        assert strikes, "expected a per-strike burst in the feed"
+        assert strikes[0]["strike"] == 22750.0

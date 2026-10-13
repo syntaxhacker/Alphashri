@@ -419,3 +419,26 @@ describe("squeeze trigger (momentum, not fade)", () => {
     expect(a.detail).not.toContain("COUNTER-TREND");
   });
 });
+
+describe("per-strike bursts", () => {
+  const chain = [
+    { strike: 22_700, ce: { ltp: 22 }, pe: { ltp: 28 } },
+    { strike: 22_750, ce: { ltp: 9 }, pe: { ltp: 60 } },
+  ];
+
+  test("the named strike wins over nearest-to-spot", () => {
+    const b = { id: "s", side: "call" as const, t: "14:33", delta: 6_300_000,
+      baseline: 300_000, score: 18.9, severity: "critical" as const, cumDoi: 0,
+      spot: 22_720, tickVol: 0, type: "strike" as const, strike: 22_750, leg: "CE" };
+    const s = deriveOiSignal(b, chain, 22_720, { trend: "up" })!;
+    expect(s.strike).toBe(22_750);   // not 22,700, which is nearer to spot
+  });
+
+  test("falls back to nearest-to-spot when the named strike is not in the chain", () => {
+    const b = { id: "s", side: "call" as const, t: "14:33", delta: 6_300_000,
+      baseline: 300_000, score: 18.9, severity: "critical" as const, cumDoi: 0,
+      spot: 22_720, tickVol: 0, type: "strike" as const, strike: 99_999 };
+    const s = deriveOiSignal(b, chain, 22_720, { trend: "up" })!;
+    expect(s.strike).toBe(22_700);
+  });
+});

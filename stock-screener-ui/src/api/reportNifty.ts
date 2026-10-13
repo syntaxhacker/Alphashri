@@ -413,8 +413,12 @@ export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
     tickVol: num(raw.tickVol ?? raw.tick_vol),
     signal: normalizeBurstSignal(raw.signal),
     news: normalizeBurstNews(raw.news),
-    ...(raw.type === "squeeze" ? { type: "squeeze" as const } : {}),
+    ...(raw.type === "squeeze" || raw.type === "strike"
+      ? { type: raw.type as "squeeze" | "strike" }
+      : {}),
     ...(raw.wall !== undefined && raw.wall !== null ? { wall: num(raw.wall) } : {}),
+    ...(raw.strike !== undefined && raw.strike !== null ? { strike: num(raw.strike) } : {}),
+    ...(typeof raw.leg === "string" ? { leg: raw.leg } : {}),
   };
 }
 
