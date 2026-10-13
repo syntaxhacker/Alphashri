@@ -4,6 +4,9 @@
 
 import { fetchWithAuth } from "../state/auth";
 import type {
+  NiftyBurst,
+  NiftyBurstNews,
+  NiftyBurstSignal,
   NiftyGex,
   NiftyGexLevel,
   NiftyGexStrike,
@@ -326,4 +329,108 @@ export async function fetchNiftyTape(
     ...(flip !== 0 ? { flip } : {}),
     walls: normalizeTopWalls(raw.walls),
   };
+}
+
+const BURST_SEVERITIES = ["info", "watch", "alert", "critical"] as const;
+
+/** True when a value is actually present (not undefined/null/empty string). */
+function present(value: unknown): boolean {
+  return value !== undefined && value !== null && value !== "";
+}
+
+function asFinite(value: unknown): number | null {
+  const n = typeof value === "string" ? Number(value) : (value as number);
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+/**
+ * Burst signal block — snake_case-tolerant (`signal_leg ?? leg`). Returns `null`
+ * unless strike and entry are both present and finite, so a partial block never
+ * leaks into the UI as a half-tradeable object.
+ */
+function normalizeBurstSignal(raw: unknown): NiftyBurstSignal | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const s = raw as Record<string, unknown>;
+  const strikeRaw = s.signal_strike ?? s.strike;
+  const entryRaw = s.signal_entry ?? s.entry;
+  const strike = asFinite(strikeRaw);
+  const entry = asFinite(entryRaw);
+  if (!present(strikeRaw) || !present(entryRaw)) return null;
+  if (strike === null || strike <= 0 || entry === null || entry <= 0) return null;
+  const legRaw = String(s.signal_leg ?? s.leg ?? "").toUpperCase();
+  return {
+    leg: legRaw === "PE" ? "PE" : "CE",
+    strike,
+    entry,
+    sl: num(s.signal_sl ?? s.sl),
+    target: num(s.signal_target ?? s.target),
+    qty: num(s.signal_qty ?? s.qty),
+    lots: num(s.signal_lots ?? s.lots),
+    basis: String(s.signal_basis ?? s.basis ?? ""),
+  };
+}
+
+/** One burst alert, snake_case-tolerant; unknown side/severity coerce to safe defaults. */
+function normalizeBurstNews(raw: unknown): NiftyBurstNews[] {
+  if (!Array.isArray(raw)) return [];
+  return raw
+    .map((entry) => {
+      const r = (entry ?? {}) as Record<string, unknown>;
+      const heading = r.heading ?? r.headline;
+      if (typeof heading !== "string" || heading.length === 0) return null;
+      return {
+        heading,
+        link: String(r.link ?? r.url ?? r.article_link ?? ""),
+        source: String(r.source ?? ""),
+        minutesAway: num(r.minutesAway ?? r.minutes_away),
+      } satisfies NiftyBurstNews;
+    })
+    .filter((x): x is NiftyBurstNews => x !== null);
+}
+
+export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
+  const side: NiftyBurst["side"] = raw.side === "put" ? "put" : "call";
+  const sevRaw = String(raw.severity ?? "").toLowerCase();
+  const severity = (BURST_SEVERITIES as readonly string[]).includes(sevRaw)
+    ? (sevRaw as NiftyBurst["severity"])
+    : "watch";
+  return {
+    id: String(raw.id ?? ""),
+    side,
+    t: String(raw.t ?? raw.time ?? ""),
+    delta: num(raw.delta),
+    baseline: num(raw.baseline),
+    score: num(raw.score),
+    severity,
+    cumDoi: num(raw.cumDoi ?? raw.cum_doi),
+    spot: num(raw.spot),
+    tickVol: num(raw.tickVol ?? raw.tick_vol),
+    signal: normalizeBurstSignal(raw.signal),
+    news: normalizeBurstNews(raw.news),
+  };
+}
+
+/**
+ * `GET /api/reports/nifty/bursts` — additive alerting feed. It must never break
+ * the page: any non-ok response, parse failure, network error, or abort yields `[]`.
+ */
+export async function fetchNiftyBursts(
+  date?: string,
+  signal?: AbortSignal,
+): Promise<NiftyBurst[]> {
+  const url = date
+    ? `${NIFTY_API_BASE}/bursts?date=${encodeURIComponent(date)}`
+    : `${NIFTY_API_BASE}/bursts`;
+  try {
+    const response = await fetchWithAuth(url, { signal });
+    if (!response.ok) return [];
+    const data = await response.json().catch(() => null);
+    const rows = Array.isArray(data)
+      ? data
+      : (data as { bursts?: unknown } | null)?.bursts;
+    if (!Array.isArray(rows)) return [];
+    return rows.map((r) => normalizeBurst((r ?? {}) as Record<string, unknown>));
+  } catch {
+    return [];
+  }
 }

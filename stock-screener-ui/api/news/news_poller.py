@@ -202,6 +202,21 @@ async def news_poller_task():
                 await asyncio.sleep(60)
                 continue
 
+            # Upstox News API (instrument-keyed, 7-day window). Independent of
+            # the HTML scrapers — no-op when there is no valid token, so a
+            # stale token can never stall the cycle.
+            try:
+                from api.news.upstox_news import ingest_upstox_news
+
+                up_stats = await asyncio.to_thread(ingest_upstox_news)
+                if up_stats.get("inserted"):
+                    poller_logger.info(
+                        "📰 upstox news: +%s new (%s fetched)",
+                        up_stats["inserted"], up_stats["fetched"],
+                    )
+            except Exception as exc:
+                poller_logger.debug("upstox news skipped: %s", exc)
+
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
 
             # Skip sources that consistently return nothing (tracked across cycles)

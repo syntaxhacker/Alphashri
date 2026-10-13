@@ -500,3 +500,61 @@ describe("NiftyTapeTable", () => {
     });
   });
 });
+
+describe("tape burst spine", () => {
+  test("burst minutes carry the side-specific spine class", () => {
+    r(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" }), tapeRow({ t: "09:17" })]}
+        bursts={
+          new Map([
+            ["09:15", "call"],
+            ["09:16", "put"],
+          ])
+        }
+      />,
+    );
+    const table = screen.getByTestId("nifty-tape-table");
+    const rows = within(table).getAllByTestId("nifty-tape-row");
+    const byTime = new Map(
+      within(table)
+        .getAllByTestId("nifty-tape-time")
+        .map((el, i) => [el.textContent, rows[i]]),
+    );
+    expect(byTime.get("09:15")?.className).toContain("tape-burst-call");
+    expect(byTime.get("09:16")?.className).toContain("tape-burst-put");
+    expect(byTime.get("09:17")?.className).not.toContain("tape-burst");
+  });
+
+  test("the newest burst minute carries both tape-latest and the burst class", () => {
+    r(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]}
+        bursts={new Map([["09:16", "call"]])}
+      />,
+    );
+    const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
+    // newest-first → row 0 is 09:16, the newest AND a burst minute
+    expect(rows[0].className).toContain("tape-latest");
+    expect(rows[0].className).toContain("tape-burst-call");
+  });
+
+  test("a row absent from the bursts map gets no burst class", () => {
+    r(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]}
+        bursts={new Map([["09:15", "call"]])}
+      />,
+    );
+    const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
+    // newest-first → 09:16 (absent) is row 0, 09:15 (call burst) is row 1
+    expect(rows[0].className).not.toContain("tape-burst");
+    expect(rows[1].className).toContain("tape-burst-call");
+  });
+
+  test("heat legend renders the burst-minute key", () => {
+    r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    const legend = screen.getByTestId("nifty-tape-heat-legend");
+    expect(within(legend).getByTestId("nifty-tape-burst-legend")).toHaveTextContent("burst minute");
+  });
+});

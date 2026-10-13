@@ -589,11 +589,14 @@ export function NiftyTapeTable({
   rows,
   tape,
   live = false,
+  bursts,
 }: {
   rows: NiftyTapeRow[];
   tape?: NiftyTape;
   /** Live mode: show the pulsing LIVE dot; EOD hides it. */
   live?: boolean;
+  /** Minute → side that triggered an OI burst (marks the row with a spine). */
+  bursts?: Map<string, "call" | "put">;
 }) {
   const [order, setOrder] = useState<"newest" | "oldest">("newest");
   // Live tick feedback: which minute just arrived (row flash) and which
@@ -815,6 +818,15 @@ export function NiftyTapeTable({
             boxShadow: "1px 0 0 0 #1F1F1F",
           },
           "& th:first-of-type": { zIndex: 3 },
+          // OI-burst minutes get a coloured spine on the IST cell — the same
+          // blue/orange language as the tape columns. Declared after the
+          // latest-row rule so it wins on the newest minute.
+          "& tbody tr.tape-burst-call .paper-tanstack-cell:first-of-type": {
+            boxShadow: `inset 3px 0 0 0 ${TAPE_CALL_DOI}`,
+          },
+          "& tbody tr.tape-burst-put .paper-tanstack-cell:first-of-type": {
+            boxShadow: `inset 3px 0 0 0 ${TAPE_PUT_DOI}`,
+          },
           // Live tick animations — inset glow fades out (background can't be
           // animated here because cells pin it with !important).
           "@keyframes tapeRowFlash": {
@@ -841,9 +853,15 @@ export function NiftyTapeTable({
           fillContainer
           enableSorting={false}
           getRowTestId={() => "nifty-tape-row"}
-          getRowClassName={(row) =>
-            row.t === flashT ? "tape-flash" : row.t === latestT ? "tape-latest" : undefined
-          }
+          getRowClassName={(row) => {
+            const cls: string[] = [];
+            const side = bursts?.get(row.t);
+            if (side === "call") cls.push("tape-burst-call");
+            else if (side === "put") cls.push("tape-burst-put");
+            if (row.t === flashT) cls.push("tape-flash");
+            else if (row.t === latestT) cls.push("tape-latest");
+            return cls.length > 0 ? cls.join(" ") : undefined;
+          }}
         />
       </Box>
       <Box
@@ -866,6 +884,11 @@ export function NiftyTapeTable({
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           <Box sx={{ width: 10, height: 8, background: hexToRgba(TAPE_NET_HUE, 0.7), borderRadius: 0.5 }} />
           <Text size="xs" c="dimmed" span>net OI</Text>
+        </Box>
+        <Box data-testid="nifty-tape-burst-legend" sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Box sx={{ width: 10, height: 8, background: TAPE_CALL_DOI, borderRadius: 0.5 }} />
+          <Box sx={{ width: 10, height: 8, background: TAPE_PUT_DOI, borderRadius: 0.5 }} />
+          <Text size="xs" c="dimmed" span>burst minute</Text>
         </Box>
         <Text size="xs" c="dimmed" span>· brighter = bigger print</Text>
       </Box>

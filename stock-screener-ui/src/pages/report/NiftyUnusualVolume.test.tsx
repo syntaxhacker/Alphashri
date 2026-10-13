@@ -22,6 +22,7 @@ vi.mock("@/api/reportNifty", () => ({
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
   fetchNiftyTape: vi.fn(),
+  fetchNiftyBursts: vi.fn().mockResolvedValue([]),
   snapshotNifty: vi.fn(),
 }));
 

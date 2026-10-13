@@ -1,5 +1,5 @@
 import type { AlertSeverity, MarketAlert } from "@/components/notifications/MarketAlertCard";
-import type { NiftyTapeRow } from "@/types/niftyReport";
+import type { NiftyBurstNews, NiftyTapeRow } from "@/types/niftyReport";
 
 /**
  * Nifty OI-burst detection — pure, client-side, no store.
@@ -59,6 +59,98 @@ export interface OiBurst {
   spot: number;
   /** That side's traded volume this minute. */
   tickVol: number;
+  /** Signal pre-computed by the backend; when absent the client derives one. */
+  signal?: OiSignal | null;
+  /** Candidate catalysts within ±10 min (backend-attached). */
+  news?: NiftyBurstNews[];
+}
+
+/* ------------------------------------------------------------------ signal */
+
+/** Default risk budget (₹) the mechanical sizing assumes. */
+export const OI_SIGNAL_RISK_BUDGET = 5_000;
+/** Option-buying stop distance as % of premium. */
+export const OI_SIGNAL_SL_PCT = 25;
+/** Fallback target as % of premium when no level target is available. */
+export const OI_SIGNAL_TP_PCT = 50;
+/** Below this premium the strike is effectively dead (expiry day) — skip it. */
+export const OI_SIGNAL_MIN_PREMIUM = 10;
+/** NIFTY contract size. */
+export const NIFTY_LOT_SIZE = 75;
+
+export interface OiSignal {
+  leg: "CE" | "PE";
+  strike: number;
+  entry: number;
+  sl: number;
+  target: number;
+  /** Units = lots × lot size (0 when the premium is too rich for the budget). */
+  qty: number;
+  lots: number;
+  /** One-line rationale shown in the alert. */
+  basis: string;
+}
+
+function round2(v: number): number {
+  return Math.round(v * 100) / 100;
+}
+
+/**
+ * Turn a burst into a mechanical option suggestion.
+ *
+ * Direction follows the OI move, not just the side:
+ *   call OI BUILD  (writers add ceiling)  → bearish → buy PE
+ *   call OI UNWIND (writers cover)        → bullish → buy CE
+ *   put  OI BUILD  (writers add floor)    → bullish → buy CE
+ *   put  OI UNWIND (support removed)      → bearish → buy PE
+ * Strike = nearest listed strike to spot with a tradeable premium. Sizing
+ * assumes a fixed risk budget and a 25% premium stop.
+ *
+ * This is a heuristic, not advice, and it does not place orders.
+ */
+export function deriveOiSignal(
+  burst: OiBurst,
+  strikes: Array<{ strike: number; ce?: { ltp?: number }; pe?: { ltp?: number } }>,
+  spot: number,
+  opts: { riskBudget?: number; slPct?: number; tpPct?: number; minPremium?: number } = {},
+): OiSignal | null {
+  const riskBudget = opts.riskBudget ?? OI_SIGNAL_RISK_BUDGET;
+  const slPct = opts.slPct ?? OI_SIGNAL_SL_PCT;
+  const tpPct = opts.tpPct ?? OI_SIGNAL_TP_PCT;
+  const minPremium = opts.minPremium ?? OI_SIGNAL_MIN_PREMIUM;
+
+  const call = burst.side === "call";
+  const building = burst.delta > 0;
+  const leg: "CE" | "PE" = call === building ? "PE" : "CE";
+
+  const candidates = (strikes ?? [])
+    .map((s) => ({
+      strike: Number(s.strike),
+      ltp: Number(leg === "CE" ? s.ce?.ltp : s.pe?.ltp),
+    }))
+    .filter((c) => Number.isFinite(c.strike) && Number.isFinite(c.ltp) && c.ltp >= minPremium)
+    .sort((a, b) => Math.abs(a.strike - spot) - Math.abs(b.strike - spot));
+
+  const pick = candidates[0];
+  if (!pick) return null;
+
+  const entry = round2(pick.ltp);
+  const sl = round2(entry * (1 - slPct / 100));
+  const target = round2(entry * (1 + tpPct / 100));
+  const riskPerUnit = Math.max(0.05, entry - sl);
+  const units = Math.floor(riskBudget / riskPerUnit);
+  const lots = Math.floor(units / NIFTY_LOT_SIZE);
+  const qty = lots * NIFTY_LOT_SIZE;
+
+  const basis = call
+    ? building
+      ? "call OI build — writers adding ceiling → fade with puts"
+      : "call OI unwind — writers covering → upside fuel → buy calls"
+    : building
+      ? "put OI build — writers adding floor → fade with calls"
+      : "put OI unwind — support removed → downside fuel → buy puts";
+
+  return { leg, strike: pick.strike, entry, sl, target, qty, lots, basis };
 }
 
 function median(values: number[]): number {
@@ -68,9 +160,15 @@ function median(values: number[]): number {
   return s.length % 2 ? s[mid] : (s[mid - 1] + s[mid]) / 2;
 }
 
-/** Chronological per-minute ΔOI series; the first row is the baseline, not a delta. */
+/** Chronological per-minute ΔOI series; the first row is the baseline, not a delta.
+ * Duplicate timestamps keep the LAST occurrence (the backend feed is
+ * ascending, so that is the most recent write); rows without `t` are dropped. */
 export function computeMinuteDoi(rows: NiftyTapeRow[]): MinuteDoi[] {
-  const asc = [...(rows ?? [])].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  const byT = new Map<string, NiftyTapeRow>();
+  for (const r of rows ?? []) {
+    if (r && typeof r.t === "string" && r.t.length > 0) byT.set(r.t, r);
+  }
+  const asc = [...byT.values()].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
   const out: MinuteDoi[] = [];
   for (let i = 1; i < asc.length; i++) {
     const p = asc[i - 1];
@@ -126,7 +224,9 @@ export function detectOiBursts(rows: NiftyTapeRow[], opts: DetectOptions = {}): 
     for (const s of sides) {
       const abs = Math.abs(s.d);
       if (s.hist.length >= warmup) {
-        const baseline = Math.max(1, median(s.hist.slice(-window)));
+        // Baseline is floored at the absolute minimum so a near-zero median
+        // on a quiet tape can't inflate every later move into a "burst".
+        const baseline = Math.max(minAbs, median(s.hist.slice(-window)));
         const score = abs / baseline;
         if (abs >= minAbs && score >= OI_BURST_TIERS.watch) {
           out.push({
@@ -170,25 +270,52 @@ function compact(v: number): string {
   return `${sign}${abs}`;
 }
 
-/** Map a detected burst onto the shared alert shape for the in-app toast/log. */
-export function burstToAlert(burst: OiBurst): MarketAlert {
+/** Map a detected burst onto the shared alert shape for the in-app toast/log.
+ * When a signal is supplied the title/headline lead with the trade plan. */
+export function burstToAlert(burst: OiBurst, signal?: OiSignal | null): MarketAlert {
   const sideLabel = burst.side === "call" ? "Call" : "Put";
   const tone = burst.delta >= 0 ? "up" : "down";
+  const scoreTxt = `${burst.score.toFixed(1)}× the trailing typical minute`;
+
+  const metrics = signal
+    ? [
+        { label: "ENTRY", value: signal.entry.toFixed(2) },
+        { label: "SL", value: signal.sl.toFixed(2), tone: "down" as const },
+        { label: "TGT", value: signal.target.toFixed(2), tone: "up" as const },
+        { label: "QTY", value: signal.qty > 0 ? String(signal.qty) : "—" },
+        { label: "ΔOI", value: compact(burst.delta), tone },
+      ]
+    : [
+        { label: "ΔOI", value: compact(burst.delta), tone },
+        { label: "CUM", value: compact(burst.cumDoi), tone: burst.cumDoi >= 0 ? ("up" as const) : ("down" as const) },
+        { label: "TICK", value: compact(burst.tickVol) },
+        { label: "SPOT", value: burst.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 }) },
+      ];
+
+  const title = signal
+    ? `→ BUY ${signal.leg} ${signal.strike.toLocaleString("en-IN")} · qty ${signal.qty > 0 ? signal.qty : "—"}`
+    : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
+
+  const detail = signal
+    ? `${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
+    : `${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
+
+  // Candidate catalyst: lead with the headline nearest the burst.
+  const headline = burst.news?.[0];
+  const newsTxt = headline
+    ? ` · NEWS ${headline.minutesAway >= 0 ? "+" : ""}${headline.minutesAway.toFixed(0)}m: ${headline.heading}`
+    : "";
+
   return {
     id: burst.id,
     kind: "oi_burst",
     severity: burst.severity,
     symbol: "NIFTY",
-    title: `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`,
-    detail: `${burst.score.toFixed(1)}× the trailing typical minute · ${burstTimeLabel(burst.t)} IST`,
-    metrics: [
-      { label: "ΔOI", value: compact(burst.delta), tone },
-      { label: "CUM", value: compact(burst.cumDoi), tone: burst.cumDoi >= 0 ? "up" : "down" },
-      { label: "TICK", value: compact(burst.tickVol) },
-      { label: "SPOT", value: burst.spot.toLocaleString("en-IN", { maximumFractionDigits: 0 }) },
-    ],
+    title,
+    detail: `${detail}${newsTxt}`,
+    metrics,
     ts: Date.parse(burst.t) || Date.now(),
-    source: `Nifty tape · ${burst.score.toFixed(1)}× baseline`,
+    source: `Nifty tape · ${burstTimeLabel(burst.t)} IST${signal ? " · mechanical plan" : ""}${headline ? ` · ${headline.source || "news"}` : ""}`,
     href: "/report/nifty",
   };
 }

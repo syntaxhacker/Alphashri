@@ -13,6 +13,7 @@ vi.mock("@/api/reportNifty", () => ({
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
   fetchNiftyTape: vi.fn(),
+  fetchNiftyBursts: vi.fn(),
   snapshotNifty: vi.fn(),
 }));
 
@@ -30,6 +31,7 @@ import {
   fetchLiveNifty,
   fetchNiftyByDate,
   fetchNiftyTape,
+  fetchNiftyBursts,
   snapshotNifty,
 } from "@/api/reportNifty";
 
@@ -125,10 +127,28 @@ function mockTape() {
   };
 }
 
+/** Steady +1,000/min call OI for 13 minutes, then one +60,000 burst minute. */
+function burstTape() {
+  const hm = (i: number) => {
+    const total = 9 * 60 + 15 + i;
+    return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
+  };
+  const base = mockTape().rows[0];
+  const rows = [{ ...base, t: hm(0), call_doi: 0, put_doi: 0 }];
+  let cum = 0;
+  for (let i = 1; i <= 13; i++) {
+    cum += 1_000;
+    rows.push({ ...base, t: hm(i), call_doi: cum, put_doi: 0 });
+  }
+  rows.push({ ...base, t: hm(14), call_doi: cum + 60_000, put_doi: 0 });
+  return rows;
+}
+
 beforeEach(() => {
   vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport());
   vi.mocked(fetchNiftyByDate).mockResolvedValue(mockReport({ mode: "eod" }));
   vi.mocked(fetchNiftyTape).mockResolvedValue(mockTape());
+  vi.mocked(fetchNiftyBursts).mockResolvedValue([] as never);
   vi.mocked(snapshotNifty).mockResolvedValue(mockReport());
 });
 
@@ -178,6 +198,46 @@ describe("NiftyReportPanel toolbar", () => {
 });
 
 describe("NiftyReportPanel EOD mode", () => {
+  test("EOD (market closed) seeds the trail with the day's bursts instead of staying silent", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    // no live alerts while the market is open-but-quiet
+    expect(screen.queryByTestId("nifty-oi-bursts-panel")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    // the day's bursts come back from the backend for that date
+    vi.mocked(fetchNiftyBursts).mockResolvedValue([
+      {
+        id: "2026-10-10T14:20:00+05:30-call",
+        side: "call",
+        t: "2026-10-10T14:20:00+05:30",
+        delta: -16_461_965,
+        baseline: 1_000_000,
+        score: 16.4,
+        severity: "critical",
+        cumDoi: -36_657_985,
+        spot: 22_597.3,
+        tickVol: 1_000,
+        signal: null,
+      },
+    ] as never);
+
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    });
+    // reviewable after hours: the burst is listed, but nothing "fired"
+    expect(screen.getByTestId("nifty-oi-bursts-panel")).toHaveTextContent(/OI bursts \(1\)/);
+    expect(screen.queryByTestId("nifty-oi-toasts")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-oi-replay-button")).toBeInTheDocument();
+  });
+
   test("shows date picker and loads by date", async () => {
     const user = userEvent.setup();
     r(<NiftyReportPanel />);
@@ -621,6 +681,65 @@ describe("NiftyReportPanel live auto-refresh", () => {
     expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
     await tick(30_000);
     expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(3);
+  });
+
+  test("an OI burst minute raises the in-app alert with a trade plan (local fallback)", async () => {
+    await renderLive();
+    // history is silent by design — nothing on first load
+    expect(screen.queryByTestId("nifty-oi-bursts-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-oi-toasts")).not.toBeInTheDocument();
+
+    // next poll returns a steady tape plus one huge call-OI minute.
+    // fetchNiftyBursts stays [] (backend has nothing / is unavailable), so the
+    // client detector is what raises the alert.
+    const rows = burstTape();
+    vi.mocked(fetchNiftyTape).mockResolvedValue({
+      date: "2026-10-12",
+      interval_sec: 60,
+      rows,
+    });
+
+    await tick(30_000);
+
+    expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-oi-toasts")).toBeInTheDocument();
+    // call OI build → fade with puts at the nearest tradeable strike
+    expect(screen.getAllByText(/BUY PE 25,700/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/qty/).length).toBeGreaterThan(0);
+  });
+
+  test("backend bursts are used when present and skip local detection", async () => {
+    await renderLive();
+    expect(screen.queryByTestId("nifty-oi-bursts-panel")).not.toBeInTheDocument();
+
+    // backend reports ONE burst; the tape stays flat so the local detector
+    // would find nothing — proving the backend list is the source used.
+    const rows = burstTape();
+    vi.mocked(fetchNiftyTape).mockResolvedValue({
+      date: "2026-10-12",
+      interval_sec: 60,
+      rows: rows.map((r) => ({ ...r, call_doi: 0, put_doi: 0 })),
+    });
+    vi.mocked(fetchNiftyBursts).mockResolvedValue([
+      {
+        id: `${rows[rows.length - 1].t}-call`,
+        side: "call",
+        t: rows[rows.length - 1].t,
+        delta: 60_000,
+        baseline: 1_000,
+        score: 60,
+        severity: "critical",
+        cumDoi: 60_000,
+        spot: 25_750.5,
+        tickVol: 1_000,
+        signal: null,
+      },
+    ] as never);
+
+    await tick(30_000);
+
+    expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    expect(screen.getAllByText(/BUY PE 25,700/).length).toBeGreaterThan(0);
   });
 
   test("no polling in EOD mode", async () => {

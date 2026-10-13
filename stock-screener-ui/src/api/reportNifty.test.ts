@@ -1,7 +1,13 @@
 // @vitest-environment happy-dom
 import { describe, expect, test, vi } from "vitest";
 
-import { fetchNiftyTape, normalizeReport, normalizeTapeRow } from "./reportNifty";
+import {
+  fetchNiftyBursts,
+  fetchNiftyTape,
+  normalizeBurst,
+  normalizeReport,
+  normalizeTapeRow,
+} from "./reportNifty";
 import { fetchWithAuth } from "../state/auth";
 
 vi.mock("../state/auth", () => ({
@@ -283,5 +289,218 @@ describe("normalizeTapeRow walls", () => {
     expect(
       normalizeTapeRow({ t: "x", walls: { call: 22600, put: 22400 } }).walls,
     ).toEqual({ call: 22600, put: 22400 });
+  });
+});
+
+describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
+  test("maps attached news, tolerating snake_case and dropping bad rows", () => {
+    const burst = normalizeBurst({
+      id: "b1",
+      side: "call",
+      t: "2026-10-13T14:20:00+05:30",
+      news: [
+        { heading: "FM Sitharaman open to LTCG tax rethink", link: "u1", source: "upstox", minutesAway: -1 },
+        { headline: "snake variant", url: "u2", minutes_away: 5 },
+        { source: "no heading here" },
+        "junk",
+      ],
+    });
+    expect(burst.news).toHaveLength(2);
+    expect(burst.news?.[0].heading).toBe("FM Sitharaman open to LTCG tax rethink");
+    expect(burst.news?.[0].minutesAway).toBe(-1);
+    expect(burst.news?.[1].heading).toBe("snake variant");
+    expect(burst.news?.[1].link).toBe("u2");
+    expect(burst.news?.[1].minutesAway).toBe(5);
+  });
+
+  test("missing or malformed news yields an empty list, never null", () => {
+    expect(normalizeBurst({ side: "call" }).news).toEqual([]);
+    expect(normalizeBurst({ side: "call", news: "nope" }).news).toEqual([]);
+    expect(normalizeBurst({ side: "call", news: [null, 1] }).news).toEqual([]);
+  });
+
+  test("maps full camelCase burst with nested signal", () => {
+    const burst = normalizeBurst({
+      id: "b1",
+      side: "call",
+      t: "10:04",
+      delta: 120000,
+      baseline: 4000,
+      score: 3.2,
+      severity: "alert",
+      cumDoi: 900000,
+      spot: 25760,
+      tickVol: 88,
+      signal: {
+        leg: "CE",
+        strike: 25800,
+        entry: 120.5,
+        sl: 100,
+        target: 160,
+        qty: 75,
+        lots: 1,
+        basis: "3x delta spike",
+      },
+    });
+    expect(burst.id).toBe("b1");
+    expect(burst.side).toBe("call");
+    expect(burst.t).toBe("10:04");
+    expect(burst.delta).toBe(120000);
+    expect(burst.baseline).toBe(4000);
+    expect(burst.score).toBe(3.2);
+    expect(burst.severity).toBe("alert");
+    expect(burst.cumDoi).toBe(900000);
+    expect(burst.tickVol).toBe(88);
+    expect(burst.signal).toEqual({
+      leg: "CE",
+      strike: 25800,
+      entry: 120.5,
+      sl: 100,
+      target: 160,
+      qty: 75,
+      lots: 1,
+      basis: "3x delta spike",
+    });
+  });
+
+  test("maps snake_case burst and prefixed signal fields", () => {
+    const burst = normalizeBurst({
+      side: "put",
+      time: "10:07",
+      cum_doi: 500000,
+      tick_vol: 64,
+      severity: "critical",
+      delta: "90000",
+      signal: {
+        signal_leg: "PE",
+        signal_strike: 25600,
+        signal_entry: 95,
+        signal_sl: 80,
+        signal_target: 130,
+        signal_qty: 75,
+        signal_lots: 1,
+        signal_basis: "oi unwind",
+      },
+    });
+    expect(burst.side).toBe("put");
+    expect(burst.t).toBe("10:07");
+    expect(burst.cumDoi).toBe(500000);
+    expect(burst.tickVol).toBe(64);
+    expect(burst.delta).toBe(90000);
+    expect(burst.signal).toEqual({
+      leg: "PE",
+      strike: 25600,
+      entry: 95,
+      sl: 80,
+      target: 130,
+      qty: 75,
+      lots: 1,
+      basis: "oi unwind",
+    });
+  });
+
+  test("coerces unknown side to call and unknown severity to watch", () => {
+    const burst = normalizeBurst({ side: "sideways", severity: "meh" });
+    expect(burst.side).toBe("call");
+    expect(burst.severity).toBe("watch");
+    expect(burst.id).toBe("");
+    expect(burst.t).toBe("");
+    expect(burst.delta).toBe(0);
+    expect(burst.signal).toBeNull();
+  });
+
+  test("signal is null when the block is missing", () => {
+    expect(normalizeBurst({ side: "call" }).signal).toBeNull();
+    expect(normalizeBurst({ signal: null } as never).signal).toBeNull();
+  });
+
+  test("signal is null when incomplete (strike present, entry absent)", () => {
+    const burst = normalizeBurst({
+      signal: { leg: "CE", strike: 25800 },
+    });
+    expect(burst.signal).toBeNull();
+  });
+
+  test("signal is null when strike is absent", () => {
+    const burst = normalizeBurst({
+      signal: { leg: "PE", entry: 95 },
+    });
+    expect(burst.signal).toBeNull();
+  });
+});
+
+describe("fetchNiftyBursts (additive feed, never throws)", () => {
+  test("returns the parsed list on 200", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        bursts: [
+          {
+            id: "b1",
+            side: "call",
+            t: "10:04",
+            severity: "alert",
+            cum_doi: 900000,
+            tick_vol: 88,
+            signal: { leg: "CE", strike: 25800, entry: 120.5 },
+          },
+        ],
+      }),
+    } as unknown as Response);
+    const bursts = await fetchNiftyBursts();
+    expect(bursts).toHaveLength(1);
+    expect(bursts[0].id).toBe("b1");
+    expect(bursts[0].side).toBe("call");
+    expect(bursts[0].severity).toBe("alert");
+    expect(bursts[0].cumDoi).toBe(900000);
+    expect(bursts[0].tickVol).toBe(88);
+    expect(bursts[0].signal!.strike).toBe(25800);
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/nifty/bursts"),
+      { signal: undefined },
+    );
+  });
+
+  test("returns [] on 500", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ detail: "boom" }),
+    } as unknown as Response);
+    await expect(fetchNiftyBursts()).resolves.toEqual([]);
+  });
+
+  test("returns [] on malformed JSON", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchNiftyBursts()).resolves.toEqual([]);
+  });
+
+  test("returns [] when the response body has no bursts array", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ nope: true }),
+    } as unknown as Response);
+    await expect(fetchNiftyBursts()).resolves.toEqual([]);
+  });
+
+  test("appends ?date= when a date is passed", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ bursts: [] }),
+    } as unknown as Response);
+    await fetchNiftyBursts("2026-10-10");
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("date=2026-10-10"),
+      { signal: undefined },
+    );
+  });
+
+  test("returns [] on network/abort failure", async () => {
+    vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("aborted"));
+    await expect(fetchNiftyBursts()).resolves.toEqual([]);
   });
 });

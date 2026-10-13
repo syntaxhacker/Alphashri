@@ -16,6 +16,8 @@ import { NiftyTapeTable } from "./NiftyTapeTable";
 import { NiftyUnusualVolume } from "./NiftyUnusualVolume";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
+import { detectOiBursts } from "./niftyOiBursts";
+import type { OiBurst } from "./niftyOiBursts";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact, ErrorAlert, InlineLoader } from "@/components/common/states";
@@ -28,7 +30,7 @@ import type {
   NiftyStrike,
   NiftyTape,
 } from "@/types/niftyReport";
-import { fetchLiveNifty, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyTape, snapshotNifty } from "@/api/reportNifty";
+import { fetchLiveNifty, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyTape, fetchNiftyBursts, snapshotNifty } from "@/api/reportNifty";
 
 export interface NiftyReportPanelProps {
   onOpenSymbol?: (s: string) => void;
@@ -405,6 +407,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const [date, setDate] = useState<string>("");
   const [report, setReport] = useState<NiftyReport | null>(null);
   const [tape, setTape] = useState<NiftyTape | null>(null);
+  /** Backend-detected bursts; null = endpoint unavailable → derive locally. */
+  const [bursts, setBursts] = useState<OiBurst[] | null>(null);
   const [view, setView] = useState<"chart" | "depth">("chart");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -425,7 +429,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     setLoading(true);
     setError(null);
     try {
-      const [data, tapeData] = await Promise.all([
+      const [data, tapeData, burstData] = await Promise.all([
         mode === "live"
           ? fetchLiveNifty(expiry === "nearest" ? undefined : expiry)
           : fetchNiftyByDate(date),
@@ -433,9 +437,12 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
         fetchNiftyTape(mode === "eod" ? date || undefined : undefined).catch(
           () => null,
         ),
+        // Bursts are backend-derived (survive tab close); never fatal.
+        fetchNiftyBursts(mode === "eod" ? date || undefined : undefined),
       ]);
       setReport(data);
       if (tapeData) setTape(tapeData);
+      setBursts(burstData as OiBurst[]);
       setFailures(0);
       const now = Date.now();
       setUpdatedAtMs(now);
@@ -482,6 +489,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       prevContext.current = contextKey;
       setReport(null);
       setTape(null);
+      setBursts(null);
       setError(null);
       setFailures(0);
     }
@@ -615,14 +623,46 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     [report],
   );
 
-  // In-app OI-burst alerts: fires only for minutes that arrive while the page
-  // is open in Live mode. No store — plain hook state, reset per context.
-  const { trail, toasts, dismissToast, clearTrail } = useNiftyOiAlerts(
-    tape?.rows ?? [],
+  // In-app OI-burst alerts. Bursts come from the backend when it has any
+  // (they survive the tab being closed); an empty/absent backend answer falls
+  // back to the local detector so the page never goes blind. Plain hook state.
+  const effectiveBursts = useMemo<OiBurst[]>(
+    () => (bursts && bursts.length > 0 ? bursts : detectOiBursts(tape?.rows ?? [])),
+    [bursts, tape],
+  );
+  /** Minute → burst side, for the tape's burst spine. */
+  const burstMap = useMemo(() => {
+    const m = new Map<string, "call" | "put">();
+    for (const b of effectiveBursts) m.set(b.t, b.side);
+    return m;
+  }, [effectiveBursts]);
+  const { trail, toasts, dismissToast, clearTrail, pushToast } = useNiftyOiAlerts(
+    effectiveBursts,
+    report?.strikes ?? [],
+    report?.spot ?? 0,
+    tape != null,
     mode === "live",
     contextKey,
   );
   const burstsRef = useRef<HTMLDivElement>(null);
+
+  // REPLAY — walk the day's trail oldest→newest through the toast region so the
+  // notification path is verifiable after hours (nothing new arrives when the
+  // market is closed). 1s cadence; stops when the cursor runs out.
+  const [replayCursor, setReplayCursor] = useState<number | null>(null);
+  useEffect(() => {
+    if (replayCursor === null) return;
+    if (replayCursor < 0) {
+      setReplayCursor(null);
+      return;
+    }
+    const id = setTimeout(() => {
+      const a = trail[replayCursor];
+      if (a) pushToast(a);
+      setReplayCursor(replayCursor - 1);
+    }, 1000);
+    return () => clearTimeout(id);
+  }, [replayCursor, trail, pushToast]);
 
   const staleAgeMs = updatedAtMs === null ? 0 : nowMs - updatedAtMs;
   const isStale = mode === "live" && updatedAtMs !== null && staleAgeMs > STALE_AFTER_MS;
@@ -907,7 +947,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           >
           <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ flex: "1 1 620px", minWidth: 0, background: "#000000", borderColor: "#1A1A1A" }}>
             {tape && tape.rows.length > 0 ? (
-              <NiftyTapeTable rows={tape.rows} tape={tape} live={mode === "live"} />
+              <NiftyTapeTable rows={tape.rows} tape={tape} live={mode === "live"} bursts={burstMap} />
             ) : (
               <Text data-testid="nifty-tape-empty" size="sm" c="dimmed">
                 Tape starts recording at next market open.
@@ -926,9 +966,20 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 title={`OI bursts (${trail.length})`}
                 testId="nifty-oi-bursts-panel"
                 action={
-                  <Button size="sm" variant="subtle" onClick={clearTrail}>
-                    Clear
-                  </Button>
+                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                    <Button
+                      data-testid="nifty-oi-replay-button"
+                      size="sm"
+                      variant="subtle"
+                      disabled={replayCursor !== null || trail.length === 0}
+                      onClick={() => setReplayCursor(trail.length - 1)}
+                    >
+                      {replayCursor !== null ? "Replaying…" : "Replay"}
+                    </Button>
+                    <Button size="sm" variant="subtle" onClick={clearTrail}>
+                      Clear
+                    </Button>
+                  </Box>
                 }
               >
                 <MarketAlertLog
@@ -961,7 +1012,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               />
             </Box>
           )}
-          </Box>
 
           {mode === "live" && report.gex ? (
           <CompactPanel title="GEX levels" testId="nifty-gex-panel">

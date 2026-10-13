@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
 import IconButton from "@mui/material/IconButton";
 import { IconX } from "@tabler/icons-react";
@@ -377,6 +377,11 @@ export function MarketAlertLog({
   const rows = useMemo(() => (max ? alerts.slice(0, max) : alerts), [alerts, max]);
   const [activeIndex, setActiveIndex] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+
+  // Keep the selection inside the list when rows are dismissed / cleared.
+  useEffect(() => {
+    setActiveIndex((i) => (rows.length === 0 ? 0 : Math.min(i, rows.length - 1)));
+  }, [rows.length]);
 
   const clamp = useCallback(
     (i: number) => Math.max(0, Math.min(rows.length - 1, i)),

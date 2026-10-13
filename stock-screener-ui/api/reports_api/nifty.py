@@ -24,6 +24,14 @@ from fastapi import APIRouter, HTTPException, Query
 from pydantic import BaseModel
 
 import config
+from api.reports_api.nifty_bursts import (
+    NEWS_WINDOW_MIN,
+    OI_BURST_MIN_ABS,
+    OI_BURST_WINDOW,
+    attach_news,
+    derive_oi_signal,
+    detect_oi_bursts,
+)
 
 router = APIRouter(prefix="/api/reports", tags=["reports-nifty"])
 
@@ -716,3 +724,106 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
     baseline_t = rows[0].get("t") if rows else None
     return {"date": date_str, "interval_sec": TAPE_INTERVAL_SEC,
             "baseline_t": baseline_t, "rows": rows}
+
+
+# ---------------------------------------------------------------------------
+# OI bursts: recomputable from the stored tape
+# ---------------------------------------------------------------------------
+
+def _recent_news_for(date_str: str) -> list[dict]:
+    """Stored headlines around ``date_str`` (±12h) for burst tagging.
+
+    Reads `news_articles` only — no network. Returns `[]` when the news tables
+    or rows are unavailable, so burst tagging can never break the endpoint.
+    """
+    try:
+        from datetime import datetime, timedelta
+
+        from db.database import SessionLocal
+        from db.models.news import NewsArticle
+
+        day = datetime.strptime(date_str, "%Y-%m-%d")
+        lo = day - timedelta(hours=12)
+        hi = day + timedelta(hours=12)
+        db = SessionLocal()
+        try:
+            rows = (
+                db.query(NewsArticle.headline, NewsArticle.published_at,
+                         NewsArticle.url, NewsArticle.source)
+                .filter(NewsArticle.published_at.isnot(None))
+                .filter(NewsArticle.published_at >= lo)
+                .filter(NewsArticle.published_at <= hi)
+                .order_by(NewsArticle.published_at)
+                .limit(2000)
+                .all()
+            )
+        finally:
+            db.close()
+        return [
+            {"heading": h, "published_at": p, "url": u, "source": s}
+            for (h, p, u, s) in rows
+        ]
+    except Exception:
+        return []
+
+
+def _snapshot_oi_context(date_str: str) -> tuple[Optional[list], float]:
+    """``(strikes, spot)`` from the day's saved snapshot.
+
+    Returns ``(None, 0.0)`` when the snapshot is missing, unreadable,
+    malformed, or lacks ``strikes``/``spot``. Never raises, never touches
+    the network — a burst without a snapshot simply carries ``signal: null``.
+    """
+    try:
+        snap = read_snapshot(date_str)
+        if not isinstance(snap, dict):
+            return None, 0.0
+        strikes = snap.get("strikes")
+        spot = _safe_float(snap.get("spot"))
+        if not strikes or not spot:
+            return None, 0.0
+        return strikes, spot
+    except Exception:
+        return None, 0.0
+
+
+@router.get("/nifty/bursts")
+def get_nifty_bursts(
+    date: Optional[str] = Query(default=None, description="Burst date YYYY-MM-DD (default: today)"),
+    window: int = Query(default=OI_BURST_WINDOW, ge=3, le=60, description="Trailing minutes for the baseline"),
+    min_abs: float = Query(default=OI_BURST_MIN_ABS, ge=0, description="Absolute ΔOI floor (contracts)"),
+):
+    """Per-minute OI bursts recomputed from the stored tape — never errors.
+
+    The tape's ``call_doi``/``put_doi`` are cumulative from the day's first
+    row, so a burst is the first difference between consecutive minutes.
+    History is recomputable for any recorded day (independent of the browser),
+    so a missing/empty tape is a normal ``count: 0`` response (HTTP 200), not a
+    404. ``signal`` is attached from the day's saved snapshot when available;
+    otherwise it is ``null``. No network/Upstox calls are made here.
+    """
+    date_str = _validate_date(date or _today_str())
+    raw = read_tape(date_str)
+    if not raw:
+        return {"date": date_str, "count": 0, "interval_sec": TAPE_INTERVAL_SEC,
+                "bursts": [], "reason": "no tape"}
+
+    rows = derive_tape_rows(raw)
+    bursts = detect_oi_bursts(rows, window=window, min_abs=min_abs)
+    strikes, spot = _snapshot_oi_context(date_str)
+    for b in bursts:
+        try:
+            b["signal"] = derive_oi_signal(b, strikes, spot)
+        except Exception:
+            b["signal"] = None
+
+    # Attach nearby headlines so a burst can be read with its likely catalyst.
+    # Reads only what is already stored — no network call in this endpoint.
+    try:
+        attach_news(bursts, _recent_news_for(date_str), window_min=NEWS_WINDOW_MIN)
+    except Exception:
+        for b in bursts:
+            b.setdefault("news", [])
+
+    return {"date": date_str, "count": len(bursts),
+            "interval_sec": TAPE_INTERVAL_SEC, "bursts": bursts}

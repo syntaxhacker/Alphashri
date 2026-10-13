@@ -102,6 +102,44 @@ export interface NiftyTapeRow {
   };
 }
 
+/** A ready-to-trade burst signal block — `null` when the burst only merits a flag. */
+export interface NiftyBurstSignal {
+  leg: "CE" | "PE";
+  strike: number;
+  entry: number;
+  sl: number;
+  target: number;
+  qty: number;
+  lots: number;
+  basis: string;
+}
+
+/** A stored headline near a burst, attached by the backend (±10 min window). */
+export interface NiftyBurstNews {
+  heading: string;
+  link: string;
+  source: string;
+  /** Headline publish time minus burst time, in minutes (negative = before). */
+  minutesAway: number;
+}
+
+/** One OI-burst alert — `GET /api/reports/nifty/bursts`. */
+export interface NiftyBurst {
+  id: string;
+  side: "call" | "put";
+  t: string;
+  delta: number;
+  baseline: number;
+  score: number;
+  severity: "info" | "watch" | "alert" | "critical";
+  cumDoi: number;
+  spot: number;
+  tickVol: number;
+  signal: NiftyBurstSignal | null;
+  /** Candidate catalysts within ±10 min; empty when the news store had none. */
+  news?: NiftyBurstNews[];
+}
+
 export interface NiftyTape {
   date: string;
   interval_sec: number;

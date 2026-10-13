@@ -80,6 +80,46 @@ Severity drives stripe + tint; kind drives icon + accent. `density="compact"` = 
 | Breakout | 52W-high / pivot R1 cross with ≥1.5× volume | cross | +1× vol | +2× vol | 52W + SR scanners |
 | System | feed gap, auth expiry, job failure | — | gap | hard fail | lifespan/jobs |
 
+#### Phase 2a — Nifty OI bursts ✅ detection on the BACKEND, UI renders
+
+**Why backend:** the client-only detector only ran while `/report/nifty` was
+open — close the tab and the burst is missed in real time. The tape is already
+recorded server-side every 60s, so deriving bursts there makes them part of the
+stored record: recomputable for any recorded day, independent of any browser.
+
+- `api/reports_api/nifty_bursts.py` — detector + signal (server twin of the TS
+  module; cross-verified byte-identical against an independent implementation
+  on 45/45 bursts for 2026-10-13).
+  - `call_doi`/`put_doi` are cumulative-from-open, so a burst is the **first
+    difference** between consecutive minutes.
+  - baseline = trailing **median** of |Δ| per side, floored at `min_abs` so a
+    near-zero median on a quiet tape cannot inflate every later move.
+  - score = |Δ| ÷ baseline → watch ≥3, alert ≥5, critical ≥8; floor 2,000
+    contracts; 3-minute warmup; call and put scored independently.
+- `GET /api/reports/nifty/bursts?date=&window=&min_abs=` — always 200:
+  `{date, count, interval_sec, bursts:[…]}`; each burst carries
+  `id/side/t/delta/baseline/score/severity/cumDoi/spot/tickVol/signal`. The
+  `signal` is filled from the saved snapshot chain when one exists (no network
+  call in this endpoint).
+- Frontend: `fetchNiftyBursts()` (`src/api/reportNifty.ts`) → `NiftyBurst[]`
+  (`src/types/niftyReport.ts`); the panel **prefers the backend list** and
+  falls back to the local `detectOiBursts` when the backend reports none, so
+  the page never goes blind.
+- UI on `/report/nifty` (Live): fixed bottom-right toast stack (4, 45s TTL),
+  a persistent `OI bursts (n)` trail panel with Clear, and a coloured spine on
+  burst minutes in the tape itself (blue = call, orange = put).
+- **Signal** — `deriveOiSignal()`:
+  - call OI **build** → ceiling → buy **PE**; call OI **unwind** → covering →
+    buy **CE**; put OI **build** → floor → buy **CE**; put OI **unwind** →
+    support gone → buy **PE**.
+  - strike = nearest listed strike to spot with premium ≥ ₹10 (skips dead
+    expiry-day strikes).
+  - sizing = ₹5,000 risk budget ÷ (entry − 25% stop) → whole 75-unit lots.
+  - labelled `heuristic, not advice`; never places orders.
+
+**Still open:** a background task that pushes bursts (Telegram/SSE) so alerts
+fire with the tab closed — the derivation is ready, only delivery is missing.
+
 - Extend the DB model from `PriceSurgeEvent` (stocks-only) to `MarketAlertEvent` (`kind`, `severity`, `symbol`, `metrics_json`, `detected_at`) — additive migration, keep the old table for history.
 - Thresholds live in a `alert_rules` table + Settings UI (Phase 4).
 
