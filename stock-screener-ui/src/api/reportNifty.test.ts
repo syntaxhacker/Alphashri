@@ -1,6 +1,12 @@
-import { describe, expect, test } from "vitest";
+// @vitest-environment happy-dom
+import { describe, expect, test, vi } from "vitest";
 
-import { normalizeReport } from "./reportNifty";
+import { fetchNiftyTape, normalizeReport, normalizeTapeRow } from "./reportNifty";
+import { fetchWithAuth } from "../state/auth";
+
+vi.mock("../state/auth", () => ({
+  fetchWithAuth: vi.fn(),
+}));
 
 const snakeReport = {
   mode: "live",
@@ -75,5 +81,207 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     expect(rep.strikes).toEqual([]);
     expect(rep.timeline).toEqual([]);
     expect(rep.walls).toEqual({ calls: [], puts: [] });
+  });
+
+  test("gex absent stays undefined so old snapshots still render", () => {
+    const rep = normalizeReport(snakeReport);
+    expect(rep.gex).toBeUndefined();
+  });
+
+  test("maps snake_case gex block to camelCase", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      gex: {
+        strikes: [
+          { strike: 25700, call_gex: -3.1, put_gex: 8.3, net_gex: 5.2 },
+        ],
+        net_total: 12.4,
+        regime: "long",
+        top_positive: [{ strike: 25700, net_gex: 5.2 }],
+        top_negative: [{ strike: 25800, net_gex: -5.3 }],
+        zero_cross: 25750,
+      },
+    });
+    expect(rep.gex).toBeDefined();
+    expect(rep.gex!.netTotal).toBe(12.4);
+    expect(rep.gex!.regime).toBe("long");
+    expect(rep.gex!.zeroCross).toBe(25750);
+    expect(rep.gex!.strikes[0]).toEqual({
+      strike: 25700,
+      callGex: -3.1,
+      putGex: 8.3,
+      netGex: 5.2,
+    });
+    expect(rep.gex!.topPositive).toEqual([{ strike: 25700, netGex: 5.2 }]);
+    expect(rep.gex!.topNegative).toEqual([{ strike: 25800, netGex: -5.3 }]);
+  });
+
+  test("gex null flip maps to null with safe defaults", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      gex: { net_total: -4.5, regime: "SHORT", zero_cross: null },
+    });
+    expect(rep.gex!.regime).toBe("short");
+    expect(rep.gex!.zeroCross).toBeNull();
+    expect(rep.gex!.strikes).toEqual([]);
+    expect(rep.gex!.topPositive).toEqual([]);
+  });
+});
+
+describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
+  test("maps full camelCase row", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      spot: 25760,
+      call_doi: 1000000,
+      put_doi: 500000,
+      net: 500000,
+      net_pct: 0.5,
+      call_tick: 100,
+      put_tick: 50,
+      pcr_vol: 0.96,
+      pcr_oi: 1.15,
+      pcr_doi: 0.08,
+      spot_flip: -8,
+      max_pain: 25700,
+      flip: 25762,
+      walls: { call: 25900, put: 25600 },
+    });
+    expect(row.t).toBe("09:16");
+    expect(row.spot).toBe(25760);
+    expect(row.call_doi).toBe(1000000);
+    expect(row.spot_flip).toBe(-8);
+    expect(row.walls).toEqual({ call: 25900, put: 25600 });
+  });
+
+  test("accepts time/ticks aliases, defaults numbers to 0, spot_flip null-safe", () => {
+    const row = normalizeTapeRow({ time: "09:19", ticks: 42 } as never);
+    expect(row.t).toBe("09:19");
+    expect(row.call_tick).toBe(42);
+    expect(row.put_tick).toBe(42);
+    expect(row.spot).toBe(0);
+    expect(row.net).toBe(0);
+    expect(row.spot_flip).toBeNull();
+    expect(row.walls).toEqual({ call: 0, put: 0 });
+  });
+
+  test("tolerates empty input", () => {
+    const row = normalizeTapeRow({});
+    expect(row.t).toBe("");
+    expect(row.spot_flip).toBeNull();
+    expect(row.max_pain).toBe(0);
+  });
+});
+
+describe("fetchNiftyTape (top-level summary + sparse rows)", () => {
+  test("parses summary scalars and array walls, rows stay null-safe", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        pcr_oi: 0.62,
+        max_pain: 22400,
+        flip: 22350,
+        walls: {
+          calls: [
+            { strike: 22500, oi: 5000 },
+            { strike: 22400, oi: 4000 },
+          ],
+          puts: [
+            { strike: 22200, oi: 6000 },
+            { strike: 22300, oi: 4500 },
+          ],
+        },
+        rows: [
+          { time: "09:19", call_doi: 12000, put_doi: 18500, net: 6500, net_pct: 1.8, ticks: 42, pcr_oi: 0.62 },
+        ],
+      }),
+    } as unknown as Response);
+    const tape = await fetchNiftyTape();
+    expect(tape.interval_sec).toBe(60);
+    expect(tape.pcr_oi).toBe(0.62);
+    expect(tape.max_pain).toBe(22400);
+    expect(tape.flip).toBe(22350);
+    expect(tape.walls).toEqual({ call: 22500, put: 22200 });
+    expect(tape.rows).toHaveLength(1);
+    expect(tape.rows[0].t).toBe("09:19");
+    expect(tape.rows[0].call_tick).toBe(42);
+    expect(tape.rows[0].spot).toBe(0);
+    expect(tape.rows[0].spot_flip).toBeNull();
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/nifty/tape"),
+      { signal: undefined },
+    );
+  });
+
+  test("date param is encoded into the query string", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ date: "2026-10-10", rows: [] }),
+    } as unknown as Response);
+    const tape = await fetchNiftyTape("2026-10-10");
+    expect(tape.date).toBe("2026-10-10");
+    expect(tape.rows).toEqual([]);
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("date=2026-10-10"),
+      { signal: undefined },
+    );
+  });
+
+  test("baseline_t passes through so the header can label ΔOI honestly", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-13",
+        baseline_t: "2026-10-13T12:04:00+05:30",
+        rows: [{ t: "2026-10-13T12:04:00+05:30" }],
+      }),
+    } as unknown as Response);
+    const tape = await fetchNiftyTape();
+    expect(tape.baseline_t).toBe("2026-10-13T12:04:00+05:30");
+    expect(tape.rows[0].t).toBe("2026-10-13T12:04:00+05:30");
+  });
+
+  test("missing baseline_t stays undefined (old payloads fall back to first row)", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({ date: "2026-10-13", rows: [] }),
+    } as unknown as Response);
+    const tape = await fetchNiftyTape();
+    expect(tape.baseline_t).toBeUndefined();
+  });
+
+  test("non-ok response throws with backend detail", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ detail: "Tape unavailable" }),
+    } as unknown as Response);
+    await expect(fetchNiftyTape()).rejects.toThrow("Tape unavailable");
+  });
+});
+
+describe("normalizeTapeRow walls", () => {
+  test("reduces strike arrays to top-OI strikes", async () => {
+    const { normalizeTapeRow } = await import("./reportNifty");
+    const row = normalizeTapeRow({
+      t: "10:00",
+      walls: {
+        calls: [
+          { strike: 22600, oi: 100 },
+          { strike: 22500, oi: 500 },
+        ],
+        puts: [{ strike: 22400, oi: 300 }],
+      },
+    });
+    expect(row.walls).toEqual({ call: 22500, put: 22400 });
+  });
+
+  test("empty arrays give zeros, scalars pass through", async () => {
+    const { normalizeTapeRow } = await import("./reportNifty");
+    expect(
+      normalizeTapeRow({ t: "x", walls: { calls: [], puts: [] } }).walls,
+    ).toEqual({ call: 0, put: 0 });
+    expect(
+      normalizeTapeRow({ t: "x", walls: { call: 22600, put: 22400 } }).walls,
+    ).toEqual({ call: 22600, put: 22400 });
   });
 });

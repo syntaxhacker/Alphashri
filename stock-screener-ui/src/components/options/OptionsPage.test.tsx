@@ -10,6 +10,14 @@ vi.mock("./OptionChain/OptionChainPanel", () => ({
   OptionChainPanel: () => <div data-testid="options-chain-panel">Chain Panel</div>,
 }));
 
+vi.mock("./OptionChain/OptionChainHeader", () => ({
+  OptionChainHeader: () => <div data-testid="options-chain-header-controls">Header</div>,
+}));
+
+vi.mock("./OptionChain/OptionChainFilters", () => ({
+  OptionChainFilters: () => <div data-testid="options-chain-filters">Filters</div>,
+}));
+
 vi.mock("./OptionPositions/PositionsPanel", () => ({
   PositionsPanel: () => <div data-testid="options-positions-panel">Positions Panel</div>,
 }));
@@ -74,5 +82,30 @@ describe("OptionsPage", () => {
   it("hides chain panel when greeks tab is active", () => {
     renderWithProviders(<OptionsPage {...defaultProps} activeTab="greeks" />);
     expect(screen.queryByTestId("options-chain-panel")).not.toBeInTheDocument();
+  });
+
+  it("renders single sticky toolbar", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} />);
+    expect(screen.getByTestId("options-toolbar")).toBeInTheDocument();
+  });
+
+  it("shows header controls and filters in toolbar on chain tab", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="chain" />);
+    const toolbar = screen.getByTestId("options-toolbar");
+    expect(toolbar).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-header-controls")).toBeInTheDocument();
+    expect(screen.getByTestId("options-chain-filters")).toBeInTheDocument();
+  });
+
+  it("hides header controls and filters when positions tab is active", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="positions" />);
+    expect(screen.queryByTestId("options-chain-header-controls")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-chain-filters")).not.toBeInTheDocument();
+  });
+
+  it("hides header controls and filters when greeks tab is active", () => {
+    renderWithProviders(<OptionsPage {...defaultProps} activeTab="greeks" />);
+    expect(screen.queryByTestId("options-chain-header-controls")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("options-chain-filters")).not.toBeInTheDocument();
   });
 });

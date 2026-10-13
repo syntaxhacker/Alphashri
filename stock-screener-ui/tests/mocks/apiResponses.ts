@@ -2055,3 +2055,33 @@ export async function setupStrategiesLoadingMocks(page: import("@playwright/test
     });
   });
 }
+
+// Nifty OI tape API mocks (intraday minute-rows).
+// Shape mirrors GET /api/reports/nifty/tape: { date, interval_sec, rows }.
+// Served in chronological order; the panel renders latest-first itself.
+export const mockNiftyTape = {
+  date: "2026-10-12",
+  interval_sec: 60,
+  rows: [
+    { t: "09:16", spot: 22310, call_doi: 7000, put_doi: 12100, net: 5100, net_pct: 1.5, call_tick: 31, put_tick: 40, pcr_vol: 1.1, pcr_oi: 0.59, pcr_doi: 0.02, spot_flip: -40, max_pain: 22400, flip: 22350, walls: { call: 22500, put: 22200 } },
+    { t: "09:17", spot: 22325, call_doi: 8100, put_doi: 14000, net: 5900, net_pct: 1.7, call_tick: 35, put_tick: 47, pcr_vol: 1.15, pcr_oi: 0.6, pcr_doi: 0.04, spot_flip: -25, max_pain: 22400, flip: 22350, walls: { call: 22500, put: 22200 } },
+    { t: "09:18", spot: 22340, call_doi: 9500, put_doi: 16200, net: 6700, net_pct: 1.9, call_tick: 38, put_tick: 51, pcr_vol: 1.18, pcr_oi: 0.61, pcr_doi: 0.05, spot_flip: -10, max_pain: 22400, flip: 22350, walls: { call: 22500, put: 22200 } },
+    { t: "09:19", spot: 22355, call_doi: 12000, put_doi: 18500, net: 6500, net_pct: 1.8, call_tick: 42, put_tick: 55, pcr_vol: 1.21, pcr_oi: 0.62, pcr_doi: 0.07, spot_flip: 5, max_pain: 22400, flip: 22350, walls: { call: 22500, put: 22200 } },
+  ],
+};
+
+export async function setupNiftyTapeMocks(page: import("@playwright/test").Page) {
+  // Reuse the existing report mocks, then register the tape handler LAST so it
+  // takes priority. The `tape**` pattern only matches /api/reports/nifty/tape*
+  // and cannot intercept /live, /expiries, /snapshot or the EOD endpoint, so
+  // the existing nifty-report spec is unaffected.
+  await setupNiftyReportMocks(page);
+
+  await page.route(apiRoute("reports/nifty/tape"), async (route) => {
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(mockNiftyTape),
+    });
+  });
+}

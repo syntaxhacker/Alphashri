@@ -111,8 +111,7 @@ describe("ChainSummary component rendering", () => {
     expect(screen.getByText("Data pending")).toBeInTheDocument();
   });
 
-  it("renders ring progress chart for CE/Put OI ratio", () => {
-    const strikeMatrix = [
+  it("renders ring progress chart for CE/Put OI ratio", () => {    const strikeMatrix = [
       { strike: 24000, ce: { market_data: { oi: 1000 } }, pe: { market_data: { oi: 500 } } },
       { strike: 24500, ce: { market_data: { oi: 5000 } }, pe: { market_data: { oi: 200 } } },
     ];
@@ -126,5 +125,22 @@ describe("ChainSummary component rendering", () => {
     );
     const pcrCard = screen.getByTestId("options-chain-summary-pcr");
     expect(pcrCard.querySelector("svg")).toBeInTheDocument();
+  });
+
+  it("compresses summary into one compact stat row", () => {
+    renderWithProviders(
+      <ChainSummary
+        strikeMatrix={[]}
+        spotPrice={24500}
+        selectedExpiry="25MAY"
+        summary={{ pcr: 1.0, max_pain: 24500, expected_move: null, total_ce_oi: 0, total_pe_oi: 0 }}
+      />,
+    );
+    const row = screen.getByTestId("chain-summary-compact-row");
+    expect(row).toBeInTheDocument();
+    // All three sections live inside the single row
+    expect(row.querySelector('[data-testid="options-chain-summary-pcr"]')).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="options-chain-summary-range"]')).toBeInTheDocument();
+    expect(row.querySelector('[data-testid="options-chain-summary-max-pain"]')).toBeInTheDocument();
   });
 });

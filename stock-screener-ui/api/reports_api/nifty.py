@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/reports", tags=["reports-nifty"])
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_reports"
 
-_LIVE_TTL = 60
+_LIVE_TTL = 30
 _live_cache: dict[str, dict] = {}
 
 _MAX_PAIN_WINDOW = 1500.0
@@ -98,8 +98,14 @@ def compute_max_pain(strikes: list[dict]) -> float:
     return best_strike
 
 
-def build_leg(market_data: dict) -> dict:
-    """Flatten one side's Upstox ``market_data`` into the report leg shape."""
+def build_leg(market_data: dict, greeks: Optional[dict] = None) -> dict:
+    """Flatten one side's Upstox ``market_data`` into the report leg shape.
+
+    ``greeks`` is the sibling ``option_greeks`` mapping (``{delta, gamma,
+    vega, theta, iv}``); only ``gamma`` is carried forward (safe float,
+    default 0.0). When omitted, falls back to ``market_data["option_greeks"]``
+    if present, else 0.0.
+    """
     md = market_data or {}
     ltp = _safe_float(md.get("ltp"))
     close_price = _safe_float(md.get("close_price", ltp))
@@ -108,6 +114,8 @@ def build_leg(market_data: dict) -> dict:
     volume = _safe_int(md.get("volume"))
     oi_change = oi - prev_oi
     price_change = round(ltp - close_price, 2)
+    g = greeks if greeks is not None else (md.get("option_greeks") or {})
+    gamma = _safe_float((g or {}).get("gamma"))
     return {
         "ltp": ltp,
         "close_price": close_price,
@@ -117,6 +125,7 @@ def build_leg(market_data: dict) -> dict:
         "volume": volume,
         "price_change": price_change,
         "sentiment": get_sentiment(price_change, oi_change),
+        "gamma": gamma,
     }
 
 
@@ -130,9 +139,15 @@ def parse_chain_payload(payload: dict) -> tuple[str, float, list[dict]]:
     rows = []
     for item in items:
         strike = _safe_float(item.get("strike_price"))
-        call_md = (item.get("call_options") or {}).get("market_data", {})
-        put_md = (item.get("put_options") or {}).get("market_data", {})
-        rows.append({"strike": strike, "ce": build_leg(call_md), "pe": build_leg(put_md)})
+        call_opts = item.get("call_options") or {}
+        put_opts = item.get("put_options") or {}
+        call_md = call_opts.get("market_data", {})
+        put_md = put_opts.get("market_data", {})
+        call_greeks = call_opts.get("option_greeks") or {}
+        put_greeks = put_opts.get("option_greeks") or {}
+        rows.append({"strike": strike,
+                     "ce": build_leg(call_md, call_greeks),
+                     "pe": build_leg(put_md, put_greeks)})
     rows.sort(key=lambda r: r["strike"])
     return expiry, spot, rows
 
@@ -188,6 +203,78 @@ def _fetch_nifty_candles(date_str: str, walkback_days: int = 0) -> list[dict]:
         return []
 
 
+def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
+    """Simplified dealer gamma exposure (GEX) per strike, in Cr per point.
+
+    Formula (per strike)::
+
+        call_gex = gamma_ce * oi_ce * lot_size * spot / 1e7   (positive)
+        put_gex  = -(gamma_pe * oi_pe * lot_size * spot / 1e7) (negative)
+        net_gex  = call_gex + put_gex
+
+    Convention: customer long puts leave dealers short gamma, so the put
+    leg is expressed NEGATIVE and ``net_gex`` is the signed sum. ``net_total``
+    is the sum of ``net_gex`` across strikes. ``regime`` is ``"long"`` when
+    dealers are net long gamma (dampens moves / pins spot), ``"short"`` when
+    net short (amplifies moves), and ``"flat"`` when ``|net_total| < 1.0``.
+    ``top_positive`` (top-2 by net_gex) marks support magnets;
+    ``top_negative`` (bottom-2) marks resistance / volatility fuel.
+    ``zero_cross`` is the strike where cumulative net_gex (ascending) first
+    crosses or touches zero, else None. Pure function, no network.
+    All floats rounded to 2 decimals.
+    """
+    spot_f = _safe_float(spot)
+    per = []
+    for r in rows or []:
+        ce = r.get("ce", {}) or {}
+        pe = r.get("pe", {}) or {}
+        g_ce = _safe_float(ce.get("gamma"))
+        g_pe = _safe_float(pe.get("gamma"))
+        oi_ce = _safe_int(ce.get("oi"))
+        oi_pe = _safe_int(pe.get("oi"))
+        call_gex = round(g_ce * oi_ce * lot_size * spot_f / 1e7, 2)
+        put_gex = round(-g_pe * oi_pe * lot_size * spot_f / 1e7, 2)
+        net_gex = round(call_gex + put_gex, 2)
+        per.append({"strike": r.get("strike", 0.0), "call_gex": call_gex,
+                    "put_gex": put_gex, "net_gex": net_gex})
+    per.sort(key=lambda e: e["strike"])
+    net_total = round(sum(e["net_gex"] for e in per), 2)
+    if abs(net_total) < 1.0:
+        regime = "flat"
+    elif net_total > 0:
+        regime = "long"
+    else:
+        regime = "short"
+    by_desc = sorted(per, key=lambda e: e["net_gex"], reverse=True)
+    by_asc = sorted(per, key=lambda e: e["net_gex"])
+    top_positive = [{"strike": e["strike"], "net_gex": e["net_gex"]} for e in by_desc[:2]]
+    top_negative = [{"strike": e["strike"], "net_gex": e["net_gex"]} for e in by_asc[:2]]
+    zero_cross = None
+    cum = 0.0
+    prev = None
+    for e in per:
+        cum = round(cum + e["net_gex"], 2)
+        if cum == 0:
+            # Exact touch counts only after real exposure — leading dead
+            # far-OTM strikes (0 + 0) must not fake a flip level.
+            if prev is not None:
+                zero_cross = e["strike"]
+                break
+            continue
+        if prev is not None and (prev < 0) != (cum < 0):
+            zero_cross = e["strike"]
+            break
+        prev = cum
+    return {
+        "strikes": per,
+        "net_total": net_total,
+        "regime": regime,
+        "top_positive": top_positive,
+        "top_negative": top_negative,
+        "zero_cross": zero_cross,
+    }
+
+
 def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
                  candles: Optional[list[dict]] = None) -> dict:
     """Assemble the report envelope shared by live and snapshot responses."""
@@ -209,6 +296,7 @@ def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
         "pcr_vol": compute_pcr(total_pe_vol, total_ce_vol),
         "max_pain": compute_max_pain(pain_rows),
         "walls": {"calls": top_walls(rows, "ce"), "puts": top_walls(rows, "pe")},
+        "gex": compute_gex(rows, spot),
         "strikes": rows,
         "candles": candles or [],
     }
@@ -319,6 +407,7 @@ async def get_nifty_expiries():
 @router.get("/nifty/live")
 async def get_nifty_live(expiry: Optional[str] = Query(default=None, description="Expiry YYYY-MM-DD (default: nearest)")):
     """On-demand Nifty report from the live Upstox option chain (60s TTL)."""
+    _ensure_tape_task()
     if expiry:
         _validate_date(expiry)
     key = expiry or "default"
@@ -367,3 +456,263 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
     }
     write_snapshot(date_str, snapshot)
     return snapshot
+
+
+# ---------------------------------------------------------------------------
+# OI tape: per-minute time series of the Nifty chain
+# ---------------------------------------------------------------------------
+
+# stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
+TAPE_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_tape"
+TAPE_INTERVAL_SEC = 60
+
+
+def tape_path(date_str: str) -> Path:
+    return TAPE_DIR / f"{date_str}.jsonl"
+
+
+def read_tape(date_str: str) -> list[dict]:
+    """Raw tape rows for ``date_str`` (JSONL, one snapshot per line).
+
+    Skips blank/corrupt lines; returns [] when the file is missing.
+    """
+    path = tape_path(date_str)
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rows.append(json.loads(line))
+                except (json.JSONDecodeError, ValueError):
+                    continue
+    except OSError:
+        return []
+    return rows
+
+
+def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
+    """Attach derived deltas to raw tape rows.
+
+    Formulas (all deltas vs the day's FIRST row unless noted):
+      - ``call_doi = ce_oi - first.ce_oi`` (whole contracts, int)
+      - ``put_doi  = pe_oi - first.pe_oi`` (whole contracts, int)
+      - ``net      = put_doi - call_doi`` (whole contracts, int;
+        positive = put-side OI building faster than call-side)
+      - ``net_pct  = 100 * net / (|call_doi| + |put_doi|)`` rounded 2dp;
+        0.0 when the denominator is 0 (e.g. the first row). Absolute-share
+        denominator: stays sane on expiry-day unwinding when total ΔOI
+        itself goes negative.
+      - ``call_tick = ce_vol - prev_row.ce_vol`` (0 for the first row;
+        whole contracts, int; Upstox volume is cumulative so the diff
+        is the minute's traded volume)
+      - ``put_tick`` likewise for ``pe_vol``
+      - ``pcr_doi  = pcr_oi - first.pcr_oi`` rounded 2dp
+      - ``spot_flip = spot - flip`` rounded 2dp; None when ``flip`` is null
+    Raw keys are preserved; derived keys are added.
+    """
+    if not raw_rows:
+        return []
+    first = raw_rows[0]
+    f_ce = _safe_int(first.get("ce_oi"))
+    f_pe = _safe_int(first.get("pe_oi"))
+    f_pcr = _safe_float(first.get("pcr_oi"))
+    out: list[dict] = []
+    prev_ce_vol: Optional[int] = None
+    prev_pe_vol: Optional[int] = None
+    for i, r in enumerate(raw_rows):
+        ce_oi = _safe_int(r.get("ce_oi"))
+        pe_oi = _safe_int(r.get("pe_oi"))
+        ce_vol = _safe_int(r.get("ce_vol"))
+        pe_vol = _safe_int(r.get("pe_vol"))
+        pcr_oi = _safe_float(r.get("pcr_oi"))
+        spot = _safe_float(r.get("spot"))
+        flip = r.get("flip")
+        # OI deltas vs the day's first row (whole contracts).
+        call_doi = ce_oi - f_ce
+        put_doi = pe_oi - f_pe
+        # Net build: put-side DOI minus call-side DOI.
+        net = put_doi - call_doi
+        # Net as % of absolute positioning flow; guarded against zero.
+        denom = abs(call_doi) + abs(put_doi)
+        net_pct = round(100.0 * net / denom, 2) if denom != 0 else 0.0
+        # Per-minute traded volume = cumulative-volume diff vs prev row.
+        if i == 0:
+            call_tick = 0
+            put_tick = 0
+        else:
+            call_tick = ce_vol - (prev_ce_vol if prev_ce_vol is not None else ce_vol)
+            put_tick = pe_vol - (prev_pe_vol if prev_pe_vol is not None else pe_vol)
+        # PCR-OI drift vs the day's first row.
+        pcr_doi = round(pcr_oi - f_pcr, 2)
+        # Distance of spot above/below the GEX flip level.
+        try:
+            spot_flip = round(spot - float(flip), 2) if flip is not None else None
+        except (TypeError, ValueError):
+            spot_flip = None
+        out.append({**r,
+                    "call_doi": call_doi, "put_doi": put_doi,
+                    "net": net, "net_pct": net_pct,
+                    "call_tick": call_tick, "put_tick": put_tick,
+                    "pcr_doi": pcr_doi, "spot_flip": spot_flip})
+        prev_ce_vol = ce_vol
+        prev_pe_vol = pe_vol
+    return out
+
+
+async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dict]:
+    """Record ONE per-minute tape row from the live chain; never raises.
+
+    Reuses ``_compute_live(None)`` (nearest expiry, no candle walkback) and
+    persists the light aggregates ``{t, spot, ce_oi, pe_oi, ce_vol, pe_vol,
+    pcr_oi, pcr_vol, max_pain, flip, walls, expiry}`` to the day's JSONL.
+    Rows sharing the same IST minute bucket as the file's last row are
+    skipped (returns None). ALL exceptions are swallowed — returns the row
+    on success, None otherwise.
+    """
+    try:
+        report = await _compute_live(None, walkback_days=0)
+    except Exception:
+        return None
+    try:
+        ts = now or datetime.now(config.IST)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=config.IST)
+        t_iso = ts.isoformat()
+        date_str = ts.strftime("%Y-%m-%d")
+        strikes = report.get("strikes", []) or []
+        ce_oi = sum(_safe_int((r.get("ce") or {}).get("oi")) for r in strikes)
+        pe_oi = sum(_safe_int((r.get("pe") or {}).get("oi")) for r in strikes)
+        ce_vol = sum(_safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
+        pe_vol = sum(_safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
+        gex = report.get("gex", {}) or {}
+        row = {
+            "t": t_iso,
+            "spot": _safe_float(report.get("spot")),
+            "ce_oi": ce_oi,
+            "pe_oi": pe_oi,
+            "ce_vol": ce_vol,
+            "pe_vol": pe_vol,
+            "pcr_oi": _safe_float(report.get("pcr_oi")),
+            "pcr_vol": _safe_float(report.get("pcr_vol")),
+            "max_pain": _safe_float(report.get("max_pain")),
+            "flip": gex.get("zero_cross"),
+            "walls": report.get("walls", {"calls": [], "puts": []}),
+            "expiry": report.get("expiry", ""),
+        }
+        path = tape_path(date_str)
+        minute = t_iso[:16]
+        if path.exists():
+            try:
+                with open(path) as f:
+                    lines = [ln.strip() for ln in f if ln.strip()]
+                if lines:
+                    last = json.loads(lines[-1])
+                    if str(last.get("t", ""))[:16] == minute:
+                        return None
+            except Exception:
+                pass
+        TAPE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(path, "a") as f:
+            f.write(json.dumps(row) + "\n")
+        return row
+    except Exception:
+        return None
+
+
+_tape_last_tick: Optional[str] = None
+_tape_last_error: Optional[str] = None
+_tape_iterations: int = 0
+_tape_task = None
+
+
+def _ensure_tape_task() -> None:
+    """Start the recorder loop if it isn't running (request-driven backup
+    for the lifespan hook — survives reloaders that skip lifespan)."""
+    global _tape_task
+    try:
+        import asyncio
+        loop = asyncio.get_running_loop()
+    except RuntimeError:
+        return
+    try:
+        if _tape_task is None or _tape_task.done():
+            _tape_task = loop.create_task(start_nifty_tape_task())
+    except Exception:
+        pass
+
+
+async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
+    """Background loop: one tape tick every ``poll_sec``s while the market is open.
+
+    Market gate delegates to ``trading.utils.is_market_open`` (hour-window
+    fallback on import failure, mirroring the server's ``_is_market_hours``).
+    Never raises — per-tick errors are swallowed so the loop survives.
+    Heartbeat (for /nifty/tape/status): ``_tape_last_tick/_tape_last_error``.
+    """
+    global _tape_last_tick, _tape_last_error, _tape_iterations
+    import asyncio
+    while True:
+        try:
+            try:
+                from trading.utils import is_market_open
+                market_open = is_market_open()
+            except Exception:
+                market_open = 8 <= datetime.now(config.IST).hour <= 16
+            if market_open:
+                try:
+                    row = await record_nifty_tape_tick()
+                    _tape_iterations += 1
+                    if row is not None:
+                        _tape_last_tick = row.get("t")
+                        _tape_last_error = None
+                    elif _tape_last_error is None:
+                        _tape_last_error = "tick returned None (chain fetch failed?)"
+                except Exception as e:
+                    _tape_iterations += 1
+                    _tape_last_error = f"{type(e).__name__}: {str(e)[:200]}"
+            await asyncio.sleep(poll_sec)
+        except asyncio.CancelledError:
+            break
+        except Exception:
+            try:
+                await asyncio.sleep(poll_sec)
+            except asyncio.CancelledError:
+                break
+
+
+@router.get("/nifty/tape/status")
+def get_nifty_tape_status():
+    """Heartbeat for the background recorder: last tick time / last error."""
+    _ensure_tape_task()
+    return {"last_tick": _tape_last_tick, "last_error": _tape_last_error,
+            "iterations": _tape_iterations, "interval_sec": TAPE_INTERVAL_SEC}
+
+
+@router.get("/nifty/tape")
+def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape date YYYY-MM-DD (default: today)")):
+    """Serve the day's per-minute OI tape with derived deltas.
+
+    NOTE: past minutes are NEVER backfilled — rows exist only for minutes
+    the recorder was alive during market hours, so gaps stay gaps. A
+    missing/empty tape yields a 404 ``{is_trading_day: False}`` envelope.
+    See :func:`derive_tape_rows` for the per-row formulas.
+    """
+    date_str = _validate_date(date or _today_str())
+    raw = read_tape(date_str)
+    if not raw:
+        raise HTTPException(status_code=404, detail={
+            "is_trading_day": False,
+            "date": date_str,
+            "message": f"no Nifty tape for {date_str}",
+        })
+    rows = derive_tape_rows(raw)
+    # Honest baseline: deltas are measured vs the day's FIRST recorded row,
+    # which may be well after the open when the recorder booted late.
+    baseline_t = rows[0].get("t") if rows else None
+    return {"date": date_str, "interval_sec": TAPE_INTERVAL_SEC,
+            "baseline_t": baseline_t, "rows": rows}

@@ -16,6 +16,7 @@ import api.reports_api.nifty as nifty
 from api.reports_api.nifty import (
     build_leg,
     build_report,
+    compute_gex,
     compute_max_pain,
     compute_pcr,
     create_nifty_snapshot,
@@ -291,3 +292,142 @@ class TestSnapshotEndpoint:
         assert "snapshot_at" in snap and isinstance(snap["timeline"], list)
         on_disk = json.loads((nifty.SNAPSHOT_DIR / "2026-10-12.json").read_text())
         assert on_disk["max_pain"] == snap["max_pain"]
+
+
+# ---------------- gamma / GEX ----------------
+
+def _gex_row(strike, g_ce, oi_ce, g_pe, oi_pe):
+    return {"strike": float(strike),
+            "ce": {"gamma": g_ce, "oi": oi_ce},
+            "pe": {"gamma": g_pe, "oi": oi_pe}}
+
+
+class TestGammaParsing:
+    def test_build_leg_carries_gamma(self):
+        leg = build_leg({"ltp": 50.0, "close_price": 60.0, "oi": 1000,
+                         "prev_oi": 800, "volume": 500},
+                        {"delta": 0.5, "gamma": 0.0042, "vega": 1.0,
+                         "theta": -0.5, "iv": 12.0})
+        assert leg["gamma"] == 0.0042
+        # existing keys unchanged
+        assert leg["oi"] == 1000 and leg["oi_change"] == 200
+        assert leg["price_change"] == -10.0
+
+    def test_build_leg_missing_greeks_defaults_zero(self):
+        assert build_leg({})["gamma"] == 0.0
+        assert build_leg({"ltp": 1}, None)["gamma"] == 0.0
+        assert build_leg({"ltp": 1}, {})["gamma"] == 0.0
+        assert build_leg({"ltp": 1}, {"gamma": None})["gamma"] == 0.0
+        assert build_leg({"ltp": 1}, {"gamma": "bad"})["gamma"] == 0.0
+
+    def test_build_leg_existing_keys_preserved(self):
+        leg = build_leg({"ltp": 1}, {"gamma": 0.001})
+        assert set(leg) == {"ltp", "close_price", "oi", "prev_oi",
+                            "oi_change", "volume", "price_change",
+                            "sentiment", "gamma"}
+
+    def test_parse_chain_picks_option_greeks(self):
+        payload = _chain_payload()
+        payload["data"][0]["call_options"]["option_greeks"] = {
+            "delta": 0.5, "gamma": 0.001, "vega": 1.0, "theta": -0.5, "iv": 12.0}
+        payload["data"][0]["put_options"]["option_greeks"] = {"gamma": 0.002}
+        _, _, rows = parse_chain_payload(payload)
+        by_strike = {r["strike"]: r for r in rows}
+        assert by_strike[22400.0]["ce"]["gamma"] == 0.001
+        assert by_strike[22400.0]["pe"]["gamma"] == 0.002
+        # strikes without greeks default to 0.0
+        assert by_strike[22300.0]["ce"]["gamma"] == 0.0
+        assert by_strike[22300.0]["pe"]["gamma"] == 0.0
+
+
+class TestComputeGex:
+    def test_formula_hand_computed(self):
+        # spot=20000, lot=50 -> factor lot*spot/1e7 = 0.1
+        # A: call 0.01*1000*0.1=1.0; put -(0.005*1000*0.1)=-0.5; net 0.5
+        # B: call 0.002*500*0.1=0.1; put -(0.02*2000*0.1)=-4.0; net -3.9
+        rows = [_gex_row(19000, 0.01, 1000, 0.005, 1000),
+                _gex_row(20000, 0.002, 500, 0.02, 2000)]
+        out = compute_gex(rows, 20000.0, lot_size=50)
+        by_strike = {s["strike"]: s for s in out["strikes"]}
+        assert by_strike[19000.0] == {"strike": 19000.0, "call_gex": 1.0,
+                                      "put_gex": -0.5, "net_gex": 0.5}
+        assert by_strike[20000.0] == {"strike": 20000.0, "call_gex": 0.1,
+                                      "put_gex": -4.0, "net_gex": -3.9}
+        assert out["net_total"] == -3.4
+        assert out["regime"] == "short"
+        assert out["top_positive"][0] == {"strike": 19000.0, "net_gex": 0.5}
+        assert out["top_negative"][0] == {"strike": 20000.0, "net_gex": -3.9}
+        # cum 0.5 -> -3.4 flips sign at the second strike
+        assert out["zero_cross"] == 20000.0
+
+    def test_default_lot_size(self):
+        # gamma 0.01 * oi 1000 * 65 * 25000 / 1e7 = 1.625 -> 1.62
+        rows = [_gex_row(25000, 0.01, 1000, 0.0, 0)]
+        out = compute_gex(rows, 25000.0)
+        assert out["strikes"][0]["call_gex"] == 1.62
+        assert out["strikes"][0]["put_gex"] == 0.0
+        assert out["strikes"][0]["net_gex"] == 1.62
+
+    def test_regime_thresholds(self):
+        # factor 0.1: gamma 0.01*oi 1000 -> 1.0; gamma 0.0099*oi 1000 -> 0.99
+        assert compute_gex([_gex_row(1, 0.01, 1000, 0, 0)],
+                           10000.0, lot_size=100)["regime"] == "long"
+        assert compute_gex([_gex_row(1, 0.0099, 1000, 0, 0)],
+                           10000.0, lot_size=100)["regime"] == "flat"
+        assert compute_gex([_gex_row(1, 0, 0, 0.01, 1000)],
+                           10000.0, lot_size=100)["regime"] == "short"
+        assert compute_gex([_gex_row(1, 0, 0, 0.0099, 1000)],
+                           10000.0, lot_size=100)["regime"] == "flat"
+        assert compute_gex([], 10000.0)["regime"] == "flat"
+        assert compute_gex([], 10000.0)["net_total"] == 0.0
+
+    def test_zero_cross_exact_touch(self):
+        # cum +2.0 then 0.0 -> touch at the second strike
+        rows = [_gex_row(100, 0.02, 1000, 0, 0),
+                _gex_row(200, 0, 0, 0.02, 1000)]
+        out = compute_gex(rows, 10000.0, lot_size=100)
+        assert [s["net_gex"] for s in out["strikes"]] == [2.0, -2.0]
+        assert out["zero_cross"] == 200.0
+
+    def test_zero_cross_ignores_leading_dead_strikes(self):
+        # far-OTM zeros must not fake a flip at the first strike
+        rows = [_gex_row(100, 0, 0, 0, 0),
+                _gex_row(200, 0, 0, 0, 0),
+                _gex_row(300, 0.02, 1000, 0, 0),
+                _gex_row(400, 0, 0, 0.02, 1000)]
+        out = compute_gex(rows, 10000.0, lot_size=100)
+        assert out["zero_cross"] == 400.0
+
+    def test_zero_cross_null_when_no_crossing(self):
+        pos = [_gex_row(100, 0.01, 1000, 0, 0),
+               _gex_row(200, 0.02, 1000, 0, 0)]
+        assert compute_gex(pos, 10000.0, lot_size=100)["zero_cross"] is None
+        neg = [_gex_row(100, 0, 0, 0.01, 1000),
+               _gex_row(200, 0, 0, 0.02, 1000)]
+        assert compute_gex(neg, 10000.0, lot_size=100)["zero_cross"] is None
+        assert compute_gex([], 10000.0)["zero_cross"] is None
+
+    def test_top_two_selection(self):
+        rows = [_gex_row(100, 0.01, 1000, 0, 0),   # net +1.0
+                _gex_row(200, 0.03, 1000, 0, 0),   # net +3.0
+                _gex_row(300, 0, 0, 0.05, 1000),   # net -5.0
+                _gex_row(400, 0.02, 1000, 0, 0)]   # net +2.0
+        out = compute_gex(rows, 10000.0, lot_size=100)
+        assert [t["strike"] for t in out["top_positive"]] == [200.0, 400.0]
+        assert [t["strike"] for t in out["top_negative"]] == [300.0, 100.0]
+
+
+class TestBuildReportGex:
+    def test_report_carries_gex_block(self):
+        _, spot, rows = parse_chain_payload(_chain_payload())
+        rep = build_report("2026-10-13", spot, rows, mode="live")
+        assert "gex" in rep
+        gex = rep["gex"]
+        assert set(gex) == {"strikes", "net_total", "regime",
+                            "top_positive", "top_negative", "zero_cross"}
+        assert len(gex["strikes"]) == 3
+        assert gex["regime"] in ("long", "short", "flat")
+        # existing keys untouched
+        for key in ("mode", "expiry", "spot", "fetched_at", "pcr_oi",
+                    "pcr_vol", "max_pain", "walls", "strikes", "candles"):
+            assert key in rep, f"missing {key}"

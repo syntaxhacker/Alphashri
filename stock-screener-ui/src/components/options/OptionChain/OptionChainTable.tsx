@@ -11,7 +11,7 @@ import {
   useColorScheme,
   useTheme,
 } from "@/ui";
-import { memo, useMemo, useRef, useState, type CSSProperties } from "react";
+import { memo, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { getMoneyness } from "../../../utils/options";
 import { clamp, formatNumber, getPnLTextColor } from "../../../utils/ui-helpers";
 import type { OptionContract } from "../../../api/upstoxOptions";
@@ -58,6 +58,7 @@ function OptionColumn({
   onRowClick,
   theme,
   isHovered,
+  rowStrike,
 }: {
   contract: OptionContract | null;
   type: "CE" | "PE";
@@ -67,9 +68,45 @@ function OptionColumn({
   onRowClick: (c: OptionContract) => void;
   theme: ReturnType<typeof useTheme>;
   isHovered: boolean;
+  rowStrike: number;
 }) {
   const { colorScheme } = useColorScheme();
   const styles = getStyles(theme, colorScheme === "dark");
+  // Inline tick-flash: diff this side's quotes across polls so changed cells
+  // pulse in place instead of silently re-rendering. fq toggles restart CSS.
+  const ltpNow = contract?.market_data?.ltp ?? 0;
+  const oiNow = contract?.market_data?.oi ?? 0;
+  const volNow = contract?.market_data?.volume ?? 0;
+  const chgNow = oiNow - (contract?.market_data?.prev_oi ?? 0);
+  const prevRef = useRef({ ltp: ltpNow, oi: oiNow, vol: volNow, chg: chgNow, init: false });
+  const [flash, setFlash] = useState<{ ltp: "up" | "down" | null; pulse: number; fq: number }>({
+    ltp: null,
+    pulse: 0,
+    fq: 0,
+  });
+  useEffect(() => {
+    const p = prevRef.current;
+    const ltpDir = !p.init ? null : ltpNow > p.ltp ? "up" : ltpNow < p.ltp ? "down" : null;
+    const othersChanged = p.init && (oiNow !== p.oi || volNow !== p.vol || chgNow !== p.chg);
+    prevRef.current = { ltp: ltpNow, oi: oiNow, vol: volNow, chg: chgNow, init: true };
+    if (ltpDir || othersChanged) {
+      setFlash((f) => ({
+        ltp: ltpDir,
+        pulse: othersChanged ? f.pulse + 1 : f.pulse,
+        fq: f.fq + 1,
+      }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ltpNow, oiNow, volNow, chgNow]);
+  const flashClassFor = (kind: CellKind): string | undefined => {
+    if (kind === "ltp") {
+      return flash.ltp ? `price-flash-${flash.ltp} fq${flash.fq % 2}` : undefined;
+    }
+    if ((kind === "oi" || kind === "volume" || kind === "change") && flash.pulse > 0) {
+      return `price-flash-chg fq${flash.pulse % 2}`;
+    }
+    return undefined;
+  };
   if (!contract) {
     return (
       <Box sx={{ display: "contents" }}>
@@ -96,6 +133,8 @@ function OptionColumn({
   const prevOi = m?.prev_oi ?? 0;
   const oiChange = oi - prevOi;
   const oiChangePct = prevOi > 0 ? (oiChange / prevOi) * 100 : 0;
+  // Direction glyph for at-a-glance scanning (value uses abs to avoid "--" double signs).
+  const oiChangeText = `${oiChange > 0 ? "▲ " : oiChange < 0 ? "▼ " : ""}${formatNumber(Math.abs(oiChange))}`;
   const volume = m?.volume ?? 0;
   const ltp = m?.ltp ?? 0;
   const iv = g?.iv ?? 0;
@@ -107,14 +146,14 @@ function OptionColumn({
       ? [
           { value: formatNumber(oi), kind: "oi", isOI: true, title: `OI ${oi.toLocaleString("en-IN")}` },
           {
-            value: formatNumber(oiChange),
+            value: oiChangeText,
             kind: "change",
             c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
             positive: oiChange >= 0,
             title: `OI change ${oiChange.toLocaleString("en-IN")} (${oiChangePct.toFixed(2)}%)`,
           },
-          { value: formatNumber(volume), kind: "volume", title: `Volume ${volume.toLocaleString("en-IN")}` },
+          { value: formatNumber(volume), kind: "volume", isVol: true, title: `Volume ${volume.toLocaleString("en-IN")}` },
           { value: iv.toFixed(1), kind: "iv", c: "dimmed", title: `IV ${iv.toFixed(2)}%` },
           {
             value: ltp.toFixed(2),
@@ -135,9 +174,9 @@ function OptionColumn({
             title: `LTP ₹${ltp.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
           },
           { value: iv.toFixed(1), kind: "iv", c: "dimmed", title: `IV ${iv.toFixed(2)}%` },
-          { value: formatNumber(volume), kind: "volume", title: `Volume ${volume.toLocaleString("en-IN")}` },
+          { value: formatNumber(volume), kind: "volume", isVol: true, title: `Volume ${volume.toLocaleString("en-IN")}` },
           {
-            value: formatNumber(oiChange),
+            value: oiChangeText,
             kind: "change",
             c: getPnLTextColor(oiChange),
             badge: sentiment.label !== "Neutral" ? sentiment : undefined,
@@ -152,11 +191,15 @@ function OptionColumn({
     c?: string;
     badge?: { type: string; color: string; label: string };
     isOI?: boolean;
+    isVol?: boolean;
     isLTP?: boolean;
     fw?: number;
     positive?: boolean;
     title?: string;
   }>;
+
+  const oiBarPct = clamp((oi / Math.max(maxOI, 1)) * 100, 0, 100);
+  const volBarPct = clamp((volume / Math.max(maxVolume, 1)) * 100, 0, 100);
 
   const sideIntensity = clamp(
     0.14 + atmProximity * 0.22 + (isATM ? 0.08 : 0) + (isHovered ? 0.06 : 0),
@@ -243,12 +286,32 @@ function OptionColumn({
             <Box sx={cellStyle} title={cell.title} onClick={() => onRowClick(contract)}>
               {cell.isOI && (
                 <Box
+                  data-testid={`options-oi-bar-${type}-${rowStrike}`}
+                  title={`OI ${oiBarPct.toFixed(0)}% of column max`}
                   sx={{
                     position: "absolute",
                     top: 4,
                     bottom: 4,
                     [type === "CE" ? "right" : "left"]: 0,
-                    width: `${clamp((oi / Math.max(maxOI, 1)) * 100, 0, 100)}%`,
+                    width: `${oiBarPct}%`,
+                    background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
+                    borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
+                    zIndex: 0,
+                    transition: "width 0.35s ease",
+                  }}
+                />
+              )}
+
+              {cell.isVol && (
+                <Box
+                  data-testid={`options-vol-bar-${type}-${rowStrike}`}
+                  title={`Volume ${volBarPct.toFixed(0)}% of column max`}
+                  sx={{
+                    position: "absolute",
+                    top: 4,
+                    bottom: 4,
+                    [type === "CE" ? "right" : "left"]: 0,
+                    width: `${volBarPct}%`,
                     background: `linear-gradient(180deg, ${hexToRgba(palette.accent, 0.22)} 0%, ${hexToRgba(palette.accent, 0.08)} 100%)`,
                     borderRadius: type === "CE" ? "999px 0 0 999px" : "0 999px 999px 0",
                     zIndex: 0,
@@ -259,7 +322,7 @@ function OptionColumn({
 
               <Stack gap={0} align="center" w="100%" pos="relative" sx={{ zIndex: 1 }}>
                 <Group gap={4} wrap="nowrap" align="center" justify="center">
-                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
+                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05} className={flashClassFor(cell.kind)}>
                     {cell.value}
                   </Text>
                   {cell.badge && (
@@ -313,10 +376,6 @@ function OptionChainTableInner({
   const theme = useTheme();
   const { colorScheme } = useColorScheme();
   const styles = getStyles(theme, colorScheme === "dark");
-  const maxCE_OI = Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0), 1);
-  const maxPE_OI = Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.oi ?? 0), 1);
-  const maxCE_Volume = Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.volume ?? 0), 1);
-  const maxPE_Volume = Math.max(...strikeMatrix.map((s) => s.pe?.market_data?.volume ?? 0), 1);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const atmRowRef = useRef<HTMLDivElement>(null);
@@ -344,6 +403,13 @@ function OptionChainTableInner({
       .map((row, index) => ({ ...row, index }))
       .filter((row) => Math.abs(row.index - atmIndex) <= half);
   }, [strikeMatrix, atmIndex, atmWindow]);
+
+  // In-cell bar widths are % of the *visible* column max, so the longest bar
+  // always fills the cell within the current ATM window.
+  const maxCE_OI = Math.max(...visibleRows.map((s) => s.ce?.market_data?.oi ?? 0), 1);
+  const maxPE_OI = Math.max(...visibleRows.map((s) => s.pe?.market_data?.oi ?? 0), 1);
+  const maxCE_Volume = Math.max(...visibleRows.map((s) => s.ce?.market_data?.volume ?? 0), 1);
+  const maxPE_Volume = Math.max(...visibleRows.map((s) => s.pe?.market_data?.volume ?? 0), 1);
 
   const scrollToATM = (behavior: ScrollBehavior = "smooth") => {
     const atmRow = atmRowRef.current;
@@ -426,17 +492,27 @@ function OptionChainTableInner({
             const isATM = index === atmIndex && atmIndex >= 0;
             const isHovered = hoveredStrike === strike;
             const isZebra = index % 2 === 1 && !isATM;
+            // ITM zones: calls are ITM below spot (left side), puts ITM above
+            // spot (right side). ATM keeps its warning outline as the
+            // strongest signal on screen.
+            const ceITM = spotPrice != null && strike < spotPrice;
+            const peITM = spotPrice != null && strike > spotPrice;
             const proximity = spotPrice
               ? clamp(1 - Math.min(Math.abs(strike - spotPrice) / 220, 1), 0, 1)
               : 0;
             const rowCallBg = hexToRgba(
               theme.palette.success.main,
-              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
+              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0) + (ceITM ? 0.08 : 0),
             );
             const rowPutBg = hexToRgba(
               theme.palette.error.main,
-              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0),
+              0.04 + proximity * 0.09 + (isHovered ? 0.05 : 0) + (peITM ? 0.08 : 0),
             );
+            // Per-row CE-vs-PE buildup skew: share of total strike OI held by calls.
+            const ceRowOI = ce?.market_data?.oi ?? 0;
+            const peRowOI = pe?.market_data?.oi ?? 0;
+            const rowOITotal = ceRowOI + peRowOI;
+            const ceSharePct = rowOITotal > 0 ? (ceRowOI / rowOITotal) * 100 : 50;
 
             return (
               <Box
@@ -444,6 +520,8 @@ function OptionChainTableInner({
                 ref={isATM ? atmRowRef : null}
                 className={isATM ? "chain-row-atm" : undefined}
                 data-atm={isATM ? "true" : undefined}
+                data-ce-itm={ceITM ? "true" : undefined}
+                data-pe-itm={peITM ? "true" : undefined}
                 sx={{
                   ...styles.row,
                   ...(isZebra ? styles.zebraRow : {}),
@@ -468,6 +546,7 @@ function OptionChainTableInner({
                   onRowClick={onRowClick}
                   theme={theme}
                   isHovered={isHovered}
+                  rowStrike={strike}
                 />
 
                 <Box
@@ -493,6 +572,23 @@ function OptionChainTableInner({
                       ATM
                     </Badge>
                   )}
+                  {/* CE-vs-PE dominance micro-bar: green/red split of strike OI */}
+                  <Box
+                    data-testid={`options-dominance-${strike}`}
+                    title={`CE ${ceSharePct.toFixed(0)}% / PE ${(100 - ceSharePct).toFixed(0)}% of strike OI`}
+                    sx={{
+                      display: "flex",
+                      width: "100%",
+                      height: 4,
+                      borderRadius: 4,
+                      overflow: "hidden",
+                      mt: 4,
+                      bgcolor: "divider",
+                    }}
+                  >
+                    <Box sx={{ width: `${ceSharePct}%`, bgcolor: "success.main" }} />
+                    <Box sx={{ width: `${100 - ceSharePct}%`, bgcolor: "error.main" }} />
+                  </Box>
                 </Box>
 
                 <OptionColumn
@@ -504,6 +600,7 @@ function OptionChainTableInner({
                   onRowClick={onRowClick}
                   theme={theme}
                   isHovered={isHovered}
+                  rowStrike={strike}
                 />
               </Box>
             );

@@ -4,9 +4,14 @@
 
 import { fetchWithAuth } from "../state/auth";
 import type {
+  NiftyGex,
+  NiftyGexLevel,
+  NiftyGexStrike,
   NiftyOptionSide,
   NiftyReport,
   NiftyStrike,
+  NiftyTape,
+  NiftyTapeRow,
   NiftyTimelineEvent,
 } from "../types/niftyReport";
 
@@ -27,6 +32,7 @@ function normalizeSide(raw: Record<string, unknown> = {}): NiftyOptionSide {
     prevOi: num(raw.prevOi ?? raw.prev_oi),
     oiChange: num(raw.oiChange ?? raw.oi_change),
     priceChange: num(raw.priceChange ?? raw.price_change),
+    volume: num(raw.volume),
     sentiment:
       typeof raw.sentiment === "string"
         ? raw.sentiment
@@ -43,6 +49,58 @@ function normalizeTimeline(raw: unknown): NiftyTimelineEvent[] {
     title: String(e.title ?? e.event ?? ""),
     detail: String(e.detail ?? ""),
   }));
+}
+
+/** Backend speaks snake_case for GEX; absent block stays undefined so old snapshots render. */
+function normalizeGexLevel(raw: unknown): NiftyGexLevel {
+  const row = (raw ?? {}) as Record<string, unknown>;
+  return {
+    strike: num(row.strike),
+    netGex: num(row.netGex ?? row.net_gex),
+  };
+}
+
+function normalizeGex(raw: unknown): NiftyGex | undefined {
+  if (raw === null || raw === undefined) return undefined;
+  if (typeof raw !== "object") return undefined;
+  const g = raw as Record<string, unknown>;
+  // Treat an empty object as absent so legacy payloads keep gex undefined.
+  if (Object.keys(g).length === 0) return undefined;
+  const regimeRaw = String(g.regime ?? "flat").toLowerCase();
+  const regime: NiftyGex["regime"] =
+    regimeRaw === "long" ? "long" : regimeRaw === "short" ? "short" : "flat";
+  const zeroRaw = g.zeroCross ?? g.zero_cross;
+  return {
+    strikes: (Array.isArray(g.strikes) ? g.strikes : []).map(
+      (s): NiftyGexStrike => {
+        const row = (s ?? {}) as Record<string, unknown>;
+        return {
+          strike: num(row.strike),
+          callGex: num(row.callGex ?? row.call_gex),
+          putGex: num(row.putGex ?? row.put_gex),
+          netGex: num(row.netGex ?? row.net_gex),
+        };
+      },
+    ),
+    netTotal: num(g.netTotal ?? g.net_total),
+    regime,
+    topPositive: (Array.isArray(g.topPositive ?? g.top_positive)
+      ? ((g.topPositive ?? g.top_positive) as unknown[])
+      : []
+    ).map(normalizeGexLevel),
+    topNegative: (Array.isArray(g.topNegative ?? g.top_negative)
+      ? ((g.topNegative ?? g.top_negative) as unknown[])
+      : []
+    ).map(normalizeGexLevel),
+    zeroCross:
+      zeroRaw === null || zeroRaw === undefined || zeroRaw === ""
+        ? null
+        : (() => {
+            const n =
+              typeof zeroRaw === "string" ? Number(zeroRaw) : (zeroRaw as number);
+            return typeof n === "number" && Number.isFinite(n) ? n : null;
+          })(),
+  };
 }
 
 /** Backend speaks snake_case; the panel speaks camelCase. Normalize once here. */
@@ -80,6 +138,7 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
       : undefined,
     fetchedAt: (raw.fetchedAt ?? raw.fetched_at) as string | undefined,
     snapshotAt: (raw.snapshotAt ?? raw.snapshot_at) as string | undefined,
+    gex: normalizeGex(raw.gex),
   };
 }
 
@@ -145,4 +204,126 @@ export async function snapshotNifty(
     { method: "POST" },
   );
   return parseNiftyResponse(response);
+}
+
+/** One tape row, snake_case-tolerant; numbers default 0, spot_flip stays null-safe. */
+/** Row walls arrive as `{calls:[{strike,oi}], puts:[...]}` — reduce to top-OI strikes. */
+function topStrike(list: unknown): number {
+  if (!Array.isArray(list) || list.length === 0) return 0;
+  let best = 0;
+  let bestOi = -Infinity;
+  for (const e of list) {
+    const r = e as Record<string, unknown>;
+    const oi = typeof r?.oi === "number" ? r.oi : 0;
+    const s = typeof r?.strike === "number" ? r.strike : 0;
+    if (oi > bestOi) {
+      bestOi = oi;
+      best = s;
+    }
+  }
+  return best;
+}
+
+export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
+  const wallsRaw = (raw.walls ?? {}) as Record<string, unknown>;
+  const flipRaw = raw.flip;
+  const spotFlipRaw = raw.spot_flip ?? raw.spotFlip;
+  return {
+    t: String(raw.t ?? raw.time ?? ""),
+    spot: num(raw.spot),
+    call_doi: num(raw.call_doi ?? raw.callDoi),
+    put_doi: num(raw.put_doi ?? raw.putDoi),
+    net: num(raw.net),
+    net_pct: num(raw.net_pct ?? raw.netPct),
+    call_tick: num(raw.call_tick ?? raw.callTick ?? raw.ticks),
+    put_tick: num(raw.put_tick ?? raw.putTick ?? raw.ticks),
+    pcr_vol: num(raw.pcr_vol ?? raw.pcrVol),
+    pcr_oi: num(raw.pcr_oi ?? raw.pcrOi),
+    pcr_doi: num(raw.pcr_doi ?? raw.pcrDoi),
+    spot_flip:
+      spotFlipRaw === null || spotFlipRaw === undefined || spotFlipRaw === ""
+        ? null
+        : (() => {
+            const n =
+              typeof spotFlipRaw === "string"
+                ? Number(spotFlipRaw)
+                : (spotFlipRaw as number);
+            return typeof n === "number" && Number.isFinite(n) ? n : null;
+          })(),
+    max_pain: num(raw.max_pain ?? raw.maxPain),
+    flip: num(flipRaw),
+    walls: {
+      call:
+        typeof wallsRaw.call === "number"
+          ? wallsRaw.call
+          : topStrike(wallsRaw.call ?? wallsRaw.calls),
+      put:
+        typeof wallsRaw.put === "number"
+          ? wallsRaw.put
+          : topStrike(wallsRaw.put ?? wallsRaw.puts),
+    },
+  };
+}
+
+/** Top-level walls may be `{call, put}` scalars or `{calls, puts}` strike arrays. */
+function normalizeTopWalls(raw: unknown): NiftyTape["walls"] {
+  if (raw === null || raw === undefined || typeof raw !== "object") return undefined;
+  const w = raw as Record<string, unknown>;
+  if (Array.isArray(w.calls) || Array.isArray(w.puts)) {
+    const top = (list: unknown): number => {
+      if (!Array.isArray(list)) return 0;
+      let best = 0;
+      let bestOi = -1;
+      for (const e of list) {
+        const row = (e ?? {}) as Record<string, unknown>;
+        const oi = num(row.oi);
+        if (oi > bestOi) {
+          bestOi = oi;
+          best = num(row.strike);
+        }
+      }
+      return best;
+    };
+    return { call: top(w.calls), put: top(w.puts) };
+  }
+  const call = num(w.call ?? w.calls);
+  const put = num(w.put ?? w.puts);
+  if (call === 0 && put === 0) return undefined;
+  return { call, put };
+}
+
+/** `GET /api/reports/nifty/tape` — plain passthrough, one row per minute. */
+export async function fetchNiftyTape(
+  date?: string,
+  signal?: AbortSignal,
+): Promise<NiftyTape> {
+  const url = date
+    ? `${NIFTY_API_BASE}/tape?date=${encodeURIComponent(date)}`
+    : `${NIFTY_API_BASE}/tape`;
+  const response = await fetchWithAuth(url, { signal });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error(
+      (error as { detail?: string }).detail || "Failed to fetch Nifty tape",
+    );
+  }
+  const raw = (await response.json()) as Record<string, unknown>;
+  const pcrOi = num(raw.pcr_oi ?? raw.pcrOi);
+  const maxPain = num(raw.max_pain ?? raw.maxPain);
+  const flip = num(raw.flip);
+  const baselineRaw = raw.baseline_t ?? raw.baselineT;
+  return {
+    date: String(raw.date ?? date ?? ""),
+    interval_sec: num(raw.interval_sec ?? raw.intervalSec, 60),
+    rows: (Array.isArray(raw.rows) ? raw.rows : []).map((r) =>
+      normalizeTapeRow((r ?? {}) as Record<string, unknown>),
+    ),
+    ...(typeof baselineRaw === "string" && baselineRaw
+      ? { baseline_t: baselineRaw }
+      : {}),
+    ...(pcrOi !== 0 ? { pcr_oi: pcrOi } : {}),
+    ...(maxPain !== 0 ? { max_pain: maxPain } : {}),
+    ...(flip !== 0 ? { flip } : {}),
+    walls: normalizeTopWalls(raw.walls),
+  };
 }

@@ -1,19 +1,12 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { renderWithProviders } from "../../../test-utils/renderWithProviders";
-import { screen, cleanup } from "@testing-library/react";
+import { screen, cleanup, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
 import { OptionChainPanel } from "./OptionChainPanel";
+import { CHAIN_POLL_INTERVAL_MS } from "../../../hooks/useChainLivePolling";
 import { setupBrowserMocks } from "../../../test-utils/setupBrowser";
-
-vi.mock("./OptionChainHeader", () => ({
-  OptionChainHeader: () => <div data-testid="options-chain-header-controls">Header</div>,
-}));
-
-vi.mock("./OptionChainFilters", () => ({
-  OptionChainFilters: () => <div data-testid="options-chain-filters">Filters</div>,
-}));
 
 vi.mock("./OptionChainTable", () => ({
   OptionChainTable: () => <div data-testid="options-chain-table">Table</div>,
@@ -65,9 +58,11 @@ describe("OptionChainPanel", () => {
     expect(screen.getByTestId("options-chain-panel")).toBeInTheDocument();
   });
 
-  it("displays Option Chain title", () => {
-    renderWithProviders(<OptionChainPanel {...defaultProps} />);
-    expect(screen.getByText("Option Chain")).toBeInTheDocument();
+  it("renders spot info header row without redundant title text", () => {
+    const strikeMatrix = [{ strike: 24500, ce: null, pe: null }];
+    renderWithProviders(<OptionChainPanel {...defaultProps} strikeMatrix={strikeMatrix} />);
+    expect(screen.getByTestId("options-chain-header")).toBeInTheDocument();
+    expect(screen.queryByText("Option Chain")).not.toBeInTheDocument();
   });
 
   it("renders LiveSpotChart with underlying prop", () => {
@@ -139,14 +134,14 @@ describe("OptionChainPanel", () => {
     expect(screen.getByTestId("options-chain-guide-modal")).toBeInTheDocument();
   });
 
-  it("renders header controls", () => {
+  it("does not render header controls (moved to options toolbar)", () => {
     renderWithProviders(<OptionChainPanel {...defaultProps} />);
-    expect(screen.getByTestId("options-chain-header-controls")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-chain-header-controls")).not.toBeInTheDocument();
   });
 
-  it("renders filters", () => {
+  it("does not render filters (moved to options toolbar)", () => {
     renderWithProviders(<OptionChainPanel {...defaultProps} />);
-    expect(screen.getByTestId("options-chain-filters")).toBeInTheDocument();
+    expect(screen.queryByTestId("options-chain-filters")).not.toBeInTheDocument();
   });
 
   describe("loading state", () => {
@@ -199,6 +194,93 @@ describe("OptionChainPanel", () => {
       expect(screen.getByTestId("options-chain-view-tabs-list")).toBeInTheDocument();
       expect(screen.getByTestId("chain-tab-table")).toBeInTheDocument();
       expect(screen.getByTestId("chain-tab-analysis")).toBeInTheDocument();
+    });
+  });
+
+  describe("live sync badge", () => {
+    it("shows · LIVE next to the timestamp when the chain is fresh", () => {
+      renderWithProviders(
+        <OptionChainPanel {...defaultProps} timestamp={new Date().toISOString()} />,
+      );
+      expect(screen.getByTestId("options-chain-timestamp")).toBeInTheDocument();
+      expect(screen.getByTestId("options-chain-live-badge")).toHaveTextContent("· LIVE");
+    });
+
+    it("shows · STALE with age when the chain timestamp is old", () => {
+      renderWithProviders(<OptionChainPanel {...defaultProps} />);
+      const badge = screen.getByTestId("options-chain-live-badge");
+      expect(badge).toHaveTextContent(/· STALE/);
+      expect(badge).not.toHaveTextContent("LIVE");
+    });
+
+    it("hides the live badge together with the timestamp while loading", () => {
+      renderWithProviders(<OptionChainPanel {...defaultProps} loading={true} />);
+      expect(screen.queryByTestId("options-chain-live-badge")).not.toBeInTheDocument();
+    });
+  });
+
+  describe("live sync polling", () => {
+    beforeEach(() => {
+      vi.useFakeTimers();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+    });
+
+    it("refetches the chain every 15s while the chain tab is mounted", async () => {
+      const refreshChain = vi.fn();
+      renderWithProviders(
+        <OptionChainPanel {...defaultProps} refreshChain={refreshChain} />,
+      );
+      expect(refreshChain).not.toHaveBeenCalled();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CHAIN_POLL_INTERVAL_MS);
+      });
+      expect(refreshChain).toHaveBeenCalledTimes(1);
+    });
+
+    it("stops polling on unmount (positions/greeks tabs)", async () => {
+      const refreshChain = vi.fn();
+      const rendered = renderWithProviders(
+        <OptionChainPanel {...defaultProps} refreshChain={refreshChain} />,
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CHAIN_POLL_INTERVAL_MS);
+      });
+      expect(refreshChain).toHaveBeenCalledTimes(1);
+      rendered.unmount();
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(CHAIN_POLL_INTERVAL_MS * 3);
+      });
+      expect(refreshChain).toHaveBeenCalledTimes(1);
+    });
+
+    it("manual refresh fetches immediately and resets the 15s timer", async () => {
+      const refreshChain = vi.fn();
+      renderWithProviders(
+        <OptionChainPanel {...defaultProps} refreshChain={refreshChain} />,
+      );
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(refreshChain).not.toHaveBeenCalled();
+      // Direct dispatch: userEvent.click deadlocks under fake timers, and the
+      // refresh control renders as an SVG (no .click() in happy-dom).
+      await act(async () => {
+        screen.getByTestId("refresh-chain-btn").dispatchEvent(
+          new MouseEvent("click", { bubbles: true }),
+        );
+      });
+      expect(refreshChain).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(10_000);
+      });
+      expect(refreshChain).toHaveBeenCalledTimes(1);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      expect(refreshChain).toHaveBeenCalledTimes(2);
     });
   });
 });

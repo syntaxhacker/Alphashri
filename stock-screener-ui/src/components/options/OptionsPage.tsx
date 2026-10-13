@@ -1,9 +1,8 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Grid from "@mui/material/Grid";
 import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import { ScrollArea } from "@/ui";
+import { OptionChainHeader } from "./OptionChain/OptionChainHeader";
+import { OptionChainFilters } from "./OptionChain/OptionChainFilters";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { GreeksPanel } from "./OptionGreeks/GreeksPanel";
@@ -56,64 +55,87 @@ export function OptionsPage({
       className="options-page"
       data-testid="options-view"
       spacing={1}
-      sx={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}
+      sx={{ width: "100%" }}
     >
-      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
-            <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
-              <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
-
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
-        <Box sx={{ width: "100%", maxWidth: 1400, display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <ScrollArea h="100%" offsetScrollbars>
-            {activeTab === "chain" && (
-              <OptionChainPanel
+      <Card
+        elevation={1}
+        data-testid="options-toolbar"
+        sx={{ width: "100%", position: "sticky", top: 0, zIndex: 1, p: 1 }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            flexWrap: "wrap",
+            gap: 1,
+            rowGap: 1,
+            width: "100%",
+          }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", mr: "auto" }}>
+            <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
+          </Box>
+          {activeTab === "chain" && (
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 2,
+                rowGap: 1,
+              }}
+            >
+              <OptionChainHeader
                 selectedUnderlying={selectedUnderlying}
                 selectedExpiry={selectedExpiry}
-                loading={loading}
-                error={error}
-                filters={filters}
-                spotPrice={spotPrice}
                 setUnderlying={setUnderlying}
                 setExpiry={setExpiry}
-                setFilters={setFilters}
-                refreshChain={refreshChain}
                 availableUnderlyings={availableUnderlyings}
                 availableExpiries={availableExpiries}
-                strikeMatrix={strikeMatrix}
-                timestamp={timestamp}
-                summary={summary}
               />
-            )}
-
-            {activeTab === "positions" && (
-              <Box
-                id="positions-container"
-                className="options-tab-content"
-                data-testid="options-positions-tab"
-                sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
-              >
-                <PositionsPanel positions={positions || []} />
-              </Box>
-            )}
-
-            {activeTab === "greeks" && (
-              <Box
-                id="greeks-container"
-                className="options-tab-content"
-                data-testid="options-greeks-tab"
-                sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
-              >
-                <GreeksPanel />
-              </Box>
-            )}
-          </ScrollArea>
+              <OptionChainFilters filters={filters} setFilters={setFilters} />
+            </Box>
+          )}
         </Box>
+      </Card>
+
+      <Box sx={{ width: "100%" }}>
+        {activeTab === "chain" && (
+          <OptionChainPanel
+            selectedUnderlying={selectedUnderlying}
+            selectedExpiry={selectedExpiry}
+            loading={loading}
+            error={error}
+            filters={filters}
+            spotPrice={spotPrice}
+            refreshChain={refreshChain}
+            strikeMatrix={strikeMatrix}
+            timestamp={timestamp}
+            summary={summary}
+          />
+        )}
+
+        {activeTab === "positions" && (
+          <Box
+            id="positions-container"
+            className="options-tab-content"
+            data-testid="options-positions-tab"
+            sx={{ width: "100%" }}
+          >
+            <PositionsPanel positions={positions || []} />
+          </Box>
+        )}
+
+        {activeTab === "greeks" && (
+          <Box
+            id="greeks-container"
+            className="options-tab-content"
+            data-testid="options-greeks-tab"
+            sx={{ width: "100%" }}
+          >
+            <GreeksPanel />
+          </Box>
+        )}
       </Box>
     </Stack>
   );

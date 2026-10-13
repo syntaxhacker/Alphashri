@@ -11,7 +11,7 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
     <Box
       id="options-nav-wrapper"
       data-testid="options-nav-wrapper"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", py: 1 }}
+      sx={{ display: "flex", alignItems: "center", py: 0 }}
     >
       <Tabs
         id="options-nav-tabs"
@@ -20,11 +20,7 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
         onChange={(val) => val && onTabChange(val)}
         data-testid="options-nav"
       >
-        <TabsList
-          className="options-nav-list"
-          data-testid="options-nav-list"
-          sx={{ display: "flex", alignItems: "center", justifyContent: "center" } as any}
-        >
+        <TabsList className="options-nav-list" data-testid="options-nav-list">
           <Tab value="chain" className="options-nav-tab" data-testid="nav-tab-chain">
             Option Chain
           </Tab>

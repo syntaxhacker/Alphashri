@@ -100,7 +100,7 @@ export function TradingViewChart({
       ...(fixedHeight != null
         ? { width: containerRef.current.clientWidth, height: fixedHeight }
         : { autoSize: true }),
-      timeScale: { borderColor: palette.BORDER, timeVisible: true, secondsVisible: false, rightOffset: 6, barSpacing: 5, tickMarkFormatter: formatIST },
+      timeScale: { borderColor: palette.BORDER, timeVisible: true, secondsVisible: false, rightOffset: 10, barSpacing: 5, tickMarkFormatter: formatIST },
       localization: { timeFormatter: formatIST },
       rightPriceScale: { borderColor: palette.BORDER },
       crosshair: { mode: 1 },
@@ -179,6 +179,14 @@ export function TradingViewChart({
       }))
       .sort((a, b) => (a.time as number) - (b.time as number));
     candleSeriesRef.current.setData(candleData);
+
+    // Index/indicator symbols carry no volume — an all-zero histogram leaves a
+    // stray zero baseline + "0" last-value tag, so hide the series instead.
+    const hasVolume = candles.some((c) => (c.volume ?? 0) > 0);
+    volumeSeriesRef.current.applyOptions({
+      visible: hasVolume,
+      lastValueVisible: hasVolume,
+    });
 
     const volData: HistogramData[] = candles
       .map((c) => ({

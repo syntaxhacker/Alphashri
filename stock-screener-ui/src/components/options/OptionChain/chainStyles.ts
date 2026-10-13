@@ -45,11 +45,12 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
   subHeaderCell: {
     padding: "5px 2px",
     textAlign: "center" as const,
-    fontSize: "11px",
+    fontSize: "12px",
     color: "text.secondary",
     fontWeight: fontWeights.semibold,
     textTransform: "uppercase" as const,
     letterSpacing: "0.04em",
+    fontVariantNumeric: "tabular-nums" as const,
   },
   row: {
     display: "grid",
@@ -68,6 +69,7 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
     minHeight: 42,
     position: "relative" as const,
     overflow: "hidden",
+    fontVariantNumeric: "tabular-nums" as const,
   },
   strikeCell: {
     padding: "4px 8px",
@@ -79,9 +81,29 @@ export const getStyles = (theme: ThemeType, _isDark: boolean) => ({
     position: "sticky" as const,
     left: "calc(50% - 40px)",
     zIndex: 2,
+    fontVariantNumeric: "tabular-nums" as const,
   },
   atmHighlight: {
     bgcolor: "action.selected",
     color: "warning.main",
+  },
+  // Distinct ATM row wash applied on top of the side gradient so the
+  // at-the-money strike stays visually anchored after auto-scroll.
+  atmRow: {
+    outline: "1px solid",
+    outlineColor: "warning.main",
+  },
+  // Subtle zebra tint for non-ATM rows (kept faint so heatmaps stay legible).
+  zebraRow: {
+    bgcolor: "action.hover",
+  },
+  // Compact ATM window toggle bar pinned above the sticky table header.
+  windowBar: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+    padding: "4px 12px",
+    flexWrap: "wrap" as const,
   },
 });
