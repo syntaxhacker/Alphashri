@@ -305,8 +305,13 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
 
     _fill_days_ago_from_upstox(data['touched'], api, use_api, touched_gap_pct)
     if use_api:
-        near = [s for s in data['approaching'] if _to_float(s.get('to_52w_high'), 100) <= 3.0]
-        _fill_days_ago_from_upstox(near[:120], api, use_api, touched_gap_pct)
+        band = float(os.environ.get('SCREENER_TOUCH_BAND_GAP_PCT', '5.0'))
+        top_n = int(os.environ.get('SCREENER_TOUCH_LOOKBACK_TOP', '120'))
+        near = sorted(
+            (s for s in data['approaching'] if _to_float(s.get('to_52w_high'), 100) <= band),
+            key=lambda s: _to_float(s.get('to_52w_high'), 100),
+        )
+        _fill_days_ago_from_upstox(near[:top_n], api, use_api, touched_gap_pct)
 
     # Prices may have refreshed from daily closes above: re-bucket on live gaps.
     _resplit_52w_buckets(data, touched_gap_pct)
