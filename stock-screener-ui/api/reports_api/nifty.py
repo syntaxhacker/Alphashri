@@ -14,6 +14,7 @@ the handlers so this module stays import-light (and cycle-free).
 
 from __future__ import annotations
 
+import asyncio
 import json
 import time
 from datetime import datetime
@@ -763,6 +764,43 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
                 await asyncio.sleep(poll_sec)
             except asyncio.CancelledError:
                 break
+
+
+@router.get("/nifty/bursts/stream", dependencies=[Depends(get_current_user)])
+async def stream_nifty_bursts():
+    """Server-Sent Events: push newly detected alerts instead of polling.
+
+    Sends a small snapshot of recent events first, then live ones, with a
+    heartbeat so intermediaries don't drop an idle connection. The client is
+    expected to fall back to `/nifty/bursts` polling if this errors.
+    """
+    from fastapi.responses import StreamingResponse
+
+    from api.reports_api import nifty_stream as stream
+
+    queue = stream.subscribe()
+
+    async def _gen():
+        try:
+            # Immediate preamble so a client (and any proxy) sees the stream is
+            # live even when there is nothing to send yet.
+            yield ": connected\n\n"
+            for event in stream.recent_events(limit=20):
+                yield stream.sse_payload(event)
+            while True:
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=25.0)
+                    yield stream.sse_payload(event)
+                except asyncio.TimeoutError:
+                    yield ": heartbeat\n\n"
+        finally:
+            stream.unsubscribe(queue)
+
+    return StreamingResponse(
+        _gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
 
 
 @router.get("/nifty/tape/status")

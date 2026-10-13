@@ -17,6 +17,7 @@ import { NiftyUnusualVolume } from "./NiftyUnusualVolume";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { detectOiBursts, sessionTrend } from "./niftyOiBursts";
+import { useNiftyBurstStream } from "@/hooks/useNiftyBurstStream";
 import type { OiBurst } from "./niftyOiBursts";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -24,6 +25,7 @@ import { EmptyCompact, ErrorAlert, InlineLoader } from "@/components/common/stat
 import type { ColumnDef } from "@tanstack/react-table";
 import type { MarkLineData } from "@/utils/chart/types";
 import type {
+  NiftyBurst,
   NiftyGex,
   NiftyReport,
   NiftyReportMode,
@@ -490,6 +492,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       setReport(null);
       setTape(null);
       setBursts(null);
+      setStreamed([]);
       setError(null);
       setFailures(0);
     }
@@ -626,14 +629,29 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // In-app OI-burst alerts. Bursts come from the backend when it has any
   // (they survive the tab being closed); an empty/absent backend answer falls
   // back to the local detector so the page never goes blind. Plain hook state.
+  // Server-pushed alerts (SSE) land here within ~seconds of the tape row,
+  // instead of waiting for the next 30s poll. The hook's seen-set dedupes, so
+  // an event arrives only once whether it came from the stream or the poll.
+  const [streamed, setStreamed] = useState<NiftyBurst[]>([]);
+  const onStreamEvent = useCallback((b: NiftyBurst) => {
+    setStreamed((prev) =>
+      prev.some((x) => x.id === b.id) ? prev : [...prev, b].slice(-200),
+    );
+  }, []);
+  useNiftyBurstStream(onStreamEvent, mode === "live");
+
   const effectiveBursts = useMemo<OiBurst[]>(() => {
     const base = bursts && bursts.length > 0 ? bursts : detectOiBursts(tape?.rows ?? []);
+    const byId = new Map<string, OiBurst>();
+    for (const b of base) byId.set(b.id, b);
+    for (const b of streamed) if (!byId.has(b.id)) byId.set(b.id, b);
     const rows = tape?.rows ?? [];
-    if (rows.length === 0) return base;
+    const merged = [...byId.values()];
+    if (rows.length === 0) return merged;
     // Attach the session trend at each burst's own minute so the signal gate
     // runs on data available at that time (never the close).
-    return base.map((b) => ({ ...b, trend: b.trend ?? sessionTrend(rows, b.t) ?? null }));
-  }, [bursts, tape]);
+    return merged.map((b) => ({ ...b, trend: b.trend ?? sessionTrend(rows, b.t) ?? null }));
+  }, [bursts, tape, streamed]);
   /** Minute → burst side, for the tape's burst spine. */
   const burstMap = useMemo(() => {
     const m = new Map<string, "call" | "put">();

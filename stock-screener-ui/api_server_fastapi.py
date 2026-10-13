@@ -330,6 +330,7 @@ async def lifespan(app: FastAPI):
     _recovery_task = None
     _db_backup_task = None
     _nifty_tape_task = None
+    _nifty_stream_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -408,6 +409,13 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ Nifty tape task failed: {e}")
                 _nifty_tape_task = None
+            try:
+                from api.reports_api.nifty_stream import nifty_burst_watch_task
+                _nifty_stream_task = asyncio.create_task(nifty_burst_watch_task())
+                print("📡 Nifty burst stream watcher started")
+            except Exception as e:
+                print(f"⚠️ Nifty burst stream watcher failed: {e}")
+                _nifty_stream_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -428,6 +436,8 @@ async def lifespan(app: FastAPI):
         _db_backup_task.cancel()
     if _nifty_tape_task:
         _nifty_tape_task.cancel()
+    if _nifty_stream_task:
+        _nifty_stream_task.cancel()
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes
