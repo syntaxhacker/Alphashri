@@ -169,3 +169,11 @@ class TestFillTouchAndApproach:
         stock = self._stock('X', 100.0, 98.0)
         _fill_days_ago_from_upstox([stock], None, False, 1.0)
         assert 'approach_type' not in stock
+
+
+class TestTouchRecorderUniverse:
+    def test_covers_full_52w_universe(self):
+        from scripts.record_52w_touches import TOUCH_SCREENER_UNIVERSE
+
+        assert '52w_high' in TOUCH_SCREENER_UNIVERSE
+        assert 'trending' in TOUCH_SCREENER_UNIVERSE
