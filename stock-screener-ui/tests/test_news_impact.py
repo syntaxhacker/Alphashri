@@ -204,3 +204,52 @@ def test_unknown_directory_symbol_is_truncated(monkeypatch):
     monkeypatch.setattr(news_impact.requests, "post", lambda *a, **k: _Resp(200, _envelope(content)))
     out = news_impact.score_headlines(["one"])
     assert len(out[0]["symbol"]) <= 24
+
+
+# ----------------------------------------------------------------- throttle
+
+class TestFreeTierThrottle:
+    """Free tier is 20 req/min and 50 req/day per account — a 60s poller would
+    exhaust it in under an hour, so scoring must be rate-limited."""
+
+    def setup_method(self):
+        news_impact._last_call_ts = 0.0
+        news_impact._calls_today = 0
+        news_impact._calls_day = ""
+
+    def test_first_call_is_allowed_then_blocked_until_the_interval(self):
+        assert news_impact._throttled() is False
+        news_impact._record_call()
+        assert news_impact._throttled() is True
+        news_impact._last_call_ts -= news_impact.MIN_INTERVAL_SEC + 1
+        assert news_impact._throttled() is False
+
+    def test_daily_cap_blocks_regardless_of_interval(self):
+        import time
+        news_impact._calls_day = time.strftime("%Y-%m-%d")  # same day, so no reset
+        news_impact._last_call_ts = time.time() - 100_000
+        news_impact._calls_today = news_impact.MAX_CALLS_PER_DAY
+        assert news_impact._throttled() is True
+
+    def test_counter_resets_on_a_new_day(self):
+        news_impact._calls_today = news_impact.MAX_CALLS_PER_DAY
+        news_impact._calls_day = "1970-01-01"
+        # a new calendar day resets the counter, so the call is allowed
+        news_impact._last_call_ts = 0.0
+        assert news_impact._throttled() is False
+        assert news_impact._calls_today == 0
+
+    def test_budget_fits_a_session(self):
+        # 6.5h session at one call per interval must stay under the daily cap
+        assert (6.5 * 3600 / news_impact.MIN_INTERVAL_SEC) < news_impact.MAX_CALLS_PER_DAY
+
+    def test_score_recent_articles_is_a_noop_when_throttled(self, monkeypatch):
+        called = {"post": 0}
+        monkeypatch.setattr(news_impact.requests, "post",
+                            lambda *a, **k: called.__setitem__("post", 1))
+        news_impact._record_call()  # now throttled
+
+        out = news_impact.score_recent_articles()
+        assert out["throttled"] == 1
+        assert out["scored"] == 0
+        assert called["post"] == 0

@@ -256,24 +256,22 @@ async def news_poller_task():
 
                 current_top_id = items[0].get('id')
                 last_id = last_seen_ids.get(source_id)
+                last_seen_ids[source_id] = current_top_id
 
                 if last_id is None:
-                    last_seen_ids[source_id] = current_top_id
                     poller_logger.info(f"Initialized tracking for {source_id}, top_id={current_top_id}")
-                    return
 
-                if current_top_id == last_id:
-                    return
-
-                new_items = []
-                for item in items:
-                    if item.get('id') == last_id:
-                        break
-                    new_items.append(item)
+                # Process the WHOLE fetched batch every cycle, not just items
+                # above the previous top id. The `last_seen_ids` delta was
+                # in-memory only, so any uvicorn --reload wiped it and the
+                # poller re-initialised forever without ever saving anything.
+                # `persistence.get_article_by_url()` below is the real dedupe,
+                # so re-walking the front page is cheap and lossless.
+                new_items = list(items)
                 if not new_items:
                     return
 
-                poller_logger.info(f"Found {len(new_items)} new items from {source_id}")
+                poller_logger.info(f"Processing {len(new_items)} items from {source_id}")
                 high_impact_items = []
                 saved_count = 0
                 skipped_count = 0

@@ -31,20 +31,55 @@ logger = logging.getLogger(__name__)
 
 OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
 
-#: Best free model on OpenRouter by usage/quality at the time of writing
-#: (550B reasoning, 1M context, $0). Tried first.
-DEFAULT_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+#: Preferred model: 1M context and it actually answers inside the timeout.
+#: The bigger 550B `nemotron-3-ultra-550b-a55b:free` is real but regularly
+#: exceeds a 45s budget, so it is a fallback rather than the default.
+DEFAULT_MODEL = "nvidia/nemotron-3.5-lightning:free"
 
 #: Fallbacks, in order. `openrouter/free` auto-routes to a working free model,
 #: which makes the integration resilient to a specific `:free` ID being retired.
 FALLBACK_MODELS = (
-    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-ultra-550b-a55b:free",
     "thinkingmachines/inkling:free",
     "openrouter/free",
 )
 
-#: Headlines per call. One call per cycle keeps us far inside 20 rpm / 50 rpd.
+#: Headlines per call. One call per cycle keeps us far inside 20 rpm.
 MAX_HEADLINES = 25
+
+#: Free tier is 20 requests/minute AND **50 requests/day per account** (shared
+#: across every `:free` model). A 60s poller would exhaust that in under an
+#: hour, so scoring is throttled: at most one call per MIN_INTERVAL_SEC and at
+#: most MAX_CALLS_PER_DAY per calendar day. Budgeting ~13 calls over a 6.5h
+#: session leaves headroom for retries.
+MIN_INTERVAL_SEC = 900.0
+MAX_CALLS_PER_DAY = 40
+
+_last_call_ts: float = 0.0
+_calls_today: int = 0
+_calls_day: str = ""
+
+
+def _throttled() -> bool:
+    """True when a scoring call must be skipped to protect the free quota."""
+    global _calls_today, _calls_day
+    import time
+
+    today = time.strftime("%Y-%m-%d")
+    if _calls_day != today:
+        _calls_day = today
+        _calls_today = 0
+    if _calls_today >= MAX_CALLS_PER_DAY:
+        return True
+    return (time.time() - _last_call_ts) < MIN_INTERVAL_SEC
+
+
+def _record_call() -> None:
+    global _last_call_ts, _calls_today
+    import time
+
+    _last_call_ts = time.time()
+    _calls_today += 1
 
 SYSTEM_PROMPT = (
     "You are an equity market news filter for Indian index traders. "
@@ -133,7 +168,7 @@ def score_headlines(
     *,
     model: Optional[str] = None,
     api_key: Optional[str] = None,
-    timeout: float = 45.0,
+    timeout: float = 60.0,
 ) -> list[dict[str, Any]]:
     """Classify headlines in ONE call. Returns `[]` on any failure.
 
@@ -195,7 +230,10 @@ def score_recent_articles(limit: int = MAX_HEADLINES) -> dict[str, int]:
     (move=false) still get an impact score so they are not re-scored forever.
     Returns ``{"scored": n, "moved": n}``; never raises.
     """
-    stats = {"scored": 0, "moved": 0}
+    stats = {"scored": 0, "moved": 0, "throttled": 0}
+    if _throttled():
+        stats["throttled"] = 1
+        return stats
     try:
         from db.database import SessionLocal
         from db.models.news import NewsArticle
@@ -212,6 +250,7 @@ def score_recent_articles(limit: int = MAX_HEADLINES) -> dict[str, int]:
             if not rows:
                 return stats
 
+            _record_call()
             verdicts = score_headlines([r.headline for r in rows])
             if not verdicts:
                 return stats
