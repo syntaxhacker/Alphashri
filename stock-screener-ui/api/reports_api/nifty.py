@@ -31,7 +31,9 @@ from api.reports_api.nifty_bursts import (
     OI_BURST_WINDOW,
     attach_news,
     derive_oi_signal,
+    detect_coiling,
     detect_oi_bursts,
+    detect_premium_moves,
     detect_squeezes,
     detect_strike_bursts,
     session_trend,
@@ -888,6 +890,14 @@ def get_nifty_bursts(
         pass
     try:
         bursts += detect_strike_bursts(rows)
+    except Exception:
+        pass
+    try:
+        bursts += detect_premium_moves(rows)
+    except Exception:
+        pass
+    try:
+        bursts += detect_coiling(rows)
     except Exception:
         pass
     bursts.sort(key=lambda b: str(b.get("t") or ""))

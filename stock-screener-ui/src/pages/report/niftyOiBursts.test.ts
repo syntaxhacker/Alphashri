@@ -442,3 +442,35 @@ describe("per-strike bursts", () => {
     expect(s.strike).toBe(22_700);
   });
 });
+
+describe("premium + coil triggers", () => {
+  const chain = [{ strike: 22_700, ce: { ltp: 30 }, pe: { ltp: 22 } }];
+
+  test("premium impulse buys the moved leg, aligned by construction", () => {
+    const b = { id: "p", side: "call" as const, t: "14:03", delta: 10, baseline: 20,
+      score: 50, severity: "critical" as const, cumDoi: 0, spot: 22_715, tickVol: 0,
+      type: "premium" as const, leg: "CE", strike: 22_700, pct: 50 };
+    const s = deriveOiSignal(b, chain, 22_715, { trend: "down" })!;
+    expect(s.leg).toBe("CE");
+    expect(s.aligned).toBe(true);
+    expect(s.basis).toContain("premium impulse");
+    expect(s.basis).toContain("+50.00%");
+  });
+
+  test("a coil produces no trade plan", () => {
+    const b = { id: "c", side: "call" as const, t: "14:10", delta: 0, baseline: 0,
+      score: 0.01, severity: "watch" as const, cumDoi: 0, spot: 22_748, tickVol: 0,
+      type: "coil" as const, wall: 22_750, range_pct: 0.009, dist_pct: 0.004 };
+    expect(deriveOiSignal(b, chain, 22_748, {})).toBeNull();
+  });
+
+  test("coil alert is titled as a heads-up, not a buy", () => {
+    const b = { id: "c", side: "call" as const, t: "14:10", delta: 0, baseline: 0,
+      score: 0.01, severity: "watch" as const, cumDoi: 0, spot: 22_748, tickVol: 0,
+      type: "coil" as const, wall: 22_750, range_pct: 0.009, dist_pct: 0.004 };
+    const a = burstToAlert(b, null);
+    expect(a.title).toContain("COILING @ 22,750");
+    expect(a.detail).toContain("heads-up, no plan");
+    expect(a.title).not.toContain("BUY");
+  });
+});

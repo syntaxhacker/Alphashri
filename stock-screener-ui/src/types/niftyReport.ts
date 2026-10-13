@@ -144,7 +144,7 @@ export interface NiftyBurst {
   news?: NiftyBurstNews[];
   /** "squeeze" = wall break w/ unwinding OI (momentum); "strike" = single-strike
    * explosion; absent = index OI burst (fade). */
-  type?: "burst" | "squeeze" | "strike";
+  type?: "burst" | "squeeze" | "strike" | "premium" | "coil";
   /** Wall strike the squeeze broke through. */
   wall?: number;
 }

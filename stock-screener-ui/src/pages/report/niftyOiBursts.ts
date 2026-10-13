@@ -66,13 +66,19 @@ export interface OiBurst {
   /** Session trend at this minute (attached by the panel from the tape). */
   trend?: "up" | "down" | null;
   /** "squeeze" = wall break (momentum); "strike" = single-strike explosion. */
-  type?: "burst" | "squeeze" | "strike";
+  type?: "burst" | "squeeze" | "strike" | "premium" | "coil";
   /** Wall strike the squeeze broke through. */
   wall?: number;
   /** Exact strike a per-strike burst names (overrides nearest-to-spot). */
   strike?: number;
-  /** "CE" | "PE" for a per-strike burst. */
+  /** "CE" | "PE" for per-strike / premium bursts. */
   leg?: string;
+  /** ATM premium move in % (premium bursts). */
+  pct?: number;
+  /** Coil only: spot range as % over the window. */
+  range_pct?: number;
+  /** Coil only: distance to the wall as % of spot. */
+  dist_pct?: number;
 }
 
 /* ------------------------------------------------------------------ signal */
@@ -166,13 +172,17 @@ export function deriveOiSignal(
   const tpPct = opts.tpPct ?? OI_SIGNAL_TP_PCT;
   const minPremium = opts.minPremium ?? OI_SIGNAL_MIN_PREMIUM;
 
+  // A coil is a heads-up, not a trade.
+  if (burst.type === "coil") return null;
+
   const call = burst.side === "call";
   const building = burst.delta > 0;
   const isSqueeze = burst.type === "squeeze";
+  const isPremium = burst.type === "premium";
   // A burst is a FADE (writers moved). A squeeze is MOMENTUM: the broken side
   // is being run over, so buy the break.
-  const leg: "CE" | "PE" = isSqueeze
-    ? call
+  const leg: "CE" | "PE" = isSqueeze || isPremium
+    ? (burst.leg ?? (call ? "CE" : "PE")) === "CE"
       ? "CE"
       : "PE"
     : call === building
@@ -205,23 +215,29 @@ export function deriveOiSignal(
   const lots = Math.floor(units / NIFTY_LOT_SIZE);
   const qty = lots * NIFTY_LOT_SIZE;
 
-  let basis = isSqueeze
-    ? `short-covering squeeze — ${burst.side} wall ${
+  let basis = isPremium
+    ? `ATM premium impulse ${
+        burst.pct !== undefined ? `${burst.pct >= 0 ? "+" : ""}${burst.pct.toFixed(2)}` : "?"
+      }% (${leg} ${
+        typeof burst.strike === "number" ? burst.strike.toLocaleString("en-IN") : "?"
+      })`
+    : isSqueeze
+      ? `short-covering squeeze — ${burst.side} wall ${
         typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "?"
-      } broken while that side unwound ${Math.abs(burst.delta).toLocaleString("en-IN")}`
-    : call
-      ? building
-        ? "call OI build — writers adding ceiling → fade with puts"
-        : "call OI unwind — writers covering → upside fuel → buy calls"
-      : building
-        ? "put OI build — writers adding floor → fade with calls"
-        : "put OI unwind — support removed → downside fuel → buy puts";
+        } broken while that side unwound ${Math.abs(burst.delta).toLocaleString("en-IN")}`
+      : call
+        ? building
+          ? "call OI build — writers adding ceiling → fade with puts"
+          : "call OI unwind — writers covering → upside fuel → buy calls"
+        : building
+          ? "put OI build — writers adding floor → fade with calls"
+          : "put OI unwind — support removed → downside fuel → buy puts";
 
   // Trend gate: a plan fighting the session trend is the wrong side of the tape.
   // A squeeze is with the break by construction, so it is always aligned.
   const trend = opts.trend ?? null;
   let aligned: boolean | null = null;
-  if (isSqueeze) {
+  if (isSqueeze || isPremium) {
     aligned = true;
   } else if (trend === "up" || trend === "down") {
     aligned = (leg === "CE" && trend === "up") || (leg === "PE" && trend === "down");
@@ -372,13 +388,20 @@ export function burstToAlert(burst: OiBurst, signal?: OiSignal | null): MarketAl
 
   const title = signal
     ? `→ BUY ${signal.leg} ${signal.strike.toLocaleString("en-IN")} · qty ${signal.qty > 0 ? signal.qty : "—"}`
-    : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
+    : burst.type === "coil"
+      ? `COILING @ ${typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "wall"}`
+      : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
 
   const skipPrefix = signal && signal.aligned === false ? "COUNTER-TREND · skip · " : "";
 
-  const detail = signal
-    ? `${skipPrefix}${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
-    : `${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
+  const detail =
+    burst.type === "coil"
+      ? `spot ${burst.spot.toLocaleString("en-IN")} pressed on the ${burst.side} wall ${
+          typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "?"
+        } · ${burst.range_pct?.toFixed(3) ?? "?"}% range, ${burst.dist_pct?.toFixed(3) ?? "?"}% away · heads-up, no plan`
+      : signal
+        ? `${skipPrefix}${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
+        : `${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
 
   // Candidate catalyst: lead with the headline nearest the burst.
   const headline = burst.news?.[0];

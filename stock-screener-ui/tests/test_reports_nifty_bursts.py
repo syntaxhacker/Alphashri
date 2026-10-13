@@ -512,3 +512,103 @@ class TestDetectStrikeBursts:
         strikes = [b for b in out["bursts"] if b.get("type") == "strike"]
         assert strikes, "expected a per-strike burst in the feed"
         assert strikes[0]["strike"] == 22750.0
+
+
+# ------------------------------------------------- premium velocity (P4)
+
+class TestDetectPremiumMoves:
+    """Needs atm_ce_ltp/atm_pe_ltp (recorded from 2026-10-14 on)."""
+
+    @staticmethod
+    def _row(t, spot, ce, pe, strike=22700.0):
+        return {"t": t, "spot": spot, "atm_strike": strike,
+                "atm_ce_ltp": ce, "atm_pe_ltp": pe,
+                "call_doi": 0, "put_doi": 0, "call_tick": 0, "put_tick": 0}
+
+    def test_ce_impulse_is_detected(self):
+        from api.reports_api.nifty_bursts import detect_premium_moves
+        rows = [self._row("2026-10-14T14:00:00+05:30", 22700, 20.0, 25.0),
+                self._row("2026-10-14T14:01:00+05:30", 22705, 22.0, 24.0),
+                self._row("2026-10-14T14:02:00+05:30", 22710, 25.0, 23.0),
+                self._row("2026-10-14T14:03:00+05:30", 22715, 30.0, 22.0)]
+        out = detect_premium_moves(rows, window_min=3)
+        assert len(out) == 1
+        assert out[0]["leg"] == "CE" and out[0]["side"] == "call"
+        assert out[0]["pct"] == 50.0
+        assert out[0]["severity"] == "critical"
+
+    def test_atm_strike_roll_is_not_a_premium_move(self):
+        """The whole point of the guard: a roll changes the strike, not the premium."""
+        from api.reports_api.nifty_bursts import detect_premium_moves
+        rows = [self._row("2026-10-14T14:00:00+05:30", 22700, 20.0, 25.0, strike=22700.0),
+                self._row("2026-10-14T14:03:00+05:30", 22760, 200.0, 5.0, strike=22750.0)]
+        assert detect_premium_moves(rows, window_min=3) == []
+
+    def test_small_move_ignored_and_old_tapes_noop(self):
+        from api.reports_api.nifty_bursts import detect_premium_moves
+        rows = [self._row("2026-10-14T14:00:00+05:30", 22700, 20.0, 25.0),
+                self._row("2026-10-14T14:03:00+05:30", 22710, 21.0, 25.0)]
+        assert detect_premium_moves(rows, window_min=3) == []
+        assert detect_premium_moves([{"t": "09:15", "spot": 100}]) == []
+
+    def test_premium_signal_is_momentum_on_the_moved_leg(self):
+        from api.reports_api.nifty_bursts import derive_oi_signal
+        chain = [{"strike": 22700.0, "ce": {"ltp": 30.0}, "pe": {"ltp": 22.0}}]
+        b = {"type": "premium", "side": "call", "leg": "CE", "strike": 22700.0,
+             "pct": 50.0, "delta": 10.0}
+        s = derive_oi_signal(b, chain, 22715.0, trend="down")
+        assert s["leg"] == "CE"           # with the impulse, not against the trend
+        assert s["aligned"] is True
+        assert "premium impulse" in s["basis"]
+
+
+# ------------------------------------------------------- coiling (P6)
+
+class TestDetectCoiling:
+    @staticmethod
+    def _row(t, spot, call_wall=22750.0, put_wall=22650.0):
+        return {"t": t, "spot": spot, "call_doi": 0, "put_doi": 0,
+                "walls": {"calls": [{"strike": call_wall, "oi": 5e6}],
+                          "puts": [{"strike": put_wall, "oi": 5e6}]}}
+
+    def test_tight_range_on_a_wall_is_a_coil(self):
+        from api.reports_api.nifty_bursts import detect_coiling
+        rows = [self._row(f"2026-10-14T14:{i:02d}:00+05:30", 22748 + (i % 3))
+                for i in range(11)]
+        out = detect_coiling(rows, window_min=10)
+        assert out and out[0]["side"] == "call"
+        assert out[0]["severity"] == "watch"
+
+    def test_wide_range_is_not_a_coil(self):
+        from api.reports_api.nifty_bursts import detect_coiling
+        rows = [self._row(f"2026-10-14T14:{i:02d}:00+05:30", 22600 + i * 10)
+                for i in range(11)]
+        assert detect_coiling(rows, window_min=10) == []
+
+    def test_far_from_the_wall_is_not_a_coil(self):
+        from api.reports_api.nifty_bursts import detect_coiling
+        rows = [self._row(f"2026-10-14T14:{i:02d}:00+05:30", 22700 + (i % 2))
+                for i in range(11)]
+        assert detect_coiling(rows, window_min=10) == []
+
+    def test_coil_has_no_trade_plan(self):
+        from api.reports_api.nifty_bursts import derive_oi_signal
+        chain = [{"strike": 22750.0, "ce": {"ltp": 9.0}, "pe": {"ltp": 60.0}}]
+        assert derive_oi_signal({"type": "coil", "side": "call", "wall": 22750.0},
+                                chain, 22748.0, trend="up") is None
+
+    def test_onset_only_a_persistent_coil_is_one_event(self):
+        """A coil that lasts 10 minutes must not emit 10 alerts."""
+        from api.reports_api.nifty_bursts import detect_coiling
+        rows = [self._row(f"2026-10-14T14:{i:02d}:00+05:30", 22748 + (i % 3))
+                for i in range(21)]
+        out = detect_coiling(rows, window_min=10)
+        call = [b for b in out if b["side"] == "call"]
+        assert len(call) == 1, f"expected one onset, got {len(call)}"
+
+    def test_dead_flat_range_is_stale_not_a_coil(self):
+        """0.000% range is a stale chain repeating the last spot."""
+        from api.reports_api.nifty_bursts import detect_coiling
+        rows = [self._row(f"2026-10-14T15:{20 + i:02d}:00+05:30", 22702.05)
+                for i in range(11)]
+        assert detect_coiling(rows, window_min=10) == []

@@ -362,6 +362,161 @@ def detect_strike_bursts(
     return out
 
 
+# ------------------------------------------------------- premium velocity
+
+#: ATM premium % move over the window that counts as a tradeable impulse.
+PREMIUM_MOVE_MIN_PCT = 15.0
+PREMIUM_MOVE_WINDOW_MIN = 3
+
+
+def detect_premium_moves(
+    rows: list[dict],
+    min_pct: float = PREMIUM_MOVE_MIN_PCT,
+    window_min: int = PREMIUM_MOVE_WINDOW_MIN,
+) -> list[dict[str, Any]]:
+    """ATM premium velocity — OI says writers moved, premium says it's tradeable.
+
+    Needs the tape's ``atm_ce_ltp``/``atm_pe_ltp`` (recorded from 2026-10-14 on).
+
+    Correctness guard: when spot drifts, the ATM strike rolls, so consecutive
+    ``atm_*_ltp`` values can refer to DIFFERENT strikes and produce a fake
+    "premium spike". A move only counts when ``atm_strike`` is unchanged across
+    the whole window.
+    """
+    by_t: dict[str, dict] = {}
+    for r in rows or []:
+        t = r.get("t")
+        if isinstance(t, str) and t:
+            by_t[t] = r
+    ordered = [by_t[k] for k in sorted(by_t)]
+
+    out: list[dict[str, Any]] = []
+    step = max(1, int(window_min))
+    for i in range(step, len(ordered)):
+        cur = ordered[i]
+        ref = ordered[i - step]
+
+        # Same ATM strike required — otherwise this is a strike roll, not a move.
+        if _f(cur.get("atm_strike")) != _f(ref.get("atm_strike")):
+            continue
+
+        for leg, key, side in (("CE", "atm_ce_ltp", "call"), ("PE", "atm_pe_ltp", "put")):
+            a = _f(ref.get(key))
+            b = _f(cur.get(key))
+            if a <= 0 or b <= 0:
+                continue
+            pct = (b - a) / a * 100.0
+            if abs(pct) < min_pct:
+                continue
+            out.append({
+                "id": f"{cur['t']}-premium-{leg}",
+                "type": "premium",
+                "side": side,
+                "leg": leg,
+                "strike": _f(cur.get("atm_strike")),
+                "t": cur["t"],
+                "delta": round(b - a, 2),
+                "baseline": a,
+                "score": round(abs(pct), 3),
+                "severity": ("critical" if abs(pct) >= min_pct * 2.5
+                             else "alert" if abs(pct) >= min_pct * 1.6
+                             else "watch"),
+                "pct": round(pct, 2),
+                "cumDoi": _f(cur.get(f"{side}_doi")),
+                "spot": _f(cur.get("spot")),
+                "tickVol": _f(cur.get(f"{side}_tick")),
+            })
+    return out
+
+
+# ----------------------------------------------------------- coiling (pre-move)
+
+#: Spot range over the window, as % of spot, that counts as "tight".
+COIL_MAX_RANGE_PCT = 0.08
+#: Minimum range that still counts — a flat 0.000% range is a stale chain
+#: (the tape repeats the last spot after feeds stop), not a coiled spring.
+COIL_MIN_RANGE_PCT = 0.005
+#: How close (as % of spot) spot must sit to a wall to count as pressing it.
+COIL_WALL_PROXIMITY_PCT = 0.12
+
+
+def detect_coiling(
+    rows: list[dict],
+    window_min: int = 10,
+    max_range_pct: float = COIL_MAX_RANGE_PCT,
+    wall_proximity_pct: float = COIL_WALL_PROXIMITY_PCT,
+) -> list[dict[str, Any]]:
+    """Pre-move heads-up: a tight range pressed against a wall.
+
+    Every other trigger here is confirmation (it fires after the move). This is
+    the only anticipatory one: an unusually tight window while spot sits on a
+    wall is a coiled spring. Severity stays low (watch) because it is a
+    heads-up, not a signal.
+
+    Fires on **onset only** — a coil that persists for 10 minutes is one event,
+    not ten — and ignores a dead-flat 0.000% range, which is a stale chain.
+    """
+    by_t: dict[str, dict] = {}
+    for r in rows or []:
+        t = r.get("t")
+        if isinstance(t, str) and t:
+            by_t[t] = r
+    ordered = [by_t[k] for k in sorted(by_t)]
+    if len(ordered) < window_min + 1:
+        return []
+
+    def qualifies(i: int) -> list[tuple[str, float, float, float]]:
+        """(side, wall, range_pct, dist_pct) for every wall this minute presses."""
+        window = ordered[i - window_min:i + 1]
+        spots = [s for s in (_f(r.get("spot")) for r in window) if s > 0]
+        if len(spots) < window_min:
+            return []
+        spot = spots[-1]
+        if spot <= 0:
+            return []
+        hi, lo = max(spots), min(spots)
+        range_pct = (hi - lo) / spot * 100.0
+        if range_pct > max_range_pct or range_pct < COIL_MIN_RANGE_PCT:
+            return []
+        hits = []
+        for side, walls_key in (("call", "calls"), ("put", "puts")):
+            wall = _top_wall(ordered[i], walls_key)
+            if not wall:
+                continue
+            dist_pct = abs(wall - spot) / spot * 100.0
+            if dist_pct <= wall_proximity_pct:
+                hits.append((side, wall, range_pct, dist_pct))
+        return hits
+
+    out: list[dict[str, Any]] = []
+    for i in range(window_min, len(ordered)):
+        current = qualifies(i)
+        if not current:
+            continue
+        previous = qualifies(i - 1) if i - 1 >= window_min else []
+        prev_sides = {p[0] for p in previous}
+        for side, wall, range_pct, dist_pct in current:
+            if side in prev_sides:
+                continue  # onset only — this coil was already reported
+            out.append({
+                "id": f"{ordered[i]['t']}-coil-{side}",
+                "type": "coil",
+                "side": side,
+                "t": ordered[i]["t"],
+                "delta": 0.0,
+                "baseline": 0.0,
+                "score": round(range_pct, 4),
+                "severity": "watch",
+                "wall": wall,
+                "range_pct": round(range_pct, 4),
+                "dist_pct": round(dist_pct, 4),
+                "cumDoi": _f(ordered[i].get(f"{side}_doi")),
+                "spot": _f(ordered[i].get("spot")),
+                "tickVol": 0.0,
+            })
+    return out
+
+
 def _round2(v: float) -> float:
     return round(v, 2)
 
@@ -487,8 +642,13 @@ def derive_oi_signal(
     is_squeeze = burst.get("type") == "squeeze"
     # A burst is a FADE (writers moved). A squeeze is MOMENTUM: the broken side
     # is being run over, so buy the break.
-    if is_squeeze:
-        leg = "CE" if call else "PE"
+    if burst.get("type") == "coil":
+        # A coil is a heads-up, not a trade — no plan.
+        return None
+    if is_squeeze or burst.get("type") == "premium":
+        # Both are momentum: buy the side that moved.
+        leg = str(burst.get("leg") or ("CE" if call else "PE")).upper()
+        leg = "CE" if leg == "CE" else "PE"
     else:
         leg = "PE" if call == building else "CE"
 
@@ -518,7 +678,10 @@ def derive_oi_signal(
     lots = units // NIFTY_LOT_SIZE
     qty = lots * NIFTY_LOT_SIZE
 
-    if is_squeeze:
+    if burst.get("type") == "premium":
+        basis = (f"ATM premium impulse {burst.get('pct', 0):+.2f}% "
+                 f"({leg} {burst.get('strike', 0):,.0f})")
+    elif is_squeeze:
         wall = burst.get("wall")
         wall_txt = f"{wall:,.0f}" if isinstance(wall, (int, float)) else "?"
         basis = (f"short-covering squeeze — {burst.get('side')} wall {wall_txt} "
@@ -535,7 +698,7 @@ def derive_oi_signal(
     # Trend gate: a counter-trend plan is the wrong side of the tape. A squeeze
     # is with the break by construction, so it is always aligned.
     aligned: Optional[bool] = None
-    if is_squeeze:
+    if is_squeeze or burst.get("type") == "premium":
         aligned = True
     elif trend in ("up", "down"):
         aligned = (leg == "CE" and trend == "up") or (leg == "PE" and trend == "down")
