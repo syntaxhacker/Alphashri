@@ -331,6 +331,7 @@ async def lifespan(app: FastAPI):
     _db_backup_task = None
     _nifty_tape_task = None
     _nifty_stream_task = None
+    _nifty_oi_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -416,6 +417,22 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ Nifty burst stream watcher failed: {e}")
                 _nifty_stream_task = None
+            try:
+                # P1: live OI over the WebSocket. OFF unless NIFTY_OI_STREAM=1,
+                # and shadow-logged by default — an unvalidated live feed must
+                # not enable itself on a trading morning.
+                from api.reports_api.nifty_oi_stream import ENABLED as _oi_enabled
+                from api.reports_api.nifty_oi_stream import nifty_oi_stream_task
+
+                if _oi_enabled:
+                    _nifty_oi_task = asyncio.create_task(nifty_oi_stream_task())
+                    print("🔌 Nifty OI websocket stream started")
+                else:
+                    _nifty_oi_task = None
+                    print("🔌 Nifty OI websocket stream disabled (NIFTY_OI_STREAM=1 to enable)")
+            except Exception as e:
+                print(f"⚠️ Nifty OI stream failed: {e}")
+                _nifty_oi_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -438,6 +455,8 @@ async def lifespan(app: FastAPI):
         _nifty_tape_task.cancel()
     if _nifty_stream_task:
         _nifty_stream_task.cancel()
+    if _nifty_oi_task:
+        _nifty_oi_task.cancel()
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes
