@@ -9,6 +9,7 @@ of the SAME high the gap is measured against.
 import sys
 from datetime import datetime, timedelta
 from pathlib import Path
+from unittest.mock import patch
 
 import pandas as pd
 
@@ -177,3 +178,47 @@ class TestTouchRecorderUniverse:
 
         assert '52w_high' in TOUCH_SCREENER_UNIVERSE
         assert 'trending' in TOUCH_SCREENER_UNIVERSE
+
+
+class TestUnmappedSymbolsDropped:
+    def test_unmapped_symbol_excluded_when_api_available(self):
+        from api.screener_api.screener_52w import fetch_52w_high_data
+
+        class ApiWithKeys:
+            def get_instrument_key(self, symbol):
+                return None if symbol == 'DAICHI' else f'NSE_EQ|{symbol}'
+
+        ranges = {
+            'DAICHI': {'high': 369.9, 'low': 200.0, 'close': 364.8},
+            'RELIANCE': {'high': 2550.0, 'low': 2000.0, 'close': 2500.0},
+        }
+        with patch(
+            'api.screener_api.screener_52w.load_all_52w_ranges', return_value=ranges,
+        ), patch(
+            'api.screener_api.screener_52w._create_upstox_api', return_value=(ApiWithKeys(), True),
+        ), patch(
+            'api.screener_api.screener_52w._enrich_with_touch_history',
+        ), patch(
+            'api.screener_api.screener_52w._fetch_90d_daily', return_value=None,
+        ):
+            data = fetch_52w_high_data(provider='upstox', profile_filters=None)
+        symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
+        assert 'DAICHI' not in symbols
+        assert 'RELIANCE' in symbols
+
+    def test_all_kept_without_api(self):
+        from api.screener_api.screener_52w import fetch_52w_high_data
+
+        ranges = {
+            'DAICHI': {'high': 369.9, 'low': 200.0, 'close': 364.8},
+        }
+        with patch(
+            'api.screener_api.screener_52w.load_all_52w_ranges', return_value=ranges,
+        ), patch(
+            'api.screener_api.screener_52w._create_upstox_api', return_value=(None, False),
+        ), patch(
+            'api.screener_api.screener_52w._enrich_with_touch_history',
+        ):
+            data = fetch_52w_high_data(provider='other', profile_filters=None)
+        symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
+        assert 'DAICHI' in symbols

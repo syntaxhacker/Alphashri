@@ -182,6 +182,8 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         10,
     )
 
+    api, use_api = _create_upstox_api(provider)
+
     candidates = []
 
     for symbol, info in ranges.items():
@@ -191,6 +193,9 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         if high <= 0 or close <= 0:
             continue
         if close >= 7000:
+            continue
+        if api is not None and not api.get_instrument_key(symbol):
+            # Unmappable symbols can never get live prices or bar verification.
             continue
 
         to_52w_high = gap_pct_to_52w_high(high, close)
@@ -272,7 +277,6 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         else:
             approaching.append(stock_data)
 
-    api, use_api = _create_upstox_api(provider)
     if not use_api:
         warning = (
             "Upstox credentials not configured. Set UPSTOX_API_KEY/UPSTOX_API_SECRET "
