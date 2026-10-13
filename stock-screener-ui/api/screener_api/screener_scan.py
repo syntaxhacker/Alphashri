@@ -5,6 +5,7 @@ from db.database import SessionLocal
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
+    exclude_etfs_from_screener, is_likely_etf,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 
@@ -245,6 +246,9 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
     symbol = row_data['name']
     screener_clean = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     tv_price = row_data['close']
+
+    if exclude_etfs_from_screener() and is_likely_etf(symbol):
+        return None
 
     if tv_price >= 7000:
         return None

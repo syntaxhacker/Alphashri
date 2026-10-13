@@ -14,7 +14,9 @@ from trading.week52_range_lookup import load_all_52w_ranges
 
 from .screener_models import (
     _to_float,
+    exclude_etfs_from_screener,
     gap_pct_to_52w_high,
+    is_likely_etf,
     is_within_52w_touch_gap,
     touched_52w_gap_threshold_pct,
 )
@@ -169,6 +171,8 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         if high <= 0 or close <= 0:
             continue
         if close >= 7000:
+            continue
+        if exclude_etfs_from_screener() and is_likely_etf(symbol):
             continue
 
         to_52w_high = gap_pct_to_52w_high(high, close)
