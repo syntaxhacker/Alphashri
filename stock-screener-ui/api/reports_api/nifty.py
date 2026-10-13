@@ -20,10 +20,11 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 
 import config
+from api.auth import get_current_user
 from api.reports_api.nifty_bursts import (
     NEWS_WINDOW_MIN,
     OI_BURST_MIN_ABS,
@@ -31,6 +32,7 @@ from api.reports_api.nifty_bursts import (
     attach_news,
     derive_oi_signal,
     detect_oi_bursts,
+    session_trend,
 )
 
 router = APIRouter(prefix="/api/reports", tags=["reports-nifty"])
@@ -572,12 +574,38 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
     return out
 
 
+def _atm_premium_snapshot(strikes: list, spot: float) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    """``(atm_strike, ce_ltp, pe_ltp)`` for the strike nearest spot.
+
+    Skips strikes where BOTH legs are effectively dead (expiry-day < ₹1), and
+    stores ``None`` for an individual dead leg, so the snapshot is always
+    useful: on expiry day the ATM strike typically has one live leg.
+    Returns ``(None, None, None)`` when nothing qualifies.
+    """
+    best = None
+    for r in strikes or []:
+        try:
+            strike = _safe_float(r.get("strike"))
+            ce = _safe_float((r.get("ce") or {}).get("ltp"))
+            pe = _safe_float((r.get("pe") or {}).get("ltp"))
+        except Exception:
+            continue
+        if not strike or (ce < 1.0 and pe < 1.0):
+            continue
+        dist = abs(strike - spot) if spot else 0.0
+        if best is None or dist < best[0]:
+            best = (dist, strike, ce if ce >= 1.0 else None, pe if pe >= 1.0 else None)
+    if best is None:
+        return None, None, None
+    return best[1], best[2], best[3]
+
+
 async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dict]:
     """Record ONE per-minute tape row from the live chain; never raises.
-
     Reuses ``_compute_live(None)`` (nearest expiry, no candle walkback) and
     persists the light aggregates ``{t, spot, ce_oi, pe_oi, ce_vol, pe_vol,
-    pcr_oi, pcr_vol, max_pain, flip, walls, expiry}`` to the day's JSONL.
+    pcr_oi, pcr_vol, max_pain, flip, walls, expiry, atm_strike, atm_ce_ltp,
+    atm_pe_ltp}`` to the day's JSONL.
     Rows sharing the same IST minute bucket as the file's last row are
     skipped (returns None). ALL exceptions are swallowed — returns the row
     on success, None otherwise.
@@ -598,6 +626,12 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
         ce_vol = sum(_safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
         pe_vol = sum(_safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
         gex = report.get("gex", {}) or {}
+        # ATM premiums: anchored to the strike nearest spot with a tradeable
+        # premium, so a future burst can be scored in real rupees instead of
+        # index points. Only LTP is stored — the chain is not persisted.
+        atm_strike, atm_ce_ltp, atm_pe_ltp = _atm_premium_snapshot(
+            strikes, _safe_float(report.get("spot"))
+        )
         row = {
             "t": t_iso,
             "spot": _safe_float(report.get("spot")),
@@ -611,6 +645,9 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             "flip": gex.get("zero_cross"),
             "walls": report.get("walls", {"calls": [], "puts": []}),
             "expiry": report.get("expiry", ""),
+            "atm_strike": atm_strike,
+            "atm_ce_ltp": atm_ce_ltp,
+            "atm_pe_ltp": atm_pe_ltp,
         }
         path = tape_path(date_str)
         minute = t_iso[:16]
@@ -788,6 +825,7 @@ def _snapshot_oi_context(date_str: str) -> tuple[Optional[list], float]:
 
 
 @router.get("/nifty/bursts")
+@router.get("/nifty/bursts", dependencies=[Depends(get_current_user)])
 def get_nifty_bursts(
     date: Optional[str] = Query(default=None, description="Burst date YYYY-MM-DD (default: today)"),
     window: int = Query(default=OI_BURST_WINDOW, ge=3, le=60, description="Trailing minutes for the baseline"),
@@ -811,11 +849,20 @@ def get_nifty_bursts(
     rows = derive_tape_rows(raw)
     bursts = detect_oi_bursts(rows, window=window, min_abs=min_abs)
     strikes, spot = _snapshot_oi_context(date_str)
+    try:
+        trend = session_trend(rows)
+    except Exception:
+        trend = None
     for b in bursts:
         try:
-            b["signal"] = derive_oi_signal(b, strikes, spot)
+            # Trend at the burst's own minute, not at the close.
+            b_trend = session_trend(rows, at_time=b.get("t")) or trend
+            b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
         except Exception:
             b["signal"] = None
+    if trend:
+        for b in bursts:
+            b["trend"] = trend
 
     # Attach nearby headlines so a burst can be read with its likely catalyst.
     # Reads only what is already stored — no network call in this endpoint.

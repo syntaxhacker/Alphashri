@@ -100,6 +100,10 @@ export interface NiftyTapeRow {
     call: number;
     put: number;
   };
+  /** ATM leg snapshot captured per minute (may be absent on older tapes). */
+  atm_strike?: number;
+  atm_ce_ltp?: number | null;
+  atm_pe_ltp?: number | null;
 }
 
 /** A ready-to-trade burst signal block — `null` when the burst only merits a flag. */

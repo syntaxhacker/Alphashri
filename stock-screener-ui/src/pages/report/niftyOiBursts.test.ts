@@ -9,6 +9,7 @@ import {
   computeMinuteDoi,
   deriveOiSignal,
   detectOiBursts,
+  sessionTrend,
   severityForScore,
 } from "./niftyOiBursts";
 
@@ -302,5 +303,80 @@ describe("burstTimeLabel", () => {
     expect(burstTimeLabel("2026-10-13T14:03:00+05:30")).toBe("14:03");
     expect(burstTimeLabel("14:03")).toBe("14:03");
     expect(burstTimeLabel("")).toBe("--:--");
+  });
+});
+
+describe("sessionTrend", () => {
+  const row = (t: string, spot: number): NiftyTapeRow =>
+    ({ ...tapeRow(t, 0, 0), spot });
+
+  test("rising tape is 'up', falling is 'down'", () => {
+    expect(sessionTrend([row("09:15", 100), row("09:16", 110), row("09:17", 120), row("09:18", 130)])).toBe("up");
+    expect(sessionTrend([row("09:15", 130), row("09:16", 120), row("09:17", 110), row("09:18", 100)])).toBe("down");
+  });
+
+  test("needs at least two usable points", () => {
+    expect(sessionTrend([])).toBeNull();
+    expect(sessionTrend([row("09:15", 100)])).toBeNull();
+  });
+
+  test("atTime only uses data up to that minute", () => {
+    const rows = [row("09:15", 100), row("09:16", 101), row("09:17", 102), row("09:18", 103), row("09:19", 60)];
+    expect(sessionTrend(rows, "09:18")).toBe("up");
+    expect(sessionTrend(rows)).toBe("down");
+  });
+
+  test("unsorted input is handled", () => {
+    const rows = [row("09:17", 120), row("09:15", 100), row("09:16", 110)];
+    expect(sessionTrend(rows)).toBe("up");
+  });
+
+  test("zero/invalid spots are ignored", () => {
+    expect(sessionTrend([])).toBeNull();
+    expect(sessionTrend([row("09:15", 0), row("09:16", 0)])).toBeNull();
+  });
+});
+
+describe("trend gate", () => {
+  const chain = [
+    { strike: 22_700, ce: { ltp: 22 }, pe: { ltp: 28 } },
+  ];
+  const burst = (side: "call" | "put", delta: number) => ({
+    id: "x", side, t: "14:20", delta, baseline: 1_000, score: 60,
+    severity: "critical" as const, cumDoi: 0, spot: 22_720, tickVol: 0,
+  });
+
+  test("aligned plan is not flagged", () => {
+    // call unwind -> CE (bullish); trend up -> aligned
+    const s = deriveOiSignal(burst("call", -50_000), chain, 22_720, { trend: "up" })!;
+    expect(s.leg).toBe("CE");
+    expect(s.aligned).toBe(true);
+    expect(s.trend).toBe("up");
+    expect(s.basis).not.toContain("COUNTER-TREND");
+  });
+
+  test("counter-trend plan is flagged and says skip", () => {
+    const s = deriveOiSignal(burst("call", -50_000), chain, 22_720, { trend: "down" })!;
+    expect(s.aligned).toBe(false);
+    expect(s.basis).toMatch(/^COUNTER-TREND \(session down\) — skip:/);
+  });
+
+  test("no trend leaves the plan ungated", () => {
+    const s = deriveOiSignal(burst("put", 50_000), chain, 22_720)!;
+    expect(s.aligned).toBeNull();
+    expect(s.trend).toBeNull();
+  });
+
+  test("counter-trend plans are marked in the alert detail", () => {
+    const b = { ...burst("call", -50_000), trend: "down" as const };
+    const signal = deriveOiSignal(b, chain, 22_720, { trend: b.trend });
+    const a = burstToAlert(b, signal);
+    expect(a.detail).toContain("COUNTER-TREND · skip");
+  });
+
+  test("aligned plans have no skip marker", () => {
+    const b = { ...burst("call", -50_000), trend: "up" as const };
+    const signal = deriveOiSignal(b, chain, 22_720, { trend: b.trend });
+    expect(burstToAlert(b, signal).detail).not.toContain("skip");
   });
 });

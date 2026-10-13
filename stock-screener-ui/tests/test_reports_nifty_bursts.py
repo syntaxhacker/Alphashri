@@ -153,8 +153,12 @@ class TestBurstSignal:
         assert sig["target"] == 45.0
         assert sig["lots"] == 8
         assert sig["qty"] == 600
+        # trend gate fields are always present
         assert set(sig) == {"leg", "strike", "entry", "sl",
-                            "target", "qty", "lots", "basis"}
+                            "target", "qty", "lots", "basis",
+                            "trend", "aligned"}
+        assert sig["trend"] in ("up", "down", None)
+        assert sig["aligned"] in (True, False, None)
 
     def test_signal_null_without_snapshot(self, _tmp_tape, _tmp_snapshots):
         _write_tape(_tmp_tape, _spike_rows())
@@ -191,3 +195,129 @@ class TestBurstSignal:
         out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
         assert out["count"] == 0
         assert out["bursts"] == []
+
+
+# ------------------------------------------------------------ trend gate
+
+class TestTrendGate:
+    """The trend gate: counter-trend plans are flagged, not silently emitted.
+
+    Evidence (2026-10-13): trend-aligned plans went 10/12 (avg +81.7 pts) while
+    counter-trend plans went 1/9 (avg −94.4 pts) — the whole loss side.
+    """
+
+    @staticmethod
+    def _rows(spots):
+        return [{"t": f"2026-10-13T09:{15 + i:02d}:00+05:30", "spot": s}
+                for i, s in enumerate(spots)]
+
+    def test_rising_tape_is_an_up_trend(self):
+        from api.reports_api.nifty_bursts import session_trend
+        assert session_trend(self._rows([100, 110, 120, 130, 140])) == "up"
+
+    def test_falling_tape_is_a_down_trend(self):
+        from api.reports_api.nifty_bursts import session_trend
+        assert session_trend(self._rows([140, 130, 120, 110, 100])) == "down"
+
+    def test_too_few_points_yields_none(self):
+        from api.reports_api.nifty_bursts import session_trend
+        assert session_trend([]) is None
+        assert session_trend(self._rows([100])) is None
+
+    def test_at_time_only_uses_data_up_to_that_minute(self):
+        from api.reports_api.nifty_bursts import session_trend
+        rows = self._rows([100, 101, 102, 103, 90, 80])
+        # up to the 4th minute it is still rising; the later crash must not leak
+        assert session_trend(rows, at_time=rows[3]["t"]) == "up"
+        assert session_trend(rows) == "down"
+
+    def _burst(self, side, delta):
+        return {"id": "x", "side": side, "t": "2026-10-13T14:20:00+05:30",
+                "delta": delta, "baseline": 1000.0, "score": 60.0,
+                "severity": "critical", "cumDoi": 0.0, "spot": 22700.0,
+                "tickVol": 0.0}
+
+    _chain = [{"strike": 22700, "ce": {"ltp": 22.0}, "pe": {"ltp": 28.0}}]
+
+    def test_aligned_plan_is_not_flagged(self):
+        from api.reports_api.nifty_bursts import derive_oi_signal
+        # call unwind -> CE (bullish); trend up -> aligned
+        sig = derive_oi_signal(self._burst("call", -50_000), self._chain, 22700, trend="up")
+        assert sig["leg"] == "CE"
+        assert sig["aligned"] is True
+        assert "COUNTER-TREND" not in sig["basis"]
+
+    def test_counter_trend_plan_is_flagged_with_reason(self):
+        from api.reports_api.nifty_bursts import derive_oi_signal
+        # call unwind -> CE (bullish) but session trend is DOWN -> wrong side
+        sig = derive_oi_signal(self._burst("call", -50_000), self._chain, 22700, trend="down")
+        assert sig["leg"] == "CE"
+        assert sig["aligned"] is False
+        assert sig["basis"].startswith("COUNTER-TREND (session down) — skip:")
+
+    def test_unknown_trend_leaves_the_plan_ungated(self):
+        from api.reports_api.nifty_bursts import derive_oi_signal
+        sig = derive_oi_signal(self._burst("put", 50_000), self._chain, 22700)
+        assert sig["aligned"] is None
+        assert sig["trend"] is None
+        assert "COUNTER-TREND" not in sig["basis"]
+
+    def test_endpoint_flags_today_style_losers_as_counter_trend(self, _tmp_tape, _tmp_snapshots):
+        """A rising tape + a bearish (PE) plan must come back aligned=False."""
+        rows = []
+        spot = 22500.0
+        for i in range(14):
+            # steady grind up, with a CALL-OI build (-> bearish -> PE) on the
+            # last minute: bullish tape + bearish plan = counter-trend.
+            spot += 5
+            rows.append({"t": f"2026-10-13T09:{15 + i:02d}:00+05:30", "spot": spot,
+                         "ce_oi": 1000 * i, "pe_oi": 0, "ce_vol": 0, "pe_vol": 0,
+                         "pcr_oi": 1.0, "max_pain": 22500, "flip": 22500,
+                         "walls": {"calls": [], "puts": []}})
+        rows[-1]["ce_oi"] = rows[-2]["ce_oi"] + 5_000_000
+        _write_tape(_tmp_tape, rows)
+        _tmp_snapshots.mkdir(parents=True, exist_ok=True)
+        (_tmp_snapshots / f"{DATE}.json").write_text(json.dumps(_snapshot([
+            {"strike": 22600.0, "ce": {"ltp": 25.0}, "pe": {"ltp": 30.0}},
+        ])))
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        pe_plans = [b for b in out["bursts"]
+                    if b.get("signal") and b["signal"]["leg"] == "PE"]
+        assert pe_plans, "expected at least one bearish plan"
+        # tape only rises -> a bearish leg is counter-trend
+        assert all(b["signal"]["aligned"] is False for b in pe_plans)
+        assert all("COUNTER-TREND" in b["signal"]["basis"] for b in pe_plans)
+
+
+# ------------------------------------------------------------ auth gate
+
+class TestBurstsAuthGate:
+    """`/nifty/bursts` leaks trade signals, so it requires an app user while
+    its sibling market-data endpoints stay open."""
+
+    @staticmethod
+    def _client():
+        from fastapi import FastAPI
+        from fastapi.testclient import TestClient
+        from api.reports_api.nifty import router
+        from api.auth import get_current_user
+
+        app = FastAPI()
+        app.include_router(router)
+        app.dependency_overrides[get_current_user] = lambda: object()
+        return TestClient(app), app, get_current_user
+
+    def test_requires_auth(self):
+        client, app, dep = self._client()
+        app.dependency_overrides.pop(dep, None)
+        assert client.get("/api/reports/nifty/bursts").status_code == 401
+
+    def test_ok_with_a_user(self):
+        client, _app, _dep = self._client()
+        assert client.get("/api/reports/nifty/bursts").status_code == 200
+
+    def test_sibling_market_data_endpoints_stay_open(self, monkeypatch, tmp_path):
+        """Deliberate: market data is never gated (see AGENTS.md)."""
+        client, _app, _dep = self._client()
+        # tape returns 200-with-envelope or 404 when empty — never 401
+        assert client.get("/api/reports/nifty/tape?date=1999-01-01").status_code != 401

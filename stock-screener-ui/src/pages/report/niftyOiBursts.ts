@@ -63,6 +63,8 @@ export interface OiBurst {
   signal?: OiSignal | null;
   /** Candidate catalysts within ±10 min (backend-attached). */
   news?: NiftyBurstNews[];
+  /** Session trend at this minute (attached by the panel from the tape). */
+  trend?: "up" | "down" | null;
 }
 
 /* ------------------------------------------------------------------ signal */
@@ -89,6 +91,43 @@ export interface OiSignal {
   lots: number;
   /** One-line rationale shown in the alert. */
   basis: string;
+  /** Session trend at the burst minute, when it could be computed. */
+  trend?: "up" | "down" | null;
+  /** False when the leg fights the trend — the plan should be skipped. */
+  aligned?: boolean | null;
+}
+
+/** EMA span (minutes) defining the session trend for the alignment gate. */
+export const TREND_EMA_SPAN = 20;
+
+/**
+ * Session trend at `atTime` (or at the end) from spot vs its EMA, mirroring
+ * `session_trend()` in `api/reports_api/nifty_bursts.py`.
+ *
+ * A burst is only actionable *with* the trend: on 2026-10-13 trend-aligned
+ * plans went 20/23 favourable (avg +95.5 pts) while counter-trend plans went
+ * 2/22 (avg −110.1 pts).
+ */
+export function sessionTrend(
+  rows: NiftyTapeRow[],
+  atTime?: string,
+): "up" | "down" | null {
+  const spots: number[] = [];
+  const asc = [...(rows ?? [])].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+  for (const r of asc) {
+    if (!Number.isFinite(r.spot) || r.spot === 0) continue;
+    spots.push(r.spot);
+    if (atTime !== undefined && r.t === atTime) break;
+  }
+  if (spots.length < 2) return null;
+
+  const alpha = 2 / (TREND_EMA_SPAN + 1);
+  let ema = spots[0];
+  for (let i = 1; i < spots.length; i++) ema = alpha * spots[i] + (1 - alpha) * ema;
+  const last = spots[spots.length - 1];
+  if (last > ema) return "up";
+  if (last < ema) return "down";
+  return null;
 }
 
 function round2(v: number): number {
@@ -112,7 +151,7 @@ export function deriveOiSignal(
   burst: OiBurst,
   strikes: Array<{ strike: number; ce?: { ltp?: number }; pe?: { ltp?: number } }>,
   spot: number,
-  opts: { riskBudget?: number; slPct?: number; tpPct?: number; minPremium?: number } = {},
+  opts: { riskBudget?: number; slPct?: number; tpPct?: number; minPremium?: number; trend?: "up" | "down" | null } = {},
 ): OiSignal | null {
   const riskBudget = opts.riskBudget ?? OI_SIGNAL_RISK_BUDGET;
   const slPct = opts.slPct ?? OI_SIGNAL_SL_PCT;
@@ -142,7 +181,7 @@ export function deriveOiSignal(
   const lots = Math.floor(units / NIFTY_LOT_SIZE);
   const qty = lots * NIFTY_LOT_SIZE;
 
-  const basis = call
+  let basis = call
     ? building
       ? "call OI build — writers adding ceiling → fade with puts"
       : "call OI unwind — writers covering → upside fuel → buy calls"
@@ -150,7 +189,15 @@ export function deriveOiSignal(
       ? "put OI build — writers adding floor → fade with calls"
       : "put OI unwind — support removed → downside fuel → buy puts";
 
-  return { leg, strike: pick.strike, entry, sl, target, qty, lots, basis };
+  // Trend gate: a plan fighting the session trend is the wrong side of the tape.
+  const trend = opts.trend ?? null;
+  let aligned: boolean | null = null;
+  if (trend === "up" || trend === "down") {
+    aligned = (leg === "CE" && trend === "up") || (leg === "PE" && trend === "down");
+    if (!aligned) basis = `COUNTER-TREND (session ${trend}) — skip: ${basis}`;
+  }
+
+  return { leg, strike: pick.strike, entry, sl, target, qty, lots, basis, trend, aligned };
 }
 
 function median(values: number[]): number {
@@ -296,8 +343,10 @@ export function burstToAlert(burst: OiBurst, signal?: OiSignal | null): MarketAl
     ? `→ BUY ${signal.leg} ${signal.strike.toLocaleString("en-IN")} · qty ${signal.qty > 0 ? signal.qty : "—"}`
     : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
 
+  const skipPrefix = signal && signal.aligned === false ? "COUNTER-TREND · skip · " : "";
+
   const detail = signal
-    ? `${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
+    ? `${skipPrefix}${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
     : `${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
 
   // Candidate catalyst: lead with the headline nearest the burst.

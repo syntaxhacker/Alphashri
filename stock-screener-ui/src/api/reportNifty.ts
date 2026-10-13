@@ -231,8 +231,15 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
   const wallsRaw = (raw.walls ?? {}) as Record<string, unknown>;
   const flipRaw = raw.flip;
   const spotFlipRaw = raw.spot_flip ?? raw.spotFlip;
+  const ceLtp = raw.atm_ce_ltp ?? raw.atmCeLtp;
+  const peLtp = raw.atm_pe_ltp ?? raw.atmPeLtp;
   return {
     t: String(raw.t ?? raw.time ?? ""),
+    spot: num(raw.spot),
+    // ATM leg premiums — absent on tapes recorded before they were added.
+    ...(raw.atm_strike !== undefined ? { atm_strike: num(raw.atm_strike) } : {}),
+    ...(ceLtp !== undefined && ceLtp !== null ? { atm_ce_ltp: num(ceLtp) } : {}),
+    ...(peLtp !== undefined && peLtp !== null ? { atm_pe_ltp: num(peLtp) } : {}),
     spot: num(raw.spot),
     call_doi: num(raw.call_doi ?? raw.callDoi),
     put_doi: num(raw.put_doi ?? raw.putDoi),

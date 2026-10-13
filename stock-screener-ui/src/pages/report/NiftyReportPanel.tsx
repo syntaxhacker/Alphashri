@@ -16,7 +16,7 @@ import { NiftyTapeTable } from "./NiftyTapeTable";
 import { NiftyUnusualVolume } from "./NiftyUnusualVolume";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
-import { detectOiBursts } from "./niftyOiBursts";
+import { detectOiBursts, sessionTrend } from "./niftyOiBursts";
 import type { OiBurst } from "./niftyOiBursts";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -626,10 +626,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // In-app OI-burst alerts. Bursts come from the backend when it has any
   // (they survive the tab being closed); an empty/absent backend answer falls
   // back to the local detector so the page never goes blind. Plain hook state.
-  const effectiveBursts = useMemo<OiBurst[]>(
-    () => (bursts && bursts.length > 0 ? bursts : detectOiBursts(tape?.rows ?? [])),
-    [bursts, tape],
-  );
+  const effectiveBursts = useMemo<OiBurst[]>(() => {
+    const base = bursts && bursts.length > 0 ? bursts : detectOiBursts(tape?.rows ?? []);
+    const rows = tape?.rows ?? [];
+    if (rows.length === 0) return base;
+    // Attach the session trend at each burst's own minute so the signal gate
+    // runs on data available at that time (never the close).
+    return base.map((b) => ({ ...b, trend: b.trend ?? sessionTrend(rows, b.t) ?? null }));
+  }, [bursts, tape]);
   /** Minute → burst side, for the tape's burst spine. */
   const burstMap = useMemo(() => {
     const m = new Map<string, "call" | "put">();

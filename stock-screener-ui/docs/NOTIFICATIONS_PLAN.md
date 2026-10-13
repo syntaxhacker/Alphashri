@@ -153,3 +153,57 @@ Terminal rules, deliberately anti-slop — no gradients, no glass, no pills, no 
 1. Storage: keep `PriceSurgeEvent` and add `MarketAlertEvent`, or migrate in place? (Recommend additive.)
 2. OI burst granularity: per-strike or index-total only for v1? (Recommend index-total + top-5 strikes.)
 3. Do we need per-user alert preferences before Phase 4, or ship global defaults first?
+
+---
+
+## 6. Decisions taken (2026-10-13)
+
+### 6.1 Trend gate on the signal ✅
+Measured on the real 2026-10-13 tape (45 bursts, expiry day, one-way up move):
+```
+ALIGNED  (leg with spot vs EMA20): 23 plans → 20/23 favourable (87%), avg +95.5 pts
+COUNTER-TREND                    : 22 plans →  2/22 favourable  (9%), avg −110.1 pts
+ungated baseline                 : 22/45 = 49%
+```
+The signal alone was a coin flip; the *trend* decided every outcome. `session_trend()`
+(both in `nifty_bursts.py` and `niftyOiBursts.ts`) now gates every plan:
+counter-trend plans are still returned but flagged `aligned: false`, their `basis`
+starts with `COUNTER-TREND (session X) — skip:`, and the alert detail is prefixed
+`COUNTER-TREND · skip`. Trend is computed **at the burst's own minute**, never at the close.
+
+### 6.2 ATM premiums logged per minute ✅
+`record_nifty_tape_tick` now stores `atm_strike`, `atm_ce_ltp`, `atm_pe_ltp`
+(strike nearest spot, at least one live leg ≥ ₹1; a dead leg is stored as `null`).
+Without this, "which burst made money" can only be answered with index-point
+proxies. With it, future bursts are backtestable in real rupees. Older tapes
+simply lack the keys and the frontend type marks them optional.
+
+### 6.3 Trail cap 20 → 60 ✅
+A Nifty expiry session produced 45 bursts; the panel now shows the whole day.
+
+### 6.4 `/nifty/bursts` requires app auth ✅
+It leaks trade signals, so it is gated with `Depends(get_current_user)`
+(verified: 401 without a token, 200 with). Sibling market-data endpoints
+(`/nifty/tape`, `/nifty/live`) stay open per the "never gate market data" rule.
+
+### 6.5 Upstox News API — REJECTED (measured too slow) ✅
+Built, tested, then removed after measuring. On the day in question:
+```
+burst 14:20 IST  →  Upstox article 16:41 IST  =  141 minutes late
+Upstox published NOTHING between 13:54 and 16:41
+```
+It is article-grade, instrument-keyed (≤30 keys), 7-day, and a post-close
+wrap-up arrived with the headline. Useless for intraday catalysts.
+
+### 6.6 News impact scoring via an OpenRouter FREE model ✅
+`api/news/news_impact.py` — one **batched** OpenRouter call per poll cycle
+(`DEFAULT_MODEL = nvidia/nemotron-3-ultra-550b-a55b:free`, fallbacks
+`nemotron-3.5-lightning:free` → `inkling:free` → `openrouter/free`).
+Batching is deliberate: the free tier is **20 req/min, 50 req/day** per account.
+`llm_analyzer.py`'s per-article default was likewise moved off the likely-dead
+`openrouter/owl-alpha` to the same free model. Scoring writes `impact_score`,
+`sentiment`, `analysis_json`; the burst endpoint then attaches nearby headlines
+via the source-agnostic `attach_news()` (±10 min).
+
+**Not built:** a real wire/RSS feed for macro catalysts. The poller's scrapers are
+the intended source; until they run, `news` will be empty on `/bursts`.

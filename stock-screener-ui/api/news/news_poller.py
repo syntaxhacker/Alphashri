@@ -202,20 +202,20 @@ async def news_poller_task():
                 await asyncio.sleep(60)
                 continue
 
-            # Upstox News API (instrument-keyed, 7-day window). Independent of
-            # the HTML scrapers — no-op when there is no valid token, so a
-            # stale token can never stall the cycle.
+            # Score unscored headlines with an OpenRouter FREE model — ONE
+            # batched call per cycle (free tier is 20 req/min, 50/day). No key
+            # or a scoring outage is a no-op, never a cycle failure.
             try:
-                from api.news.upstox_news import ingest_upstox_news
+                from api.news.news_impact import score_recent_articles
 
-                up_stats = await asyncio.to_thread(ingest_upstox_news)
-                if up_stats.get("inserted"):
+                impact_stats = await asyncio.to_thread(score_recent_articles)
+                if impact_stats.get("scored"):
                     poller_logger.info(
-                        "📰 upstox news: +%s new (%s fetched)",
-                        up_stats["inserted"], up_stats["fetched"],
+                        "🧠 news impact: scored %s (%s market-moving)",
+                        impact_stats["scored"], impact_stats["moved"],
                     )
             except Exception as exc:
-                poller_logger.debug("upstox news skipped: %s", exc)
+                poller_logger.debug("news impact skipped: %s", exc)
 
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
 

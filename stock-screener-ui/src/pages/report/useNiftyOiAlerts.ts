@@ -16,8 +16,9 @@ import type { OiBurst, OiSignal } from "./niftyOiBursts";
 export const OI_ALERT_TTL_MS = 45_000;
 /** Most-recent toasts shown at once. */
 export const OI_ALERT_TOAST_MAX = 4;
-/** Session trail length kept on the page. */
-export const OI_ALERT_TRAIL_MAX = 20;
+/** Session trail length kept on the page (a full Nifty session can
+ * produce ~45 bursts on expiry day). */
+export const OI_ALERT_TRAIL_MAX = 60;
 
 export interface NiftyOiAlerts {
   /** Every burst seen this session, newest first (persistent trail). */
@@ -56,7 +57,8 @@ export function useNiftyOiAlerts(
   /** Burst → renderable alert, preferring the backend's signal. */
   const toAlert = useCallback(
     (b: OiBurst): MarketAlert => {
-      const signal: OiSignal | null = b.signal ?? deriveOiSignal(b, chain, spot);
+      const signal: OiSignal | null =
+        b.signal ?? deriveOiSignal(b, chain, spot, { trend: b.trend ?? null });
       return burstToAlert(b, signal);
     },
     [chain, spot],

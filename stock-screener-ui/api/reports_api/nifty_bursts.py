@@ -129,6 +129,42 @@ def detect_oi_bursts(
     return out
 
 
+#: EMA span (minutes) used to define the session trend for the alignment gate.
+TREND_EMA_SPAN = 20
+
+
+def session_trend(rows: list[dict], at_time: Any = None) -> Optional[str]:
+    """``"up"``/``"down"`` from spot vs its EMA over the tape, or ``None``.
+
+    A burst is only actionable *with* the trend: on 2026-10-13 every
+    trend-aligned plan worked (10/12, avg +81.7 pts) while every counter-trend
+    one failed (1/9, avg −94.4 pts). `at_time` picks the EMA up to that minute;
+    without it the EMA at the last row is used.
+    """
+    spots: list[float] = []
+    for r in rows or []:
+        t = r.get("t")
+        s = _f(r.get("spot"))
+        if not s:
+            continue
+        spots.append(s)
+        if at_time is not None and t == at_time:
+            break
+    if len(spots) < 2:
+        return None
+
+    alpha = 2.0 / (TREND_EMA_SPAN + 1.0)
+    ema = spots[0]
+    for s in spots[1:]:
+        ema = alpha * s + (1 - alpha) * ema
+    last = spots[-1]
+    if last > ema:
+        return "up"
+    if last < ema:
+        return "down"
+    return None
+
+
 def _round2(v: float) -> float:
     return round(v, 2)
 
@@ -234,12 +270,17 @@ def derive_oi_signal(
     sl_pct: float = OI_SIGNAL_SL_PCT,
     tp_pct: float = OI_SIGNAL_TP_PCT,
     min_premium: float = OI_SIGNAL_MIN_PREMIUM,
+    trend: Optional[str] = None,
 ) -> Optional[dict[str, Any]]:
     """Mechanical option suggestion for a burst (heuristic, not advice).
 
     Direction follows the OI move, not just the side:
       call build  → ceiling  → buy PE     call unwind → covering → buy CE
       put  build  → floor    → buy CE     put  unwind → support  → buy PE
+
+    `trend` ("up"/"down") gates the plan: a leg that disagrees with the session
+    trend is still returned but flagged ``aligned: False`` and its `basis` says
+    to skip — counter-trend plans were the entire loss side on 2026-10-13.
     """
     if not strikes or not spot:
         return None
@@ -277,5 +318,13 @@ def derive_oi_signal(
                  if building else
                  "put OI unwind — support removed → downside fuel → buy puts")
 
+    # Trend gate: a counter-trend plan is the wrong side of the tape.
+    aligned: Optional[bool] = None
+    if trend in ("up", "down"):
+        aligned = (leg == "CE" and trend == "up") or (leg == "PE" and trend == "down")
+        if not aligned:
+            basis = f"COUNTER-TREND (session {trend}) — skip: {basis}"
+
     return {"leg": leg, "strike": strike, "entry": entry, "sl": sl,
-            "target": target, "qty": qty, "lots": lots, "basis": basis}
+            "target": target, "qty": qty, "lots": lots, "basis": basis,
+            "trend": trend, "aligned": aligned}
