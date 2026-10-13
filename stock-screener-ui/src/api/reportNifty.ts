@@ -240,7 +240,6 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
     ...(raw.atm_strike !== undefined ? { atm_strike: num(raw.atm_strike) } : {}),
     ...(ceLtp !== undefined && ceLtp !== null ? { atm_ce_ltp: num(ceLtp) } : {}),
     ...(peLtp !== undefined && peLtp !== null ? { atm_pe_ltp: num(peLtp) } : {}),
-    spot: num(raw.spot),
     call_doi: num(raw.call_doi ?? raw.callDoi),
     put_doi: num(raw.put_doi ?? raw.putDoi),
     net: num(raw.net),
@@ -414,6 +413,8 @@ export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
     tickVol: num(raw.tickVol ?? raw.tick_vol),
     signal: normalizeBurstSignal(raw.signal),
     news: normalizeBurstNews(raw.news),
+    ...(raw.type === "squeeze" ? { type: "squeeze" as const } : {}),
+    ...(raw.wall !== undefined && raw.wall !== null ? { wall: num(raw.wall) } : {}),
   };
 }
 

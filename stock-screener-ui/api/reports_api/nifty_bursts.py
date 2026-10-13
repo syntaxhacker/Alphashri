@@ -165,6 +165,122 @@ def session_trend(rows: list[dict], at_time: Any = None) -> Optional[str]:
     return None
 
 
+# ------------------------------------------------------------- squeezes
+
+#: |OI unwind| needed for a wall break to count as a squeeze (contracts).
+SQUEEZE_MIN_UNWIND = 2_000_000.0
+SQUEEZE_TIERS = {"watch": 2_000_000.0, "alert": 4_000_000.0, "critical": 8_000_000.0}
+
+
+def severity_for_unwind(unwind: float) -> str:
+    if unwind >= SQUEEZE_TIERS["critical"]:
+        return "critical"
+    if unwind >= SQUEEZE_TIERS["alert"]:
+        return "alert"
+    if unwind >= SQUEEZE_TIERS["watch"]:
+        return "watch"
+    return "info"
+
+
+def _top_wall(row: dict, side: str) -> Optional[float]:
+    """Highest-OI strike on `side` ("calls"/"puts") for one tape row."""
+    walls = row.get("walls") or {}
+    if not isinstance(walls, dict):
+        return None
+    best = None
+    best_oi = -1.0
+    for w in (walls.get(side) or []):
+        if not isinstance(w, dict):
+            continue
+        oi = _f(w.get("oi"))
+        strike = _f(w.get("strike"))
+        if strike and oi > best_oi:
+            best_oi, best = oi, strike
+    return best
+
+
+def detect_squeezes(
+    rows: list[dict],
+    min_unwind: float = SQUEEZE_MIN_UNWIND,
+    window_min: int = 2,
+) -> list[dict[str, Any]]:
+    """Short-covering squeezes: spot breaks a wall while that side unwinds.
+
+    This is the shape of 2026-10-13's money move — spot crossed the call wall
+    at 14:21 while 16.5M call contracts were bought back at 14:20. A burst says
+    "writers moved"; a squeeze says "writers are being run over", which is a
+    momentum trade (buy the broken side), not a fade.
+
+      call squeeze: spot crosses ABOVE the top call wall + call OI unwinds
+      put  squeeze: spot crosses BELOW the top put wall  + put OI unwinds
+
+    The unwind and the cross do NOT have to land on the same minute (they were
+    a minute apart in the real case), so the strongest unwind within
+    +/-``window_min`` of the cross is what qualifies — emitted AT the cross.
+    """
+    by_t: dict[str, dict] = {}
+    for r in rows or []:
+        t = r.get("t")
+        if isinstance(t, str) and t:
+            by_t[t] = r
+    ordered = [by_t[k] for k in sorted(by_t)]
+
+    def delta_at(i: int, key: str) -> float:
+        """First difference of `key` at index i (i >= 1)."""
+        return _f(ordered[i].get(key)) - _f(ordered[i - 1].get(key))
+
+    out: list[dict[str, Any]] = []
+    for i in range(1, len(ordered)):
+        prev, cur = ordered[i - 1], ordered[i]
+        spot_now = _f(cur.get("spot"))
+        spot_prev = _f(prev.get("spot"))
+
+        for side, walls_key, doi_key, tick_key in (
+            ("call", "calls", "call_doi", "call_tick"),
+            ("put", "puts", "put_doi", "put_tick"),
+        ):
+            wall = _top_wall(cur, walls_key)
+            if wall is None:
+                wall = _top_wall(prev, walls_key)
+            if not wall:
+                continue
+
+            broke = (spot_prev <= wall < spot_now) if side == "call" else (spot_now < wall <= spot_prev)
+            if not broke:
+                continue
+
+            # Strongest unwind for this side inside the +/- window.
+            best = 0.0
+            best_t = None
+            lo = max(1, i - window_min)
+            hi = min(len(ordered), i + window_min + 1)
+            for j in range(lo, hi):
+                d = delta_at(j, doi_key)
+                if d < best:
+                    best, best_t = d, ordered[j].get("t")
+
+            unwind = abs(best)
+            if unwind < min_unwind:
+                continue
+
+            out.append({
+                "id": f"{cur['t']}-squeeze-{side}",
+                "type": "squeeze",
+                "side": side,
+                "t": cur["t"],
+                "delta": best,
+                "unwind_t": best_t,
+                "baseline": min_unwind,
+                "score": round(unwind / min_unwind, 3),
+                "severity": severity_for_unwind(unwind),
+                "cumDoi": _f(cur.get(doi_key)),
+                "spot": spot_now,
+                "tickVol": _f(cur.get(tick_key)),
+                "wall": wall,
+            })
+    return out
+
+
 def _round2(v: float) -> float:
     return round(v, 2)
 
@@ -287,7 +403,13 @@ def derive_oi_signal(
 
     call = burst.get("side") == "call"
     building = _f(burst.get("delta")) > 0
-    leg = "PE" if call == building else "CE"
+    is_squeeze = burst.get("type") == "squeeze"
+    # A burst is a FADE (writers moved). A squeeze is MOMENTUM: the broken side
+    # is being run over, so buy the break.
+    if is_squeeze:
+        leg = "CE" if call else "PE"
+    else:
+        leg = "PE" if call == building else "CE"
 
     candidates = []
     for s in strikes:
@@ -309,7 +431,12 @@ def derive_oi_signal(
     lots = units // NIFTY_LOT_SIZE
     qty = lots * NIFTY_LOT_SIZE
 
-    if call:
+    if is_squeeze:
+        wall = burst.get("wall")
+        wall_txt = f"{wall:,.0f}" if isinstance(wall, (int, float)) else "?"
+        basis = (f"short-covering squeeze — {burst.get('side')} wall {wall_txt} "
+                 f"broken while that side unwound {abs(_f(burst.get('delta'))):,.0f}")
+    elif call:
         basis = ("call OI build — writers adding ceiling → fade with puts"
                  if building else
                  "call OI unwind — writers covering → upside fuel → buy calls")
@@ -318,9 +445,12 @@ def derive_oi_signal(
                  if building else
                  "put OI unwind — support removed → downside fuel → buy puts")
 
-    # Trend gate: a counter-trend plan is the wrong side of the tape.
+    # Trend gate: a counter-trend plan is the wrong side of the tape. A squeeze
+    # is with the break by construction, so it is always aligned.
     aligned: Optional[bool] = None
-    if trend in ("up", "down"):
+    if is_squeeze:
+        aligned = True
+    elif trend in ("up", "down"):
         aligned = (leg == "CE" and trend == "up") or (leg == "PE" and trend == "down")
         if not aligned:
             basis = f"COUNTER-TREND (session {trend}) — skip: {basis}"

@@ -142,6 +142,10 @@ export interface NiftyBurst {
   signal: NiftyBurstSignal | null;
   /** Candidate catalysts within ±10 min; empty when the news store had none. */
   news?: NiftyBurstNews[];
+  /** "squeeze" = wall break with unwinding OI (momentum); absent = fade burst. */
+  type?: "burst" | "squeeze";
+  /** Wall strike the squeeze broke through. */
+  wall?: number;
 }
 
 export interface NiftyTape {

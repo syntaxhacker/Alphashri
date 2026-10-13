@@ -32,6 +32,7 @@ from api.reports_api.nifty_bursts import (
     attach_news,
     derive_oi_signal,
     detect_oi_bursts,
+    detect_squeezes,
     session_trend,
 )
 
@@ -847,7 +848,13 @@ def get_nifty_bursts(
                 "bursts": [], "reason": "no tape"}
 
     rows = derive_tape_rows(raw)
+    # Fades (OI bursts) + momentum (wall-break squeezes) in one feed.
     bursts = detect_oi_bursts(rows, window=window, min_abs=min_abs)
+    try:
+        bursts += detect_squeezes(rows)
+        bursts.sort(key=lambda b: str(b.get("t") or ""))
+    except Exception:
+        pass
     strikes, spot = _snapshot_oi_context(date_str)
     try:
         trend = session_trend(rows)

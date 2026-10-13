@@ -65,6 +65,10 @@ export interface OiBurst {
   news?: NiftyBurstNews[];
   /** Session trend at this minute (attached by the panel from the tape). */
   trend?: "up" | "down" | null;
+  /** "squeeze" = wall break with unwinding OI (momentum), absent = OI burst (fade). */
+  type?: "burst" | "squeeze";
+  /** Wall strike the squeeze broke through. */
+  wall?: number;
 }
 
 /* ------------------------------------------------------------------ signal */
@@ -160,7 +164,16 @@ export function deriveOiSignal(
 
   const call = burst.side === "call";
   const building = burst.delta > 0;
-  const leg: "CE" | "PE" = call === building ? "PE" : "CE";
+  const isSqueeze = burst.type === "squeeze";
+  // A burst is a FADE (writers moved). A squeeze is MOMENTUM: the broken side
+  // is being run over, so buy the break.
+  const leg: "CE" | "PE" = isSqueeze
+    ? call
+      ? "CE"
+      : "PE"
+    : call === building
+      ? "PE"
+      : "CE";
 
   const candidates = (strikes ?? [])
     .map((s) => ({
@@ -181,18 +194,25 @@ export function deriveOiSignal(
   const lots = Math.floor(units / NIFTY_LOT_SIZE);
   const qty = lots * NIFTY_LOT_SIZE;
 
-  let basis = call
-    ? building
-      ? "call OI build — writers adding ceiling → fade with puts"
-      : "call OI unwind — writers covering → upside fuel → buy calls"
-    : building
-      ? "put OI build — writers adding floor → fade with calls"
-      : "put OI unwind — support removed → downside fuel → buy puts";
+  let basis = isSqueeze
+    ? `short-covering squeeze — ${burst.side} wall ${
+        typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "?"
+      } broken while that side unwound ${Math.abs(burst.delta).toLocaleString("en-IN")}`
+    : call
+      ? building
+        ? "call OI build — writers adding ceiling → fade with puts"
+        : "call OI unwind — writers covering → upside fuel → buy calls"
+      : building
+        ? "put OI build — writers adding floor → fade with calls"
+        : "put OI unwind — support removed → downside fuel → buy puts";
 
   // Trend gate: a plan fighting the session trend is the wrong side of the tape.
+  // A squeeze is with the break by construction, so it is always aligned.
   const trend = opts.trend ?? null;
   let aligned: boolean | null = null;
-  if (trend === "up" || trend === "down") {
+  if (isSqueeze) {
+    aligned = true;
+  } else if (trend === "up" || trend === "down") {
     aligned = (leg === "CE" && trend === "up") || (leg === "PE" && trend === "down");
     if (!aligned) basis = `COUNTER-TREND (session ${trend}) — skip: ${basis}`;
   }
@@ -321,7 +341,7 @@ function compact(v: number): string {
  * When a signal is supplied the title/headline lead with the trade plan. */
 export function burstToAlert(burst: OiBurst, signal?: OiSignal | null): MarketAlert {
   const sideLabel = burst.side === "call" ? "Call" : "Put";
-  const tone = burst.delta >= 0 ? "up" : "down";
+  const tone: "up" | "down" = burst.delta >= 0 ? "up" : "down";
   const scoreTxt = `${burst.score.toFixed(1)}× the trailing typical minute`;
 
   const metrics = signal

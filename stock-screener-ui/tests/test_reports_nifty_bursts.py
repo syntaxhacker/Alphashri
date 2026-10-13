@@ -321,3 +321,112 @@ class TestBurstsAuthGate:
         client, _app, _dep = self._client()
         # tape returns 200-with-envelope or 404 when empty — never 401
         assert client.get("/api/reports/nifty/tape?date=1999-01-01").status_code != 401
+
+
+# ------------------------------------------------------------- squeezes
+
+class TestDetectSqueezes:
+    """Short-covering squeezes: a wall break WITH that side's OI unwinding.
+
+    Validated on the real 2026-10-13 tape, where the money move was spot
+    crossing 22,600 at 14:21 while 16.46M call contracts were bought back at
+    14:20 — the unwind and the cross land on ADJACENT minutes.
+    """
+
+    @staticmethod
+    def _row(t, spot, call_oi, put_oi, call_wall=22600.0, put_wall=22500.0):
+        return {"t": t, "spot": spot, "call_doi": call_oi, "put_doi": put_oi,
+                "call_tick": 0, "put_tick": 0,
+                "walls": {"calls": [{"strike": call_wall, "oi": 5_000_000}],
+                          "puts": [{"strike": put_wall, "oi": 5_000_000}]}}
+
+    def _tape(self, spots, call_oi, put_oi):
+        return [self._row(f"2026-10-13T14:{20 + i:02d}:00+05:30", s, call_oi[i], put_oi[i])
+                for i, s in enumerate(spots)]
+
+    def test_same_minute_cross_and_unwind_is_detected(self):
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22590, 22610], [0, -12_000_000], [0, 0])
+        sq = detect_squeezes(rows)
+        assert len(sq) == 1
+        assert sq[0]["side"] == "call"
+        assert sq[0]["type"] == "squeeze"
+        assert sq[0]["severity"] == "critical"
+        assert sq[0]["wall"] == 22600.0
+
+    def test_unwind_one_minute_before_the_cross_is_still_detected(self):
+        """The real 2026-10-13 shape: unwind at 14:20, cross at 14:21."""
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22584, 22597, 22601], [0, -16_461_965, 0], [0, 0, 0])
+        sq = detect_squeezes(rows)
+        assert len(sq) == 1
+        assert sq[0]["side"] == "call"
+        assert sq[0]["unwind_t"].endswith("14:21:00+05:30")   # emitted at the cross
+        assert abs(sq[0]["delta"]) == 16_461_965
+
+    def test_window_zero_misses_the_adjacent_minute_case(self):
+        """Proves the window is what catches the real move."""
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22584, 22597, 22601], [0, -16_461_965, 0], [0, 0, 0])
+        assert detect_squeezes(rows, window_min=0) == []
+
+    def test_small_unwind_is_ignored(self):
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22590, 22610], [0, -500_000], [0, 0])
+        assert detect_squeezes(rows) == []
+
+    def test_building_oi_on_a_break_is_not_a_squeeze(self):
+        """A break with OI BUILDING is new writing, not covering."""
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22590, 22610], [0, +12_000_000], [0, 0])
+        assert detect_squeezes(rows) == []
+
+    def test_put_squeeze_on_a_downside_break(self):
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22510, 22480], [0, 0], [0, -9_000_000])
+        sq = detect_squeezes(rows)
+        assert len(sq) == 1
+        assert sq[0]["side"] == "put"
+        assert sq[0]["severity"] == "critical"
+
+    def test_no_break_no_squeeze(self):
+        from api.reports_api.nifty_bursts import detect_squeezes
+        rows = self._tape([22590, 22595], [0, -12_000_000], [0, 0])
+        assert detect_squeezes(rows) == []
+
+    def test_squeeze_signal_buys_the_break_not_the_fade(self):
+        """A squeeze is momentum: call squeeze -> CE, regardless of trend."""
+        from api.reports_api.nifty_bursts import detect_squeezes, derive_oi_signal
+        chain = [{"strike": 22600, "ce": {"ltp": 40.0}, "pe": {"ltp": 35.0}}]
+        rows = self._tape([22590, 22610], [0, -12_000_000], [0, 0])
+        sq = detect_squeezes(rows)[0]
+        sig = derive_oi_signal(sq, chain, 22610.0, trend="down")  # even against trend
+        assert sig["leg"] == "CE"
+        assert sig["aligned"] is True
+        assert "short-covering squeeze" in sig["basis"]
+        assert "22,600" in sig["basis"]
+
+    def test_endpoint_includes_squeezes_alongside_bursts(self, _tmp_tape, _tmp_snapshots):
+        rows = []
+        spot = 22590.0
+        for i in range(14):
+            spot += 2
+            rows.append({"t": f"2026-10-13T14:{20 + i:02d}:00+05:30", "spot": spot,
+                         "ce_oi": 1000 * i, "pe_oi": 0, "ce_vol": 0, "pe_vol": 0,
+                         "pcr_oi": 1.0, "max_pain": 22590, "flip": 22590,
+                         "walls": {"calls": [{"strike": 22620.0, "oi": 5_000_000}],
+                                   "puts": [{"strike": 22500.0, "oi": 5_000_000}]}})
+        # last minute: spot crosses the call wall while call OI collapses
+        rows[-1]["spot"] = 22630.0
+        rows[-1]["ce_oi"] = rows[-2]["ce_oi"] - 12_000_000
+        _write_tape(_tmp_tape, rows)
+        _tmp_snapshots.mkdir(parents=True, exist_ok=True)
+        (_tmp_snapshots / f"{DATE}.json").write_text(json.dumps(_snapshot([
+            {"strike": 22600.0, "ce": {"ltp": 40.0}, "pe": {"ltp": 35.0}},
+        ])))
+        out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
+        kinds = [b.get("type") for b in out["bursts"] if b.get("type") == "squeeze"]
+        assert kinds, "expected a squeeze in the feed"
+        sq = [b for b in out["bursts"] if b.get("type") == "squeeze"][0]
+        assert sq["signal"]["leg"] == "CE"
+        assert sq["signal"]["aligned"] is True

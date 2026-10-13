@@ -380,3 +380,42 @@ describe("trend gate", () => {
     expect(burstToAlert(b, signal).detail).not.toContain("skip");
   });
 });
+
+describe("squeeze trigger (momentum, not fade)", () => {
+  const chain = [{ strike: 22_600, ce: { ltp: 40 }, pe: { ltp: 35 } }];
+  const squeeze = (side: "call" | "put", delta: number, wall: number) => ({
+    id: `sq-${side}`, side, t: "14:21", delta, baseline: 2_000_000, score: 8.2,
+    severity: "critical" as const, cumDoi: 0, spot: 22_610, tickVol: 0,
+    type: "squeeze" as const, wall,
+  });
+
+  test("call squeeze buys CE and is aligned even against the trend", () => {
+    const s = deriveOiSignal(squeeze("call", -16_461_965, 22_600), chain, 22_610, {
+      trend: "down",
+    })!;
+    expect(s.leg).toBe("CE");
+    expect(s.aligned).toBe(true);
+    expect(s.basis).toContain("short-covering squeeze");
+    expect(s.basis).toContain("22,600");
+  });
+
+  test("put squeeze buys PE", () => {
+    const s = deriveOiSignal(squeeze("put", -9_000_000, 22_500), chain, 22_480, {})!;
+    expect(s.leg).toBe("PE");
+    expect(s.aligned).toBe(true);
+  });
+
+  test("a plain burst is still a fade (unchanged)", () => {
+    const b = { ...squeeze("call", 60_000, 22_600) };
+    delete (b as { type?: unknown }).type;
+    const s = deriveOiSignal(b, chain, 22_610, { trend: "up" })!;
+    expect(s.leg).toBe("PE");       // fade, not momentum
+  });
+
+  test("squeeze alert carries the squeeze rationale", () => {
+    const b = squeeze("call", -16_461_965, 22_600);
+    const a = burstToAlert(b, deriveOiSignal(b, chain, 22_610, {}));
+    expect(a.detail).toContain("short-covering squeeze");
+    expect(a.detail).not.toContain("COUNTER-TREND");
+  });
+});
