@@ -14,6 +14,8 @@ import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { NiftyTapeTable } from "./NiftyTapeTable";
 import { NiftyUnusualVolume } from "./NiftyUnusualVolume";
+import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
+import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact, ErrorAlert, InlineLoader } from "@/components/common/states";
@@ -613,6 +615,15 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     [report],
   );
 
+  // In-app OI-burst alerts: fires only for minutes that arrive while the page
+  // is open in Live mode. No store — plain hook state, reset per context.
+  const { trail, toasts, dismissToast, clearTrail } = useNiftyOiAlerts(
+    tape?.rows ?? [],
+    mode === "live",
+    contextKey,
+  );
+  const burstsRef = useRef<HTMLDivElement>(null);
+
   const staleAgeMs = updatedAtMs === null ? 0 : nowMs - updatedAtMs;
   const isStale = mode === "live" && updatedAtMs !== null && staleAgeMs > STALE_AFTER_MS;
   const staleMins = Math.max(1, Math.floor(staleAgeMs / 60_000));
@@ -896,7 +907,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           >
           <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ flex: "1 1 620px", minWidth: 0, background: "#000000", borderColor: "#1A1A1A" }}>
             {tape && tape.rows.length > 0 ? (
-              <NiftyTapeTable rows={tape.rows} tape={tape} />
+              <NiftyTapeTable rows={tape.rows} tape={tape} live={mode === "live"} />
             ) : (
               <Text data-testid="nifty-tape-empty" size="sm" c="dimmed">
                 Tape starts recording at next market open.
@@ -907,6 +918,49 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <Box sx={{ flex: "1 1 620px", minWidth: 0, background: "#000000", border: "1px solid #1A1A1A", borderRadius: 8, overflow: "hidden" }}>
             <NiftyUnusualVolume strikes={report.strikes} spot={report.spot} sx={{ flex: "1 1 620px", minWidth: 0 }} />
           </Box>
+          </Box>
+
+          {trail.length > 0 && (
+            <Box ref={burstsRef} data-testid="nifty-oi-bursts-wrap">
+              <CompactPanel
+                title={`OI bursts (${trail.length})`}
+                testId="nifty-oi-bursts-panel"
+                action={
+                  <Button size="sm" variant="subtle" onClick={clearTrail}>
+                    Clear
+                  </Button>
+                }
+              >
+                <MarketAlertLog
+                  alerts={trail}
+                  fill={false}
+                  height={Math.min(22 + trail.length * 20 + 18, 260)}
+                  onOpen={() => burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+                />
+              </CompactPanel>
+            </Box>
+          )}
+
+          {toasts.length > 0 && (
+            <Box
+              data-testid="nifty-oi-toasts"
+              sx={{
+                position: "fixed",
+                right: 16,
+                bottom: 88,
+                zIndex: 1300,
+                width: 620,
+                maxWidth: "calc(100vw - 32px)",
+              }}
+            >
+              <MarketAlertStack
+                alerts={toasts}
+                max={OI_ALERT_TOAST_MAX}
+                onDismiss={dismissToast}
+                onOpen={() => burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+              />
+            </Box>
+          )}
           </Box>
 
           {mode === "live" && report.gex ? (

@@ -1,11 +1,15 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, afterEach } from "vitest";
-import { render, screen, within, cleanup } from "@testing-library/react";
+import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import {
   NiftyTapeTable,
   buildTapeHead,
+  computeChangedCells,
+  computeSpotDeltas,
+  computeTapeScale,
+  computeTapeSession,
   formatTapeBaseline,
   formatTapeCompact,
   formatTapePct,
@@ -16,6 +20,7 @@ import {
   getNiftyTapeColumns,
   getTapeBaseline,
   tapeDoiLabel,
+  tapeHeat,
 } from "./NiftyTapeTable";
 import type { NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 
@@ -164,6 +169,179 @@ describe("buildTapeHead math", () => {
   });
 });
 
+describe("magnitude heat scale", () => {
+  test("computeTapeScale takes the per-column max |value|", () => {
+    const s = computeTapeScale([
+      tapeRow({
+        call_doi: 100,
+        put_doi: -500,
+        net: 20,
+        net_pct: -3,
+        call_tick: 7,
+        put_tick: -9,
+        pcr_doi: 0.5,
+        spot_flip: -12,
+      }),
+      tapeRow({
+        call_doi: -250,
+        put_doi: 300,
+        net: -80,
+        net_pct: 1,
+        call_tick: -11,
+        put_tick: 4,
+        pcr_doi: -0.9,
+        spot_flip: null,
+      }),
+    ]);
+    expect(s.call_doi).toBe(250);
+    expect(s.put_doi).toBe(500);
+    expect(s.net).toBe(80);
+    expect(s.net_pct).toBe(3);
+    expect(s.call_tick).toBe(11);
+    expect(s.put_tick).toBe(9);
+    expect(s.pcr_doi).toBe(0.9);
+    expect(s.spot_flip).toBe(12);
+  });
+
+  test("empty rows yield a zero scale (no tint anywhere)", () => {
+    const s = computeTapeScale([]);
+    expect(Object.values(s).every((v) => v === 0)).toBe(true);
+  });
+
+  test("tapeHeat alpha grows with magnitude; zero/max<=0 → undefined", () => {
+    expect(tapeHeat(0, 100, "#1F7FFF")).toBeUndefined();
+    expect(tapeHeat(5, 0, "#1F7FFF")).toBeUndefined();
+    const alpha = (s: string | undefined) =>
+      s ? Number(s.match(/,\s*([0-9.]+)\)/)?.[1] ?? 0) : 0;
+    const lo = alpha(tapeHeat(10, 100, "#1F7FFF", 0, 1));
+    const hi = alpha(tapeHeat(100, 100, "#1F7FFF", 0, 1));
+    expect(lo).toBeCloseTo(0.1, 5);
+    expect(hi).toBeCloseTo(1, 5);
+    expect(hi).toBeGreaterThan(lo);
+  });
+});
+
+describe("spot deltas + session roll-up", () => {
+  test("computeSpotDeltas keys each minute to its change vs the previous", () => {
+    const rows = [
+      tapeRow({ t: "09:15", spot: 22500 }),
+      tapeRow({ t: "09:16", spot: 22510 }),
+      tapeRow({ t: "09:17", spot: 22495 }),
+    ];
+    const d = computeSpotDeltas(rows);
+    expect(d.has("09:15")).toBe(false);
+    expect(d.get("09:16")).toBeCloseTo(10, 5);
+    expect(d.get("09:17")).toBeCloseTo(-15, 5);
+  });
+
+  test("computeTapeSession reports spot range, biggest prints and net sum", () => {
+    const s = computeTapeSession([
+      tapeRow({ spot: 22500, call_doi: 100, put_doi: -500, net: 20 }),
+      tapeRow({ spot: 22600, call_doi: -250, put_doi: 300, net: -80 }),
+    ]);
+    expect(s.spotLo).toBe(22500);
+    expect(s.spotHi).toBe(22600);
+    expect(s.maxCallDoi).toBe(250);
+    expect(s.maxPutDoi).toBe(500);
+    expect(s.netSum).toBeCloseTo(-60, 5);
+  });
+
+  test("computeTapeSession on empty rows is all zeros", () => {
+    const s = computeTapeSession([]);
+    expect(s).toEqual({ spotHi: 0, spotLo: 0, maxCallDoi: 0, maxPutDoi: 0, netSum: 0 });
+  });
+
+  test("Spot cell shows a tick arrow when a prior minute exists", () => {
+    r(
+      <NiftyTapeTable
+        rows={[
+          tapeRow({ t: "09:15", spot: 22500 }),
+          tapeRow({ t: "09:16", spot: 22510 }),
+        ]}
+      />,
+    );
+    const table = screen.getByTestId("nifty-tape-table");
+    expect(within(table).getByText("▲")).toBeInTheDocument();
+    expect(within(table).getByText("22,510")).toBeInTheDocument();
+  });
+
+  test("session footer renders spot range, max prints, net sum + heat legend", () => {
+    r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:16" })]} />);
+    const head = screen.getByTestId("nifty-tape-head");
+    expect(within(head).getByText(/SPOT [\d.,]+–[\d.,]+/)).toBeInTheDocument();
+    expect(within(head).getByText(/MAX ΔOI/)).toBeInTheDocument();
+    expect(within(head).getByText(/NET Σ/)).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-tape-heat-legend")).toHaveTextContent("brighter = bigger print");
+  });
+
+  test("order toggle flips the first row between newest and oldest", () => {
+    r(
+      <NiftyTapeTable
+        rows={[
+          tapeRow({ t: "09:15" }),
+          tapeRow({ t: "09:16" }),
+          tapeRow({ t: "09:17" }),
+        ]}
+      />,
+    );
+    const table = screen.getByTestId("nifty-tape-table");
+    const times = () => within(table).getAllByTestId("nifty-tape-time").map((el) => el.textContent);
+    expect(times()[0]).toBe("09:17");
+    fireEvent.click(screen.getByTestId("nifty-tape-order-toggle"));
+    expect(times()[0]).toBe("09:15");
+    // the newest row keeps its accent even when listed last
+    const rows = within(table).getAllByTestId("nifty-tape-row");
+    expect(rows[rows.length - 1].className).toContain("tape-latest");
+  });
+});
+
+describe("live change detection", () => {
+  test("computeChangedCells reports only fields that actually moved", () => {
+    const prev = new Map([
+      ["09:15", tapeRow({ t: "09:15", call_doi: 100, net: 5, spot: 100 })],
+      ["09:16", tapeRow({ t: "09:16", call_doi: 200, net: 6, spot: 101 })],
+    ]);
+    const rows = [
+      tapeRow({ t: "09:15", call_doi: 100, net: 5, spot: 100 }), // unchanged
+      tapeRow({ t: "09:16", call_doi: 250, net: 6, spot: 103 }), // call_doi + spot moved
+      tapeRow({ t: "09:17", call_doi: 999, net: 9, spot: 104 }), // brand new
+    ];
+    const out = computeChangedCells(prev, rows);
+    expect(out.has("09:15")).toBe(false);
+    expect([...(out.get("09:16") ?? [])].sort()).toEqual(["call_doi", "spot"]);
+    // new minutes are the row-flash event, never a cell-change
+    expect(out.has("09:17")).toBe(false);
+  });
+
+  test("computeChangedCells on an empty previous snapshot reports nothing", () => {
+    expect(computeChangedCells(new Map(), [tapeRow({ t: "09:15" })]).size).toBe(0);
+  });
+
+  test("live mode shows the pulsing LIVE dot; EOD hides it", () => {
+    const { rerender } = r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} live />);
+    expect(screen.getByTestId("nifty-tape-live")).toHaveTextContent("LIVE");
+    rerender(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    expect(screen.queryByTestId("nifty-tape-live")).not.toBeInTheDocument();
+  });
+
+  test("a newly arrived minute flashes; a revised existing minute flashes its cells", () => {
+    const { rerender, container } = r(
+      <NiftyTapeTable rows={[tapeRow({ t: "09:15", call_doi: 100 })]} />,
+    );
+    // same minute, revised value → cell flash only
+    rerender(<NiftyTapeTable rows={[tapeRow({ t: "09:15", call_doi: 999 })]} />);
+    expect(container.querySelectorAll(".tape-cell-flash").length).toBeGreaterThan(0);
+    // brand-new minute → row flash on the newest row
+    rerender(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15", call_doi: 999 }), tapeRow({ t: "09:16", call_doi: 500 })]}
+      />,
+    );
+    const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
+    expect(rows[0].className).toContain("tape-flash");
+  });
+});
+
 describe("NiftyTapeTable", () => {
   test("renders latest minute first", () => {
     r(
@@ -177,6 +355,36 @@ describe("NiftyTapeTable", () => {
     expect(rows).toHaveLength(3);
     const times = within(table).getAllByTestId("nifty-tape-time");
     expect(times.map((el) => el.textContent)).toEqual(["09:17", "09:16", "09:15"]);
+  });
+
+  test("newest minute carries the tape-latest class, older rows do not", () => {
+    r(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15" }), tapeRow({ t: "09:17" }), tapeRow({ t: "09:16" })]}
+      />,
+    );
+    const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
+    expect(rows[0].className).toContain("tape-latest");
+    expect(rows[1].className).not.toContain("tape-latest");
+    expect(rows[2].className).not.toContain("tape-latest");
+  });
+
+  test("Call ΔOI fill strength scales with magnitude", () => {
+    r(
+      <NiftyTapeTable
+        rows={[
+          tapeRow({ t: "09:16", call_doi: 5_530_000 }),
+          tapeRow({ t: "09:15", call_doi: 553_000 }),
+        ]}
+      />,
+    );
+    const table = screen.getByTestId("nifty-tape-table");
+    const alpha = (el: HTMLElement | null) =>
+      Number((el?.style.background ?? "").match(/,\s*([0-9.]+)\)/)?.[1] ?? 0);
+    const big = alpha(within(table).getByText("+5.53M").parentElement);
+    const small = alpha(within(table).getByText("+553.00K").parentElement);
+    expect(big).toBeGreaterThan(small);
+    expect(big).toBeGreaterThan(0);
   });
 
   test("compact values render with M/K formatting", () => {

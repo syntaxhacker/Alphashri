@@ -258,6 +258,27 @@ describe("NiftyUnusualVolume render", () => {
     expect(within(table).getByTestId("nifty-unusual-bar-25700-CE")).toHaveStyle({ width: "100%" });
   });
 
+  test("volume bars scale both length and fill opacity with size", () => {
+    r(
+      <NiftyUnusualVolume
+        spot={25750}
+        strikes={[
+          strikeAt(25700, side(100_000, 10_000, "LB"), side(50_000, 50_000, "SB")),
+          strikeAt(25800, side(10_000, 10_000, "LB"), side(5_000, 5_000, "SB")),
+        ]}
+      />,
+    );
+    const table = screen.getByTestId("nifty-unusual-table");
+    const big = within(table).getByTestId("nifty-unusual-bar-25700-CE");
+    const small = within(table).getByTestId("nifty-unusual-bar-25800-CE");
+    // biggest leg fills 100% and is fully opaque (1); smaller leg fades.
+    expect(Number(big.style.width.replace("%", ""))).toBeCloseTo(100, 5);
+    expect(Number(big.style.opacity)).toBeCloseTo(1, 5);
+    expect(Number(small.style.opacity)).toBeLessThan(Number(big.style.opacity));
+    expect(Number(small.style.opacity)).toBeGreaterThan(0.3);
+    expect(Number(small.style.width.replace("%", ""))).toBeLessThan(100);
+  });
+
   test("oi=0 cell shows compact volume instead of a ratio", () => {
     r(
       <NiftyUnusualVolume
