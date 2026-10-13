@@ -5,6 +5,7 @@ from db.database import SessionLocal
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
+    classify_approach,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 

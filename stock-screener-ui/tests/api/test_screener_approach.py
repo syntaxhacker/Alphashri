@@ -36,6 +36,16 @@ def _df(highs, end_days_ago=1):
     )
 
 
+class FakeAPI:
+    """Upstox stub serving one synthetic daily frame per symbol."""
+
+    def __init__(self, frames):
+        self.frames = frames
+
+    def fetch_historical_data_v3(self, symbol, **kwargs):
+        return self.frames.get(symbol)
+
+
 class TestThresholds:
     def test_defaults(self, monkeypatch):
         monkeypatch.delenv('SCREENER_52W_TOUCH_EPS_PCT', raising=False)
@@ -108,3 +118,54 @@ class TestTouchStatsFromDf:
         df = _df([90, 90, 90, 90, 90, 90, 90, 90, 102, 101])
         _, touch = _touch_stats_from_df(df, ref_high=100.0)
         assert touch == 1
+
+
+class TestFillTouchAndApproach:
+    def _stock(self, symbol, high_52w, price, **kw):
+        row = {
+            'symbol': symbol, 'high_52w': high_52w, 'upstox_price': price,
+            'tv_price': price, 'to_52w_high': round((high_52w - price) / high_52w * 100, 2),
+            'touched_52w': False, 'days_ago': None,
+            'rsi': 60.0, 'adx': 25.0, 'volume_m': 1.0,
+        }
+        row.update(kw)
+        return row
+
+    def test_retest_and_price_refresh(self):
+        from api.screener_api.screener_52w import _fill_days_ago_from_upstox
+
+        # touched 2 sessions ago at 100, now closed at 99*0.99
+        api = FakeAPI({'RETEST': _df([90, 90, 90, 90, 90, 90, 90, 99, 100, 99])})
+        stock = self._stock('RETEST', 100.0, 98.0)
+        _fill_days_ago_from_upstox([stock], api, True, 1.0)
+        assert stock['approach_type'] == 'retest'
+        assert stock['days_since_touch'] == 2
+        # price refreshed from latest daily close (99 * 0.99)
+        assert stock['upstox_price'] == round(99 * 0.99, 2)
+
+    def test_fresh_when_no_touch_in_frame(self):
+        from api.screener_api.screener_52w import _fill_days_ago_from_upstox
+
+        api = FakeAPI({'FRESH': _df([90] * 10)})
+        stock = self._stock('FRESH', 100.0, 97.0)
+        _fill_days_ago_from_upstox([stock], api, True, 1.0)
+        assert stock['approach_type'] == 'fresh'
+        assert stock['days_since_touch'] is None
+
+    def test_intraday_ltp_kept(self):
+        from api.screener_api.screener_52w import _fill_days_ago_from_upstox
+
+        api = FakeAPI({'LTP': _df([90] * 10)})
+        stock = self._stock('LTP', 100.0, 99.5, ltp_fresh=True)
+        _fill_days_ago_from_upstox([stock], api, True, 1.0)
+        assert stock['upstox_price'] == 99.5
+        # 99.5 is within eps of 100 -> touched today -> retest, LTP still kept
+        assert stock['approach_type'] == 'retest'
+        assert stock['days_since_touch'] == 0
+
+    def test_no_api_leaves_rows_untouched(self):
+        from api.screener_api.screener_52w import _fill_days_ago_from_upstox
+
+        stock = self._stock('X', 100.0, 98.0)
+        _fill_days_ago_from_upstox([stock], None, False, 1.0)
+        assert 'approach_type' not in stock

@@ -14,16 +14,19 @@ from trading.week52_range_lookup import load_all_52w_ranges
 
 from .screener_models import (
     _to_float,
+    classify_approach,
     gap_pct_to_52w_high,
+    has_live_data,
     is_within_52w_touch_gap,
     touched_52w_gap_threshold_pct,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 from .screener_scan import (
     _build_stock_data,
+    _fetch_90d_daily,
     _passes_profile_filters,
     _enrich_with_touch_history,
-    _compute_days_ago,
+    _touch_stats_from_df,
 )
 
 
@@ -105,6 +108,7 @@ def _enrich_top_with_ltp(stocks: list[dict], api, top_n: int, touched_gap_pct: f
             broker_diff = round(((ltp - tv_price) / tv_price) * 100, 2) if tv_price > 0 else 0.0
             stock['upstox_price'] = round(ltp, 2)
             stock['broker_diff'] = broker_diff
+            stock['ltp_fresh'] = True
             near_high = (high_52w - recent_high) / high_52w < touched_gap_pct / 100
             if recent_high >= high_52w or near_high:
                 stock['touched_52w'] = True
@@ -114,24 +118,42 @@ def _enrich_top_with_ltp(stocks: list[dict], api, top_n: int, touched_gap_pct: f
 
 
 def _fill_days_ago_from_upstox(stocks: list[dict], api, use_api: bool, touched_gap_pct: float) -> None:
-    """Days since price last reached ~98% of Upstox 52W high (90d daily bars)."""
+    """Days since price last reached ~98% of Upstox 52W high (90d daily bars).
+
+    Single 90d-daily fetch per symbol also refreshes the price from the latest
+    daily close (range-DB closes can be sessions old), recomputes gap/touched,
+    and stamps bar-verified days_since_touch + approach_type (fresh/retest).
+    Rows with a live intraday LTP (ltp_fresh) keep it.
+    """
     if not use_api or not api:
         return
     for stock in stocks:
-        if stock.get('days_ago') is not None:
+        if stock.get('days_ago') is not None and stock.get('approach_type') is not None:
             continue
         symbol = stock.get('symbol')
         if not symbol:
             continue
         high_52w = _to_float(stock.get('high_52w'), 0)
-        ltp = _to_float(stock.get('upstox_price'), 0)
-        today_high = ltp if high_52w > 0 and ltp >= high_52w * 0.999 else None
-        if _to_float(stock.get('to_52w_high'), 100) < touched_gap_pct:
-            today_high = today_high or ltp or high_52w
+        if high_52w <= 0:
+            continue
         try:
-            days = _compute_days_ago(api, symbol, today_high=today_high)
-            if days is not None:
-                stock['days_ago'] = days
+            df = _fetch_90d_daily(api, symbol)
+            if df is None:
+                continue
+            if not stock.get('ltp_fresh'):
+                last_close = float(df['close'].iloc[-1])
+                if last_close > 0:
+                    stock['upstox_price'] = round(last_close, 2)
+                    _sync_stock_metrics(stock, touched_gap_pct)
+            ltp = _to_float(stock.get('upstox_price'), 0)
+            today_high = ltp if high_52w > 0 and ltp >= high_52w * 0.999 else None
+            if _to_float(stock.get('to_52w_high'), 100) < touched_gap_pct:
+                today_high = today_high or ltp or high_52w
+            near, touch = _touch_stats_from_df(df, high_52w, today_high)
+            if stock.get('days_ago') is None:
+                stock['days_ago'] = near
+            stock['days_since_touch'] = touch
+            stock['approach_type'] = classify_approach(bool(stock.get('touched_52w')), touch)
         except Exception:
             continue
 
@@ -280,13 +302,22 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         'touched_gap_pct': touched_gap_pct,
     }
     _enrich_with_touch_history(data, screener)
-    _resplit_52w_buckets(data, touched_gap_pct)
 
-    all_rows = data['approaching'] + data['touched']
     _fill_days_ago_from_upstox(data['touched'], api, use_api, touched_gap_pct)
     if use_api:
         near = [s for s in data['approaching'] if _to_float(s.get('to_52w_high'), 100) <= 3.0]
         _fill_days_ago_from_upstox(near[:120], api, use_api, touched_gap_pct)
+
+    # Prices may have refreshed from daily closes above: re-bucket on live gaps.
+    _resplit_52w_buckets(data, touched_gap_pct)
+
+    # Thin-data rows (TV enrichment missed: RSI/ADX/volume all zero) sink below
+    # instrumented ones so unverifiable rows never outrank real setups.
+    for s in data['approaching'] + data['touched']:
+        s['has_live_data'] = has_live_data(s)
+    data['approaching'].sort(
+        key=lambda s: (not s.get('has_live_data', True), _to_float(s.get('to_52w_high'), 999))
+    )
 
     data['summary'] = _summary_items_for(screener, data['approaching'], data['touched'])
     return data
