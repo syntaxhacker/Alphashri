@@ -1,5 +1,6 @@
 import { memo, useMemo } from "react";
-import { Stack } from "@/ui";
+import { Stack, Button, CopyButton } from "@/ui";
+import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { ScreenerErrorPanel } from "./ScreenerErrorPanel";
@@ -8,6 +9,32 @@ import { getColumnsForScreener } from "./columns";
 import * as state from "../../state";
 import type { Stock } from "../../types";
 
+function approachRank(stock: Stock): number {
+  if (stock.approach_type === "fresh") return 0;
+  if (stock.approach_type === "retest") return 2;
+  return 1;
+}
+
+function CopySymbolsAction({ stocks, testId }: { stocks: Stock[]; testId: string }) {
+  const value = stocks.map((s) => s.symbol).join(",");
+  return (
+    <CopyButton value={value}>
+      {({ copied, copy }) => (
+        <Button
+          size="xs"
+          variant="subtle"
+          color={copied ? "success" : "secondary"}
+          onClick={copy}
+          data-testid={testId}
+        >
+          {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+          {copied ? "Copied" : "TV symbols"}
+        </Button>
+      )}
+    </CopyButton>
+  );
+}
+
 interface SectionConfig {
   key: "approaching" | "touched";
   stocks: Stock[];
@@ -15,6 +42,7 @@ interface SectionConfig {
   description: string;
   columns: ReturnType<typeof getColumnsForScreener>;
   touchedSymbols: Set<string>;
+  copyTestId: string;
 }
 
 interface Props {
@@ -50,13 +78,16 @@ export const ScreenerContent = memo(function ScreenerContent({
     const result: SectionConfig[] = [];
 
     if (approachingStocks.length > 0) {
+      // Fresh approaches first, then unknown, then retests (stable within groups).
+      const ordered = [...approachingStocks].sort((a, b) => approachRank(a) - approachRank(b));
       result.push({
         key: "approaching",
-        stocks: approachingStocks,
+        stocks: ordered,
         label: `${(sl?.primary || "Primary")} (${approachingStocks.length})`,
         description: sd?.primary || "",
         columns: getColumnsForScreener(activeScreener, "approaching"),
         touchedSymbols: new Set<string>(),
+        copyTestId: "copy-approaching-symbols",
       });
     }
     if (touchedStocks.length > 0) {
@@ -67,6 +98,7 @@ export const ScreenerContent = memo(function ScreenerContent({
         description: sd?.secondary || "",
         columns: getColumnsForScreener(activeScreener, "touched"),
         touchedSymbols: new Set(touchedStocks.map((stock) => stock.symbol)),
+        copyTestId: "copy-touched-symbols",
       });
     }
     return result;
@@ -89,6 +121,7 @@ export const ScreenerContent = memo(function ScreenerContent({
             columns={section.columns}
             badgeLabel={undefined}
             scoreFormula={scoreFormula}
+            action={<CopySymbolsAction stocks={section.stocks} testId={section.copyTestId} />}
             touchedSymbols={section.touchedSymbols}
             onSymbolClick={onSymbolClick}
             onSymbolHover={onSymbolHover}
