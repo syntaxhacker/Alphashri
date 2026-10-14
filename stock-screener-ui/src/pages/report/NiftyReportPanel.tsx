@@ -14,6 +14,12 @@ import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { NiftyTapeTable } from "./NiftyTapeTable";
 import { NiftyUnusualVolume, UNUSUAL_TERM_BG, UNUSUAL_TERM_BORDER } from "./NiftyUnusualVolume";
+import { NiftyStructureShifts } from "./NiftyStructureShifts";
+import { NiftyDeltaPositioning } from "./NiftyDeltaPositioning";
+import { NiftyGexProfile } from "./NiftyGexProfile";
+import { NiftyIvStraddle } from "./NiftyIvStraddle";
+import { NiftyGammaTime } from "./NiftyGammaTime";
+import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { detectOiBursts, sessionTrend } from "./niftyOiBursts";
@@ -156,9 +162,11 @@ export function LevelLegend({ live }: { live: boolean }) {
     );
   }
   return (
+    // Single dense wrapped row: tight gaps + minimal top pad so the legend
+    // costs one ~16px row instead of two. Fonts/symbols untouched.
     <Box
       data-testid="nifty-level-legend"
-      sx={{ display: "flex", flexWrap: "wrap", gap: 2, pt: 1 }}
+      sx={{ display: "flex", flexWrap: "wrap", columnGap: 1, rowGap: 0.5, pt: 0.5 }}
     >
       {items.map((it) => (
         <Box
@@ -259,9 +267,13 @@ export function formatGexLevel(strike: number, netGex: number): string {
   return `${strike.toLocaleString("en-IN")} (${netGex >= 0 ? "+" : ""}${netGex.toFixed(2)} Cr)`;
 }
 
+/** OI-burst log height: one ~20px row per alert plus chrome, capped so the
+    signals row stays compact — overflow scrolls inside the log. */
+export function oiBurstLogHeight(count: number): number {
+  return Math.min(22 + count * 20 + 18, 140);
+}
 /** Live poll cadence; backend `/live` already caches for 60s. */
 const LIVE_POLL_MS = 30_000;
-
 /** Current poll delay including the failure backoff (ms). */
 function pollDelayMs(failures: number): number {
   return failures <= 0
@@ -274,6 +286,8 @@ function pollDelayMs(failures: number): number {
 }
 /** Data older than this is shown with a stale badge instead of an error. */
 const STALE_AFTER_MS = 90_000;
+/** When the market is closed, poll this slowly just to catch the next open. */
+const REOPEN_CHECK_MS = 5 * 60_000;
 
 /** Closest strike in the chain to spot; null when there is no data. Tie → lower strike. */
 export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | null {
@@ -436,6 +450,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // Overlap guard: skip a poll tick while a fetch is still in flight.
   const loadingRef = useRef<boolean>(false);
 
+  // Exchange session gate (from the `market` block). When closed, the poll is
+  // stopped and the snapshot is labelled "Market closed" instead of "live".
+  const marketClosed = report?.market?.is_open === false;
+
   const load = useCallback(async () => {
     if (loadingRef.current) return;
     loadingRef.current = true;
@@ -516,7 +534,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // the tab is hidden or a fetch is in flight — never piled up.
   useEffect(() => {
     if (mode !== "live") return;
-    const delay = pollDelayMs(failures);
+    // Closed market: poll slowly (just to catch the next open), not every 30s.
+    const delay = marketClosed ? REOPEN_CHECK_MS : pollDelayMs(failures);
     const id = setInterval(() => {
       setNowMs(Date.now());
       if (document.hidden) return;
@@ -524,7 +543,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       void load();
     }, delay);
     return () => clearInterval(id);
-  }, [mode, expiry, date, failures, refreshKey, load]);
+  }, [mode, expiry, date, failures, refreshKey, load, marketClosed]);
 
   // Track tab visibility so the clock (and staleness badge) refreshes when
   // the user returns; the poll loop above resumes on its own — no catch-up
@@ -697,14 +716,18 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   }, [replayCursor, trail, pushToast]);
 
   // "Next update" mirrors the live poll schedule (EOD does not poll).
-  const liveDelay = mode === "live" ? pollDelayMs(failures) : 0;
+  const liveDelay = mode === "live" && !marketClosed ? pollDelayMs(failures) : 0;
   const nextUpdateAtMs =
-    mode === "live" && updatedAtMs !== null && liveDelay > 0
+    mode === "live" && !marketClosed && updatedAtMs !== null && liveDelay > 0
       ? updatedAtMs + liveDelay
       : null;
 
   const staleAgeMs = updatedAtMs === null ? 0 : nowMs - updatedAtMs;
-  const isStale = mode === "live" && updatedAtMs !== null && staleAgeMs > STALE_AFTER_MS;
+  const isStale =
+    mode === "live" &&
+    !marketClosed &&
+    updatedAtMs !== null &&
+    staleAgeMs > STALE_AFTER_MS;
   const staleMins = Math.max(1, Math.floor(staleAgeMs / 60_000));
   const updatedAtLabel =
     updatedAtMs === null
@@ -720,26 +743,78 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       sx={{
         display: "flex",
         flexDirection: "column",
-        gap: 2,
-        p: 2,
+        gap: 0.5,
+        p: 0.5,
         width: "100%",
         maxWidth: "100%",
         minWidth: 0,
         boxSizing: "border-box",
+        bgcolor: palette.TERM_BG,
+        // Never shrink below content: the page must scroll in #app-main rather
+        // than squeeze rows (which clipped panels when the viewport was short).
+        flexShrink: 0,
         overflowX: "hidden",
+        // --- Dense / cardless skin (report page only) ---------------------
+        // Panels drop their card chrome; headers become small uppercase
+        // labels; every surface's padding shrinks. Scoped via data hooks on
+        // CompactPanel/CompactStat so other pages keep their card look.
+        "& [data-compact]": {
+          bgcolor: "transparent",
+          border: "none !important",
+          borderRadius: "0 !important",
+          boxShadow: "none",
+        },
+        "& [data-compact-header]": {
+          p: "2px 4px !important",
+          mb: "2px !important",
+          borderBottom: `1px solid ${palette.TERM_BORDER} !important`,
+        },
+        "& [data-compact-header] .MuiTypography-root": {
+          fontSize: "11px !important",
+          textTransform: "uppercase",
+          letterSpacing: "0.05em",
+          color: `${palette.TEXT_MUTED} !important`,
+          fontWeight: 700,
+        },
+        "& .MuiCardContent-root": {
+          p: "4px 6px !important",
+          "&:last-child": { pb: "4px !important" },
+        },
+        "& [data-compact-stat]": {
+          bgcolor: "transparent !important",
+          border: "none !important",
+        },
+        "& [data-compact-stat] .MuiCardContent-root": {
+          p: "1px 4px !important",
+          gap: "1px !important",
+        },
+        "& [data-compact-stat] .MuiTypography-root": { lineHeight: 1.05 },
+        "& .MuiCardContent-root > div": { mb: "2px !important" },
+        // Tables: smaller, tighter rows.
+        "& .paper-tanstack-cell": {
+          fontSize: "11px !important",
+          paddingTop: "1px !important",
+          paddingBottom: "1px !important",
+          paddingLeft: "6px !important",
+          paddingRight: "6px !important",
+        },
+        "& .paper-tanstack-header-cell": { fontSize: "10px !important" },
       }}
     >
       <CompactPanel>
+        {/* Single row: nowrap + horizontal scroll keeps every control on one
+            ~32px line instead of wrapping to two rows at narrow widths. */}
         <Box
           data-testid="nifty-toolbar"
           sx={{
             display: "flex",
             alignItems: "center",
-            gap: 2,
+            gap: 1,
             flexWrap: "nowrap",
             width: "100%",
             maxWidth: "100%",
             minWidth: 0,
+            flexShrink: 0,
             overflowX: "auto",
           }}
         >
@@ -772,7 +847,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               ...expiryOptions.map((d) => ({ value: d, label: d })),
             ]}
             size="sm"
-            w={180}
+            sx={{ width: 220, flex: "0 0 auto", minWidth: 0 }}
           />
           {mode === "eod" && (
             <TextInput
@@ -799,7 +874,9 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               c={isStale ? "warning" : "dimmed"}
               span
             >
-              Updated {updatedAtLabel} · auto 30s
+              {marketClosed
+                ? `Market closed${report?.market?.session_date ? ` · last session ${report.market.session_date}` : ""}`
+                : `Updated ${updatedAtLabel} · auto 30s`}
             </Text>
           )}
           {isStale && (
@@ -863,7 +940,16 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
         <>
           <Box
             data-testid="nifty-stat-strip"
-            sx={{ display: "flex", width: "100%", minWidth: 0 }}
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "auto minmax(0, 1fr)" },
+              gap: 1,
+              alignItems: "stretch",
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              flexShrink: 0,
+            }}
           >
             <CompactStatGrid>
               <CompactStat
@@ -887,33 +973,44 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 value={report.maxPain.toLocaleString("en-IN")}
               />
             </CompactStatGrid>
+            <NiftyVerdictStrip report={report} />
           </Box>
 
           <Box
             data-testid="nifty-main-row"
             sx={{
-              display: "flex",
-              gap: 2,
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "minmax(0, 1fr)",
+                lg:
+                  report.timeline.length > 0
+                    ? "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr)"
+                    : "minmax(0, 2fr) minmax(0, 1fr)",
+              },
+              gap: 1,
               alignItems: "stretch",
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
-              flexWrap: "wrap",
+              flexShrink: 0,
             }}
           >
-          <CompactPanel title={view === "depth" ? "Nifty depth map" : "Nifty chart"} testId="nifty-chart-panel" sx={{ flex: "1 1 540px", minWidth: 0 }}>
+          <CompactPanel title={view === "depth" ? "Nifty depth map" : "Nifty chart"} testId="nifty-chart-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
             {view === "depth" ? (
               <NiftyDepthMap report={report} />
             ) : report.candles && report.candles.length > 0 ? (
+              // Fixed pixel height, never vh: vh balloons on tall monitors and
+              // squishes on short ones. Inner box (inside the panel, not a
+              // direct page-column child) so overflow:hidden is safe here.
               <Box
                 data-testid="nifty-chart-wrap"
+                style={{ height: 180 }}
                 sx={{
                   display: "flex",
                   width: "100%",
                   maxWidth: "100%",
                   minWidth: 0,
-                  minHeight: 360,
-                  height: "min(58vh, 540px)",
+                  flexShrink: 0,
                   overflow: "hidden",
                 }}
               >
@@ -933,7 +1030,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           </CompactPanel>
 
           {report.timeline.length > 0 && (
-            <CompactPanel title="Session timeline" testId="nifty-timeline-panel">
+            <CompactPanel title="Session timeline" testId="nifty-timeline-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
+              {/* Inner cap: long sessions scroll here so the main row never
+                  grows with the event count. Inside the panel, never a direct
+                  page-column child. */}
+              <Box data-testid="nifty-timeline-scroll" style={{ maxHeight: 150, overflowY: "auto" }}>
               <Timeline data-testid="nifty-timeline" active={report.timeline.length - 1}>
                 {report.timeline.map((event, idx) => (
                   <TimelineItem
@@ -947,17 +1048,21 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   </TimelineItem>
                 ))}
               </Timeline>
+              </Box>
             </CompactPanel>
           )}
 
-          <CompactPanel title="Option-chain OI (±750 ATM)" testId="nifty-oi-panel" sx={{ flex: "1 1 420px", minWidth: 0 }}>
+          <CompactPanel title="Option-chain OI (±750 ATM)" testId="nifty-oi-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
+            {/* Fixed 180px body: the table fills it and scrolls internally
+                (fillContainer). No min-height larger than content, no vh. */}
             <Box
               ref={oiWrapRef}
+              data-testid="nifty-oi-wrap"
+              style={{ height: 180 }}
               sx={{
                 display: "flex",
-                minHeight: 360,
-                height: "min(58vh, 540px)",
                 minWidth: 0,
+                flexShrink: 0,
               }}
             >
             <TanStackTable<NiftyStrike>
@@ -974,17 +1079,40 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           </Box>
 
           <Box
-            data-testid="nifty-tape-duo"
+            data-testid="nifty-analytics-row"
             sx={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: 2,
+              display: "grid",
+              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 2fr) minmax(0, 1fr)" },
+              alignItems: "stretch",
+              gap: 1,
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
+              flexShrink: 0,
             }}
           >
-          <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ flex: "2 1 800px", minWidth: 0, background: "#000000", borderColor: "#1A1A1A" }}>
+            <Box sx={{ minWidth: 0 }}>
+              <NiftyDeltaPositioning positioning={report.positioning} />
+            </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <NiftyGexProfile gex={report.gex} spot={report.spot} />
+            </Box>
+          </Box>
+
+          <Box
+            data-testid="nifty-tape-duo"
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 2fr) minmax(0, 1fr)" },
+              alignItems: "stretch",
+              gap: 1,
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              flexShrink: 0,
+            }}
+          >
+          <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ minWidth: 0, background: palette.TERM_BG, borderColor: palette.TERM_BORDER }}>
             {tape && tape.rows.length > 0 ? (
               <NiftyTapeTable
                 rows={tape.rows}
@@ -1007,48 +1135,113 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <CompactPanel
             padded={false}
             testId="nifty-unusual-panel-wrap"
-            sx={{ flex: "1 1 660px", minWidth: "min(640px, 100%)", background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
+            sx={{ minWidth: 0, background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
           >
             <NiftyUnusualVolume
               strikes={report.strikes}
               spot={report.spot}
-              sx={{ flex: "1 1 620px", minWidth: 0 }}
+              sx={{ minWidth: 0 }}
               updatedAtMs={mode === "live" ? updatedAtMs : null}
               nextUpdateAtMs={nextUpdateAtMs}
             />
           </CompactPanel>
           </Box>
 
-          {trail.length > 0 && (
-            <Box ref={burstsRef} data-testid="nifty-oi-bursts-wrap">
-              <CompactPanel
-                title={`OI bursts (${trail.length})`}
-                testId="nifty-oi-bursts-panel"
-                action={
-                  <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                    <Button
-                      data-testid="nifty-oi-replay-button"
-                      size="sm"
-                      variant="subtle"
-                      disabled={replayCursor !== null || trail.length === 0}
-                      onClick={() => setReplayCursor(trail.length - 1)}
-                    >
-                      {replayCursor !== null ? "Replaying…" : "Replay"}
-                    </Button>
-                    <Button size="sm" variant="subtle" onClick={clearTrail}>
-                      Clear
-                    </Button>
-                  </Box>
-                }
-              >
-                <MarketAlertLog
-                  alerts={trail}
-                  fill={false}
-                  height={Math.min(22 + trail.length * 20 + 18, 260)}
-                  onOpen={() => burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
-                />
-              </CompactPanel>
+          <Box
+            data-testid="nifty-gamma-iv-row"
+            sx={{
+              display: "grid",
+              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1fr)" },
+              alignItems: "start",
+              gap: 1,
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              flexShrink: 0,
+            }}
+          >
+            <Box sx={{ minWidth: 0 }}>
+              <NiftyIvStraddle tape={tape} candles={report.candles} regime={report.regime} />
             </Box>
+            <Box sx={{ minWidth: 0 }}>
+              <NiftyGammaTime tape={tape} gex={report.gex} spot={report.spot} />
+            </Box>
+          </Box>
+
+          {/* Signals grid only mounts its burst/structure wrapper when there is
+              content for it (trail alerts or a structure payload). The old
+              always-mounted wrapper was empty most of the session — an empty
+              flex item at h=0 that still cost grid gap. `flexShrink: 0` holds
+              natural height as a direct child of the page column (no
+              `overflow` here — that would drop min-height:auto and collapse). */}
+          <Box
+            data-testid="nifty-signals-grid"
+            sx={{
+              display: "grid",
+              gridTemplateColumns: {
+                xs: "minmax(0, 1fr)",
+                lg: trail.length > 0
+                  ? "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)"
+                  : "minmax(0, 1fr) minmax(0, 1fr)",
+              },
+              alignItems: "start",
+              gap: 1,
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              flexShrink: 0,
+            }}
+          >
+          {(trail.length > 0 || report.structure != null) && (
+          <Box
+            data-testid="nifty-signals-row"
+            sx={{
+              display: { xs: "flex", lg: "contents" },
+              flexWrap: "wrap",
+              alignItems: "stretch",
+              gap: 1,
+              minWidth: 0,
+              flexShrink: 0,
+            }}
+          >
+            {trail.length > 0 && (
+              <Box
+                ref={burstsRef}
+                data-testid="nifty-oi-bursts-wrap"
+                sx={{ minWidth: 0 }}
+              >
+                <CompactPanel
+                  title={`OI bursts (${trail.length})`}
+                  testId="nifty-oi-bursts-panel"
+                  action={
+                    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                      <Button
+                        data-testid="nifty-oi-replay-button"
+                        size="sm"
+                        variant="subtle"
+                        disabled={replayCursor !== null || trail.length === 0}
+                        onClick={() => setReplayCursor(trail.length - 1)}
+                      >
+                        {replayCursor !== null ? "Replaying…" : "Replay"}
+                      </Button>
+                      <Button size="sm" variant="subtle" onClick={clearTrail}>
+                        Clear
+                      </Button>
+                    </Box>
+                  }
+                >
+                  <MarketAlertLog
+                    alerts={trail}
+                    fill={false}
+                    height={oiBurstLogHeight(trail.length)}
+                    onOpen={() => burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+                  />
+                </CompactPanel>
+              </Box>
+            )}
+
+            <NiftyStructureShifts structure={report.structure} />
+          </Box>
           )}
 
           {toasts.length > 0 && (
@@ -1166,6 +1359,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             )}
           </CompactPanel>
           )}
+          </Box>
 
           {onOpenSymbol && (
             <Button

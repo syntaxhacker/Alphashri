@@ -5,6 +5,8 @@ from db.database import SessionLocal
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
+    min_52w_volume_m, min_52w_turnover_cr,
+    exclude_etfs_from_screener, is_likely_etf, classify_approach,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 
@@ -85,11 +87,11 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
             return False
 
     if screener in ('52w_high', 'builtin:52w_high'):
-        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, 0.0)
+        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, min_52w_volume_m())
         vol = _to_float(stock_data.get('volume_m'), 0)
         if min_vol > 0 and vol < min_vol:
             return False
-        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, 0.0)
+        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, min_52w_turnover_cr())
         turnover = _to_float(stock_data.get('turnover_cr'), 0)
         if min_turnover > 0 and turnover < min_turnover:
             return False
@@ -203,39 +205,90 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
     return round(estimated_days), confidence
 
 
-def _compute_days_ago(api, symbol, today_high=None):
-    """Fetch 90 days of daily data, find the period high, and return days since it was last touched."""
+def _fetch_90d_daily(api, symbol):
+    """Fetch 90 days of daily bars for touch/near-high analysis. None on failure."""
     try:
         to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
         from_date = (datetime.now(config.IST) - timedelta(days=90)).strftime('%Y-%m-%d')
         df = api.fetch_historical_data_v3(symbol=symbol, unit='days', interval=1, to_date=to_date, from_date=from_date)
         if df is None or df.empty:
-            return 0 if today_high is not None else None
-
-        # Use Upstox's own period high (avoids TV vs Upstox data mismatch)
-        period_high = df['high'].max()
-        if today_high is not None:
-            period_high = max(period_high, today_high)
-
-        threshold = period_high * 0.98
-
-        # If today's intraday high meets threshold, return 0 immediately
-        if today_high is not None and today_high >= threshold:
-            return 0
-
-        touched = df[df['high'] >= threshold]
-        if touched.empty:
             return None
-        last_touch = touched.index[-1]
-        if hasattr(last_touch, 'to_pydatetime'):
-            last_touch_dt = last_touch.to_pydatetime()
-        else:
-            last_touch_dt = last_touch
-        last_touch_dt = _ensure_ist(last_touch_dt)
-        days_ago = (datetime.now(config.IST) - last_touch_dt).days
-        return max(0, days_ago)
+        return df
     except Exception:
         return None
+
+
+def _last_touch_days_ago(df, threshold):
+    """Days since a daily high last reached threshold. None if never in frame."""
+    touched = df[df['high'] >= threshold]
+    if touched.empty:
+        return None
+    last_touch = touched.index[-1]
+    if hasattr(last_touch, 'to_pydatetime'):
+        last_touch = last_touch.to_pydatetime()
+    last_touch = _ensure_ist(last_touch)
+    return max(0, (datetime.now(config.IST) - last_touch).days)
+
+
+def _touch_stats_from_df(df, ref_high, today_high=None, eps_pct=None):
+    """Pure computation of near-high and touch recency from daily bars.
+
+    Returns (days_since_near, days_since_touch):
+    - near: daily high within 98% of the 90d period high (legacy days_ago semantic)
+    - touch: daily high within eps of ref_high (the high the gap is measured
+      against, so gap and touch can never disagree about the reference)
+    """
+    from .screener_models import touch_eps_pct
+
+    eps = eps_pct if eps_pct is not None else touch_eps_pct()
+    period_high = df['high'].max()
+    if today_high is not None:
+        period_high = max(period_high, today_high)
+
+    # Legacy near-high logic (unchanged semantics).
+    if today_high is not None and today_high >= period_high * 0.98:
+        days_since_near = 0
+    else:
+        days_since_near = _last_touch_days_ago(df, period_high * 0.98)
+
+    # True-touch logic against the gap reference high.
+    touch_threshold = ref_high * (1 - eps / 100)
+    if today_high is not None and today_high >= touch_threshold:
+        days_since_touch = 0
+    else:
+        days_since_touch = _last_touch_days_ago(df, touch_threshold)
+    return days_since_near, days_since_touch
+
+
+def _days_since_touch(api, symbol, ref_high, today_high=None, eps_pct=None):
+    """Days since price last traded within eps of ref_high. None if never/unknown."""
+    if not ref_high or ref_high <= 0:
+        return None
+    df = _fetch_90d_daily(api, symbol)
+    if df is None:
+        return None
+    _, days_since_touch = _touch_stats_from_df(df, ref_high, today_high, eps_pct)
+    return days_since_touch
+
+
+def _compute_days_ago(api, symbol, today_high=None):
+    """Fetch 90 days of daily data, find the period high, and return days since it was last touched."""
+    df = _fetch_90d_daily(api, symbol)
+    if df is None:
+        return 0 if today_high is not None else None
+
+    # Use Upstox's own period high (avoids TV vs Upstox data mismatch)
+    period_high = df['high'].max()
+    if today_high is not None:
+        period_high = max(period_high, today_high)
+
+    threshold = period_high * 0.98
+
+    # If today's intraday high meets threshold, return 0 immediately
+    if today_high is not None and today_high >= threshold:
+        return 0
+
+    return _last_touch_days_ago(df, threshold)
 
 
 def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
@@ -245,6 +298,9 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
     symbol = row_data['name']
     screener_clean = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     tv_price = row_data['close']
+
+    if exclude_etfs_from_screener() and is_likely_etf(symbol):
+        return None
 
     if tv_price >= 7000:
         return None
@@ -457,6 +513,12 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
             if not touched_52w and est_days is not None:
                 stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
+
+            if use_52w_buckets and tv_52w_high > 0:
+                touch_days = _days_since_touch(api, symbol, tv_52w_high)
+                if touch_days is not None:
+                    stock_data['days_since_touch'] = touch_days
+                    stock_data['approach_type'] = classify_approach(touched_52w, touch_days)
 
             if _passes_profile_filters(screener, stock_data, profile_filters):
                 return (stock_data, 'touched' if (use_52w_buckets and touched_52w) else 'approaching')

@@ -668,32 +668,38 @@ export function NiftyTapeTable({
   }, [rows, latestT]);
 
   return (
-    <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, background: TAPE_TERM_BG }}>
-      <Box data-testid="nifty-tape-head" sx={{ background: TAPE_TERM_BG, px: 1, pt: 0.5 }}>
+    // Fixed px chrome: root gaps are 4px; the table wrap below owns the only
+    // height budget. No `overflow` on this Box — it is not a page-column
+    // child, but the rule stands: only inner scroll containers scroll.
+    <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0, background: TAPE_TERM_BG }}>
+      {/* Single wrapping stat line (was two stacked rows): PCR OI, ΔOI since
+          baseline, max pain, flip, walls, then session meta + order toggle +
+          LIVE dot all flow inline so the head is one ~18px line at width. */}
+      <Box data-testid="nifty-tape-head" sx={{ background: TAPE_TERM_BG, px: 0.75, pt: 0.25 }}>
         <Box
           sx={{
             display: "flex",
-            alignItems: "baseline",
+            alignItems: "center",
             flexWrap: "wrap",
-            columnGap: 2,
-            rowGap: 0.5,
+            columnGap: 1.5,
+            rowGap: 0.25,
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          <Box data-testid="nifty-tape-pcr" sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box data-testid="nifty-tape-pcr" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>PCR OI</Text>
             <Text data-testid="nifty-tape-head-pcr-oi" size="sm" span fw={700}>{formatTapeRatio(head.pcrOi)}</Text>
             <Text size="xs" span c="dimmed">snapshot</Text>
           </Box>
-          <Box data-testid="nifty-tape-head-pcr-doi" sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box data-testid="nifty-tape-head-pcr-doi" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>{doiLabel}</Text>
             <Text size="sm" span fw={700} c={TAPE_CALL_DOI}>{formatTapeSigned(head.pcrDoiDelta)}</Text>
           </Box>
-          <Box data-testid="nifty-tape-max-pain" sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box data-testid="nifty-tape-max-pain" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Max pain</Text>
             <Text data-testid="nifty-tape-head-max-pain" size="sm" span fw={700}>{formatTapePrice(head.maxPain)}</Text>
           </Box>
-          <Box data-testid="nifty-tape-flip" sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box data-testid="nifty-tape-flip" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Flip</Text>
             <Text data-testid="nifty-tape-head-flip" size="sm" span fw={700}>
               {formatTapePrice(head.flip)}{" "}
@@ -702,15 +708,13 @@ export function NiftyTapeTable({
               </Text>
             </Text>
           </Box>
-          <Box data-testid="nifty-tape-walls" sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box data-testid="nifty-tape-walls" sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Walls</Text>
             <Text data-testid="nifty-tape-head-walls" size="sm" span fw={700}>
               {formatTapePrice(head.wallCall)} / {formatTapePrice(head.wallPut)}
             </Text>
             <Text size="xs" span c="dimmed">call / put</Text>
           </Box>
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 2, rowGap: 0.5 }}>
           <Text size="xs" c="dimmed" ta="left" span>
             TICKS {rows.length} · one per minute
           </Text>
@@ -792,8 +796,12 @@ export function NiftyTapeTable({
         data-testid="nifty-tape-table-wrap"
         sx={{
           display: "flex",
-          minHeight: 240,
-          height: "min(52vh, 520px)",
+          // Fixed px, not vh: vh balloons on tall monitors and squishes on
+          // short ones. ~150px shows the header + ~6 rows; the rest scrolls
+          // inside TanStackTable's own ScrollArea (the inner scroller — this
+          // wrap itself has no `overflow`, so no flex-collapse risk).
+          minHeight: 120,
+          height: 150,
           minWidth: 0,
           background: TAPE_TERM_BG,
           // Terminal density: pitch-black surfaces, muted grid lines,
@@ -879,6 +887,7 @@ export function NiftyTapeTable({
           emptyMessage="No tape rows yet"
           fillContainer
           enableSorting={false}
+          rowWindowSize={40}
           getRowTestId={() => "nifty-tape-row"}
           getRowClassName={(row) => {
             const cls: string[] = [];
@@ -891,9 +900,11 @@ export function NiftyTapeTable({
           }}
         />
       </Box>
+      {/* One dense legend line: tight column gap + no row gap so it stays a
+          single wrapped line instead of two airy rows. */}
       <Box
         data-testid="nifty-tape-heat-legend"
-        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, px: 1, pb: 0.5 }}
+        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", columnGap: 1, rowGap: 0, px: 0.75, pb: 0.25, lineHeight: 1.25 }}
       >
         <Text size="xs" c="dimmed" span>HEAT</Text>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>

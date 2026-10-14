@@ -39,6 +39,7 @@ from api.reports_api.nifty_bursts import (
     detect_strike_bursts,
     session_trend,
 )
+from api.reports_api.nifty_positioning import compute_positioning
 
 router = APIRouter(prefix="/api/reports", tags=["reports-nifty"])
 
@@ -131,6 +132,19 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None) -> dict:
     price_change = round(ltp - close_price, 2)
     g = greeks if greeks is not None else (md.get("option_greeks") or {})
     gamma = _safe_float((g or {}).get("gamma"))
+    # Delta is needed by the delta-positioning block (state/flow/initiated Δ).
+    raw_delta = (g or {}).get("delta")
+    try:
+        delta: Optional[float] = float(raw_delta) if raw_delta is not None else None
+    except (TypeError, ValueError):
+        delta = None
+    # IV is needed for the ATM skew / regime verdicts; None (not 0.0) when the
+    # greeks block is absent so callers can distinguish "unknown" from "zero".
+    raw_iv = (g or {}).get("iv")
+    try:
+        iv: Optional[float] = float(raw_iv) if raw_iv is not None else None
+    except (TypeError, ValueError):
+        iv = None
     return {
         "ltp": ltp,
         "close_price": close_price,
@@ -141,6 +155,8 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None) -> dict:
         "price_change": price_change,
         "sentiment": get_sentiment(price_change, oi_change),
         "gamma": gamma,
+        "delta": delta,
+        "iv": iv,
     }
 
 
@@ -290,6 +306,26 @@ def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
     }
 
 
+def market_block() -> dict:
+    """Session gate for the UI: is the exchange open right now, and for which day.
+
+    The report keeps working after hours (the chain returns the last close), so
+    the UI needs an explicit signal to stop polling and stop labelling a stale
+    snapshot as "live".
+    """
+    from trading.utils import is_market_open
+    now = datetime.now(config.IST)
+    try:
+        is_open = bool(is_market_open())
+    except Exception:
+        is_open = False
+    return {
+        "is_open": is_open,
+        "session_date": now.strftime("%Y-%m-%d"),
+        "as_of": now.isoformat(),
+    }
+
+
 def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
                  candles: Optional[list[dict]] = None) -> dict:
     """Assemble the report envelope shared by live and snapshot responses."""
@@ -312,6 +348,7 @@ def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
         "max_pain": compute_max_pain(pain_rows),
         "walls": {"calls": top_walls(rows, "ce"), "puts": top_walls(rows, "pe")},
         "gex": compute_gex(rows, spot),
+        "positioning": compute_positioning(rows, spot),
         "strikes": rows,
         "candles": candles or [],
     }
@@ -372,9 +409,71 @@ def _validate_date(date_str: str) -> str:
 # Live computation (Upstox)
 # ---------------------------------------------------------------------------
 
+async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
+                           for_date: Optional[str]) -> None:
+    """Attach the four session-verdict blocks to ``report`` in place.
+
+    Reuses the already-fetched chain/GEX/candles; only pulls today's 1-minute
+    spot, the once-a-day session baseline and VIX (all cached in
+    :mod:`api.reports_api.nifty_verdicts`). Never raises — a failure leaves the
+    blocks absent rather than breaking ``/live``.
+    """
+    try:
+        from api.reports_api import nifty_verdicts as nv
+    except Exception:
+        return
+    today = for_date or _today_str()
+    is_today = today == _today_str()
+    baseline: Optional[float] = None
+    vix: Optional[dict] = None
+    intraday: Optional[list] = None
+    try:
+        baseline, vix = await asyncio.gather(
+            nv.get_baseline_range(today),
+            nv.get_vix_block() if is_today else _async_none(),
+            return_exceptions=True,
+        )
+        if isinstance(baseline, BaseException):
+            baseline = None
+        if isinstance(vix, BaseException):
+            vix = None
+        if is_today:
+            intraday = await nv.get_intraday_candles(today)
+    except Exception:
+        pass
+    # 1-minute today candles when available, else the report's own spot candles.
+    candles = intraday or report.get("candles") or []
+    tape = read_tape(today)
+    try:
+        report.update(nv.build_verdicts(
+            rows=rows, spot=spot, gex=report.get("gex"), candles=candles,
+            tape_rows=tape, baseline=baseline, vix=vix))
+    except Exception:
+        pass
+    # Structural shifts (wall flips, wall migration, max-pain drift, PCR regime
+    # change, volume spikes, level breaks) are the "why" behind the tape's raw
+    # numbers: on 2026-10-14 the drop was 22,700 support collapsing into
+    # resistance while calls stacked above it. Most recent 12, newest last.
+    try:
+        from api.reports_api.nifty_structure import detect_structure_shifts
+        report["structure"] = detect_structure_shifts(tape)[-12:]
+    except Exception:
+        report["structure"] = []
+
+
+async def _async_none() -> None:
+    return None
+
+
 async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
-                      walkback_days: int = 5) -> dict:
-    """Fetch the Upstox chain + spot and build a live report (no caching)."""
+                      walkback_days: int = 5, with_verdicts: bool = True,
+                      with_candles: bool = True) -> dict:
+    """Fetch the Upstox chain + spot and build a live report (no caching).
+
+    ``with_verdicts`` attaches the four session-verdict blocks (live/snapshot).
+    ``with_candles`` / ``with_verdicts`` are both off for the per-minute tape
+    tick, which only reads chain aggregates and must stay yfinance-free.
+    """
     # Lazy imports: keeps this module import-light and avoids import cycles.
     from api.options import fetch_upstox, get_instrument_key, get_spot_price
     from api.options import get_expiries as _get_expiries
@@ -402,10 +501,15 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
             spot = (await get_spot_price("NIFTY")).get("spot", 0)
         except Exception:
             pass
-    candles = _fetch_nifty_candles(for_date or _today_str(),
-                                    walkback_days=walkback_days)
-    return build_report(chain_expiry or expiry, spot, rows, mode="live",
-                        candles=candles)
+    candles = (_fetch_nifty_candles(for_date or _today_str(),
+                                     walkback_days=walkback_days)
+               if with_candles else [])
+    report = build_report(chain_expiry or expiry, spot, rows, mode="live",
+                          candles=candles)
+    report["market"] = market_block()
+    if with_verdicts:
+        await _attach_verdicts(report, rows, spot, for_date)
+    return report
 
 
 @router.get("/nifty/expiries")
@@ -510,6 +614,53 @@ def read_tape(date_str: str) -> list[dict]:
     return rows
 
 
+def drop_empty_chain_rows(rows: list[dict]) -> list[dict]:
+    """Rows carrying no usable chain — a failed fetch, not a market state.
+
+    On 2026-10-14 the recorder persisted rows with ``ce_oi = pe_oi = 0``,
+    ``strikes_top`` empty and ``pcr_oi = 0.00`` (10:08 and 11:42). The next good
+    row then difference against them and looked like a +121M one-minute OI
+    build, which scored as a CRITICAL burst. An empty snapshot is not a data
+    point, so it is dropped on read as well as no longer written.
+    """
+    out: list[dict] = []
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        strikes = r.get("strikes_top")
+        total_oi = _safe_int(r.get("ce_oi")) + _safe_int(r.get("pe_oi"))
+        # The observed corruption is an all-zero snapshot (no OI, no strikes);
+        # `== 0` rather than `<= 0` so a synthetic negative is not swept up.
+        if total_oi == 0 and not strikes:
+            continue
+        out.append(r)
+    return out
+
+
+def drop_implausible_spots(rows: list[dict]) -> list[dict]:
+    """Rows whose spot jumped >``SPOT_JUMP_MAX`` from the last accepted row.
+
+    Mirrors the write-time guard in :func:`reconcile_spot`. On 2026-10-14 two
+    rows recorded 22,363 while the real market was ~22,690 (1.56% out), which
+    skewed the displayed session range and the EMA20 trend gate that every
+    burst signal is filtered through. Across both recorded days this drops
+    exactly those two rows and no legitimate ones. The last *accepted* spot is
+    the comparison base, so a rejected spike cannot poison the next row.
+    """
+    kept: list[dict] = []
+    prev: Optional[float] = None
+    for r in rows or []:
+        if not isinstance(r, dict):
+            continue
+        spot = _safe_float(r.get("spot")) or None
+        if spot and prev and abs(spot - prev) / prev > SPOT_JUMP_MAX:
+            continue
+        if spot:
+            prev = spot
+        kept.append(r)
+    return kept
+
+
 def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
     """Attach derived deltas to raw tape rows.
 
@@ -530,6 +681,7 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
       - ``spot_flip = spot - flip`` rounded 2dp; None when ``flip`` is null
     Raw keys are preserved; derived keys are added.
     """
+    raw_rows = drop_empty_chain_rows(drop_implausible_spots(raw_rows))
     if not raw_rows:
         return []
     first = raw_rows[0]
@@ -633,6 +785,66 @@ def _strike_oi_snapshot(strikes: list, spot: float, n: int = 3) -> list[dict]:
     return kept
 
 
+#: Max chain-vs-index disagreement tolerated before the index quote wins (0.25%).
+SPOT_CHAIN_DEV_MAX = 0.0025
+#: Max minute-over-minute spot move accepted without an independent confirmation.
+#: 0.75% (~170 pts) is calibrated against the recorded tapes: on 2026-10-14 it
+#: isolates exactly the three corrupt rows (12:53, 12:54, 13:19) and drops no
+#: legitimate ones, while 0.50% cascades and discards 16 good rows behind them.
+SPOT_JUMP_MAX = 0.0075
+
+
+def reconcile_spot(chain_spot: float, index_spot: Optional[float],
+                   last_spot: Optional[float],
+                   *, chain_dev_max: float = SPOT_CHAIN_DEV_MAX,
+                   jump_max: float = SPOT_JUMP_MAX) -> Optional[float]:
+    """The most trustworthy spot for a tape row, or ``None`` to drop the row.
+
+    Upstox's ``/option/chain`` ``underlying_spot_price`` went badly wrong on
+    2026-10-14: two rows recorded 22,363 while the real market was ~22,690
+    (~1.5% off, and inconsistent with the row's own ATM strike). A bad spot
+    poisons the EMA20 trend gate every burst signal is filtered through, so it
+    is cross-checked against the index quote and the previous row first.
+
+    ``index_spot`` failing (e.g. an expired token) is fine — the jump check then
+    stands alone and the row is dropped rather than persisted wrong.
+    """
+    spot = _safe_float(chain_spot) or None
+    index = _safe_float(index_spot) or None
+    last = _safe_float(last_spot) or None
+
+    # 1. Prefer the index quote when the chain value disagrees materially.
+    if index and (spot is None or abs(spot - index) / index > chain_dev_max):
+        spot = index
+    if spot is None:
+        return None
+
+    # 2. Drop a jump too large to be real — unless an independent quote agrees
+    #    (a genuine gap move is allowed through when the index quote confirms).
+    if last and abs(spot - last) / last > jump_max:
+        confirmed = index is not None and abs(index - last) / last > jump_max
+        if not confirmed:
+            return None
+    return spot
+
+
+def _peek_last_tape_row(path: Path, minute: str) -> tuple[Optional[float], bool]:
+    """``(last row's spot, last row shares this minute)`` — never raises."""
+    last_spot: Optional[float] = None
+    try:
+        if not path.exists():
+            return None, False
+        with open(path) as f:
+            lines = [ln.strip() for ln in f if ln.strip()]
+        if not lines:
+            return None, False
+        last = json.loads(lines[-1])
+        last_spot = _safe_float(last.get("spot")) or None
+        return last_spot, str(last.get("t", ""))[:16] == minute
+    except Exception:
+        return last_spot, False
+
+
 async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dict]:
     """Record ONE per-minute tape row from the live chain; never raises.
     Reuses ``_compute_live(None)`` (nearest expiry, no candle walkback) and
@@ -643,9 +855,12 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
     skipped (returns None). ALL exceptions are swallowed — returns the row
     on success, None otherwise.
     """
+    global _tape_last_skip
     try:
-        report = await _compute_live(None, walkback_days=0)
+        report = await _compute_live(None, walkback_days=0, with_verdicts=False,
+                                     with_candles=False)
     except Exception:
+        _tape_last_skip = "chain-failed"
         return None
     try:
         ts = now or datetime.now(config.IST)
@@ -653,21 +868,56 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             ts = ts.replace(tzinfo=config.IST)
         t_iso = ts.isoformat()
         date_str = ts.strftime("%Y-%m-%d")
+        path = tape_path(date_str)
+        minute = t_iso[:16]
+        last_spot, same_minute = _peek_last_tape_row(path, minute)
+        if same_minute:
+            _tape_last_skip = "same-minute"
+            return None
+        # Cross-check before anything derives from the spot (ATM, strikes_top).
+        # The independent quote is bought LAZILY: only when the chain value is
+        # worth confirming. A normal tick (or the day's first row) costs no
+        # extra network call, so the 1-minute recorder stays cheap.
+        spot_chain = _safe_float(report.get("spot"))
+        index_spot = None
+        if last_spot and (spot_chain <= 0
+                          or abs(spot_chain - last_spot) / last_spot > SPOT_CHAIN_DEV_MAX):
+            try:
+                from api.options import get_spot_price
+                index_spot = (await get_spot_price("NIFTY")).get("spot")
+            except Exception:
+                index_spot = None
+        spot = reconcile_spot(spot_chain, index_spot, last_spot)
+        if spot is None:
+            global _tape_spot_rejections
+            _tape_spot_rejections += 1
+            _tape_last_skip = "spot-rejected"
+            return None
         strikes = report.get("strikes", []) or []
         ce_oi = sum(_safe_int((r.get("ce") or {}).get("oi")) for r in strikes)
         pe_oi = sum(_safe_int((r.get("pe") or {}).get("oi")) for r in strikes)
+        # An empty chain is a failed fetch, not a market state: writing it makes
+        # the NEXT row difference into a fake +100M "burst".
+        if not strikes or ce_oi + pe_oi == 0:
+            _tape_last_skip = "empty-chain"
+            return None
         ce_vol = sum(_safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
         pe_vol = sum(_safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
         gex = report.get("gex", {}) or {}
         # ATM premiums: anchored to the strike nearest spot with a tradeable
         # premium, so a future burst can be scored in real rupees instead of
         # index points. Only LTP is stored — the chain is not persisted.
-        atm_strike, atm_ce_ltp, atm_pe_ltp = _atm_premium_snapshot(
-            strikes, _safe_float(report.get("spot"))
-        )
+        atm_strike, atm_ce_ltp, atm_pe_ltp = _atm_premium_snapshot(strikes, spot)
+        # Per-minute GEX + ATM IV so the UI can chart cumulative net gamma and
+        # the ATM IV / straddle series without re-fetching history.
+        try:
+            from api.reports_api.nifty_verdicts import atm_ivs
+            atm_ce_iv, atm_pe_iv = atm_ivs(strikes, spot)
+        except Exception:
+            atm_ce_iv, atm_pe_iv = None, None
         row = {
             "t": t_iso,
-            "spot": _safe_float(report.get("spot")),
+            "spot": spot,
             "ce_oi": ce_oi,
             "pe_oi": pe_oi,
             "ce_vol": ce_vol,
@@ -676,36 +926,35 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             "pcr_vol": _safe_float(report.get("pcr_vol")),
             "max_pain": _safe_float(report.get("max_pain")),
             "flip": gex.get("zero_cross"),
+            "net_gex": gex.get("net_total"),
             "walls": report.get("walls", {"calls": [], "puts": []}),
             "expiry": report.get("expiry", ""),
             "atm_strike": atm_strike,
             "atm_ce_ltp": atm_ce_ltp,
             "atm_pe_ltp": atm_pe_ltp,
+            "atm_ce_iv": atm_ce_iv,
+            "atm_pe_iv": atm_pe_iv,
             # ATM +/-3 strikes with both legs' OI — lets a future alert name the
             # exact strike instead of only the index total.
-            "strikes_top": _strike_oi_snapshot(strikes, _safe_float(report.get("spot"))),
+            "strikes_top": _strike_oi_snapshot(strikes, spot),
         }
-        path = tape_path(date_str)
-        minute = t_iso[:16]
-        if path.exists():
-            try:
-                with open(path) as f:
-                    lines = [ln.strip() for ln in f if ln.strip()]
-                if lines:
-                    last = json.loads(lines[-1])
-                    if str(last.get("t", ""))[:16] == minute:
-                        return None
-            except Exception:
-                pass
         TAPE_DIR.mkdir(parents=True, exist_ok=True)
         with open(path, "a") as f:
             f.write(json.dumps(row) + "\n")
+        _tape_last_skip = None
         return row
     except Exception:
+        _tape_last_skip = "chain-failed"
         return None
 
 
 _tape_last_tick: Optional[str] = None
+#: Rows dropped because the spot could not be trusted (see reconcile_spot).
+_tape_spot_rejections: int = 0
+#: Why the last tick produced no row: "same-minute" (normal), "spot-rejected"
+#: (data quality) or "chain-failed" (a real error). Lets the status endpoint
+#: tell a deliberate skip apart from a failure.
+_tape_last_skip: Optional[str] = None
 _tape_last_error: Optional[str] = None
 _tape_iterations: int = 0
 _tape_task = None
@@ -751,8 +1000,12 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
                     if row is not None:
                         _tape_last_tick = row.get("t")
                         _tape_last_error = None
-                    elif _tape_last_error is None:
+                    elif _tape_last_skip == "chain-failed":
                         _tape_last_error = "tick returned None (chain fetch failed?)"
+                    else:
+                        # A deliberate skip (same minute, or a rejected spot) is
+                        # not a failure — don't leave a stale error behind.
+                        _tape_last_error = None
                 except Exception as e:
                     _tape_iterations += 1
                     _tape_last_error = f"{type(e).__name__}: {str(e)[:200]}"
@@ -808,7 +1061,9 @@ def get_nifty_tape_status():
     """Heartbeat for the background recorder: last tick time / last error."""
     _ensure_tape_task()
     return {"last_tick": _tape_last_tick, "last_error": _tape_last_error,
-            "iterations": _tape_iterations, "interval_sec": TAPE_INTERVAL_SEC}
+            "iterations": _tape_iterations, "interval_sec": TAPE_INTERVAL_SEC,
+            "spot_rejections": _tape_spot_rejections,
+            "last_skip": _tape_last_skip}
 
 
 @router.get("/nifty/tape")

@@ -235,7 +235,8 @@ class TestScreenerDataRetrieval:
         assert reliance['high_52w'] == 1611.8
 
     @patch('api.screener_api.screener_52w.load_all_52w_ranges')
-    def test_52w_high_near_high_goes_to_touched_bucket(self, mock_load_ranges):
+    @patch('api.screener_api.screener_52w._create_upstox_api', return_value=(None, False))
+    def test_52w_high_near_high_goes_to_touched_bucket(self, mock_create_api, mock_load_ranges):
         """Stocks within 1% of 52W high are 'touched', not stuck in approaching with empty days."""
         mock_load_ranges.return_value = {
             'LAURUSLABS': {'high': 1393.40, 'low': 585.90, 'close': 1388.40, 'days_ago': 2},
@@ -245,7 +246,7 @@ class TestScreenerDataRetrieval:
             provider='upstox',
             mode='intraday',
             screener='52w_high',
-            profile_filters={'max_52w_gap': 10},
+            profile_filters={'max_52w_gap': 10, 'min_turnover_cr': 0},
         )
         touched_syms = {s['symbol'] for s in result['touched']}
         assert 'LAURUSLABS' in touched_syms
@@ -277,8 +278,9 @@ class TestScreenerDataRetrieval:
 
     @patch('api_server_fastapi.TradingAPIFactory.create_from_config')
     @patch.object(trending_upside, 'fetch_trending_stocks')
+    @patch('upstox_trader.config_and_utils.upstox_auth.UpstoxAuthHandler.load_token', return_value=False)
     def test_fetch_screener_data_trending_profile(
-        self, mock_fetch, mock_api, mock_trending_stocks
+        self, mock_no_token, mock_fetch, mock_api, mock_trending_stocks
     ):
         """Test fetching screener data for 'trending' profile."""
         mock_fetch.return_value = mock_trending_stocks

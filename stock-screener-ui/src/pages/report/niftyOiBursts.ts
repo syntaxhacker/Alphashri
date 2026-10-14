@@ -92,7 +92,12 @@ export const OI_SIGNAL_TP_PCT = 50;
 /** Below this premium the strike is effectively dead (expiry day) — skip it. */
 export const OI_SIGNAL_MIN_PREMIUM = 10;
 /** NIFTY contract size. */
-export const NIFTY_LOT_SIZE = 75;
+// NIFTY lot size. MUST match api/reports_api/nifty_bursts.py:NIFTY_LOT_SIZE.
+// Was 75, which is not a tradeable NIFTY size: 23 consecutive real exchange
+// prints were every one an exact multiple of 65 (GCD == 65), and nifty.py's GEX
+// already computed with 65. Python was fixed and this mirror was missed, so the
+// UI kept suggesting qty 75 / 150 while the API returned 65 / 130.
+export const NIFTY_LOT_SIZE = 65;
 
 export interface OiSignal {
   leg: "CE" | "PE";

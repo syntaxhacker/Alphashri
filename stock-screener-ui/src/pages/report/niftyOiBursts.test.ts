@@ -2,6 +2,7 @@
 import { describe, expect, test } from "vitest";
 import type { NiftyTapeRow } from "@/types/niftyReport";
 import {
+  NIFTY_LOT_SIZE,
   OI_BURST_MIN_ABS,
   OI_BURST_TIERS,
   burstTimeLabel,
@@ -279,10 +280,13 @@ describe("deriveOiSignal", () => {
 
   test("sizes whole lots from a fixed risk budget", () => {
     const s = deriveOiSignal(burst("call", 60_000), chain, spot)!;
-    // entry 28, sl 21 → risk/unit 7 → 714 units → 9 lots × 75
-    expect(s.lots).toBe(9);
-    expect(s.qty).toBe(675);
-    expect(s.qty % 75).toBe(0);
+    // entry 28, sl 21 → risk/unit 7 → 714 units → floored to whole lots.
+    // Derived from the constant, not hardcoded: the lot size is a market fact
+    // (65) that has already changed once.
+    const lots = Math.floor(714 / NIFTY_LOT_SIZE);
+    expect(s.lots).toBe(lots);
+    expect(s.qty).toBe(lots * NIFTY_LOT_SIZE);
+    expect(s.qty % NIFTY_LOT_SIZE).toBe(0);
   });
 
   test("returns null when no strike clears the minimum premium", () => {

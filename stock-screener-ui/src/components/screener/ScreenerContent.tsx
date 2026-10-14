@@ -1,5 +1,6 @@
 import { useMemo } from "react";
-import { Stack } from "@/ui";
+import { Stack, Button, CopyButton } from "@/ui";
+import { IconCopy, IconCheck } from "@tabler/icons-react";
 import { ScreenerEmpty } from "./ScreenerEmpty";
 import { ScreenerLoading } from "./ScreenerLoading";
 import { ScreenerErrorPanel } from "./ScreenerErrorPanel";
@@ -8,11 +9,38 @@ import { getColumnsForScreener } from "./columns";
 import * as state from "../../state";
 import type { Stock } from "../../types";
 
+function approachRank(stock: Stock): number {
+  if (stock.approach_type === "fresh") return 0;
+  if (stock.approach_type === "retest") return 2;
+  return 1;
+}
+
+function CopySymbolsAction({ stocks, testId }: { stocks: Stock[]; testId: string }) {
+  const value = stocks.map((s) => s.symbol).join(",");
+  return (
+    <CopyButton value={value}>
+      {({ copied, copy }) => (
+        <Button
+          size="xs"
+          variant="subtle"
+          color={copied ? "success" : "secondary"}
+          onClick={copy}
+          data-testid={testId}
+        >
+          {copied ? <IconCheck size={12} /> : <IconCopy size={12} />}
+          {copied ? "Copied" : "TV symbols"}
+        </Button>
+      )}
+    </CopyButton>
+  );
+}
+
 interface SectionConfig {
   key: string;
   stocks: Stock[];
   label: string;
   description: string;
+  copyTestId: string;
 }
 
 interface Props {
@@ -48,11 +76,14 @@ export function ScreenerContent({
     const result: SectionConfig[] = [];
 
     if (approachingStocks.length > 0) {
+      // Fresh approaches first, then unknown, then retests (stable within groups).
+      const ordered = [...approachingStocks].sort((a, b) => approachRank(a) - approachRank(b));
       result.push({
         key: "approaching",
-        stocks: approachingStocks,
+        stocks: ordered,
         label: `${(sl?.primary || "Primary")} (${approachingStocks.length})`,
         description: sd?.primary || "",
+        copyTestId: "copy-approaching-symbols",
       });
     }
     if (touchedStocks.length > 0) {
@@ -61,6 +92,7 @@ export function ScreenerContent({
         stocks: touchedStocks,
         label: `${(sl?.secondary || "Secondary")} (${touchedStocks.length})`,
         description: sd?.secondary || "",
+        copyTestId: "copy-touched-symbols",
       });
     }
     return result;
@@ -87,6 +119,7 @@ export function ScreenerContent({
             columns={columns}
             badgeLabel={undefined}
             scoreFormula={scoreFormula}
+            action={<CopySymbolsAction stocks={section.stocks} testId={section.copyTestId} />}
             touchedSymbols={
               section.key === "touched"
                 ? new Set(section.stocks.map((s) => s.symbol))

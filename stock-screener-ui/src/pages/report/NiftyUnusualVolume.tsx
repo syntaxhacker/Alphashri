@@ -116,17 +116,6 @@ export const UNUSUAL_PUT_VOL = "#F2A65A";
 
 export type UnusualLegFilter = "all" | "CE" | "PE";
 
-function legText(leg: "CE" | "PE") {
-  const color = leg === "CE" ? UNUSUAL_CE : UNUSUAL_PE;
-  return (
-    <Box component="span" sx={{ whiteSpace: "nowrap", fontVariantNumeric: "tabular-nums" }}>
-      <Text size="xs" fw={700} span c={color}>
-        {leg}
-      </Text>
-    </Box>
-  );
-}
-
 function positioningText(sentiment: string, side: "CE" | "PE") {
   const code = sentiment.trim().toUpperCase();
   const label = UNUSUAL_SENTIMENT_NAMES[code] ?? sentiment;
@@ -375,7 +364,7 @@ export function NiftyUnusualVolume({
         background: active ? "rgba(47, 192, 172, 0.18)" : "transparent",
         color: active ? "#8AE6D4" : "#8B949E",
         borderRadius: 999,
-        px: 1.25,
+        px: 1,
         py: 0.25,
         fontSize: 11,
         fontWeight: 700,
@@ -392,7 +381,7 @@ export function NiftyUnusualVolume({
       data-testid="nifty-unusual-panel"
       sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0, background: UNUSUAL_TERM_BG, ...sx }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 0.75, pt: 0.5, pb: 0.25 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 0.75, pt: 0.25 }}>
         <Text size="xs" fw={700} span>Unusual volume</Text>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           {pill(legFilter === "all", "C + P", "nifty-unusual-filter-all", () => setLegFilter("all"))}
@@ -400,22 +389,23 @@ export function NiftyUnusualVolume({
           {pill(legFilter === "PE", "Puts", "nifty-unusual-filter-pe", () => setLegFilter("PE"))}
         </Box>
       </Box>
+      {/* Single wrapping stat line (was two stacked rows): call/put vol +
+          top share + rank caption + upd stamp all flow inline — one ~18px
+          line at width instead of two blocks. Nothing removed. */}
       <Box data-testid="nifty-unusual-head" sx={{ background: UNUSUAL_TERM_BG, px: 0.75 }}>
-        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 1.5, rowGap: 0, fontVariantNumeric: "tabular-nums" }}>
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 1.25, rowGap: 0, fontVariantNumeric: "tabular-nums" }}>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Call vol</Text>
             <Text data-testid="nifty-unusual-ce-vol" size="xs" span fw={700} c={UNUSUAL_CALL_VOL}>{formatUnusualCompact(totals.ce)}</Text>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Put vol</Text>
             <Text data-testid="nifty-unusual-pe-vol" size="xs" span fw={700} c={UNUSUAL_PUT_VOL}>{formatUnusualCompact(totals.pe)}</Text>
           </Box>
-          <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "baseline", gap: 0.5 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Top share</Text>
             <Text data-testid="nifty-unusual-top-share" size="xs" span fw={700}>{top ? formatUnusualShare(top.share) : "—"}</Text>
           </Box>
-        </Box>
-        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 1 }}>
           <Text data-testid="nifty-unusual-caption" size="xs" c="dimmed" ta="left" span>
             ranked by Vol÷OI · {rows.length} legs
           </Text>
@@ -459,8 +449,11 @@ export function NiftyUnusualVolume({
       <Box
         sx={{
           display: "flex",
-          minHeight: 240,
-          height: "min(52vh, 520px)",
+          // Fixed px, not vh (see tape wrap): ~150px shows the header + ~5
+          // legs; the rest scrolls inside TanStackTable's own ScrollArea.
+          // This wrap has no `overflow` itself — no flex-collapse risk.
+          minHeight: 120,
+          height: 150,
           minWidth: 0,
           background: UNUSUAL_TERM_BG,
           "& .paper-tanstack-container, & .paper-tanstack-scroll, & .paper-tanstack-table": {

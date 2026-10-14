@@ -14,7 +14,13 @@ UI_PID="/tmp/alphashri-ui.pid"
 START_BOTS="${START_BOTS:-false}"
 QA_EMAIL="${QA_EMAIL:-qa@test.com}"
 QA_PASS="${QA_PASS:-qa123}"
-RELOAD_FLAG="${RELOAD_FLAG---reload}"
+# No --reload by default (2026-10-14: --reload caused multi-minute outages —
+# every .py save restarts the worker, restart() joins the old worker with no
+# timeout while the supervisor keeps holding :8765, so the port is LISTEN but
+# nothing serves until the old worker's stuck threads drain. Bots also die as
+# children of the API on every restart). Opt back in for dev with
+# RELOAD_FLAG=--reload (or use ./start.sh dev).
+RELOAD_FLAG="${RELOAD_FLAG:-}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -99,18 +105,23 @@ activate_venv() {
 
 # ── Service management ─────────────────────────────────────────────────
 start_backend() {
-  local reload_args=""
+  local reload_args=()
   if is_running "$API_PID"; then
     echo "Backend already running (PID $(cat "$API_PID"))"
     return
   fi
   kill_port "$API_PORT"
   if [ -n "$RELOAD_FLAG" ]; then
-    reload_args="$RELOAD_FLAG --reload-delay 60"
+    # Scope the watcher to backend code. Without this uvicorn watches the whole
+    # tree, so a frontend or test edit restarts the API — and every bot runs as a
+    # child of the API process, so that restart kills all of them.
+    reload_args=("$RELOAD_FLAG" --reload-delay 60
+      --reload-exclude 'src/*' --reload-exclude 'tests/*'
+      --reload-exclude 'scripts/*' --reload-exclude 'reports/*'
+      --reload-exclude 'experiments/*' --reload-exclude 'docs/*')
   fi
   echo "Starting API on http://${API_HOST}:${API_PORT} ..."
-  # shellcheck disable=SC2086
-  uvicorn api_server_fastapi:app --host "$API_HOST" --port "$API_PORT" $reload_args >> "$API_LOG" 2>&1 &
+  uvicorn api_server_fastapi:app --host "$API_HOST" --port "$API_PORT" ${reload_args[@]+"${reload_args[@]}"} >> "$API_LOG" 2>&1 &
   echo $! > "$API_PID"
   wait_for "API" "http://localhost:${API_PORT}/api/health" 20
 }
@@ -290,7 +301,7 @@ case "${1:-status}" in
   *)
     echo "Usage: $0 {start|stop|restart|dev|prod|bots|status|logs|backend|frontend}"
     echo ""
-    echo "  start       Start API + UI (background, reload on)"
+    echo "  start       Start API + UI (background, no reload; RELOAD_FLAG=--reload for dev)"
     echo "  stop        Stop all services + bots"
     echo "  restart     Restart API + UI (./start.sh restart prod for no reload)"
     echo "  dev         Start API (reload) + UI (foreground, Ctrl+C to stop)"
@@ -304,7 +315,7 @@ case "${1:-status}" in
     echo "  API_PORT=8765     API server port"
     echo "  API_HOST=127.0.0.1 API bind host"
     echo "  API_LOG=path      Log file path"
-    echo "  RELOAD_FLAG=''    Disable --reload"
+    echo "  RELOAD_FLAG=--reload  Enable --reload (dev)"
     echo ""
     echo "Examples:"
     echo "  START_BOTS=true ./start.sh prod   # prod mode + auto-start bots"

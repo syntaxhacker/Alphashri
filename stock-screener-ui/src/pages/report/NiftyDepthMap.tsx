@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import Box from "@mui/material/Box";
 import ReactECharts from "echarts-for-react";
+import { ChartErrorBoundary } from "@/components/common/ChartErrorBoundary";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -612,7 +613,9 @@ export function NiftyDepthMap({ report }: { report: NiftyReport }) {
             description="No option-chain strikes near spot for this expiry."
           />
         ) : (
-          <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+          <ChartErrorBoundary label="Depth map">
+            <ReactECharts option={option} style={{ height: "100%", width: "100%" }} opts={{ renderer: "canvas" }} />
+          </ChartErrorBoundary>
         )}
       </Box>
 

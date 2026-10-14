@@ -35,7 +35,11 @@ OI_SIGNAL_RISK_BUDGET = 5_000.0
 OI_SIGNAL_SL_PCT = 25.0
 OI_SIGNAL_TP_PCT = 50.0
 OI_SIGNAL_MIN_PREMIUM = 10.0
-NIFTY_LOT_SIZE = 75
+# NIFTY contract lot size. Corrected 75 -> 65 after 23 consecutive real exchange
+# prints (a Dhan time & sales capture) were every one an exact multiple of 65 —
+# GCD of all 23 sizes == 65, and the same user's 1-lot position showed qty 65.
+# With 75 the suggested qty was not a tradeable size at all.
+NIFTY_LOT_SIZE = 65
 
 #: Headlines within ±this many minutes of a burst are attached as candidates.
 NEWS_WINDOW_MIN = 10.0
@@ -59,13 +63,16 @@ def severity_for_score(score: float) -> str:
     return "info"
 
 
-def minute_doi_series(rows: Iterable[dict]) -> list[dict]:
-    """Chronological per-minute OI deltas.
+#: A burst is by definition a ONE-minute OI move, so only strictly adjacent
+#: minutes qualify. Anything further apart is not a burst we can judge: on
+#: 2026-10-14 a 12-minute recorder outage produced index "bursts" scoring 1037
+#: and 1324, and even a 2-minute span scored 1141. Those are the gap, not the
+#: market. We would rather report no burst than a fabricated one.
+MAX_BURST_GAP_MIN = 1
 
-    Duplicate timestamps keep the LAST occurrence (the recorder feed is
-    ascending, so that is the most recent write). The first row is the
-    baseline, not a delta.
-    """
+
+def _ordered_rows(rows: Iterable[dict]) -> list[dict]:
+    """Tape rows deduped by timestamp, chronological."""
     by_t: dict[str, dict] = {}
     for r in rows or []:
         if not isinstance(r, dict):
@@ -73,12 +80,44 @@ def minute_doi_series(rows: Iterable[dict]) -> list[dict]:
         t = r.get("t")
         if isinstance(t, str) and t:
             by_t[t] = r
-    ordered = [by_t[k] for k in sorted(by_t)]
+    return [by_t[k] for k in sorted(by_t)]
+
+
+def _gap_minutes(a: dict, b: dict) -> Optional[int]:
+    from datetime import datetime
+
+    try:
+        return int((datetime.fromisoformat(str(b.get("t"))) -
+                    datetime.fromisoformat(str(a.get("t")))).total_seconds() // 60)
+    except (ValueError, TypeError):
+        return None
+
+
+def _is_contiguous(a: dict, b: dict, max_gap: int = MAX_BURST_GAP_MIN) -> bool:
+    """True when ``b`` is a real next-minute row after ``a``.
+
+    Guards every detector that differences two rows: a recorder gap turns the
+    whole missing span into one enormous "one-minute" delta, which then scores
+    as a CRITICAL burst even though nothing happened in a minute.
+    """
+    gap = _gap_minutes(a, b)
+    return gap is not None and 0 < gap <= max_gap
+
+
+def minute_doi_series(rows: Iterable[dict]) -> list[dict]:
+    """Chronological per-minute OI deltas.
+
+    Duplicate timestamps keep the LAST occurrence (the recorder feed is
+    ascending, so that is the most recent write). The first row is the
+    baseline, not a delta.
+    """
+    ordered = _ordered_rows(rows)
 
     out: list[dict] = []
     for prev, cur in zip(ordered, ordered[1:]):
         out.append({
             "t": cur["t"],
+            "gapMinutes": _gap_minutes(prev, cur),
             "dCall": _f(cur.get("call_doi")) - _f(prev.get("call_doi")),
             "dPut": _f(cur.get("put_doi")) - _f(prev.get("put_doi")),
             "callDoi": _f(cur.get("call_doi")),
@@ -101,6 +140,9 @@ def detect_oi_bursts(
     out: list[dict[str, Any]] = []
 
     for m in minute_doi_series(rows):
+        # A gap is not a burst: the delta spans minutes we never recorded.
+        if (m.get("gapMinutes") or 1) > MAX_BURST_GAP_MIN:
+            continue
         sides = (
             ("call", m["dCall"], m["callDoi"], m["callTick"]),
             ("put", m["dPut"], m["putDoi"], m["putTick"]),
@@ -232,6 +274,8 @@ def detect_squeezes(
     out: list[dict[str, Any]] = []
     for i in range(1, len(ordered)):
         prev, cur = ordered[i - 1], ordered[i]
+        if not _is_contiguous(prev, cur):
+            continue
         spot_now = _f(cur.get("spot"))
         spot_prev = _f(prev.get("spot"))
 
@@ -285,7 +329,11 @@ def detect_squeezes(
 
 #: A single strike must move at least this much OI to be worth an alert —
 #: higher than the index threshold because one strike is a much sharper event.
-STRIKE_BURST_MIN_ABS = 1_000_000.0
+# Was 1_000_000 — an impossible bar. Measured over 1507 genuine 1-minute
+# per-strike deltas on 2026-10-14: p50 21K, p90 98K, p99 265K, and the DAY'S
+# MAXIMUM was 757K. A 1M floor could therefore never fire (0 detections, ever).
+# 300K sits at ~p99.3 and yields ~11 strike-level alerts a day.
+STRIKE_BURST_MIN_ABS = 300_000.0
 #: Per-strike alerts are stricter than index ones (score >= alert tier).
 STRIKE_BURST_MIN_SCORE = 4.0
 
@@ -326,6 +374,8 @@ def detect_strike_bursts(
     out: list[dict[str, Any]] = []
 
     for i in range(1, len(ordered)):
+        if not _is_contiguous(ordered[i - 1], ordered[i]):
+            continue
         prev_oi = oi_map(ordered[i - 1])
         cur_row = ordered[i]
         cur_oi = oi_map(cur_row)

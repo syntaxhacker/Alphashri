@@ -7,15 +7,28 @@ import type {
   NiftyBurst,
   NiftyBurstNews,
   NiftyBurstSignal,
+  NiftyControlBlock,
+  NiftyControlVerdict,
   NiftyGex,
   NiftyGexLevel,
   NiftyGexStrike,
+  NiftyMarketBlock,
   NiftyOptionSide,
+  NiftyPositioningBlock,
+  NiftyPositioningLeg,
+  NiftyPositioningStrike,
+  NiftyPositioningVerdict,
+  NiftyRegimeBlock,
+  NiftyRegimeVerdict,
   NiftyReport,
   NiftyStrike,
+  NiftyStrengthBlock,
+  NiftyStrengthVerdict,
+  NiftyStructureShift,
   NiftyTape,
   NiftyTapeRow,
   NiftyTimelineEvent,
+  NiftyVixBlock,
 } from "../types/niftyReport";
 
 import { API_BASE } from "./config";
@@ -36,6 +49,7 @@ function normalizeSide(raw: Record<string, unknown> = {}): NiftyOptionSide {
     oiChange: num(raw.oiChange ?? raw.oi_change),
     priceChange: num(raw.priceChange ?? raw.price_change),
     volume: num(raw.volume),
+    delta: nullNum(raw.delta),
     sentiment:
       typeof raw.sentiment === "string"
         ? raw.sentiment
@@ -106,6 +120,203 @@ function normalizeGex(raw: unknown): NiftyGex | undefined {
   };
 }
 
+/** Non-finite / absent numeric field → null so the UI can render a dash. */
+function nullNum(value: unknown): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "string" ? Number(value) : (value as number);
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+/** Treat a block as present only when it is a non-empty object. */
+function asBlock(raw: unknown): Record<string, unknown> | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object") return undefined;
+  const row = raw as Record<string, unknown>;
+  return Object.keys(row).length === 0 ? undefined : row;
+}
+
+/** Coerce a raw verdict string to one of `allowed`, else null (→ dash). */
+function coerceVerdict(raw: unknown, allowed: readonly string[]): string | null {
+  const v = String(raw ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  return allowed.includes(v) ? v : null;
+}
+
+const CONTROL_VERDICTS = [
+  "call_writers",
+  "put_writers",
+  "balanced",
+] as const satisfies readonly NiftyControlVerdict[];
+
+const REGIME_VERDICTS = [
+  "range_sell_premium",
+  "trend_buy",
+  "neutral",
+] as const satisfies readonly NiftyRegimeVerdict[];
+
+const STRENGTH_VERDICTS = [
+  "strong",
+  "neutral",
+  "weak",
+] as const satisfies readonly NiftyStrengthVerdict[];
+
+/** `control` block — absent/empty → undefined, partial → null fields. */
+function normalizeControl(raw: unknown): NiftyControlBlock | undefined {
+  const c = asBlock(raw);
+  if (!c) return undefined;
+  return {
+    verdict: coerceVerdict(c.verdict, CONTROL_VERDICTS) as NiftyControlVerdict | null,
+    ce_doi: nullNum(c.ce_doi ?? c.ceDoi),
+    pe_doi: nullNum(c.pe_doi ?? c.peDoi),
+    atm_ce_iv: nullNum(c.atm_ce_iv ?? c.atmCeIv),
+    atm_pe_iv: nullNum(c.atm_pe_iv ?? c.atmPeIv),
+    skew: nullNum(c.skew),
+    gex_regime:
+      typeof (c.gex_regime ?? c.gexRegime) === "string"
+        ? String(c.gex_regime ?? c.gexRegime)
+        : null,
+  };
+}
+
+/** `regime` block — absent/empty → undefined, partial → null fields. */
+function normalizeRegime(raw: unknown): NiftyRegimeBlock | undefined {
+  const r = asBlock(raw);
+  if (!r) return undefined;
+  return {
+    verdict: coerceVerdict(r.verdict, REGIME_VERDICTS) as NiftyRegimeVerdict | null,
+    range_pts: nullNum(r.range_pts ?? r.rangePts),
+    range_baseline_pts: nullNum(r.range_baseline_pts ?? r.rangeBaselinePts),
+    range_pct: nullNum(r.range_pct ?? r.rangePct),
+    rv: nullNum(r.rv),
+    iv: nullNum(r.iv),
+    straddle_open: nullNum(r.straddle_open ?? r.straddleOpen),
+    straddle_now: nullNum(r.straddle_now ?? r.straddleNow),
+    straddle_pct: nullNum(r.straddle_pct ?? r.straddlePct),
+  };
+}
+
+/** `vix` block — absent/empty → undefined, partial → null fields. */
+function normalizeVix(raw: unknown): NiftyVixBlock | undefined {
+  const v = asBlock(raw);
+  if (!v) return undefined;
+  return {
+    ltp: nullNum(v.ltp),
+    prev_close: nullNum(v.prev_close ?? v.prevClose),
+    change_pct: nullNum(v.change_pct ?? v.changePct),
+    day_high: nullNum(v.day_high ?? v.dayHigh),
+    day_low: nullNum(v.day_low ?? v.dayLow),
+  };
+}
+
+/** `strength` block — absent/empty → undefined, partial → null fields. */
+function normalizeStrength(raw: unknown): NiftyStrengthBlock | undefined {
+  const s = asBlock(raw);
+  if (!s) return undefined;
+  return {
+    verdict: coerceVerdict(s.verdict, STRENGTH_VERDICTS) as NiftyStrengthVerdict | null,
+    score: nullNum(s.score),
+    ema20: nullNum(s.ema20),
+    ema50: nullNum(s.ema50),
+    rsi: nullNum(s.rsi),
+    pos_in_range: nullNum(s.pos_in_range ?? s.posInRange),
+  };
+}
+
+/** `market` block — absent/empty → undefined (unknown → keep polling). */
+function normalizeMarket(raw: unknown): NiftyMarketBlock | undefined {
+  const m = asBlock(raw);
+  if (!m) return undefined;
+  const sessionDate = m.session_date ?? m.sessionDate;
+  const asOf = m.as_of ?? m.asOf;
+  return {
+    is_open: typeof m.is_open === "boolean" ? m.is_open : null,
+    session_date: typeof sessionDate === "string" ? sessionDate : null,
+    as_of: typeof asOf === "string" ? asOf : null,
+  };
+}
+
+const POSITIONING_VERDICTS = [
+  "bullish",
+  "bearish",
+  "balanced",
+] as const satisfies readonly NiftyPositioningVerdict[];
+
+/** One leg of a positioning row — `class`/`doi`/`initiated`, snake_case-tolerant. */
+function normalizePositioningLeg(raw: unknown): NiftyPositioningLeg {
+  const l = (raw ?? {}) as Record<string, unknown>;
+  return {
+    class: String(l.class ?? l.sentiment ?? "Neutral"),
+    doi: num(l.doi ?? l.oi_change ?? l.oiChange),
+    initiated: num(l.initiated),
+  };
+}
+
+/** `positioning` block — absent/empty → undefined, partial → null fields. */
+function normalizePositioning(raw: unknown): NiftyPositioningBlock | undefined {
+  const p = asBlock(raw);
+  if (!p) return undefined;
+  const rows = Array.isArray(p.strikes) ? p.strikes : [];
+  return {
+    verdict: coerceVerdict(
+      p.verdict,
+      POSITIONING_VERDICTS,
+    ) as NiftyPositioningVerdict | null,
+    state: nullNum(p.state),
+    flow: nullNum(p.flow),
+    initiated: nullNum(p.initiated),
+    bullCr: nullNum(p.bull_cr ?? p.bullCr),
+    bearCr: nullNum(p.bear_cr ?? p.bearCr),
+    splitPct: nullNum(p.split_pct ?? p.splitPct),
+    ceDoi: nullNum(p.ce_doi ?? p.ceDoi),
+    peDoi: nullNum(p.pe_doi ?? p.peDoi),
+    lotSize: nullNum(p.lot_size ?? p.lotSize),
+    strikes: rows.map((r): NiftyPositioningStrike => {
+      const row = (r ?? {}) as Record<string, unknown>;
+      return {
+        strike: num(row.strike),
+        ce: normalizePositioningLeg(row.ce),
+        pe: normalizePositioningLeg(row.pe),
+        netInitiated: num(row.net_initiated ?? row.netInitiated),
+      };
+    }),
+  };
+}
+
+/**
+ * One structural shift. `kind`/`severity` are kept as raw strings so a newer
+ * detector value still surfaces; the UI maps unknown values gracefully.
+ * Non-finite numbers become `null`, and an unknown `side` is dropped.
+ */
+function normalizeStructureShift(raw: unknown): NiftyStructureShift {
+  const s = (raw ?? {}) as Record<string, unknown>;
+  const sideRaw = String(s.side ?? "").toLowerCase();
+  const levelRaw = s.level;
+  return {
+    t: String(s.t ?? s.time ?? ""),
+    kind: String(s.kind ?? ""),
+    detail: String(s.detail ?? ""),
+    severity: String(s.severity ?? ""),
+    magnitude: nullNum(s.magnitude ?? s.mag),
+    ...(sideRaw === "call" || sideRaw === "put"
+      ? { side: sideRaw as "call" | "put" }
+      : {}),
+    ...(levelRaw === undefined || levelRaw === null
+      ? {}
+      : { level: nullNum(levelRaw) }),
+  };
+}
+
+/**
+ * `structure` block — absent/null/non-array → `undefined` (the UI renders
+ * nothing), while an explicit empty array stays `[]` so the UI can show its
+ * empty state. Newest is last in the payload; the UI reverses for display.
+ */
+function normalizeStructure(raw: unknown): NiftyStructureShift[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map(normalizeStructureShift);
+}
+
 /** Backend speaks snake_case; the panel speaks camelCase. Normalize once here. */
 export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
   const walls = (raw.walls ?? {}) as Record<string, { strike: number; oi: number }[]>;
@@ -142,6 +353,13 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     fetchedAt: (raw.fetchedAt ?? raw.fetched_at) as string | undefined,
     snapshotAt: (raw.snapshotAt ?? raw.snapshot_at) as string | undefined,
     gex: normalizeGex(raw.gex),
+    control: normalizeControl(raw.control),
+    regime: normalizeRegime(raw.regime),
+    vix: normalizeVix(raw.vix),
+    strength: normalizeStrength(raw.strength),
+    market: normalizeMarket(raw.market),
+    positioning: normalizePositioning(raw.positioning),
+    structure: normalizeStructure(raw.structure),
   };
 }
 
@@ -240,6 +458,16 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
     ...(raw.atm_strike !== undefined ? { atm_strike: num(raw.atm_strike) } : {}),
     ...(ceLtp !== undefined && ceLtp !== null ? { atm_ce_ltp: num(ceLtp) } : {}),
     ...(peLtp !== undefined && peLtp !== null ? { atm_pe_ltp: num(peLtp) } : {}),
+    // Per-minute GEX + ATM IV — absent on tapes recorded before they were added.
+    ...(raw.net_gex !== undefined && raw.net_gex !== null
+      ? { net_gex: nullNum(raw.net_gex) }
+      : {}),
+    ...(raw.atm_ce_iv !== undefined && raw.atm_ce_iv !== null
+      ? { atm_ce_iv: nullNum(raw.atm_ce_iv) }
+      : {}),
+    ...(raw.atm_pe_iv !== undefined && raw.atm_pe_iv !== null
+      ? { atm_pe_iv: nullNum(raw.atm_pe_iv) }
+      : {}),
     call_doi: num(raw.call_doi ?? raw.callDoi),
     put_doi: num(raw.put_doi ?? raw.putDoi),
     net: num(raw.net),

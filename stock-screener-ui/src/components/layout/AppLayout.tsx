@@ -50,7 +50,7 @@ export function AppLayout({ children }: AppLayoutProps) {
             <MarketTicker />
           </Box>
           <NewsPanel2 />
-          <Stack direction="row" spacing={1} alignItems="center">
+          <Stack direction="row" spacing={1} sx={{ alignItems: "center" }}>
             <IconButton color="inherit" onClick={() => setNotifOpen(true)} data-testid="notif-bell" aria-label="Notifications">
               <Badge color="error" variant="dot" invisible={false}>
                 <NotificationsIcon />

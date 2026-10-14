@@ -129,7 +129,8 @@ class TestRecorder:
         with patch.object(nifty, "_compute_live",
                           AsyncMock(return_value=_fake_report())) as cl:
             row = await record_nifty_tape_tick(now=_ist(9, 15))
-        cl.assert_awaited_once_with(None, walkback_days=0)
+        cl.assert_awaited_once_with(None, walkback_days=0,
+                                 with_verdicts=False, with_candles=False)
         assert row is not None
         assert row["t"] == _ist(9, 15).isoformat()
         assert row["spot"] == 25000.0
@@ -140,7 +141,23 @@ class TestRecorder:
         assert row["flip"] == 25100.0
         assert row["expiry"] == "2026-10-15"
         assert row["walls"]["calls"] == [{"strike": 25000.0, "oi": 1000}]
+        assert row["net_gex"] is None  # fake gex has no net_total
+        assert row["atm_ce_iv"] is None
+        assert row["atm_pe_iv"] is None
         assert read_tape("2026-10-13") == [row]
+
+    async def test_row_records_gex_and_atm_iv(self, _tmp_tape):
+        rep = _fake_report(gex={"zero_cross": 25100.0, "net_total": -3440.31})
+        rep["strikes"] = [
+            {"strike": 25000.0,
+             "ce": {"oi": 1000, "volume": 5000, "iv": 12.2},
+             "pe": {"oi": 2000, "volume": 6000, "iv": 14.1}},
+        ]
+        with patch.object(nifty, "_compute_live", AsyncMock(return_value=rep)):
+            row = await record_nifty_tape_tick(now=_ist(9, 15))
+        assert row["net_gex"] == -3440.31
+        assert row["atm_ce_iv"] == 12.2
+        assert row["atm_pe_iv"] == 14.1
 
     async def test_skip_duplicate_minute(self, _tmp_tape):
         with patch.object(nifty, "_compute_live",

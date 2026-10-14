@@ -4,7 +4,7 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import { NiftyReportPanel, getNiftyOiColumns, findAtmStrike } from "./NiftyReportPanel";
+import { NiftyReportPanel, getNiftyOiColumns, findAtmStrike, oiBurstLogHeight } from "./NiftyReportPanel";
 import * as palette from "@/ui/palette";
 import type { NiftyReport } from "@/types/niftyReport";
 
@@ -909,5 +909,352 @@ describe("NiftyReportPanel level legend", () => {
       expect(within(legend).getByText(code, { exact: true })).toBeInTheDocument();
     }
     expect(within(legend).queryByText("FLIP", { exact: true })).not.toBeInTheDocument();
+  });
+});
+
+describe("NiftyReportPanel session verdict strip", () => {
+  function withVerdicts(overrides?: Partial<NiftyReport>): NiftyReport {
+    return mockReport({
+      control: {
+        verdict: "call_writers",
+        ce_doi: 5_530_000,
+        pe_doi: -1_200_000,
+        atm_ce_iv: 12.5,
+        atm_pe_iv: 13.1,
+        skew: -2.4,
+        gex_regime: "short",
+      },
+      regime: {
+        verdict: "range_sell_premium",
+        range_pts: 180,
+        range_baseline_pts: 210,
+        range_pct: 0.7,
+        rv: 11.2,
+        iv: 12.4,
+        straddle_open: 150,
+        straddle_now: 120,
+        straddle_pct: -20,
+      },
+      vix: {
+        ltp: 13.45,
+        prev_close: 13.8,
+        change_pct: -2.54,
+        day_high: 13.9,
+        day_low: 13.2,
+      },
+      strength: {
+        verdict: "strong",
+        score: 72.5,
+        ema20: 25700,
+        ema50: 25600,
+        rsi: 61.3,
+        pos_in_range: 0.8,
+      },
+      ...overrides,
+    });
+  }
+
+  test("renders four verdicts right under the stat pills", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(withVerdicts());
+    r(<NiftyReportPanel />);
+    const strip = await screen.findByTestId("nifty-verdict-strip");
+    // sits after the spot/PCR stat pills
+    const stat = screen.getByTestId("nifty-stat-strip");
+    expect(
+      stat.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    const control = screen.getByTestId("nifty-verdict-control");
+    expect(control).toHaveTextContent("CALL WRITERS IN CONTROL");
+    expect(control).toHaveTextContent("ΔOI C 55,30,000 P -12,00,000 · skew -2.40");
+
+    const regime = screen.getByTestId("nifty-verdict-regime");
+    expect(regime).toHaveTextContent("RANGE · SELL PREMIUM");
+    expect(regime).toHaveTextContent("180 vs ~210 pts · straddle -20.00%");
+
+    const vix = screen.getByTestId("nifty-verdict-vix");
+    expect(vix).toHaveTextContent("VIX 13.45 (-2.54%)");
+    expect(vix).toHaveTextContent("day 13.20–13.90");
+
+    const strength = screen.getByTestId("nifty-verdict-strength");
+    expect(strength).toHaveTextContent("STRONG");
+    expect(strength).toHaveTextContent("score 72.5 · RSI 61.3");
+  });
+
+  test("renders the other verdict variants", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      withVerdicts({
+        control: {
+          verdict: "put_writers",
+          ce_doi: null,
+          pe_doi: null,
+          atm_ce_iv: null,
+          atm_pe_iv: null,
+          skew: null,
+          gex_regime: null,
+        },
+        regime: {
+          verdict: "trend_buy",
+          range_pts: null,
+          range_baseline_pts: null,
+          range_pct: null,
+          rv: null,
+          iv: null,
+          straddle_open: null,
+          straddle_now: null,
+          straddle_pct: null,
+        },
+        vix: {
+          ltp: 14,
+          prev_close: 13,
+          change_pct: 7.69,
+          day_high: 14.1,
+          day_low: 13.2,
+        },
+        strength: {
+          verdict: "weak",
+          score: 20,
+          ema20: null,
+          ema50: null,
+          rsi: 40,
+          pos_in_range: null,
+        },
+      }),
+    );
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-verdict-strip");
+    expect(screen.getByTestId("nifty-verdict-control")).toHaveTextContent(
+      "PUT WRITERS IN CONTROL",
+    );
+    expect(screen.getByTestId("nifty-verdict-regime")).toHaveTextContent(
+      "TREND · BUY FAVOURED",
+    );
+    expect(screen.getByTestId("nifty-verdict-vix")).toHaveTextContent(
+      "VIX 14.00 (+7.69%)",
+    );
+    expect(screen.getByTestId("nifty-verdict-strength")).toHaveTextContent("WEAK");
+  });
+
+  test("dashes every cell when the new blocks are absent", async () => {
+    // default mockReport has no control/regime/vix/strength blocks
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-verdict-strip");
+    expect(screen.getByTestId("nifty-verdict-control-primary")).toHaveTextContent(
+      /^—$/,
+    );
+    expect(
+      screen.getByTestId("nifty-verdict-control-secondary"),
+    ).toHaveTextContent("ΔOI C — P — · skew —");
+    expect(screen.getByTestId("nifty-verdict-regime-primary")).toHaveTextContent(
+      /^—$/,
+    );
+    expect(
+      screen.getByTestId("nifty-verdict-regime-secondary"),
+    ).toHaveTextContent("— vs ~— pts · straddle —%");
+    expect(screen.getByTestId("nifty-verdict-vix-primary")).toHaveTextContent(
+      "VIX — (—%)",
+    );
+    expect(screen.getByTestId("nifty-verdict-vix-secondary")).toHaveTextContent(
+      "day —–—",
+    );
+    expect(screen.getByTestId("nifty-verdict-strength-primary")).toHaveTextContent(
+      /^—$/,
+    );
+    expect(
+      screen.getByTestId("nifty-verdict-strength-secondary"),
+    ).toHaveTextContent("score — · RSI —");
+  });
+
+  test("partial block dashes missing fields and unknown verdicts", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        control: {
+          verdict: null,
+          ce_doi: 1000,
+          pe_doi: null,
+          atm_ce_iv: null,
+          atm_pe_iv: null,
+          skew: null,
+          gex_regime: null,
+        },
+        vix: {
+          ltp: 12.5,
+          prev_close: null,
+          change_pct: null,
+          day_high: null,
+          day_low: null,
+        },
+      }),
+    );
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-verdict-strip");
+    expect(screen.getByTestId("nifty-verdict-control-primary")).toHaveTextContent(
+      /^—$/,
+    );
+    expect(
+      screen.getByTestId("nifty-verdict-control-secondary"),
+    ).toHaveTextContent("ΔOI C 1,000 P — · skew —");
+    expect(screen.getByTestId("nifty-verdict-vix-primary")).toHaveTextContent(
+      "VIX 12.50 (—%)",
+    );
+    expect(screen.getByTestId("nifty-verdict-vix-secondary")).toHaveTextContent(
+      "day —–—",
+    );
+  });
+});
+
+describe("NiftyReportPanel structure shifts", () => {
+  test("renders shifts newest-first next to the OI bursts panel", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        structure: [
+          {
+            t: "2026-10-14T09:20:00+05:30",
+            kind: "pcr_shift",
+            detail: "PCR(OI) 1.10 -> 0.95",
+            severity: "alert",
+            magnitude: 0.15,
+          },
+          {
+            t: "2026-10-14T13:06:00+05:30",
+            kind: "wall_flip",
+            detail: "22,700 support became resistance",
+            severity: "critical",
+            magnitude: 12.3,
+            side: "call",
+            level: 22700,
+          },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const box = await screen.findByTestId("nifty-structure");
+    const rows = within(box).getAllByTestId("nifty-structure-row");
+    expect(rows).toHaveLength(2);
+    // newest on the payload (13:06) leads the list
+    expect(rows[0]).toHaveTextContent("13:06");
+    expect(rows[1]).toHaveTextContent("09:20");
+    expect(within(box).getByTestId("nifty-structure-summary")).toHaveTextContent(
+      "2 shifts · 1 critical",
+    );
+  });
+
+  test("structure shifts and OI bursts share one wrapping side-by-side row", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchNiftyByDate).mockResolvedValue(
+      mockReport({
+        mode: "eod",
+        structure: [
+          {
+            t: "2026-10-14T13:06:00+05:30",
+            kind: "wall_flip",
+            detail: "22,700 support became resistance",
+            severity: "critical",
+            magnitude: 12.3,
+          },
+        ],
+      }),
+    );
+    vi.mocked(fetchNiftyBursts).mockResolvedValue([
+      {
+        id: "2026-10-10T14:20:00+05:30-call",
+        side: "call",
+        t: "2026-10-10T14:20:00+05:30",
+        delta: -16_461_965,
+        baseline: 1_000_000,
+        score: 16.4,
+        severity: "critical",
+        cumDoi: -36_657_985,
+        spot: 22_597.3,
+        tickVol: 1_000,
+        signal: null,
+      },
+    ] as never);
+
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+
+    const row = await screen.findByTestId("nifty-signals-row");
+    const bursts = await within(row).findByTestId("nifty-oi-bursts-wrap");
+    const structure = within(row).getByTestId("nifty-structure");
+    expect(bursts).toBeInTheDocument();
+    expect(structure).toBeInTheDocument();
+    // bursts lead, structure follows — both flex children of the same wrapping row
+    expect(
+      bursts.compareDocumentPosition(structure) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+  });
+
+  test("absent structure renders no structure panel", async () => {
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.queryByTestId("nifty-structure")).not.toBeInTheDocument();
+  });
+});
+
+describe("NiftyReportPanel ultra-compact layout", () => {
+  function candles() {
+    return [
+      { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+      { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25750.5, volume: 1200 },
+    ];
+  }
+
+  test("chart and OI bodies use fixed pixel heights, never vh", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({ candles: candles() }),
+    );
+    r(<NiftyReportPanel />);
+    const chartWrap = await screen.findByTestId("nifty-chart-wrap");
+    expect(chartWrap).toHaveStyle({ height: "180px" });
+    const oiWrap = screen.getByTestId("nifty-oi-wrap");
+    expect(oiWrap).toHaveStyle({ height: "180px" });
+  });
+
+  test("timeline scrolls inside a capped inner box", async () => {
+    r(<NiftyReportPanel />);
+    const scroller = await screen.findByTestId("nifty-timeline-scroll");
+    expect(scroller).toHaveStyle({ maxHeight: "150px" });
+    expect(screen.getByTestId("nifty-timeline-item-0")).toBeInTheDocument();
+  });
+
+  test("signals-row wrapper does not mount when empty (no dead wrapper)", async () => {
+    // default mock: no structure payload, quiet tape → no trail either
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.queryByTestId("nifty-signals-row")).not.toBeInTheDocument();
+    // the grid + tomorrow panel still render — only the empty wrapper is gone
+    expect(screen.getByTestId("nifty-signals-grid")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-tomorrow-panel")).toBeInTheDocument();
+  });
+
+  test("signals-row wrapper mounts when structure is present", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        structure: [
+          {
+            t: "2026-10-14T13:06:00+05:30",
+            kind: "wall_flip",
+            detail: "22,700 support became resistance",
+            severity: "critical",
+            magnitude: 12.3,
+          },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const row = await screen.findByTestId("nifty-signals-row");
+    expect(within(row).getByTestId("nifty-structure")).toBeInTheDocument();
+  });
+
+  test("oiBurstLogHeight grows per alert and caps at 140", () => {
+    expect(oiBurstLogHeight(0)).toBe(40);
+    expect(oiBurstLogHeight(2)).toBe(80);
+    expect(oiBurstLogHeight(5)).toBe(140);
+    expect(oiBurstLogHeight(50)).toBe(140);
   });
 });

@@ -15,6 +15,7 @@ from fastapi import HTTPException
 
 import api.reports_api.nifty as nifty
 from api.reports_api.nifty import get_nifty_bursts
+from api.reports_api.nifty_bursts import NIFTY_LOT_SIZE
 
 DATE = "2026-10-13"
 
@@ -151,8 +152,9 @@ class TestBurstSignal:
         assert sig["entry"] == 30.0
         assert sig["sl"] == 22.5
         assert sig["target"] == 45.0
-        assert sig["lots"] == 8
-        assert sig["qty"] == 600
+        # Derived, not magic: risk budget 5000 / 7.5 risk-per-unit = 666 units.
+        assert sig["lots"] == 666 // NIFTY_LOT_SIZE
+        assert sig["qty"] == sig["lots"] * NIFTY_LOT_SIZE
         # trend gate fields are always present
         assert set(sig) == {"leg", "strike", "entry", "sl",
                             "target", "qty", "lots", "basis",
@@ -465,7 +467,7 @@ class TestDetectStrikeBursts:
     def test_small_move_is_ignored(self):
         from api.reports_api.nifty_bursts import detect_strike_bursts
         ce = [100_000 * i for i in range(14)]
-        ce[-1] += 400_000          # below STRIKE_BURST_MIN_ABS
+        ce[-1] += 250_000          # below STRIKE_BURST_MIN_ABS (300K)
         assert detect_strike_bursts(self._tape(ce)) == []
 
     def test_old_tape_without_strikes_top_is_a_noop(self):

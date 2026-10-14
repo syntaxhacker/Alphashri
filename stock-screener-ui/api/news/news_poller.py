@@ -6,6 +6,7 @@ import asyncio
 import concurrent.futures
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Dict
 
@@ -16,6 +17,48 @@ from api.screener import _sanitize_for_json
 #: Bounds per-cycle work so the poller can never starve the HTTP server;
 #: skipped items are retried on later cycles (URL dedupe makes that safe).
 NEWS_ARTICLE_BUDGET_PER_CYCLE = int(os.getenv("NEWS_FETCH_BUDGET", "12"))
+# Scraping is CPU-heavy Python (HTML parse), so `to_thread` buys little: with
+# every source gathered at once the GIL contention starves the event loop and
+# the API goes unreachable for seconds (seen 2026-10-14). Bound the fan-out.
+NEWS_SOURCE_CONCURRENCY = int(os.getenv("NEWS_SOURCE_CONCURRENCY", "2"))
+NEWS_FETCH_LIMIT = int(os.getenv("NEWS_FETCH_LIMIT", "20"))
+#: Per-item backstops (2026-10-14: unbounded article/LLM calls kept worker
+#: threads stuck for minutes — the OpenAI client has no explicit timeout, so
+#: asyncio.wait_for alone cannot help: it stops *waiting* but the thread lives
+#: on and CPython joins non-daemon threads at interpreter exit, stretching
+#: every uvicorn restart gap from seconds to minutes). Overruns are skipped;
+#: the item is retried on a later cycle via the URL dedupe.
+NEWS_ARTICLE_TIMEOUT_SEC = float(os.getenv("NEWS_ARTICLE_TIMEOUT_SEC", "45"))
+NEWS_LLM_TIMEOUT_SEC = float(os.getenv("NEWS_LLM_TIMEOUT_SEC", "180"))
+
+#: Sentinel returned by _run_sync_with_timeout when fn overruns its budget.
+_TIMED_OUT = object()
+
+
+def _run_sync_with_timeout(fn, args, timeout_sec):
+    """Run ``fn(*args)`` on a DAEMON thread; return _TIMED_OUT on overrun.
+
+    Daemon threads never block interpreter exit, so an abandoned scrape/LLM
+    call cannot delay worker shutdown. Uses only threading (no new asyncio
+    APIs) so the timeout works the same under the event loop and in tests.
+    Worker exceptions are re-raised; timeouts return the _TIMED_OUT sentinel.
+    """
+    box: dict = {}
+
+    def _target():
+        try:
+            box["result"] = fn(*args)
+        except Exception as exc:  # noqa: BLE001 — re-raised below
+            box["error"] = exc
+
+    worker = threading.Thread(target=_target, daemon=True)
+    worker.start()
+    worker.join(timeout_sec)
+    if worker.is_alive():
+        return _TIMED_OUT
+    if "error" in box:
+        raise box["error"]
+    return box.get("result")
 
 
 _project_root = None
@@ -233,7 +276,8 @@ async def news_poller_task():
                 """Fetch a single source with timeout."""
                 try:
                     items = await asyncio.wait_for(
-                        asyncio.to_thread(fetch_news, source=source_id, limit=20),
+                        asyncio.to_thread(fetch_news, source=source_id,
+                                          limit=NEWS_FETCH_LIMIT),
                         timeout=15,
                     )
                     return source_id, items or []
@@ -243,7 +287,15 @@ async def news_poller_task():
                     poller_logger.warning(f"Error fetching {source_id}: {e}")
                     return source_id, []
 
-            results = await asyncio.gather(*[_fetch_source(s) for s in active_sources])
+            # Fetch in small batches, not all at once: scraping is CPU-heavy
+            # Python, so gathering every source simultaneously holds the GIL and
+            # starves the event loop (the API was unreachable for seconds at a
+            # time on 2026-10-14). Batches keep the loop responsive.
+            _batch = max(1, NEWS_SOURCE_CONCURRENCY)
+            results: list = []
+            for _start in range(0, len(active_sources), _batch):
+                results.extend(await asyncio.gather(
+                    *[_fetch_source(s) for s in active_sources[_start:_start + _batch]]))
 
             async def _process_source(source_id: str, items: list, fetch_budget: dict):
                 """Process fetched items for a single source."""
@@ -300,7 +352,14 @@ async def news_poller_task():
                             continue
                         fetch_budget["left"] -= 1
 
-                        full_article = await asyncio.to_thread(fetch_article_content, url)
+                        full_article = await asyncio.to_thread(
+                            _run_sync_with_timeout, fetch_article_content,
+                            (url,), NEWS_ARTICLE_TIMEOUT_SEC)
+                        if full_article is _TIMED_OUT:
+                            poller_logger.warning(
+                                f"Article fetch timed out (>{NEWS_ARTICLE_TIMEOUT_SEC:g}s): {url[:80]}")
+                            skipped_count += 1
+                            continue
                         content = full_article.get('description', '')
                         symbols = full_article.get('symbols', [])
                         if 'error' in full_article or not content:
@@ -317,8 +376,14 @@ async def news_poller_task():
                         analysis = None
                         if _llm_available and article_analyzer:
                             try:
-                                analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
-                                if analysis.get('impact_score', 0) >= 8:
+                                analysis = await asyncio.to_thread(
+                                    _run_sync_with_timeout, article_analyzer.analyze_article,
+                                    (url, headline, content), NEWS_LLM_TIMEOUT_SEC)
+                                if analysis is _TIMED_OUT:
+                                    poller_logger.warning(
+                                        f"LLM analysis timed out (>{NEWS_LLM_TIMEOUT_SEC:g}s): {url[:80]}")
+                                    analysis = None
+                                elif analysis.get('impact_score', 0) >= 8:
                                     high_impact_items.append(item)
                             except Exception as llm_err:
                                 poller_logger.error(f"LLM analysis failed: {llm_err}")

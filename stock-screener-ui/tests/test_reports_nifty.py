@@ -324,7 +324,9 @@ class TestGammaParsing:
         leg = build_leg({"ltp": 1}, {"gamma": 0.001})
         assert set(leg) == {"ltp", "close_price", "oi", "prev_oi",
                             "oi_change", "volume", "price_change",
-                            "sentiment", "gamma"}
+                            "sentiment", "gamma", "delta", "iv"}
+        assert leg["iv"] is None  # absent greeks.iv stays None, not 0.0
+        assert leg["delta"] is None  # absent greeks.delta stays None, not 0.0
 
     def test_parse_chain_picks_option_greeks(self):
         payload = _chain_payload()
@@ -335,6 +337,8 @@ class TestGammaParsing:
         by_strike = {r["strike"]: r for r in rows}
         assert by_strike[22400.0]["ce"]["gamma"] == 0.001
         assert by_strike[22400.0]["pe"]["gamma"] == 0.002
+        assert by_strike[22400.0]["ce"]["delta"] == 0.5
+        assert by_strike[22400.0]["pe"]["delta"] is None  # put greeks had no delta
         # strikes without greeks default to 0.0
         assert by_strike[22300.0]["ce"]["gamma"] == 0.0
         assert by_strike[22300.0]["pe"]["gamma"] == 0.0
