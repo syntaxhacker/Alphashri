@@ -12,6 +12,11 @@ from typing import Dict
 from api.news.news_ws import news_ws_manager, sector_ws_manager
 from api.screener import _sanitize_for_json
 
+#: Max articles per poll cycle that cost an HTTP scrape + an LLM call.
+#: Bounds per-cycle work so the poller can never starve the HTTP server;
+#: skipped items are retried on later cycles (URL dedupe makes that safe).
+NEWS_ARTICLE_BUDGET_PER_CYCLE = int(os.getenv("NEWS_FETCH_BUDGET", "12"))
+
 
 _project_root = None
 _news_available = False
@@ -240,7 +245,7 @@ async def news_poller_task():
 
             results = await asyncio.gather(*[_fetch_source(s) for s in active_sources])
 
-            async def _process_source(source_id: str, items: list):
+            async def _process_source(source_id: str, items: list, fetch_budget: dict):
                 """Process fetched items for a single source."""
                 key = f"_empty_count_{source_id}"
                 if not items:
@@ -287,6 +292,13 @@ async def news_poller_task():
                         existing = persistence.get_article_by_url(url)
                         if existing:
                             continue
+
+                        # Expensive: an HTTP scrape plus an LLM call per item.
+                        # Stop once this cycle's budget is spent; the item stays
+                        # unsaved and is picked up on a later cycle.
+                        if fetch_budget["left"] <= 0:
+                            continue
+                        fetch_budget["left"] -= 1
 
                         full_article = await asyncio.to_thread(fetch_article_content, url)
                         content = full_article.get('description', '')
@@ -336,9 +348,15 @@ async def news_poller_task():
 
                 last_seen_ids[source_id] = current_top_id
 
-            # Process all sources (fetched in parallel above, processed here)
+            # Process all sources (fetched in parallel above, processed here).
+            # Each NEW item costs an HTTP scrape + an LLM call, so the work per
+            # cycle is BUDGETED — processing an unbounded batch (up to ~240
+            # items) saturated the process and starved the HTTP server, making
+            # /api/health time out. Anything skipped stays unsaved and is
+            # retried next cycle, and the URL dedupe below makes that safe.
+            fetch_budget = {"left": NEWS_ARTICLE_BUDGET_PER_CYCLE}
             for source_id, items in results:
-                await _process_source(source_id, items)
+                await _process_source(source_id, items, fetch_budget)
 
         except asyncio.CancelledError:
             poller_logger.info("News poller cancelled")

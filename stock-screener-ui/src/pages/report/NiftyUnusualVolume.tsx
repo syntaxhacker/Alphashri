@@ -193,7 +193,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "#",
       accessorKey: "rank",
       accessorFn: (row) => row.rank,
-      size: 48,
+      size: 34,
       meta: { align: "center" },
       cell: (info) => unusualCell(String(info.getValue())),
     },
@@ -201,7 +201,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Strike",
       accessorKey: "strike",
       accessorFn: (row) => row.strike,
-      size: 88,
+      size: 76,
       meta: { align: "right" },
       cell: (info) => (
         <Box
@@ -223,7 +223,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Leg",
       accessorKey: "leg",
       accessorFn: (row) => row.leg,
-      size: 64,
+      size: 46,
       meta: { align: "center" },
       cell: (info) => legText(info.getValue() as "CE" | "PE"),
     },
@@ -231,7 +231,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "vs top volume",
       accessorKey: "volume",
       accessorFn: (row) => row.volume,
-      size: 260,
+      size: 186,
       meta: { align: "right" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);
@@ -243,7 +243,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
         const fillAlpha = 0.3 + 0.7 * ratio;
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-            <Box sx={{ flex: 1, height: 6, borderRadius: 0, background: hexToRgba(base, 0.12), minWidth: 0 }}>
+            <Box sx={{ flex: 1, height: 5, borderRadius: 0, background: hexToRgba(base, 0.12), minWidth: 0 }}>
               <Box
                 data-testid={`nifty-unusual-bar-${row.strike}-${row.leg}`}
                 data-ratio={ratio.toFixed(3)}
@@ -251,7 +251,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
                 sx={{ height: "100%", borderRadius: 0, background: base }}
               />
             </Box>
-            <Box sx={{ width: 76, flexShrink: 0, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
+            <Box sx={{ width: 58, flexShrink: 0, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
               <Text size="xs" span fw={700}>
                 {formatUnusualCompact(row.volume)}
               </Text>
@@ -264,7 +264,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "OI",
       accessorKey: "oi",
       accessorFn: (row) => row.oi,
-      size: 90,
+      size: 72,
       meta: { align: "right" },
       cell: (info) => unusualCell(formatUnusualCompact(Number(info.getValue()))),
     },
@@ -272,7 +272,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Vol÷OI",
       accessorKey: "volOi",
       accessorFn: (row) => row.volOi ?? -1,
-      size: 80,
+      size: 66,
       meta: { align: "right" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);
@@ -285,7 +285,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Share",
       accessorKey: "share",
       accessorFn: (row) => row.share,
-      size: 80,
+      size: 62,
       meta: { align: "right" },
       cell: (info) => unusualCell(formatUnusualShare(Number(info.getValue()))),
     },
@@ -293,7 +293,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Positioning",
       accessorKey: "sentiment",
       accessorFn: (row) => row.sentiment,
-      size: 130,
+      size: 104,
       meta: { align: "center" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);
@@ -378,29 +378,29 @@ export function NiftyUnusualVolume({ strikes, spot, sx }: { strikes: NiftyStrike
   return (
     <Box
       data-testid="nifty-unusual-panel"
-      sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, background: UNUSUAL_TERM_BG, ...sx }}
+      sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0, background: UNUSUAL_TERM_BG, ...sx }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1, pt: 1 }}>
-        <Text size="sm" fw={700} span>Unusual volume</Text>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 0.75, pt: 0.5, pb: 0.25 }}>
+        <Text size="xs" fw={700} span>Unusual volume</Text>
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
           {pill(legFilter === "all", "C + P", "nifty-unusual-filter-all", () => setLegFilter("all"))}
           {pill(legFilter === "CE", "Calls", "nifty-unusual-filter-ce", () => setLegFilter("CE"))}
           {pill(legFilter === "PE", "Puts", "nifty-unusual-filter-pe", () => setLegFilter("PE"))}
         </Box>
       </Box>
-      <Box data-testid="nifty-unusual-head" sx={{ background: UNUSUAL_TERM_BG, px: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 2, rowGap: 0.5, fontVariantNumeric: "tabular-nums" }}>
+      <Box data-testid="nifty-unusual-head" sx={{ background: UNUSUAL_TERM_BG, px: 0.75 }}>
+        <Box sx={{ display: "flex", alignItems: "baseline", flexWrap: "wrap", columnGap: 1.5, rowGap: 0, fontVariantNumeric: "tabular-nums" }}>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Call vol</Text>
-            <Text data-testid="nifty-unusual-ce-vol" size="sm" span fw={700} c={UNUSUAL_CALL_VOL}>{formatUnusualCompact(totals.ce)}</Text>
+            <Text data-testid="nifty-unusual-ce-vol" size="xs" span fw={700} c={UNUSUAL_CALL_VOL}>{formatUnusualCompact(totals.ce)}</Text>
           </Box>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Put vol</Text>
-            <Text data-testid="nifty-unusual-pe-vol" size="sm" span fw={700} c={UNUSUAL_PUT_VOL}>{formatUnusualCompact(totals.pe)}</Text>
+            <Text data-testid="nifty-unusual-pe-vol" size="xs" span fw={700} c={UNUSUAL_PUT_VOL}>{formatUnusualCompact(totals.pe)}</Text>
           </Box>
           <Box sx={{ display: "flex", alignItems: "baseline", gap: 1 }}>
             <Text size="xs" span c="dimmed" tt="uppercase" fw={600}>Top share</Text>
-            <Text data-testid="nifty-unusual-top-share" size="sm" span fw={700}>{top ? formatUnusualShare(top.share) : "—"}</Text>
+            <Text data-testid="nifty-unusual-top-share" size="xs" span fw={700}>{top ? formatUnusualShare(top.share) : "—"}</Text>
           </Box>
         </Box>
         <Text data-testid="nifty-unusual-caption" size="xs" c="dimmed" ta="left">
@@ -417,8 +417,8 @@ export function NiftyUnusualVolume({ strikes, spot, sx }: { strikes: NiftyStrike
             textOverflow: "ellipsis",
             fontVariantNumeric: "tabular-nums",
             minWidth: 0,
-            px: 1,
-            py: 0.5,
+            px: 0.75,
+            py: 0.25,
             background: "#0A0A0A",
             borderTop: "1px solid #1A1A1A",
             borderBottom: "1px solid #1A1A1A",
@@ -440,8 +440,8 @@ export function NiftyUnusualVolume({ strikes, spot, sx }: { strikes: NiftyStrike
             background: `${UNUSUAL_TERM_BG} !important`,
           },
           "& .paper-tanstack-cell": {
-            paddingTop: "4px",
-            paddingBottom: "4px",
+            paddingTop: "2px",
+            paddingBottom: "2px",
             background: `${UNUSUAL_TERM_BG} !important`,
             borderBottom: "1px solid #1A1A1A !important",
             fontSize: 12,
