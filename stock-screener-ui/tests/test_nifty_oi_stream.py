@@ -13,14 +13,36 @@ from api.reports_api import nifty_oi_stream as oi
 
 
 class TestSafetyDefaults:
-    def test_the_feed_is_off_and_shadowed_by_default(self):
-        """An unvalidated live feed must never enable itself."""
-        assert oi.ENABLED is False
-        assert oi.SHADOW is True
+    def test_default_is_off_and_shadowed_when_the_env_var_is_absent(self):
+        """The CODE default must be off — an unvalidated live feed must never
+        enable itself. (A deployment may set NIFTY_OI_STREAM=1 in .env, so this
+        checks the absent-env behaviour rather than the live value.)"""
+        import importlib
+        import os
+
+        saved = os.environ.pop("NIFTY_OI_STREAM", None)
+        saved_shadow = os.environ.pop("NIFTY_OI_STREAM_SHADOW", None)
+        try:
+            importlib.reload(oi)
+            assert oi.ENABLED is False
+            assert oi.SHADOW is True
+        finally:
+            if saved is not None:
+                os.environ["NIFTY_OI_STREAM"] = saved
+            if saved_shadow is not None:
+                os.environ["NIFTY_OI_STREAM_SHADOW"] = saved_shadow
+            importlib.reload(oi)
 
     def test_window_is_shorter_than_the_tape(self):
         # The whole point: detect sooner than the 60s tape write.
         assert oi.DETECT_WINDOW_SEC < 60
+
+    def test_floor_is_calibrated_for_single_strikes_not_the_index(self):
+        """Measured 2026-10-14: max 20s per-strike |dOI| = 80,340 in a quiet
+        window, so an index-sized floor (2M/min) could never fire."""
+        assert oi.STRIKE_MIN_ABS_PER_MIN <= 500_000
+        gate = oi.scaled_floor(oi.STRIKE_MIN_ABS_PER_MIN, oi.DETECT_WINDOW_SEC) * 3
+        assert 100_000 <= gate <= 500_000
 
 
 class TestScaledFloor:
@@ -94,7 +116,7 @@ class TestDetectOiTicks:
         assert b["source"] == "ws"
 
     def test_a_move_under_the_scaled_floor_is_rejected(self):
-        pts = self._flat_history() + [(200, 100_000)]   # < 666k floor
+        pts = self._flat_history() + [(200, 40_000)]    # < 66.7k floor
         assert oi.detect_oi_ticks(self._series(pts), window_sec=20) == []
 
     def test_warmup_is_required(self):
@@ -111,21 +133,22 @@ class TestDetectOiTicks:
         assert out and out[0]["side"] == "put" and out[0]["leg"] == "PE"
 
     def test_severity_ladder(self):
-        # threshold = floor(666,667) x tier -> watch >= ~2.0M, critical >= ~5.3M
-        weak = oi.detect_oi_ticks(self._series(self._flat_history() + [(200, 2_200_000)]),
+        # floor(20s) = 66,667 -> watch needs ~200k, critical ~533k
+        weak = oi.detect_oi_ticks(self._series(self._flat_history() + [(200, 250_000)]),
                                   window_sec=20)
-        crit = oi.detect_oi_ticks(self._series(self._flat_history() + [(200, 20_000_000)]),
+        crit = oi.detect_oi_ticks(self._series(self._flat_history() + [(200, 2_000_000)]),
                                   window_sec=20)
         assert weak and weak[0]["severity"] == "watch"
         assert crit and crit[0]["severity"] == "critical"
 
     def test_a_noisy_baseline_raises_the_bar(self):
         """A series that always moves 2M/20s must not alert on another 2M move."""
-        noisy = [(t, (t // 5) * 2_000_000) for t in range(0, 181, 5)] + [(200, 75_000_000)]
-        quiet = self._flat_history() + [(200, 2_500_000)]
+        noisy = [(t, (t // 5) * 250_000) for t in range(0, 181, 5)] + [(200, 9_000_000)]
+        quiet = self._flat_history() + [(200, 300_000)]
         assert oi.detect_oi_ticks(self._series(quiet), window_sec=20) != []
-        # same 2.5M move would clear the floor, but the noisy series scores ~1x
-        mid = oi.detect_oi_ticks(self._series(noisy[:-1] + [(200, noisy[-2][1] + 2_500_000)]),
+        # the same 300k move clears the floor, but on the noisy series it is
+        # ~1x the baseline, so the score gate rejects it
+        mid = oi.detect_oi_ticks(self._series(noisy[:-1] + [(200, noisy[-2][1] + 300_000)]),
                                  window_sec=20)
         assert mid == []
 

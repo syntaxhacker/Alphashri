@@ -102,11 +102,19 @@ def select_atm_contracts(
     return kept
 
 
+#: Per-strike floor per minute. CALIBRATED, not guessed: on 2026-10-14 a quiet
+#: 150s window showed a maximum 20s per-strike |ΔOI| of 80,340 with a median of
+#: 0, so the index-scale floor (2M/min) could never fire on a single strike.
+#: 200k/min -> 66.7k per 20s -> an effective watch gate of ~200k per 20s, i.e.
+#: ~2.5x the quiet maximum. Re-measure and re-tune if the OI scale changes.
+STRIKE_MIN_ABS_PER_MIN = 200_000.0
+
+
 def detect_oi_ticks(
     series: dict[tuple[float, str], list[tuple[float, float]]],
     *,
     window_sec: float = DETECT_WINDOW_SEC,
-    min_abs_per_min: float = 2_000_000.0,
+    min_abs_per_min: float = STRIKE_MIN_ABS_PER_MIN,
     warmup: int = 3,
     tiers: tuple[float, float, float] = (3.0, 5.0, 8.0),
 ) -> list[dict[str, Any]]:
@@ -116,6 +124,10 @@ def detect_oi_ticks(
     samples. For the newest sample the delta over ``window_sec`` is compared
     with the median of the previous deltas of the same span; a hit needs both
     the scaled absolute floor and a score above the watch tier.
+
+    The default floor is per-strike and measured (see
+    ``STRIKE_MIN_ABS_PER_MIN``), not the index floor: a single strike's whole OI
+    is often under 1M, so an index-sized floor could never fire here.
     """
     watch, alert, critical = tiers
     floor = scaled_floor(min_abs_per_min, window_sec)
