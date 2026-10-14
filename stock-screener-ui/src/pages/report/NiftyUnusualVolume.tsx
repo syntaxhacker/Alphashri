@@ -193,7 +193,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "#",
       accessorKey: "rank",
       accessorFn: (row) => row.rank,
-      size: 34,
+      size: 30,
       meta: { align: "center" },
       cell: (info) => unusualCell(String(info.getValue())),
     },
@@ -201,37 +201,37 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Strike",
       accessorKey: "strike",
       accessorFn: (row) => row.strike,
-      size: 76,
+      size: 92,
       meta: { align: "right" },
-      cell: (info) => (
-        <Box
-          component="span"
-          sx={{
-            display: "block",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            fontVariantNumeric: "tabular-nums",
-          }}
-        >
-          <Text size="xs" span fw={700}>
-            {Number(info.getValue()).toLocaleString("en-IN")}
-          </Text>
-        </Box>
-      ),
+      // Strike and leg share one cell: the leg is just a suffix, and a separate
+      // column cost 46px the narrow panel cannot spare (TanStackTable forces
+      // minWidth = visibleColumnCount x 96).
+      cell: (info) => {
+        const row = info.row.original as UnusualLegRow;
+        const tone = row.leg === "CE" ? UNUSUAL_CE : UNUSUAL_PE;
+        return (
+          <Box
+            component="span"
+            sx={{
+              display: "flex",
+              alignItems: "baseline",
+              justifyContent: "flex-end",
+              gap: 0.5,
+              overflow: "hidden",
+              fontVariantNumeric: "tabular-nums",
+            }}
+          >
+            <Text size="xs" span fw={700}>{row.strike.toLocaleString("en-IN")}</Text>
+            <Text size="xs" span fw={700} c={tone}>{row.leg}</Text>
+          </Box>
+        );
+      },
     },
     {
-      header: "Leg",
-      accessorKey: "leg",
-      accessorFn: (row) => row.leg,
-      size: 46,
-      meta: { align: "center" },
-      cell: (info) => legText(info.getValue() as "CE" | "PE"),
-    },
-    {
-      header: "vs top volume",
+      header: "Vol",
       accessorKey: "volume",
       accessorFn: (row) => row.volume,
-      size: 186,
+      size: 150,
       meta: { align: "right" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);
@@ -264,7 +264,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "OI",
       accessorKey: "oi",
       accessorFn: (row) => row.oi,
-      size: 72,
+      size: 62,
       meta: { align: "right" },
       cell: (info) => unusualCell(formatUnusualCompact(Number(info.getValue()))),
     },
@@ -272,7 +272,7 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       header: "Vol÷OI",
       accessorKey: "volOi",
       accessorFn: (row) => row.volOi ?? -1,
-      size: 66,
+      size: 56,
       meta: { align: "right" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);
@@ -282,18 +282,10 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
       },
     },
     {
-      header: "Share",
-      accessorKey: "share",
-      accessorFn: (row) => row.share,
-      size: 62,
-      meta: { align: "right" },
-      cell: (info) => unusualCell(formatUnusualShare(Number(info.getValue()))),
-    },
-    {
-      header: "Positioning",
+      header: "Position",
       accessorKey: "sentiment",
       accessorFn: (row) => row.sentiment,
-      size: 104,
+      size: 94,
       meta: { align: "center" },
       cell: (info) => {
         const row = (info.row.original as UnusualLegRow);

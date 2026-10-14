@@ -967,7 +967,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               minWidth: 0,
             }}
           >
-          <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ flex: "2.6 1 780px", minWidth: 0, background: "#000000", borderColor: "#1A1A1A" }}>
+          <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ flex: "2 1 800px", minWidth: 0, background: "#000000", borderColor: "#1A1A1A" }}>
             {tape && tape.rows.length > 0 ? (
               <NiftyTapeTable rows={tape.rows} tape={tape} live={mode === "live"} bursts={burstMap} />
             ) : (
@@ -983,7 +983,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <CompactPanel
             padded={false}
             testId="nifty-unusual-panel-wrap"
-            sx={{ flex: "1 1 330px", minWidth: 0, background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
+            sx={{ flex: "1 1 660px", minWidth: "min(640px, 100%)", background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
           >
             <NiftyUnusualVolume strikes={report.strikes} spot={report.spot} sx={{ flex: "1 1 620px", minWidth: 0 }} />
           </CompactPanel>

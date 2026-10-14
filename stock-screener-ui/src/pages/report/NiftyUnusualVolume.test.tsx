@@ -185,7 +185,9 @@ describe("unusual sentiment + ITM helpers", () => {
 
   test("every column declares explicit meta.align and a fixed width", () => {
     const cols = getNiftyUnusualColumns(1000);
-    expect(cols.length).toBe(8);
+    // 6, not 8: the leg is merged into the strike cell and Share moved to
+    // the focus strip, so the table fits a narrow panel.
+    expect(cols.length).toBe(6);
     for (const col of cols) {
       const meta = (col as { meta?: { align?: string } }).meta;
       expect(meta?.align).toMatch(/^(left|center|right)$/);
@@ -198,11 +200,9 @@ describe("unusual sentiment + ITM helpers", () => {
     );
     expect(byKey.get("rank")).toBe("center");
     expect(byKey.get("strike")).toBe("right");
-    expect(byKey.get("leg")).toBe("center");
     expect(byKey.get("volume")).toBe("right");
     expect(byKey.get("oi")).toBe("right");
     expect(byKey.get("volOi")).toBe("right");
-    expect(byKey.get("share")).toBe("right");
     expect(byKey.get("sentiment")).toBe("center");
   });
 });
