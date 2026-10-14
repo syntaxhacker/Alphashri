@@ -13,7 +13,7 @@ import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { NiftyDepthMap } from "./NiftyDepthMap";
 import { NiftyTapeTable } from "./NiftyTapeTable";
-import { NiftyUnusualVolume } from "./NiftyUnusualVolume";
+import { NiftyUnusualVolume, UNUSUAL_TERM_BG, UNUSUAL_TERM_BORDER } from "./NiftyUnusualVolume";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { detectOiBursts, sessionTrend } from "./niftyOiBursts";
@@ -977,9 +977,16 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             )}
           </CompactPanel>
 
-          <Box sx={{ flex: "1 1 620px", minWidth: 0, background: "#000000", border: "1px solid #1A1A1A", borderRadius: 8, overflow: "hidden" }}>
+          {/* Same CompactPanel chrome as the tape beside it. Previously a bare
+              Box with borderRadius:8, which MUI multiplies by
+              theme.shape.borderRadius (8) -> a 64px radius. */}
+          <CompactPanel
+            padded={false}
+            testId="nifty-unusual-panel-wrap"
+            sx={{ flex: "1 1 620px", minWidth: 0, background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
+          >
             <NiftyUnusualVolume strikes={report.strikes} spot={report.spot} sx={{ flex: "1 1 620px", minWidth: 0 }} />
-          </Box>
+          </CompactPanel>
           </Box>
 
           {trail.length > 0 && (

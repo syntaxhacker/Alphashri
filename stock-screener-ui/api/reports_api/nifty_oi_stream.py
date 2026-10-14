@@ -300,13 +300,22 @@ async def nifty_oi_stream_task() -> None:
             _run_ws(key_map, q, closed)
 
             deadline = time.time() + RESOLVE_EVERY_SEC
+            next_eval = time.time() + SAMPLE_SEC
             while time.time() < deadline and not closed.is_set():
                 try:
                     tick = q.get_nowait()
                 except thr_queue.Empty:
-                    await asyncio.sleep(SAMPLE_SEC / 2)
+                    await asyncio.sleep(0.25)
                     continue
                 rings.push(tick["strike"], tick["leg"], tick["ts"], tick["oi"])
+
+                # Evaluate on a CADENCE, not per tick. The feed delivers ~29
+                # updates/sec across the keys; scoring every one re-copied every
+                # ring and ran medians 29x/sec, which starved the event loop and
+                # made the whole API (including /health) unresponsive.
+                if time.time() < next_eval:
+                    continue
+                next_eval = time.time() + SAMPLE_SEC
 
                 events = detect_oi_ticks(rings.snapshot(), window_sec=DETECT_WINDOW_SEC)
                 if not events:

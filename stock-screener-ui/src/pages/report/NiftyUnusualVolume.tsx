@@ -108,6 +108,7 @@ export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): s
  * pitch-black desk, CE blue / PE orange bars, plain bold positioning text.
  */
 export const UNUSUAL_TERM_BG = "#000000";
+export const UNUSUAL_TERM_BORDER = "#1A1A1A";
 export const UNUSUAL_CE = "#5B9CF6";
 export const UNUSUAL_PE = "#F2A65A";
 export const UNUSUAL_CALL_VOL = "#5B9CF6";
@@ -242,12 +243,12 @@ export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>
         const fillAlpha = 0.3 + 0.7 * ratio;
         return (
           <Box sx={{ display: "flex", alignItems: "center", gap: 1, minWidth: 0 }}>
-            <Box sx={{ flex: 1, height: 6, borderRadius: 1, background: hexToRgba(base, 0.12), minWidth: 0 }}>
+            <Box sx={{ flex: 1, height: 6, borderRadius: 0, background: hexToRgba(base, 0.12), minWidth: 0 }}>
               <Box
                 data-testid={`nifty-unusual-bar-${row.strike}-${row.leg}`}
                 data-ratio={ratio.toFixed(3)}
                 style={{ width: `${pct}%`, opacity: fillAlpha }}
-                sx={{ height: "100%", borderRadius: 1, background: base }}
+                sx={{ height: "100%", borderRadius: 0, background: base }}
               />
             </Box>
             <Box sx={{ width: 76, flexShrink: 0, textAlign: "right", fontVariantNumeric: "tabular-nums" }}>
