@@ -409,3 +409,27 @@ describe("NiftyReportPanel unusual-volume wiring", () => {
     expect(tape.compareDocumentPosition(unusual) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
   });
 });
+
+describe("last / next update stamp", () => {
+  const T = Date.parse("2026-10-14T12:03:15+05:30");
+
+  test("shows upd + next and keeps the rank caption", () => {
+    r(
+      <NiftyUnusualVolume
+        spot={25750}
+        strikes={[strikeAt(25700, side(9_000, 1_000, "LB"), side(8_000, 1_000, "SB"))]}
+        updatedAtMs={T}
+        nextUpdateAtMs={T + 30_000}
+      />,
+    );
+    const el = screen.getByTestId("nifty-unusual-updated");
+    expect(el).toHaveTextContent("upd 12:03:15");
+    expect(el).toHaveTextContent("next 12:03:45");
+    expect(screen.getByTestId("nifty-unusual-caption")).toHaveTextContent("ranked by Vol÷OI");
+  });
+
+  test("no stamp when no refresh time is supplied", () => {
+    r(<NiftyUnusualVolume spot={25750} strikes={[strikeAt(25700)]} />);
+    expect(screen.queryByTestId("nifty-unusual-updated")).not.toBeInTheDocument();
+  });
+});

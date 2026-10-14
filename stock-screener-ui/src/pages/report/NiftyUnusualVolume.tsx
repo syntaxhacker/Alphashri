@@ -317,7 +317,27 @@ export function formatUnusualFocus(row: UnusualLegRow, spot: number): string {
   return `${strike} ${row.leg} · VOL ${vol} · OI ${oi} · VOL÷OI ${ratio} · SHARE ${share} · VS SPOT ${vs} · ${positioning}`;
 }
 
-export function NiftyUnusualVolume({ strikes, spot, sx }: { strikes: NiftyStrike[]; spot: number; sx?: CSSProperties }) {
+
+/** IST HH:MM:SS for an epoch-ms value — host-TZ independent. */
+function clock(ms: number): string {
+  if (!Number.isFinite(ms)) return "—";
+  return new Date(ms).toLocaleTimeString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" });
+}
+
+export function NiftyUnusualVolume({
+  strikes,
+  spot,
+  sx,
+  updatedAtMs = null,
+  nextUpdateAtMs = null,
+}: {
+  strikes: NiftyStrike[];
+  spot: number;
+  sx?: CSSProperties;
+  /** Epoch ms of the last successful refresh, and of the next scheduled one. */
+  updatedAtMs?: number | null;
+  nextUpdateAtMs?: number | null;
+}) {
   const [legFilter, setLegFilter] = useState<UnusualLegFilter>("all");
   const rows = useMemo(() => buildUnusualRows(strikes), [strikes]);
   const totals = useMemo(() => {
@@ -395,9 +415,24 @@ export function NiftyUnusualVolume({ strikes, spot, sx }: { strikes: NiftyStrike
             <Text data-testid="nifty-unusual-top-share" size="xs" span fw={700}>{top ? formatUnusualShare(top.share) : "—"}</Text>
           </Box>
         </Box>
-        <Text data-testid="nifty-unusual-caption" size="xs" c="dimmed" ta="left">
-          Volume + OI (rank) · ranked by Vol÷OI · {rows.length} legs
-        </Text>
+        <Box sx={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 1 }}>
+          <Text data-testid="nifty-unusual-caption" size="xs" c="dimmed" ta="left" span>
+            ranked by Vol÷OI · {rows.length} legs
+          </Text>
+          {updatedAtMs !== null && (
+            <Text
+              data-testid="nifty-unusual-updated"
+              size="xs"
+              c="dimmed"
+              span
+              noWrap
+              sx={{ fontVariantNumeric: "tabular-nums", flexShrink: 0 }}
+            >
+              upd {clock(updatedAtMs)}
+              {nextUpdateAtMs !== null ? ` · next ${clock(nextUpdateAtMs)}` : ""}
+            </Text>
+          )}
+        </Box>
       </Box>
       {top && (
         <Box

@@ -261,6 +261,17 @@ export function formatGexLevel(strike: number, netGex: number): string {
 
 /** Live poll cadence; backend `/live` already caches for 60s. */
 const LIVE_POLL_MS = 30_000;
+
+/** Current poll delay including the failure backoff (ms). */
+function pollDelayMs(failures: number): number {
+  return failures <= 0
+    ? LIVE_POLL_MS
+    : failures === 1
+      ? 15_000
+      : failures === 2
+        ? 30_000
+        : 60_000;
+}
 /** Data older than this is shown with a stale badge instead of an error. */
 const STALE_AFTER_MS = 90_000;
 
@@ -505,8 +516,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // the tab is hidden or a fetch is in flight — never piled up.
   useEffect(() => {
     if (mode !== "live") return;
-    const delay =
-      failures <= 0 ? LIVE_POLL_MS : failures === 1 ? 15_000 : failures === 2 ? 30_000 : 60_000;
+    const delay = pollDelayMs(failures);
     const id = setInterval(() => {
       setNowMs(Date.now());
       if (document.hidden) return;
@@ -685,6 +695,13 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     }, 1000);
     return () => clearTimeout(id);
   }, [replayCursor, trail, pushToast]);
+
+  // "Next update" mirrors the live poll schedule (EOD does not poll).
+  const liveDelay = mode === "live" ? pollDelayMs(failures) : 0;
+  const nextUpdateAtMs =
+    mode === "live" && updatedAtMs !== null && liveDelay > 0
+      ? updatedAtMs + liveDelay
+      : null;
 
   const staleAgeMs = updatedAtMs === null ? 0 : nowMs - updatedAtMs;
   const isStale = mode === "live" && updatedAtMs !== null && staleAgeMs > STALE_AFTER_MS;
@@ -969,7 +986,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           >
           <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ flex: "2 1 800px", minWidth: 0, background: "#000000", borderColor: "#1A1A1A" }}>
             {tape && tape.rows.length > 0 ? (
-              <NiftyTapeTable rows={tape.rows} tape={tape} live={mode === "live"} bursts={burstMap} />
+              <NiftyTapeTable
+                rows={tape.rows}
+                tape={tape}
+                live={mode === "live"}
+                bursts={burstMap}
+                updatedAtMs={mode === "live" ? updatedAtMs : null}
+                nextUpdateAtMs={nextUpdateAtMs}
+              />
             ) : (
               <Text data-testid="nifty-tape-empty" size="sm" c="dimmed">
                 Tape starts recording at next market open.
@@ -985,7 +1009,13 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             testId="nifty-unusual-panel-wrap"
             sx={{ flex: "1 1 660px", minWidth: "min(640px, 100%)", background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
           >
-            <NiftyUnusualVolume strikes={report.strikes} spot={report.spot} sx={{ flex: "1 1 620px", minWidth: 0 }} />
+            <NiftyUnusualVolume
+              strikes={report.strikes}
+              spot={report.spot}
+              sx={{ flex: "1 1 620px", minWidth: 0 }}
+              updatedAtMs={mode === "live" ? updatedAtMs : null}
+              nextUpdateAtMs={nextUpdateAtMs}
+            />
           </CompactPanel>
           </Box>
 

@@ -16,6 +16,7 @@ import {
   formatTapePrice,
   formatTapeRatio,
   formatTapeSigned,
+  formatIstClock,
   formatTapeTime,
   getNiftyTapeColumns,
   getTapeBaseline,
@@ -556,5 +557,39 @@ describe("tape burst spine", () => {
     r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
     const legend = screen.getByTestId("nifty-tape-heat-legend");
     expect(within(legend).getByTestId("nifty-tape-burst-legend")).toHaveTextContent("burst minute");
+  });
+});
+
+describe("last / next update stamps", () => {
+  const T = Date.parse("2026-10-14T12:03:15+05:30");
+  const N = T + 30_000;
+
+  test("formatIstClock renders IST HH:MM:SS host-TZ independently", () => {
+    expect(formatIstClock(T)).toBe("12:03:15");
+    expect(formatIstClock(Date.parse("2026-10-14T06:33:15Z"))).toBe("12:03:15");
+    expect(formatIstClock(NaN)).toBe("—");
+  });
+
+  test("the tape header shows upd + next when a refresh time is supplied", () => {
+    r(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15" })]}
+        updatedAtMs={T}
+        nextUpdateAtMs={N}
+      />,
+    );
+    const el = screen.getByTestId("nifty-tape-updated");
+    expect(el).toHaveTextContent("upd 12:03:15");
+    expect(el).toHaveTextContent("next 12:03:45");
+  });
+
+  test("no stamp without a refresh time, and next is optional", () => {
+    const { rerender } = r(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} />);
+    expect(screen.queryByTestId("nifty-tape-updated")).not.toBeInTheDocument();
+
+    rerender(<NiftyTapeTable rows={[tapeRow({ t: "09:15" })]} updatedAtMs={T} />);
+    const el = screen.getByTestId("nifty-tape-updated");
+    expect(el).toHaveTextContent("upd 12:03:15");
+    expect(el).not.toHaveTextContent("next");
   });
 });

@@ -585,11 +585,23 @@ export function buildTapeHead(rows: NiftyTapeRow[], tape?: NiftyTape): {
   };
 }
 
+
+/** IST HH:MM:SS for an epoch-ms value — host-TZ independent. */
+export function formatIstClock(ms: number): string {
+  if (!Number.isFinite(ms)) return "—";
+  return new Date(ms).toLocaleTimeString("en-IN", {
+    hour12: false,
+    timeZone: "Asia/Kolkata",
+  });
+}
+
 export function NiftyTapeTable({
   rows,
   tape,
   live = false,
   bursts,
+  updatedAtMs = null,
+  nextUpdateAtMs = null,
 }: {
   rows: NiftyTapeRow[];
   tape?: NiftyTape;
@@ -597,6 +609,9 @@ export function NiftyTapeTable({
   live?: boolean;
   /** Minute → side that triggered an OI burst (marks the row with a spine). */
   bursts?: Map<string, "call" | "put">;
+  /** Epoch ms of the last successful refresh, and of the next scheduled one. */
+  updatedAtMs?: number | null;
+  nextUpdateAtMs?: number | null;
 }) {
   const [order, setOrder] = useState<"newest" | "oldest">("newest");
   // Live tick feedback: which minute just arrived (row flash) and which
@@ -699,6 +714,18 @@ export function NiftyTapeTable({
           <Text size="xs" c="dimmed" ta="left" span>
             TICKS {rows.length} · one per minute
           </Text>
+          {updatedAtMs !== null && (
+            <Text
+              data-testid="nifty-tape-updated"
+              size="xs"
+              c="dimmed"
+              span
+              sx={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              upd {formatIstClock(updatedAtMs)}
+              {nextUpdateAtMs !== null ? ` · next ${formatIstClock(nextUpdateAtMs)}` : ""}
+            </Text>
+          )}
           <Text size="xs" c="dimmed" span>
             SPOT {formatTapePrice(session.spotLo)}–{formatTapePrice(session.spotHi)}
           </Text>
