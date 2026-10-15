@@ -64,6 +64,16 @@ async function expectTradingViewChart(page: Page, timeout: number = 10000) {
   });
 }
 
+// The chart controls migrated from native <select> to a MUI Select wrapper
+// (see src/ui/inputs/Select.tsx): the data-testid sits on the FormControl
+// div, the current value renders as [role="combobox"], and options open in a
+// Menu portal as [role="option"]. locator.selectOption() cannot drive it.
+async function selectMuiSelectOption(page: Page, testId: string, optionName: string) {
+  await page.locator(`[data-testid="${testId}"] [role="combobox"]`).click();
+  // exact: option labels overlap as substrings ("5m" is inside "15m").
+  await page.getByRole("option", { name: optionName, exact: true }).click();
+}
+
 test.describe("Chart Preview - ORB Strategy Levels", () => {
   test("should display chart with ORB data", async ({ page }) => {
     await setupChartPreviewMock(page, {
@@ -171,25 +181,28 @@ test.describe("Chart Preview - Trade Markers", () => {
 });
 
 test.describe("Chart Preview - Timeframe Switching", () => {
+  // `option` is the dropdown label (TIMEFRAMES in src/config/constants.ts —
+  // note 60 renders as "1h"); the footer always renders the numeric value as
+  // `TF: <n>m` (ChartFooter).
   const timeframes = [
-    { value: "1", label: "1m" },
-    { value: "5", label: "5m" },
-    { value: "15", label: "15m" },
-    { value: "30", label: "30m" },
-    { value: "60", label: "60m" },
+    { value: "1", option: "1m" },
+    { value: "5", option: "5m" },
+    { value: "15", option: "15m" },
+    { value: "30", option: "30m" },
+    { value: "60", option: "1h" },
   ];
 
   for (const tf of timeframes) {
-    test(`should switch to ${tf.label} timeframe`, async ({ page }) => {
+    test(`should switch to ${tf.option} timeframe`, async ({ page }) => {
       await setupChartPreviewMock(page, { symbol: "RELIANCE" });
       await gotoChart(page, "RELIANCE");
       await expectChartVisible(page);
       const tfSelect = page.locator('[data-testid="chart-timeframe-select"]');
       await expect(tfSelect).toBeVisible();
-      await tfSelect.selectOption(tf.value);
+      await selectMuiSelectOption(page, "chart-timeframe-select", tf.option);
       await expectChartVisible(page, 5000);
       const footer = page.locator('[data-testid="chart-footer"]');
-      await expect(footer).toContainText(`TF: ${tf.label}`);
+      await expect(footer).toContainText(`TF: ${tf.value}m`);
     });
   }
 
@@ -223,8 +236,7 @@ test.describe("Chart Preview - Timeframe Switching", () => {
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
     const initialCount = requestCount;
-    const tfSelect = page.locator('[data-testid="chart-timeframe-select"]');
-    await tfSelect.selectOption("30");
+    await selectMuiSelectOption(page, "chart-timeframe-select", "30m");
     await expectChartVisible(page, 5000);
     expect(requestCount).toBeGreaterThan(initialCount);
   });
@@ -240,8 +252,9 @@ test.describe("Chart Preview - OR Minutes Setting", () => {
     await expectChartVisible(page);
     const orSelect = page.locator('[data-testid="chart-or-select"]');
     await expect(orSelect).toBeVisible();
-    await orSelect.selectOption("30");
+    await selectMuiSelectOption(page, "chart-or-select", "OR 30m");
     await expectChartVisible(page, 5000);
+    await expect(page.locator('[data-testid="chart-footer"]')).toContainText("OR: 30m");
   });
 });
 
@@ -272,8 +285,10 @@ test.describe("Chart Preview - Combined Overlays (All Strategy Types)", () => {
     });
     await gotoChart(page, "RELIANCE");
     await expectChartVisible(page);
-    // Toggle 52W high line on (defaults to off)
-    await page.locator('[data-testid="chart-52w-checkbox-wrapper"]').click();
+    // The 52W Checkbox renders with a label, so the ui/Checkbox wrapper
+    // exposes -group/-label siblings (no -wrapper element). Toggle via the
+    // label like a user would; the data-testid itself is on the input.
+    await page.locator('[data-testid="chart-52w-checkbox-label"]').click();
     await expect(page.locator('[data-testid="chart-52w-checkbox"]')).toBeChecked();
     await expectTradingViewChart(page);
     await expect(page.locator('[data-testid="chart-footer"]')).toContainText("52W High");
