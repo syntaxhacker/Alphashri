@@ -2,6 +2,8 @@ import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import { ScrollArea, ToolbarRow } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
+import { OptionChainHeader } from "./OptionChain/OptionChainHeader";
+import { OptionChainFilters } from "./OptionChain/OptionChainFilters";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
 import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
 import { PositioningPanel } from "./Positioning/PositioningPanel";
@@ -76,6 +78,33 @@ export function OptionsPage({
         <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
       </ToolbarRow>
 
+      {/* Chain controls live in the options toolbar (not the chain panel) so
+          they stay mounted across chain/positions/premium tabs. */}
+      <ToolbarRow
+        id="options-chain-controls-bar"
+        gap={8}
+        justify="flex-start"
+        style={{
+          paddingLeft: 12,
+          paddingRight: 12,
+          paddingTop: 4,
+          paddingBottom: 4,
+          borderBottom: "1px solid var(--mui-palette-divider)",
+          width: "100%",
+          flexShrink: 0,
+        }}
+      >
+        <OptionChainHeader
+          selectedUnderlying={selectedUnderlying}
+          selectedExpiry={selectedExpiry}
+          setUnderlying={setUnderlying}
+          setExpiry={setExpiry}
+          availableUnderlyings={availableUnderlyings}
+          availableExpiries={availableExpiries}
+        />
+        <OptionChainFilters filters={filters} setFilters={setFilters} />
+      </ToolbarRow>
+
       <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", flexDirection: "column" }}>
         <ScrollArea h="100%" offsetScrollbars>
           {activeTab === "chain" && (
@@ -86,12 +115,7 @@ export function OptionsPage({
                 error={error}
                 filters={filters}
                 spotPrice={spotPrice}
-                setUnderlying={setUnderlying}
-                setExpiry={setExpiry}
-                setFilters={setFilters}
                 refreshChain={refreshChain}
-                availableUnderlyings={availableUnderlyings}
-                availableExpiries={availableExpiries}
                 strikeMatrix={strikeMatrix}
                 timestamp={timestamp}
                 summary={summary}
