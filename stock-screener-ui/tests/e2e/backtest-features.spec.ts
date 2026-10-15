@@ -12,6 +12,7 @@ import {
   mockBacktestHistory,
   selectSymbolFromMultiselect,
   withTradeHistoryPanel,
+  ensureResultsPanelOpen,
 } from "./helpers/backtestHelpers";
 
 const mockBacktestResults = {
@@ -455,6 +456,7 @@ test.describe("Backtest Features", () => {
   test.describe("Empty State", () => {
     test("@smoke should show empty state when no results", async ({ page }) => {
       await gotoBacktest(page);
+      await ensureResultsPanelOpen(page);
       await expect(page.locator('[data-testid="results-empty"]')).toBeVisible();
     });
   });
@@ -601,6 +603,7 @@ test.describe("Backtest Features", () => {
       await expect(resetBtn).toBeVisible({ timeout: 5000 });
       await resetBtn.click();
 
+      await ensureResultsPanelOpen(page);
       await expect(page.locator('[data-testid="results-empty"]')).toBeVisible({ timeout: 5000 });
     });
   });
