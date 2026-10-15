@@ -135,7 +135,7 @@ class TestFetch52wHighDataDropsEtf:
         ), patch(
             'api.screener_api.screener_52w._enrich_with_touch_history',
         ):
-            data = fetch_52w_high_data(provider='other', profile_filters=None)
+            data = fetch_52w_high_data(provider='other', profile_filters={'min_turnover_cr': 0})
         symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
         assert 'LIQUIDBEES' not in symbols
         assert 'RELIANCE' in symbols
@@ -148,6 +148,6 @@ class TestFetch52wHighDataDropsEtf:
         ), patch(
             'api.screener_api.screener_52w._enrich_with_touch_history',
         ):
-            data = fetch_52w_high_data(provider='other', profile_filters=None)
+            data = fetch_52w_high_data(provider='other', profile_filters={'min_turnover_cr': 0})
         symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
         assert 'LIQUIDBEES' in symbols

@@ -567,8 +567,13 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             if not touched_52w and est_days is not None:
                 stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
 
+            # Enrichment only: touch-recency is a nicety, so a bar-lookup
+            # failure must never drop an otherwise-valid row.
             if use_52w_buckets and tv_52w_high > 0:
-                touch_days = _days_since_touch(api, symbol, tv_52w_high)
+                try:
+                    touch_days = _days_since_touch(api, symbol, tv_52w_high)
+                except Exception:
+                    touch_days = None
                 if touch_days is not None:
                     stock_data['days_since_touch'] = touch_days
                     stock_data['approach_type'] = classify_approach(touched_52w, touch_days)

@@ -230,7 +230,7 @@ class TestUnmappedSymbolsDropped:
         ), patch(
             'api.screener_api.screener_52w._fetch_90d_daily', return_value=None,
         ):
-            data = fetch_52w_high_data(provider='upstox', profile_filters=None)
+            data = fetch_52w_high_data(provider='upstox', profile_filters={'min_turnover_cr': 0})
         symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
         assert 'DAICHI' not in symbols
         assert 'RELIANCE' in symbols
@@ -248,7 +248,7 @@ class TestUnmappedSymbolsDropped:
         ), patch(
             'api.screener_api.screener_52w._enrich_with_touch_history',
         ):
-            data = fetch_52w_high_data(provider='other', profile_filters=None)
+            data = fetch_52w_high_data(provider='other', profile_filters={'min_turnover_cr': 0})
         symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
         assert 'DAICHI' in symbols
 

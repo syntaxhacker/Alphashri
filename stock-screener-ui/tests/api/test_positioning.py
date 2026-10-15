@@ -208,7 +208,9 @@ class TestPositioningEndpoint:
             assert key in data, f"missing key {key}"
         assert data["underlying"] == "NIFTY"
         assert data["mode"] == "since_open"
-        assert data["lot_size"] == 25  # NIFTY lookup
+        # 65, not 25: nifty.py's compute_gex already used 65, and 23 consecutive real
+    # exchange prints were every one an exact multiple of 65 (GCD == 65).
+    assert data["lot_size"] == 65  # NIFTY lookup
         assert data["baseline"] == "prev_close_oi"
         assert data["verdict"] == "bearish"
         assert data["initiated_cr"] == pytest.approx(-8.125)

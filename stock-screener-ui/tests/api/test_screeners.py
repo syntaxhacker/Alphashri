@@ -1276,7 +1276,7 @@ class TestUpstox52wGap:
         }
         result = fetch_screener_data(
             provider='upstox', mode='intraday', screener='52w_high',
-            profile_filters={'max_52w_gap': 10},
+            profile_filters={'max_52w_gap': 10, 'min_turnover_cr': 0},
         )
         symbols = {s['symbol'] for s in result['approaching'] + result['touched']}
         assert 'GOOD' in symbols
