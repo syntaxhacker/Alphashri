@@ -1,4 +1,4 @@
-import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, ToolbarRow } from "@/ui";
+import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip } from "@/ui";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import {
@@ -12,8 +12,6 @@ import {
 import { useDisclosure } from "@/ui";
 import dayjs from "dayjs";
 import { useChainLivePolling } from "../../../hooks/useChainLivePolling";
-import { OptionChainHeader } from "./OptionChainHeader";
-import { OptionChainFilters } from "./OptionChainFilters";
 import { OptionChainTable } from "./OptionChainTable";
 import { ChainSummary } from "./ChainSummary";
 import { OIAnalysis } from "./OIAnalysis";
@@ -27,12 +25,7 @@ interface OptionChainPanelProps {
   error: string | null;
   filters: any;
   spotPrice: number | null;
-  setUnderlying: (u: string) => void;
-  setExpiry: (e: string) => void;
-  setFilters: (f: any) => void;
   refreshChain: () => void;
-  availableUnderlyings: string[];
-  availableExpiries: string[];
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
   timestamp?: string;
   summary?: any;
@@ -45,12 +38,7 @@ export function OptionChainPanel({
   error,
   filters,
   spotPrice,
-  setUnderlying,
-  setExpiry,
-  setFilters,
   refreshChain,
-  availableUnderlyings,
-  availableExpiries,
   strikeMatrix,
   timestamp,
   summary,
@@ -123,19 +111,6 @@ export function OptionChainPanel({
           <IconRefresh size={18} />
         </Box>
       </Box>
-
-      {/* Controls + filters share one wrapping row */}
-      <ToolbarRow gap={8} style={{ width: "100%", paddingLeft: 8, paddingRight: 8 }}>
-        <OptionChainHeader
-          selectedUnderlying={selectedUnderlying}
-          selectedExpiry={selectedExpiry}
-          setUnderlying={setUnderlying}
-          setExpiry={setExpiry}
-          availableUnderlyings={availableUnderlyings}
-          availableExpiries={availableExpiries}
-        />
-        <OptionChainFilters filters={filters} setFilters={setFilters} />
-      </ToolbarRow>
 
       {/* Error State */}
       {error && (
