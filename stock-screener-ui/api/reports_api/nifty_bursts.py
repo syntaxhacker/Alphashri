@@ -681,8 +681,8 @@ def derive_oi_signal(
       put  build  → floor    → buy CE     put  unwind → support  → buy PE
 
     `trend` ("up"/"down") gates the plan: a leg that disagrees with the session
-    trend is still returned but flagged ``aligned: False`` and its `basis` says
-    to skip — counter-trend plans were the entire loss side on 2026-10-13.
+    trend gets NO plan (returns None) — counter-trend plans were the entire loss
+    side on 2026-10-13 (1/9) and again on 2026-10-15 (resolved 0.32 vs 0.80 aligned).
     """
     if not strikes or not spot:
         return None
@@ -745,15 +745,16 @@ def derive_oi_signal(
                  if building else
                  "put OI unwind — support removed → downside fuel → buy puts")
 
-    # Trend gate: a counter-trend plan is the wrong side of the tape. A squeeze
-    # is with the break by construction, so it is always aligned.
+    # Trend gate: a counter-trend plan is the wrong side of the tape — emit
+    # nothing instead of a plan that says "skip". A squeeze is with the break
+    # by construction, so it is always aligned.
     aligned: Optional[bool] = None
     if is_squeeze or burst.get("type") == "premium":
         aligned = True
     elif trend in ("up", "down"):
         aligned = (leg == "CE" and trend == "up") or (leg == "PE" and trend == "down")
         if not aligned:
-            basis = f"COUNTER-TREND (session {trend}) — skip: {basis}"
+            return None
 
     return {"leg": leg, "strike": strike, "entry": entry, "sl": sl,
             "target": target, "qty": qty, "lots": lots, "basis": basis,

@@ -202,10 +202,9 @@ class TestBurstSignal:
 # ------------------------------------------------------------ trend gate
 
 class TestTrendGate:
-    """The trend gate: counter-trend plans are flagged, not silently emitted.
-
-    Evidence (2026-10-13): trend-aligned plans went 10/12 (avg +81.7 pts) while
-    counter-trend plans went 1/9 (avg −94.4 pts) — the whole loss side.
+    """The trend gate: counter-trend bursts get no plan — they were the entire
+    loss side on 2026-10-13 (1/9) and again on 2026-10-15 (resolved 0.32 vs
+    0.80 aligned), so emitting a plan that says "skip" is just noise.
     """
 
     @staticmethod
@@ -249,13 +248,11 @@ class TestTrendGate:
         assert sig["aligned"] is True
         assert "COUNTER-TREND" not in sig["basis"]
 
-    def test_counter_trend_plan_is_flagged_with_reason(self):
+    def test_counter_trend_burst_gets_no_plan(self):
         from api.reports_api.nifty_bursts import derive_oi_signal
         # call unwind -> CE (bullish) but session trend is DOWN -> wrong side
         sig = derive_oi_signal(self._burst("call", -50_000), self._chain, 22700, trend="down")
-        assert sig["leg"] == "CE"
-        assert sig["aligned"] is False
-        assert sig["basis"].startswith("COUNTER-TREND (session down) — skip:")
+        assert sig is None
 
     def test_unknown_trend_leaves_the_plan_ungated(self):
         from api.reports_api.nifty_bursts import derive_oi_signal
@@ -264,13 +261,13 @@ class TestTrendGate:
         assert sig["trend"] is None
         assert "COUNTER-TREND" not in sig["basis"]
 
-    def test_endpoint_flags_today_style_losers_as_counter_trend(self, _tmp_tape, _tmp_snapshots):
-        """A rising tape + a bearish (PE) plan must come back aligned=False."""
+    def test_endpoint_emits_no_bearish_plan_on_rising_tape(self, _tmp_tape, _tmp_snapshots):
+        """A rising tape + a bearish (PE) move must NOT produce a plan."""
         rows = []
         spot = 22500.0
         for i in range(14):
             # steady grind up, with a CALL-OI build (-> bearish -> PE) on the
-            # last minute: bullish tape + bearish plan = counter-trend.
+            # last minute: bullish tape + bearish move = counter-trend = no plan.
             spot += 5
             rows.append({"t": f"2026-10-13T09:{15 + i:02d}:00+05:30", "spot": spot,
                          "ce_oi": 1000 * i, "pe_oi": 0, "ce_vol": 0, "pe_vol": 0,
@@ -283,12 +280,9 @@ class TestTrendGate:
             {"strike": 22600.0, "ce": {"ltp": 25.0}, "pe": {"ltp": 30.0}},
         ])))
         out = get_nifty_bursts(date=DATE, window=3, min_abs=1000)
-        pe_plans = [b for b in out["bursts"]
-                    if b.get("signal") and b["signal"]["leg"] == "PE"]
-        assert pe_plans, "expected at least one bearish plan"
-        # tape only rises -> a bearish leg is counter-trend
-        assert all(b["signal"]["aligned"] is False for b in pe_plans)
-        assert all("COUNTER-TREND" in b["signal"]["basis"] for b in pe_plans)
+        assert out["bursts"], "expected bursts to still be recorded"
+        assert not any(b.get("signal") and b["signal"]["leg"] == "PE" for b in out["bursts"]), \
+            "no bearish plan on a rising tape"
 
 
 # ------------------------------------------------------------ auth gate
@@ -492,7 +486,8 @@ class TestDetectStrikeBursts:
         chain = [{"strike": 22700.0, "ce": {"ltp": 22.0}, "pe": {"ltp": 28.0}},
                  {"strike": 22750.0, "ce": {"ltp": 9.0}, "pe": {"ltp": 60.0}}]
         burst = {"type": "strike", "side": "call", "strike": 22750.0, "delta": 6_200_000.0}
-        sig = derive_oi_signal(burst, chain, 22_720.0, trend="up")
+        # call build -> PE leg; trend down keeps it aligned so the plan survives
+        sig = derive_oi_signal(burst, chain, 22_720.0, trend="down")
         assert sig["strike"] == 22750.0     # named, even though 22,700 is nearer
 
     def test_endpoint_includes_strike_bursts(self, _tmp_tape, _tmp_snapshots):

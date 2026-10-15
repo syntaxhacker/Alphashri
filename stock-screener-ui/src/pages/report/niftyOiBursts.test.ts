@@ -359,10 +359,9 @@ describe("trend gate", () => {
     expect(s.basis).not.toContain("COUNTER-TREND");
   });
 
-  test("counter-trend plan is flagged and says skip", () => {
-    const s = deriveOiSignal(burst("call", -50_000), chain, 22_720, { trend: "down" })!;
-    expect(s.aligned).toBe(false);
-    expect(s.basis).toMatch(/^COUNTER-TREND \(session down\) — skip:/);
+  test("counter-trend emits no plan", () => {
+    const s = deriveOiSignal(burst("call", -50_000), chain, 22_720, { trend: "down" });
+    expect(s).toBeNull();
   });
 
   test("no trend leaves the plan ungated", () => {
@@ -371,11 +370,12 @@ describe("trend gate", () => {
     expect(s.trend).toBeNull();
   });
 
-  test("counter-trend plans are marked in the alert detail", () => {
+  test("counter-trend bursts carry no plan in the alert detail", () => {
     const b = { ...burst("call", -50_000), trend: "down" as const };
     const signal = deriveOiSignal(b, chain, 22_720, { trend: b.trend });
+    expect(signal).toBeNull();
     const a = burstToAlert(b, signal);
-    expect(a.detail).toContain("COUNTER-TREND · skip");
+    expect(a.detail).not.toContain("BUY");
   });
 
   test("aligned plans have no skip marker", () => {
@@ -412,7 +412,8 @@ describe("squeeze trigger (momentum, not fade)", () => {
   test("a plain burst is still a fade (unchanged)", () => {
     const b = { ...squeeze("call", 60_000, 22_600) };
     delete (b as { type?: unknown }).type;
-    const s = deriveOiSignal(b, chain, 22_610, { trend: "up" })!;
+    // no trend -> ungated, so the fade direction itself is observable
+    const s = deriveOiSignal(b, chain, 22_610, {})!;
     expect(s.leg).toBe("PE");       // fade, not momentum
   });
 
@@ -434,7 +435,8 @@ describe("per-strike bursts", () => {
     const b = { id: "s", side: "call" as const, t: "14:33", delta: 6_300_000,
       baseline: 300_000, score: 18.9, severity: "critical" as const, cumDoi: 0,
       spot: 22_720, tickVol: 0, type: "strike" as const, strike: 22_750, leg: "CE" };
-    const s = deriveOiSignal(b, chain, 22_720, { trend: "up" })!;
+    // no trend -> ungated, so strike selection itself is observable
+    const s = deriveOiSignal(b, chain, 22_720, {})!;
     expect(s.strike).toBe(22_750);   // not 22,700, which is nearer to spot
   });
 
@@ -442,7 +444,7 @@ describe("per-strike bursts", () => {
     const b = { id: "s", side: "call" as const, t: "14:33", delta: 6_300_000,
       baseline: 300_000, score: 18.9, severity: "critical" as const, cumDoi: 0,
       spot: 22_720, tickVol: 0, type: "strike" as const, strike: 99_999 };
-    const s = deriveOiSignal(b, chain, 22_720, { trend: "up" })!;
+    const s = deriveOiSignal(b, chain, 22_720, {})!;
     expect(s.strike).toBe(22_700);
   });
 });
