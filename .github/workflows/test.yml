@@ -47,7 +47,13 @@ jobs:
           # Install all deps normally, except conflicting packages (pandas 2.x vs 3.x)
           grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
           # Install conflicting packages with --no-deps (works locally with pandas 3.0.2)
-          uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+          uv pip install --system --python 3.12 --no-deps tradingview-screener
+          # tradingagents is NOT on PyPI (404) - it was installed locally from a
+          # source that no longer exists. Install it only when resolvable, so a
+          # missing optional dep cannot fail this step and block the whole suite
+          # (it was doing exactly that: Python Unit Tests and E2E never ran).
+          uv pip install --system --python 3.12 --no-deps tradingagents \
+            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - run: |
@@ -139,7 +145,13 @@ jobs:
         run: |
           cd stock-screener-ui/api
           grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
-          uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+          uv pip install --system --python 3.12 --no-deps tradingview-screener
+          # tradingagents is NOT on PyPI (404) - it was installed locally from a
+          # source that no longer exists. Install it only when resolvable, so a
+          # missing optional dep cannot fail this step and block the whole suite
+          # (it was doing exactly that: Python Unit Tests and E2E never ran).
+          uv pip install --system --python 3.12 --no-deps tradingagents \
+            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
@@ -216,7 +228,13 @@ jobs:
         run: |
           cd stock-screener-ui/api
           grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
-          uv pip install --system --python 3.12 --no-deps tradingagents tradingview-screener
+          uv pip install --system --python 3.12 --no-deps tradingview-screener
+          # tradingagents is NOT on PyPI (404) - it was installed locally from a
+          # source that no longer exists. Install it only when resolvable, so a
+          # missing optional dep cannot fail this step and block the whole suite
+          # (it was doing exactly that: Python Unit Tests and E2E never ran).
+          uv pip install --system --python 3.12 --no-deps tradingagents \
+            || echo "::warning::tradingagents unavailable - backend tests run without it"
         env:
           PYTHONPATH: ${{ github.workspace }}/stock-screener-ui
       - name: Start backend API
