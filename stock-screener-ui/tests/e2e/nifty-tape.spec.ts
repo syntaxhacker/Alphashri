@@ -21,15 +21,14 @@ test.describe("Nifty Report - OI tape panel", () => {
     await expect(panel).toBeVisible({ timeout: 10000 });
 
     const head = panel.locator('[data-testid="nifty-tape-head"]');
-    await expect(head.locator('[data-testid="nifty-tape-head-pcr-oi"]')).toContainText(
-      "PCR OI",
-    );
-    // Labels render uppercased via CSS (tt="uppercase"); assert rendered text.
-    await expect(head.locator('[data-testid="nifty-tape-head-max-pain"]')).toContainText(
-      "MAX PAIN",
-    );
-    await expect(head.locator('[data-testid="nifty-tape-head-flip"]')).toContainText("FLIP");
-    await expect(head.locator('[data-testid="nifty-tape-head-walls"]')).toContainText("WALLS");
+    // Labels sit on the field wrappers (nifty-tape-<field>); the -head-* spans
+    // carry only the value. Assert each label where it actually is. Regexes are
+    // case-insensitive because the labels are uppercased via CSS text-transform,
+    // which text assertions may or may not reflect.
+    await expect(head.locator('[data-testid="nifty-tape-pcr"]')).toContainText(/PCR OI/i);
+    await expect(head.locator('[data-testid="nifty-tape-max-pain"]')).toContainText(/MAX PAIN/i);
+    await expect(head.locator('[data-testid="nifty-tape-flip"]')).toContainText(/FLIP/i);
+    await expect(head.locator('[data-testid="nifty-tape-walls"]')).toContainText(/WALLS/i);
     // Spot-check values derived from the last chronological fixture row (09:19).
     await expect(head.locator('[data-testid="nifty-tape-head-pcr-oi"]')).toContainText("0.62");
     await expect(head.locator('[data-testid="nifty-tape-head-max-pain"]')).toContainText(
