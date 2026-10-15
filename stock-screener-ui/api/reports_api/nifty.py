@@ -48,6 +48,7 @@ SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "
 
 _LIVE_TTL = 30
 _live_cache: dict[str, dict] = {}
+_sensex_cache: dict[str, dict] = {}
 
 _MAX_PAIN_WINDOW = 1500.0
 _TOP_WALLS = 3
@@ -512,6 +513,99 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
     return report
 
 
+async def _compute_sensex_live() -> dict:
+    """Build the small live Sensex context block used by the Nifty page.
+
+    Sensex uses the same Upstox option-chain source as Nifty. Max pain comes
+    from Upstox's dedicated endpoint when available because it accounts for
+    the exchange's complete chain; the local chain calculation is only a
+    fallback for older API deployments.
+    """
+    from api.options import fetch_upstox, get_instrument_key
+    from api.options import get_expiries as _get_expiries
+
+    listing = await _get_expiries("SENSEX")
+    expiries = listing.get("expiries", [])
+    if not expiries:
+        raise HTTPException(status_code=502, detail="no SENSEX expiries available")
+    expiry = expiries[0]["date"]
+    instrument_key = get_instrument_key("SENSEX")
+    try:
+        payload = await fetch_upstox("/option/chain", {
+            "instrument_key": instrument_key,
+            "expiry_date": expiry,
+        })
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Sensex option chain fetch failed: {e}")
+
+    chain_expiry, spot, rows = parse_chain_payload(payload)
+    if not spot:
+        raise HTTPException(status_code=502, detail="Sensex option chain has no spot price")
+
+    total_ce_oi = sum(r["ce"]["oi"] for r in rows)
+    total_pe_oi = sum(r["pe"]["oi"] for r in rows)
+    total_ce_vol = sum(r["ce"]["volume"] for r in rows)
+    total_pe_vol = sum(r["pe"]["volume"] for r in rows)
+    pain_rows = [
+        {"strike": r["strike"], "ce_oi": r["ce"]["oi"], "pe_oi": r["pe"]["oi"]}
+        for r in rows
+    ]
+    max_pain = compute_max_pain(pain_rows)
+    try:
+        pain_payload = await fetch_upstox("/market/max-pain", {
+            "instrument_key": instrument_key,
+            "expiry": chain_expiry or expiry,
+            "date": _today_str(),
+            "bucket_interval": 30,
+        })
+        pain_data = pain_payload.get("data") or {}
+        if isinstance(pain_data, list):
+            pain_data = pain_data[0] if pain_data else {}
+        official_pain = _safe_float(pain_data.get("max_pain"))
+        if official_pain > 0:
+            max_pain = official_pain
+    except Exception:
+        pass
+
+    ohlc = {"open": spot, "high": spot, "low": spot, "close": spot}
+    try:
+        quote = await fetch_upstox("/market-quote/ohlc", {
+            "instrument_key": instrument_key,
+            "interval": "1d",
+        })
+        quote_data = quote.get("data") or {}
+        quote_row = next(iter(quote_data.values()), {})
+        # Upstox nests the OHLC fields under a child "ohlc" object; only
+        # last_price sits at the row level. Reading open/high/low off the row
+        # itself always returned None, which fell back to spot and shipped a
+        # flat bar (open == high == low == spot).
+        row_ohlc = quote_row.get("ohlc") or {}
+        ohlc = {
+            "open": _safe_float(row_ohlc.get("open"), spot),
+            "high": _safe_float(row_ohlc.get("high"), spot),
+            "low": _safe_float(row_ohlc.get("low"), spot),
+            "close": _safe_float(quote_row.get("last_price") or row_ohlc.get("close"), spot),
+        }
+        spot = ohlc["close"] or spot
+    except Exception:
+        pass
+
+    return {
+        "symbol": "SENSEX",
+        "expiry": chain_expiry or expiry,
+        "spot": spot,
+        "ohlc": ohlc,
+        "fetched_at": datetime.now(config.IST).isoformat(),
+        "pcr_oi": compute_pcr(total_pe_oi, total_ce_oi),
+        "pcr_vol": compute_pcr(total_pe_vol, total_ce_vol),
+        "max_pain": max_pain,
+        "walls": {"calls": top_walls(rows, "ce"), "puts": top_walls(rows, "pe")},
+        "market": market_block(),
+    }
+
+
 @router.get("/nifty/expiries")
 async def get_nifty_expiries():
     """Available NIFTY expiry dates for the report expiry picker."""
@@ -536,6 +630,18 @@ async def get_nifty_live(expiry: Optional[str] = Query(default=None, description
         return hit["data"]
     report = await _compute_live(expiry)
     _live_cache[key] = {"ts": now, "data": report}
+    return report
+
+
+@router.get("/nifty/sensex")
+async def get_sensex_live():
+    """Live Sensex levels for the Nifty report's cross-index context card."""
+    now = time.time()
+    hit = _sensex_cache.get("default")
+    if hit and now - hit["ts"] < _LIVE_TTL:
+        return hit["data"]
+    report = await _compute_sensex_live()
+    _sensex_cache["default"] = {"ts": now, "data": report}
     return report
 
 

@@ -23,6 +23,7 @@ from api.reports_api.nifty import (
     get_nifty_expiries,
     get_nifty_live,
     get_nifty_report,
+    get_sensex_live,
     get_sentiment,
     parse_chain_payload,
     read_snapshot,
@@ -34,8 +35,10 @@ from api.reports_api.nifty import (
 @pytest.fixture(autouse=True)
 def _clear_live_cache():
     nifty._live_cache.clear()
+    nifty._sensex_cache.clear()
     yield
     nifty._live_cache.clear()
+    nifty._sensex_cache.clear()
 
 
 @pytest.fixture()
@@ -278,6 +281,128 @@ class TestExpiriesEndpoint:
             with pytest.raises(HTTPException) as exc:
                 await get_nifty_expiries()
         assert exc.value.status_code == 502
+
+
+# ---------------- Sensex live context (mocked Upstox) ----------------
+
+def _ohlc_payload(open_=22100.0, high=22450.0, low=22050.0, close=22380.0):
+    """Upstox /market-quote/ohlc shape — fields nest under a child 'ohlc'."""
+    return {
+        "data": {
+            "BSE_INDEX|SENSEX": {
+                "ohlc": {"open": open_, "high": high, "low": low, "close": close},
+                "last_price": close,
+                "instrument_token": "BSE_INDEX|SENSEX",
+            }
+        }
+    }
+
+
+def _mock_sensex(chain=None, max_pain=22400.0, ohlc=None):
+    """Patch every Upstox dependency of _compute_sensex_live.
+
+    fetch_upstox is dispatched on the path because the function calls three
+    different endpoints (option chain, max pain, OHLC quote). Pass an Exception
+    for `chain`/`ohlc` to make that specific call fail.
+    """
+    chain = _chain_payload() if chain is None else chain
+    quote = _ohlc_payload() if ohlc is None else ohlc
+
+    async def fake_fetch(path, params=None):
+        if path == "/option/chain":
+            value = chain
+        elif path == "/market/max-pain":
+            value = {"data": {"max_pain": max_pain}}
+        elif path == "/market-quote/ohlc":
+            value = quote
+        else:
+            raise AssertionError(f"unexpected Upstox path: {path}")
+        if isinstance(value, Exception):
+            raise value
+        return value
+
+    return (
+        patch("api.options.fetch_upstox", AsyncMock(side_effect=fake_fetch)),
+        patch("api.options.get_expiries",
+              AsyncMock(return_value={"expiries": [{"date": "2026-10-13"}]})),
+        patch("api.options.get_instrument_key", return_value="BSE_INDEX|SENSEX"),
+    )
+
+
+class TestSensexEndpoint:
+    async def test_shape(self):
+        p1, p2, p3 = _mock_sensex()
+        with p1, p2, p3:
+            rep = await get_sensex_live()
+        assert rep["symbol"] == "SENSEX"
+        for key in ("expiry", "spot", "ohlc", "fetched_at", "pcr_oi", "pcr_vol",
+                    "max_pain", "walls", "market"):
+            assert key in rep, f"missing {key}"
+        assert rep["walls"]["calls"] and rep["walls"]["puts"]
+
+    async def test_ohlc_read_from_nested_block(self):
+        """Regression: open/high/low live under a child 'ohlc' object.
+
+        Reading them off the row itself always returned None, so every field
+        collapsed to spot and the payload shipped a fake flat bar.
+        """
+        p1, p2, p3 = _mock_sensex()
+        with p1, p2, p3:
+            rep = await get_sensex_live()
+        assert rep["ohlc"] == {
+            "open": 22100.0, "high": 22450.0, "low": 22050.0, "close": 22380.0,
+        }
+        # Not a flat bar, and spot follows the quote's last price.
+        assert rep["ohlc"]["high"] > rep["ohlc"]["low"]
+        assert rep["spot"] == 22380.0
+
+    async def test_official_max_pain_wins(self):
+        p1, p2, p3 = _mock_sensex(max_pain=22400.0)
+        with p1, p2, p3:
+            rep = await get_sensex_live()
+        assert rep["max_pain"] == 22400.0
+
+    async def test_local_max_pain_when_official_missing(self):
+        p1, p2, p3 = _mock_sensex(max_pain=0)
+        with p1, p2, p3:
+            rep = await get_sensex_live()
+        # Falls back to the value computed from the chain, not 0.
+        assert rep["max_pain"] > 0
+
+    async def test_ohlc_failure_degrades_without_raising(self):
+        p1, p2, p3 = _mock_sensex(ohlc=RuntimeError("quote down"))
+        with p1, p2, p3:
+            rep = await get_sensex_live()
+        # The quote block is best-effort: ohlc degrades to a flat bar at spot.
+        assert rep["ohlc"]["close"] == rep["spot"]
+
+    async def test_chain_failure_is_502(self):
+        p1, p2, p3 = _mock_sensex(chain=RuntimeError("boom"))
+        with p1, p2, p3:
+            with pytest.raises(HTTPException) as exc:
+                await get_sensex_live()
+        assert exc.value.status_code == 502
+
+    async def test_no_spot_is_502(self):
+        p1, p2, p3 = _mock_sensex(chain={"data": [], "underlying_spot_price": 0})
+        with p1, p2, p3:
+            with pytest.raises(HTTPException) as exc:
+                await get_sensex_live()
+        assert exc.value.status_code == 502
+
+    async def test_cache_ttl_serves_same_object(self):
+        p1, p2, p3 = _mock_sensex()
+        with p1, p2, p3:
+            first = await get_sensex_live()
+            second = await get_sensex_live()
+        assert first is second
+
+    async def test_error_is_not_cached(self):
+        p1, p2, p3 = _mock_sensex(chain=RuntimeError("boom"))
+        with p1, p2, p3:
+            with pytest.raises(HTTPException):
+                await get_sensex_live()
+        assert nifty._sensex_cache == {}
 
 
 class TestSnapshotEndpoint:
