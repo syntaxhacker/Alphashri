@@ -7,7 +7,15 @@ from typing import Dict, Any, Optional, List
 import config
 from preciz import _call_llm_json
 
+# Best free OpenRouter model (550B reasoning, 1M ctx, $0). Free `:free` IDs
+# rotate, so the news poller retries a fallback list — see
+# api/news/news_impact.py:FALLBACK_MODELS.
+DEFAULT_OPENROUTER_MODEL = "nvidia/nemotron-3-ultra-550b-a55b:free"
+
 OPENROUTER_PRICING = {
+    DEFAULT_OPENROUTER_MODEL: {"prompt": 0, "completion": 0},
+    "nvidia/nemotron-3.5-lightning:free": {"prompt": 0, "completion": 0},
+    "thinkingmachines/inkling:free": {"prompt": 0, "completion": 0},
     "openrouter/owl-alpha": {"prompt": 0, "completion": 0},
     "anthropic/claude-3.5-sonnet": {"prompt": 3.0, "completion": 15.0},
     "anthropic/claude-3-opus": {"prompt": 15.0, "completion": 75.0},
@@ -23,7 +31,7 @@ OPENROUTER_PRICING = {
 class ArticleAnalyzer:
     """Class to analyze financial news articles using OpenRouter LLMs with SQLite caching."""
     
-    def __init__(self, model_name: str = "openrouter/owl-alpha", db_path: str = "db/llm_cache.db"):
+    def __init__(self, model_name: str = DEFAULT_OPENROUTER_MODEL, db_path: str = "db/llm_cache.db"):
         api_key = config.OPENROUTER_API_KEY
         if not api_key:
             print("WARNING: OPENROUTER_API_KEY environment variable not set. Analysis will fail.")

@@ -81,14 +81,14 @@ describe("NavbarNested nav list contract", () => {
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
     // exact count: count nav items minus auxiliary buttons (theme/sidebar)
-    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|settings|admin)$/).length;
-    expect(navCount).toBe(15);
+    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|nifty-report|settings|admin)$/).length;
+    expect(navCount).toBe(16);
   });
 
   it("renders 14 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|settings|admin)$/).length;
-    expect(navCount).toBe(14);
+    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|nifty-report|settings|admin)$/).length;
+    expect(navCount).toBe(15);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
@@ -108,6 +108,7 @@ describe("NavbarNested nav list contract", () => {
       "nav-strategies",
       "nav-bots",
       "nav-options",
+      "nav-nifty-report",
       "nav-settings",
       "nav-admin",
     ];

@@ -24,7 +24,13 @@ from api.positioning import compute_positioning
 router = APIRouter(prefix="/api/options", tags=["options"])
 
 UPSTOX_BASE = "https://api.upstox.com/v2"
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# Must match api/brokers.py (the OAuth writer), which uses config.BASE_DIR. This
+# previously used a hand-counted chain of `.parent`s that resolved to
+# /home/mysyntax/Documents, so this reader picked up a stale .upstox_token.json
+# living OUTSIDE the repo. The reader and the writer never agreed, so a missing
+# DB connection silently fell back to a months-old token instead of reporting
+# "not connected".
+PROJECT_ROOT = Path(config.BASE_DIR)
 TOKEN_FILE = PROJECT_ROOT / ".upstox_token.json"
 
 
@@ -129,7 +135,9 @@ def calculate_max_pain(strike_matrix: List[Dict[str, Any]]) -> float:
 
 
 AVAILABLE_UNDERLYINGS = [
-    {"symbol": "NIFTY", "name": "Nifty 50", "instrument_key": "NSE_INDEX|Nifty 50", "lot_size": 25, "tick_size": 0.05},
+    # lot_size 65 (was 25): GEX already computes with 65, and 23 consecutive real
+    # exchange prints were all exact multiples of 65.
+    {"symbol": "NIFTY", "name": "Nifty 50", "instrument_key": "NSE_INDEX|Nifty 50", "lot_size": 65, "tick_size": 0.05},
     {"symbol": "BANKNIFTY", "name": "Nifty Bank", "instrument_key": "NSE_INDEX|Nifty Bank", "lot_size": 15, "tick_size": 1.05},
     {"symbol": "FINNIFTY", "name": "Nifty Fin Service", "instrument_key": "NSE_INDEX|Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
     {"symbol": "MIDCPNIFTY", "name": "NIFTY MID SELECT", "instrument_key": "NSE_INDEX|NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
@@ -223,8 +231,11 @@ async def get_expiries(underlying: str):
                 expiry_str = contract.get("expiry")
                 if expiry_str and expiry_str not in seen_dates:
                     seen_dates.add(expiry_str)
-                    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").replace(tzinfo=config.IST)
-                    days = (expiry_date - today).days
+                    # Calendar days via date arithmetic: subtracting a tz-aware
+                    # `today` from a midnight expiry truncates the partial day
+                    # (3 instead of 4), and a naive expiry would raise TypeError.
+                    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+                    days = (expiry_date - today.date()).days
                     if days >= 0:
                         expiries.append({
                             "date": expiry_str,

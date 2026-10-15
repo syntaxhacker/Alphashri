@@ -344,6 +344,14 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       .sort((a, b) => (a.time as number) - (b.time as number));
     candleSeriesRef.current.setData(candleData);
 
+    // Index/indicator symbols carry no volume — an all-zero histogram leaves a
+    // stray zero baseline + "0" last-value tag, so hide the series instead.
+    const hasVolume = candles.some((c) => (c.volume ?? 0) > 0);
+    volumeSeriesRef.current.applyOptions({
+      visible: hasVolume,
+      lastValueVisible: hasVolume,
+    });
+
     const volData: HistogramData[] = candles
       .map((c) => ({
         time: toTime(c.time),

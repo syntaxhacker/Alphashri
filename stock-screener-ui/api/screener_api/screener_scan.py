@@ -5,9 +5,9 @@ from db.database import SessionLocal
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
-    exclude_etfs_from_screener, gap_pct_to_52w_high, is_likely_etf,
+    classify_approach, exclude_etfs_from_screener, gap_pct_to_52w_high, is_likely_etf,
     is_plausible_52w_gap, is_within_52w_touch_gap,
-    classify_approach,
+    min_52w_turnover_cr, min_52w_volume_m,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 
@@ -90,11 +90,11 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
             return False
 
     if screener in ('52w_high', 'builtin:52w_high'):
-        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, 0.0)
+        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, min_52w_volume_m())
         vol = _to_float(stock_data.get('volume_m'), 0)
         if min_vol > 0 and vol < min_vol:
             return False
-        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, 0.0)
+        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, min_52w_turnover_cr())
         turnover = _to_float(stock_data.get('turnover_cr'), 0)
         if min_turnover > 0 and turnover < min_turnover:
             return False
@@ -566,6 +566,12 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
             if not touched_52w and est_days is not None:
                 stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
+
+            if use_52w_buckets and tv_52w_high > 0:
+                touch_days = _days_since_touch(api, symbol, tv_52w_high)
+                if touch_days is not None:
+                    stock_data['days_since_touch'] = touch_days
+                    stock_data['approach_type'] = classify_approach(touched_52w, touch_days)
 
             if _passes_profile_filters(screener, stock_data, profile_filters):
                 return (stock_data, 'touched' if (use_52w_buckets and touched_52w) else 'approaching')

@@ -4,6 +4,11 @@ Fresh vs retest approach-classification tests.
 A row is 'touched' (at the high now), 'retest' (touched within the window,
 now below), or 'fresh' (no touch in window). Touch = daily high within eps
 of the SAME high the gap is measured against.
+Fresh vs retest approach-classification + ETF exclusion tests.
+
+A row is 'touched' (at the high now), 'retest' (touched within the window,
+now below), or 'fresh' (no touch in window). Touch = daily high within eps
+of the SAME high the gap is measured against. ETFs never reach output.
 """
 
 import sys
@@ -21,6 +26,9 @@ import config
 from api.screener_api.screener_models import (
     classify_approach,
     has_live_data,
+    exclude_etfs_from_screener,
+    has_live_data,
+    is_likely_etf,
     retest_window_days,
     touch_eps_pct,
 )
@@ -81,6 +89,10 @@ class TestClassifyApproach:
         assert classify_approach(False, 7, window_days=10) == 'retest'
         assert classify_approach(False, 11, window_days=10) == 'fresh'
 
+    def test_old_or_missing_touch_is_fresh(self):
+        assert classify_approach(False, 6) == 'fresh'
+        assert classify_approach(False, None) == 'fresh'
+
 
 class TestHasLiveData:
     def test_zero_row_is_thin(self):
@@ -119,6 +131,22 @@ class TestTouchStatsFromDf:
         df = _df([90, 90, 90, 90, 90, 90, 90, 90, 102, 101])
         _, touch = _touch_stats_from_df(df, ref_high=100.0)
         assert touch == 1
+
+class TestIsLikelyEtf:
+    def test_flags_etfs(self):
+        for sym in ('LIQUIDBEES', 'NIFTYBEES', 'LIQUIDETF', 'EBBETF0430',
+                    'AONELIQUID', 'GROWWLIQID', 'CASHIETF', 'LIQUID1'):
+            assert is_likely_etf(sym) is True, sym
+
+    def test_keeps_equities(self):
+        for sym in ('RELIANCE', 'BHEL', 'DBOL', 'ZIMLAB', 'GLOBAL', 'BOSCH-HCIL'):
+            assert is_likely_etf(sym) is False, sym
+
+    def test_exclude_flag(self, monkeypatch):
+        monkeypatch.delenv('SCREENER_EXCLUDE_ETFS', raising=False)
+        assert exclude_etfs_from_screener() is True
+        monkeypatch.setenv('SCREENER_EXCLUDE_ETFS', '0')
+        assert exclude_etfs_from_screener() is False
 
 
 class TestFillTouchAndApproach:
@@ -187,6 +215,7 @@ class TestUnmappedSymbolsDropped:
         class ApiWithKeys:
             def get_instrument_key(self, symbol):
                 return None if symbol == 'DAICHI' else f'NSE_EQ|{symbol}'
+                return None if symbol == 'DAICHI' else 'NSE_EQ|%s' % symbol
 
         ranges = {
             'DAICHI': {'high': 369.9, 'low': 200.0, 'close': 364.8},
@@ -222,3 +251,4 @@ class TestUnmappedSymbolsDropped:
             data = fetch_52w_high_data(provider='other', profile_filters=None)
         symbols = [s['symbol'] for s in data['approaching'] + data['touched']]
         assert 'DAICHI' in symbols
+

@@ -6,11 +6,59 @@ import asyncio
 import concurrent.futures
 import logging
 import os
+import threading
 from datetime import datetime
 from typing import Dict
 
 from api.news.news_ws import news_ws_manager, sector_ws_manager
 from api.screener import _sanitize_for_json
+
+#: Max articles per poll cycle that cost an HTTP scrape + an LLM call.
+#: Bounds per-cycle work so the poller can never starve the HTTP server;
+#: skipped items are retried on later cycles (URL dedupe makes that safe).
+NEWS_ARTICLE_BUDGET_PER_CYCLE = int(os.getenv("NEWS_FETCH_BUDGET", "12"))
+# Scraping is CPU-heavy Python (HTML parse), so `to_thread` buys little: with
+# every source gathered at once the GIL contention starves the event loop and
+# the API goes unreachable for seconds (seen 2026-10-14). Bound the fan-out.
+NEWS_SOURCE_CONCURRENCY = int(os.getenv("NEWS_SOURCE_CONCURRENCY", "2"))
+NEWS_FETCH_LIMIT = int(os.getenv("NEWS_FETCH_LIMIT", "20"))
+#: Per-item backstops (2026-10-14: unbounded article/LLM calls kept worker
+#: threads stuck for minutes — the OpenAI client has no explicit timeout, so
+#: asyncio.wait_for alone cannot help: it stops *waiting* but the thread lives
+#: on and CPython joins non-daemon threads at interpreter exit, stretching
+#: every uvicorn restart gap from seconds to minutes). Overruns are skipped;
+#: the item is retried on a later cycle via the URL dedupe.
+NEWS_ARTICLE_TIMEOUT_SEC = float(os.getenv("NEWS_ARTICLE_TIMEOUT_SEC", "45"))
+NEWS_LLM_TIMEOUT_SEC = float(os.getenv("NEWS_LLM_TIMEOUT_SEC", "180"))
+
+#: Sentinel returned by _run_sync_with_timeout when fn overruns its budget.
+_TIMED_OUT = object()
+
+
+def _run_sync_with_timeout(fn, args, timeout_sec):
+    """Run ``fn(*args)`` on a DAEMON thread; return _TIMED_OUT on overrun.
+
+    Daemon threads never block interpreter exit, so an abandoned scrape/LLM
+    call cannot delay worker shutdown. Uses only threading (no new asyncio
+    APIs) so the timeout works the same under the event loop and in tests.
+    Worker exceptions are re-raised; timeouts return the _TIMED_OUT sentinel.
+    """
+    box: dict = {}
+
+    def _target():
+        try:
+            box["result"] = fn(*args)
+        except Exception as exc:  # noqa: BLE001 — re-raised below
+            box["error"] = exc
+
+    worker = threading.Thread(target=_target, daemon=True)
+    worker.start()
+    worker.join(timeout_sec)
+    if worker.is_alive():
+        return _TIMED_OUT
+    if "error" in box:
+        raise box["error"]
+    return box.get("result")
 
 
 _project_root = None
@@ -202,6 +250,21 @@ async def news_poller_task():
                 await asyncio.sleep(60)
                 continue
 
+            # Score unscored headlines with an OpenRouter FREE model — ONE
+            # batched call per cycle (free tier is 20 req/min, 50/day). No key
+            # or a scoring outage is a no-op, never a cycle failure.
+            try:
+                from api.news.news_impact import score_recent_articles
+
+                impact_stats = await asyncio.to_thread(score_recent_articles)
+                if impact_stats.get("scored"):
+                    poller_logger.info(
+                        "🧠 news impact: scored %s (%s market-moving)",
+                        impact_stats["scored"], impact_stats["moved"],
+                    )
+            except Exception as exc:
+                poller_logger.debug("news impact skipped: %s", exc)
+
             source_ids = [s['id'] for s in NEWS_SOURCES] if NEWS_SOURCES and isinstance(NEWS_SOURCES, list) else ['moneycontrol']
 
             # Skip sources that consistently return nothing (tracked across cycles)
@@ -213,7 +276,8 @@ async def news_poller_task():
                 """Fetch a single source with timeout."""
                 try:
                     items = await asyncio.wait_for(
-                        asyncio.to_thread(fetch_news, source=source_id, limit=20),
+                        asyncio.to_thread(fetch_news, source=source_id,
+                                          limit=NEWS_FETCH_LIMIT),
                         timeout=15,
                     )
                     return source_id, items or []
@@ -223,9 +287,17 @@ async def news_poller_task():
                     poller_logger.warning(f"Error fetching {source_id}: {e}")
                     return source_id, []
 
-            results = await asyncio.gather(*[_fetch_source(s) for s in active_sources])
+            # Fetch in small batches, not all at once: scraping is CPU-heavy
+            # Python, so gathering every source simultaneously holds the GIL and
+            # starves the event loop (the API was unreachable for seconds at a
+            # time on 2026-10-14). Batches keep the loop responsive.
+            _batch = max(1, NEWS_SOURCE_CONCURRENCY)
+            results: list = []
+            for _start in range(0, len(active_sources), _batch):
+                results.extend(await asyncio.gather(
+                    *[_fetch_source(s) for s in active_sources[_start:_start + _batch]]))
 
-            async def _process_source(source_id: str, items: list):
+            async def _process_source(source_id: str, items: list, fetch_budget: dict):
                 """Process fetched items for a single source."""
                 key = f"_empty_count_{source_id}"
                 if not items:
@@ -241,24 +313,22 @@ async def news_poller_task():
 
                 current_top_id = items[0].get('id')
                 last_id = last_seen_ids.get(source_id)
+                last_seen_ids[source_id] = current_top_id
 
                 if last_id is None:
-                    last_seen_ids[source_id] = current_top_id
                     poller_logger.info(f"Initialized tracking for {source_id}, top_id={current_top_id}")
-                    return
 
-                if current_top_id == last_id:
-                    return
-
-                new_items = []
-                for item in items:
-                    if item.get('id') == last_id:
-                        break
-                    new_items.append(item)
+                # Process the WHOLE fetched batch every cycle, not just items
+                # above the previous top id. The `last_seen_ids` delta was
+                # in-memory only, so any uvicorn --reload wiped it and the
+                # poller re-initialised forever without ever saving anything.
+                # `persistence.get_article_by_url()` below is the real dedupe,
+                # so re-walking the front page is cheap and lossless.
+                new_items = list(items)
                 if not new_items:
                     return
 
-                poller_logger.info(f"Found {len(new_items)} new items from {source_id}")
+                poller_logger.info(f"Processing {len(new_items)} items from {source_id}")
                 high_impact_items = []
                 saved_count = 0
                 skipped_count = 0
@@ -275,7 +345,21 @@ async def news_poller_task():
                         if existing:
                             continue
 
-                        full_article = await asyncio.to_thread(fetch_article_content, url)
+                        # Expensive: an HTTP scrape plus an LLM call per item.
+                        # Stop once this cycle's budget is spent; the item stays
+                        # unsaved and is picked up on a later cycle.
+                        if fetch_budget["left"] <= 0:
+                            continue
+                        fetch_budget["left"] -= 1
+
+                        full_article = await asyncio.to_thread(
+                            _run_sync_with_timeout, fetch_article_content,
+                            (url,), NEWS_ARTICLE_TIMEOUT_SEC)
+                        if full_article is _TIMED_OUT:
+                            poller_logger.warning(
+                                f"Article fetch timed out (>{NEWS_ARTICLE_TIMEOUT_SEC:g}s): {url[:80]}")
+                            skipped_count += 1
+                            continue
                         content = full_article.get('description', '')
                         symbols = full_article.get('symbols', [])
                         if 'error' in full_article or not content:
@@ -292,8 +376,14 @@ async def news_poller_task():
                         analysis = None
                         if _llm_available and article_analyzer:
                             try:
-                                analysis = await asyncio.to_thread(article_analyzer.analyze_article, url, headline, content)
-                                if analysis.get('impact_score', 0) >= 8:
+                                analysis = await asyncio.to_thread(
+                                    _run_sync_with_timeout, article_analyzer.analyze_article,
+                                    (url, headline, content), NEWS_LLM_TIMEOUT_SEC)
+                                if analysis is _TIMED_OUT:
+                                    poller_logger.warning(
+                                        f"LLM analysis timed out (>{NEWS_LLM_TIMEOUT_SEC:g}s): {url[:80]}")
+                                    analysis = None
+                                elif analysis.get('impact_score', 0) >= 8:
                                     high_impact_items.append(item)
                             except Exception as llm_err:
                                 poller_logger.error(f"LLM analysis failed: {llm_err}")
@@ -323,9 +413,15 @@ async def news_poller_task():
 
                 last_seen_ids[source_id] = current_top_id
 
-            # Process all sources (fetched in parallel above, processed here)
+            # Process all sources (fetched in parallel above, processed here).
+            # Each NEW item costs an HTTP scrape + an LLM call, so the work per
+            # cycle is BUDGETED — processing an unbounded batch (up to ~240
+            # items) saturated the process and starved the HTTP server, making
+            # /api/health time out. Anything skipped stays unsaved and is
+            # retried next cycle, and the URL dedupe below makes that safe.
+            fetch_budget = {"left": NEWS_ARTICLE_BUDGET_PER_CYCLE}
             for source_id, items in results:
-                await _process_source(source_id, items)
+                await _process_source(source_id, items, fetch_budget)
 
         except asyncio.CancelledError:
             poller_logger.info("News poller cancelled")

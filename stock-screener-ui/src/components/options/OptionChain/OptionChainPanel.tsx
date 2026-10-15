@@ -1,4 +1,4 @@
-import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip, ToolbarRow, ActionIcon } from "@/ui";
+import { Text, Badge, Loader, Alert, Tabs, TabsList, Tab, TabsPanel, Button, Tooltip } from "@/ui";
 import Stack from "@mui/material/Stack";
 import Box from "@mui/material/Box";
 import {
@@ -11,8 +11,7 @@ import {
 } from "@tabler/icons-react";
 import { useDisclosure } from "@/ui";
 import dayjs from "dayjs";
-import { OptionChainHeader } from "./OptionChainHeader";
-import { OptionChainFilters } from "./OptionChainFilters";
+import { useChainLivePolling } from "../../../hooks/useChainLivePolling";
 import { OptionChainTable } from "./OptionChainTable";
 import { ChainSummary } from "./ChainSummary";
 import { OIAnalysis } from "./OIAnalysis";
@@ -26,12 +25,7 @@ interface OptionChainPanelProps {
   error: string | null;
   filters: any;
   spotPrice: number | null;
-  setUnderlying: (u: string) => void;
-  setExpiry: (e: string) => void;
-  setFilters: (f: any) => void;
   refreshChain: () => void;
-  availableUnderlyings: string[];
-  availableExpiries: string[];
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
   timestamp?: string;
   summary?: any;
@@ -44,92 +38,84 @@ export function OptionChainPanel({
   error,
   filters,
   spotPrice,
-  setUnderlying,
-  setExpiry,
-  setFilters,
   refreshChain,
-  availableUnderlyings,
-  availableExpiries,
   strikeMatrix,
   timestamp,
   summary,
 }: OptionChainPanelProps) {
   const [guideOpened, { open, close }] = useDisclosure(false);
+  // Live sync: 15s chain polling owned by this panel — it mounts only on the
+  // chain tab, so switching to positions/greeks unmounts and stops polling.
+  const { liveState, manualRefresh } = useChainLivePolling(refreshChain, timestamp);
 
   return (
     <Stack
       id="chain-panel"
       spacing={1}
-      sx={{ height: "100%", width: "100%", alignItems: "stretch" }}
+      sx={{ width: "100%" }}
       data-testid="options-chain-panel"
     >
       <OptionChainGuide opened={guideOpened} onClose={close} />
 
-      {/* Header: title + spot left, actions pinned right */}
-      <ToolbarRow
+      {/* Spot info row — left-aligned, wraps on narrow screens */}
+      <Box
         id="chain-header"
         data-testid="options-chain-header"
-        gap={8}
-        justify="space-between"
-        wrap={false}
-        clip
-        style={{ width: "100%", paddingLeft: 8, paddingRight: 8 }}
+        sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1, rowGap: 1, width: "100%", p: 1 }}
       >
-        <Box sx={{ display: "flex", alignItems: "center", gap: 8, minWidth: 0 }}>
-          <Text size="md" fw={600} sx={{ whiteSpace: "nowrap" }}>
-            Option Chain
-          </Text>
-          <LiveSpotChart underlying={selectedUnderlying} />
-          <Text size="xs" c="dimmed" data-testid="options-chain-selection" sx={{ whiteSpace: "nowrap" }}>
-            {selectedUnderlying} · {selectedExpiry}
-          </Text>
-          {timestamp && !loading && (
-            <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
-              <Badge variant="light" color="secondary" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
-                {dayjs(timestamp).format("HH:mm:ss")}
-              </Badge>
-            </Tooltip>
-          )}
-        </Box>
-        <Box sx={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}>
-          <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
-            Guide
-          </Button>
-          <Tooltip label="Refresh chain">
-            <ActionIcon
-              variant="subtle"
-              color="primary"
-              size="sm"
-              loading={loading}
-              disabled={loading}
-              style={{ opacity: loading ? 0.5 : 1 }}
-              onClick={() => !loading && refreshChain()}
-              data-testid="refresh-chain-btn"
-            >
-              <IconRefresh size={18} />
-            </ActionIcon>
+        <LiveSpotChart underlying={selectedUnderlying} />
+        {timestamp && !loading && (
+          <Tooltip label={`Data as of ${dayjs(timestamp).format("DD MMM YYYY, HH:mm:ss")}`}>
+            <Badge variant="light" color="secondary" leftSection={<IconClock size={12} />} data-testid="options-chain-timestamp">
+              {dayjs(timestamp).format("HH:mm:ss")}
+            </Badge>
           </Tooltip>
+        )}
+        {timestamp && !loading && (
+          <Badge
+            variant="light"
+            color={liveState.live ? "success" : "warning"}
+            data-testid="options-chain-live-badge"
+            title={liveState.live ? "Chain is live (auto-refreshes every 15s)" : `Chain data is ${liveState.label.toLowerCase()}`}
+          >
+            · {liveState.label}
+          </Badge>
+        )}
+        <Text size="xs" c="dimmed" data-testid="options-chain-selection">
+          {selectedUnderlying} · {selectedExpiry}
+        </Text>
+        <Button variant="light" color="primary" size="compact-xs" leftSection={<IconHelpCircle size={14} />} onClick={open} data-testid="open-guide-btn">
+          Guide
+        </Button>
+        {/* A real <button>, not a Box: the merged test suite asserts
+            toBeDisabled()/toBeEnabled(), which only exist on a form control.
+            nifty-report had this as an icon Box with an opacity tweak, so
+            `disabled` was unreachable. */}
+        <Box
+          component="button"
+          type="button"
+          disabled={loading}
+          aria-label="Refresh option chain"
+          onClick={() => !loading && manualRefresh()}
+          sx={{
+            border: 0,
+            background: "transparent",
+            p: 0,
+            display: "inline-flex",
+            alignItems: "center",
+            cursor: loading ? "default" : "pointer",
+            opacity: loading ? 0.5 : 1,
+          }}
+          data-testid="refresh-chain-btn"
+        >
+          <IconRefresh size={18} />
         </Box>
-      </ToolbarRow>
-
-      {/* Controls + filters share one wrapping row */}
-      <ToolbarRow gap={8} style={{ width: "100%", paddingLeft: 8, paddingRight: 8 }}>
-        <OptionChainHeader
-          selectedUnderlying={selectedUnderlying}
-          selectedExpiry={selectedExpiry}
-          setUnderlying={setUnderlying}
-          setExpiry={setExpiry}
-          availableUnderlyings={availableUnderlyings}
-          availableExpiries={availableExpiries}
-        />
-        <OptionChainFilters filters={filters} setFilters={setFilters} />
-      </ToolbarRow>
+      </Box>
 
       {/* Error State */}
       {error && (
         <Alert
           id="chain-error"
-         
           icon={<IconAlertCircle size={16} />}
           color="error"
           variant="light"
@@ -150,32 +136,26 @@ export function OptionChainPanel({
           No options data available. Select an underlying and expiry to view the chain.
         </Alert>
       ) : (
-        <Box sx={{ width: "100%", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+        <Box sx={{ width: "100%" }}>
           <Tabs id="chain-view-tabs" defaultValue="table" data-testid="chain-view-tabs" style={{ width: "100%" }}>
-            <ToolbarRow gap={8} style={{ width: "100%" }}>
-              <TabsList data-testid="options-chain-view-tabs-list">
-                <Tab value="table" leftSection={<IconTable size={14} />} data-testid="chain-tab-table">
-                  Option Chain Table
-                </Tab>
-                <Tab value="analysis" leftSection={<IconChartBar size={14} />} data-testid="chain-tab-analysis">
-                  Deep OI Analysis
-                </Tab>
-              </TabsList>
-            </ToolbarRow>
+            <TabsList data-testid="options-chain-view-tabs-list">
+              <Tab value="table" leftSection={<IconTable size={14} />} data-testid="chain-tab-table">
+                Option Chain Table
+              </Tab>
+              <Tab value="analysis" leftSection={<IconChartBar size={14} />} data-testid="chain-tab-analysis">
+                Deep OI Analysis
+              </Tab>
+            </TabsList>
 
             <TabsPanel value="table" data-testid="options-chain-table-panel">
-              <Stack spacing={1} sx={{ width: "100%", alignItems: "stretch" }}>
-                <Box sx={{ display: "flex", width: "100%" }}>
-                  <ChainSummary strikeMatrix={strikeMatrix} spotPrice={spotPrice} selectedExpiry={selectedExpiry} summary={summary} />
-                </Box>
-                <Box sx={{ display: "flex", width: "100%", overflowX: "auto" }}>
-                  <OptionChainTable strikeMatrix={strikeMatrix} filters={filters} spotPrice={spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
-                </Box>
+              <Stack spacing={1} sx={{ width: "100%" }}>
+                <ChainSummary strikeMatrix={strikeMatrix} spotPrice={spotPrice} selectedExpiry={selectedExpiry} summary={summary} />
+                <OptionChainTable strikeMatrix={strikeMatrix} filters={filters} spotPrice={spotPrice} onRowClick={(contract) => console.log("clicked", contract)} />
               </Stack>
             </TabsPanel>
 
             <TabsPanel value="analysis" data-testid="options-chain-analysis-panel">
-              <Box sx={{ display: "flex", width: "100%" }}>
+              <Box sx={{ width: "100%" }}>
                 <OIAnalysis strikeMatrix={strikeMatrix} spotPrice={spotPrice} />
               </Box>
             </TabsPanel>

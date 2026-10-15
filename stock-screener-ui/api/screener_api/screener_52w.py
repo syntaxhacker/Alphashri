@@ -330,7 +330,6 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         if is_plausible_52w_gap(_to_float(s.get('to_52w_high'), None))
     ]
 
-    all_rows = data['approaching'] + data['touched']
     _fill_days_ago_from_upstox(data['touched'], api, use_api, touched_gap_pct)
     if use_api:
         band = float(os.environ.get('SCREENER_TOUCH_BAND_GAP_PCT', '5.0'))
