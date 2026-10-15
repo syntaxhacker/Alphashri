@@ -88,3 +88,16 @@ db/llm_cache.db
 mutants/
 .mutmut.py
 .mutmut-cache/
+
+# ---------------------------------------------------------------------------
+# Test fixtures are tracked on purpose
+# ---------------------------------------------------------------------------
+# The blanket `*.csv` and `*.json` rules above silently excluded every test
+# fixture, so CI checked out the repo WITHOUT them. The backend suite then died
+# at collection and NOTHING ran:
+#   ERROR tests/indicators/test_parity.py
+#   FileNotFoundError: tests/indicators/fixtures/ohlcv.csv
+# Re-include fixture directories only; generated outputs stay ignored.
+!stock-screener-ui/tests/fixtures/*.json
+!stock-screener-ui/tests/indicators/fixtures/*.csv
+!stock-screener-ui/tests/indicators/fixtures/*.json
