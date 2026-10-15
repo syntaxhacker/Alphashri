@@ -46,6 +46,11 @@ jobs:
           cd stock-screener-ui/api
           # Install all deps normally, except conflicting packages (pandas 2.x vs 3.x)
           grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          # pandas-ta is declared in the ROOT requirements.txt, but this job only
+          # installs api/requirements.txt (it cd's into api/). trading/indicators/
+          # _engine.py imports it, so 53 test modules failed to COLLECT with
+          # "No module named 'pandas_ta'" and the suite never ran.
+          uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           # Install conflicting packages with --no-deps (works locally with pandas 3.0.2)
           uv pip install --system --python 3.12 --no-deps tradingview-screener
           # tradingagents is NOT on PyPI (404) - it was installed locally from a
@@ -145,6 +150,11 @@ jobs:
         run: |
           cd stock-screener-ui/api
           grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          # pandas-ta is declared in the ROOT requirements.txt, but this job only
+          # installs api/requirements.txt (it cd's into api/). trading/indicators/
+          # _engine.py imports it, so 53 test modules failed to COLLECT with
+          # "No module named 'pandas_ta'" and the suite never ran.
+          uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           uv pip install --system --python 3.12 --no-deps tradingview-screener
           # tradingagents is NOT on PyPI (404) - it was installed locally from a
           # source that no longer exists. Install it only when resolvable, so a
@@ -228,6 +238,11 @@ jobs:
         run: |
           cd stock-screener-ui/api
           grep -vE '^(tradingagents|tradingview-screener|preciz)' requirements.txt | uv pip install --system --python 3.12 -r /dev/stdin
+          # pandas-ta is declared in the ROOT requirements.txt, but this job only
+          # installs api/requirements.txt (it cd's into api/). trading/indicators/
+          # _engine.py imports it, so 53 test modules failed to COLLECT with
+          # "No module named 'pandas_ta'" and the suite never ran.
+          uv pip install --system --python 3.12 'pandas-ta==0.4.71b0'
           uv pip install --system --python 3.12 --no-deps tradingview-screener
           # tradingagents is NOT on PyPI (404) - it was installed locally from a
           # source that no longer exists. Install it only when resolvable, so a
