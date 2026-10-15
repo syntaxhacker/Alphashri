@@ -184,7 +184,7 @@ function LiveView({ state, activeBotId, scanRefreshing, handleScanRefresh }: Liv
 
   return (
     <Box className="paper-live-view-grid" sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="live-view-grid" id="live-view-grid">
-      <Box className="paper-live-left-panel" sx={{ flex: { xs: "1 1 auto", md: "0 0 42%" }, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }} data-testid="paper-left-panel" id="left-panel">
+      <Box className="paper-live-left-panel" sx={{ flex: { xs: "1 1 auto", md: "0 0 42%" }, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }} data-testid="paper-left-panel" id="left-panel">
         <Card className="paper-portfolio-card-wrap" id="paper-portfolio-card-wrap" elevation={0} sx={{ border: 0 }}>
           <CardContent className="paper-portfolio-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperPortfolioCard portfolio={state.portfolio as any} />
@@ -205,7 +205,7 @@ function LiveView({ state, activeBotId, scanRefreshing, handleScanRefresh }: Liv
           </CardContent>
         </Card>
       </Box>
-      <Box className="paper-live-right-panel" sx={{ flex: { xs: "1 1 auto", md: "1 1 58%" }, minWidth: 0, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }} data-testid="paper-right-panel" id="right-panel">
+      <Box className="paper-live-right-panel" sx={{ flex: { xs: "1 1 auto", md: "1 1 58%" }, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }} data-testid="paper-right-panel" id="right-panel">
         <Card className="paper-chart-card-wrap" id="paper-chart-card-wrap" elevation={0} sx={{ border: 0, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-chart-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperChart />
@@ -224,14 +224,14 @@ interface HistoryViewProps {
 function HistoryView({ state: _state }: HistoryViewProps) {
   return (
     <Box className="paper-history-view" sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="paper-history-panel" id="history-view">
-      <Box className="paper-history-left" id="paper-history-left" sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box className="paper-history-left" id="paper-history-left" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Card className="paper-history-table-card" id="paper-history-table-card" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-history-table-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperHistoryTable />
           </CardContent>
         </Card>
       </Box>
-      <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Card className="paper-history-chart-card" id="paper-history-chart-card" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-history-chart-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperChart engine="tradingview" />

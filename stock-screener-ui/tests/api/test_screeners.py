@@ -33,6 +33,7 @@ from api_server_fastapi import (
     _to_float,
     _enrich_with_touch_history,
 )
+from api.screener_api.screener_scan import _process_single_stock
 import trending_upside
 from db.models import Stock52WeekTouch
 
@@ -130,6 +131,28 @@ def mock_trading_api():
     with patch('api_server_fastapi.TradingAPIFactory') as mock:
         mock.create_from_config.side_effect = ValueError('No credentials configured')
         yield mock
+
+
+@pytest.fixture(autouse=True)
+def _isolate_upstox_client():
+    """Force the TV-only screener path: block BOTH Upstox client factories.
+
+    ``screener_scan.fetch_screener_data`` (and ``screener_52w._create_upstox_api``)
+    import ``TradingAPIFactory`` from ``upstox_trader...free_indian_apis``
+    directly, so the legacy ``api_server_fastapi.TradingAPIFactory`` patch does
+    not stop them; a real broker token in this env would otherwise yield
+    ``use_api=True`` (live prices, instrument blacklist, real DB ranges) and
+    make mock-data tests non-hermetic. The second factory leg
+    (``UpstoxAPI`` + ``UpstoxAuthHandler.load_token``) must be blocked too.
+    """
+    with patch(
+        'upstox_trader.config_and_utils.free_indian_apis.TradingAPIFactory.create_from_config',
+        side_effect=ValueError('No credentials configured'),
+    ), patch(
+        'upstox_trader.config_and_utils.upstox_auth.UpstoxAuthHandler.load_token',
+        return_value=False,
+    ):
+        yield
 
 
 class TestScreenersList:
@@ -1138,3 +1161,124 @@ class Test52WeekTouchEnrichment:
         # Assert: uses the most recent (newer_date) touch
         stock = data['touched'][0]
         assert stock['last_touched_price'] == 1255.0
+
+
+class TestUpstox52wGap:
+    """to_52w_high must come from the Upstox-computed 52W high, not TradingView.
+
+    Regression: the screener flagged ZYDUSLIFE ~0.1% below its TV 52W high
+    while Upstox daily history put it ~6.5% below.
+    """
+
+    TV_HIGH = 1000.0
+    UPSTOX_HIGH = 1070.0
+    UPSTOX_PRICE = 1000.0
+
+    def _tv_row(self, **overrides):
+        row = {
+            'name': 'ZYDUSLIFE',
+            'close': 999.0,
+            'change': 1.0,
+            'price_52_week_high': self.TV_HIGH,
+            'ADX': 30.0,
+            'ATR': 20.0,
+            'Perf.W': 3.0,
+            'RSI': 60.0,
+            'Stoch.K': 50.0,
+            'gap': 0.0,
+            'premarket_change': 0.0,
+            'impact_score': 0.0,
+            'market_cap_basic': 100_000_000_000,
+            'volume': 2_000_000,
+            'sector': 'Pharma',
+            'reversal_signal': '',
+            'relative_volume_10d_calc': 1.0,
+            'swing_score': 50.0,
+        }
+        row.update(overrides)
+        return row
+
+    def _upstox_api(self, price=None):
+        import pandas as pd
+
+        price = self.UPSTOX_PRICE if price is None else price
+        n = 20
+        closes = [price - 5 + i * (5 / (n - 1)) for i in range(n)]
+        df = pd.DataFrame({
+            'open': [c - 1 for c in closes],
+            'high': [c + 2 for c in closes],
+            'low': [c - 2 for c in closes],
+            'close': closes,
+            'volume': [100000] * n,
+        })
+        api = MagicMock()
+        api.get_instrument_key.return_value = 'NSE_EQ|123'
+        api.fetch_historical_data_v3.return_value = df
+        return api
+
+    @patch('trading.week52_range_lookup.get_52w_range')
+    def test_gap_uses_upstox_high_not_tv(self, mock_range):
+        """Upstox high wins: gap ≈6.5% (approaching), not the TV ≈0.1% (touched)."""
+        mock_range.return_value = {
+            'high': self.UPSTOX_HIGH, 'low': 800.0, 'close': self.UPSTOX_PRICE,
+        }
+        result = _process_single_stock(
+            self._tv_row(), 'trending', True, self._upstox_api(), False, True, None,
+        )
+        assert result is not None
+        stock, bucket = result
+        assert stock['high_52w'] == pytest.approx(self.UPSTOX_HIGH)
+        assert stock['to_52w_high'] == pytest.approx(
+            round((self.UPSTOX_HIGH - self.UPSTOX_PRICE) / self.UPSTOX_HIGH * 100, 2)
+        )
+        assert stock['source'] == 'upstox'
+        assert stock['touched_52w'] is False
+        assert bucket == 'approaching'
+
+    @patch('trading.week52_range_lookup.get_52w_range')
+    def test_tv_fallback_only_when_upstox_missing(self, mock_range):
+        """Without an Upstox range the TV high is used and marked source='tv'."""
+        mock_range.return_value = None
+        tv_high = 1100.0
+        result = _process_single_stock(
+            self._tv_row(price_52_week_high=tv_high),
+            'trending', True, self._upstox_api(), False, True, None,
+        )
+        assert result is not None
+        stock, bucket = result
+        assert stock['high_52w'] == pytest.approx(tv_high)
+        assert stock['to_52w_high'] == pytest.approx(
+            round((tv_high - self.UPSTOX_PRICE) / tv_high * 100, 2)
+        )
+        assert stock['source'] == 'tv'
+        assert stock['touched_52w'] is False
+        assert bucket == 'approaching'
+
+    @patch('trading.week52_range_lookup.get_52w_range')
+    def test_stale_upstox_high_skips_row(self, mock_range):
+        """Price 25% above the stored high is a stale range: skip, don't emit −25%."""
+        mock_range.return_value = {
+            'high': 800.0, 'low': 700.0, 'close': self.UPSTOX_PRICE,
+        }
+        result = _process_single_stock(
+            self._tv_row(), 'trending', True, self._upstox_api(), False, True, None,
+        )
+        assert result is None
+
+    @patch('api.screener_api.screener_52w.load_all_52w_ranges')
+    def test_52w_high_profile_skips_stale_rows(self, mock_load):
+        """52w_high profile drops stale-high rows and marks survivors source='upstox'."""
+        mock_load.return_value = {
+            'GOOD': {'high': 1070.0, 'low': 800.0, 'close': 1000.0},
+            'STALE': {'high': 800.0, 'low': 700.0, 'close': 1000.0},
+        }
+        result = fetch_screener_data(
+            provider='upstox', mode='intraday', screener='52w_high',
+            profile_filters={'max_52w_gap': 10},
+        )
+        symbols = {s['symbol'] for s in result['approaching'] + result['touched']}
+        assert 'GOOD' in symbols
+        assert 'STALE' not in symbols
+        good = next(s for s in result['approaching'] + result['touched'] if s['symbol'] == 'GOOD')
+        assert good['source'] == 'upstox'
+        assert good['to_52w_high'] == pytest.approx(6.54)

@@ -1062,3 +1062,58 @@ class TestEdgeCases:
         result = chart_data.format_trade_markers(trades)
         assert result[0]['trade']['net_pnl'] == -215.0
         assert result[0]['trade']['net_pnl_pct'] == -2.15
+
+
+class TestRsiSeries:
+    """Tests for calculate_rsi_series."""
+
+    def _candles(self, closes):
+        return [{'time': f'2024-01-15T09:{15+i:02d}:00', 'date': '2024-01-15',
+                 'time_str': f'09:{15+i:02d}', 'open': c, 'high': c, 'low': c,
+                 'close': c, 'volume': 1000} for i, c in enumerate(closes)]
+
+    def test_returns_period_and_data_of_equal_length(self):
+        candles = self._candles([100 + i for i in range(40)])
+        out = chart_data.calculate_rsi_series(candles, period=14)
+        assert out['period'] == 14
+        assert len(out['data']) == 40
+
+    def test_warmup_values_are_none(self):
+        candles = self._candles([100 + i for i in range(40)])
+        out = chart_data.calculate_rsi_series(candles, period=14)
+        assert out['data'][0] is None
+        assert any(v is not None for v in out['data'][20:])
+
+    def test_values_within_bounds(self):
+        candles = self._candles([100, 101, 99, 103, 98, 105, 97, 108, 96, 110,
+                                 95, 112, 94, 115, 93, 118, 92, 120, 91, 122])
+        out = chart_data.calculate_rsi_series(candles, period=14)
+        vals = [v for v in out['data'] if v is not None]
+        assert vals and all(0 <= v <= 100 for v in vals)
+
+    def test_short_series_is_all_none(self):
+        candles = self._candles([100, 101, 102])
+        out = chart_data.calculate_rsi_series(candles, period=14)
+        assert out['data'] == [None, None, None]
+
+
+class TestBuildChartDataRsiAndSide:
+    """build_chart_data_for_symbol includes rsi + per-trade side."""
+
+    def test_includes_rsi_and_side(self):
+        closes = [100 + (i % 5) for i in range(30)]
+        df = pd.DataFrame({
+            'open': closes, 'high': [c + 1 for c in closes], 'low': [c - 1 for c in closes],
+            'close': closes, 'volume': [1000] * 30,
+        }, index=pd.date_range('2024-01-15 09:15:00', periods=30, freq='5min'))
+        trades = [{
+            'entry_price': 100.0, 'exit_price': 102.0, 'entry_time': '2024-01-15T09:15',
+            'exit_time': '2024-01-15T09:30', 'quantity': 100, 'gross_pnl': 200.0,
+            'trading_costs': 10.0, 'net_pnl': 190.0, 'net_pnl_pct': 1.9,
+            'exit_reason': 'TP', 'hold_duration_minutes': 15, 'side': 'SHORT',
+        }]
+        out = chart_data.build_chart_data_for_symbol('TEST', df, trades, or_minutes=15)
+        assert 'rsi' in out and out['rsi']['period'] == 14
+        assert len(out['rsi']['data']) == out['total_candles']
+        entries = [t for t in out['trades'] if t['type'] == 'entry']
+        assert entries and entries[0]['trade']['side'] == 'SHORT'

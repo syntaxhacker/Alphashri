@@ -22,10 +22,22 @@ import { ChainFooter } from "./ChainFooter";
 import { ChainScrollActions } from "./ChainScrollActions";
 
 interface OptionChainTableProps {
-  strikeMatrix: Array<{ strike: number; ce: OptionContract | null; pe: OptionContract | null }>;
+  strikeMatrix: Array<{
+    strike: number;
+    ce: OptionContract | null;
+    pe: OptionContract | null;
+    pcr?: number | null;
+  }>;
   filters: any;
   spotPrice: number | null;
   onRowClick: (contract: OptionContract) => void;
+}
+
+/** Format the bid/ask quote line from market depth (bid/ask qty are optional for old payloads). */
+export function formatQuoteLine(m: OptionContract["market_data"]): string {
+  const bidQty = m?.bid_qty ?? 0;
+  const askQty = m?.ask_qty ?? 0;
+  return `Bid: ${m?.bid_price ?? 0} x ${bidQty} | Ask: ${m?.ask_price ?? 0} x ${askQty}`;
 }
 
 function OptionColumn({
@@ -37,6 +49,7 @@ function OptionColumn({
   onRowClick,
   theme,
   isHovered,
+  strikePcr,
 }: {
   contract: OptionContract | null;
   type: "CE" | "PE";
@@ -46,6 +59,7 @@ function OptionColumn({
   onRowClick: (c: OptionContract) => void;
   theme: ReturnType<typeof useTheme>;
   isHovered: boolean;
+  strikePcr?: number | null;
 }) {
   const { colorScheme } = useColorScheme();
   const styles = getStyles(theme, colorScheme === "dark");
@@ -79,6 +93,8 @@ function OptionColumn({
   const ltp = m?.ltp ?? 0;
   const iv = g?.iv ?? 0;
   const delta = g?.delta ?? 0;
+  const pop = g?.pop ?? 0;
+  const closePrice = m?.close_price ?? 0;
 
   const sentiment = contract.sentiment || { type: "Neutral", color: "gray", label: "Neutral" };
   const cellMeta = (
@@ -156,17 +172,28 @@ function OptionColumn({
       <Text size="sm" c={getPnLTextColor(oiChange)}>
         OI Change %: {oiChangePct.toFixed(2)}%
       </Text>
+      {strikePcr != null && (
+        <Text size="sm" c="dimmed">
+          Strike PCR: {strikePcr.toFixed(2)}
+        </Text>
+      )}
         <Box mt={5} pt={5}>
         <Text size="sm">Delta: {delta.toFixed(3)}</Text>
         <Text size="sm">Theta: {(g?.theta ?? 0).toFixed(2)}</Text>
         <Text size="sm">Gamma: {(g?.gamma ?? 0).toFixed(5)}</Text>
         <Text size="sm">Vega: {(g?.vega ?? 0).toFixed(2)}</Text>
         <Text size="sm">IV: {iv.toFixed(2)}%</Text>
+        {pop > 0 && (
+          <Text size="sm">PoP: {pop.toFixed(2)}%</Text>
+        )}
       </Box>
       <Box mt={5} pt={5}>
-        <Text size="sm">
-          Bid: {m?.bid_price} | Ask: {m?.ask_price}
-        </Text>
+        <Text size="sm">{formatQuoteLine(m)}</Text>
+        {closePrice > 0 && (
+          <Text size="sm" c="dimmed">
+            Prev Close: {closePrice.toFixed(2)}
+          </Text>
+        )}
       </Box>
     </Box>
   );
@@ -202,6 +229,9 @@ function OptionColumn({
           background: palette.background,
           boxShadow: palette.shadow,
           color: cell.c ? undefined : palette.text,
+          // TABLE_CHECKLIST rule: numeric columns right-align (headers match).
+          justifyContent: "flex-end",
+          textAlign: "right",
         };
 
         return (
@@ -231,9 +261,9 @@ function OptionColumn({
                 />
               )}
 
-              <Stack gap={0} align="center" w="100%" pos="relative" sx={{ zIndex: 1 }}>
-                <Group gap={4} wrap="nowrap" align="center" justify="center">
-                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="center" lh={1.05}>
+              <Stack gap={0} align="flex-end" w="100%" pos="relative" sx={{ zIndex: 1 }}>
+                <Group gap={4} wrap="nowrap" align="center" justify="flex-end">
+                  <Text size="sm" fw={cell.fw} c={cell.c as any} ta="right" lh={1.05}>
                     {cell.value}
                   </Text>
                   {cell.badge && (
@@ -327,15 +357,13 @@ function OptionChainTableInner({
       <ChainSubHeader styles={styles} />
 
       <ScrollArea
-       
         flex={1}
-        type="hover"
-        scrollbars="y"
         viewportRef={viewportRef}
         data-testid="options-chain-table-scrollarea"
+        sx={{ overflowX: "auto", overflowY: "auto" }}
       >
         <Box sx={{ minWidth: 800, pb: 19 }}>
-          {strikeMatrix.map(({ strike, ce, pe }) => {
+          {strikeMatrix.map(({ strike, ce, pe, pcr }) => {
             const isATM = spotPrice && Math.abs(strike - spotPrice) < 25;
             const isHovered = hoveredStrike === strike;
             const proximity = spotPrice
@@ -377,6 +405,7 @@ function OptionChainTableInner({
                   onRowClick={onRowClick}
                   theme={theme}
                   isHovered={isHovered}
+                  strikePcr={pcr}
                 />
 
                 <Box
@@ -389,7 +418,7 @@ function OptionChainTableInner({
                   }}
                   data-testid="strike-cell"
                 >
-                  <Text size="sm" fw={800}>
+                  <Text size="sm" fw={800} ta="center">
                     {strike}
                   </Text>
                 </Box>
@@ -403,6 +432,7 @@ function OptionChainTableInner({
                   onRowClick={onRowClick}
                   theme={theme}
                   isHovered={isHovered}
+                  strikePcr={pcr}
                 />
               </Box>
             );

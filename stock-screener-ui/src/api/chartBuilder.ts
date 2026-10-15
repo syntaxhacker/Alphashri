@@ -277,6 +277,9 @@ function formatTradeMarkers(trades: RawTrade[], candles: CandleData[]): ChartTra
       s1: trade.s1,
       r2: trade.r2,
       s2: trade.s2,
+      "52w_high": trade["52w_high"] ?? trade["52w_high_entry"],
+      trailing_active: trade.trailing_active,
+      side: trade.side,
     };
 
     // Entry marker
@@ -377,6 +380,7 @@ export function chartTradesToTrades(chartTrades: ChartTrade[]): Trade[] {
         // 52W Chaser fields
         "52w_high": ct.trade["52w_high"],
         trailing_active: ct.trade.trailing_active,
+        side: ct.trade.side,
       });
     });
   return trades;

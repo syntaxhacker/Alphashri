@@ -43,6 +43,9 @@ export const ERROR = NEGATIVE_COLOR;
 export const WARNING = "#F0883E";
 export const INFO = PRIMARY;
 
+/** Dialog / modal drop shadow — flat design: one soft shadow, no elevation tint. */
+export const DIALOG_SHADOW = "0 8px 32px rgba(0, 0, 0, 0.5)";
+
 // Text / surfaces
 export const TEXT = TEXT_COLOR;
 export const TEXT_MUTED = TEXT_MUTED_COLOR;
@@ -81,6 +84,8 @@ export const TOOLTIP_TEXT = "#F0F6FC";
 export const AXIS_LINE = "#30363D";
 export const AXIS_SPLIT = "#21262D";
 export const CHART_BG = "#0D1117";
+/** Pure-black plot background for the TradingView (lightweight-charts) panels. */
+export const CHART_TV_BG = "#000000";
 export const CHART_TEXT = "#F0F6FC";
 export const CHART_MUTED = "#8B949E";
 export const CHART_BORDER = "#30363D";

@@ -4,11 +4,7 @@ import { ReplayStats } from "./ReplayStats";
 import { ReplayMainView } from "./ReplayMainView";
 import { ReplayPositions } from "./ReplayPositions";
 import { ReplaySummaryPanel } from "./ReplaySummary";
-import { Stack, Box, Text, Title } from "@/ui";
-import Container from "@mui/material/Container";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import TableContainer from "@mui/material/TableContainer";
+import { Box, Text, Title, ToolbarRow } from "@/ui";
 import { useEffect, useRef } from "react";
 import type { ReplayTrade } from "../../types/replay";
 
@@ -39,95 +35,73 @@ function ReplayPageContent(
   handleTradeClick: (trade: ReplayTrade) => void,
 ) {
   return (
-    <Container maxWidth="xl" sx={{ py: 2, height: "100%", overflow: "hidden", display: "flex", flexDirection: "column" }} data-testid="replay-page">
-      <Stack gap="sm" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <Card elevation={1}>
-              <CardContent>
-                <TableContainer>
-                  <Box>
-                    <Title order={2} size="h4">
-                      Replay Trading Day
-                    </Title>
-                    <Text size="sm" c="dimmed">
-                      Simulate paper trading using historical candles
-                    </Text>
-                  </Box>
-                </TableContainer>
-              </CardContent>
-            </Card>
-            <Card elevation={1}>
-              <CardContent>
-                <ReplayConfigBar
-                  config={state.config}
-                  isRunning={state.isRunning}
-                  setConfig={state.setConfig}
-                  startReplay={state.startReplay}
-                  stopReplay={state.stopReplay}
-                  reset={state.reset}
-                  loadSymbols={state.loadSymbols}
-                  error={state.error}
-                />
-              </CardContent>
-            </Card>
-            <Card elevation={1}>
-              <CardContent>
-                <ReplayStats
-                  progress={state.progress}
-                  totalCandles={state.totalCandles}
-                  totalSymbols={state.totalSymbols}
-                  trades={state.trades}
-                />
-              </CardContent>
-            </Card>
-            {state.openPositions.length > 0 && (
-              <Card elevation={1}>
-                <CardContent>
-                  <TableContainer>
-                    <ReplayPositions positions={state.openPositions} />
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            )}
-            <Card elevation={1} sx={{ flex: 1, minHeight: 0, overflow: "hidden" }}>
-              <CardContent sx={{ height: "100%", display: "flex", flexDirection: "column" }}>
-                <ReplayMainView
-                  candlesBySymbol={state.candlesBySymbol}
-                  trades={state.trades}
-                  orLevels={state.orLevels}
-                  pivotLevels={state.pivotLevels}
-                  high52wLevels={state.high52wLevels}
-                  emaData={state.emaData}
-                  selectedSymbol={state.selectedSymbol}
-                  setSelectedSymbol={state.setSelectedSymbol}
-                  chartOptions={state.chartOptions}
-                  setChartOptions={state.setChartOptions}
-                  highlightedTradeId={state.highlightedTradeId}
-                  strategyFilter={state.strategyFilter}
-                  setStrategyFilter={state.setStrategyFilter}
-                  isRunning={state.isRunning}
-                  chartRef={chartRef}
-                  onTradeClick={(tradeId) => {
-                    const trade = state.trades.find((t) => t.id === tradeId);
-                    if (trade) {
-                      state.setHighlightedTrade(tradeId);
-                      setTimeout(() => chartRef.current?.zoomToTrade(trade.entry_time, trade.exit_time), 100);
-                    }
-                  }}
-                  onTradeRowClick={handleTradeClick}
-                />
-              </CardContent>
-            </Card>
-            {state.summary && (
-              <Card elevation={1}>
-                <CardContent>
-                  <TableContainer>
-                    <ReplaySummaryPanel summary={state.summary} />
-                  </TableContainer>
-                </CardContent>
-              </Card>
-            )}
-          </Stack>
-    </Container>
+    <Box sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.default" }} data-testid="replay-page">
+      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: 48, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+        <Title order={2} size="h4">
+          Replay Trading Day
+        </Title>
+        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          Simulate paper trading using historical candles
+        </Text>
+      </ToolbarRow>
+      <Box sx={{ flex: "0 0 auto", borderBottom: "1px solid var(--mui-palette-divider)", px: 2, py: 1 }}>
+        <ReplayConfigBar
+          config={state.config}
+          isRunning={state.isRunning}
+          setConfig={state.setConfig}
+          startReplay={state.startReplay}
+          stopReplay={state.stopReplay}
+          reset={state.reset}
+          loadSymbols={state.loadSymbols}
+          error={state.error}
+        />
+      </Box>
+      <Box sx={{ flex: "0 0 auto", borderBottom: "1px solid var(--mui-palette-divider)", px: 2, py: 1 }}>
+        <ReplayStats
+          progress={state.progress}
+          totalCandles={state.totalCandles}
+          totalSymbols={state.totalSymbols}
+          trades={state.trades}
+        />
+      </Box>
+      {state.openPositions.length > 0 && (
+        <Box sx={{ flex: "0 0 auto", borderBottom: "1px solid var(--mui-palette-divider)", px: 2, py: 1, overflow: "auto", maxHeight: 220 }}>
+          <ReplayPositions positions={state.openPositions} />
+        </Box>
+      )}
+      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "hidden", display: "flex", flexDirection: "column", px: 2, py: 1 }}>
+        <ReplayMainView
+          candlesBySymbol={state.candlesBySymbol}
+          trades={state.trades}
+          orLevels={state.orLevels}
+          pivotLevels={state.pivotLevels}
+          high52wLevels={state.high52wLevels}
+          emaData={state.emaData}
+          selectedSymbol={state.selectedSymbol}
+          setSelectedSymbol={state.setSelectedSymbol}
+          chartOptions={state.chartOptions}
+          setChartOptions={state.setChartOptions}
+          highlightedTradeId={state.highlightedTradeId}
+          strategyFilter={state.strategyFilter}
+          setStrategyFilter={state.setStrategyFilter}
+          isRunning={state.isRunning}
+          chartRef={chartRef}
+          onTradeClick={(tradeId) => {
+            const trade = state.trades.find((t) => t.id === tradeId);
+            if (trade) {
+              state.setHighlightedTrade(tradeId);
+              setTimeout(() => chartRef.current?.zoomToTrade(trade.entry_time, trade.exit_time), 100);
+            }
+          }}
+          onTradeRowClick={handleTradeClick}
+        />
+      </Box>
+      {state.summary && (
+        <Box sx={{ flex: "0 0 auto", borderTop: "1px solid var(--mui-palette-divider)", px: 2, py: 1, overflow: "auto", maxHeight: 220 }}>
+          <ReplaySummaryPanel summary={state.summary} />
+        </Box>
+      )}
+    </Box>
   );
 }
 

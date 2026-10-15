@@ -1,29 +1,22 @@
-import Box from "@mui/material/Box";
-import CardContent from "@mui/material/CardContent";
-import CardHeader from "@mui/material/CardHeader";
-import CircularProgress from "@mui/material/CircularProgress";
-import Divider from "@mui/material/Divider";
-import FormControl from "@mui/material/FormControl";
-import IconButton from "@mui/material/IconButton";
-import InputLabel from "@mui/material/InputLabel";
-import MenuItem from "@mui/material/MenuItem";
-import Select from "@mui/material/Select";
 import Skeleton from "@mui/material/Skeleton";
-import Stack from "@mui/material/Stack";
 import Typography from "@mui/material/Typography";
-import { IconRefresh } from "@tabler/icons-react";
+import { IconBolt, IconRefresh } from "@tabler/icons-react";
+import { ActionIcon, Box, Select, Stack, ToolbarRow, Tooltip } from "@/ui";
 import type { NewsItem } from "./news-types";
 import { NewsListContent } from "./NewsHelpers";
 import { SentimentBadge } from "./SentimentBadge";
 import { ImpactScore } from "./ImpactScore";
 
+const normalizeSource = (value: string) => value.trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+
 interface NewsListProps {
   loading: boolean;
   error: string | null;
   selectedSource: string;
+  selectedSourceName?: string;
   sourceData: { value: string; label: string }[];
   selectedArticle: NewsItem | null;
-  onSourceChange: (v: string) => void;
+  onSourceChange: (value: string) => void;
   onRefresh: () => void;
   onArticleClick: (item: NewsItem) => void;
   groupedNewsItems: Record<string, NewsItem[]>;
@@ -36,6 +29,7 @@ export function NewsList({
   loading,
   error,
   selectedSource,
+  selectedSourceName,
   sourceData,
   selectedArticle,
   onSourceChange,
@@ -47,7 +41,13 @@ export function NewsList({
   toggleSourceExpanded,
 }: NewsListProps) {
   const hasGroups = Object.keys(groupedNewsItems ?? {}).length > 0;
-  const newsItems = sourceNames.flatMap((source) => groupedNewsItems[source] ?? []);
+  const activeSourceName = selectedSource === "all" ? "all" : selectedSourceName ?? selectedSource;
+  const normalizedActiveSource = normalizeSource(activeSourceName);
+  const visibleSourceNames = sourceNames.filter(
+    (source) => activeSourceName === "all" || normalizeSource(source) === normalizedActiveSource,
+  );
+  const newsItems = visibleSourceNames.flatMap((source) => groupedNewsItems[source] ?? []);
+  const storyLabel = `${newsItems.length} ${newsItems.length === 1 ? "story" : "stories"}`;
 
   return (
     <Box
@@ -55,65 +55,97 @@ export function NewsList({
       id="news-feed"
       data-testid="news-feed"
     >
-      <CardHeader
-        title={<Typography variant="h6">News Feed</Typography>}
-        action={
-          <IconButton
-            size="small"
-            edge="end"
-            aria-label="Refresh news feed"
-            onClick={onRefresh}
-            data-testid="news-feed-refresh-btn"
-          >
-            {loading ? <CircularProgress size={18} /> : <IconRefresh size={18} />}
-          </IconButton>
-        }
-        sx={{ px: 1, py: 1 }}
-      />
-      <Divider />
-      <CardContent sx={{ py: 1 }}>
-        <FormControl fullWidth size="small">
-          <InputLabel id="news-source-label">Source</InputLabel>
-          <Select
-            labelId="news-source-label"
-            value={selectedSource}
-            label="Source"
-            displayEmpty
-            onChange={(event) => {
-              const value = String(event.target.value);
-              if (value) onSourceChange(value);
-            }}
-            data-testid="source-selector"
-          >
-            {(sourceData ?? []).map((option) => (
-              <MenuItem key={option.value} value={option.value}>
-                {option.label}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
-      </CardContent>
-      <Divider />
+      <Box
+        data-testid="news-feed-toolbar"
+        sx={{
+          position: "sticky",
+          top: 0,
+          zIndex: 2,
+          bgcolor: "background.paper",
+          borderBottom: 1,
+          borderColor: "divider",
+        }}
+      >
+        <Box sx={{ px: 1.5, pt: 1.25, pb: 0.75 }}>
+          <ToolbarRow gap={8}>
+            <Box sx={{ minWidth: 0, flex: "0 0 auto", flexBasis: { xs: "100%", sm: "auto" } }}>
+              <Box sx={{ display: "flex", alignItems: "center", gap: 0.75 }}>
+                <Typography variant="subtitle1" fontWeight={700} sx={{ lineHeight: 1.2 }}>
+                  Market feed
+                </Typography>
+                <Box
+                  sx={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 0.5,
+                    color: "success.main",
+                    px: 0.75,
+                    py: 0.25,
+                    borderRadius: 1,
+                    bgcolor: "action.hover",
+                  }}
+                >
+                  <IconBolt size={12} aria-hidden="true" />
+                  <Typography variant="caption" fontWeight={700} sx={{ lineHeight: 1 }}>
+                    Live
+                  </Typography>
+                </Box>
+              </Box>
+              <Typography
+                variant="caption"
+                color="text.secondary"
+                data-testid="news-story-count"
+                sx={{ display: "block", mt: 0.25, fontVariantNumeric: "tabular-nums" }}
+              >
+                {storyLabel} across {visibleSourceNames.length} {visibleSourceNames.length === 1 ? "source" : "sources"}
+              </Typography>
+            </Box>
+            <Box sx={{ flex: 1, minWidth: 0, display: { xs: "none", sm: "block" } }} />
+            <Box sx={{ width: { xs: "auto", sm: 180 }, flex: 1, maxWidth: "100%" }}>
+              <Select
+                aria-label="Source"
+                size="sm"
+                value={selectedSource}
+                onChange={(value) => value && onSourceChange(value)}
+                data={sourceData ?? []}
+                style={{ width: "100%" }}
+                data-testid="source-selector"
+              />
+            </Box>
+            <Tooltip title="Refresh news feed">
+              <ActionIcon
+                variant="light"
+                size="sm"
+                onClick={onRefresh}
+                loading={loading}
+                disabled={loading}
+                aria-label="Refresh news feed"
+                data-testid="news-feed-refresh-btn"
+                sx={{ flex: "0 0 auto" }}
+              >
+                <IconRefresh size={16} />
+              </ActionIcon>
+            </Tooltip>
+          </ToolbarRow>
+        </Box>
+      </Box>
+
       {loading && !hasGroups ? (
-        <CardContent>
-          <Stack spacing={1} data-testid="news-loader">
-            {[0, 1, 2].map((row) => (
-              <Skeleton key={row} variant="rounded" height={72} />
-            ))}
-            <Typography variant="body2" color="text.secondary">
-              Loading news...
-            </Typography>
-          </Stack>
-        </CardContent>
+        <Stack spacing={1} sx={{ p: 1.5 }} data-testid="news-loader">
+          {[0, 1, 2, 3].map((row) => (
+            <Skeleton key={row} variant="rounded" height={64} />
+          ))}
+          <Typography variant="body2" color="text.secondary">
+            Loading market headlines…
+          </Typography>
+        </Stack>
       ) : (
-        <CardContent
-          sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 0, "&:last-child": { pb: 0 } }}
-        >
+        <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
           <NewsListContent
             loading={false}
             error={error}
             newsItems={newsItems}
-            selectedSource={selectedSource}
+            selectedSource={activeSourceName}
             selectedArticleId={selectedArticle?.id ?? null}
             itemTestId="news-list-item"
             sourceNames={sourceNames}
@@ -122,19 +154,20 @@ export function NewsList({
             readIds={new Set()}
             onToggleSource={toggleSourceExpanded}
             onArticleClick={onArticleClick}
+            variant="desk"
             renderItemMeta={(item) =>
               item.sentiment || item.impact_score !== undefined ? (
                 <Box
                   component="span"
-                  sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}
+                  sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}
                 >
                   {item.sentiment && <SentimentBadge sentiment={item.sentiment} />}
-                  {item.impact_score !== undefined && <ImpactScore score={item.impact_score} />}
+                  {item.impact_score !== undefined && <ImpactScore score={item.impact_score} compact />}
                 </Box>
               ) : null
             }
           />
-        </CardContent>
+        </Box>
       )}
     </Box>
   );

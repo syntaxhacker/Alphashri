@@ -20,6 +20,7 @@ vi.mock("../../hooks/useScreenerState", () => ({
 
 let lastScreenerPageProps: any = null;
 vi.mock("../../components/screener/ScreenerPage", () => ({
+  DEFAULT_DASHBOARD_UNIVERSE: "nifty500",
   ScreenerPage: (props: any) => {
     lastScreenerPageProps = props;
     return (
@@ -33,6 +34,7 @@ vi.mock("../../components/screener/ScreenerPage", () => ({
         data-warning={props.warning ?? ""}
         data-approaching-count={props.approachingStocks?.length ?? 0}
         data-touched-count={props.touchedStocks?.length ?? 0}
+        data-universe={props.universe ?? ""}
       >
         ScreenerPage - {props.title} - {props.status}
       </div>
@@ -243,5 +245,16 @@ describe("ScreenerContainer", () => {
     expect(lastScreenerPageProps.onRefresh).toBe(onRefresh);
     expect(lastScreenerPageProps.onScreenerChange).toBe(onScreenerChange);
     expect(lastScreenerPageProps.onConfigScreenerSelect).toBeDefined();
+  });
+
+  it("passes the dashboard universe through to ScreenerPage", () => {
+    render(
+      <UIProvider>
+        <ScreenerContainer />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("screener-page")).toHaveAttribute("data-universe", "nifty500");
+    expect(lastScreenerPageProps.universe).toBe("nifty500");
+    expect(lastScreenerPageProps.onUniverseChange).toBeDefined();
   });
 });

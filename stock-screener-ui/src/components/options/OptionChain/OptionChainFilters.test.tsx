@@ -82,6 +82,6 @@ describe("OptionChainFilters", () => {
     );
     expect(screen.getByTestId("strike-min-input")).toBeInTheDocument();
     expect(screen.getByTestId("strike-max-input")).toBeInTheDocument();
-    expect(screen.getByText("Strike Min")).toBeInTheDocument();
+    expect(screen.getAllByText("Strike Min").length).toBeGreaterThan(0);
   });
 });

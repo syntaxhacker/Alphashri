@@ -276,74 +276,81 @@ export function ReplayConfigBar({
           />
         </Box>
 
-        {isRunning ? (
-          <Button
-            size="sm"
-            color="error"
-            variant="filled"
-            leftSection={<IconPlayerStop size={16} />}
-            onClick={stopReplay}
-            data-testid="replay-stop-btn"
-          >
-            Stop
-          </Button>
-        ) : (
-          <>
-            <Button
-              size="sm"
-              leftSection={<IconPlayerPlay size={16} />}
-              disabled={!config.date}
-              onClick={startReplay}
-              data-testid="replay-run-btn"
-            >
-              Run Replay
-            </Button>
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            &nbsp;
+          </Text>
+          <Group gap="xs" align="center">
+            {isRunning ? (
+              <Button
+                size="sm"
+                color="error"
+                variant="filled"
+                leftSection={<IconPlayerStop size={16} />}
+                onClick={stopReplay}
+                data-testid="replay-stop-btn"
+              >
+                Stop
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlayerPlay size={16} />}
+                  disabled={!config.date}
+                  onClick={startReplay}
+                  data-testid="replay-run-btn"
+                >
+                  Run Replay
+                </Button>
 
-            <Tooltip label="Save current config">
-              <ActionIcon
+                <Tooltip label="Save current config">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="secondary"
+                    onClick={() => {
+                      setNewConfigName("");
+                      setNewConfigDescription("");
+                      setSaveError(null);
+                      setSaveModalOpen(true);
+                    }}
+                    data-testid="replay-save-config-btn"
+                  >
+                    <IconDeviceFloppy size={16} />
+                  </ActionIcon>
+                </Tooltip>
+
+                <Tooltip label="Load saved config">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="secondary"
+                    onClick={() => {
+                      setLoadError(null);
+                      setLoadModalOpen(true);
+                    }}
+                    data-testid="replay-load-config-btn"
+                  >
+                    <IconFolderOpen size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </>
+            )}
+
+            {!isRunning && config.date && (
+              <Button
                 size="sm"
                 variant="subtle"
                 color="secondary"
-                onClick={() => {
-                  setNewConfigName("");
-                  setNewConfigDescription("");
-                  setSaveError(null);
-                  setSaveModalOpen(true);
-                }}
-                data-testid="replay-save-config-btn"
+                onClick={reset}
+                data-testid="replay-reset-btn"
               >
-                <IconDeviceFloppy size={16} />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip label="Load saved config">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="secondary"
-                onClick={() => {
-                  setLoadError(null);
-                  setLoadModalOpen(true);
-                }}
-                data-testid="replay-load-config-btn"
-              >
-                <IconFolderOpen size={16} />
-              </ActionIcon>
-            </Tooltip>
-          </>
-        )}
-
-        {!isRunning && config.date && (
-          <Button
-            size="sm"
-            variant="subtle"
-            color="secondary"
-            onClick={reset}
-            data-testid="replay-reset-btn"
-          >
-            Reset
-          </Button>
-        )}
+                Reset
+              </Button>
+            )}
+          </Group>
+        </Box>
       </Group>
 
       {/* Save Config Modal */}

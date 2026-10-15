@@ -13,13 +13,14 @@ export function Flex({
   children, className, style, id, "data-testid": testId, onClick, onMouseEnter, onMouseLeave,
   p, px, py, pt, pb, pl, pr, m, mx, my, mt, mb, ml, mr, bg, c, opacity, pos, top, right, bottom, left, w, h, miw, maw, mih, mah, flex,
   direction, wrap, justify, align, gap,
+  sx: sxProp,
   ...rest
 }: UIFlexProps & Record<string, unknown>) {
   return (
     <MuiBox
       id={id as string} className={className} style={style} data-testid={testId}
       onClick={onClick as never} onMouseEnter={onMouseEnter as never} onMouseLeave={onMouseLeave as never}
-      sx={{
+      sx={[{
         display: "flex",
         ...(direction && { flexDirection: direction }),
         ...(wrap && { flexWrap: wrap }),
@@ -38,7 +39,7 @@ export function Flex({
         ...(miw != null && { minWidth: toSz(miw) }), ...(maw != null && { maxWidth: toSz(maw) }),
         ...(mih != null && { minHeight: toSz(mih) }), ...(mah != null && { maxHeight: toSz(mah) }),
         ...(flex != null && { flex: flex as string }),
-      }}
+      }, ...(sxProp ? (Array.isArray(sxProp) ? sxProp : [sxProp]) : [])] as never}
       {...rest}
     >{children}</MuiBox>
   );

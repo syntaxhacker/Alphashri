@@ -80,8 +80,12 @@ export function setStoredUser(user: User): void {
 // API helper with auth
 async function fetchWithAuth(url: string, options: RequestInit = {}): Promise<Response> {
   const token = getAccessToken();
+  // FormData bodies must keep the browser-generated multipart Content-Type
+  // (including its boundary); forcing application/json breaks file uploads.
+  const isFormData =
+    typeof FormData !== "undefined" && options.body instanceof FormData;
   const headers: Record<string, string> = {
-    "Content-Type": "application/json",
+    ...(isFormData ? {} : { "Content-Type": "application/json" }),
     ...(options.headers as Record<string, string>),
   };
 

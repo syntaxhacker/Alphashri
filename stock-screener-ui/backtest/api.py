@@ -18,6 +18,17 @@ from api.utils import _sanitize_for_json
 
 BACKTEST_CACHE_TTL = None  # No expiry — backtest results are deterministic
 
+
+def _get_journal():
+    """Return the legacy trade journal.
+
+    Behind a seam so tests can mock it. Raises when ``trading.journal`` is not
+    installed; the caller records ``journal_error`` and continues rather than
+    failing the whole backtest.
+    """
+    from trading.journal import get_journal
+    return get_journal()
+
 # Re-export for backward compatibility (tests import from backtest.api directly)
 # The implementation lives in api/utils.py to eliminate cross-file duplication.
 
@@ -214,12 +225,21 @@ def handle_run_backtest(body: Dict, progress_state: Dict = None) -> Dict:
 
     # Run backtest
     try:
-        result = strategy.run(symbols, days, params, progress_callback)
+        # Server requests must not fork a process Pool (nested spawn hangs under
+        # uvicorn --reload); run symbols sequentially in this worker thread.
+        from .strategies.base import PROCESS_POOL_ENABLED
+        token = PROCESS_POOL_ENABLED.set(False)
+        try:
+            result = strategy.run(symbols, days, params, progress_callback)
+        finally:
+            PROCESS_POOL_ENABLED.reset(token)
         result['variation_id'] = variation_id
 
         # Optionally log trades to journal
         if log_to_journal and result.get('chart_data'):
+            total_logged = 0
             try:
+                journal = _get_journal()
                 for symbol, data in result['chart_data'].items():
                     if data.get('trades'):
                         count = journal.log_backtest_trades(

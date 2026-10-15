@@ -81,9 +81,11 @@ describe("NewsList", () => {
       expect(screen.getByTestId("news-feed")).toBeInTheDocument();
     });
 
-    it("renders title", () => {
+    it("renders the feed heading and story count", () => {
       render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
-      expect(screen.getByText("News Feed")).toBeInTheDocument();
+      expect(screen.getByText("Market feed")).toBeInTheDocument();
+      expect(screen.getByTestId("news-story-count")).toHaveTextContent("2 stories");
+      expect(screen.getByTestId("news-feed-toolbar")).toBeInTheDocument();
     });
 
     it("renders refresh button", () => {
@@ -124,6 +126,41 @@ describe("NewsList", () => {
     it("renders news items grouped by source", () => {
       render(<NewsList {...defaultProps} />, { wrapper: TestWrapper });
       expect(screen.getByText("Test News 1")).toBeInTheDocument();
+    });
+
+    it("keeps all sources visible for the all-sources option", () => {
+      render(<NewsList {...defaultProps} selectedSourceName="All Sources" />, {
+        wrapper: TestWrapper,
+      });
+      expect(screen.getByText("Test News 1")).toBeInTheDocument();
+      expect(screen.getByText("Test News 2")).toBeInTheDocument();
+    });
+
+    it("marks the active article for reading", () => {
+      render(<NewsList {...defaultProps} selectedArticle={mockNewsItems[0]} />, {
+        wrapper: TestWrapper,
+      });
+      expect(screen.getAllByTestId("news-list-item")[0]).toHaveAttribute("aria-current", "true");
+    });
+
+    it("matches a selected source id to the article source name", () => {
+      render(
+        <NewsList
+          {...defaultProps}
+          selectedSource="economic-times"
+          selectedSourceName="Economic Times"
+          groupedNewsItems={{
+            "Economic-Times": [{ ...mockNewsItems[0], source: "Economic-Times" }],
+            Bloomberg: [{ ...mockNewsItems[1], source: "Bloomberg" }],
+          }}
+          sourceNames={["Economic-Times", "Bloomberg"]}
+          expandedSources={new Set(["Economic-Times"])}
+        />,
+        { wrapper: TestWrapper },
+      );
+      expect(screen.getByText("Test News 1")).toBeInTheDocument();
+      expect(screen.queryByText("Test News 2")).not.toBeInTheDocument();
+      expect(screen.getByTestId("news-story-count")).toHaveTextContent("1 story across 1 source");
     });
   });
 

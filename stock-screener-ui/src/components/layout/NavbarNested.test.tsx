@@ -68,26 +68,27 @@ afterEach(() => {
 
 // ── Nav list contract ──
 describe("NavbarNested nav list contract", () => {
-  it("renders all 14 nav items for admin (enforces list maintenance)", () => {
+  it("renders all 15 nav items for admin (enforces list maintenance)", () => {
     renderNavbar({ auth: mockAdminAuth, activePath: "/" });
     const items = screen.getAllByTestId(/^nav-/);
-    // 14 nav items + theme toggle etc are not counted here; filter only nav-*
-    // but NavbarNested renders exactly 14 nav-* items for admin
-    expect(items.length).toBeGreaterThanOrEqual(14);
+    // 15 nav items + theme toggle etc are not counted here; filter only nav-*
+    // but NavbarNested renders exactly 15 nav-* items for admin
+    expect(items.length).toBeGreaterThanOrEqual(15);
     // filter to known nav labels
     const navIds = items.map((el) => el.getAttribute("data-testid")).filter(Boolean);
     expect(navIds).toContain("nav-screener");
+    expect(navIds).toContain("nav-reports");
     expect(navIds).toContain("nav-strategies");
     expect(navIds).toContain("nav-admin");
     // exact count: count nav items minus auxiliary buttons (theme/sidebar)
-    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|strategies|bots|options|settings|admin)$/).length;
-    expect(navCount).toBe(14);
+    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|settings|admin)$/).length;
+    expect(navCount).toBe(15);
   });
 
-  it("renders 13 items for non-admin (hides Admin)", () => {
+  it("renders 14 items for non-admin (hides Admin)", () => {
     renderNavbar({ auth: mockUserAuth });
-    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|strategies|bots|options|settings|admin)$/).length;
-    expect(navCount).toBe(13);
+    const navCount = screen.getAllByTestId(/^nav-(screener|news|backtest|experiments|paper|replay|strategy-runner|sector|heatmap|reports|strategies|bots|options|settings|admin)$/).length;
+    expect(navCount).toBe(14);
     expect(screen.queryByTestId("nav-admin")).not.toBeInTheDocument();
   });
 
@@ -103,6 +104,7 @@ describe("NavbarNested nav list contract", () => {
       "nav-strategy-runner",
       "nav-sector",
       "nav-heatmap",
+      "nav-reports",
       "nav-strategies",
       "nav-bots",
       "nav-options",

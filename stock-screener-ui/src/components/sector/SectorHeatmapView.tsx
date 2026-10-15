@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { Box, Group, SegmentedControl, Select, Text, Loader, useColorScheme } from "@/ui";
+import { Box, SegmentedControl, Select, Text, Loader, useColorScheme } from "@/ui";
 import ReactECharts from "echarts-for-react";
 import type { SectorItem } from "../../types/sector";
 import type { HeatmapStock } from "../../api/heatmap";
@@ -347,9 +347,9 @@ export function SectorHeatmapView({
   return (
     <Box
       data-testid="sector-heatmap-view"
-      sx={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1, p: 1, gap: 1, alignItems: "center" }}
+      sx={{ display: "flex", flexDirection: "column", minHeight: 0, flex: 1, gap: 0, overflow: "hidden" }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%", flexWrap: "wrap" }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 1, height: 40, flexShrink: 0, flexWrap: "wrap" }}>
         <SegmentedControl
           size="xs"
           value={viewMode}
@@ -364,21 +364,21 @@ export function SectorHeatmapView({
           <>
             <Select
               size="xs"
+              w={130}
               placeholder="Color by"
               value={metric}
               onChange={(v) => onMetricChange(v || "change_pct")}
               data={STOCK_METRICS}
-              sx={{ width: 130 }}
               data-testid="sector-heatmap-metric"
             />
             <Select
               size="xs"
+              w={160}
               placeholder="All sectors"
               value={sectorFilter || ""}
               onChange={(v) => onSectorFilterChange?.(v || null)}
               data={[{ value: "", label: "All sectors" }, ...sectorOptions]}
               clearable
-              sx={{ width: 160 }}
               data-testid="sector-heatmap-sector-filter"
             />
           </>
@@ -390,7 +390,7 @@ export function SectorHeatmapView({
         )}
         {loading && <Loader size="xs" />}
       </Box>
-      <Box sx={{ flex: 1, minHeight: 320, width: "100%", minWidth: 320, display: "flex", alignItems: "center", justifyContent: "center" }} data-testid="sector-heatmap-chart">
+      <Box sx={{ flex: 1, minHeight: 320, width: "100%", display: "flex" }} data-testid="sector-heatmap-chart">
         <ReactECharts
           option={chartOption}
           style={{ height: 420, width: "100%", flex: 1 }}

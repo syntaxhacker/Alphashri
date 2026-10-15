@@ -1,9 +1,6 @@
 import { useMemo, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
+import { Box } from "@/ui";
 import { useChartData } from "../../hooks/useChartData";
 import { TradingViewChart } from "../../components/chart/TradingViewChart";
 import type { ReplayCandle } from "../../types/replay";
@@ -66,56 +63,35 @@ const ChartView: React.FC = () => {
   }
 
   return (
-    <Container
-      maxWidth="xl"
+    <Box
       data-testid="chart-view"
       id="chart-view"
-      sx={{ py: 2, display: "flex", flexDirection: "column", alignItems: "center", height: "100%", minHeight: 0, flex: 1, overflow: "hidden", bgcolor: "background.default", width: "100%" }}
+      sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 0, gap: 0, overflow: "hidden", bgcolor: "background.default" }}
     >
-      <Card elevation={1} sx={{ width: "100%", p: 1, mb: 1 }}>
-        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-          <Grid container spacing={2} justifyContent="center" sx={{ width: "100%" }}>
-            <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
-              <ChartHeader
-                symbol={vm.symbol}
-                timeframe={vm.timeframe}
-                orMinutes={vm.orMinutes}
-                showPivots={vm.showPivots}
-                show52wHigh={vm.show52wHigh}
-                onBack={() => vm.navigate(-1)}
-                onTimeframeChange={vm.setTimeframe}
-                onOrMinutesChange={vm.setOrMinutes}
-                onPivotsChange={vm.setShowPivots}
-                on52wHighChange={vm.setShow52wHigh}
-              />
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+      <ChartHeader
+        symbol={vm.symbol}
+        timeframe={vm.timeframe}
+        orMinutes={vm.orMinutes}
+        showPivots={vm.showPivots}
+        show52wHigh={vm.show52wHigh}
+        onBack={() => vm.navigate(-1)}
+        onTimeframeChange={vm.setTimeframe}
+        onOrMinutesChange={vm.setOrMinutes}
+        onPivotsChange={vm.setShowPivots}
+        on52wHighChange={vm.setShow52wHigh}
+      />
 
-      <Grid container spacing={2} justifyContent="center" sx={{ flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
-        <Grid size={12} sx={{ display: "flex", flexDirection: "column", alignItems: "center", minHeight: 0, flex: 1, overflow: "hidden" }}>
-          <Card elevation={1} sx={{ flex: 1, width: "100%", p: 1, display: "flex", flexDirection: "column", alignItems: "center", minHeight: 0, overflow: "hidden" }}>
-            <CardContent sx={{ flex: 1, p: 1, "&:last-child": { pb: 1 }, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: 0, overflow: "hidden" }}>
-              <ChartBody
-                loading={vm.loading}
-                error={vm.error}
-                hasData={!!vm.data}
-                chart={<TradingViewChart candles={vm.candles} height={560} />}
-              />
-            </CardContent>
-          </Card>
-        </Grid>
-      </Grid>
+      <ChartBody
+        loading={vm.loading}
+        error={vm.error}
+        hasData={!!vm.data}
+        chart={<TradingViewChart candles={vm.candles} />}
+      />
 
       {vm.data && (
-        <Card elevation={1} sx={{ width: "100%", p: 1, mt: 1 }}>
-          <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-            <ChartFooter data={vm.data} timeframe={vm.timeframe} orMinutes={vm.orMinutes} />
-          </CardContent>
-        </Card>
+        <ChartFooter data={vm.data} timeframe={vm.timeframe} orMinutes={vm.orMinutes} />
       )}
-    </Container>
+    </Box>
   );
 };
 

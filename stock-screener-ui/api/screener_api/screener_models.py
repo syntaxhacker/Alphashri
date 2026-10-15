@@ -24,6 +24,27 @@ def is_within_52w_touch_gap(gap_pct: float, threshold_pct: Optional[float] = Non
     return gap_pct < th
 
 
+#: A row whose price sits more than this far ABOVE its recorded 52W high
+#: (gap < -STALE) is treated as a stale-high data error, not a breakout.
+#: Genuine breakouts sit at gap ≈ 0% to slightly negative; a −10%/−20% gap
+#: means the stored high disagrees with the live price feed.
+STALE_52W_BREAKOUT_PCT = 5.0
+
+
+def is_plausible_52w_gap(gap_pct: Optional[float]) -> bool:
+    """False for stale-high rows (gap far negative) or invalid input."""
+    if gap_pct is None:
+        return False
+    try:
+        gap = float(gap_pct)
+    except (TypeError, ValueError):
+        return False
+    import math
+    if not math.isfinite(gap):
+        return False
+    return gap >= -STALE_52W_BREAKOUT_PCT
+
+
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high', '52w_high'}
 
 PROFILE_META = {

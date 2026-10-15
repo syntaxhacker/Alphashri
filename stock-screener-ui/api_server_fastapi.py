@@ -57,6 +57,7 @@ from api.news_routes import (
 )
 from api.news.news_poller import _init_news_modules
 from api.bots_api.bot_operations import bot_auto_recovery_task
+from api.orderflow_recorder import recorder_task
 
 _news_available = False
 _llm_available = False
@@ -210,6 +211,20 @@ def _persist_52w_ranges_to_db(data: dict):
         db.close()
 
 
+def is_52w_batch_stale(job: dict | None) -> bool:
+    """True when the scheduler should treat a 'running' 52W job as stuck.
+
+    Pure check over the job dict (no Redis) — delegates to
+    trading.week52_job_status.is_job_stale with the SCREENER_52W_STALE_SEC threshold.
+    """
+    try:
+        from trading.week52_job_status import is_job_stale
+
+        return is_job_stale(job)
+    except Exception:
+        return False
+
+
 async def compute_52w_ranges_task():
     """Hourly Upstox 52W batch (daily staleness refresh) + screener cache invalidation when complete.
     Symbols already refreshed today are skipped, so the first run each day updates the full
@@ -220,7 +235,7 @@ async def compute_52w_ranges_task():
     instead of waiting the full interval.
     """
     import os
-    from trading.week52_job_status import get_job_status
+    from trading.week52_job_status import get_job_status, fail_job, job_age_sec
 
     interval = int(os.environ.get("SCREENER_52W_INTERVAL_SEC", "3600"))
     poll_sec = 30
@@ -244,8 +259,17 @@ async def compute_52w_ranges_task():
 
             job = get_job_status() or {}
             if job.get("status") == "running":
-                print("[52W Range] Scheduled run skipped — batch already running")
-                continue
+                if is_52w_batch_stale(job):
+                    age = job_age_sec(job)
+                    age_str = f"{age:.0f}s" if age is not None else "unknown age"
+                    print(f"[52W Range] Stale running job detected (age={age_str}) — resetting and starting fresh batch")
+                    try:
+                        fail_job("stale — reset by scheduler")
+                    except Exception as e:
+                        print(f"[52W Range] Stale reset failed: {e}")
+                else:
+                    print("[52W Range] Scheduled run skipped — batch already running")
+                    continue
 
             from api.admin_routes import _run_52w_batch_subprocess
 
@@ -278,6 +302,107 @@ async def compute_52w_ranges_task():
         except Exception as e:
             print(f"[52W Range] Scheduled task error: {e}")
             await asyncio.sleep(300)
+
+
+async def chart_patterns_bootstrap_task():
+    """Chart-patterns background bootstrap (CONTRACT.md §5).
+
+    Rehydrates active jobs on startup; during market hours, when no job is
+    active, submits a default ``nifty500`` / ``1D`` scan. Repeats every
+    ``PATTERN_SCAN_INTERVAL_SEC`` (default 900).
+    """
+    import os
+
+    interval = int(os.environ.get("PATTERN_SCAN_INTERVAL_SEC", "900"))
+
+    # Rehydrate queued/running jobs left over from a previous process.
+    try:
+        from chart_patterns import jobs as _cp_jobs
+
+        n = await asyncio.to_thread(_cp_jobs.rehydrate)
+        if n:
+            print(f"[Patterns] Rehydrated {n} active job(s)")
+    except Exception as e:
+        print(f"[Patterns] Rehydrate failed: {e}")
+
+    first = True
+    while True:
+        try:
+            if first:
+                await asyncio.sleep(5)
+                first = False
+            else:
+                await asyncio.sleep(interval)
+
+            if not _is_market_hours():
+                continue
+
+            from chart_patterns import jobs as _cp_jobs
+
+            if _cp_jobs.list_active():
+                continue
+            try:
+                dto = _cp_jobs.submit(
+                    "nifty500", "1D", requested_by=None, params={"bootstrap": True}
+                )
+                print(f"[Patterns] Bootstrap scan queued: {dto['job_id']}")
+            except _cp_jobs.QueueFullError:
+                pass
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Patterns] Bootstrap task error: {e}")
+            await asyncio.sleep(60)
+
+
+async def run_watch_snapshot_once() -> int:
+    """One breakout-watch snapshot refresh, off the event loop.
+
+    Returns the number of combos built (0 on failure). Never raises — the
+    background task and tests share this seam.
+    """
+    try:
+        from chart_patterns import watch as _watch
+
+        return await asyncio.to_thread(_watch.refresh_snapshot)
+    except Exception as e:
+        print(f"[Watch] Snapshot refresh failed: {e}")
+        return 0
+
+
+async def watch_snapshot_task():
+    """Precompute breakout-watch snapshots so ``GET /watch`` stays instant.
+
+    ``watch.live()`` fans out per symbol (LTP → tape, TV metrics, vol_adj),
+    which takes ~50s for 20 rows under market-hours contention when run
+    inside the request. This task rebuilds the in-memory (+ Redis-mirrored)
+    snapshot shortly after startup, then every
+    ``WATCH_SNAPSHOT_INTERVAL_SEC`` (default 60) — gated to market hours via
+    :func:`_is_market_hours`, off the event loop, and never blocking startup.
+    """
+    import os
+
+    interval = int(os.environ.get("WATCH_SNAPSHOT_INTERVAL_SEC", "60"))
+
+    first = True
+    while True:
+        try:
+            if first:
+                await asyncio.sleep(5)
+                first = False
+            else:
+                await asyncio.sleep(interval)
+
+            if not _is_market_hours():
+                continue
+
+            n = await run_watch_snapshot_once()
+            print(f"[Watch] Snapshot refreshed ({n} combos)")
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"[Watch] Snapshot task error: {e}")
+            await asyncio.sleep(60)
 
 
 async def db_backup_task():
@@ -329,12 +454,26 @@ async def lifespan(app: FastAPI):
     _prefetch_task = None
     _recovery_task = None
     _db_backup_task = None
+    _orderflow_recorder_task = None
+    _patterns_task = None
+    _watch_task = None
+    _dashboard_task = None
+    _digest_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
         from db.database import init_db
         init_db()
         print("✅ Database initialized")
+
+        try:
+            from trading.holidays_seed import seed_missing_holidays
+
+            _added_holidays = seed_missing_holidays()
+            if _added_holidays:
+                print(f"✅ Seeded {_added_holidays} missing market holiday(s)")
+        except Exception as e:
+            print(f"⚠️ Holiday seeding skipped: {e}")
 
         if ci:
             print("⚙️ CI_MODE enabled — skipping Redis and background tasks")
@@ -399,11 +538,56 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ DB backup task failed: {e}")
                 _db_backup_task = None
+
+            try:
+                _orderflow_recorder_task = asyncio.create_task(recorder_task())
+                print("🎙️ Order-flow recorder task started")
+            except Exception as e:
+                print(f"⚠️ Order-flow recorder task failed: {e}")
+                _orderflow_recorder_task = None
+
+            try:
+                _patterns_task = asyncio.create_task(chart_patterns_bootstrap_task())
+                print("📐 Chart-patterns background task started")
+            except Exception as e:
+                print(f"⚠️ Chart-patterns task failed: {e}")
+                _patterns_task = None
+
+            try:
+                _watch_task = asyncio.create_task(watch_snapshot_task())
+                print("👀 Watch snapshot background task started")
+            except Exception as e:
+                print(f"⚠️ Watch snapshot task failed: {e}")
+                _watch_task = None
+
+            try:
+                from api.screener_api.dashboard import dashboard_prewarm_task
+                _dashboard_task = asyncio.create_task(dashboard_prewarm_task())
+                print("📊 Screener dashboard prewarm task started")
+            except Exception as e:
+                print(f"⚠️ Screener dashboard prewarm failed: {e}")
+                _dashboard_task = None
+
+            try:
+                from api.reports_api.digest import report_digest_task
+                _digest_task = asyncio.create_task(report_digest_task())
+                print("📨 EOD report digest task started")
+            except Exception as e:
+                print(f"⚠️ EOD report digest task failed: {e}")
+                _digest_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
         print(traceback.format_exc())
         _52w_task = None
+    # Scrub credential-adjacent values from broker/transport error logs. Called
+    # here (not at import) because uvicorn configures its handlers first.
+    try:
+        from api.orderflow_logging import install_error_redaction
+
+        install_error_redaction()
+    except Exception as e:
+        print(f"⚠️ Log redaction not installed: {e}")
     yield
     if prewarm:
         prewarm.cancel()
@@ -417,6 +601,21 @@ async def lifespan(app: FastAPI):
         _recovery_task.cancel()
     if _db_backup_task:
         _db_backup_task.cancel()
+    if _orderflow_recorder_task:
+        _orderflow_recorder_task.cancel()
+    if _patterns_task:
+        _patterns_task.cancel()
+    if _watch_task:
+        _watch_task.cancel()
+    if _dashboard_task:
+        _dashboard_task.cancel()
+    if _digest_task:
+        _digest_task.cancel()
+    try:
+        from api import orderflow_journal
+        orderflow_journal.close_all()
+    except Exception:
+        pass
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes
@@ -840,6 +1039,13 @@ except Exception as e:
     print(f"⚠️ Could not load options API: {e}")
 
 try:
+    from api.premium_tracker import router as premium_tracker_router
+    app.include_router(premium_tracker_router)
+    print("✅ Premium Tracker API loaded at /api/options/premium-tracker")
+except Exception as e:
+    print(f"⚠️ Could not load premium tracker API: {e}")
+
+try:
     from api.news_charts import router as news_charts_router
     app.include_router(news_charts_router)
     print("✅ News Charts API loaded at /api/news")
@@ -877,6 +1083,20 @@ try:
     print("✅ Chart API loaded at /api/chart")
 except Exception as e:
     print(f"⚠️ Could not load chart API: {e}")
+
+try:
+    from api.chart_patterns import router as chart_patterns_router
+    app.include_router(chart_patterns_router)
+    print("✅ Chart Patterns API loaded at /api/chart-patterns")
+except Exception as e:
+    print(f"⚠️ Could not load chart patterns API: {e}")
+
+try:
+    from api.pattern_images import router as pattern_images_router
+    app.include_router(pattern_images_router)
+    print("✅ Pattern Images API loaded at /api/chart-patterns/images")
+except Exception as e:
+    print(f"⚠️ Could not load pattern images API: {e}")
 
 try:
     from api.heatmap import router as heatmap_router
@@ -950,6 +1170,69 @@ try:
     print("✅ POC NQ API loaded at /api/poc/nq")
 except Exception as e:
     print(f"⚠️ Could not load POC NQ API: {e}")
+
+try:
+    from api.orderflow_stream import router as orderflow_router
+    app.include_router(orderflow_router)
+    print("✅ Order Flow bridge loaded at /ws/orderflow")
+except Exception as e:
+    print(f"⚠️ Could not load Order Flow bridge: {e}")
+
+try:
+    from api.screener_api.dashboard import router as screener_dashboard_router
+    app.include_router(screener_dashboard_router)
+    print("✅ Screener Dashboard API loaded at /api/screener/dashboard")
+except Exception as e:
+    print(f"⚠️ Could not load screener dashboard API: {e}")
+
+try:
+    from api.reports_api.delivery import router as reports_delivery_router
+    app.include_router(reports_delivery_router)
+    print("✅ Reports delivery/events API loaded at /api/reports")
+except Exception as e:
+    print(f"⚠️ Could not load reports delivery API: {e}")
+
+try:
+    from api.reports_api.events_feed import router as reports_events_feed_router
+    app.include_router(reports_events_feed_router)
+    print("✅ Reports events feed API loaded at /api/reports/events/upcoming|recent")
+except Exception as e:
+    print(f"⚠️ Could not load reports events feed API: {e}")
+
+try:
+    from api.reports_api.breakouts import router as reports_breakouts_router
+    app.include_router(reports_breakouts_router)
+    print("✅ Reports API loaded at /api/reports")
+except Exception as e:
+    print(f"⚠️ Could not load reports API: {e}")
+
+try:
+    from api.reports_api.followthrough import router as reports_followthrough_router
+    app.include_router(reports_followthrough_router)
+    print("✅ Reports follow-through API loaded at /api/reports/follow-through")
+except Exception as e:
+    print(f"⚠️ Could not load reports follow-through API: {e}")
+
+try:
+    from api.reports_api.profitability import router as reports_profitability_router
+    app.include_router(reports_profitability_router)
+    print("✅ Reports profitability API loaded at /api/reports/profitability")
+except Exception as e:
+    print(f"⚠️ Could not load reports profitability API: {e}")
+
+try:
+    from api.reports_api.market import router as reports_router
+    app.include_router(reports_router)
+    print("✅ Reports API loaded at /api/reports")
+except Exception as e:
+    print(f"⚠️ Could not load reports API: {e}")
+
+try:
+    from api.reports_api.digest import router as reports_digest_router
+    app.include_router(reports_digest_router)
+    print("✅ Reports digest API loaded at /api/reports/digest/send")
+except Exception as e:
+    print(f"⚠️ Could not load reports digest API: {e}")
 
 if __name__ == '__main__':
     port = config.PORT

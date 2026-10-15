@@ -1,5 +1,6 @@
 import TextField from "@mui/material/TextField";
 import type { UITextareaProps } from "../types";
+import { stripLegacyInputProps } from "./legacyProps";
 
 function mapSize(size?: UITextareaProps["size"]): "small" | "medium" {
   return size === "xs" || size === "sm" ? "small" : "medium";
@@ -72,7 +73,7 @@ export function Textarea({
         width: explicitWidth,
         ...(explicitHeight && { height: explicitHeight }),
       }}
-      {...(rest as object)}
+      {...(stripLegacyInputProps(rest as Record<string, unknown>) as object)}
     />
   );
 }

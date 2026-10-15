@@ -1,4 +1,5 @@
-import { ScreenerPage } from "../../components/screener/ScreenerPage";
+import { useState } from "react";
+import { ScreenerPage, DEFAULT_DASHBOARD_UNIVERSE } from "../../components/screener/ScreenerPage";
 import { useScreenerState } from "../../hooks/useScreenerState";
 import { useSearchParams } from "react-router-dom";
 
@@ -31,6 +32,7 @@ export function ScreenerContainer() {
   } = useScreenerState(urlScreener);
 
   const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
+  const [universe, setUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
 
   return (
     <ScreenerPage
@@ -58,6 +60,8 @@ export function ScreenerContainer() {
       onSymbolHover={onSymbolHover}
       error={error}
       warning={warning}
+      universe={universe}
+      onUniverseChange={setUniverse}
     />
   );
 }

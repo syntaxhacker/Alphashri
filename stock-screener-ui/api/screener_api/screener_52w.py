@@ -15,6 +15,7 @@ from trading.week52_range_lookup import load_all_52w_ranges
 from .screener_models import (
     _to_float,
     gap_pct_to_52w_high,
+    is_plausible_52w_gap,
     is_within_52w_touch_gap,
     touched_52w_gap_threshold_pct,
 )
@@ -174,6 +175,10 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
         to_52w_high = gap_pct_to_52w_high(high, close)
         if to_52w_high is None:
             continue
+        if not is_plausible_52w_gap(to_52w_high):
+            # Stored high is stale (price far above it) — skip rather than
+            # emit an impossible gap (e.g. −10%/−20%).
+            continue
         touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap_pct)
         stored_days = info.get('days_ago')
         if stored_days is not None:
@@ -226,6 +231,7 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
             0.0,
         )
         stock_data['low_52w'] = round(low, 2)
+        stock_data['source'] = 'upstox'
         stock_data['rationale'] = _build_rationale(screener, stock_data)
 
         candidates.append(stock_data)
@@ -281,6 +287,17 @@ def fetch_52w_high_data(provider='upstox', mode='historical', profile_filters=No
     }
     _enrich_with_touch_history(data, screener)
     _resplit_52w_buckets(data, touched_gap_pct)
+
+    # Drop rows whose LTP refresh left them far above the stored high
+    # (stale range) instead of emitting an impossible −10%/−20% gap.
+    data['approaching'] = [
+        s for s in data['approaching']
+        if is_plausible_52w_gap(_to_float(s.get('to_52w_high'), None))
+    ]
+    data['touched'] = [
+        s for s in data['touched']
+        if is_plausible_52w_gap(_to_float(s.get('to_52w_high'), None))
+    ]
 
     all_rows = data['approaching'] + data['touched']
     _fill_days_ago_from_upstox(data['touched'], api, use_api, touched_gap_pct)

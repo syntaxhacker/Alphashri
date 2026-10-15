@@ -1,15 +1,20 @@
 // @vitest-environment happy-dom
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
-import { render as rtlRender, screen, cleanup } from "@testing-library/react";
+import { render as rtlRender, screen, cleanup, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { MemoryRouter } from "react-router-dom";
 import "@testing-library/jest-dom/vitest";
 import userEvent from "@testing-library/user-event";
-import { ScreenerPage } from "./ScreenerPage";
+import { ScreenerPage, mapDashboardPanelToScreener, DEFAULT_DASHBOARD_UNIVERSE } from "./ScreenerPage";
 import { UIProvider } from "@/ui";
 
-const render = (ui: ReactElement, options?: any) =>
-  rtlRender(<MemoryRouter>{ui}</MemoryRouter>, options);
+const render = (ui: ReactElement, options?: any) => {
+  const { initialRoute, ...rtlOptions } = options ?? {};
+  return rtlRender(
+    <MemoryRouter initialEntries={[initialRoute ?? "/?tab=screener"]}>{ui}</MemoryRouter>,
+    rtlOptions,
+  );
+};
 
 // Mock child components to isolate ScreenerPage tests
 vi.mock("./ScreenerNav", () => ({
@@ -112,6 +117,20 @@ vi.mock("./ScreenerEmpty", () => ({
   ),
 }));
 
+vi.mock("./GroupPerformancePanel", () => ({
+  GroupPerformancePanel: () => (
+    <div data-testid="group-performance-panel">Groups</div>
+  ),
+}));
+
+vi.mock("./CorrelationTab", () => ({
+  CorrelationTab: () => <div data-testid="correlation-tab">Correlation</div>,
+}));
+
+vi.mock("./ScreenerConfigView", () => ({
+  ScreenerConfigView: () => <div data-testid="screener-config-view">Config</div>,
+}));
+
 vi.mock("./ScreenerLoading", () => ({
   ScreenerLoading: ({ message }: any) => (
     <div data-testid="screener-loading" data-message={message}>
@@ -157,6 +176,33 @@ vi.mock("../../state/correlation", () => ({
   fetchCorrelationData: vi.fn(),
   clearSelectedSymbols: vi.fn(),
 }));
+
+const dashboardMounts = vi.hoisted(() => ({ count: 0 }));
+
+vi.mock("./DashboardView", async () => {
+  const React = await import("react");
+  const panels = ["near_52w", "new_highs", "gap_up", "gainers", "most_active", "unknown_xyz"];
+  return {
+    DashboardView: (props: any) => {
+      // eslint-disable-next-line react-hooks/rules-of-hooks
+      React.useEffect(() => {
+        dashboardMounts.count += 1;
+      }, []);
+      return (
+        <div data-testid="dashboard-view" data-universe={props.universe}>
+          <button data-testid="dashboard-open-symbol" onClick={() => props.onOpenSymbol?.("RELIANCE")}>
+            Open symbol
+          </button>
+          {panels.map((id) => (
+            <button key={id} data-testid={`dashboard-open-scan-${id}`} onClick={() => props.onOpenScan?.(id)}>
+              {id}
+            </button>
+          ))}
+        </div>
+      );
+    },
+  };
+});
 
 const mockStock: Stock = {
   symbol: "RELIANCE",
@@ -210,6 +256,7 @@ describe("ScreenerPage", () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    dashboardMounts.count = 0;
   });
 
   afterEach(() => {
@@ -492,5 +539,188 @@ describe("ScreenerPage", () => {
     );
     expect(screen.getByTestId("screener-approaching-section")).toBeInTheDocument();
     expect(screen.getByTestId("screener-touched-section")).toBeInTheDocument();
+  });
+
+  it("renders the groups performance panel beside the screener table", () => {
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+    );
+    expect(screen.getByTestId("group-performance-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-page")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-content")).toBeInTheDocument();
+    expect(screen.getByTestId("screener-controls")).toBeInTheDocument();
+  });
+
+  it("renders the Dashboard tab by default", () => {
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(screen.getByTestId("tab-dashboard")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-view")).toBeInTheDocument();
+    expect(screen.getByTestId("dashboard-view")).toHaveAttribute(
+      "data-universe",
+      DEFAULT_DASHBOARD_UNIVERSE,
+    );
+    // Dashboard toolbar replaces the screener select with the universe select
+    expect(screen.getByTestId("dashboard-universe-select")).toBeInTheDocument();
+    expect(screen.queryByTestId("screener-select")).not.toBeInTheDocument();
+    // Screener table is mounted but hidden while dashboard is active
+    expect(screen.getByTestId("screener-table-approaching")).not.toBeVisible();
+  });
+
+  it("switches from dashboard to screener and back", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(screen.getByTestId("dashboard-view")).toBeVisible();
+
+    await user.click(screen.getByTestId("tab-screener"));
+    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+    expect(screen.getByTestId("screener-select")).toBeInTheDocument();
+
+    await user.click(screen.getByTestId("tab-dashboard"));
+    expect(screen.getByTestId("dashboard-view")).toBeVisible();
+    expect(screen.getByTestId("screener-table-approaching")).not.toBeVisible();
+  });
+
+  it("keeps correlation and config tabs working alongside dashboard", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    await user.click(screen.getByTestId("tab-correlation"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+    );
+    expect(await screen.findByTestId("correlation-tab")).toBeInTheDocument();
+    await user.click(screen.getByTestId("tab-config"));
+    await waitFor(() =>
+      expect(screen.queryByTestId("dashboard-view")).not.toBeVisible(),
+    );
+    expect(await screen.findByTestId("screener-config-view")).toBeInTheDocument();
+    await user.click(screen.getByTestId("tab-dashboard"));
+    await waitFor(() =>
+      expect(screen.getByTestId("dashboard-view")).toBeVisible(),
+    );
+  });
+
+  it("maps dashboard panels to screener profiles", () => {
+    const ids = ["52w_high", "near_52w_breakout", "touched_52w_high", "market_open_gap", "trending"];
+    expect(mapDashboardPanelToScreener("near_52w", ids)).toBe("near_52w_breakout");
+    expect(mapDashboardPanelToScreener("near_52w", ["52w_high"])).toBe("52w_high");
+    expect(mapDashboardPanelToScreener("near_52w", ["trending"])).toBeNull();
+    expect(mapDashboardPanelToScreener("new_highs", ids)).toBe("touched_52w_high");
+    expect(mapDashboardPanelToScreener("gap_up", ids)).toBe("market_open_gap");
+    expect(mapDashboardPanelToScreener("gainers", ids)).toBeNull();
+    expect(mapDashboardPanelToScreener("most_active", ids)).toBeNull();
+    expect(mapDashboardPanelToScreener("volume_surge", ids)).toBeNull();
+    expect(mapDashboardPanelToScreener("unknown_xyz", ids)).toBeNull();
+  });
+
+  it("onOpenScan for near_52w switches profile and opens the Screener tab", async () => {
+    const user = userEvent.setup();
+    const onScreenerChange = vi.fn();
+    render(
+      <UIProvider>
+        <ScreenerPage
+          {...defaultProps}
+          screenerOptions={[
+            { id: "trending", label: "Trending" },
+            { id: "52w_high", label: "52W High" },
+          ]}
+          activeScreener="trending"
+          onScreenerChange={onScreenerChange}
+          universe="nifty500"
+        />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    await user.click(screen.getByTestId("dashboard-open-scan-near_52w"));
+    expect(onScreenerChange).toHaveBeenCalledWith("52w_high");
+    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+  });
+
+  it("onOpenScan for gainers opens the Screener tab without changing profile", async () => {
+    const user = userEvent.setup();
+    const onScreenerChange = vi.fn();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} onScreenerChange={onScreenerChange} universe="nifty500" />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    await user.click(screen.getByTestId("dashboard-open-scan-gainers"));
+    expect(onScreenerChange).not.toHaveBeenCalled();
+    expect(screen.getByTestId("screener-table-approaching")).toBeVisible();
+  });
+
+  it("dashboard refresh remounts the DashboardView", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} universe="nifty500" />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    expect(dashboardMounts.count).toBe(1);
+    await user.click(screen.getByTestId("dashboard-refresh"));
+    expect(dashboardMounts.count).toBe(2);
+    expect(screen.getByTestId("dashboard-view")).toHaveAttribute("data-universe", "nifty500");
+  });
+
+  it("dashboard universe selector calls onUniverseChange", async () => {
+    const user = userEvent.setup();
+    const onUniverseChange = vi.fn();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} universe="nifty50" onUniverseChange={onUniverseChange} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    const outer = screen.getByTestId("dashboard-universe-select");
+    const combo = outer.querySelector('[role="combobox"]') || outer;
+    await user.click(combo as Element);
+    const option = await screen.findByRole("option", { name: /Nifty 500/i });
+    await user.click(option);
+    expect(onUniverseChange).toHaveBeenCalledWith("nifty500");
+  });
+
+  it("last close toggle flips its pressed state", async () => {
+    const user = userEvent.setup();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    const toggle = screen.getByTestId("dashboard-last-close-toggle");
+    expect(toggle).not.toBeChecked();
+    await user.click(toggle);
+    expect(toggle).toBeChecked();
+  });
+
+  it("dashboard symbol click forwards to onSymbolClick", async () => {
+    const user = userEvent.setup();
+    const onSymbolClick = vi.fn();
+    render(
+      <UIProvider>
+        <ScreenerPage {...defaultProps} onSymbolClick={onSymbolClick} />
+      </UIProvider>,
+      { initialRoute: "/" },
+    );
+    await user.click(screen.getByTestId("dashboard-open-symbol"));
+    expect(onSymbolClick).toHaveBeenCalledWith("RELIANCE");
   });
 });

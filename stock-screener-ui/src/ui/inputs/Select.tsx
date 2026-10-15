@@ -9,6 +9,7 @@ import MenuItem from "@mui/material/MenuItem";
 import IconButton from "@mui/material/IconButton";
 import ClearIcon from "@mui/icons-material/Clear";
 import type { UISelectProps } from "../types";
+import { stripLegacyInputProps } from "./legacyProps";
 
 type SelectOption = { value: string; label: string; disabled?: boolean };
 
@@ -44,11 +45,17 @@ export function Select({
   style,
   name,
   "data-testid": testId,
+  // Legacy Mantine-isms — accepted for backward compat, never forwarded.
+  allowDeselect: _allowDeselect,
+  maxDropdownHeight: _maxDropdownHeight,
+  comboboxProps: _comboboxProps,
+  withinPortal: _withinPortal,
+  InputProps: _InputProps,
   ...rest
 }: UISelectProps) {
   const autoId = useId();
   const labelId = label ? `${autoId}-label` : undefined;
-  const { w: widthProp, h: heightProp, ...restProps } = rest as {
+  const { w: widthProp, h: heightProp, ...restProps } = stripLegacyInputProps(rest as Record<string, unknown>) as {
     w?: number | string;
     h?: number | string;
   } & Record<string, unknown>;

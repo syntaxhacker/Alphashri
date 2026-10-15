@@ -303,7 +303,7 @@ const TradeNotesEditor = memo(function TradeNotesEditor({ trade }: { trade: Pape
 const TradeDetail = memo(function TradeDetail({ trade }: { trade: PaperTrade }) {
   return (
     <Box className="paper-trade-detail" id={`paper-trade-detail-${trade.trade_id}`} sx={{ px: 2, py: 1.5, bgcolor: "var(--mui-palette-background-default)", borderTop: "1px solid var(--mui-palette-divider)" }}>
-      <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={1} sx={{ maxWidth: 760 }}>
+      <Stack className="paper-trade-detail-stack" id={`paper-trade-detail-stack-${trade.trade_id}`} spacing={1} sx={{ width: "100%" }}>
         <TradeStats trade={trade} />
         <TradeNotesEditor trade={trade} />
       </Stack>

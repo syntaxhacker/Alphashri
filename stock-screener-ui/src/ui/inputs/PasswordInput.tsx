@@ -5,6 +5,7 @@ import IconButton from "@mui/material/IconButton";
 import Visibility from "@mui/icons-material/Visibility";
 import VisibilityOff from "@mui/icons-material/VisibilityOff";
 import type { UIPasswordInputProps } from "../types";
+import { stripLegacyInputProps } from "./legacyProps";
 
 function mapSize(size?: UIPasswordInputProps["size"]): "small" | "medium" {
   return size === "xs" || size === "sm" ? "small" : "medium";
@@ -95,7 +96,7 @@ export function PasswordInput({
         htmlInput: testId ? ({ "data-testid": testId } as any) : undefined,
       }}
       sx={{ "& .MuiInputBase-root": { bgcolor: "background.paper" }, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
-      {...(rest as object)}
+      {...(stripLegacyInputProps(rest as Record<string, unknown>) as object)}
     />
   );
 }

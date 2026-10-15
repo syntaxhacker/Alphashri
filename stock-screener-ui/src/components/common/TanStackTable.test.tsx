@@ -433,4 +433,25 @@ describe("TanStackTable", () => {
     expect(screen.getByText("Alpha").closest("tr")).toHaveAttribute("data-trade-number", "1");
     expect(screen.getByText("Beta").closest("tr")).toHaveAttribute("data-key", "2");
   });
+
+  it("wraps the table in Paper/TableContainer by default", () => {
+    const { container } = render(
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="wrapped-table" />,
+    );
+    expect(container.querySelector(".paper-tanstack-container")).toBeInTheDocument();
+    expect(screen.getByTestId("wrapped-table")).toBeInTheDocument();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+  });
+
+  it("bare=true skips the outer Paper/TableContainer but keeps the table", () => {
+    const { container } = render(
+      <TanStackTable<TestItem> data={data} columns={columns} dataTestId="bare-table" bare />,
+    );
+    expect(container.querySelector(".paper-tanstack-container")).toBeNull();
+    // Scroll area + table still render with data intact.
+    expect(container.querySelector(".paper-tanstack-scroll")).toBeInTheDocument();
+    expect(screen.getByTestId("bare-table")).toBeInTheDocument();
+    expect(screen.getByText("Alpha")).toBeInTheDocument();
+    expect(screen.getByText("Beta")).toBeInTheDocument();
+  });
 });

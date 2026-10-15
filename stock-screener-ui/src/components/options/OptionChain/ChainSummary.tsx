@@ -23,6 +23,7 @@ export interface Summary {
   expected_move: { lower: number; upper: number; range: number } | null;
   total_ce_oi: number;
   total_pe_oi: number;
+  atm_iv?: number;
 }
 
 export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undefined) {
@@ -33,6 +34,7 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
       expectedMove: summary.expected_move,
       totalCE_OI: summary.total_ce_oi,
       totalPE_OI: summary.total_pe_oi,
+      atmIv: summary.atm_iv ?? 0,
       resistanceStrike:
         Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0)) > 0
           ? strikeMatrix.reduce((prev, curr) =>
@@ -54,6 +56,7 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
     expectedMove: null,
     totalCE_OI: 0,
     totalPE_OI: 0,
+    atmIv: 0,
     resistanceStrike: 0,
     supportStrike: 0,
   };
@@ -74,9 +77,9 @@ export function ChainSummary({
   const pcrColor = computePcrColor(stats.pcr);
 
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
-      <CompactStatGrid data-testid="chain-summary">
-        <CompactPanel className="chain-summary-card chain-summary-pcr" data-testid="options-chain-summary-pcr">
+    <Box sx={{ display: "flex", alignItems: "stretch", width: "100%" }}>
+      <CompactStatGrid data-testid="chain-summary" style={{ alignItems: "stretch" }}>
+        <CompactPanel className="chain-summary-card chain-summary-pcr" data-testid="options-chain-summary-pcr" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
             <Stack spacing={1}>
               <CompactStat label="PCR" value={stats.pcr.toFixed(2)} tone={pcrColor} />
@@ -96,7 +99,7 @@ export function ChainSummary({
           </Box>
         </CompactPanel>
 
-        <CompactPanel className="chain-summary-card chain-summary-range" data-testid="options-chain-summary-range">
+        <CompactPanel className="chain-summary-card chain-summary-range" data-testid="options-chain-summary-range" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <Stack spacing={1} sx={{ alignItems: "center" }}>
             <CompactStat
               label="Market Range"
@@ -115,9 +118,14 @@ export function ChainSummary({
           </Stack>
         </CompactPanel>
 
-        <CompactPanel className="chain-summary-card chain-summary-max-pain" data-testid="options-chain-summary-max-pain">
+        <CompactPanel className="chain-summary-card chain-summary-max-pain" data-testid="options-chain-summary-max-pain" style={{ display: "flex", flexDirection: "column", justifyContent: "center" }}>
           <Stack spacing={1} sx={{ alignItems: "center" }}>
             <CompactStat label="Max Pain" value={stats.maxPain} tone="warning" hint="Institutional target" />
+            {stats.atmIv > 0 && (
+              <Text size="sm" c="dimmed" data-testid="options-chain-summary-atm-iv">
+                ATM IV {stats.atmIv.toFixed(1)}%
+              </Text>
+            )}
           </Stack>
         </CompactPanel>
       </CompactStatGrid>

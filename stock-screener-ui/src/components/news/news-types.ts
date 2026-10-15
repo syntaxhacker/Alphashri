@@ -23,6 +23,9 @@ export interface NewsItem {
   sourceUrl: string;
   publishedAt: string;
   fetchedAt: string;
+  sentiment?: "BULLISH" | "BEARISH" | "NEUTRAL";
+  impact_score?: number;
+  analysis_status?: "none" | "pending" | "processing" | "done" | "failed";
   symbols?: NewsSymbol[];
 }
 

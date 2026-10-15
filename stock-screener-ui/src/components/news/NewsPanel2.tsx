@@ -76,6 +76,7 @@ function useArticleReader(readIds: Set<string>) {
       setArticleError(null);
       try {
         const content = await fetchArticle(item.sourceUrl);
+        if (!content) throw new Error("Article content is unavailable");
         if (fetchId === fetchIdRef.current) setArticleContent(content);
       } catch (err) {
         if (fetchId === fetchIdRef.current) {
@@ -89,9 +90,11 @@ function useArticleReader(readIds: Set<string>) {
   );
 
   const handleBack = useCallback(() => {
+    fetchIdRef.current += 1;
     setSelectedArticle(null);
     setArticleContent(null);
     setArticleError(null);
+    setArticleLoading(false);
   }, []);
 
   return {
@@ -291,6 +294,7 @@ function NewsPanelBody({
   handleArticleClick: (item: NewsItem) => void;
   onRetryArticle?: () => void;
 }) {
+  const selectedSourceName = sourceData.find((option) => option.value === selectedSource)?.label;
   return selectedArticle ? (
     <ArticleView
       article={selectedArticle}
@@ -327,7 +331,7 @@ function NewsPanelBody({
             loading={loading}
             error={error}
             newsItems={newsItems}
-            selectedSource={selectedSource}
+            selectedSource={selectedSource === "all" ? "all" : selectedSourceName ?? selectedSource}
             sourceNames={sourceNames}
             groupedNewsItems={groupedNewsItems}
             expandedSources={expandedSources}

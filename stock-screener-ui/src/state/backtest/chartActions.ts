@@ -38,6 +38,9 @@ export function createChartActions(getState: BacktestStateGetter, setState: Back
     if (data.trades && data.trades.length > 0) {
       tradeHistory = chartTradesToTrades(data.trades);
       tradeHistorySymbol = symbol;
+    } else if (symbol === s.tradeHistorySymbol) {
+      // Refetch for the current symbol returned no trades — clear the stale list.
+      tradeHistory = [];
     }
 
     setState({

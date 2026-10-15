@@ -7,8 +7,8 @@ export interface BrokerStatus {
   expires_at: string | null;
 }
 
-export async function getBrokerStatus(): Promise<BrokerStatus> {
-  return apiGet<BrokerStatus>("/api/brokers/status");
+export async function getBrokerStatus(broker: string = "upstox"): Promise<BrokerStatus> {
+  return apiGet<BrokerStatus>(`/api/brokers/status?broker=${encodeURIComponent(broker)}`);
 }
 
 export async function connectUpstox(): Promise<void> {
@@ -17,4 +17,12 @@ export async function connectUpstox(): Promise<void> {
 
 export async function disconnectUpstox(): Promise<void> {
   await apiPostAction<void>("/api/brokers/upstox/disconnect");
+}
+
+export async function connectFyers(): Promise<void> {
+  window.open(`${API_BASE}/api/brokers/fyers/auth`, "_blank");
+}
+
+export async function disconnectFyers(): Promise<void> {
+  await apiPostAction<void>("/api/brokers/fyers/disconnect");
 }

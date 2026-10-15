@@ -1,7 +1,7 @@
 import { useState, Fragment, useMemo, type ReactNode, type CSSProperties } from "react";
 import TableContainer from "@mui/material/TableContainer";
 import Paper from "@mui/material/Paper";
-import { Box, ScrollArea } from "@/ui";
+import { Box, ScrollArea, useDensity } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   flexRender,
@@ -77,9 +77,14 @@ interface Props<T> {
    * being capped — use inside a flex column layout that already has a height.
    */
   fillContainer?: boolean;
+  /**
+   * Opt-in bare mode: skip the outer Paper/TableContainer wrapper (use when
+   * the page already provides its own bordered container — avoids nested
+   * double borders). Returns the scroll area + table only. Default false.
+   */
+  bare?: boolean;
 }
 
-const ROW_ESTIMATED = 20;
 const GROUP_ROW_ESTIMATE = 36;
 const EXPANDED_ROW_ESTIMATE = 220;
 
@@ -140,10 +145,13 @@ export function TanStackTable<T>({
   renderSubComponent,
   rowWindowSize = 0,
   fillContainer = false,
+  bare = false,
 }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
   const [expanded, setExpanded] = useState<ExpandedState>(initialState?.expanded ?? {});
   const [scrollTop, setScrollTop] = useState(0);
+  const { tokens: densityTokens } = useDensity();
+  const rowEstimated = densityTokens.tableRowHeight;
 
   const hasSizedColumns = useMemo(
     () => columns.some((col) => typeof (col as { size?: number }).size === "number" && (col as { size?: number }).size !== 0),
@@ -208,8 +216,8 @@ export function TanStackTable<T>({
   const rowHeights: number[] = [];
   for (const row of allRows) {
     if (row.getIsGrouped()) rowHeights.push(GROUP_ROW_ESTIMATE);
-    else if (renderSubComponent && row.getIsExpanded()) rowHeights.push(ROW_ESTIMATED + EXPANDED_ROW_ESTIMATE);
-    else rowHeights.push(ROW_ESTIMATED);
+    else if (renderSubComponent && row.getIsExpanded()) rowHeights.push(rowEstimated + EXPANDED_ROW_ESTIMATE);
+    else rowHeights.push(rowEstimated);
   }
   const rowOffsets: number[] = [0];
   for (let i = 0; i < rowHeights.length; i++) rowOffsets.push(rowOffsets[i] + rowHeights[i]);
@@ -226,8 +234,7 @@ export function TanStackTable<T>({
   const topSpacerHeight = useRowWindow ? rowOffsets[rowWindowStart] : 0;
   const bottomSpacerHeight = useRowWindow ? Math.max(0, totalHeight - rowOffsets[rowWindowEnd]) : 0;
 
-  return (
-    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: fillContainer ? "none" : "65vh", minHeight: fillContainer ? 0 : 200, flex: fillContainer ? 1 : undefined, height: fillContainer ? "100%" : undefined, border: 0, bgcolor: palette.SURFACE }}>
+  const tableScroll = (
       <ScrollArea className="paper-tanstack-scroll" sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
         onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >
@@ -257,9 +264,10 @@ export function TanStackTable<T>({
                     className="paper-tanstack-header-cell"
                     id={`paper-tanstack-header-${String(h.column.id)}`}
                     sx={{
-                      padding: width === 0 ? "0" : "3px 8px",
+                      padding: width === 0 ? "0" : densityTokens.tableCellPad,
                       fontSize: 11,
                       fontWeight: 600,
+                      fontVariantNumeric: "tabular-nums",
                       whiteSpace: "nowrap",
                       userSelect: "none",
                       bgcolor: palette.SURFACE_ALT,
@@ -350,11 +358,12 @@ export function TanStackTable<T>({
                             className="paper-tanstack-cell"
                             id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
                             sx={{
-                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : "3px 8px",
+                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : densityTokens.tableCellPad,
                               fontSize: 11,
                               lineHeight: 1.2,
+                              fontVariantNumeric: "tabular-nums",
                               whiteSpace: "nowrap",
-                              height: 20,
+                              height: densityTokens.tableRowHeight,
                               borderBottom: 1,
                               borderColor: palette.BORDER,
                               bgcolor: palette.SURFACE,
@@ -392,6 +401,13 @@ export function TanStackTable<T>({
         </tbody>
         </Box>
       </ScrollArea>
+  );
+
+  if (bare) return tableScroll;
+
+  return (
+    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: fillContainer ? "none" : "65vh", minHeight: fillContainer ? 0 : 200, flex: fillContainer ? 1 : undefined, height: fillContainer ? "100%" : undefined, border: 0, bgcolor: palette.SURFACE }}>
+      {tableScroll}
     </TableContainer>
   );
 }

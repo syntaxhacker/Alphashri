@@ -5,6 +5,8 @@ export type { OverlayCoord } from "./OverlayCanvas";
 export { default as TickReplayChart } from "./TickReplayChart";
 export { default as TradeReplayCard } from "./TradeReplayCard";
 export { stackLabel, stackColor, kindLabel, resultColor } from "./TradeReplayCard";
+export { ReplayTradeTable } from "./ReplayTradeTable";
+export type { RTrade } from "./ReplayTradeTable";
 export { default as useTickReplayFeed } from "./useTickReplayFeed";
 export * from "./overlays";
 export * from "./mockBars";

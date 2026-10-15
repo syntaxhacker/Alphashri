@@ -1,0 +1,8 @@
+.env
+samples/*.json
+samples/*.csv
+samples/*.parquet
+!samples/.gitkeep
+__pycache__/
+*.pyc
+data/

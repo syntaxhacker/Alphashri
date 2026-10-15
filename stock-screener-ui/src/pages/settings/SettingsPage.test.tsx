@@ -7,6 +7,7 @@ import { SettingsPage } from "./SettingsPage";
 import { MemoryRouter, Routes, Route } from "react-router-dom";
 import { renderWithProviders, renderWithRouter } from "../../test-utils/renderWithProviders";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { setDensity } from "@/ui";
 
 // Mock modules using vi.hoisted
 const { mockGetBrokerStatus, mockConnectUpstox, mockDisconnectUpstox, mockDispatch } = vi.hoisted(
@@ -44,6 +45,8 @@ describe("SettingsPage", () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setupBrowserMocks();
+    localStorage.removeItem("alphashri_ui_density");
+    setDensity("compact");
     // Reset mock implementations
     mockGetBrokerStatus.mockReset();
     mockConnectUpstox.mockReset();
@@ -100,7 +103,8 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(mockGetBrokerStatus).toHaveBeenCalledTimes(1);
+      // One card per broker (upstox + fyers).
+      expect(mockGetBrokerStatus).toHaveBeenCalledTimes(2);
     });
   });
 
@@ -120,7 +124,8 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Connected")).toBeInTheDocument();
+      // Both broker cards report Connected.
+      expect(screen.getAllByText("Connected").length).toBeGreaterThan(0);
     });
   });
 
@@ -135,7 +140,7 @@ describe("SettingsPage", () => {
     renderWithRouter(<SettingsPage />);
 
     await waitFor(() => {
-      expect(screen.getByText("Disconnected")).toBeInTheDocument();
+      expect(screen.getAllByText("Disconnected").length).toBeGreaterThan(0);
     });
   });
 
@@ -297,5 +302,38 @@ describe("SettingsPage", () => {
     await user.click(toggle);
 
     expect(mockSetShowMarketTicker).toHaveBeenCalledWith(true);
+  });
+
+  it("renders table density control defaulting to Compact", async () => {
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+    localStorage.removeItem("alphashri_ui_density");
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("density-control")).toBeInTheDocument();
+    });
+    expect(screen.getByRole("button", { name: "Compact" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+  });
+
+  it("persists Comfortable density to localStorage when selected", async () => {
+      const user = userEvent.setup();
+    mockGetBrokerStatus.mockResolvedValue(mockBrokerStatus);
+    localStorage.removeItem("alphashri_ui_density");
+
+    renderWithRouter(<SettingsPage />);
+
+    await waitFor(() => {
+      expect(screen.getByTestId("density-control")).toBeInTheDocument();
+    });
+
+    await user.click(screen.getByRole("button", { name: "Comfortable" }));
+
+    await waitFor(() => {
+      expect(localStorage.getItem("alphashri_ui_density")).toBe("comfortable");
+    });
   });
 });

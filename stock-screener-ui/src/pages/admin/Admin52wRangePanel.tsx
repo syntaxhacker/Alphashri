@@ -167,7 +167,7 @@ export function Admin52wRangePanel() {
         <Button size="sm" variant="filled" color="error" leftSection={<IconTrash size={14} />} onClick={() => clearAction(true)} loading={clearing} disabled={running}>
           Clear cache + DB
         </Button>
-        <Button size="compact-sm" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStatus} loading={loading}>
+        <Button size="xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStatus} loading={loading}>
           Refresh
         </Button>
       </Group>

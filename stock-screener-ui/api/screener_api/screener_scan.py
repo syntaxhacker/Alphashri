@@ -5,6 +5,7 @@ from db.database import SessionLocal
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
+    gap_pct_to_52w_high, is_within_52w_touch_gap, is_plausible_52w_gap,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 
@@ -38,6 +39,7 @@ def _build_stock_data(
     impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
     is_bullish, sentiment, score, broker_diff,
     move_5m=None, move_10m=None, move_15m=None,
+    price_source='tv',
 ):
     return {
         'symbol': symbol,
@@ -47,6 +49,7 @@ def _build_stock_data(
         'broker_diff': broker_diff,
         'high_52w': round(tv_52w_high, 2),
         'to_52w_high': round(to_52w_high, 2),
+        'source': price_source,
         'recent_return_5d': round(recent_return_5d, 1),
         'perf_w': round(perf_w, 1),
         'sector': sector,
@@ -238,6 +241,51 @@ def _compute_days_ago(api, symbol, today_high=None):
         return None
 
 
+def _lookup_upstox_52w_high(symbol):
+    """Upstox-computed 52W high for symbol (range cache / stock_52w_range table).
+
+    Returns the high as float, or None when unavailable/invalid. Never raises —
+    callers fall back to TradingView in that case.
+    """
+    try:
+        from trading.week52_range_lookup import get_52w_range
+    except Exception:
+        return None
+    try:
+        info = get_52w_range(symbol)
+    except Exception:
+        return None
+    if not isinstance(info, dict):
+        return None
+    return _to_float(info.get('high'), 0) or None
+
+
+def _resolve_52w_gap(symbol, tv_52w_high, price):
+    """Resolve (high_52w, to_52w_high, source) preferring Upstox.
+
+    Uses the Upstox-computed 52W high and the Upstox current price. Falls back
+    to the TradingView high (marked ``source='tv'``) only when the Upstox range
+    is genuinely unavailable. Returns ``(None, None, None)`` when no usable
+    high/price exists or the resulting gap is implausible (stale high far below
+    the live price) — callers must skip the row in that case.
+    """
+    price = _to_float(price, 0)
+    if price <= 0:
+        return None, None, None
+    upstox_high = _lookup_upstox_52w_high(symbol)
+    if upstox_high and upstox_high > 0:
+        gap = gap_pct_to_52w_high(upstox_high, price)
+        if gap is not None and is_plausible_52w_gap(gap):
+            return upstox_high, gap, 'upstox'
+        return None, None, None
+    tv_high = _to_float(tv_52w_high, 0)
+    if tv_high > 0:
+        gap = gap_pct_to_52w_high(tv_high, price)
+        if gap is not None and is_plausible_52w_gap(gap):
+            return tv_high, gap, 'tv'
+    return None, None, None
+
+
 def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
     from concurrent.futures import ThreadPoolExecutor, as_completed
     import random
@@ -314,23 +362,30 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
             adx_val = _to_float(row_data.get('ADX'), adx)
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', adx))
-            to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
+            # No live Upstox price here (synthetic TV-derived price), so the gap
+            # stays purely TradingView and is marked source='tv'.
+            high_52w = tv_52w_high
+            to_52w_high = gap_pct_to_52w_high(tv_52w_high, upstox_price)
+            if to_52w_high is None or not is_plausible_52w_gap(to_52w_high):
+                return None
+            price_source = 'tv'
 
-            est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
+            est_days, confidence = estimate_days_to_52w(upstox_price, high_52w, adx, atr, recent_return, perf_w)
             touched_gap = touched_52w_gap_threshold_pct()
-            touched_52w = to_52w_high < touched_gap
+            touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap)
             is_bullish = tv_price >= tv_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
 
             turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
-                symbol, tv_price, upstox_price, tv_52w_high, to_52w_high,
+                symbol, tv_price, upstox_price, high_52w, to_52w_high,
                 recent_return, perf_w, sector, touched_52w, None,
                 day_change, rsi, stoch_k, wick_close_pct, volume_surge,
                 atr_pct, adx_val, interest_score, gap_pct, premarket_change,
                 impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
                 move_5m=0.0, move_10m=0.0, move_15m=0.0,
+                price_source=price_source,
             )
 
             stock_data['move_pct'] = 0.0
@@ -380,24 +435,23 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             diff_pct = ((upstox_price - tv_price) / tv_price) * 100
             recent_return = ((upstox_price - start_price) / start_price) * 100
             tv_52w_high = float(row_data.get('price_52_week_high', 0))
-            recent_high = float(df_hist['high'].max())
-            high_diff_pct = ((recent_high - upstox_price) / recent_high) * 100
+            # Authoritative gap: Upstox 52W high vs Upstox current price.
+            # TradingView is only a fallback (marked source='tv'). Stale rows
+            # (price far above the recorded high) are skipped, not emitted.
+            high_52w, to_52w_high, price_source = _resolve_52w_gap(symbol, tv_52w_high, upstox_price)
+            if high_52w is None or to_52w_high is None:
+                return None
             adx = float(row_data.get('ADX', 0))
             atr = float(row_data.get('ATR', 0))
             atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
             perf_w = float(row_data.get('Perf.W', 0))
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', 0))
-            est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
+            est_days, confidence = estimate_days_to_52w(upstox_price, high_52w, adx, atr, recent_return, perf_w)
             touched_gap = touched_52w_gap_threshold_pct()
-            touched_52w = False
-            if tv_52w_high > 0:
-                if recent_high >= tv_52w_high:
-                    touched_52w = True
-                elif (tv_52w_high - recent_high) / tv_52w_high < touched_gap / 100:
-                    touched_52w = True
+            touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap)
             days_ago = None
             if screener_clean in ('touched_52w_high', '52w_high'):
-                days_ago = _compute_days_ago(api, symbol, today_high=recent_high)
+                days_ago = _compute_days_ago(api, symbol, today_high=upstox_price if touched_52w else None)
             c_open = _to_float(current_candle.get('open'), c_close)
             is_bullish = c_close >= c_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
@@ -424,13 +478,14 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
             turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
-                symbol, tv_price, upstox_price, tv_52w_high, high_diff_pct,
+                symbol, tv_price, upstox_price, high_52w, to_52w_high,
                 recent_return, perf_w, sector, touched_52w, days_ago,
                 day_change, rsi, stoch_k, wick_close_pct, volume_surge,
                 atr_pct, adx, interest_score, gap_pct, premarket_change,
                 impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
                 move_5m=move_5m, move_10m=move_10m, move_15m=move_15m,
+                price_source=price_source,
             )
 
             stock_data['move_pct'] = 0.0

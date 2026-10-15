@@ -265,6 +265,12 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - Today's intraday fetch that returns empty (pre-market) does NOT fall through to historical — returns empty to avoid caching wrong day's data
 - Pre-market cache poisoning fix: when `date == today` and `fetch_intraday_data_v3` returns None/empty, early return (no fallback to historical)
 
+## Chart-patterns caching
+- **Candle cache** (`chart_patterns/candles.py`): disk at `experiments/data/pattern_cache/candles/{tf}/{SYMBOL}.pkl` (+ `.meta`). Cleared via `clear_cache(symbols?, timeframe?)`.
+  - **Session-aware**: today's data has a 60s TTL while the market is open (`TODAY_TTL_SECONDS`, `trading.utils.is_market_open()`). When closed, the entry is pinned to `meta["session"]` = `_last_completed_session()` (last NSE session past 15:30 IST, walking back over weekends/holidays) — weekends/holidays never churn the cache. Historical/`as_of_date` files never expire. Lookback variants (`SYMBOL.lb250.pkl`) are namespaced so they never poison the default cache.
+- **Scan freshness** (`chart_patterns/scan.py`): a non-forced scan for a universe/timeframe whose last completed job is still fresh is a no-op (`_is_fresh`, `SCAN_FRESH_SECONDS`, default 300s, env `PATTERN_SCAN_FRESH_SEC`) — fresh = younger than TTL while open, same completed session while closed. `force: true` always recomputes. Frontend store additionally auto-refreshes combos whose `last_scan_at` is older than `STALE_SCAN_MINUTES` (30) (`src/state/chartPatterns.ts`).
+- **Force refresh**: `POST /api/chart-patterns/scan` with `refresh: true` clears the candle cache for the scope + timeframe and forces the scan. UI: "Force refresh" button in the patterns results toolbar → store `forceRefresh()` → `triggerScan(true, { refresh: true })` → `startScan` (`src/api/chartPatterns.ts` `ScanRequest.refresh`).
+
 ## 52W Range Screener Background Job
 - The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.
 - Both are gated to market hours via `_is_market_hours()` (delegates to the canonical `trading.utils.is_market_open()` for precise 9:15-15:30 IST trading days + holidays; always use `config.IST`; has a simple hour fallback).

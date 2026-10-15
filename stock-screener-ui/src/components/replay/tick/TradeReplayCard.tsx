@@ -16,7 +16,9 @@ export const stackColor = (stack: TradeStack | undefined): string =>
 export const kindLabel = (kind: string): string =>
   kind === "inv" ? "iFVG inversion" : kind === "retest" ? "FVG retest" : kind;
 export const resultColor = (result: string): "success" | "warning" | "error" | "default" =>
-  result === "TP" ? "success" : result === "TRAIL" ? "warning" : result === "BE" ? "default" : "error";
+  result === "TP" ? "success"
+  : result === "TRAIL" || result === "MAX_HOLD" ? "warning"
+  : result === "BE" ? "default" : "error";
 
 interface TradeReplayCardProps {
   bars: Bar[];
@@ -27,10 +29,13 @@ interface TradeReplayCardProps {
   timeLabel: (ts: number) => string;
   explainer?: (trade: ReplayTrade) => string;
   chartHeight?: number;
+  fitPaddingBeforeMin?: number;
+  fitPaddingAfterMin?: number;
 }
 
 export default function TradeReplayCard({
   bars, trade, index, zones = [], trends = [], timeLabel, explainer, chartHeight = 300,
+  fitPaddingBeforeMin, fitPaddingAfterMin,
 }: TradeReplayCardProps) {
   return (
     <Card elevation={0} sx={{ bgcolor: palette.NT_BG, border: `1px solid ${palette.NT_GRID}`, mb: 2, overflow: "hidden" }} data-testid="trade-replay-card" id={`trade-replay-card-${index}`}>
@@ -66,7 +71,7 @@ export default function TradeReplayCard({
           )}
         </Stack>
         <Box sx={{ flex: 1, minHeight: chartHeight, display: "flex", alignItems: "stretch" }}>
-          <TickReplayChart bars={bars} trade={trade} zones={zones} trends={trends} height={chartHeight} id={`tick-replay-chart-${index}`} />
+          <TickReplayChart bars={bars} trade={trade} zones={zones} trends={trends} height={chartHeight} id={`tick-replay-chart-${index}`} fitPaddingBeforeMin={fitPaddingBeforeMin} fitPaddingAfterMin={fitPaddingAfterMin} />
         </Box>
       </Box>
     </Card>

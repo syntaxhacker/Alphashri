@@ -1,6 +1,7 @@
 import * as React from "react";
 import MuiTooltip from "@mui/material/Tooltip";
 import type { UITooltipProps } from "../types";
+import { stripLegacyInputProps } from "../inputs/legacyProps";
 
 const placementMap: Record<string, any> = {
   top: "top",
@@ -22,6 +23,7 @@ export function Tooltip({
   disabled,
   multiline,
   color,
+  withinPortal: _withinPortal,
   children,
   className,
   style,
@@ -63,7 +65,7 @@ export function Tooltip({
           ? { sx: { color: color as string } }
           : undefined,
       }}
-      {...(rest as any)}
+      {...(stripLegacyInputProps(rest as Record<string, unknown>) as any)}
     >
       {/* MUI requires a single element child that can hold ref; wrap in span if needed */}
       <span

@@ -1,0 +1,431 @@
+/**
+ * Chart Patterns — DTOs mirroring `chart_patterns/CONTRACT.md` §5 exactly.
+ *
+ * Keep these in sync with the frozen contract. These are transport types only;
+ * no runtime state lives here.
+ */
+
+/** Timeframe registry entry (`chart_patterns/timeframes.py:TFSpec`). */
+export interface TFSpec {
+  id: string;
+  label: string;
+  minutes: number;
+  /** True when Upstox serves this TF natively; false when produced via resample. */
+  native: boolean;
+  /** Source timeframe used for resampling (e.g. `1m` → `3m`). Null when native. */
+  source_tf: string | null;
+  max_lookback_days: number;
+  min_bars: number;
+}
+
+/** Selectable scan universe (`GET /universes`). */
+export interface Universe {
+  id: string;
+  label: string;
+  count: number;
+}
+
+export type PatternDirection = "bullish" | "bearish" | "neutral";
+export type PatternStatus = "forming" | "confirmed" | "failed" | "marginal";
+export type PatternQuality = "textbook" | "strong" | "fair" | "marginal";
+
+/** Pattern family (`GET /patterns`). */
+export interface PatternFamily {
+  id: string;
+  label: string;
+}
+
+/** Pattern definition (`GET /patterns`). */
+export interface PatternDef {
+  pattern_id: string;
+  name: string;
+  family: string;
+  direction: PatternDirection;
+  description: string;
+}
+
+export type JobStatus = "queued" | "running" | "completed" | "failed" | "cancelled";
+
+/**
+ * Per-layer cache provenance for a scan job. Added alongside the scan-reuse
+ * markers; always treat as optional — older backends omit it entirely.
+ */
+export interface ScanProvenance {
+  /** True when the scan reused a previous scan without re-detecting. */
+  scan_reused: boolean;
+  /** Candle payloads served from the disk cache (never hit the vendor). */
+  candles_cached: number;
+  /** Candle payloads freshly fetched from the vendor. */
+  candles_fetched: number;
+  /** Symbols dropped by the volume pre-filter (null when unknown). */
+  prefilter_dropped: number | null;
+  /** Detector version that produced the results. */
+  detector_version: number;
+  /** Data cutoff timestamp (null when unknown). */
+  data_through: string | null;
+}
+
+/** Compute job state (`JobDTO`, `GET /jobs/{id}`). */
+export interface JobDTO {
+  job_id: string;
+  universe: string;
+  timeframe: string;
+  status: JobStatus;
+  total: number;
+  done: number;
+  failed: number;
+  skipped: number;
+  queue_position: number | null;
+  started_at: string | null;
+  finished_at: string | null;
+  data_through: string | null;
+  error: string | null;
+  /**
+   * True when a non-forced scan reused a previous scan without re-detecting
+   * (data unchanged). Absent/false = freshly computed.
+   */
+  reused?: boolean;
+  /** Job id of the previous scan that was reused (null when not reused). */
+  reused_from?: string | null;
+  /** Age of the reused scan in seconds (null when not reused/unknown). */
+  reused_age_sec?: number | null;
+  /** Finish timestamp of the reused scan (null when not reused/unknown). */
+  reused_finished_at?: string | null;
+  /**
+   * Per-layer cache provenance (`scan_reused`, candle hit/miss counts,
+   * prefilter drops, detector version). Absent/null on older backends —
+   * always code defensively against a missing value.
+   */
+  provenance?: ScanProvenance | null;
+}
+
+/** Market open state (`GET /api/chart-patterns/market-status`, holiday-aware). */
+export interface MarketStatus {
+  open: boolean;
+  holiday: boolean;
+  now_ist: string;
+  reason: string;
+}
+
+/** A single trendline is a list of `{t, price}` points. */
+export type Trendline = Array<{ t: string; price: number }>;
+
+/**
+ * Auto-computed standalone trendline (support/resistance) attached to a result
+ * item or a symbol-chart payload as `trend_lines`. Transport shape only.
+ */
+export interface TrendLine {
+  kind: "support" | "resistance";
+  start_date: string;
+  start_price: number;
+  end_date: string;
+  end_price: number;
+  slope: number;
+  touches: number;
+  span_bars: number;
+  violations: number;
+}
+
+/** View-only filter controlling which standalone trendlines are drawn. */
+export type TrendlinesView = "both" | "support" | "resistance" | "none";
+
+/** Pattern hit row (`PatternHitDTO`, `GET /results`). */
+export interface PatternHitDTO {
+  id: number;
+  symbol: string;
+  name: string | null;
+  timeframe: string;
+  pattern_id: string;
+  pattern_name: string;
+  family: string;
+  direction: PatternDirection;
+  status: PatternStatus;
+  quality: PatternQuality;
+  confidence: number;
+  start_date: string;
+  end_date: string;
+  start_price: number;
+  end_price: number;
+  breakout_level: number;
+  target: number;
+  stop: number;
+  rr: number;
+  bars_ago: number;
+  volume_confirmed: boolean;
+  trendlines: Trendline[];
+  /** Auto-computed standalone support/resistance lines (view-only overlay). */
+  trend_lines?: TrendLine[];
+  notes: string;
+  /** Swing pivots used to define the pattern: on-chart markers + manual audit. */
+  pivots?: Array<{ t: string; price: number; kind?: "high" | "low" }>;
+  /** Real OHLCV window covering the pattern (enriched by the API for card charts). */
+  candles?: ChartCandle[];
+  /** Latest close for the symbol/timeframe (enriched). */
+  last_close?: number | null;
+  /** Latest bar change % for the symbol/timeframe (enriched). */
+  day_change_pct?: number | null;
+  /** Consolidation base length in bars/days (`consolidation` pattern only). */
+  base_days?: number;
+  /** Consolidation range as a percentage of price (`consolidation` pattern only). */
+  range_pct?: number;
+  /** Distance to the 52-week high as a percentage (null when unavailable). */
+  to_52w_high?: number | null;
+  /** Position within the consolidation range, 0..1 (`consolidation` pattern only). */
+  range_pos?: number;
+  /**
+   * Breakout conviction score (0–100, server-computed from stored columns
+   * only: range_pos/confidence/status/direction — not pattern-fit geometry).
+   */
+  breakout_score?: number | null;
+}
+
+/** Aggregate counts (`GET /summary`). */
+export interface PatternSummary {
+  scanned: number;
+  patterns: number;
+  in_view: number;
+  confirmed: number;
+  bullish: number;
+  bearish: number;
+  data_through: string | null;
+  /**
+   * ISO timestamp of the latest completed scan for the active universe+timeframe
+   * (null when none / no combo in the query). Drives the stale-scan auto-refresh.
+   */
+  last_scan_at?: string | null;
+  /** Hit count per `pattern_id` across the whole filtered set (no page limit). */
+  pattern_counts?: Record<string, number>;
+  /** Hit count per family across the whole filtered set (no page limit). */
+  family_counts?: Record<string, number>;
+}
+
+/**
+ * Per-timeframe availability for a symbol. Contract §5 only shows `timeframes:[...]`
+ * for `SymbolDetail`, so the exact element shape is a documented gap. Chosen shape:
+ * `{ timeframe, count }`.
+ */
+export interface SymbolTimeframeInfo {
+  timeframe: string;
+  count: number;
+}
+
+/** Symbol drill-down (`GET /symbol/{symbol}`). */
+export interface SymbolDetail {
+  symbol: string;
+  name: string | null;
+  last_close: number | null;
+  day_change_pct: number | null;
+  history_bars: number;
+  timeframes: SymbolTimeframeInfo[];
+  counts: { confirmed: number; forming: number };
+  patterns: PatternHitDTO[];
+}
+
+/** OHLCV candle (`GET /symbol/{symbol}/chart`). */
+export interface ChartCandle {
+  t: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
+  v: number;
+}
+
+/**
+ * Overlay drawn on the symbol chart. Contract §5 leaves `overlays` open; chosen
+ * shape is a per-pattern trendline bundle.
+ */
+export interface PatternOverlay {
+  pattern_id?: string;
+  pattern_name?: string;
+  direction?: PatternDirection;
+  status?: PatternStatus;
+  start_date?: string;
+  end_date?: string;
+  id?: number;
+  trendlines: Trendline[];
+}
+
+/** Symbol chart payload (`GET /symbol/{symbol}/chart`). */
+export interface ChartPayload {
+  symbol: string;
+  timeframe: string;
+  candles: ChartCandle[];
+  overlays: PatternOverlay[];
+  /** Auto-computed standalone support/resistance lines (view-only overlay). */
+  trend_lines?: TrendLine[];
+  /**
+   * Live pattern hits detected on this timeframe (`detect_patterns=1`).
+   * Absent unless detection was requested.
+   */
+  hits?: PatternHitDTO[];
+  /**
+   * Echo of the requested `as_of_date` replay cutoff (null/absent = live).
+   * Candles are truncated at this timestamp and `hits` filtered to the window.
+   */
+  as_of?: string | null;
+}
+
+/** User-facing result filters (the filter rail). */
+export interface PatternFilters {
+  family: string[];
+  /** Specific pattern ids (verified sub-filters within a family); empty = any. */
+  pattern_id: string[];
+  direction: string[];
+  status: string[];
+  quality: string | null;
+  formed_within_bars: number | null;
+  volume_confirmed: boolean | null;
+  min_rr: number | null;
+  symbol: string | null;
+  /** Multi-symbol filter (repeat `symbol` params); empty = any. */
+  symbols: string[];
+  /** Free-text symbol/name search (`q` param); empty = any. */
+  q: string;
+  /** Minimum consolidation base length in bars/days (null = any). */
+  min_base_days: number | null;
+  /** Maximum consolidation range as % of price (null = any). */
+  max_range_pct: number | null;
+  /**
+   * Maximum distance to the 52-week high as % of price (null = any).
+   * Shows patterns whose symbol is within this % of its 52-week high.
+   */
+  max_52w_gap?: number | null;
+  /**
+   * Minimum position within the consolidation range as % (0..100, null = any).
+   * Shows consolidations whose price sits at/above this % of the base range.
+   */
+  min_range_pos?: number | null;
+  /**
+   * Minimum pattern-fit confidence score (0..100, null = any). RESULT-LEVEL,
+   * CLIENT-ONLY filter: applied in the store's `applyResultFilters` selector,
+   * never sent to `/results`/`/summary` (not part of `baseQuery`).
+   */
+  min_confidence?: number | null;
+  /**
+   * Minimum breakout-conviction score (0..100, null = any). RESULT-LEVEL,
+   * CLIENT-ONLY filter like `min_confidence`: applied in the store's
+   * `applyResultFilters` selector, never sent to the API.
+   */
+  min_breakout_score?: number | null;
+  /**
+   * Minimum relative volume (null = any). Scan-time pre-filter: the scan
+   * pre-filters the universe via TradingView before fetching candles.
+   * Never sent to `/results`/`/summary` (not part of `baseQuery`).
+   */
+  min_rel_volume?: number | null;
+  /**
+   * Minimum watched volume in millions of shares (null = any). Scan-time
+   * pre-filter like `min_rel_volume`; never sent to `/results`/`/summary`.
+   */
+  min_volume_m?: number | null;
+  /**
+   * Minimum 10-day average volume in thousands of shares (K) (null = any).
+   * Scan-time pre-filter like `min_rel_volume`; never sent to `/results`/`/summary`.
+   * Defaults to 150 (150K shares/day).
+   */
+  min_avg_volume_10d?: number | null;
+  /**
+   * Lower bound of the formation window (ISO local datetime, null = any).
+   * Filters hits formed at/after this timestamp (`from_date` query param).
+   */
+  from_date: string | null;
+  /**
+   * Upper bound of the formation window (ISO local datetime, null = any).
+   * Filters hits formed at/before this timestamp (`to_date` query param);
+   * also doubles as the as-of replay cutoff for scans/charts.
+   */
+  to_date: string | null;
+  /** Result ordering: `"confidence"` (default), `"newest"`, `"range_pos"`, or `"breakout"`. */
+  sort: string;
+  /**
+   * View-only filter for standalone trendlines. CLIENT-ONLY: never sent to
+   * `/results` or `/summary` (not part of `baseQuery`), never restrictive.
+   */
+  trendlines: TrendlinesView;
+}
+
+/**
+ * Full query accepted by `/results` and `/summary`. Filter fields are optional
+ * (they map to optional query params); `universe`, `timeframe` and `job_id` are
+ * also supplied by the store; `limit`/`offset` paginate results.
+ */
+export interface PatternsQuery extends Partial<PatternFilters> {
+  job_id?: string | null;
+  universe?: string | null;
+  timeframe?: string | null;
+  limit?: number;
+  offset?: number;
+  /** Card candle window in bars (omitted/null = server default). */
+  lookback_bars?: number | null;
+  /** Skip server-side trendline computation (false = skip; omitted/true = compute). */
+  compute_trendlines?: boolean;
+}
+
+/** Breakout-watch setup (`GET /api/chart-patterns/watch/setups`). */
+export interface WatchSetup {
+  id: string;
+  label: string;
+  description: string;
+  /**
+   * Default gate for the time-adjusted intraday volume (`vol_adj`).
+   * `min_rel_volume` applies to `vol_adj`, not the daily TradingView `rel_volume`.
+   */
+  default_min_rel_volume: number;
+}
+
+export type WatchState = "armed" | "triggered" | "invalidated";
+
+/** One breakout-watch row (`GET /api/chart-patterns/watch`). */
+export interface WatchRow {
+  symbol: string;
+  setup_id: string;
+  trigger_level: number;
+  invalidate_level: number;
+  base_days: number;
+  range_pct: number;
+  confidence: number;
+  status: string;
+  end_date: string;
+  ltp: number | null;
+  rel_volume: number | null;
+  /**
+   * Time-adjusted intraday relative volume = today's cumulative volume /
+   * (10-day average daily volume * session_fraction), where session_fraction
+   * = elapsed-minutes-since-09:15 / 375 (clamped 0.05–1.0). Null when
+   * unavailable. The `triggered` state gates on price + this metric; the
+   * `min_rel_volume` request param applies to it. The daily TradingView
+   * `rel_volume` is kept as context only.
+   */
+  vol_adj?: number | null;
+  pct_to_trigger: number | null;
+  state: WatchState;
+  /** True for a fresh cross that was already above the box on the last completed bar. */
+  fresh?: boolean;
+  /** Latest close (`near_52w` setup only). */
+  close?: number | null;
+  /** Most recent swing high (`near_52w` setup only). */
+  last_high?: number | null;
+  /** True when price touched the prior 52W high recently (`near_52w` only). */
+  touched?: boolean;
+  /** Intraday gap to the 52W high as %; <0 = exceeded (`near_52w` only). */
+  high_gap?: number | null;
+  /** Close gap to the 52W high as % (`near_52w` only). */
+  close_gap?: number | null;
+  /** OBV slope (`near_52w` accumulation only). */
+  obv_slope?: number | null;
+  /** Up/down volume ratio (`near_52w` accumulation only). */
+  updown?: number | null;
+  /** Volume ratio vs average (`near_52w` accumulation only). */
+  vol_ratio?: number | null;
+  /** True when recent swing lows are rising (`near_52w` accumulation only). */
+  rising_lows?: boolean;
+}
+
+/** Breakout-watch payload (`GET /api/chart-patterns/watch`). */
+export interface WatchPayload {
+  setup: string;
+  min_rel_volume: number;
+  updated_at: string;
+  items: WatchRow[];
+}
