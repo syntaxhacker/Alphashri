@@ -103,7 +103,8 @@ jobs:
   frontend-unit:
     name: Frontend Unit Tests
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    # Full vitest suite on PRs to main exceeds 5 minutes; --changed on develop stays fast.
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
