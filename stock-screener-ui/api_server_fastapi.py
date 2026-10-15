@@ -1311,6 +1311,8 @@ try:
     print("✅ Reports digest API loaded at /api/reports/digest/send")
 except Exception as e:
     print(f"⚠️ Could not load reports digest API: {e}")
+
+try:
     from api.reports_api.nifty import router as nifty_report_router
     app.include_router(nifty_report_router)
     print("✅ Nifty Report API loaded at /api/reports/nifty")
