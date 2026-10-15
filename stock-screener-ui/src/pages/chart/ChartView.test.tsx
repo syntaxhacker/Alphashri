@@ -14,6 +14,7 @@ const mockRemove = vi.fn();
 const mockChartApi = {
   addSeries: () => ({
     setData: vi.fn(),
+    applyOptions: vi.fn(),
     createPriceLine: vi.fn(),
     removePriceLine: vi.fn(),
     priceToCoordinate: () => 100,
@@ -22,6 +23,7 @@ const mockChartApi = {
   }),
   timeScale: () => ({
     setVisibleRange: vi.fn(),
+    setVisibleLogicalRange: vi.fn(),
     fitContent: vi.fn(),
     timeToCoordinate: () => 100,
     subscribeVisibleLogicalRangeChange: vi.fn(),
