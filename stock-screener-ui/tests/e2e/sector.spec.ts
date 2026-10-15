@@ -20,21 +20,21 @@ test.describe("Sector Dashboard - Navigation and Display", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(sectorView.locator("h2")).toContainText("Sector Dashboard");
+    await expect(
+      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
+    ).toBeVisible();
   });
 
   test("should display subtitle about real-time performance", async ({ page }) => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
-    await expect(sectorView.locator(".sector-analysis-header")).toBeVisible();
+    await expect(page.locator('[data-testid="sector-header"]')).toBeVisible();
     await expect(sectorView).toContainText("Real-time sector performance");
   });
 
   test("should display market toggle buttons India and US", async ({ page }) => {
     await gotoSector(page);
-    const header = page
-      .locator('[data-testid="sector-analysis-view"]')
-      .locator(".sector-analysis-header");
+    const header = page.locator('[data-testid="sector-header"]');
     await expect(header.getByRole("button", { name: "India" })).toBeVisible();
     await expect(header.getByRole("button", { name: "US" })).toBeVisible();
   });
@@ -179,8 +179,7 @@ test.describe("Sector Dashboard - Market Selector", () => {
     await gotoSector(page);
     await expect(
       page
-        .locator('[data-testid="sector-analysis-view"]')
-        .locator(".sector-analysis-header")
+        .locator('[data-testid="sector-header"]')
         .getByRole("button", { name: "India" }),
     ).toBeVisible();
   });
@@ -188,25 +187,27 @@ test.describe("Sector Dashboard - Market Selector", () => {
   test("should have US button visible in header", async ({ page }) => {
     await gotoSector(page);
     await expect(
-      page
-        .locator('[data-testid="sector-analysis-view"]')
-        .locator(".sector-analysis-header")
-        .getByRole("button", { name: "US" }),
+      page.locator('[data-testid="sector-header"]').getByRole("button", { name: "US" }),
     ).toBeVisible();
   });
 
   test("should toggle between India and US markets", async ({ page }) => {
     await gotoSector(page);
-    const header = page
-      .locator('[data-testid="sector-analysis-view"]')
-      .locator(".sector-analysis-header");
+    const header = page.locator('[data-testid="sector-header"]');
     const indiaBtn = header.getByRole("button", { name: "India" });
     const usBtn = header.getByRole("button", { name: "US" });
+    // India is the default market
+    await expect(indiaBtn).toHaveAttribute("aria-pressed", "true");
     await usBtn.click();
+    // Toggle actually switches markets: US becomes selected, India deselects
+    await expect(usBtn).toHaveAttribute("aria-pressed", "true");
+    await expect(indiaBtn).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
       timeout: 5000,
     });
     await indiaBtn.click();
+    await expect(indiaBtn).toHaveAttribute("aria-pressed", "true");
+    await expect(usBtn).toHaveAttribute("aria-pressed", "false");
     await expect(page.locator('[data-testid="sector-analysis-view"]')).toBeVisible({
       timeout: 5000,
     });
@@ -241,8 +242,10 @@ test.describe("Sector Dashboard - Responsive Layout", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(sectorView.locator("h2")).toBeVisible();
-    await expect(sectorView.locator(".sector-analysis-header")).toBeVisible();
+    await expect(
+      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
+    ).toBeVisible();
+    await expect(page.locator('[data-testid="sector-header"]')).toBeVisible();
   });
 
   test("should display properly on tablet viewport", async ({ page }) => {
@@ -250,7 +253,9 @@ test.describe("Sector Dashboard - Responsive Layout", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(sectorView.locator("h2")).toBeVisible();
+    await expect(
+      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
+    ).toBeVisible();
     await expect(sectorView.locator('[role="tablist"]')).toBeVisible();
   });
 
@@ -259,7 +264,9 @@ test.describe("Sector Dashboard - Responsive Layout", () => {
     await gotoSector(page);
     const sectorView = page.locator('[data-testid="sector-analysis-view"]');
     await expect(sectorView).toBeVisible();
-    await expect(sectorView.locator("h2")).toBeVisible();
+    await expect(
+      sectorView.getByRole("heading", { name: "Sector Dashboard" }),
+    ).toBeVisible();
   });
 });
 
