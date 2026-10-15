@@ -449,28 +449,45 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const [refreshKey, setRefreshKey] = useState<number>(0);
   // Overlap guard: skip a poll tick while a fetch is still in flight.
   const loadingRef = useRef<boolean>(false);
+  // Invalidate and cancel requests when the report context changes. Without
+  // this, a slow Live response can overwrite a newly selected EOD/expiry
+  // context after the new request was skipped by the overlap guard.
+  const requestIdRef = useRef<number>(0);
+  const requestControllerRef = useRef<AbortController | null>(null);
+  const [streamed, setStreamed] = useState<NiftyBurst[]>([]);
 
   // Exchange session gate (from the `market` block). When closed, the poll is
   // stopped and the snapshot is labelled "Market closed" instead of "live".
   const marketClosed = report?.market?.is_open === false;
+  const contextKey = mode === "eod" ? `eod:${date}` : `live:${expiry}`;
+  const prevContext = useRef(contextKey);
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
+    const requestId = requestIdRef.current + 1;
+    requestIdRef.current = requestId;
+    const controller = new AbortController();
+    requestControllerRef.current = controller;
     loadingRef.current = true;
     setLoading(true);
     setError(null);
     try {
       const [data, tapeData, burstData] = await Promise.all([
         mode === "live"
-          ? fetchLiveNifty(expiry === "nearest" ? undefined : expiry)
-          : fetchNiftyByDate(date),
+          ? fetchLiveNifty(expiry === "nearest" ? undefined : expiry, controller.signal)
+          : fetchNiftyByDate(date, controller.signal),
         // Tape failures stay non-fatal: keep the last-good tape on screen.
-        fetchNiftyTape(mode === "eod" ? date || undefined : undefined).catch(
-          () => null,
-        ),
+        fetchNiftyTape(
+          mode === "eod" ? date || undefined : undefined,
+          controller.signal,
+        ).catch(() => null),
         // Bursts are backend-derived (survive tab close); never fatal.
-        fetchNiftyBursts(mode === "eod" ? date || undefined : undefined),
+        fetchNiftyBursts(
+          mode === "eod" ? date || undefined : undefined,
+          controller.signal,
+        ),
       ]);
+      if (requestId !== requestIdRef.current) return;
       setReport(data);
       if (tapeData) setTape(tapeData);
       setBursts(burstData as OiBurst[]);
@@ -479,14 +496,18 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       setUpdatedAtMs(now);
       setNowMs(now);
     } catch (e) {
+      if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       // Keep the last-good report on screen; the full error alert only
       // renders when there is no cached data (see below).
       setFailures((f) => f + 1);
       setNowMs(Date.now());
       setError(e instanceof Error ? e.message : "Failed to load Nifty report");
     } finally {
-      loadingRef.current = false;
-      setLoading(false);
+      if (requestId === requestIdRef.current) {
+        requestControllerRef.current = null;
+        loadingRef.current = false;
+        setLoading(false);
+      }
     }
   }, [mode, expiry, date]);
 
@@ -504,20 +525,17 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     };
   }, []);
 
-  useEffect(() => {
-    if (mode === "live" || (mode === "eod" && date)) {
-      void load();
-    }
-  }, [mode, load, date]);
-
-  // Context switch (mode/expiry/date): drop stale report + tape so the new
-  // context loads clean — otherwise an EOD 404 hides behind cached live data
-  // and the error/empty states never render.
-  const contextKey = mode === "eod" ? `eod:${date}` : `live:${expiry}`;
-  const prevContext = useRef(contextKey);
+  // Context switch (mode/expiry/date): cancel the previous load before the
+  // load effect below starts the new one, then drop stale report data so a 404
+  // cannot hide behind the previous context's successful response.
   useEffect(() => {
     if (prevContext.current !== contextKey) {
       prevContext.current = contextKey;
+      requestIdRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+      loadingRef.current = false;
+      setLoading(false);
       setReport(null);
       setTape(null);
       setBursts(null);
@@ -526,6 +544,22 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       setFailures(0);
     }
   }, [contextKey]);
+
+  // Abort an in-flight request on unmount without updating state afterward.
+  useEffect(
+    () => () => {
+      requestIdRef.current += 1;
+      requestControllerRef.current?.abort();
+      requestControllerRef.current = null;
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (mode === "live" || (mode === "eod" && date)) {
+      void load();
+    }
+  }, [mode, load, date]);
 
   // Live auto-refresh: refetch on a 30s interval; on failure back off to
   // 15s/30s/60s (capped at 60s) until success. The interval resets whenever
@@ -661,7 +695,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // Server-pushed alerts (SSE) land here within ~seconds of the tape row,
   // instead of waiting for the next 30s poll. The hook's seen-set dedupes, so
   // an event arrives only once whether it came from the stream or the poll.
-  const [streamed, setStreamed] = useState<NiftyBurst[]>([]);
   const onStreamEvent = useCallback((b: NiftyBurst) => {
     setStreamed((prev) =>
       prev.some((x) => x.id === b.id) ? prev : [...prev, b].slice(-200),

@@ -7,6 +7,7 @@ Call endpoint functions directly, passing every Query param explicitly
 (FastAPI Query defaults are Param objects when called outside HTTP).
 """
 
+import asyncio
 from datetime import datetime
 from unittest.mock import AsyncMock, patch
 
@@ -176,6 +177,22 @@ class TestRecorder:
                           AsyncMock(side_effect=RuntimeError("boom"))):
             assert await record_nifty_tape_tick(now=_ist(9, 15)) is None
         assert read_tape("2026-10-13") == []
+
+    async def test_background_tick_timeout_is_recorded(self, monkeypatch):
+        async def slow_tick():
+            await asyncio.Event().wait()
+
+        async def stop_sleep(_delay):
+            raise RuntimeError("stop recorder test")
+
+        monkeypatch.setattr(nifty, "TAPE_TICK_TIMEOUT_SEC", 1)
+        with patch.object(nifty, "record_nifty_tape_tick", side_effect=slow_tick), \
+                patch("trading.utils.is_market_open", return_value=True), \
+                patch.object(asyncio, "sleep", side_effect=stop_sleep):
+            with pytest.raises(RuntimeError, match="stop recorder test"):
+                await nifty.start_nifty_tape_task(poll_sec=1)
+
+        assert nifty._tape_last_error == "tick timed out after 1s"
 
     async def test_null_flip_recorded(self, _tmp_tape):
         rep = _fake_report()

@@ -584,6 +584,10 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 TAPE_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_tape"
 TAPE_INTERVAL_SEC = 60
+# Keep one slow upstream request from pushing the next tape attempt into the
+# following minute.  The loop is wall-clock paced below, so a timed-out tick
+# leaves a short recovery window before the next scheduled attempt.
+TAPE_TICK_TIMEOUT_SEC = 55
 
 
 def tape_path(date_str: str) -> Path:
@@ -638,26 +642,44 @@ def drop_empty_chain_rows(rows: list[dict]) -> list[dict]:
 
 
 def drop_implausible_spots(rows: list[dict]) -> list[dict]:
-    """Rows whose spot jumped >``SPOT_JUMP_MAX`` from the last accepted row.
+    """Drop single-row spot spikes that the market immediately retracts.
 
-    Mirrors the write-time guard in :func:`reconcile_spot`. On 2026-10-14 two
-    rows recorded 22,363 while the real market was ~22,690 (1.56% out), which
-    skewed the displayed session range and the EMA20 trend gate that every
-    burst signal is filtered through. Across both recorded days this drops
-    exactly those two rows and no legitimate ones. The last *accepted* spot is
-    the comparison base, so a rejected spike cannot poison the next row.
+    On 2026-10-14 two rows recorded 22,363 while the real market was ~22,690
+    (1.56% out), which skewed the displayed session range and the EMA20 trend
+    gate every burst signal is filtered through.
+
+    A plain "jump too big" test is WRONG: a recorder gap followed by a genuine
+    move looks identical. On 2026-10-15 the tape missed 61 minutes and the real
+    +0.98% re-open tripped the threshold, so the last *accepted* row never
+    advanced and EVERY row after the gap was rejected — the tape silently ended
+    at 09:23 while the file held 13 rows.
+
+    A bad row is one the market RETRACTS. A row is dropped only when one of the
+    next ``LOOKAHEAD`` rows comes back to within ``SPOT_JUMP_MAX`` of the last
+    accepted value (the 10-14 pair needed lookahead because both rows were bad);
+    a sustained move is kept and re-anchors the baseline.
     """
+    src = [r for r in (rows or []) if isinstance(r, dict)]
     kept: list[dict] = []
     prev: Optional[float] = None
-    for r in rows or []:
-        if not isinstance(r, dict):
-            continue
-        spot = _safe_float(r.get("spot")) or None
+    i = 0
+    while i < len(src):
+        row = src[i]
+        spot = _safe_float(row.get("spot")) or None
         if spot and prev and abs(spot - prev) / prev > SPOT_JUMP_MAX:
-            continue
+            retracted = False
+            for nxt_row in src[i + 1:i + 1 + SPOT_LOOKAHEAD]:
+                nxt = _safe_float(nxt_row.get("spot")) or None
+                if nxt and abs(nxt - prev) / prev <= SPOT_JUMP_MAX:
+                    retracted = True
+                    break
+            if retracted:
+                i += 1
+                continue  # a spike the market took back — drop it
         if spot:
             prev = spot
-        kept.append(r)
+        kept.append(row)
+        i += 1
     return kept
 
 
@@ -792,6 +814,10 @@ SPOT_CHAIN_DEV_MAX = 0.0025
 #: isolates exactly the three corrupt rows (12:53, 12:54, 13:19) and drops no
 #: legitimate ones, while 0.50% cascades and discards 16 good rows behind them.
 SPOT_JUMP_MAX = 0.0075
+#: How many following rows may confirm that a spike was retracted. The
+#: 2026-10-14 corruption came as a PAIR (12:53 and 12:54 both wrong), so a
+#: single-row check would have missed it.
+SPOT_LOOKAHEAD = 3
 
 
 def reconcile_spot(chain_spot: float, index_spot: Optional[float],
@@ -986,6 +1012,8 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
     """
     global _tape_last_tick, _tape_last_error, _tape_iterations
     import asyncio
+    loop = asyncio.get_running_loop()
+    next_tick = loop.time()
     while True:
         try:
             try:
@@ -995,7 +1023,10 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
                 market_open = 8 <= datetime.now(config.IST).hour <= 16
             if market_open:
                 try:
-                    row = await record_nifty_tape_tick()
+                    timeout_sec = max(1.0, min(float(poll_sec), TAPE_TICK_TIMEOUT_SEC))
+                    row = await asyncio.wait_for(
+                        record_nifty_tape_tick(), timeout=timeout_sec
+                    )
                     _tape_iterations += 1
                     if row is not None:
                         _tape_last_tick = row.get("t")
@@ -1006,13 +1037,20 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
                         # A deliberate skip (same minute, or a rejected spot) is
                         # not a failure — don't leave a stale error behind.
                         _tape_last_error = None
+                except asyncio.TimeoutError:
+                    _tape_iterations += 1
+                    _tape_last_error = (
+                        f"tick timed out after {timeout_sec:.0f}s"
+                    )
                 except Exception as e:
                     _tape_iterations += 1
                     _tape_last_error = f"{type(e).__name__}: {str(e)[:200]}"
-            await asyncio.sleep(poll_sec)
+            next_tick += poll_sec
+            await asyncio.sleep(max(0.0, next_tick - loop.time()))
         except asyncio.CancelledError:
             break
         except Exception:
+            next_tick = loop.time() + poll_sec
             try:
                 await asyncio.sleep(poll_sec)
             except asyncio.CancelledError:

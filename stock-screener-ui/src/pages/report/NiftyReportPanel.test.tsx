@@ -250,8 +250,45 @@ describe("NiftyReportPanel EOD mode", () => {
     await user.clear(dateInput);
     await user.type(dateInput, "2026-10-10");
     await waitFor(() => {
-      expect(vi.mocked(fetchNiftyByDate)).toHaveBeenCalledWith("2026-10-10");
+      expect(vi.mocked(fetchNiftyByDate)).toHaveBeenCalledWith(
+        "2026-10-10",
+        expect.any(AbortSignal),
+      );
     });
+  });
+
+  test("ignores a slow response from the previous context", async () => {
+    const user = userEvent.setup();
+    let resolveLive!: (report: NiftyReport) => void;
+    vi.mocked(fetchLiveNifty).mockReturnValueOnce(
+      new Promise<NiftyReport>((resolve) => {
+        resolveLive = resolve;
+      }),
+    );
+    vi.mocked(fetchNiftyByDate).mockResolvedValueOnce(
+      mockReport({ mode: "eod", date: "2026-10-10", spot: 26000 }),
+    );
+
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+    });
+
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("26,000");
+    });
+
+    // The old Live request ignores AbortSignal in this mocked transport. The
+    // panel must still reject its late result using the request generation.
+    resolveLive(mockReport({ spot: 22000 }));
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("26,000");
   });
 
   test("empty state prompts for a date when none selected", async () => {
@@ -816,7 +853,10 @@ describe("NiftyReportPanel OI tape", () => {
     r(<NiftyReportPanel />);
     expect(await screen.findByTestId("nifty-tape-panel")).toBeInTheDocument();
     await waitFor(() => {
-      expect(vi.mocked(fetchNiftyTape)).toHaveBeenCalledWith(undefined);
+      expect(vi.mocked(fetchNiftyTape)).toHaveBeenCalledWith(
+        undefined,
+        expect.any(AbortSignal),
+      );
     });
     const table = screen.getByTestId("nifty-tape-table");
     expect(table).toBeInTheDocument();
@@ -866,7 +906,10 @@ describe("NiftyReportPanel OI tape", () => {
     await user.clear(dateInput);
     await user.type(dateInput, "2026-10-10");
     await waitFor(() => {
-      expect(vi.mocked(fetchNiftyTape)).toHaveBeenCalledWith("2026-10-10");
+      expect(vi.mocked(fetchNiftyTape)).toHaveBeenCalledWith(
+        "2026-10-10",
+        expect.any(AbortSignal),
+      );
     });
   });
 
