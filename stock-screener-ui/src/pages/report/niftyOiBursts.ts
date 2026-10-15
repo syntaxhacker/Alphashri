@@ -238,7 +238,8 @@ export function deriveOiSignal(
           ? "put OI build — writers adding floor → fade with calls"
           : "put OI unwind — support removed → downside fuel → buy puts";
 
-  // Trend gate: a plan fighting the session trend is the wrong side of the tape.
+  // Trend gate: a plan fighting the session trend is the wrong side of the tape,
+  // so no plan is emitted (counter-trend resolved 0.32 vs 0.80 aligned on 2026-10-15).
   // A squeeze is with the break by construction, so it is always aligned.
   const trend = opts.trend ?? null;
   let aligned: boolean | null = null;
@@ -246,7 +247,7 @@ export function deriveOiSignal(
     aligned = true;
   } else if (trend === "up" || trend === "down") {
     aligned = (leg === "CE" && trend === "up") || (leg === "PE" && trend === "down");
-    if (!aligned) basis = `COUNTER-TREND (session ${trend}) — skip: ${basis}`;
+    if (!aligned) return null;
   }
 
   return { leg, strike: chosen.strike, entry, sl, target, qty, lots, basis, trend, aligned };
@@ -397,15 +398,13 @@ export function burstToAlert(burst: OiBurst, signal?: OiSignal | null): MarketAl
       ? `COILING @ ${typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "wall"}`
       : `${sideLabel} OI burst ${compact(burst.delta)} in 1 min`;
 
-  const skipPrefix = signal && signal.aligned === false ? "COUNTER-TREND · skip · " : "";
-
   const detail =
     burst.type === "coil"
       ? `spot ${burst.spot.toLocaleString("en-IN")} pressed on the ${burst.side} wall ${
           typeof burst.wall === "number" ? burst.wall.toLocaleString("en-IN") : "?"
         } · ${burst.range_pct?.toFixed(3) ?? "?"}% range, ${burst.dist_pct?.toFixed(3) ?? "?"}% away · heads-up, no plan`
       : signal
-        ? `${skipPrefix}${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
+        ? `${sideLabel} OI burst ${compact(burst.delta)} (${scoreTxt}) · entry ${signal.entry.toFixed(2)} · SL ${signal.sl.toFixed(2)} · TGT ${signal.target.toFixed(2)} · ${signal.basis} · heuristic, not advice`
         : `${scoreTxt} · ${burstTimeLabel(burst.t)} IST`;
 
   // Candidate catalyst: lead with the headline nearest the burst.
