@@ -149,11 +149,11 @@ def _calculate_pivot_points(df):
         prev_high = float(prev['high'])
         prev_low = float(prev['low'])
         prev_close = float(prev['close'])
-        pp = (prev_high + prev_low + prev_close) / 3
-        r1 = 2 * pp - prev_low
-        s1 = 2 * pp - prev_high
-        r2 = pp + (prev_high - prev_low)
-        s2 = pp - (prev_high - prev_low)
+        # Single source of truth for pivot formulas.
+        from trading.pivot_utils import calculate_pivot_points
+
+        p = calculate_pivot_points(prev_high, prev_low, prev_close, "classic")
+        pp, r1, s1, r2, s2 = p.pp, p.r1, p.s1, p.r2, p.s2
 
         pivots.append({
             'date': date.isoformat() if hasattr(date, 'isoformat') else str(date),

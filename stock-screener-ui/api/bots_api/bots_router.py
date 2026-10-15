@@ -387,9 +387,15 @@ def start_bot_process(user_id: int, bot_id: int, test_mode: bool = False, live_t
                        f"PROJECT_ROOT={PROJECT_ROOT} — check file structure.",
             )
 
+        # NOTE: run as a module (`-m`), never as a script path. Executing
+        # `trading/runner_cli.py` directly puts `trading/` on sys.path[0],
+        # where `trading/calendar.py` shadows stdlib `calendar` and crashes
+        # `import pandas` (`AttributeError: module 'calendar' has no
+        # attribute 'day_abbr'`) — killing every bot in a restart loop.
         cmd = [
             sys.executable,
-            str(runner_script),
+            "-m",
+            "trading.runner_cli",
             f"--bot-id={bot_id}",
             f"--user-id={user_id}",
         ]

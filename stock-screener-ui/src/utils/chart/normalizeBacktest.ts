@@ -162,6 +162,7 @@ export function normalizeBacktest(
     trades,
     overlays,
     emaData,
+    rsiData: data.rsi && Array.isArray(data.rsi.data) ? data.rsi : undefined,
     markLines,
     highlightedTradeId,
     showVolume: false,

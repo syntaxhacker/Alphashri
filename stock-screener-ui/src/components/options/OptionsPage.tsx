@@ -1,12 +1,10 @@
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import { ScrollArea } from "@/ui";
+import { ScrollArea, ToolbarRow } from "@/ui";
 import { OptionChainPanel } from "./OptionChain/OptionChainPanel";
 import { PositionsPanel } from "./OptionPositions/PositionsPanel";
-import { GreeksPanel } from "./OptionGreeks/GreeksPanel";
+import { PremiumTrackerPanel } from "./PremiumTracker/PremiumTrackerPanel";
+import { PositioningPanel } from "./Positioning/PositioningPanel";
 import { OptionsNav } from "./OptionsNav";
 
 interface OptionsPageProps {
@@ -56,23 +54,32 @@ export function OptionsPage({
       className="options-page"
       data-testid="options-view"
       spacing={1}
-      sx={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", alignItems: "center", width: "100%" }}
+      sx={{ height: "100%", overflow: "hidden", display: "flex", flexDirection: "column", width: "100%" }}
     >
-      <Card elevation={1} sx={{ width: "100%", p: 1, display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, width: "100%", display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Grid container spacing={2} justifyContent="center" alignItems="center" sx={{ width: "100%" }}>
-            <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
-              <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
-            </Grid>
-          </Grid>
-        </CardContent>
-      </Card>
+      <ToolbarRow
+        id="options-nav-bar"
+        gap={8}
+        justify="flex-start"
+        wrap={false}
+        clip
+        style={{
+          height: 48,
+          minHeight: 48,
+          maxHeight: 48,
+          paddingLeft: 12,
+          paddingRight: 12,
+          borderBottom: "1px solid var(--mui-palette-divider)",
+          width: "100%",
+          flexShrink: 0,
+        }}
+      >
+        <OptionsNav activeTab={activeTab} onTabChange={setActiveTab} />
+      </ToolbarRow>
 
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", justifyContent: "center" }}>
-        <Box sx={{ width: "100%", maxWidth: 1400, display: "flex", flexDirection: "column", alignItems: "center" }}>
-          <ScrollArea h="100%" offsetScrollbars>
-            {activeTab === "chain" && (
-              <OptionChainPanel
+      <Box sx={{ flex: 1, minHeight: 0, overflow: "hidden", width: "100%", display: "flex", flexDirection: "column" }}>
+        <ScrollArea h="100%" offsetScrollbars>
+          {activeTab === "chain" && (
+            <OptionChainPanel
                 selectedUnderlying={selectedUnderlying}
                 selectedExpiry={selectedExpiry}
                 loading={loading}
@@ -96,24 +103,34 @@ export function OptionsPage({
                 id="positions-container"
                 className="options-tab-content"
                 data-testid="options-positions-tab"
-                sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
+                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
               >
                 <PositionsPanel positions={positions || []} />
               </Box>
             )}
 
-            {activeTab === "greeks" && (
+            {activeTab === "premium" && (
               <Box
-                id="greeks-container"
+                id="premium-container"
                 className="options-tab-content"
-                data-testid="options-greeks-tab"
-                sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
+                data-testid="options-premium-tab"
+                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
               >
-                <GreeksPanel />
+                <PremiumTrackerPanel strikeMatrix={strikeMatrix} selectedUnderlying={selectedUnderlying} />
+              </Box>
+            )}
+
+            {activeTab === "positioning" && (
+              <Box
+                id="positioning-container"
+                className="options-tab-content"
+                data-testid="options-positioning-tab"
+                sx={{ display: "flex", flexDirection: "column", width: "100%" }}
+              >
+                <PositioningPanel underlying={selectedUnderlying} expiry={selectedExpiry} />
               </Box>
             )}
           </ScrollArea>
-        </Box>
       </Box>
     </Stack>
   );

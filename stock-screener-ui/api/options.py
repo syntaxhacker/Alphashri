@@ -18,11 +18,19 @@ from pathlib import Path
 
 from db.models import get_shared_broker_token
 import config
+from api.fyers_options import resolve_fyers_option_symbol
+from api.positioning import compute_positioning
 
 router = APIRouter(prefix="/api/options", tags=["options"])
 
 UPSTOX_BASE = "https://api.upstox.com/v2"
-PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
+# Must match api/brokers.py (the OAuth writer), which uses config.BASE_DIR. This
+# previously used a hand-counted chain of `.parent`s that resolved to
+# /home/mysyntax/Documents, so this reader picked up a stale .upstox_token.json
+# living OUTSIDE the repo. The reader and the writer never agreed, so a missing
+# DB connection silently fell back to a months-old token instead of reporting
+# "not connected".
+PROJECT_ROOT = Path(config.BASE_DIR)
 TOKEN_FILE = PROJECT_ROOT / ".upstox_token.json"
 
 
@@ -42,6 +50,9 @@ class MarketData(BaseModel):
     bid_price: float
     ask_price: float
     prev_oi: int
+    close_price: float = 0.0
+    bid_qty: int = 0
+    ask_qty: int = 0
 
 
 class OptionContract(BaseModel):
@@ -124,7 +135,9 @@ def calculate_max_pain(strike_matrix: List[Dict[str, Any]]) -> float:
 
 
 AVAILABLE_UNDERLYINGS = [
-    {"symbol": "NIFTY", "name": "Nifty 50", "instrument_key": "NSE_INDEX|Nifty 50", "lot_size": 25, "tick_size": 0.05},
+    # lot_size 65 (was 25): GEX already computes with 65, and 23 consecutive real
+    # exchange prints were all exact multiples of 65.
+    {"symbol": "NIFTY", "name": "Nifty 50", "instrument_key": "NSE_INDEX|Nifty 50", "lot_size": 65, "tick_size": 0.05},
     {"symbol": "BANKNIFTY", "name": "Nifty Bank", "instrument_key": "NSE_INDEX|Nifty Bank", "lot_size": 15, "tick_size": 1.05},
     {"symbol": "FINNIFTY", "name": "Nifty Fin Service", "instrument_key": "NSE_INDEX|Nifty Fin Service", "lot_size": 25, "tick_size": 1.05},
     {"symbol": "MIDCPNIFTY", "name": "NIFTY MID SELECT", "instrument_key": "NSE_INDEX|NIFTY MID SELECT", "lot_size": 50, "tick_size": 0.05},
@@ -218,8 +231,11 @@ async def get_expiries(underlying: str):
                 expiry_str = contract.get("expiry")
                 if expiry_str and expiry_str not in seen_dates:
                     seen_dates.add(expiry_str)
-                    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d")
-                    days = (expiry_date - today).days
+                    # Calendar days via date arithmetic: subtracting a tz-aware
+                    # `today` from a midnight expiry truncates the partial day
+                    # (3 instead of 4), and a naive expiry would raise TypeError.
+                    expiry_date = datetime.strptime(expiry_str, "%Y-%m-%d").date()
+                    days = (expiry_date - today.date()).days
                     if days >= 0:
                         expiries.append({
                             "date": expiry_str,
@@ -241,6 +257,35 @@ async def get_expiries(underlying: str):
     return {"underlying": underlying, "expiries": expiries}
 
 
+@router.get("/fyers-symbol")
+async def get_fyers_symbol(
+    underlying: str = Query(..., description="Underlying symbol, e.g. NIFTY"),
+    expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
+    strike: float = Query(..., description="Strike price"),
+    option_type: str = Query(..., description="CE or PE"),
+):
+    """Resolve the Fyers-native contract symbol for an option leg.
+
+    The option chain served here is Upstox-native (``NSE_FO|...`` keys) which
+    the Fyers feeds cannot resolve, so Order Flow Options mode asks for the
+    Fyers symbol (``NSE:NIFTY26SEP23400CE``) before subscribing. Returns
+    ``{"symbol", "fyToken", "oi", "oich"}`` or 404 when the contract is not
+    on the Fyers chain. Never changes the ``/chain`` response shape.
+    """
+    result = await asyncio.to_thread(
+        resolve_fyers_option_symbol, underlying, expiry, strike, option_type
+    )
+    if result is None:
+        raise HTTPException(
+            status_code=404,
+            detail=(
+                f"No Fyers contract for {underlying} {strike:g} "
+                f"{(option_type or '').upper()} @ {expiry}"
+            ),
+        )
+    return result
+
+
 def transform_option_contract(option_data: dict, strike: float, option_type: str) -> dict:
     """Transform Upstox option data to flat contract structure with sentiment."""
     if not option_data:
@@ -253,10 +298,10 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
     oi = market_data.get("oi", 0)
     prev_oi = market_data.get("prev_oi", 0)
     bid = market_data.get("bid_price", 0)
-    
+
     oi_change = oi - prev_oi
-    price_change = ltp - bid 
-    
+    price_change = ltp - bid
+
     sentiment = get_option_sentiment(price_change, oi_change)
 
     return {
@@ -272,6 +317,9 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
             "bid_price": bid,
             "ask_price": market_data.get("ask_price", 0),
             "prev_oi": prev_oi,
+            "close_price": market_data.get("close_price", 0),
+            "bid_qty": market_data.get("bid_qty", 0),
+            "ask_qty": market_data.get("ask_qty", 0),
         },
         "option_greeks": {
             "delta": greeks.get("delta", 0),
@@ -279,9 +327,66 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
             "vega": greeks.get("vega", 0),
             "theta": greeks.get("theta", 0),
             "iv": greeks.get("iv", 0),
+            "pop": greeks.get("pop", 0),
         } if greeks else None,
         "sentiment": sentiment
     }
+
+
+async def _fetch_chain_rows(underlying: str, expiry: str):
+    """Fetch Upstox chain and return (rows, spot).
+
+    Shared by /chain and /positioning so both see identical rows/spot.
+    """
+    instrument_key = get_instrument_key(underlying)
+    data = await fetch_upstox("/option/chain", {
+        "instrument_key": instrument_key,
+        "expiry_date": expiry
+    })
+
+    contracts = data.get("data", [])
+    # Reliability fix: Fallback for spot price
+    spot_price = data.get("underlying_spot_price", 0)
+    if not spot_price:
+        spot_price = contracts[0].get("underlying_spot_price", 0) if contracts else 0
+
+    # Third-level fallback: Fetch from OHLC if still 0
+    if not spot_price:
+        try:
+            spot_data = await get_spot_price(underlying)
+            spot_price = spot_data.get("spot", 0)
+        except Exception:
+            pass
+
+    strike_map = {}
+    for item in contracts:
+        strike = item.get("strike_price")
+        if strike not in strike_map:
+            strike_map[strike] = {"strike": strike, "ce": None, "pe": None, "pcr": item.get("pcr")}
+
+        if item.get("call_options"):
+            # Reliability fix: some fields might be at parent level in some API versions
+            call_data = item["call_options"]
+            if not call_data.get("trading_symbol"):
+                call_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}CE"
+            if not call_data.get("expiry"):
+                call_data["expiry"] = expiry
+
+            ce_contract = transform_option_contract(call_data, strike, "CE")
+            strike_map[strike]["ce"] = ce_contract
+
+        if item.get("put_options"):
+            put_data = item["put_options"]
+            if not put_data.get("trading_symbol"):
+                put_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}PE"
+            if not put_data.get("expiry"):
+                put_data["expiry"] = expiry
+
+            pe_contract = transform_option_contract(put_data, strike, "PE")
+            strike_map[strike]["pe"] = pe_contract
+
+    chain = sorted(strike_map.values(), key=lambda x: x["strike"])
+    return chain, spot_price
 
 
 @router.get("/chain/{underlying}")
@@ -290,51 +395,20 @@ async def get_option_chain(
     expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
 ):
     """Get complete option chain with server-side analysis."""
-    instrument_key = get_instrument_key(underlying)
-
     try:
-        data = await fetch_upstox("/option/chain", {
-            "instrument_key": instrument_key,
-            "expiry_date": expiry
-        })
+        chain, spot_price = await _fetch_chain_rows(underlying, expiry)
 
-        contracts = data.get("data", [])
-        # Reliability fix: Fallback for spot price
-        spot_price = data.get("underlying_spot_price", 0)
-        if not spot_price:
-            spot_price = contracts[0].get("underlying_spot_price", 0) if contracts else 0
-        
-        # Third-level fallback: Fetch from OHLC if still 0
-        if not spot_price:
-            try:
-                spot_data = await get_spot_price(underlying)
-                spot_price = spot_data.get("spot", 0)
-            except Exception:
-                pass
-
-        strike_map = {}
         total_ce_oi = 0
         total_pe_oi = 0
         atm_iv = 0
         closest_strike_diff = float('inf')
 
-        for item in contracts:
-            strike = item.get("strike_price")
-            if strike not in strike_map:
-                strike_map[strike] = {"strike": strike, "ce": None, "pe": None}
-
-            if item.get("call_options"):
-                # Reliability fix: some fields might be at parent level in some API versions
-                call_data = item["call_options"]
-                if not call_data.get("trading_symbol"):
-                    call_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}CE"
-                if not call_data.get("expiry"):
-                    call_data["expiry"] = expiry
-                    
-                ce_contract = transform_option_contract(call_data, strike, "CE")
-                strike_map[strike]["ce"] = ce_contract
+        for row in chain:
+            strike = row["strike"]
+            ce_contract = row.get("ce")
+            if ce_contract:
                 total_ce_oi += ce_contract["market_data"]["oi"]
-                
+
                 # Check for ATM IV
                 diff = abs(strike - spot_price)
                 if diff < closest_strike_diff:
@@ -343,17 +417,10 @@ async def get_option_chain(
                         closest_strike_diff = diff
                         atm_iv = iv
 
-            if item.get("put_options"):
-                put_data = item["put_options"]
-                if not put_data.get("trading_symbol"):
-                    put_data["trading_symbol"] = f"{underlying}{expiry.replace('-','')}{strike}PE"
-                if not put_data.get("expiry"):
-                    put_data["expiry"] = expiry
-
-                pe_contract = transform_option_contract(put_data, strike, "PE")
-                strike_map[strike]["pe"] = pe_contract
+            pe_contract = row.get("pe")
+            if pe_contract:
                 total_pe_oi += pe_contract["market_data"]["oi"]
-                
+
                 # Check for ATM IV (only if CE didn't give us a better one)
                 diff = abs(strike - spot_price)
                 if diff < closest_strike_diff:
@@ -361,8 +428,6 @@ async def get_option_chain(
                     if iv > 0:
                         closest_strike_diff = diff
                         atm_iv = iv
-
-        chain = sorted(strike_map.values(), key=lambda x: x["strike"])
         
         # Calculate DS Summary
         expiry_date = datetime.strptime(expiry, "%Y-%m-%d").replace(tzinfo=config.IST)
@@ -393,6 +458,43 @@ async def get_option_chain(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to fetch option chain: {str(e)}")
+
+
+@router.get("/positioning/{underlying}")
+async def get_positioning(
+    underlying: str,
+    expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
+    mode: str = Query("since_open", description="Baseline mode (v1: only 'since_open')"),
+):
+    """Delta-weighted positioning: who initiated today (writers vs buyers).
+
+    v1 note: ``mode`` is echoed back but does not change the numbers —
+    Upstox ``prev_oi`` is the prior-session close OI, so "since open"
+    ≈ "vs prev close". A second baseline mode may arrive in v2.
+    """
+    try:
+        chain, spot_price = await _fetch_chain_rows(underlying, expiry)
+        lot_size = next(
+            (u["lot_size"] for u in AVAILABLE_UNDERLYINGS if u["symbol"] == underlying),
+            1,
+        )
+        pos = compute_positioning(chain, spot_price, lot_size)
+        return {
+            "status": "ok",
+            "underlying": underlying,
+            "expiry": expiry,
+            "mode": mode,
+            "spot": spot_price,
+            "lot_size": lot_size,
+            "timestamp": datetime.now(config.IST).isoformat(),
+            "baseline": "prev_close_oi",
+            "baseline_note": "Upstox prev_oi is prior-session close OI; 'since open' ≈ 'vs prev close'.",
+            **pos,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to fetch positioning: {str(e)}")
 
 
 def _fetch_spot_history_sync(underlying: str):

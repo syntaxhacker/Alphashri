@@ -5,19 +5,38 @@ interface ChainSubHeaderProps {
 }
 
 export function ChainSubHeader({ styles }: ChainSubHeaderProps) {
+  // TABLE_CHECKLIST rule: numeric columns right, strike/badge center.
+  const numericHeader = {
+    ...styles.subHeaderCell,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-end",
+    textAlign: "right" as const,
+    gap: 1,
+    p: 1,
+  };
+  const strikeHeader = {
+    ...styles.subHeaderCell,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    textAlign: "center" as const,
+    gap: 1,
+    p: 1,
+  };
   return (
     <Box className="chain-table-subheader" sx={{ ...styles.subHeader, display: "grid", gap: 1, p: 1 }} data-testid="options-chain-table-subheader">
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>OI</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>OI CHG</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>VOL</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>IV</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>LTP</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}></Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>LTP</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>IV</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>VOL</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>OI CHG</Box>
-      <Box sx={{ ...styles.subHeaderCell, display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>OI</Box>
+      <Box sx={numericHeader}>OI</Box>
+      <Box sx={numericHeader}>OI CHG</Box>
+      <Box sx={numericHeader}>VOL</Box>
+      <Box sx={numericHeader}>IV</Box>
+      <Box sx={numericHeader}>LTP</Box>
+      <Box sx={strikeHeader}></Box>
+      <Box sx={numericHeader}>LTP</Box>
+      <Box sx={numericHeader}>IV</Box>
+      <Box sx={numericHeader}>VOL</Box>
+      <Box sx={numericHeader}>OI CHG</Box>
+      <Box sx={numericHeader}>OI</Box>
     </Box>
   );
 }

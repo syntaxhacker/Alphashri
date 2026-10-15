@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import { Box, Button, Typography } from "@mui/material";
+import { Box, Button, Text } from "@/ui";
 
 interface ChartBodyProps {
   loading: boolean;
@@ -13,38 +13,46 @@ export function ChartBody(
 ) {
   const displayError = error;
 
-    return (
-      <Box
-        id="chart-body"
-        data-testid="chart-body"
-        sx={{ flex: 1, minHeight: 0, p: 1, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", width: "100%" }}
-      >
-        {loading && (
-          <Box data-testid="chart-loading" sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-            <Typography sx={{ textAlign: "center" }}>Loading chart...</Typography>
-          </Box>
-        )}
+  return (
+    <Box
+      id="chart-body"
+      data-testid="chart-body"
+      sx={{ flex: 1, minHeight: 0, width: "100%", display: "flex", flexDirection: "column", overflow: "hidden" }}
+    >
+      {loading && (
+        <Box
+          data-testid="chart-loading"
+          sx={{ flex: 1, minHeight: 0, display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}
+        >
+          <Text size="sm" c="dimmed">
+            Loading chart...
+          </Text>
+        </Box>
+      )}
 
-        {displayError && !loading && (
-          <Box data-testid="chart-error" sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
-            <Typography color="error" sx={{ textAlign: "center" }}>{displayError}</Typography>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-              <Button onClick={() => window.location.reload()} data-testid="chart-retry-btn" size="small" variant="outlined">
-                Retry
-              </Button>
-            </Box>
-          </Box>
-        )}
+      {displayError && !loading && (
+        <Box
+          data-testid="chart-error"
+          sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 8, width: "100%" }}
+        >
+          <Text size="sm" c="error">
+            {displayError}
+          </Text>
+          <Button onClick={() => window.location.reload()} data-testid="chart-retry-btn" size="xs" variant="subtle">
+            Retry
+          </Button>
+        </Box>
+      )}
 
-        {!loading && !displayError && hasData && (
-          <Box
-            data-testid="candlestick-chart"
-            id="candlestick-chart"
-            sx={{ bgcolor: "background.paper", borderRadius: 1, width: "100%", maxWidth: 1200, height: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}
-          >
-            {chart}
-          </Box>
-        )}
-      </Box>
-    );
+      {!loading && !displayError && hasData && (
+        <Box
+          data-testid="candlestick-chart"
+          id="candlestick-chart"
+          sx={{ flex: 1, minHeight: 0, width: "100%", display: "flex" }}
+        >
+          {chart}
+        </Box>
+      )}
+    </Box>
+  );
 }

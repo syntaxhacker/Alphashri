@@ -10,53 +10,13 @@ from trading.base_signals import BaseSignalGenerator
 
 
 def compute_adx(highs: List[float], lows: List[float], closes: List[float], period: int = 14) -> dict:
-    """Compute ADX, DI+, DI- from OHLC lists. Returns latest values.
+    """ADX / DI+ / DI- (latest values) — delegates to the canonical indicator.
 
-    Uses Wilder's smoothing: DX is computed per rolling window and ADX
-    is the Wilder moving average (mean of last `period` DX values). This
-    is intentionally the smoothed ADX, not a single-period DX snapshot,
-    so threshold 25 remains intentional for strong-trend confirmation.
+    Kept as a named wrapper for existing callers (runner_signals, experiments).
     """
-    if len(closes) < period + 2:
-        return {"adx": 0.0, "di_plus": 0.0, "di_minus": 0.0}
+    from trading.indicators import adx_di
 
-    tr_list, up_list, down_list = [], [], []
-    n = min(len(highs), len(lows), len(closes))
-    for i in range(1, n):
-        tr = max(highs[i] - lows[i], abs(highs[i] - closes[i-1]), abs(lows[i] - closes[i-1]))
-        up_move = highs[i] - highs[i-1]
-        down_move = lows[i-1] - lows[i]
-        up_list.append(up_move if up_move > 0 and up_move > down_move else 0)
-        down_list.append(down_move if down_move > 0 and down_move > up_move else 0)
-        tr_list.append(tr)
-
-    if len(tr_list) < period:
-        return {"adx": 0.0, "di_plus": 0.0, "di_minus": 0.0}
-
-    # Build DX series via rolling Wilder smoothing (SMA over period as cheap Wilder approx)
-    dx_list: List[float] = []
-    di_plus_last = 0.0
-    di_minus_last = 0.0
-    for start in range(len(tr_list) - period + 1):
-        atr = sum(tr_list[start:start + period]) / period
-        di_p = sum(up_list[start:start + period]) / period / atr * 100 if atr > 0 else 0
-        di_m = sum(down_list[start:start + period]) / period / atr * 100 if atr > 0 else 0
-        denom = di_p + di_m
-        dx = abs(di_p - di_m) / denom * 100 if denom > 0 else 0
-        dx_list.append(dx)
-        di_plus_last = di_p
-        di_minus_last = di_m
-
-    if not dx_list:
-        return {"adx": 0.0, "di_plus": 0.0, "di_minus": 0.0}
-
-    # Wilder ADX: smoothed DX over period (mean of last `period` DX values)
-    if len(dx_list) >= period:
-        adx = sum(dx_list[-period:]) / period
-    else:
-        adx = dx_list[-1]
-
-    return {"adx": round(adx, 1), "di_plus": round(di_plus_last, 1), "di_minus": round(di_minus_last, 1)}
+    return adx_di(highs, lows, closes, period)
 
 
 class ADXTrendSignalGenerator(BaseSignalGenerator):

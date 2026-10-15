@@ -14,11 +14,13 @@ from .news import NewsArticle, NewsSymbolMention, LLMRun
 from .news_queue import NewsAnalysisQueue
 from .broker import BrokerConnection, Instrument, get_shared_broker_token, save_broker_token, delete_broker_token
 from .holiday import MarketHoliday, HolidayType
+from .taxonomy import Theme, ThemeConstituent
 from .stock_52w_touch import Stock52WeekTouch, Stock52WeekRange
 from .screener import Screener
 from .price_surge import PriceSurgeEvent
 from .chat import ChatConversation, ChatMessage
 from .replay_saved_config import ReplaySavedConfig
+from .chart_patterns import PatternComputeJob, PatternHit, PatternImage
 
 __all__ = [
     "Base",
@@ -48,10 +50,15 @@ __all__ = [
     "delete_broker_token",
     "MarketHoliday",
     "HolidayType",
+    "Theme",
+    "ThemeConstituent",
     "Stock52WeekTouch",
     "Stock52WeekRange",
     "Screener",
     "ChatConversation",
     "ChatMessage",
     "ReplaySavedConfig",
+    "PatternComputeJob",
+    "PatternHit",
+    "PatternImage",
 ]

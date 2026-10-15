@@ -125,9 +125,17 @@ class TestIsForceExitTime:
         from trading.utils import is_force_exit_time
         assert is_force_exit_time(datetime(2026, 1, 20, 16, 0)) is True
 
-    def test_returns_false_before_1530(self):
-        from trading.utils import is_force_exit_time
-        assert is_force_exit_time(datetime(2026, 1, 20, 15, 29)) is False
+    def test_returns_false_before_force_exit(self):
+        from datetime import datetime, timedelta
+
+        from trading.utils import FORCE_EXIT, is_force_exit_time
+        # The boundary moved 15:30 -> 15:10 when NSE's Closing Auction Session
+        # (Aug 2026) made 15:30 non-continuous, so a forced market order there
+        # would execute in the auction. Derived from FORCE_EXIT so this test
+        # cannot silently go stale the next time the boundary moves.
+        just_before = datetime(2026, 1, 20, *FORCE_EXIT) - timedelta(minutes=1)
+        assert is_force_exit_time(just_before) is False
+        assert is_force_exit_time(datetime(2026, 1, 20, *FORCE_EXIT)) is True
 
 
 class TestIsTradingHoliday:

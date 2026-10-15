@@ -1,0 +1,560 @@
+// @vitest-environment happy-dom
+import "@testing-library/jest-dom/vitest";
+import { afterEach, describe, expect, test, vi } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { UIProvider } from "@/ui";
+import { DEFAULT_PATTERN_FILTERS } from "@/state/chartPatterns";
+import type { PatternDef, PatternFilters } from "@/types/chartPatterns";
+import { AppliedFilters, buildAppliedFilterChips } from "./AppliedFilters";
+
+const PATTERNS: PatternDef[] = [
+  { pattern_id: "double_bottom", name: "Double Bottom", family: "reversal", direction: "bullish", description: "" },
+];
+
+function makeFilters(overrides: Partial<PatternFilters> = {}): PatternFilters {
+  return { ...DEFAULT_PATTERN_FILTERS, ...overrides };
+}
+
+function r(ui: React.ReactElement) {
+  return render(ui, { wrapper: ({ children }) => <UIProvider>{children}</UIProvider> });
+}
+
+afterEach(() => cleanup());
+
+describe("buildAppliedFilterChips", () => {
+  test("returns nothing when no filters are applied", () => {
+    expect(
+      buildAppliedFilterChips(makeFilters({ min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
+  });
+
+  test("renders pattern ids as readable names", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ pattern_id: ["double_bottom"], min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toHaveLength(1);
+    expect(chips[0].group).toBe("Pattern");
+    expect(chips[0].label).toBe("Double Bottom");
+  });
+
+  test("omits symbols and q (already shown inline in the toolbar)", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ symbols: ["BSE"], q: "foo", min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toEqual([]);
+  });
+
+  test("carries the next value for each active value", () => {
+    const chips = buildAppliedFilterChips(makeFilters({ direction: ["bullish", "bearish"] }), PATTERNS);
+    const bullish = chips.find((c) => c.id === "direction:bullish");
+    expect(bullish?.nextValue).toEqual(["bearish"]);
+  });
+
+  test("omits the trendlines chip when the view is both", () => {
+    expect(
+      buildAppliedFilterChips(makeFilters({ trendlines: "both", min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
+  });
+
+  test("builds family / status chips with readable labels and drop-one nextValue", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({
+        family: ["reversal", "continuation"],
+        status: ["confirmed"],
+        min_avg_volume_10d: null,
+      }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "family:reversal", group: "Family", label: "Reversal", key: "family" },
+      { id: "family:continuation", group: "Family", label: "Continuation", key: "family" },
+      { id: "status:confirmed", group: "Status", label: "Confirmed", key: "status" },
+    ]);
+    expect(chips[0].nextValue).toEqual(["continuation"]);
+    expect(chips[2].nextValue).toEqual([]);
+  });
+
+  test("falls back to title case for unknown family and pattern ids", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({
+        family: ["mystery_family"],
+        pattern_id: ["mystery_pattern"],
+        min_avg_volume_10d: null,
+      }),
+      PATTERNS,
+    );
+    expect(chips.find((c) => c.id === "family:mystery_family")?.label).toBe("Mystery Family");
+    expect(chips.find((c) => c.id === "pattern_id:mystery_pattern")?.label).toBe(
+      "Mystery Pattern",
+    );
+  });
+
+  test("builds scalar chips for quality / formed / volume / R:R / symbol / base / range", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({
+        quality: "textbook",
+        formed_within_bars: 5,
+        volume_confirmed: true,
+        min_rr: 1.5,
+        symbol: "RELIANCE",
+        min_base_days: 90,
+        max_range_pct: 20,
+        min_avg_volume_10d: null,
+      }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "quality:textbook", group: "Quality", label: "Textbook", nextValue: null },
+      { id: "formed_within_bars", group: "Formed", label: "within 5 bars", nextValue: null },
+      { id: "volume_confirmed", group: "Volume", label: "Confirmed", nextValue: null },
+      { id: "min_rr", group: "R:R", label: "≥ 1.5", nextValue: null },
+      { id: "symbol:RELIANCE", group: "Symbol", label: "RELIANCE", nextValue: null },
+      { id: "min_base_days", group: "Base", label: "≥ 90d", nextValue: null },
+      { id: "max_range_pct", group: "Range", label: "≤ 20%", nextValue: null },
+    ]);
+  });
+
+  test("labels an explicit volume-false chip as Unconfirmed", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ volume_confirmed: false, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([{ id: "volume_confirmed", label: "Unconfirmed" }]);
+  });
+
+  test("builds a sort chip that resets to confidence, omitted for the default", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ sort: "newest", min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "sort:newest", group: "Sort", label: "Latest formed", nextValue: "confidence" },
+    ]);
+    expect(
+      buildAppliedFilterChips(makeFilters({ sort: "confidence", min_avg_volume_10d: null }), PATTERNS),
+    ).toEqual([]);
+  });
+
+  test("builds a 52W gap chip that resets to null", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ max_52w_gap: 3, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "max_52w_gap", group: "52W", label: "gap ≤ 3%", nextValue: null },
+    ]);
+    const chip = chips.find((c) => c.id === "max_52w_gap");
+    expect(chip?.key).toBe("max_52w_gap");
+  });
+
+  test("builds a range-pos chip that resets to null", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ min_range_pos: 80, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "min_range_pos", group: "Range", label: "pos ≥ 80%", nextValue: null },
+    ]);
+    const chip = chips.find((c) => c.id === "min_range_pos");
+    expect(chip?.key).toBe("min_range_pos");
+  });
+
+  test("builds score and breakout chips that reset to null", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ min_confidence: 70, min_breakout_score: 60, min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "min_confidence", group: "Score", label: "≥ 70", nextValue: null },
+      { id: "min_breakout_score", group: "Breakout", label: "≥ 60", nextValue: null },
+    ]);
+    expect(chips.find((c) => c.id === "min_confidence")?.key).toBe("min_confidence");
+    expect(chips.find((c) => c.id === "min_breakout_score")?.key).toBe("min_breakout_score");
+  });
+
+  test("labels the range_pos sort chip as Near breakout", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ sort: "range_pos", min_avg_volume_10d: null }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "sort:range_pos", group: "Sort", label: "Near breakout", nextValue: "confidence" },
+    ]);
+  });
+
+  test("builds volume scan chips that reset to null", () => {
+    const chips = buildAppliedFilterChips(
+      makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 }),
+      PATTERNS,
+    );
+    expect(chips).toMatchObject([
+      { id: "min_rel_volume", group: "Volume", label: "rel vol ≥ 1.5", nextValue: null },
+      { id: "min_volume_m", group: "Volume", label: "vol ≥ 5M", nextValue: null },
+      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 150K", nextValue: null },
+    ]);
+    expect(chips.find((c) => c.id === "min_rel_volume")?.key).toBe("min_rel_volume");
+    expect(chips.find((c) => c.id === "min_volume_m")?.key).toBe("min_volume_m");
+    expect(chips.find((c) => c.id === "min_avg_volume_10d")?.key).toBe("min_avg_volume_10d");
+  });
+
+  test("builds a 10d avg volume chip from the default that resets to null", () => {
+    const chips = buildAppliedFilterChips(makeFilters(), PATTERNS);
+    expect(chips).toMatchObject([
+      { id: "min_avg_volume_10d", group: "Volume", label: "10d vol ≥ 150K", nextValue: null },
+    ]);
+    const chip = chips.find((c) => c.id === "min_avg_volume_10d");
+    expect(chip?.key).toBe("min_avg_volume_10d");
+  });
+});
+
+describe("AppliedFilters", () => {
+  test("renders nothing when no filters are applied", () => {
+    const { container } = r(
+      <AppliedFilters filters={makeFilters({ min_avg_volume_10d: null })} patterns={PATTERNS} setFilter={vi.fn()} resetFilters={vi.fn()} />,
+    );
+    expect(container).toBeEmptyDOMElement();
+  });
+
+  test("shows a chip per applied filter", () => {
+    r(
+      <AppliedFilters
+        filters={makeFilters({ direction: ["bullish"], quality: "strong", min_rr: 2 })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Direction: Bullish")).toBeInTheDocument();
+    expect(screen.getByText("Quality: Strong")).toBeInTheDocument();
+    expect(screen.getByText("R:R: ≥ 2")).toBeInTheDocument();
+  });
+
+  test("removing an array chip drops only that value", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ direction: ["bullish", "bearish"] })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    const chip = screen.getByTestId("patterns-applied-filter-direction:bullish");
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    expect(setFilter).toHaveBeenCalledWith("direction", ["bearish"]);
+  });
+
+  test("removing a scalar chip clears it", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ quality: "strong" })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    const chip = screen.getByTestId("patterns-applied-filter-quality:strong");
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    expect(setFilter).toHaveBeenCalledWith("quality", null);
+  });
+
+  test("Clear all resets every filter", () => {
+    const resetFilters = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ status: ["failed"] })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={resetFilters}
+      />,
+    );
+    fireEvent.click(screen.getByTestId("patterns-applied-clear-all"));
+    expect(resetFilters).toHaveBeenCalledTimes(1);
+  });
+
+  test("clicking the trendlines chip resets the view to both", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ trendlines: "none" })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Trendlines: Hidden")).toBeInTheDocument();
+    const chip = screen.getByTestId("patterns-applied-filter-trendlines");
+    fireEvent.click(chip.querySelector(".MuiChip-deleteIcon") as Element);
+    expect(setFilter).toHaveBeenCalledWith("trendlines", "both");
+  });
+
+  test("shows the TLS/TLR trendline labels", () => {
+    r(
+      <AppliedFilters
+        filters={makeFilters({ trendlines: "support" })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Trendlines: TLS only")).toBeInTheDocument();
+    cleanup();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ trendlines: "resistance" })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Trendlines: TLR only")).toBeInTheDocument();
+  });
+
+  test("shows one chip per active filter across all groups", () => {
+    r(
+      <AppliedFilters
+        filters={makeFilters({
+          family: ["reversal"],
+          pattern_id: ["double_bottom"],
+          direction: ["bullish"],
+          status: ["confirmed"],
+          quality: "strong",
+          formed_within_bars: 5,
+          volume_confirmed: true,
+          min_rr: 2,
+          symbol: "RELIANCE",
+          min_base_days: 90,
+          max_range_pct: 20,
+          max_52w_gap: 3,
+          sort: "newest",
+          trendlines: "none",
+        })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />,
+    );
+    for (const text of [
+      "Family: Reversal",
+      "Pattern: Double Bottom",
+      "Direction: Bullish",
+      "Status: Confirmed",
+      "Quality: Strong",
+      "Formed: within 5 bars",
+      "Volume: Confirmed",
+      "R:R: ≥ 2",
+      "Symbol: RELIANCE",
+      "Base: ≥ 90d",
+      "Range: ≤ 20%",
+      "52W: gap ≤ 3%",
+      "Sort: Latest formed",
+      "Trendlines: Hidden",
+    ]) {
+      expect(screen.getByText(text)).toBeInTheDocument();
+    }
+  });
+
+  test("removing family / pattern / status chips drops only that value", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({
+          family: ["reversal", "continuation"],
+          pattern_id: ["double_bottom"],
+          status: ["confirmed", "forming"],
+        })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-family:reversal").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("family", ["continuation"]);
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-pattern_id:double_bottom").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("pattern_id", []);
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-status:confirmed").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("status", ["forming"]);
+  });
+
+  test.each([
+    ["formed_within_bars", "patterns-applied-filter-formed_within_bars", "formed_within_bars", null],
+    ["volume", "patterns-applied-filter-volume_confirmed", "volume_confirmed", null],
+    ["min_rr", "patterns-applied-filter-min_rr", "min_rr", null],
+    ["symbol", "patterns-applied-filter-symbol:RELIANCE", "symbol", null],
+    ["min_base_days", "patterns-applied-filter-min_base_days", "min_base_days", null],
+    ["max_range_pct", "patterns-applied-filter-max_range_pct", "max_range_pct", null],
+    ["max_52w_gap", "patterns-applied-filter-max_52w_gap", "max_52w_gap", null],
+  ])("removing the %s chip clears it", (_name, testId, key, next) => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({
+          formed_within_bars: 5,
+          volume_confirmed: true,
+          min_rr: 2,
+          symbol: "RELIANCE",
+          min_base_days: 90,
+          max_range_pct: 20,
+          max_52w_gap: 3,
+        })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith(key, next);
+  });
+
+  test("removing the sort chip resets to confidence", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ sort: "newest" })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-sort:newest").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
+  });
+
+  test("removing the range-pos chip clears it", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_range_pos: 80 })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Range: pos ≥ 80%")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_range_pos").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_range_pos", null);
+  });
+
+  test("shows and removes the score and breakout chips", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_confidence: 70, min_breakout_score: 60 })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Score: ≥ 70")).toBeInTheDocument();
+    expect(screen.getByText("Breakout: ≥ 60")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_confidence").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_confidence", null);
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_breakout_score").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_breakout_score", null);
+  });
+
+  test("removing the range_pos sort chip resets to confidence", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ sort: "range_pos" })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Sort: Near breakout")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-sort:range_pos").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("sort", "confidence");
+  });
+
+  test("shows the volume scan chips", () => {
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
+        patterns={PATTERNS}
+        setFilter={vi.fn()}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Volume: rel vol ≥ 1.5")).toBeInTheDocument();
+    expect(screen.getByText("Volume: vol ≥ 5M")).toBeInTheDocument();
+    expect(screen.getByText("Volume: 10d vol ≥ 150K")).toBeInTheDocument();
+  });
+
+  test("shows the default 10d avg volume chip and clears it", () => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters()}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    expect(screen.getByText("Volume: 10d vol ≥ 150K")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByTestId("patterns-applied-filter-min_avg_volume_10d").querySelector(
+        ".MuiChip-deleteIcon",
+      ) as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith("min_avg_volume_10d", null);
+  });
+
+  test.each([
+    ["min_rel_volume", "patterns-applied-filter-min_rel_volume", "min_rel_volume", null],
+    ["min_volume_m", "patterns-applied-filter-min_volume_m", "min_volume_m", null],
+    ["min_avg_volume_10d", "patterns-applied-filter-min_avg_volume_10d", "min_avg_volume_10d", null],
+  ])("removing the %s chip clears it", (_name, testId, key, next) => {
+    const setFilter = vi.fn();
+    r(
+      <AppliedFilters
+        filters={makeFilters({ min_rel_volume: 1.5, min_volume_m: 5 })}
+        patterns={PATTERNS}
+        setFilter={setFilter}
+        resetFilters={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      screen.getByTestId(testId).querySelector(".MuiChip-deleteIcon") as Element,
+    );
+    expect(setFilter).toHaveBeenCalledWith(key, next);
+  });
+});

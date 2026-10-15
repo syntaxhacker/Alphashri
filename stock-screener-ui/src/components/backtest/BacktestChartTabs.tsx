@@ -71,7 +71,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       id="chart-container"
       data-testid="chart-container"
       h="100%"
-      style={{ display: "flex", flexDirection: "column", minHeight: 0, overflow: "hidden" }}
+      style={{ display: "flex", flexDirection: "column", minHeight: 0, minWidth: 0, overflow: "hidden" }}
     >
       <Box mb="xs" flex="0 0 auto" data-testid="chart-tabs-header" sx={{ p: 1 }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
@@ -117,7 +117,7 @@ export const BacktestChartTabs = memo(function BacktestChartTabs({
       <Box
         flex={1}
         data-testid="chart-tabs-content"
-        style={{ minHeight: 0, position: "relative", overflow: "hidden" }}
+        style={{ minHeight: 0, minWidth: 0, position: "relative", overflow: "hidden" }}
       >
         {selectedSymbol ? (
           <BacktestChart

@@ -184,3 +184,47 @@ describe("ScreenerTable", () => {
     expect(screen.getByTestId("screener-table")).toBeInTheDocument();
   });
 });
+
+describe("ScreenerTable approach badges", () => {
+  const badgeProps = {
+    columns: mockColumns,
+    touchedSymbols: new Set<string>(),
+    onSymbolClick: vi.fn(),
+    onSymbolHover: vi.fn(),
+  };
+
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("shows FRESH badge for fresh approaches", () => {
+    render(
+      <UIProvider>
+        <ScreenerTable {...badgeProps} stocks={[{ ...mockStock, approach_type: "fresh" as const }]} />
+      </UIProvider>,
+    );
+    const badge = screen.getByTestId("approach-badge-RELIANCE");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("FRESH");
+  });
+
+  it("shows RETEST badge for retests", () => {
+    render(
+      <UIProvider>
+        <ScreenerTable {...badgeProps} stocks={[{ ...mockStock, symbol: "ZIMLAB", approach_type: "retest" as const }]} />
+      </UIProvider>,
+    );
+    const badge = screen.getByTestId("approach-badge-ZIMLAB");
+    expect(badge).toBeInTheDocument();
+    expect(badge).toHaveTextContent("RETEST");
+  });
+
+  it("shows no badge without approach_type", () => {
+    render(
+      <UIProvider>
+        <ScreenerTable {...badgeProps} stocks={[mockStock]} />
+      </UIProvider>,
+    );
+    expect(screen.queryByTestId("approach-badge-RELIANCE")).not.toBeInTheDocument();
+  });
+});

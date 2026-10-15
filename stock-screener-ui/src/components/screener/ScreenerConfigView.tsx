@@ -310,7 +310,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
   };
 
   return (
-    <Box sx={{ display: "flex", height: "100%", gap: 1, p: 1, bgcolor: palette.BG }}>
+    <Box sx={{ display: "flex", height: "100%", minHeight: 0, minWidth: 0, gap: 1, p: 1, bgcolor: palette.BG }}>
       <Paper
         elevation={0}
         data-testid="screener-list-panel"
@@ -411,7 +411,7 @@ export function ScreenerConfigView({ screenerOptions, activeScreener, onScreener
       <Paper
         elevation={0}
         data-testid="screener-preview-panel"
-        sx={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
+        sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: 1, borderColor: palette.BORDER, borderRadius: 2, bgcolor: palette.SURFACE }}
       >
         <Box data-testid="preview-header" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 1.5, py: 1, borderBottom: 1, borderColor: palette.BORDER, bgcolor: palette.SURFACE_ALT, height: 36, flexShrink: 0 }}>
           <Group gap={1} wrap="wrap" data-testid="screener-filters" align="center">

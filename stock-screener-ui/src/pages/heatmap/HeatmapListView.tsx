@@ -1,10 +1,5 @@
 import { useMemo } from "react";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import { Box, Stack } from "@/ui";
+import { Box } from "@/ui";
 import Typography from "@mui/material/Typography";
 import type { ColumnDef } from "@tanstack/react-table";
 import { TanStackTable } from "../../components/common/TanStackTable";
@@ -101,23 +96,13 @@ export function HeatmapListView({ stocks, metric, activeMetric, metricMin, metri
   ], [activeMetric, metric, metricMin, metricMax]);
 
   return (
-    <TableContainer component={Paper} elevation={1} sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1 }}>
-      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
-        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, width: "100%", "&:last-child": { pb: 1 } }}>
-            <Grid container spacing={2} justifyContent="center" sx={{ width: "100%" }}>
-              <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
-                <TanStackTable<HeatmapStock>
-                  data={stocks}
-                  columns={columns}
-                  initialState={{ sorting: [{ id: metric, desc: true }] }}
-                  dataTestId="heatmap-list-table"
-                />
-              </Grid>
-            </Grid>
-          </CardContent>
-        </Card>
-      </Stack>
-    </TableContainer>
+    <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%" }}>
+      <TanStackTable<HeatmapStock>
+        data={stocks}
+        columns={columns}
+        initialState={{ sorting: [{ id: metric, desc: true }] }}
+        dataTestId="heatmap-list-table"
+      />
+    </Box>
   );
 }

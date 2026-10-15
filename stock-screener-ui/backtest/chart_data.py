@@ -80,6 +80,16 @@ def format_candle_data(candle_data: Union[pd.DataFrame, Dict]) -> List[Dict]:
     return candles
 
 
+def calculate_rsi_series(candles: List[Dict], period: int = 14) -> Dict:
+    """RSI(period) aligned to ``candles`` — delegates to the canonical indicator."""
+    from trading.indicators import rsi
+
+    closes = [c["close"] for c in candles]
+    if not closes:
+        return {"period": period, "data": []}
+    return {"period": period, "data": rsi(closes, period, full=True)}
+
+
 def format_orb_zones(candles: List[Dict], or_minutes: int = 45) -> List[Dict]:
     """
     Calculate ORB zones for each trading day.
@@ -204,6 +214,7 @@ def format_trade_markers(trades: List[Dict], candles: Optional[List[Dict]] = Non
                 's2': trade.get('s2'),
                 '52w_high': trade.get('52w_high') or trade.get('52w_high_entry'),
                 'trailing_active': trade.get('trailing_active'),
+                'side': trade.get('side'),
             }
         })
 
@@ -251,6 +262,7 @@ def format_trade_markers(trades: List[Dict], candles: Optional[List[Dict]] = Non
                 's2': trade.get('s2'),
                 '52w_high': trade.get('52w_high') or trade.get('52w_high_entry'),
                 'trailing_active': trade.get('trailing_active'),
+                'side': trade.get('side'),
             }
         })
 
@@ -418,6 +430,7 @@ def build_chart_data_for_symbol(
         'total_candles': len(candles),
         'total_trades': len(trades),
         'visuals': visuals,
+        'rsi': calculate_rsi_series(candles, period=14),
     }
 
 

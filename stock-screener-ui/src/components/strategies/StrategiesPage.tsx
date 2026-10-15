@@ -1,7 +1,4 @@
 import { Box, Stack, Button, Group, Text } from "@/ui";
-import Container from "@mui/material/Container";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
 import { IconAlertCircle, IconRefresh } from "@tabler/icons-react";
 import { StrategiesNav } from "./StrategiesNav";
 import { TemplateTreeView } from "./TemplateTreeView";
@@ -110,9 +107,8 @@ export function StrategiesPage({
   };
 
   return (
-    <Container maxWidth="xl" className="strategies-page" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="strategies-view" id="strategies-main">
-      <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }}>
-        <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
+    <Box className="strategies-page" sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 0, overflow: "hidden", px: 2, py: 1 }} data-testid="strategies-view" id="strategies-main">
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="strategies-content" id="strategies-content">
           <StrategiesNav activeView={activeView} onChange={onViewChange}>
             {renderContent()}
           </StrategiesNav>
@@ -144,7 +140,6 @@ export function StrategiesPage({
             data-testid="strategies-edit-modal"
           />
         )}
-      </Stack>
-    </Container>
+    </Box>
   );
 }

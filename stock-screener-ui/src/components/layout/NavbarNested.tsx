@@ -13,8 +13,10 @@ import {
   IconShield,
   IconPlayerPlay,
   IconLayoutGrid,
+  IconChartCandle,
   IconAdjustments,
   IconFlask,
+  IconReportAnalytics,
 } from "@tabler/icons-react";
 import { Box, Group, ScrollArea, Stack, ActionIcon, Divider, useColorScheme } from "@/ui";
 import { NavbarLinksGroup } from "./NavbarLinksGroup";
@@ -38,9 +40,13 @@ const navItems = [
   { label: "Strategy Runner", icon: IconAdjustments, link: "/strategy-runner" },
   { label: "Sector Analysis", icon: IconBuildingFactory, link: "/sector" },
   { label: "Heatmap", icon: IconLayoutGrid, link: "/heatmap" },
+  { label: "Order Flow", icon: IconChartCandle, link: "/orderflow" },
+  { label: "Patterns", icon: IconChartCandle, link: "/patterns" },
+  { label: "Reports", icon: IconReportAnalytics, link: "/report" },
   { label: "Strategies", icon: IconChartBar, link: "/strategies" },
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
+  { label: "Nifty Report", icon: IconChartArea, link: "/report/nifty" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];

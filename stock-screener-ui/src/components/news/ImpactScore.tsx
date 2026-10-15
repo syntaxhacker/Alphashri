@@ -2,15 +2,32 @@ import { Badge, Paper, Progress, Stack, Group, Text, Tooltip } from "@/ui";
 
 interface ImpactScoreProps {
   score?: number;
+  compact?: boolean;
 }
 
-export function ImpactScore({ score }: ImpactScoreProps) {
+export function ImpactScore({ score, compact = false }: ImpactScoreProps) {
   if (score === undefined || score === null) return null;
   const color = score >= 7 ? "error" : score >= 4 ? "warning" : "secondary";
   const label = score >= 7 ? "High impact" : score >= 4 ? "Moderate impact" : "Low impact";
 
+  if (compact) {
+    return (
+      <Tooltip title={`${label}: ${score}/10`}>
+        <Badge
+          size="xs"
+          color={color}
+          variant="light"
+          data-testid="impact-score"
+          sx={{ flex: "0 0 auto", fontVariantNumeric: "tabular-nums" }}
+        >
+          {score}/10
+        </Badge>
+      </Tooltip>
+    );
+  }
+
   return (
-    <Tooltip label={`Impact Score: ${score}/10`}>
+    <Tooltip title={`Impact Score: ${score}/10`}>
       <Paper p="xs" radius="md" maw={220} miw={180} data-testid="impact-score">
         <Stack gap={6}>
           <Group justify="space-between" gap="xs" wrap="nowrap" align="center">

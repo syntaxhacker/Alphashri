@@ -1,5 +1,10 @@
+// BacktestProgress — stock MUI loading UI shown while a backtest run is in flight.
 import { memo } from "react";
-import { Progress, Text, Group, Stack, Box } from "@/ui";
+import Box from "@mui/material/Box";
+import Stack from "@mui/material/Stack";
+import CircularProgress from "@mui/material/CircularProgress";
+import LinearProgress from "@mui/material/LinearProgress";
+import Typography from "@mui/material/Typography";
 
 interface BacktestProgressProps {
   progress: {
@@ -21,34 +26,28 @@ export const BacktestProgress = memo(function BacktestProgress({ progress }: Bac
       id="backtest-progress"
       className="backtest-progress"
       spacing={1}
-      gap="xs"
       data-testid="progress-container"
-      sx={{ gap: 1, p: 1 }}
+      sx={{ gap: 1, p: 1.5 }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-        <Text size="sm" fw={500} c="dimmed" sx={{ minWidth: 80, display: "flex", alignItems: "center" }}>
+      <Stack direction="row" alignItems="center" spacing={1}>
+        <CircularProgress size={14} data-testid="progress-spinner" />
+        <Typography variant="body2" sx={{ fontWeight: 600 }}>
           Running...
-        </Text>
-        <Text size="sm" sx={{ flex: 1, textAlign: "right", display: "flex", alignItems: "center", justifyContent: "flex-end" }} data-testid="progress-counter">
+        </Typography>
+        <Box sx={{ flex: 1 }} />
+        <Typography variant="body2" color="text.secondary" data-testid="progress-counter" sx={{ fontVariantNumeric: "tabular-nums" }}>
           {progress.current}/{progress.total}
-        </Text>
-      </Box>
-      <Progress
-        value={percent}
-        animated
-        size="md"
-        className="progress-bar"
+        </Typography>
+      </Stack>
+      <LinearProgress
+        variant="determinate"
+        value={Math.max(0, Math.min(100, percent))}
         data-testid="progress-fill"
+        sx={{ height: 6, borderRadius: 3 }}
       />
-      <Text
-        size="sm"
-        c="dimmed"
-        ta="center"
-        className="progress-message"
-        data-testid="progress-message"
-      >
+      <Typography variant="body2" color="text.secondary" textAlign="center" data-testid="progress-message">
         {progress.message}
-      </Text>
+      </Typography>
     </Stack>
   );
 });

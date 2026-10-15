@@ -91,10 +91,107 @@ class TestOptionsQuantLogic:
             }
         }
         transformed = transform_option_contract(raw_data, 20000, "CE")
-        
+
         assert transformed["instrument_type"] == "CE"
         assert transformed["sentiment"]["label"] == "LB"
         assert transformed["strike_price"] == 20000
+
+
+class TestOptionsChainFieldPassthrough:
+    """
+    Test that every field Upstox's /option/chain returns is passed through
+    (quote depth, prev close, PoP, per-strike PCR).
+    """
+
+    def test_transform_passes_quote_depth_fields(self):
+        raw_data = {
+            "instrument_key": "NSE_FO|123",
+            "trading_symbol": "NIFTY26MAR25000CE",
+            "expiry": "2026-03-17",
+            "market_data": {
+                "ltp": 100,
+                "volume": 1000,
+                "oi": 5000,
+                "close_price": 95.5,
+                "bid_price": 99,
+                "bid_qty": 1125,
+                "ask_price": 101,
+                "ask_qty": 2150,
+                "prev_oi": 4000,
+            },
+            "option_greeks": {
+                "delta": 0.5, "gamma": 0.01, "vega": 10,
+                "theta": -2, "iv": 15, "pop": 40.56,
+            },
+        }
+        transformed = transform_option_contract(raw_data, 25000, "CE")
+
+        md = transformed["market_data"]
+        assert md["close_price"] == 95.5
+        assert md["bid_qty"] == 1125
+        assert md["ask_qty"] == 2150
+        assert transformed["option_greeks"]["pop"] == 40.56
+
+    def test_transform_defaults_missing_quote_fields(self):
+        """Old/cached payloads without the new fields default to 0 (backward compatible)."""
+        raw_data = {
+            "instrument_key": "NSE_FO|123",
+            "trading_symbol": "NIFTY26MAR25000CE",
+            "market_data": {"ltp": 100, "oi": 1000, "prev_oi": 500},
+            "option_greeks": {"delta": 0.5, "iv": 15},
+        }
+        transformed = transform_option_contract(raw_data, 25000, "CE")
+
+        md = transformed["market_data"]
+        assert md["close_price"] == 0
+        assert md["bid_qty"] == 0
+        assert md["ask_qty"] == 0
+        assert transformed["option_greeks"]["pop"] == 0
+
+    def test_chain_row_carries_per_strike_pcr(self, client: TestClient):
+        """Per-strike PCR from Upstox is exposed on each chain row."""
+        from unittest.mock import patch, AsyncMock
+        mock_data = {
+            "status": "success",
+            "underlying_spot_price": 25000,
+            "data": [
+                {
+                    "strike_price": 25000,
+                    "pcr": 1.25,
+                    "call_options": {
+                        "instrument_key": "NSE_FO|123",
+                        "trading_symbol": "NIFTY26MAR25000CE",
+                        "expiry": "2026-03-17",
+                        "market_data": {
+                            "ltp": 100, "oi": 1000, "prev_oi": 500, "volume": 1000,
+                            "bid_price": 99, "bid_qty": 50, "ask_price": 101,
+                            "ask_qty": 60, "close_price": 98,
+                        },
+                        "option_greeks": {"delta": 0.5, "gamma": 0.01, "vega": 10, "theta": -2, "iv": 15, "pop": 40.0},
+                    },
+                    "put_options": {
+                        "instrument_key": "NSE_FO|124",
+                        "trading_symbol": "NIFTY26MAR25000PE",
+                        "expiry": "2026-03-17",
+                        "market_data": {"ltp": 100, "oi": 1250, "prev_oi": 500, "volume": 1000, "bid_price": 99, "ask_price": 101},
+                        "option_greeks": {"delta": -0.5, "gamma": 0.01, "vega": 10, "theta": -2, "iv": 15},
+                    },
+                }
+            ],
+        }
+        with patch("api.options.fetch_upstox", new_callable=AsyncMock, return_value=mock_data):
+            response = client.get("/api/options/chain/NIFTY?expiry=2026-03-17")
+            assert response.status_code == 200
+            data = response.json()
+            assert data["chain"][0]["pcr"] == 1.25
+            ce_md = data["chain"][0]["ce"]["market_data"]
+            assert ce_md["close_price"] == 98
+            assert ce_md["bid_qty"] == 50
+            assert ce_md["ask_qty"] == 60
+            assert data["chain"][0]["ce"]["option_greeks"]["pop"] == 40.0
+            # Existing fields untouched
+            assert ce_md["ltp"] == 100
+            assert ce_md["oi"] == 1000
 
 
 class TestOptionsEndpoints:

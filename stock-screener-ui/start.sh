@@ -11,10 +11,29 @@ UI_PORT="${UI_PORT:-5173}"
 API_LOG="${API_LOG:-logs/alphashri.log}"
 API_PID="/tmp/alphashri-api.pid"
 UI_PID="/tmp/alphashri-ui.pid"
+RECORDER_PID="/tmp/alphashri-recorder.pid"
 START_BOTS="${START_BOTS:-false}"
 QA_EMAIL="${QA_EMAIL:-qa@test.com}"
 QA_PASS="${QA_PASS:-qa123}"
-RELOAD_FLAG="${RELOAD_FLAG---reload}"
+# No --reload by default (2026-10-14: --reload caused multi-minute outages —
+# every .py save restarts the worker, restart() joins the old worker with no
+# timeout while the supervisor keeps holding :8765, so the port is LISTEN but
+# nothing serves until the old worker's stuck threads drain. Bots also die as
+# children of the API on every restart). Opt back in for dev with
+# RELOAD_FLAG=--reload (or use ./start.sh dev).
+RELOAD_FLAG="${RELOAD_FLAG:-}"
+
+# ── Upstox rate-limit budget ─────────────────────────────────────────────
+# Per-consumer minute caps share the global 500/min window. Defaults sum to
+# exactly 500 — api(150) + bot(300) + orderflow(50) — so the interactive
+# `api` slice is always reserved even when background scanners are maxed.
+# UPSTOX_RL_CONSUMER applies to the API process; bot/orderflow subprocesses
+# resolve their own slice via entry-point autodetect (see rate_limiter.py).
+UPSTOX_RL_CONSUMER="${UPSTOX_RL_CONSUMER:-api}"
+UPSTOX_RL_CAP_API="${UPSTOX_RL_CAP_API:-150}"
+UPSTOX_RL_CAP_BOT="${UPSTOX_RL_CAP_BOT:-300}"
+UPSTOX_RL_CAP_ORDERFLOW="${UPSTOX_RL_CAP_ORDERFLOW:-50}"
+export UPSTOX_RL_CONSUMER UPSTOX_RL_CAP_API UPSTOX_RL_CAP_BOT UPSTOX_RL_CAP_ORDERFLOW
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -99,18 +118,23 @@ activate_venv() {
 
 # ── Service management ─────────────────────────────────────────────────
 start_backend() {
-  local reload_args=""
+  local reload_args=()
   if is_running "$API_PID"; then
     echo "Backend already running (PID $(cat "$API_PID"))"
     return
   fi
   kill_port "$API_PORT"
   if [ -n "$RELOAD_FLAG" ]; then
-    reload_args="$RELOAD_FLAG --reload-delay 60"
+    # Scope the watcher to backend code. Without this uvicorn watches the whole
+    # tree, so a frontend or test edit restarts the API — and every bot runs as a
+    # child of the API process, so that restart kills all of them.
+    reload_args=("$RELOAD_FLAG" --reload-delay 60
+      --reload-exclude 'src/*' --reload-exclude 'tests/*'
+      --reload-exclude 'scripts/*' --reload-exclude 'reports/*'
+      --reload-exclude 'experiments/*' --reload-exclude 'docs/*')
   fi
   echo "Starting API on http://${API_HOST}:${API_PORT} ..."
-  # shellcheck disable=SC2086
-  uvicorn api_server_fastapi:app --host "$API_HOST" --port "$API_PORT" $reload_args >> "$API_LOG" 2>&1 &
+  uvicorn api_server_fastapi:app --host "$API_HOST" --port "$API_PORT" ${reload_args[@]+"${reload_args[@]}"} >> "$API_LOG" 2>&1 &
   echo $! > "$API_PID"
   wait_for "API" "http://localhost:${API_PORT}/api/health" 20
 }
@@ -125,6 +149,62 @@ start_frontend() {
   bun run dev --host "$UI_HOST" --port "$UI_PORT" >> "$API_LOG" 2>&1 &
   echo $! > "$UI_PID"
   wait_for "UI" "http://${UI_HOST}:${UI_PORT}" 30
+}
+
+start_recorder() {
+  # The headless order-flow recorder runs in its OWN process so the Fyers SDK
+  # isn't shared with the API's bridge sockets (it cross-talks across sockets
+  # in one process, giving the wrong symbol's book).
+  if is_running "$RECORDER_PID"; then
+    echo "  Recorder already running (PID $(cat "$RECORDER_PID"))"
+    return
+  fi
+  echo "  Starting order-flow recorder (supervised)..."
+  # Supervised: a dropped socket, an expired session or a stall exits non-zero
+  # and gets restarted, so capture no longer dies silently for the rest of the
+  # day. Exit 0 means "nothing to do" (market closed) and stops the loop.
+  nohup bash -c '
+    while true; do
+      .venv/bin/python scripts/orderflow_recorder.py
+      rc=$?
+      if [ "$rc" -eq 0 ]; then
+        echo "[recorder-supervisor] recorder finished normally; not restarting"
+        break
+      fi
+      echo "[recorder-supervisor] recorder exited rc=$rc; restarting in 60s"
+      sleep 60
+    done
+  ' >> "$API_LOG" 2>&1 &
+  echo $! > "$RECORDER_PID"
+}
+
+stop_recorder() {
+  if is_running "$RECORDER_PID"; then
+    local pid
+    pid="$(cat "$RECORDER_PID")"
+    kill "$pid" 2>/dev/null || true
+    # Broker SDK teardown can hang on a dead socket, so escalate instead of
+    # leaving an orphan that keeps a broker connection open.
+    for _ in $(seq 1 10); do
+      kill -0 "$pid" 2>/dev/null || break
+      sleep 1
+    done
+    if kill -0 "$pid" 2>/dev/null; then
+      echo "  Recorder ignored SIGTERM; sending SIGKILL."
+      kill -9 "$pid" 2>/dev/null || true
+    fi
+    cleanup_pid "$RECORDER_PID"
+    echo "  Recorder stopped."
+  fi
+  # Adopt leftovers: a hung recorder never released its pid file, so earlier
+  # restarts could quietly stack multiple recorders on the same broker account.
+  local orphans
+  orphans="$(pgrep -f 'scripts/orderflow_recorder\.py' 2>/dev/null || true)"
+  if [ -n "$orphans" ]; then
+    kill -9 $orphans 2>/dev/null || true
+    echo "  Reaped orphan recorder(s): ${orphans// /,}"
+  fi
+  rm -f "$RECORDER_PID"
 }
 
 stop_bots() {
@@ -220,6 +300,7 @@ case "${1:-status}" in
   start)
     start_backend
     start_frontend
+    start_recorder
     $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
@@ -227,6 +308,7 @@ case "${1:-status}" in
     ;;
   stop)
     echo "Stopping services..."
+    stop_recorder
     stop_frontend
     stop_backend
     echo "All stopped."
@@ -235,16 +317,19 @@ case "${1:-status}" in
     mode="${2:-dev}"
     [ "$mode" = "prod" ] && RELOAD_FLAG=""
     echo "Restarting in $mode mode..."
+    stop_recorder
     stop_frontend
     stop_backend
     sleep 1
     start_backend
     start_frontend
+    start_recorder
     show_status
     ;;
   dev)
     start_backend
     start_frontend
+    start_recorder
     $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
@@ -256,6 +341,7 @@ case "${1:-status}" in
     echo "Starting in production mode (no reload)..."
     start_backend
     start_frontend
+    start_recorder
     $START_BOTS && start_bots
     show_status
     echo "Tail logs: tail -f $API_LOG"
@@ -290,7 +376,7 @@ case "${1:-status}" in
   *)
     echo "Usage: $0 {start|stop|restart|dev|prod|bots|status|logs|backend|frontend}"
     echo ""
-    echo "  start       Start API + UI (background, reload on)"
+    echo "  start       Start API + UI (background, no reload; RELOAD_FLAG=--reload for dev)"
     echo "  stop        Stop all services + bots"
     echo "  restart     Restart API + UI (./start.sh restart prod for no reload)"
     echo "  dev         Start API (reload) + UI (foreground, Ctrl+C to stop)"
@@ -304,7 +390,7 @@ case "${1:-status}" in
     echo "  API_PORT=8765     API server port"
     echo "  API_HOST=127.0.0.1 API bind host"
     echo "  API_LOG=path      Log file path"
-    echo "  RELOAD_FLAG=''    Disable --reload"
+    echo "  RELOAD_FLAG=--reload  Enable --reload (dev)"
     echo ""
     echo "Examples:"
     echo "  START_BOTS=true ./start.sh prod   # prod mode + auto-start bots"

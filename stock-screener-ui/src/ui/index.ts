@@ -59,6 +59,8 @@ export { Modal } from "./overlay/Modal";
 export { Tooltip } from "./overlay/Tooltip";
 export { Popover, PopoverTarget, PopoverDropdown } from "./overlay/Popover";
 export { Overlay } from "./overlay/Overlay";
+export { default as FloatingWindow } from "./overlay/FloatingWindow";
+export type { FloatingWindowProps, FloatingWindowGeometry, FloatingWindowHandle } from "./overlay/FloatingWindow";
 
 // Navigation
 export { NavLink } from "./navigation/NavLink";
@@ -74,6 +76,10 @@ export { DatePicker } from "./dates/DatePicker";
 
 // Theme & providers
 export { UIProvider, uiTheme } from "./theme";
+
+// Density (Comfortable | Compact table density, persisted to localStorage)
+export { DensityProvider, useDensity, setDensity, getStoredDensity, DENSITY_TOKENS, DENSITY_STORAGE_KEY, TABLE_ROW_PY_VAR } from "./density";
+export type { Density, DensityTokens, DensityValue } from "./density";
 
 // Hooks
 export { useColorScheme, useTheme, useDebouncedValue, useMediaQuery, useTree, getTreeExpandedState, useDisclosure } from "./hooks";

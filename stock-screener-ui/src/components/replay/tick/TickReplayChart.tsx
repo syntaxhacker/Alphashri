@@ -16,7 +16,8 @@ interface TickReplayChartProps {
   zones?: ReplayZone[];
   trends?: ReplayTrend[];
   height?: number;
-  fitPaddingMin?: number; // minutes before entry / after exit in view
+  fitPaddingBeforeMin?: number; // minutes before entry in view
+  fitPaddingAfterMin?: number;  // minutes after exit in view
   id?: string;
 }
 
@@ -30,7 +31,7 @@ const MARKER_COLOR: Record<string, string> = {
 };
 
 export default function TickReplayChart({
-  bars, trade = null, zones = [], trends = [], height = 300, fitPaddingMin = 120, id = "tick-replay-chart",
+  bars, trade = null, zones = [], trends = [], height = 300, fitPaddingBeforeMin = 120, fitPaddingAfterMin = 60, id = "tick-replay-chart",
 }: TickReplayChartProps) {
   const apiRef = useRef<NtChartApi>(null);
 
@@ -64,8 +65,8 @@ export default function TickReplayChart({
     if (trade.tp != null) {
       lines.push(series.createPriceLine({ price: trade.tp, color: palette.MARKER_TP, lineWidth: 1, lineStyle: 2, axisLabelVisible: true, title: "TP" }));
     }
-    const from = trade.time - fitPaddingMin * 60;
-    const to = trade.exit_time + 60 * 60;
+    const from = trade.time - fitPaddingBeforeMin * 60;
+    const to = trade.exit_time + fitPaddingAfterMin * 60;
     const first = bars[0]?.time ?? 0;
     const last = bars[bars.length - 1]?.time ?? 0;
     if (from >= first && to <= last) {
@@ -80,7 +81,7 @@ export default function TickReplayChart({
         for (const l of lines) removable.removePriceLine(l);
       }
     };
-  }, [bars, trade, fitPaddingMin]);
+  }, [bars, trade, fitPaddingBeforeMin, fitPaddingAfterMin]);
 
   const draw = useMemo(() => {
     return (ctx: CanvasRenderingContext2D, coord: OverlayCoord) => {

@@ -112,6 +112,8 @@ export async function fetchCosts(): Promise<CostBreakdown | null> {
 export async function runBacktest(saveToHistory = false): Promise<BacktestResponse | null> {
   const state = getBacktestState();
 
+  // Clear any error from a previous run before starting a new one.
+  setError(null);
   setRunning(true);
   setProgress({ current: 0, total: state.selectedSymbols.length, message: "Starting..." });
 
@@ -186,11 +188,19 @@ export async function runBacktest(saveToHistory = false): Promise<BacktestRespon
       return data;
     }
 
-    return data;
+    // 200 with no results and no error (e.g. unsupported strategy) — surface it
+    // instead of leaving the UI stuck in the running state.
+    const msg = data.error || "Backtest returned no results";
+    setError(msg);
+    showBacktestError(msg);
+    return null;
   } catch (error) {
     console.error("Failed to run backtest:", error);
     setError(error instanceof Error ? error.message : "Unknown error");
     return null;
+  } finally {
+    // setResults() clears running on success; guarantee we never stay stuck.
+    if (getBacktestState().isRunning) setRunning(false);
   }
 }
 

@@ -68,7 +68,7 @@ else:
 
 
 if _NAUTILUS_AVAILABLE:
-    class Week52TargetNautilusStrategy(Strategy):  # mixin avoided for metaclass compat
+    class Week52TargetNautilusStrategy(Strategy, Week52NautilusMixin):
         """
         52 Week Target Strategy - Nautilus Implementation
         
@@ -197,12 +197,12 @@ if _NAUTILUS_AVAILABLE:
 
             return exit_reason
 
-        def _enter_long(self, price: float, bar_time: datetime):
+        def _enter_long(self, price: float, high_52w: float, bar_time: datetime):
             """Enter a long position. Delegates to shared mixin (preserves target state names)."""
             # Convert to float if Decimal (kept for exact prior compat)
             price = float(price)
             # Delegate - mixin will set _entry_time because we have the attr, and _bars_since_exit=0
-            self._common_enter_long(price, self._52w_high, bar_time)
+            self._common_enter_long(price, high_52w if high_52w is not None else self._52w_high, bar_time)
             # No extra after; target didn't set trailing flag
 
         def _exit_long(self, price: float, reason: str, bar_time: datetime):

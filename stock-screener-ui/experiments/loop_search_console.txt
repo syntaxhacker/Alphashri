@@ -1,0 +1,224 @@
+warming symbol cache...
+cached 494 symbols
+C1 base:ret5<-5%,dry<0.8,reclaim,tgt3%: fit={"trades": 0, "wins": 0, "win_pct": null, "gross": 0.0, "costs": 0.0, "net": 0.0, "net_slip": 0.0, "pf": null, "expectancy": null, "expectancy_slip": null, "maxDD": 0.0}
+C1 r1:ret5<-7%,dry<0.8,reclaim,tgt3%: fit={"trades": 0, "wins": 0, "win_pct": null, "gross": 0.0, "costs": 0.0, "net": 0.0, "net_slip": 0.0, "pf": null, "expectancy": null, "expectancy_slip": null, "maxDD": 0.0}
+C1 r2:ret5<-5%,dry<0.7,reclaim,tgt4%: fit={"trades": 0, "wins": 0, "win_pct": null, "gross": 0.0, "costs": 0.0, "net": 0.0, "net_slip": 0.0, "pf": null, "expectancy": null, "expectancy_slip": null, "maxDD": 0.0}
+C1 r3:ret5<-3%,dry<0.8,no-reclaim,tgt3%: fit={"trades": 16, "wins": 9, "win_pct": 56.2, "gross": 8998.23, "costs": 1308.39, "net": 7689.84, "net_slip": 6123.28, "pf": 1.57, "expectancy": 480.62, "expectancy_slip": 382.71, "maxDD": 6704.76}
+C1 BEST r3:ret5<-3%,dry<0.8,no-reclaim,tgt3% {
+ "fit": {
+  "trades": 16,
+  "wins": 9,
+  "win_pct": 56.2,
+  "gross": 8998.23,
+  "costs": 1308.39,
+  "net": 7689.84,
+  "net_slip": 6123.28,
+  "pf": 1.57,
+  "expectancy": 480.62,
+  "expectancy_slip": 382.71,
+  "maxDD": 6704.76
+ },
+ "oos": {
+  "trades": 2,
+  "wins": 1,
+  "win_pct": 50.0,
+  "gross": 326.31,
+  "costs": 164.69,
+  "net": 161.62,
+  "net_slip": -37.69,
+  "pf": 1.14,
+  "expectancy": 80.81,
+  "expectancy_slip": -18.85,
+  "maxDD": 2433.82
+ },
+ "pooled": {
+  "trades": 18,
+  "wins": 10,
+  "win_pct": 55.6,
+  "gross": 9324.54,
+  "costs": 1473.08,
+  "net": 7851.46,
+  "net_slip": 6085.59,
+  "pf": 1.51,
+  "expectancy": 436.19,
+  "expectancy_slip": 338.09,
+  "maxDD": 9138.58
+ },
+ "confirmed": false
+}
+C2 proxy cutoff (fit-median 20d rupee-vol): Rs 1,343,415,123
+C2 base:rv<median,chase: fit={"trades": 114, "wins": 47, "win_pct": 41.2, "gross": 8166.26, "costs": 9341.57, "net": -1175.31, "net_slip": -12409.16, "pf": 1.06, "expectancy": -10.31, "expectancy_slip": -108.85, "maxDD": 35476.09}
+C2 r1:rv<0.5med,chase: fit={"trades": 68, "wins": 26, "win_pct": 38.2, "gross": -24010.49, "costs": 5567.23, "net": -29577.72, "net_slip": -36273.67, "pf": 0.75, "expectancy": -434.97, "expectancy_slip": -533.44, "maxDD": 40022.41}
+C2 BEST base:rv<median,chase {
+ "fit": {
+  "trades": 114,
+  "wins": 47,
+  "win_pct": 41.2,
+  "gross": 8166.26,
+  "costs": 9341.57,
+  "net": -1175.31,
+  "net_slip": -12409.16,
+  "pf": 1.06,
+  "expectancy": -10.31,
+  "expectancy_slip": -108.85,
+  "maxDD": 35476.09
+ },
+ "oos": {
+  "trades": 26,
+  "wins": 2,
+  "win_pct": 7.7,
+  "gross": -57151.99,
+  "costs": 2122.35,
+  "net": -59274.34,
+  "net_slip": -61831.77,
+  "pf": 0.16,
+  "expectancy": -2279.78,
+  "expectancy_slip": -2378.14,
+  "maxDD": 59274.34
+ },
+ "pooled": {
+  "trades": 140,
+  "wins": 49,
+  "win_pct": 35.0,
+  "gross": -48985.73,
+  "costs": 11463.92,
+  "net": -60449.65,
+  "net_slip": -74240.93,
+  "pf": 0.77,
+  "expectancy": -431.78,
+  "expectancy_slip": -530.29,
+  "maxDD": 82538.75
+ },
+ "confirmed": false
+}
+C3 base:rng<=12,dist<=4: fit={"trades": 24, "wins": 10, "win_pct": 41.7, "gross": -10690.85, "costs": 1969.82, "net": -12660.67, "net_slip": -15038.56, "pf": 0.66, "expectancy": -527.53, "expectancy_slip": -626.61, "maxDD": 21207.34}
+C3 r1:rng<=10,dist<=4: fit={"trades": 9, "wins": 4, "win_pct": 44.4, "gross": -2307.5, "costs": 739.88, "net": -3047.38, "net_slip": -3941.94, "pf": 0.83, "expectancy": -338.6, "expectancy_slip": -437.99, "maxDD": 11368.18}
+C3 r2:rng<=12,dist<=6: fit={"trades": 48, "wins": 25, "win_pct": 52.1, "gross": -7474.58, "costs": 3945.93, "net": -11420.51, "net_slip": -16189.88, "pf": 0.85, "expectancy": -237.93, "expectancy_slip": -337.29, "maxDD": 24542.91}
+C3 BEST r2:rng<=12,dist<=6 {
+ "fit": {
+  "trades": 48,
+  "wins": 25,
+  "win_pct": 52.1,
+  "gross": -7474.58,
+  "costs": 3945.93,
+  "net": -11420.51,
+  "net_slip": -16189.88,
+  "pf": 0.85,
+  "expectancy": -237.93,
+  "expectancy_slip": -337.29,
+  "maxDD": 24542.91
+ },
+ "oos": {
+  "trades": 31,
+  "wins": 6,
+  "win_pct": 19.4,
+  "gross": -52006.89,
+  "costs": 2533.84,
+  "net": -54540.73,
+  "net_slip": -57594.37,
+  "pf": 0.15,
+  "expectancy": -1759.38,
+  "expectancy_slip": -1857.88,
+  "maxDD": 55155.22
+ },
+ "pooled": {
+  "trades": 79,
+  "wins": 31,
+  "win_pct": 39.2,
+  "gross": -59481.47,
+  "costs": 6479.77,
+  "net": -65961.24,
+  "net_slip": -73784.25,
+  "pf": 0.47,
+  "expectancy": -834.95,
+  "expectancy_slip": -933.98,
+  "maxDD": 72850.46
+ },
+ "confirmed": false
+}
+C4 {
+ "fit": {
+  "trades": 11,
+  "wins": 8,
+  "win_pct": 72.7,
+  "gross": 1549.43,
+  "costs": 902.01,
+  "net": 647.42,
+  "net_slip": -438.1,
+  "pf": 1.07,
+  "expectancy": 58.86,
+  "expectancy_slip": -39.83,
+  "maxDD": 15642.59
+ },
+ "oos": {
+  "trades": 1,
+  "wins": 0,
+  "win_pct": 0.0,
+  "gross": -1197.8,
+  "costs": 81.88,
+  "net": -1279.68,
+  "net_slip": -1378.42,
+  "pf": 0.0,
+  "expectancy": -1279.68,
+  "expectancy_slip": -1378.42,
+  "maxDD": 1279.68
+ },
+ "pooled": {
+  "trades": 12,
+  "wins": 8,
+  "win_pct": 66.7,
+  "gross": 351.63,
+  "costs": 983.89,
+  "net": -632.26,
+  "net_slip": -1816.52,
+  "pf": 1.02,
+  "expectancy": -52.69,
+  "expectancy_slip": -151.38,
+  "maxDD": 15920.29
+ },
+ "confirmed": false
+}
+C5 base: fit={"trades": 52, "wins": 28, "win_pct": 53.8, "gross": -3916.8, "costs": 4275.61, "net": -8192.41, "net_slip": -13360.31, "pf": 0.94, "expectancy": -157.55, "expectancy_slip": -256.93, "maxDD": 25323.24}
+C5 BEST base {
+ "fit": {
+  "trades": 52,
+  "wins": 28,
+  "win_pct": 53.8,
+  "gross": -3916.8,
+  "costs": 4275.61,
+  "net": -8192.41,
+  "net_slip": -13360.31,
+  "pf": 0.94,
+  "expectancy": -157.55,
+  "expectancy_slip": -256.93,
+  "maxDD": 25323.24
+ },
+ "oos": {
+  "trades": 34,
+  "wins": 25,
+  "win_pct": 73.5,
+  "gross": 70539.5,
+  "costs": 2787.5,
+  "net": 67752.0,
+  "net_slip": 64418.75,
+  "pf": 4.18,
+  "expectancy": 1992.71,
+  "expectancy_slip": 1894.67,
+  "maxDD": 12400.14
+ },
+ "pooled": {
+  "trades": 86,
+  "wins": 53,
+  "win_pct": 61.6,
+  "gross": 66622.7,
+  "costs": 7063.11,
+  "net": 59559.59,
+  "net_slip": 51058.44,
+  "pf": 1.76,
+  "expectancy": 692.55,
+  "expectancy_slip": 593.7,
+  "maxDD": 25323.24
+ },
+ "confirmed": false
+}
+wrote /home/mysyntax/Documents/Alphashri/stock-screener-ui/experiments/loop_search_out.json

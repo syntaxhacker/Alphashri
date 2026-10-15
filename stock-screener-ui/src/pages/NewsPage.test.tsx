@@ -61,7 +61,7 @@ vi.mock("../components/news/NewsList", () => ({
 
 vi.mock("../components/news/ArticleDetail", () => ({
   ArticleDetail: ({ selectedArticle }: any) => (
-    <div data-testid="article-detail">
+    <div data-testid="article-detail-region">
       {selectedArticle ? `Article: ${selectedArticle.title}` : "No article selected"}
     </div>
   ),
@@ -109,9 +109,12 @@ describe("NewsPage", () => {
     cleanup();
   });
 
-  it("renders news page on desktop", () => {
+  it("renders the news workspace on desktop", () => {
     renderWithProviders(<NewsPage />);
     expect(screen.getByTestId("news-page")).toBeInTheDocument();
+    expect(screen.getByTestId("news-workspace-header")).toBeInTheDocument();
+    expect(screen.getByTestId("news-list-region")).toBeInTheDocument();
+    expect(screen.getByTestId("article-detail-region")).toBeInTheDocument();
   });
 
   it("renders news list component", () => {

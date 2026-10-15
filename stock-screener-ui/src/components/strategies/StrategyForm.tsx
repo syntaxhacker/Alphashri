@@ -3,6 +3,7 @@ import {
   Modal,
   Stack,
   Box,
+  Button,
   TextInput,
   Select,
   Tabs,
@@ -393,19 +394,19 @@ export function StrategyForm({
             data-testid="strategy-form-actions"
           >
             <Group gap="xs" align="center">
-              <button
+              <Button
                 type="button"
-                className="MuiButton-root strategy-form-cancel-btn"
+                variant="subtle"
+                color="secondary"
+                size="sm"
                 onClick={onClose}
                 data-testid="strategy-cancel-btn"
               >
-                <span className="MuiButton-label">
-                  <span className="MuiButton-label">Cancel</span>
-                </span>
-              </button>
-              <button
+                Cancel
+              </Button>
+              <Button
                 type="submit"
-                className="MuiButton-root strategy-form-submit-btn"
+                size="sm"
                 data-testid="submit-strategy-btn"
                 // Explicit onClick: form submission events from inside a
                 // Dialog portal are unreliable (happy-dom never fires them);
@@ -415,12 +416,8 @@ export function StrategyForm({
                   handleSubmit();
                 }}
               >
-                <span className="MuiButton-label">
-                  <span className="MuiButton-label">
-                    {mode === "create" ? "Create" : "Save"}
-                  </span>
-                </span>
-              </button>
+                {mode === "create" ? "Create" : "Save"}
+              </Button>
             </Group>
           </Group>
         </Stack>

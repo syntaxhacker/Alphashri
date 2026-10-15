@@ -147,4 +147,82 @@ describe("searchSymbols", () => {
     const calledUrl = mockedFetch.mock.calls[0][0] as string;
     expect(calledUrl).toContain("/api/symbols/search");
   });
+
+  it("builds the exact search URL shape (path + q + limit)", async () => {
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results: [], query: "TATA", total: 0 }),
+    } as Response);
+
+    await searchSymbols("TATA", 5);
+
+    const calledUrl = mockedFetch.mock.calls[0][0] as string;
+    expect(calledUrl).toContain("/api/symbols/search?q=TATA&limit=5");
+  });
+
+  it("preserves full result fields (symbol/name/isin)", async () => {
+    const results = [{ symbol: "RELIANCE", name: "Reliance Industries Ltd", isin: "INE002A01018" }];
+    mockedFetch.mockResolvedValue({
+      ok: true,
+      json: async () => ({ results, query: "REL", total: 1 }),
+    } as Response);
+
+    await expect(searchSymbols("REL")).resolves.toEqual(results);
+  });
+
+  it("returns empty array when results is null", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue({
+        ok: true,
+        json: async () => ({ results: null, query: "x", total: 0 }),
+      } as unknown as Response);
+
+      await expect(searchSymbols("x")).resolves.toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("returns empty array when the response body is null", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue({
+        ok: true,
+        json: async () => null,
+      } as unknown as Response);
+
+      await expect(searchSymbols("x")).resolves.toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("returns empty array when json() rejects (malformed body)", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue({
+        ok: true,
+        json: async () => {
+          throw new Error("bad json");
+        },
+      } as unknown as Response);
+
+      await expect(searchSymbols("TATA")).resolves.toEqual([]);
+      expect(spy).toHaveBeenCalled();
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
+  it("returns empty array on 404 without throwing", async () => {
+    const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      mockedFetch.mockResolvedValue({ ok: false, status: 404 } as Response);
+
+      await expect(searchSymbols("NOPE")).resolves.toEqual([]);
+    } finally {
+      spy.mockRestore();
+    }
+  });
 });

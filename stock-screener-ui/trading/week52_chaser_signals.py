@@ -8,10 +8,37 @@ max holding period, or momentum-fade detection.
 """
 
 from datetime import datetime
+import logging
+import math
 from typing import Dict, List, Optional
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.week52_utils import Base52WSignalGenerator, calculate_52w_high
+
+logger = logging.getLogger(__name__)
+
+
+# Canonical 52W Chaser filter defaults — single source of truth.
+#
+# The backtest Nautilus strategy (backtest/strategies/week52_chaser.py) imports
+# these constants so the live-signal path and the backtest path screen the same
+# thing. The backtest page / UI only exposes `enable_filters` (default False,
+# matching both `Week52ChaserStrategy.get_params()` and the generator default
+# below); the thresholds below are deliberately NOT user-tunable — they are the
+# ablation winners:
+#   - ADX >= 25 kept (optimal operating point; do NOT loosen).
+#   - RSI upper veto loosened 70 -> 75: the RSI>70 veto killed ~1.73pp profit per
+#     noise trade avoided and is conceptually backwards for a momentum-chaser.
+#   - Volume >= 1.8x 20d average: the only positive single-setting gate.
+#   - MA200 / MA50 / RSI lower-bound gates REMOVED: ablation showed they pass
+#     ~100% of chaser candidates (zero discrimination) — dead code kept as
+#     filters would only add maintenance surface and false confidence.
+#   - enable_filters default False everywhere (UI backtestDefaults.ts,
+#     Week52ChaserStrategy.get_params(), Week52ChaserConfig, generator).
+CHASER_ADX_MIN = 25.0
+CHASER_RSI_HI = 75.0
+CHASER_VOLUME_MULT = 1.8
+CHASER_ENABLE_FILTERS_DEFAULT = False
 
 
 class Week52ChaserSignalGenerator(Base52WSignalGenerator):
@@ -28,7 +55,10 @@ class Week52ChaserSignalGenerator(Base52WSignalGenerator):
         self.trailing_activation_pct = float(config.get("trailing_activation_pct", 3.0))
         self.max_holding_days = int(config.get("max_holding_days", 30))
         self.cooldown_days = int(config.get("cooldown_days", 30))
-        self.enable_filters = bool(config.get("enable_filters", False))
+        self.enable_filters = bool(config.get("enable_filters", CHASER_ENABLE_FILTERS_DEFAULT))
+        self.adx_min = float(config.get("adx_min", CHASER_ADX_MIN))
+        self.rsi_hi = float(config.get("rsi_hi", CHASER_RSI_HI))
+        self.volume_mult = float(config.get("volume_mult", CHASER_VOLUME_MULT))
         self.min_avg_volume = float(config.get("min_avg_volume", 50000))
         self.recent_touch_days = int(config.get("recent_touch_days", 3))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct)
@@ -143,27 +173,45 @@ class Week52ChaserSignalGenerator(Base52WSignalGenerator):
         )
 
     def _check_filters(self, market_data: dict, current_price: float) -> bool:
+        """Trend/momentum gates. Fail CLOSED: missing or NaN inputs veto the trade.
+
+        Active gates (ablation winners): ADX >= adx_min, RSI <= rsi_hi,
+        volume >= volume_mult * 20d average. MA50/MA200/RSI-low gates were
+        removed (passed ~100% — zero discrimination).
+        """
         adx = market_data.get("adx")
         rsi = market_data.get("rsi")
         volume = market_data.get("volume")
         avg_volume_20d = market_data.get("avg_volume_20d")
-        ma50 = market_data.get("ma50")
-        ma200 = market_data.get("ma200")
 
-        if adx is not None and adx < 25:
+        if adx is None or (isinstance(adx, float) and math.isnan(adx)):
+            logger.debug("chaser filter veto: adx missing/NaN")
+            return False
+        if adx < self.adx_min:
+            logger.debug("chaser filter veto: adx %.2f < %.2f", adx, self.adx_min)
             return False
 
-        if rsi is not None and (rsi < 50 or rsi > 70):
+        if rsi is None or (isinstance(rsi, float) and math.isnan(rsi)):
+            logger.debug("chaser filter veto: rsi missing/NaN")
+            return False
+        if rsi > self.rsi_hi:
+            logger.debug("chaser filter veto: rsi %.2f > %.2f", rsi, self.rsi_hi)
             return False
 
-        if avg_volume_20d is not None and avg_volume_20d > 0 and volume is not None:
-            if volume < avg_volume_20d * 1.5:
-                return False
-
-        if ma50 is not None and current_price < ma50:
+        if (
+            volume is None
+            or avg_volume_20d is None
+            or (isinstance(volume, float) and math.isnan(volume))
+            or (isinstance(avg_volume_20d, float) and math.isnan(avg_volume_20d))
+            or avg_volume_20d <= 0
+        ):
+            logger.debug("chaser filter veto: volume baseline missing/NaN/non-positive")
             return False
-
-        if ma200 is not None and current_price < ma200:
+        if volume < avg_volume_20d * self.volume_mult:
+            logger.debug(
+                "chaser filter veto: volume %.0f < %.2f * avg %.0f",
+                volume, self.volume_mult, avg_volume_20d,
+            )
             return False
 
         return True

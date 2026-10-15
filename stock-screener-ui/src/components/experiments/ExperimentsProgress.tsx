@@ -31,7 +31,7 @@ export function ExperimentsProgress() {
 
   if (!exp) {
     return (
-      <Paper elevation={0} sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center" }} data-testid="experiments-progress">
+      <Paper elevation={0} sx={{ p: 1, display: "flex", alignItems: "stretch", justifyContent: "flex-start" }} data-testid="experiments-progress">
         <Text size="sm" c="dimmed" data-testid="experiments-progress-empty">
           No active experiment
         </Text>
@@ -45,10 +45,10 @@ export function ExperimentsProgress() {
   const lastResult = lastResultDescription(exp.last_result, exp.best_desc);
 
   return (
-    <Paper elevation={0} sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1, alignItems: "center" }} data-testid="experiments-progress">
+    <Paper elevation={0} sx={{ p: 1, display: "flex", flexDirection: "column", gap: 1, alignItems: "stretch" }} data-testid="experiments-progress">
       <Stack gap={1} sx={{ width: "100%", alignItems: "stretch" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
             <Badge color={STATUS_COLOR[status] ?? "secondary"} size="sm" data-testid="experiments-progress-status">
               {status}
             </Badge>

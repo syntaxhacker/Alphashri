@@ -11,6 +11,7 @@ import {
   Stack,
   Text,
   TextInput,
+  ToolbarRow,
   Tooltip,
 } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -294,7 +295,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         </Group>
       </Group>
 
-      <Group gap="xs" style={{ paddingLeft: 8, paddingRight: 8 }} wrap="wrap">
+      <ToolbarRow gap={8} style={{ paddingLeft: 8, paddingRight: 8 }}>
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -318,7 +319,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             value={strategyFilter}
             onChange={setStrategyFilter}
             clearable
-            style={{ minWidth: 160 }}
+            w={160}
           />
         )}
         <TextInput
@@ -326,9 +327,9 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           placeholder="Search symbol"
           value={symbolQuery}
           onChange={(val) => setSymbolQuery(val)}
-          style={{ width: 120 }}
+          w={120}
         />
-      </Group>
+      </ToolbarRow>
 
       <ScrollArea style={{ flex: 1 }}>
         <TanStackTable<ScanRow>

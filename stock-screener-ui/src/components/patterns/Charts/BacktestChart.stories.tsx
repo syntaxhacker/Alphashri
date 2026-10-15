@@ -4,10 +4,8 @@ import { Box } from "@/ui";
 import { BacktestChart } from "@/components/backtest/BacktestChart";
 import {
   MOCK_CANDLES,
-  MOCK_CHART_DATA,
   MOCK_ORB_CHART,
   MOCK_PIVOT_CHART,
-  MOCK_52W_CHART,
 } from "@/stories/fixtures";
 import type { SymbolChartData } from "@/types/backtest";
 

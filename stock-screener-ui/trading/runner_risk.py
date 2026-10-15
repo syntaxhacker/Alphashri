@@ -250,7 +250,7 @@ class RunnerRiskMixin:
         Uses configurable interval (ema_interval_minutes in runner config, default 5).
         Applies market range filter (min_market_range_pct) if configured.
         """
-        from trading.ema_utils import calculate_ema
+        from trading.indicators import ema as calculate_ema
 
         ema_interval = 5
         min_range = 0.0
@@ -292,8 +292,8 @@ class RunnerRiskMixin:
         if len(closes) < ema_slow_period + 2:
             return None
 
-        ema_fast = calculate_ema(closes, ema_fast_period, return_full=True)
-        ema_slow = calculate_ema(closes, ema_slow_period, return_full=True)
+        ema_fast = calculate_ema(closes, ema_fast_period, full=True)
+        ema_slow = calculate_ema(closes, ema_slow_period, full=True)
 
         if len(ema_fast) < 2 or len(ema_slow) < 2:
             return None

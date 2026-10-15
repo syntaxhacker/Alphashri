@@ -12,11 +12,14 @@ Backtest behavior:
 
 import sys
 import os
+import logging
 from datetime import datetime
 from typing import Dict, List, Optional
 
 import pandas as pd
 import numpy as np
+
+logger = logging.getLogger(__name__)
 
 # Guarded nautilus imports for environments without nautilus-trader (no Rust toolchain).
 # Allows importing pure parts of module (Week52HighIndicator, calculate_adx/rsi, get_date_from_ns, Week52ChaserStrategy wrapper).
@@ -52,6 +55,18 @@ IST = config.IST
 
 from trading.week52_utils import calculate_52w_high, get_date_from_ns, Week52HighTracker
 
+# Canonical filter defaults shared with the live-signal path.
+# Imported from trading.week52_chaser_signals so backtest and API screen the
+# same thing; the UI backtest page only exposes `enable_filters` (default
+# False here, in get_params(), and in the generator). See the constant block
+# in trading/week52_chaser_signals.py for the ablation rationale.
+from trading.week52_chaser_signals import (
+    CHASER_ADX_MIN,
+    CHASER_ENABLE_FILTERS_DEFAULT,
+    CHASER_RSI_HI,
+    CHASER_VOLUME_MULT,
+)
+
 
 class Week52HighIndicator(Week52HighTracker):
     """
@@ -74,42 +89,20 @@ class Week52HighIndicator(Week52HighTracker):
 
 
 def calculate_adx(high: pd.Series, low: pd.Series, close: pd.Series, period: int = 14) -> pd.Series:
-    """Calculate Average Directional Index (ADX) - Trend Strength Indicator."""
-    tr1 = high - low
-    tr2 = abs(high - close.shift(1))
-    tr3 = abs(low - close.shift(1))
-    tr = pd.concat([tr1, tr2, tr3], axis=1).max(axis=1)
+    """ADX — thin wrapper over the canonical indicator (no local math)."""
+    from trading.indicators import adx as _adx
 
-    plus_dm = high.diff()
-    minus_dm = -low.diff()
-    plus_dm[plus_dm < 0] = 0
-    minus_dm[minus_dm < 0] = 0
-
-    atr = tr.rolling(window=period).mean()
-    plus_di = 100 * (plus_dm.rolling(window=period).mean() / atr)
-    minus_di = 100 * (minus_dm.rolling(window=period).mean() / atr)
-
-    dx = 100 * abs(plus_di - minus_di) / (plus_di + minus_di)
-    adx = dx.rolling(window=period).mean()
-
-    return adx
+    return _adx(high, low, close, period)
 
 
 def calculate_rsi(close: pd.Series, period: int = 14) -> pd.Series:
-    """Calculate Relative Strength Index (RSI)."""
-    delta = close.diff()
-    gain = delta.where(delta > 0, 0)
-    loss = -delta.where(delta < 0, 0)
+    """RSI — thin wrapper over the canonical indicator (no local math)."""
+    from trading.indicators import rsi as _rsi
 
-    avg_gain = gain.ewm(span=period, adjust=False).mean()
-    avg_loss = loss.ewm(span=period, adjust=False).mean()
-
-    rs = avg_gain / avg_loss
-    rsi = 100 - (100 / (1 + rs))
-    return rsi
+    return _rsi(close, period)
 
 
-class Week52ChaserNautilusStrategy(Strategy):  # mixin avoided for metaclass compat
+class Week52ChaserNautilusStrategy(Strategy, Week52NautilusMixin):
     """52-Week High Chaser implementation for NautilusTrader."""
 
     def __init__(self, config: 'Week52ChaserConfig'):
@@ -127,6 +120,11 @@ class Week52ChaserNautilusStrategy(Strategy):  # mixin avoided for metaclass com
         self._trade_size = config.trade_size
         self._enable_filters = config.enable_filters
         self._historical_df = config.historical_df
+        # Filter thresholds mirror the canonical live-signal defaults so both
+        # paths screen identically (see trading/week52_chaser_signals.py).
+        self._adx_min = CHASER_ADX_MIN
+        self._rsi_hi = CHASER_RSI_HI
+        self._volume_mult = CHASER_VOLUME_MULT
 
         # 52W high tracking - use shared tracker (mixin inits containers)
         self._high_prices: List[float] = []
@@ -162,14 +160,17 @@ class Week52ChaserNautilusStrategy(Strategy):  # mixin avoided for metaclass com
         # ensure tracker (in case)
         self._init_52w_tracker(min_periods=self._min_periods)
 
-        # Pre-calculate indicators from historical data for filtering
+        # Pre-calculate indicators from historical data for filtering.
+        # All series are causal: pandas rolling windows only use data ≤ each
+        # bar. The volume baseline is additionally shift(1)'d so the entry
+        # bar's own volume never inflates its comparison average.
         if self._historical_df is not None and not self._historical_df.empty and self._enable_filters:
             df = self._historical_df.copy()
             self._precalc_adx = calculate_adx(df['high'], df['low'], df['close'])
             self._precalc_rsi = calculate_rsi(df['close'])
-            self._precalc_ma50 = df['close'].rolling(window=50).mean()
-            self._precalc_ma200 = df['close'].rolling(window=200).mean()
-            self._precalc_vol_avg = df['volume'].rolling(window=20).mean()
+            self._precalc_ma50 = None  # removed: ablation showed ~100% pass (zero discrimination)
+            self._precalc_ma200 = None  # removed: see above
+            self._precalc_vol_avg = df['volume'].rolling(window=20).mean().shift(1)
 
     def on_bar(self, bar):
         """Process incoming bar."""
@@ -241,51 +242,64 @@ class Week52ChaserNautilusStrategy(Strategy):  # mixin avoided for metaclass com
         return exit_reason
 
     def _check_entry_filters(self, close_price: float, bar_time: datetime) -> bool:
-        """Check optional entry filters."""
-        if self._precalc_adx is None:
-            return True
+        """Check optional entry filters. Fail CLOSED: any missing/NaN input
+        or lookup failure vetoes the entry (never silently passes).
 
-        # Find the closest date in pre-calculated data
+        Active gates mirror the live-signal path: ADX >= _adx_min,
+        RSI <= _rsi_hi (no lower bound), volume >= _volume_mult * 20d average
+        where the average excludes the entry bar itself. MA50/MA200/RSI-low
+        gates were removed (ablation: ~100% pass, zero discrimination).
+        """
+        if self._precalc_adx is None:
+            logger.debug("chaser backtest filter veto: indicators not precalculated")
+            return False
+
         try:
             bar_date = bar_time.date()
             df_index = self._historical_df.index
             if not isinstance(df_index, pd.DatetimeIndex):
                 df_index = pd.to_datetime(df_index)
 
-            # Find matching date
-            mask = df_index.date == bar_date
-            if not mask.any():
-                return True
+            # Positional match on normalized dates. Duplicate dates (e.g. from
+            # overlapping fetch windows) previously resolved via
+            # mask.argmax(), which silently picks the FIRST match; take the
+            # LAST match instead so the freshest bar wins.
+            dates = df_index.normalize()
+            target = pd.Timestamp(bar_date).tz_localize(dates.tz) if dates.tz is not None else pd.Timestamp(bar_date)
+            positions = np.flatnonzero(dates == target)
+            if len(positions) == 0:
+                logger.debug("chaser backtest filter veto: no bar for %s", bar_date)
+                return False
+            idx = int(positions[-1])
 
-            idx = mask.argmax()
-            adx_val = self._precalc_adx.iloc[idx] if idx < len(self._precalc_adx) else None
-            rsi_val = self._precalc_rsi.iloc[idx] if idx < len(self._precalc_rsi) else None
-            ma50_val = self._precalc_ma50.iloc[idx] if idx < len(self._precalc_ma50) else None
-            ma200_val = self._precalc_ma200.iloc[idx] if idx < len(self._precalc_ma200) else None
-            vol_avg_val = self._precalc_vol_avg.iloc[idx] if idx < len(self._precalc_vol_avg) else None
-            volume_val = self._historical_df['volume'].iloc[idx] if idx < len(self._historical_df) else None
+            adx_val = self._precalc_adx.iloc[idx] if idx < len(self._precalc_adx) else np.nan
+            rsi_val = self._precalc_rsi.iloc[idx] if idx < len(self._precalc_rsi) else np.nan
+            vol_avg_val = self._precalc_vol_avg.iloc[idx] if idx < len(self._precalc_vol_avg) else np.nan
+            volume_val = self._historical_df['volume'].iloc[idx] if idx < len(self._historical_df) else np.nan
 
-            # ADX > 25 (strong trend)
-            if pd.notna(adx_val) and adx_val < 25:
+            # NaN fails closed — every gate requires a real value.
+            if pd.isna(adx_val):
+                logger.debug("chaser backtest filter veto: adx NaN at %s", bar_date)
+                return False
+            if adx_val < self._adx_min:
                 return False
 
-            # RSI 50-70 (momentum room)
-            if pd.notna(rsi_val) and (rsi_val < 50 or rsi_val > 70):
+            if pd.isna(rsi_val):
+                logger.debug("chaser backtest filter veto: rsi NaN at %s", bar_date)
+                return False
+            if rsi_val > self._rsi_hi:
                 return False
 
-            # Volume > 1.5x average
-            if pd.notna(vol_avg_val) and pd.notna(volume_val) and volume_val < vol_avg_val * 1.5:
+            if pd.isna(vol_avg_val) or pd.isna(volume_val):
+                logger.debug("chaser backtest filter veto: volume NaN at %s", bar_date)
                 return False
-
-            # Price > MA50 and MA200
-            if pd.notna(ma50_val) and close_price < ma50_val:
-                return False
-            if pd.notna(ma200_val) and close_price < ma200_val:
+            if volume_val < vol_avg_val * self._volume_mult:
                 return False
 
             return True
         except Exception:
-            return True
+            logger.exception("chaser backtest filter veto: lookup error (fail closed)")
+            return False
 
     def _enter_long(self, price: float, high_52w: float, bar_time: datetime):
         """Enter long position. Delegates to mixin (chaser has trailing attr so gets correct keys)."""

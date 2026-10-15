@@ -11,7 +11,7 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
     <Box
       id="options-nav-wrapper"
       data-testid="options-nav-wrapper"
-      sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%", py: 1 }}
+      sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", minWidth: 0, py: 0 }}
     >
       <Tabs
         id="options-nav-tabs"
@@ -23,7 +23,7 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
         <TabsList
           className="options-nav-list"
           data-testid="options-nav-list"
-          sx={{ display: "flex", alignItems: "center", justifyContent: "center" } as any}
+          sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" } as any}
         >
           <Tab value="chain" className="options-nav-tab" data-testid="nav-tab-chain">
             Option Chain
@@ -31,8 +31,11 @@ export function OptionsNav({ activeTab, onTabChange }: OptionsNavProps) {
           <Tab value="positions" className="options-nav-tab" data-testid="nav-tab-positions">
             Positions
           </Tab>
-          <Tab value="greeks" className="options-nav-tab" data-testid="nav-tab-greeks">
-            Greeks
+          <Tab value="premium" className="options-nav-tab" data-testid="nav-tab-premium">
+            Premium
+          </Tab>
+          <Tab value="positioning" className="options-nav-tab" data-testid="nav-tab-positioning">
+            Positioning
           </Tab>
         </TabsList>
       </Tabs>

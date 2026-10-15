@@ -177,6 +177,16 @@ export const ScreenerTable = memo(function ScreenerTable({
                     {badgeLabel}
                   </Badge>
                 ) : null}
+                {stock.approach_type === "fresh" || stock.approach_type === "retest" ? (
+                  <Badge
+                    size="xs"
+                    variant="light"
+                    color={stock.approach_type === "fresh" ? "success" : "warning"}
+                    data-testid={`approach-badge-${stock.symbol}`}
+                  >
+                    {stock.approach_type === "fresh" ? "FRESH" : "RETEST"}
+                  </Badge>
+                ) : null}
               </Group>
             );
           }

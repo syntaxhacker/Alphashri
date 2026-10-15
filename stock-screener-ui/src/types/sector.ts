@@ -52,3 +52,24 @@ export interface SectorState {
   error: string | null;
   market: "india" | "america";
 }
+
+// Groups performance (StockEdge-style panel on the Screener page)
+export type SectorClassify = "sector" | "industry" | "theme";
+
+export type SectorPeriod = "1D" | "1W" | "1M" | "3M" | "6M" | "YTD" | "1Y";
+
+export interface SectorGroup {
+  name: string;
+  change: number;
+  stock_count: number;
+  advances: number;
+  declines: number;
+}
+
+export interface SectorGroupsPayload {
+  classify: SectorClassify;
+  period: SectorPeriod;
+  market: string;
+  last_updated: string;
+  groups: SectorGroup[];
+}
