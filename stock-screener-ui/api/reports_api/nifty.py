@@ -967,6 +967,23 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
         TAPE_DIR.mkdir(parents=True, exist_ok=True)
         with open(path, "a") as f:
             f.write(json.dumps(row) + "\n")
+        # Keep the day's snapshot fresh so the EOD tab has data. Previously the
+        # snapshot was written ONLY by POST /nifty/snapshot (the SNAPSHOT button),
+        # so GET /nifty raised its 404 envelope on every day nobody clicked it —
+        # the EOD tab has effectively never worked. The recorder already fetches
+        # the chain every minute, so persisting it here costs one small JSON write
+        # (overwritten in place, never deleted).
+        try:
+            write_snapshot(date_str, {
+                **report,
+                "mode": "snapshot",
+                "date": date_str,
+                "snapshot_at": t_iso,
+                "source": "upstox-option-chain",
+                "timeline": build_timeline_skeleton(report),
+            })
+        except Exception:
+            pass
         _tape_last_skip = None
         return row
     except Exception:
