@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Optional, Dict, Any, List
 
 from api.utils import _to_float, _sanitize_for_json
@@ -10,6 +11,41 @@ MAX_WORKERS = 10
 def touched_52w_gap_threshold_pct() -> float:
     """Within this % below 52W high (or above = breakout) => 'touched' bucket."""
     return float(os.environ.get('SCREENER_52W_TOUCHED_GAP_PCT', '1.0'))
+
+
+def exclude_etfs_from_screener() -> bool:
+    """When True (default), ETF/liquid-fund symbols are dropped from screener output."""
+    return os.environ.get('SCREENER_EXCLUDE_ETFS', '1').lower() not in ('0', 'false', 'no')
+
+
+# Liquid/overnight fund names that don't match the generic ETF/BEES/LIQUID rules.
+_ETF_EXACT_SYMBOLS = frozenset({
+    'AONELIQUID',
+    'GROWWLIQID',
+    'LIQUIDSHRI',
+    'LIQUIDCASE',
+    'ELIQUID',
+    'LIQUIDBETA',
+    'LIQUIDSBI',
+    'HDFCLIQUID',
+    'SBILIQETF',
+})
+
+
+def is_likely_etf(symbol: Optional[str]) -> bool:
+    """Heuristic ETF detection for NSE symbols (liquid funds, BEES, *ETF naming)."""
+    s = re.sub(r'[^A-Z0-9]', '', str(symbol or '').upper())
+    if not s:
+        return False
+    if s in _ETF_EXACT_SYMBOLS:
+        return True
+    if 'ETF' in s:
+        return True
+    if s.endswith('BEES'):
+        return True
+    if s.startswith('LIQUID'):
+        return True
+    return False
 
 
 def gap_pct_to_52w_high(high: float, price: float) -> Optional[float]:
