@@ -372,54 +372,83 @@ async function openFilters(page: Page) {
 }
 
 /**
+ * The dense list is the default view; switch to the card grid. View state is
+ * local (not in the URL), so this must be re-applied after every navigation.
+ */
+async function showGrid(page: Page) {
+  await page.getByRole("button", { name: "Grid" }).click();
+  await expect(page.locator('[data-testid="patterns-card"]').first()).toBeVisible({ timeout: 15000 });
+}
+
+/** Apply the staged filter draft (edits sit in a draft until Filter is clicked). */
+async function applyFilters(page: Page) {
+  await page.locator('[data-testid="patterns-filters-done"]').click();
+  await expect(page.locator('[data-testid="patterns-filter-modal"]')).toBeHidden();
+}
+
+/**
  * Apply a "bearish" filter using whichever control the filter rail exposes
- * (checkbox/switch/radio, button, MUI select or plain text). Returns the
- * strategy used, or null when no recognisable control exists.
+ * (checkbox/switch/radio, button, MUI select or plain text). Filter edits are
+ * staged in a draft, so the draft is applied with the Filter button before
+ * returning. Returns the strategy used, or null when no recognisable control
+ * exists.
  */
 async function applyBearishFilter(page: Page): Promise<string | null> {
   await openFilters(page);
   const rail = page.locator('[data-testid="patterns-filter-rail"]');
   await expect(rail).toBeVisible();
   const nameRe = /bearish/i;
+  let strategy: string | null = null;
 
   for (const role of ["checkbox", "switch", "radio"]) {
     const ctrl = rail.getByRole(role as "checkbox" | "switch" | "radio", { name: nameRe });
     if (await ctrl.count()) {
       await ctrl.first().click();
-      return role;
+      strategy = role;
+      break;
     }
   }
 
-  const btn = rail.getByRole("button", { name: nameRe });
-  if (await btn.count()) {
-    await btn.first().click();
-    return "button";
-  }
-
-  const text = rail.getByText(/^\s*bearish\s*$/i);
-  if (await text.count()) {
-    await text.first().click();
-    return "text";
-  }
-
-  const combo = rail.getByRole("combobox");
-  if (await combo.count()) {
-    await combo.first().click();
-    const opt = page.getByRole("option", { name: nameRe });
-    if (await opt.count()) {
-      await opt.first().click();
-      return "select";
+  if (!strategy) {
+    const btn = rail.getByRole("button", { name: nameRe });
+    if (await btn.count()) {
+      await btn.first().click();
+      strategy = "button";
     }
-    await page.keyboard.press("Escape");
   }
 
-  const input = rail.locator('input[type="text"], input[type="search"], input:not([type])').first();
-  if (await input.count()) {
-    await input.fill("INFY");
-    return "symbol";
+  if (!strategy) {
+    const text = rail.getByText(/^\s*bearish\s*$/i);
+    if (await text.count()) {
+      await text.first().click();
+      strategy = "text";
+    }
   }
 
-  return null;
+  if (!strategy) {
+    const combo = rail.getByRole("combobox");
+    if (await combo.count()) {
+      await combo.first().click();
+      const opt = page.getByRole("option", { name: nameRe });
+      if (await opt.count()) {
+        await opt.first().click();
+        strategy = "select";
+      } else {
+        await page.keyboard.press("Escape");
+      }
+    }
+  }
+
+  if (!strategy) {
+    const input = rail.locator('input[type="text"], input[type="search"], input:not([type])').first();
+    if (await input.count()) {
+      await input.fill("INFY");
+      strategy = "symbol";
+    }
+  }
+
+  if (strategy) await applyFilters(page);
+  return strategy;
 }
 
 /**
@@ -443,24 +472,17 @@ async function chooseSelectOption(page: Page, testId: string, label: string) {
 }
 
 /**
- * Read the ECharts series names of the fullscreen pattern chart. ECharts
- * paints to canvas (no DOM legend), but the instance is reachable through the
- * global `echarts` registry that `useECharts` populates on init.
+ * Read the lightweight-charts legend entries of the fullscreen pattern chart.
+ * The chart paints to canvas (no DOM series), but `PatternChartLegend` mirrors
+ * every drawn line/level/marker as an HTML entry, so the legend is the
+ * DOM-observable source of truth for what the chart draws (replaces the
+ * ECharts-instance reader used before the lightweight-charts migration).
  */
-async function fullscreenSeriesNames(page: Page): Promise<string[]> {
-  return page.evaluate(() => {
-    const host = document.querySelector('[data-testid="patterns-fullscreen-chart"] > div');
-    const lib = (window as unknown as {
-      echarts?: {
-        getInstanceByDom: (el: Element) => { getOption: () => { series?: Array<{ name?: unknown }> } } | null;
-      };
-    }).echarts;
-    if (!host || !lib) return [];
-    const instance = lib.getInstanceByDom(host);
-    if (!instance) return [];
-    const series = instance.getOption()?.series ?? [];
-    return series.map((s) => String(s?.name ?? ""));
-  });
+async function fullscreenLegendNames(page: Page): Promise<string[]> {
+  const items = page.locator(
+    '[data-testid="patterns-chart-legend"] [data-testid^="patterns-chart-legend-item-"]',
+  );
+  return (await items.allTextContents()).map((t) => t.trim()).filter((t) => t !== "");
 }
 
 test.describe("Chart Patterns page", () => {
@@ -526,7 +548,7 @@ test.describe("Chart Patterns page", () => {
     await expect(card).toBeVisible();
     await card.click();
     await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
-    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
   });
 
   test("clicking a specific card opens its fullscreen chart", async ({ page }) => {
@@ -536,7 +558,7 @@ test.describe("Chart Patterns page", () => {
     const modal = page.locator('[data-testid="patterns-fullscreen-modal"]');
     await expect(modal).toBeVisible();
     await expect(modal).toContainText("IRCON");
-    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
   });
 
   test("clicking the expand icon opens the fullscreen chart", async ({ page }) => {
@@ -544,7 +566,7 @@ test.describe("Chart Patterns page", () => {
     await expect(expand).toBeVisible();
     await expand.click();
     await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
-    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
   });
 
   test("shows the last completed scan time", async ({ page }) => {
@@ -555,6 +577,7 @@ test.describe("Chart Patterns page", () => {
 
   test("deep-linking restores filters from the URL", async ({ page }) => {
     await page.goto("/patterns?direction=bearish");
+    await showGrid(page);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
   });
@@ -562,6 +585,7 @@ test.describe("Chart Patterns page", () => {
   test("mirrors a filter change into the URL", async ({ page }) => {
     await openFilters(page);
     await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await applyFilters(page);
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
   });
@@ -569,16 +593,19 @@ test.describe("Chart Patterns page", () => {
   test("a filter survives navigation away and back", async ({ page }) => {
     await openFilters(page);
     await page.locator('[data-testid="patterns-direction-bearish"]').click();
+    await applyFilters(page);
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     const filteredUrl = page.url();
 
     // Navigate to the clean view: the grid restores to all hits.
     await page.goto("/patterns");
+    await showGrid(page);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
 
     // Back to the filtered URL: the grid restores the filtered set.
     await page.goto(filteredUrl);
+    await showGrid(page);
     await expect(page).toHaveURL(/direction=bearish/);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
     await expect(page.locator('[data-testid="patterns-card-INFY-head_shoulders"]')).toBeVisible();
@@ -601,6 +628,7 @@ test.describe("Chart Patterns page", () => {
 
   test("volume_confirmed and min_rr round-trip through the URL", async ({ page }) => {
     await page.goto("/patterns?volume_confirmed=true&min_rr=1.5");
+    await showGrid(page);
     await expect(page.locator('[data-testid="patterns-card"]').first()).toBeVisible();
     // The hook adopts the params and writes them back (nothing dropped).
     await expect(page).toHaveURL(/volume_confirmed=true/);
@@ -706,10 +734,14 @@ test.describe("Chart Patterns page", () => {
     await card.click();
     const modal = page.locator('[data-testid="patterns-fullscreen-modal"]');
     await expect(modal).toBeVisible();
-    await expect(page.locator('[data-testid="patterns-fullscreen-chart"]')).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
 
-    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("TLS");
-    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("TLR");
+    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("TLS");
+    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("TLR");
+
+    // The fullscreen modal covers the toolbar toggle, so close it first.
+    await page.keyboard.press("Escape");
+    await expect(modal).toBeHidden();
 
     const resultsWithoutTrendlines = page.waitForResponse(
       (resp) =>
@@ -720,15 +752,16 @@ test.describe("Chart Patterns page", () => {
     await expect(page.locator('[data-testid="patterns-compute-trendlines"]')).not.toBeChecked();
     await resultsWithoutTrendlines;
     await expect(page).toHaveURL(/compute_trendlines=0/);
-    await expect(modal).toBeVisible();
 
-    await expect
-      .poll(
-        async () =>
-          (await fullscreenSeriesNames(page)).filter((name) => name === "TLS" || name === "TLR").length,
-        { timeout: 10000 },
-      )
-      .toBe(0);
+    // Reopen with computation off: standalone lines stay hidden.
+    await card.click();
+    await expect(modal).toBeVisible();
+    await expect(page.locator('[data-testid="patterns-tv-chart"]')).toBeVisible();
+    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("Falling Wedge");
+
+    expect(
+      (await fullscreenLegendNames(page)).filter((name) => name === "TLS" || name === "TLR"),
+    ).toHaveLength(0);
   });
 
   test("custom symbol scope drives a Scan N symbols action", async ({ page }) => {
@@ -773,24 +806,29 @@ test.describe("Chart Patterns page", () => {
     }
 
     await page.getByRole("option", { name: "TLR only", exact: true }).click();
+    // Trendline edits are staged in a draft: apply them with the Filter button.
+    await applyFilters(page);
     await expect(page).toHaveURL(/trendlines=resistance/);
     await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("TLR only");
 
+    await openFilters(page);
     await select.click();
     await page.getByRole("option", { name: "None", exact: true }).click();
+    await applyFilters(page);
     await expect(page).toHaveURL(/trendlines=none/);
     await expect(page.getByTestId("patterns-applied-filter-trendlines")).toContainText("Hidden");
 
-    await page.locator('[data-testid="patterns-filters-done"]').click();
     await expect(page.locator('[data-testid="patterns-filter-modal"]')).toBeHidden();
   });
 
   test("applied-filter chips reflect the active filters and remove one at a time", async ({ page }) => {
-    await expect(page.getByTestId("patterns-applied-filters")).toHaveCount(0);
+    // NOTE: the default 10d-avg-volume floor (150K) always renders its own
+    // chip, so only the direction chip is asserted here.
+    await expect(page.getByTestId("patterns-applied-filter-direction:bearish")).toHaveCount(0);
 
     await openFilters(page);
     await page.locator('[data-testid="patterns-direction-bearish"]').click();
-    await page.locator('[data-testid="patterns-filters-done"]').click();
+    await applyFilters(page);
 
     await expect(page.locator('[data-testid="patterns-open-filters"]')).toContainText("Filters (1)");
     const applied = page.getByTestId("patterns-applied-filters");
@@ -801,26 +839,31 @@ test.describe("Chart Patterns page", () => {
 
     await chip.locator(".MuiChip-deleteIcon").click();
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
-    await expect(applied).toHaveCount(0);
+    await expect(page.getByTestId("patterns-applied-filter-direction:bearish")).toHaveCount(0);
   });
 
   test("applied-filter Clear all resets the grid", async ({ page }) => {
     await openFilters(page);
     await page.locator('[data-testid="patterns-direction-bearish"]').click();
-    await page.locator('[data-testid="patterns-filters-done"]').click();
+    await applyFilters(page);
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(1);
 
     await page.locator('[data-testid="patterns-applied-clear-all"]').click();
     await expect(page.locator('[data-testid="patterns-card"]')).toHaveCount(3);
-    await expect(page.getByTestId("patterns-applied-filters")).toHaveCount(0);
+    // Clear all resets to defaults; only the default volume-floor chip remains.
+    await expect(page.getByTestId("patterns-applied-filter-direction:bearish")).toHaveCount(0);
     await expect(page.locator('[data-testid="patterns-open-filters"]')).toHaveText("Filters");
   });
 
   test("fullscreen draws the selected instance once with no duplicate sibling", async ({ page }) => {
     // Last-registered handler wins: the payload echoes the selected instance
-    // (same pattern_id + start_date) plus one genuinely different overlay.
-    // Instance-aware sibling skipping must hide the echo, so the legend shows
-    // "Falling Wedge" once and never "Falling Wedge (2)".
+    // (same symbol/timeframe/pattern_id/start_date/end_date, id null as live
+    // detection returns) plus one genuinely different hit. The fullscreen
+    // draws a single pattern (no dashed siblings), and instance-aware merging
+    // must collapse the echo, so the legend shows "Falling Wedge" once and the
+    // pattern list shows two rows (never a duplicate "Falling Wedge").
+    // NOTE: `overlays` are intentionally never drawn (single-pattern design);
+    // the sibling-skip mapper itself is covered by unit tests.
     await page.route(apiRoute("chart-patterns/symbol/[^/]+/chart"), async (route) => {
       const url = new URL(route.request().url());
       const parts = url.pathname.split("/");
@@ -832,18 +875,19 @@ test.describe("Chart Patterns page", () => {
           symbol,
           timeframe: url.searchParams.get("timeframe") || "1D",
           candles: candlesFor(symbol),
-          overlays: [
+          overlays: [],
+          hits: [
+            { ...allHits[0], id: null },
             {
-              pattern_id: "falling_wedge",
-              pattern_name: "Falling Wedge",
-              start_date: "2026-04-26",
-              trendlines: allHits[0].trendlines,
-            },
-            {
+              ...allHits[0],
+              id: 201,
               pattern_id: "ascending_channel",
               pattern_name: "Ascending Channel",
+              family: "continuation",
+              direction: "bullish",
+              status: "forming",
               start_date: "2026-06-01",
-              trendlines: allHits[0].trendlines,
+              end_date: "2026-06-20",
             },
           ],
         }),
@@ -855,10 +899,16 @@ test.describe("Chart Patterns page", () => {
     await card.click();
     await expect(page.locator('[data-testid="patterns-fullscreen-modal"]')).toBeVisible();
 
-    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("Falling Wedge");
-    await expect.poll(async () => fullscreenSeriesNames(page), { timeout: 15000 }).toContain("Ascending Channel");
-    const names = await fullscreenSeriesNames(page);
+    // The chart draws the selected instance exactly once.
+    await expect.poll(async () => fullscreenLegendNames(page), { timeout: 15000 }).toContain("Falling Wedge");
+    const names = await fullscreenLegendNames(page);
     expect(names.filter((name) => name === "Falling Wedge")).toHaveLength(1);
     expect(names).not.toContain("Falling Wedge (2)");
+
+    // The pattern list merged the echo: two rows, no duplicate.
+    const list = page.locator('[data-testid="patterns-fullscreen-list"]');
+    await expect(list.locator('[data-testid^="patterns-fullscreen-list-item-"]')).toHaveCount(2);
+    await expect(page.locator('[data-testid="patterns-fullscreen-list-item-0"]')).toContainText("Falling Wedge");
+    await expect(page.locator('[data-testid="patterns-fullscreen-list-item-1"]')).toContainText("Ascending Channel");
   });
 });
