@@ -24,10 +24,16 @@ def _boom_on_b(symbol: str):
 
 
 def test_max_workers_bounds():
-    assert 1 <= par.max_workers() <= 8
+    # The default cap is max(1, cpu-2), NOT 8, so these must be expressed in
+    # terms of cpu_count() — asserting a literal 8 only passed on a 10-core box
+    # (8-2 == 8) and failed on both smaller and larger machines.
+    cpu = os.cpu_count() or 1
+    assert 1 <= par.max_workers() <= max(1, cpu)
     assert par.max_workers(cap=2) <= 2
     assert par.max_workers(cap=0) >= 1
-    assert par.max_workers() == min(os.cpu_count() or 1, 8)
+    # Explicit cap: the documented contract is min(cpu_count(), cap).
+    assert par.max_workers(cap=8) == min(cpu, 8)
+    assert par.max_workers(cap=1) == 1
 
 
 def test_supports_processes_is_fork_check():
