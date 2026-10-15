@@ -1,4 +1,5 @@
 import os
+import re
 from typing import Optional, Dict, Any, List
 
 from api.utils import _to_float, _sanitize_for_json
@@ -12,6 +13,76 @@ def touched_52w_gap_threshold_pct() -> float:
     return float(os.environ.get('SCREENER_52W_TOUCHED_GAP_PCT', '1.0'))
 
 
+def exclude_etfs_from_screener() -> bool:
+    """When True (default), ETF/liquid-fund symbols are dropped from screener output."""
+    return os.environ.get('SCREENER_EXCLUDE_ETFS', '1').lower() not in ('0', 'false', 'no')
+
+
+# Liquid/overnight fund names that don't match the generic ETF/BEES/LIQUID rules.
+_ETF_EXACT_SYMBOLS = frozenset({
+    'AONELIQUID',
+    'GROWWLIQID',
+    'LIQUIDSHRI',
+    'LIQUIDCASE',
+    'ELIQUID',
+    'LIQUIDBETA',
+    'LIQUIDSBI',
+    'HDFCLIQUID',
+    'SBILIQETF',
+})
+
+
+def is_likely_etf(symbol: Optional[str]) -> bool:
+    """Heuristic ETF detection for NSE symbols (liquid funds, BEES, *ETF naming)."""
+    s = re.sub(r'[^A-Z0-9]', '', str(symbol or '').upper())
+    if not s:
+        return False
+    if s in _ETF_EXACT_SYMBOLS:
+        return True
+    if 'ETF' in s:
+        return True
+    if s.endswith('BEES'):
+        return True
+    if s.startswith('LIQUID'):
+        return True
+    return False
+
+
+def touch_eps_pct() -> float:
+    """A daily high within this % of the 52W high counts as a touch."""
+    return float(os.environ.get('SCREENER_52W_TOUCH_EPS_PCT', '0.5'))
+
+
+def retest_window_days() -> int:
+    """A touch within this many days + now below high => 'retest' (else 'fresh')."""
+    return int(os.environ.get('SCREENER_RETEST_WINDOW_DAYS', '5'))
+
+
+def classify_approach(touched_now: bool, days_since_touch: Optional[int], window_days: Optional[int] = None) -> str:
+    """Bucket a near-high row as 'touched' | 'retest' | 'fresh'.
+
+    days_since_touch None means no touch found in the bar lookback => fresh
+    (callers omit the field entirely when no bar check was performed).
+    """
+    if touched_now:
+        return 'touched'
+    w = window_days if window_days is not None else retest_window_days()
+    if days_since_touch is not None and days_since_touch <= w:
+        return 'retest'
+    return 'fresh'
+
+
+def has_live_data(stock: dict) -> bool:
+    """False when TV enrichment missed entirely (RSI/ADX/volume all zero)."""
+    if _to_float(stock.get('volume_m'), 0) > 0:
+        return True
+    if _to_float(stock.get('rsi'), 0) > 0:
+        return True
+    if _to_float(stock.get('adx'), 0) > 0:
+        return True
+    return False
+
+
 def gap_pct_to_52w_high(high: float, price: float) -> Optional[float]:
     """Percent below 52W high (negative = price above high). None if inputs invalid."""
     if high <= 0 or price <= 0:
@@ -22,6 +93,39 @@ def gap_pct_to_52w_high(high: float, price: float) -> Optional[float]:
 def is_within_52w_touch_gap(gap_pct: float, threshold_pct: Optional[float] = None) -> bool:
     th = threshold_pct if threshold_pct is not None else touched_52w_gap_threshold_pct()
     return gap_pct < th
+
+
+#: A row whose price sits more than this far ABOVE its recorded 52W high
+#: (gap < -STALE) is treated as a stale-high data error, not a breakout.
+#: Genuine breakouts sit at gap ≈ 0% to slightly negative; a −10%/−20% gap
+#: means the stored high disagrees with the live price feed.
+STALE_52W_BREAKOUT_PCT = 5.0
+
+
+def is_plausible_52w_gap(gap_pct: Optional[float]) -> bool:
+    """False for stale-high rows (gap far negative) or invalid input."""
+    if gap_pct is None:
+        return False
+    try:
+        gap = float(gap_pct)
+    except (TypeError, ValueError):
+        return False
+    import math
+    if not math.isfinite(gap):
+        return False
+    return gap >= -STALE_52W_BREAKOUT_PCT
+def min_52w_volume_m() -> float:
+    """Default minimum volume (M shares) for 52w_high candidates.
+
+    Thin names (e.g. 52-share days) are dropped right after TV enrichment,
+    before any per-symbol Upstox fetch. 0.0 disables.
+    """
+    return float(os.environ.get('SCREENER_52W_MIN_VOLUME_M', '0.0'))
+
+
+def min_52w_turnover_cr() -> float:
+    """Default minimum turnover (Rs Cr) for 52w_high candidates. See above."""
+    return float(os.environ.get('SCREENER_52W_MIN_TURNOVER_CR', '0.5'))
 
 
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high', '52w_high'}
@@ -99,10 +203,12 @@ PROFILE_META = {
         'section_labels': {'primary': '🎯 APPROACHING 52W HIGH', 'secondary': '✅ TOUCHED 52W HIGH'},
         'section_descriptions': {
             'primary': 'Stocks nearing 52-week high using Upstox-computed ranges (no TradingView)',
-            'secondary': 'At or within 1% of Upstox 52-week high (gap < 1%); Days Ago = last touch of the high',
+            'secondary': 'At or within 1% of Upstox 52-week high (gap < 1%); Days Ago = sessions since last within 2% of the high',
         },
         'filters': [
             {'key': 'max_52w_gap', 'label': '52W Gap ≤', 'type': 'number', 'min': -5, 'max': 20, 'step': 0.1, 'default': 5},
+            {'key': 'min_volume_m', 'label': 'Vol M ≥', 'type': 'number', 'min': 0, 'max': 200, 'step': 0.05, 'default': 0.0},
+            {'key': 'min_turnover_cr', 'label': 'Turnover Cr ≥', 'type': 'number', 'min': 0, 'max': 5000, 'step': 0.5, 'default': 0.5},
         ],
         'default_sort': {'column': 'to_52w_high', 'direction': 'asc'},
         'score_formula': 'Proximity to 52W high (100 − gap%) + optional volume',

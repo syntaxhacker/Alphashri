@@ -1,6 +1,5 @@
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
-import { Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl } from "@/ui";
+import { Text, ActionIcon, NumberInput, Select, Tooltip, SegmentedControl, ToolbarRow } from "@/ui";
 import { IconRefresh } from "@tabler/icons-react";
 
 type ScreenerViewMode = "table" | "heatmap";
@@ -18,6 +17,7 @@ interface ScreenerHeaderProps {
   viewMode: ScreenerViewMode;
   onViewModeChange: (value: ScreenerViewMode) => void;
   hideStatus?: boolean;
+  disableControls?: boolean;
 }
 
 export function ScreenerHeader({
@@ -33,6 +33,7 @@ export function ScreenerHeader({
   viewMode,
   onViewModeChange,
   hideStatus = false,
+  disableControls = isLoading,
 }: ScreenerHeaderProps) {
   return (
     <Box
@@ -47,7 +48,7 @@ export function ScreenerHeader({
           </Text>
         </Box>
       )}
-      <Stack direction="row" alignItems="center" spacing={1} data-testid="header-controls" sx={{ flexShrink: 0, flexWrap: "nowrap", alignItems: "center" }}>
+      <ToolbarRow data-testid="header-controls" gap={8} wrap={false} style={{ flexShrink: 0 }}>
           <Tooltip label="Refresh">
             <ActionIcon
               variant="subtle"
@@ -68,7 +69,7 @@ export function ScreenerHeader({
             step={10}
             w={64}
             size="xs"
-            disabled={isLoading}
+            disabled={disableControls}
             data-testid="auto-refresh-input"
             aria-label="Auto-refresh seconds"
           />
@@ -81,7 +82,7 @@ export function ScreenerHeader({
             ]}
             size="xs"
             w={96}
-            disabled={isLoading}
+            disabled={disableControls}
             data-testid="provider-select"
             comboboxProps={{ withinPortal: true }}
           />
@@ -94,7 +95,7 @@ export function ScreenerHeader({
             ]}
             size="xs"
             w={96}
-            disabled={isLoading}
+            disabled={disableControls}
             data-testid="mode-select"
             comboboxProps={{ withinPortal: true }}
           />
@@ -108,7 +109,7 @@ export function ScreenerHeader({
             ]}
             data-testid="screener-view-toggle"
           />
-        </Stack>
+      </ToolbarRow>
     </Box>
   );
 }

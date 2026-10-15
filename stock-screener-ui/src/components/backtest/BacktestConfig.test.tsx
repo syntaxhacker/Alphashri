@@ -60,6 +60,7 @@ function defaultProps(overrides: Partial<BacktestConfigProps> = {}): BacktestCon
     onSymbolsChange: vi.fn(),
     onReset: vi.fn(),
     onRun: vi.fn(),
+    onRunAndSave: vi.fn(),
     ...overrides,
   };
 }
@@ -172,13 +173,13 @@ describe("BacktestConfig", () => {
     expect(screen.getByTestId("reset-btn")).toBeInTheDocument();
   });
 
-  it("selecting 'Run & Save to History' calls onSaveToHistoryChange and onRun", async () => {
+  it("selecting 'Run & Save to History' calls onSaveToHistoryChange and onRunAndSave", async () => {
       const user = userEvent.setup();
-    const onRun = vi.fn();
+    const onRunAndSave = vi.fn();
     const onSaveToHistoryChange = vi.fn();
     render(
       <BacktestConfig
-        {...defaultProps({ onRun, onSaveToHistoryChange, selectedSymbols: ["TCS"] })}
+        {...defaultProps({ onRunAndSave, onSaveToHistoryChange, selectedSymbols: ["TCS"] })}
       />,
       { wrapper: Wrapper },
     );
@@ -186,7 +187,7 @@ describe("BacktestConfig", () => {
     const menuItem = await screen.findByTestId("menu-run-save");
     menuItem.click();
     expect(onSaveToHistoryChange).toHaveBeenCalledWith(true);
-    expect(onRun).toHaveBeenCalled();
+    expect(onRunAndSave).toHaveBeenCalled();
   });
 
   it("selecting 'Reset Config' calls onReset", async () => {

@@ -48,24 +48,26 @@ export function SymbolChips({
 
   return (
     <>
-      <Group gap={4}>
-        <MultiSelect
-          id="symbol-multiselect"
-          className="config-symbol-multiselect"
-          data={symbolOptions}
-          value={selectedSymbols}
-          onChange={onSymbolsChange}
-          searchable
-          searchValue={symbolSearch}
-          onSearchChange={setSymbolSearch}
-          clearable
-          hidePickedOptions
-          size="sm"
-          flex={1}
-          nothingFoundMessage="No symbols found"
-          maxDropdownHeight={200}
-          data-testid="symbol-multiselect"
-        />
+      <Group gap={4} align="center" flex={1} miw={0}>
+        <Box sx={{ flex: 1, minWidth: 0 }}>
+          <MultiSelect
+            id="symbol-multiselect"
+            className="config-symbol-multiselect"
+            data={symbolOptions}
+            value={selectedSymbols}
+            onChange={onSymbolsChange}
+            searchable
+            searchValue={symbolSearch}
+            onSearchChange={setSymbolSearch}
+            clearable
+            hidePickedOptions
+            size="sm"
+            style={{ width: "100%" }}
+            nothingFoundMessage="No symbols found"
+            maxDropdownHeight={200}
+            data-testid="symbol-multiselect"
+          />
+        </Box>
         {selectedSymbols.length > 0 && (
           <Tooltip label="Clear all symbols">
             <ActionIcon
@@ -91,6 +93,7 @@ export function SymbolChips({
               variant="outline"
               size="sm"
               className="symbol-chip"
+              sx={{ color: "var(--mui-palette-text-primary)", borderColor: "var(--mui-palette-divider)" }}
               rightSection={<IconX size={10} onClick={() => handleRemoveSymbol(symbol)} />}
               data-testid={`chip-${symbol}`}
             >
@@ -106,6 +109,7 @@ export function SymbolChips({
               onClick={() => setSymbolsExpanded(true)}
               rightSection={<IconChevronDown size={10} />}
               data-testid="symbol-expand-more-btn"
+              sx={{ color: "var(--mui-palette-text-secondary)" }}
             >
               +{hiddenCount} more
             </Badge>
@@ -119,6 +123,7 @@ export function SymbolChips({
               onClick={() => setSymbolsExpanded(false)}
               rightSection={<IconChevronUp size={10} />}
               data-testid="symbol-expand-less-btn"
+              sx={{ color: "var(--mui-palette-text-secondary)" }}
             >
               Less
             </Badge>

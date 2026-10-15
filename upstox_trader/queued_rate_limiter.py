@@ -7,8 +7,15 @@ in FIFO order as capacity opens up — no more RateLimitExceeded errors.
 Uses a ThreadPoolExecutor so the rate-limited dispatch happens on a
 bounded set of workers while the global Redis-backed rate limiter
 (UpstoxRateLimiter) governs the actual throughput across processes.
+
+Sizing note: the default pool is 20 workers.  At a typical ~2s Upstox
+per-call latency that sustains roughly 20 × 1/2s ≈ 10 req/s, comfortably
+under the Redis sliding-window budget of 50 req/s (500 req/min).  The
+limiter — not the pool — stays the binding constraint, and the pool can
+be tuned without a code change via ``UPSTOX_RL_MAX_WORKERS``.
 """
 
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -16,12 +23,51 @@ from typing import Optional
 
 import requests
 
-from upstox_trader.rate_limiter import UpstoxRateLimiter
+from upstox_trader.rate_limiter import UpstoxRateLimiter, resolve_consumer
 
 # Max seconds a request waits for the 429 circuit breaker before failing fast.
 # Short so a persistently-open circuit (Cloudflare block) fails each request
 # quickly and the scan loop logs a skip rather than freezing the bot.
 _CIRCUIT_WAIT_MAX = 10.0
+
+# Default worker pool size.  Overridable via UPSTOX_RL_MAX_WORKERS.
+# 20 workers × ~2s per-call latency ≈ 10 req/s sustained, well under the
+# 50 req/s Redis sliding-window budget (see estimated_rps helper below).
+DEFAULT_MAX_WORKERS = 20
+MAX_WORKERS_ENV_VAR = "UPSTOX_RL_MAX_WORKERS"
+
+# Hard ceiling on the per-second budget enforced by UpstoxRateLimiter.
+RATE_BUDGET_PER_SECOND = 50
+
+
+def resolve_max_workers(explicit: Optional[int] = None) -> int:
+    """Resolve the pool size: explicit arg wins, else env, else default."""
+    if explicit is not None:
+        return int(explicit)
+    raw = os.getenv(MAX_WORKERS_ENV_VAR, "")
+    try:
+        parsed = int(raw)
+        if parsed > 0:
+            return parsed
+    except (TypeError, ValueError):
+        pass
+    return DEFAULT_MAX_WORKERS
+
+
+def estimated_rps(max_workers: int, per_call_latency_s: float) -> float:
+    """Sustained req/s for N workers at a given per-call latency (Little's law)."""
+    if per_call_latency_s <= 0:
+        return float("inf")
+    return max_workers / per_call_latency_s
+
+
+def within_rate_budget(
+    max_workers: int,
+    per_call_latency_s: float,
+    budget_rps: float = RATE_BUDGET_PER_SECOND,
+) -> bool:
+    """True when the pool's sustained throughput stays under the limiter budget."""
+    return estimated_rps(max_workers, per_call_latency_s) < budget_rps
 
 
 class CircuitOpenError(requests.ConnectionError):
@@ -46,12 +92,14 @@ class QueuedRateLimiter:
     (via thread-local storage) so that ``cancel_last()`` tracks the
     correct timestamp — no cross-thread race on ``_last_added``.
     The Redis Lua script is still shared atomically across all
-    threads via the same ``upstox:rl:hits`` key.
+    threads via the ``upstox:rl:hits`` global key plus the
+    ``upstox:rl:hits:{consumer}`` per-consumer slice key.
 
     Parameters
     ----------
     max_workers:
-        How many HTTP requests can be in-flight at once.
+        How many HTTP requests can be in-flight at once.  ``None`` (default)
+        resolves via ``UPSTOX_RL_MAX_WORKERS`` env var, falling back to 20.
     max_pending:
         How many requests may sit in the queue before caller-backpressure
         kicks in.  ``0`` means unbounded.
@@ -60,28 +108,59 @@ class QueuedRateLimiter:
         raising requests.Timeout.  Default 30s — kept short so a saturated
         window fails fast instead of freezing the caller (bots, scans).
         0 = no limit.
+    consumer:
+        Rate-limit budget slice (``api`` / ``bot`` / ``orderflow``).
+        ``None`` (default) resolves via ``UPSTOX_RL_CONSUMER`` env var
+        (else the process-role autodetect, else ``"default"``) — see
+        ``upstox_trader.rate_limiter.resolve_consumer``.
     """
 
     def __init__(
         self,
-        max_workers: int = 5,
+        max_workers: Optional[int] = None,
         max_pending: int = 0,
         max_wait_time: float = 30.0,
+        consumer: Optional[str] = None,
     ):
+        self._max_workers = resolve_max_workers(max_workers)
         self._max_pending = max_pending
         self._max_wait_time = max_wait_time
-        self._executor = ThreadPoolExecutor(max_workers=max_workers)
+        self._consumer = resolve_consumer(consumer)
+        self._executor = ThreadPoolExecutor(max_workers=self._max_workers)
         self._tls = threading.local()
         self._pending_count = 0
         self._pending_lock = threading.Lock()
+
+    @property
+    def max_workers(self) -> int:
+        """Effective worker pool size (resolved from arg or env)."""
+        return self._max_workers
+
+    @property
+    def consumer(self) -> str:
+        """Effective rate-limit consumer slice for this limiter."""
+        return self._consumer
 
     def _thread_rl(self) -> UpstoxRateLimiter:
         """Return a thread-local UpstoxRateLimiter (one per worker)."""
         rl = getattr(self._tls, "rl", None)
         if rl is None:
-            rl = UpstoxRateLimiter()
+            rl = UpstoxRateLimiter(consumer=self._consumer)
             self._tls.rl = rl
         return rl
+
+    def _thread_session(self) -> requests.Session:
+        """Return a thread-local persistent Session (one per worker).
+
+        Reuses the underlying TCP/TLS connection across calls instead of
+        paying a fresh handshake per request (``requests.request`` builds a
+        throwaway Session each time).
+        """
+        session = getattr(self._tls, "session", None)
+        if session is None:
+            session = requests.Session()
+            self._tls.session = session
+        return session
 
     def _wait_for_circuit(self) -> None:
         """Wait briefly while the shared 429 circuit breaker is open.
@@ -144,7 +223,7 @@ class QueuedRateLimiter:
                             f"Rate limit queue exceeded max wait time ({self._max_wait_time}s)"
                         )
                     time.sleep(0.5)
-                response = requests.request(method, url, **kwargs_copy)
+                response = self._thread_session().request(method, url, **kwargs_copy)
                 if response.status_code == 429:
                     rl.cancel_last()
                     rl.record_failure()

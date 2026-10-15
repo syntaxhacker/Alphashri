@@ -1,22 +1,24 @@
-import { Alert } from "@/ui";
-import Container from "@mui/material/Container";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Box from "@mui/material/Box";
-import Grid from "@mui/material/Grid";
-import Stack from "@mui/material/Stack";
+import { Alert, Box, Text } from "@/ui";
 import { IconAlertCircle } from "@tabler/icons-react";
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { useBacktestQueryParams } from "../../hooks/useBacktestQueryParams";
-import { BacktestConfig } from ".";
-import { BacktestLeftPanel, BacktestRightPanel } from "./BacktestPanels";
+import { BacktestConfig, BacktestProgress, TradeHistoryTable } from ".";
+import { BacktestLeftPanel } from "./BacktestPanels";
+import { BacktestToolbar } from "./BacktestToolbar";
+import { BacktestRightRail } from "./BacktestRightRail";
+import { CollapsiblePanel } from "./CollapsiblePanel";
+import { BacktestTradeCharts } from "./BacktestTradeCharts";
+import { ChartErrorBoundary } from "./ChartErrorBoundary";
+import { BacktestEdgePanel } from "./BacktestEdgePanel";
+import { DEFAULT_TRADE_FILTERS, type TradeFilters } from "./tradeFilters";
+import { useBacktestLayout } from "./useBacktestLayout";
 import { zoomToTrade } from "./BacktestChart";
+import { BacktestChartTabs } from "./BacktestChartTabs";
 import {
   getBacktestState,
   subscribe,
   setSelectedChartSymbol,
-  setShowCharts,
   setChartOptions,
   setTradeHistory,
   setError,
@@ -44,28 +46,12 @@ function sortResults(results: any[] | null, column: string, direction: "asc" | "
     let aVal: number | string;
     let bVal: number | string;
     switch (column) {
-      case "symbol":
-        aVal = a.symbol;
-        bVal = b.symbol;
-        break;
-      case "net_pnl":
-        aVal = a.net_pnl;
-        bVal = b.net_pnl;
-        break;
-      case "trades":
-        aVal = a.trades;
-        bVal = b.trades;
-        break;
-      case "win_rate":
-        aVal = a.win_rate;
-        bVal = b.win_rate;
-        break;
-      case "pf":
-        aVal = a.pf;
-        bVal = b.pf;
-        break;
-      default:
-        return 0;
+      case "symbol": aVal = a.symbol; bVal = b.symbol; break;
+      case "net_pnl": aVal = a.net_pnl; bVal = b.net_pnl; break;
+      case "trades": aVal = a.trades; bVal = b.trades; break;
+      case "win_rate": aVal = a.win_rate; bVal = b.win_rate; break;
+      case "pf": aVal = a.pf; bVal = b.pf; break;
+      default: return 0;
     }
     if (typeof aVal === "string" && typeof bVal === "string") {
       return direction === "asc" ? aVal.localeCompare(bVal) : bVal.localeCompare(aVal);
@@ -79,49 +65,34 @@ function sortResults(results: any[] | null, column: string, direction: "asc" | "
 function useSortHandlers() {
   const [column, setColumn] = useState("net_pnl");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
-  const handleSort = useCallback(
-    (col: string) => {
-      if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
-      else {
-        setColumn(col);
-        setDirection("desc");
-      }
-    },
-    [column],
-  );
+  const handleSort = useCallback((col: string) => {
+    if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
+    else { setColumn(col); setDirection("desc"); }
+  }, [column]);
   return { column, direction, handleSort };
 }
 
 function useTradeSortHandlers() {
   const [column, setColumn] = useState("entry_time");
   const [direction, setDirection] = useState<"asc" | "desc">("desc");
-  const handleSort = useCallback(
-    (col: string) => {
-      if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
-      else {
-        setColumn(col);
-        setDirection("desc");
-      }
-    },
-    [column],
-  );
+  const handleSort = useCallback((col: string) => {
+    if (column === col) setDirection((d) => (d === "asc" ? "desc" : "asc"));
+    else { setColumn(col); setDirection("desc"); }
+  }, [column]);
   return { column, direction, handleSort };
 }
 
-function highlightTradeRow(tradeIndex: number) {
-  const row = document.querySelector(`[data-trade-number="${tradeIndex + 1}"]`) as HTMLElement;
-  if (!row) {
-    return;
-  }
-  document
-    .querySelectorAll(".trade-row-highlighted")
-    .forEach((el) => el.classList.remove("trade-row-highlighted"));
+function highlightTradeRow(tradeNumber: number, scope?: ParentNode | null, doScroll = true) {
+  const root: ParentNode = scope ?? document;
+  const row = root.querySelector(`[data-trade-number="${tradeNumber}"]`) as HTMLElement;
+  if (!row) return;
+  document.querySelectorAll(".trade-row-highlighted").forEach((el) => el.classList.remove("trade-row-highlighted"));
   row.classList.add("trade-row-highlighted");
-  row.scrollIntoView({ behavior: "smooth", block: "center" });
+  if (doScroll) row.scrollIntoView({ behavior: "smooth", block: "center" });
   setTimeout(() => row.classList.remove("trade-row-highlighted"), 3000);
 }
 
-function useBacktestEffects(state: any, setActiveTab: (tab: string | null) => void) {
+function useBacktestEffects(state: any) {
   useEffect(() => {
     fetchStrategies();
     fetchVariations();
@@ -130,22 +101,16 @@ function useBacktestEffects(state: any, setActiveTab: (tab: string | null) => vo
   }, []);
 
   useEffect(() => {
-    if (state.isRunning) setActiveTab("results");
-  }, [state.isRunning]);
-
-  useEffect(() => {
     if (state.results && state.results.length > 0 && !state.selectedChartSymbol) {
       const firstSymbol = state.results[0].symbol;
       setSelectedChartSymbol(firstSymbol);
       const chartData = state.chartData.get(firstSymbol);
-      if (chartData && chartData.trades && chartData.trades.length > 0) {
-        setTradeHistory(chartTradesToTrades(chartData.trades), firstSymbol);
-      }
+      setTradeHistory(chartData?.trades?.length ? chartTradesToTrades(chartData.trades) : [], firstSymbol);
     }
   }, [state.results, state.selectedChartSymbol, state.chartData]);
 }
 
-function useBacktestActions(state: any) {
+function useBacktestActions(state: any, chartMode: "all" | "trades") {
   const [saveToHistory, setSaveToHistory] = useState(true);
   const [selectedTf, setSelectedTf] = useState<string>("");
   const resultsSort = useSortHandlers();
@@ -156,27 +121,43 @@ function useBacktestActions(state: any) {
     [state.results, resultsSort.column, resultsSort.direction],
   );
 
-  const handleRunBacktest = useCallback(() => runBacktest(saveToHistory), [saveToHistory]);
+  const handleRunBacktest = useCallback(() => runBacktest(false), []);
+  const handleRunAndSave = useCallback(() => runBacktest(true), []);
 
   const handleViewChartAndTrades = useCallback((symbol: string) => {
-    setShowCharts(true);
     setSelectedChartSymbol(symbol);
     const currentState = getBacktestState();
     const chartData = currentState.chartData.get(symbol);
-    if (chartData && chartData.trades && chartData.trades.length > 0) {
-      setTradeHistory(chartTradesToTrades(chartData.trades), symbol);
+    // Always update the history (even empty) so panels never show another symbol's trades.
+    setTradeHistory(chartData?.trades?.length ? chartTradesToTrades(chartData.trades) : [], symbol);
+    // Keep the timeframe selection consistent with the newly selected symbol.
+    if (selectedTf) {
+      const tfNum = parseInt(selectedTf, 10);
+      if (!Number.isNaN(tfNum)) fetchChartData(symbol, tfNum);
     }
-  }, []);
+  }, [selectedTf]);
 
   const handleZoomToTrade = useCallback(
-    (tradeIndex: number) => {
+    (tradeNumber: number) => {
+      if (chartMode === "trades") {
+        // Per-trade view: scroll the matching trade row into view (instant + exact,
+        // so distant rows don't appear to "not scroll").
+        const scroller = document.querySelector('[data-testid="trade-charts"]') as HTMLElement | null;
+        const el = scroller?.querySelector(`[data-trade-number="${tradeNumber}"]`) as HTMLElement | null;
+        if (scroller && el) {
+          const delta = el.getBoundingClientRect().top - scroller.getBoundingClientRect().top;
+          scroller.scrollTop += delta - 8;
+        }
+        highlightTradeRow(tradeNumber, scroller, false);
+        return;
+      }
       const chartData = state.selectedChartSymbol
         ? state.chartData.get(state.selectedChartSymbol)
         : undefined;
-      zoomToTrade(state.selectedChartSymbol || "", tradeIndex, chartData);
-      highlightTradeRow(tradeIndex);
+      zoomToTrade(state.selectedChartSymbol || "", tradeNumber, chartData);
+      highlightTradeRow(tradeNumber, document.querySelector('[data-testid="trade-history-table"]'), false);
     },
-    [state.selectedChartSymbol, state.chartData],
+    [state.selectedChartSymbol, state.chartData, chartMode],
   );
 
   const handleTfChange = useCallback(
@@ -191,120 +172,16 @@ function useBacktestActions(state: any) {
   );
 
   return {
-    saveToHistory,
-    setSaveToHistory,
-    resultsSort,
-    tradeSort,
-    sortedResults,
-    handleRunBacktest,
-    handleViewChartAndTrades,
-    handleZoomToTrade,
-    selectedTf,
-    handleTfChange,
+    saveToHistory, setSaveToHistory, resultsSort, tradeSort, sortedResults,
+    handleRunBacktest, handleRunAndSave, handleViewChartAndTrades, handleZoomToTrade,
+    selectedTf, handleTfChange,
   };
 }
 
-function BacktestPageConfig({ state, actions }: { state: any; actions: any }) {
+function EmptyPanel({ children, testId }: { children: string; testId?: string }) {
   return (
-    <Box sx={{ flex: "0 0 auto", mb: 2, display: "flex", justifyContent: "center" }} id="backtest-config-section">
-      <Box sx={{ width: "100%", maxWidth: 1600 }}>
-        <BacktestConfig
-          strategies={state.strategies}
-          variations={state.variations}
-          selectedStrategy={state.selectedStrategy}
-          selectedVariation={state.selectedVariation}
-          params={state.params}
-          selectedSymbols={state.selectedSymbols}
-          days={state.days}
-          includeCosts={state.includeCosts}
-          isRunning={state.isRunning}
-          onStrategyChange={setSelectedStrategy}
-          onVariationChange={setSelectedVariation}
-          onParamChange={setParam}
-          onDaysChange={setDays}
-          onIncludeCostsChange={setIncludeCosts}
-          onSymbolsChange={setSelectedSymbols}
-          onReset={resetBacktestState}
-          onRun={actions.handleRunBacktest}
-          saveToHistory={actions.saveToHistory}
-          onSaveToHistoryChange={actions.setSaveToHistory}
-        />
-      </Box>
-    </Box>
-  );
-}
-
-function BacktestPanels({
-  state,
-  holidayState,
-  actions,
-  symbols,
-  activeTab,
-  setActiveTab,
-}: {
-  state: any;
-  holidayState: any;
-  actions: any;
-  symbols: string[];
-  activeTab: string | null;
-  setActiveTab: (tab: string | null) => void;
-}) {
-  return (
-    <Box sx={{ display: "flex", justifyContent: "center", flex: 1, minHeight: 0, gap: 2 }} id="backtest-panels">
-      <Grid container spacing={2} sx={{ flex: 1, maxWidth: 1600, minHeight: 0, justifyContent: "center", alignItems: "stretch", gap: 2 }}>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-left-panel">
-            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
-              <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "center" }}>
-                <BacktestLeftPanel
-                  activeTab={activeTab}
-                  setActiveTab={setActiveTab}
-                  isRunning={state.isRunning}
-                  progress={state.progress}
-                  results={state.results}
-                  totals={state.totals}
-                  selectedChartSymbol={state.selectedChartSymbol}
-                  sortedResults={actions.sortedResults}
-                  resultsSortColumn={actions.resultsSort.column}
-                  resultsSortDirection={actions.resultsSort.direction}
-                  onRowClick={actions.handleViewChartAndTrades}
-                  onSort={actions.resultsSort.handleSort}
-                />
-              </CardContent>
-            </Card>
-          </Box>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <Box sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }} id="backtest-right-panel">
-            <Card elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, width: "100%" }}>
-              <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, "&:last-child": { pb: 1 }, alignItems: "center" }}>
-                <BacktestRightPanel
-                  showCharts={state.showCharts}
-                  results={state.results}
-                  symbols={symbols}
-                  selectedChartSymbol={state.selectedChartSymbol}
-                  onSymbolSelect={setSelectedChartSymbol}
-                  zoomValue={state.chartOptions.date_range}
-                  onZoomChange={(value) => setChartOptions({ date_range: value as any })}
-                  chartDataMap={state.chartData}
-                  chartLoading={state.chartLoading}
-                  onTradeClick={actions.handleZoomToTrade}
-                  holidays={holidayState.holidays}
-                  tradeHistory={state.tradeHistory}
-                  tradeHistorySymbol={state.tradeHistorySymbol}
-                  tradeSortColumn={actions.tradeSort.column}
-                  tradeSortDirection={actions.tradeSort.direction}
-                  onTradeSort={actions.tradeSort.handleSort}
-                  onTradeRowClick={actions.handleZoomToTrade}
-                  onCloseTradeHistory={() => setTradeHistory(null, null)}
-                  selectedTf={actions.selectedTf}
-                  onTfChange={actions.handleTfChange}
-                />
-              </CardContent>
-            </Card>
-          </Box>
-        </Grid>
-      </Grid>
+    <Box sx={{ p: 1.5 }} data-testid={testId}>
+      <Text size="xs" c="dimmed">{children}</Text>
     </Box>
   );
 }
@@ -315,36 +192,209 @@ export function BacktestPage() {
   useBacktestQueryParams();
   const state = getBacktestState();
   const holidayState = getHolidayState();
-  const [activeTab, setActiveTab] = useState<string | null>("results");
-  const actions = useBacktestActions(state);
-  useBacktestEffects(state, setActiveTab);
-  const symbols = state.results?.map((r) => r.symbol) ?? [];
+  const [activeTab, setActiveTab] = useState<string>("results");
+  const [tradeFilters, setTradeFilters] = useState<TradeFilters>(DEFAULT_TRADE_FILTERS);
+  const layout = useBacktestLayout();
+  const actions = useBacktestActions(state, layout.chartMode);
+  useBacktestEffects(state);
+  const { panels, togglePanel, openPanel } = layout;
+  const symbols = state.results?.map((r: any) => r.symbol) ?? [];
+  const hasResults = Boolean(state.results && state.results.length > 0);
+  const hasTrades = Boolean(state.tradeHistory && state.tradeHistorySymbol);
+
+  useEffect(() => { if (hasResults) openPanel("results"); }, [hasResults, openPanel]);
+  useEffect(() => { if (hasTrades) openPanel("trades"); }, [hasTrades, openPanel]);
+
+  const strategyLabel = useMemo(() => {
+    const v = state.variations.find((x: any) => x.id === state.selectedVariation);
+    return v ? `${v.name} (${v.strategy_type})` : state.selectedStrategy;
+  }, [state.variations, state.selectedVariation, state.selectedStrategy]);
+
+  const strategyType = useMemo(() => {
+    const v = state.variations.find((x: any) => x.id === state.selectedVariation);
+    return v?.strategy_type ?? state.selectedStrategy;
+  }, [state.variations, state.selectedVariation, state.selectedStrategy]);
+
+  const activeChartData = useMemo(() => {
+    const sym = state.selectedChartSymbol ?? symbols[0];
+    return sym ? state.chartData.get(sym) : undefined;
+  }, [state.chartData, state.selectedChartSymbol, symbols]);
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2, display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }} data-testid="backtest-view" id="backtest-main">
-      {state.error && (
-        <Alert
-          icon={<IconAlertCircle size={16} />}
-          title="Error"
-          color="error"
-          variant="filled"
-          mb="md"
-          data-testid="backtest-error"
-          withCloseButton
-          onClose={setError}
-        >
-          {state.error}
-        </Alert>
-      )}
-      <BacktestPageConfig state={state} actions={actions} />
-      <BacktestPanels
-        state={state}
-        holidayState={holidayState}
-        actions={actions}
-        symbols={symbols}
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
+    <Box
+      sx={{ position: "relative", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", m: 0, p: 0 }}
+      data-testid="backtest-view"
+      id="backtest-main"
+    >
+      <BacktestToolbar
+        strategyLabel={strategyLabel}
+        symbolCount={state.selectedSymbols.length}
+        days={state.days}
+        isRunning={state.isRunning}
+        canRun={state.selectedSymbols.length > 0}
+        chartMode={layout.chartMode}
+        onChartModeChange={layout.setChartMode}
+        onRun={actions.handleRunBacktest}
+        onReset={layout.reset}
       />
-    </Container>
+
+      <Box sx={{ position: "relative", flex: 1, minHeight: 0, minWidth: 0, display: "flex" }}>
+        {/* Full-bleed chart */}
+        <Box sx={{ position: "relative", flex: 1, minWidth: 0, minHeight: 0 }}>
+          {hasResults ? (
+            <ChartErrorBoundary resetKey={`${layout.chartMode}:${state.selectedChartSymbol}`}>
+              {layout.chartMode === "trades" ? (
+                <BacktestTradeCharts
+                  chartData={activeChartData}
+                  params={state.params}
+                  strategyType={strategyType}
+                  filters={tradeFilters}
+                  symbols={symbols}
+                  selectedSymbol={state.selectedChartSymbol ?? symbols[0]}
+                  onSymbolSelect={actions.handleViewChartAndTrades}
+                />
+              ) : (
+                <BacktestChartTabs
+                  symbols={symbols}
+                  selectedSymbol={state.selectedChartSymbol}
+                  onSymbolSelect={actions.handleViewChartAndTrades}
+                  zoomValue={state.chartOptions.date_range}
+                  onZoomChange={(value) => setChartOptions({ date_range: value as any })}
+                  chartDataMap={state.chartData}
+                  chartLoading={state.chartLoading}
+                  onTradeClick={actions.handleZoomToTrade}
+                  holidays={holidayState.holidays}
+                  selectedTf={actions.selectedTf}
+                  onTfChange={actions.handleTfChange}
+                />
+              )}
+            </ChartErrorBoundary>
+          ) : (
+            <Box sx={{ height: "100%", display: "flex", alignItems: "center", justifyContent: "center", bgcolor: "background.default" }}>
+              <Text c="dimmed" size="sm">
+                {state.isRunning ? "Running backtest…" : "Open Config, pick symbols and press Run to see the chart."}
+              </Text>
+            </Box>
+          )}
+
+          {state.isRunning && (
+            <Box sx={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 5 }}>
+              <BacktestProgress progress={{ current: state.progress.current, total: state.progress.total, message: state.progress.message }} />
+            </Box>
+          )}
+
+          {state.error && (
+            <Box sx={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 6, maxWidth: 560 }}>
+              <Alert
+                icon={<IconAlertCircle size={16} />}
+                title="Error"
+                color="error"
+                variant="filled"
+                data-testid="backtest-error"
+                withCloseButton
+                onClose={() => setError(null)}
+              >
+                {state.error}
+              </Alert>
+            </Box>
+          )}
+        </Box>
+
+        {/* Right rail — collapsible panels */}
+        <BacktestRightRail width={layout.railWidth} onWidthChange={layout.setRailWidth}>
+          <CollapsiblePanel id="config" title="Config" open={panels.config} onToggle={() => togglePanel("config")}>
+            <BacktestConfig
+              strategies={state.strategies}
+              variations={state.variations}
+              selectedStrategy={state.selectedStrategy}
+              selectedVariation={state.selectedVariation}
+              params={state.params}
+              selectedSymbols={state.selectedSymbols}
+              days={state.days}
+              includeCosts={state.includeCosts}
+              isRunning={state.isRunning}
+              onStrategyChange={setSelectedStrategy}
+              onVariationChange={setSelectedVariation}
+              onParamChange={setParam}
+              onDaysChange={setDays}
+              onIncludeCostsChange={setIncludeCosts}
+              onSymbolsChange={setSelectedSymbols}
+              onReset={resetBacktestState}
+              onRun={actions.handleRunBacktest}
+              onRunAndSave={actions.handleRunAndSave}
+              saveToHistory={actions.saveToHistory}
+              onSaveToHistoryChange={actions.setSaveToHistory}
+            />
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            id="results"
+            title="Results"
+            open={panels.results}
+            onToggle={() => togglePanel("results")}
+            badge={hasResults ? state.results!.length : undefined}
+          >
+            {hasResults ? (
+              <BacktestLeftPanel
+                activeTab={activeTab}
+                setActiveTab={setActiveTab}
+                isRunning={state.isRunning}
+                progress={state.progress}
+                results={state.results}
+                totals={state.totals}
+                selectedChartSymbol={state.selectedChartSymbol}
+                sortedResults={actions.sortedResults}
+                resultsSortColumn={actions.resultsSort.column}
+                resultsSortDirection={actions.resultsSort.direction}
+                onRowClick={actions.handleViewChartAndTrades}
+                onSort={actions.resultsSort.handleSort}
+              />
+            ) : (
+              <EmptyPanel testId="results-empty">Run a backtest to see results.</EmptyPanel>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            id="trades"
+            title={state.tradeHistorySymbol ? `Trades — ${state.tradeHistorySymbol}` : "Trades"}
+            open={panels.trades}
+            onToggle={() => togglePanel("trades")}
+            badge={hasTrades ? state.tradeHistory!.length : undefined}
+          >
+            {hasTrades && state.tradeHistory!.length > 0 ? (
+              <TradeHistoryTable
+                symbol={state.tradeHistorySymbol!}
+                trades={state.tradeHistory!}
+                sortColumn={actions.tradeSort.column}
+                sortDirection={actions.tradeSort.direction}
+                onSort={actions.tradeSort.handleSort}
+                onRowClick={actions.handleZoomToTrade}
+                onClose={() => setTradeHistory(null, null)}
+                filters={tradeFilters}
+                onFiltersChange={setTradeFilters}
+              />
+            ) : (
+              <EmptyPanel>
+                {state.tradeHistorySymbol ? `No trades for ${state.tradeHistorySymbol}.` : "Select a symbol to see its trades."}
+              </EmptyPanel>
+            )}
+          </CollapsiblePanel>
+
+          <CollapsiblePanel
+            id="edge"
+            title={state.tradeHistorySymbol ? `Edge AI — ${state.tradeHistorySymbol}` : "Edge AI"}
+            open={panels.edge}
+            onToggle={() => togglePanel("edge")}
+            badge={hasTrades ? state.tradeHistory!.length : undefined}
+          >
+            <BacktestEdgePanel
+              symbol={state.tradeHistorySymbol ?? undefined}
+              trades={state.tradeHistory ?? []}
+              filters={tradeFilters}
+            />
+          </CollapsiblePanel>
+        </BacktestRightRail>
+      </Box>
+    </Box>
   );
 }

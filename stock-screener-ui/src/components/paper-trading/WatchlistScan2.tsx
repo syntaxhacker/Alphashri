@@ -11,13 +11,14 @@ import {
   Stack,
   Text,
   TextInput,
+  ToolbarRow,
   Tooltip,
 } from "@/ui";
 import type { ColumnDef } from "@tanstack/react-table";
 import { IconRefresh, IconSparkles } from "@tabler/icons-react";
 import { TanStackTable, SideBadge } from "../common";
 import { ClickableSymbol } from "../common";
-import { getPaperTradingState, setSelectedSymbol } from "../../state/paperTrading";
+import { getPaperTradingState, setSelectedSymbol, setSelectedTradeId } from "../../state/paperTrading";
 import { fetchPaperChart } from "../../api/paperTrading";
 import { formatTimeAgo } from "../../utils/ui-helpers";
 import type { PaperScanItem, PaperBotSnapshot } from "../../types/paperTrading";
@@ -63,14 +64,16 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
   const [symbolQuery, setSymbolQuery] = useState("");
   const [showSkipped, setShowSkipped] = useState(false);
 
-  const handleSelectSymbol = useCallback(async (symbol: string) => {
-    setSelectedSymbol(symbol);
+  const handleSelectSymbol = useCallback(async (item: PaperScanItem) => {
+    setSelectedSymbol(item.symbol);
+    const strategyId = item.strategy_id ?? null;
+    setSelectedTradeId(null, undefined, strategyId);
     const currentState = getPaperTradingState();
     await fetchPaperChart(
-      symbol,
+      item.symbol,
       undefined,
       currentState.chartTimeframe,
-      currentState.selectedStrategyId,
+      strategyId,
     );
   }, []);
 
@@ -292,7 +295,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
         </Group>
       </Group>
 
-      <Group gap="xs" style={{ paddingLeft: 8, paddingRight: 8 }} wrap="wrap">
+      <ToolbarRow gap={8} style={{ paddingLeft: 8, paddingRight: 8 }}>
         <SegmentedControl
           size="xs"
           value={statusFilter}
@@ -316,7 +319,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
             value={strategyFilter}
             onChange={setStrategyFilter}
             clearable
-            style={{ minWidth: 160 }}
+            w={160}
           />
         )}
         <TextInput
@@ -324,9 +327,9 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           placeholder="Search symbol"
           value={symbolQuery}
           onChange={(val) => setSymbolQuery(val)}
-          style={{ width: 120 }}
+          w={120}
         />
-      </Group>
+      </ToolbarRow>
 
       <ScrollArea style={{ flex: 1 }}>
         <TanStackTable<ScanRow>
@@ -335,7 +338,7 @@ export function WatchlistScan2({ snapshot, selectedSymbol, onRefresh, refreshing
           dataTestId="watchlist-scan-table"
           enableSorting={false}
           emptyMessage={emptyMessage}
-          onRowClick={(row) => handleSelectSymbol(row.symbol)}
+          onRowClick={(row) => handleSelectSymbol(row)}
           getRowStyle={(row) => {
             const isSelected = row.symbol === selectedSymbol;
             const isNew = isNewSignal(row, snapshot?.timestamp ?? null);

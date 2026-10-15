@@ -227,7 +227,7 @@
 - [x] Displays zoom select after backtest
 - [x] Displays results summary after backtest
 
-## tests/e2e/backtest-mantine.spec.ts — Backtest Mantine Features
+## tests/e2e/backtest.spec.ts — Backtest Features
 
 - [x] Zoom dropdown has All, 30D, 7D, 1D options
 - [x] Symbol tabs displayed when multiple symbols in results

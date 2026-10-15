@@ -1,0 +1,3 @@
+tradingview-screener>=2.0.0
+yfinance
+pandas>=2.0.0

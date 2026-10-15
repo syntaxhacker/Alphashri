@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { HeatmapTreemap } from "../../pages/heatmap/HeatmapTreemap";
 import type { Stock } from "../../types";
 import {
@@ -27,13 +27,22 @@ export function ScreenerHeatmapView({
     setMetric(defaultScreenerHeatmapMetric(activeScreener));
   }, [activeScreener]);
 
-  const rows = stocksToHeatmapRows(stocks);
+  const rows = useMemo(() => stocksToHeatmapRows(stocks), [stocks]);
+  const handleSymbolClick = useCallback(
+    (symbol: string) => {
+      onSymbolClick(symbol);
+    },
+    [onSymbolClick],
+  );
 
   if (rows.length === 0) {
     return null;
   }
 
-  const chartHeight = Math.max(320, Math.min(560, 40 + rows.length * 14));
+  const chartHeight = useMemo(
+    () => Math.max(320, Math.min(560, 40 + rows.length * 14)),
+    [rows.length],
+  );
 
   return (
     <HeatmapTreemap
@@ -44,7 +53,7 @@ export function ScreenerHeatmapView({
       showMetricSelect
       showLegend
       chartHeight={chartHeight}
-      onSymbolClick={onSymbolClick}
+      onSymbolClick={handleSymbolClick}
       testId={testId}
     />
   );

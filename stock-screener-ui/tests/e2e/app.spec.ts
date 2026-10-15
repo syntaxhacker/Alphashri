@@ -14,19 +14,19 @@ test.describe("Alphashri", () => {
   });
 
   test("@smoke should load the main page with title", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await expect(page).toHaveTitle(/Alphashri/);
   });
 
   test("should display data table", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 30000 });
     const rows = page.locator('[data-testid="screener-table"] tbody tr');
     await expect(rows.first()).toBeVisible();
   });
 
   test("should display mock stock data", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 30000 });
 
     // Check that mock data is displayed - use more specific selector

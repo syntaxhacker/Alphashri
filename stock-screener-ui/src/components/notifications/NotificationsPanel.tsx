@@ -3,33 +3,67 @@ import {
   Modal, Stack, Text, Badge, Group, Button, Paper,
   ScrollArea, Loader, Center,
 } from "@/ui";
+import { IconTrendingDown, IconTrendingUp } from "@tabler/icons-react";
 import { fetchSurges } from "../../api/notifications";
 import type { PriceSurgeEvent } from "../../types/notifications";
+import { formatTimeAgo } from "../../utils/ui-helpers";
+import { ErrorAlert } from "../common/states";
 
 const PAGE_SIZE = 10;
+
+export function mergeSurgeEvents(previous: PriceSurgeEvent[], next: PriceSurgeEvent[]): PriceSurgeEvent[] {
+  return Array.from(
+    new Map([...previous, ...next].map((event) => [event.id, event] as const)).values(),
+  );
+}
+
+export function useSurgeAlertTotal(refreshKey: number = 0): number {
+  const [total, setTotal] = useState(0);
+
+  useEffect(() => {
+    let active = true;
+    fetchSurges(1, 0)
+      .then((data) => {
+        if (active) setTotal(Number.isFinite(data.total) ? data.total : 0);
+      })
+      .catch(() => {
+        if (active) setTotal(0);
+      });
+    return () => {
+      active = false;
+    };
+  }, [refreshKey]);
+
+  return total;
+}
 
 export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClose: () => void }) {
   const [events, setEvents] = useState<PriceSurgeEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [page, setPage] = useState(0);
 
   const load = useCallback(async (pageNum: number) => {
     setLoading(true);
+    setLoadError(null);
     try {
       const data = await fetchSurges(PAGE_SIZE, pageNum * PAGE_SIZE);
-      if (pageNum === 0) setEvents(data.events);
-      else setEvents((prev) => [...prev, ...data.events]);
-      setTotal(data.total);
+      const incoming = Array.isArray(data.events) ? data.events : [];
+      setEvents((prev) => (pageNum === 0 ? incoming : mergeSurgeEvents(prev, incoming)));
+      setTotal(Number.isFinite(data.total) ? data.total : 0);
     } catch {
-      // Silently fail — non-critical feature
+      setLoadError("Could not load surge alerts.");
     } finally {
       setLoading(false);
     }
   }, []);
 
   useEffect(() => {
-    if (opened) load(0);
+    if (opened) {
+      setPage(0);
+      load(0);
+    }
   }, [opened, load]);
 
   const hasMore = events.length < total;
@@ -42,13 +76,27 @@ export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClo
       size="sm"
     >
       <Stack gap="xs">
-        {events.length === 0 && !loading && (
+        {events.length === 0 && !loading && !loadError && (
           <Center py="xl">
             <Text c="dimmed" size="sm">No surge alerts yet</Text>
           </Center>
         )}
 
-        <ScrollArea h="calc(100vh - 260px)">
+        {loadError && (
+          <ErrorAlert
+            title="Surge alerts unavailable"
+            message={loadError}
+            withRetry
+            onRetry={() => load(page)}
+            data-testid="surge-alerts-error"
+          />
+        )}
+
+        <ScrollArea
+          h={360}
+          sx={{ maxHeight: "70vh", minHeight: 180 }}
+          data-testid="surge-alerts-scroll"
+        >
           <Stack gap="xs">
             {events.map((ev) => (
               <SurgeCard key={ev.id} event={ev} />
@@ -66,6 +114,8 @@ export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClo
                   load(next);
                 }}
                 loading={loading}
+                disabled={loading}
+                data-testid="surge-alerts-more"
               >
                 Show more
               </Button>
@@ -84,26 +134,23 @@ export function NotificationsPanel({ opened, onClose }: { opened: boolean; onClo
 function SurgeCard({ event }: { event: PriceSurgeEvent }) {
   const isUp = event.direction === "up";
   const color = isUp ? "success" : "error";
-  const icon = isUp ? "\u{1F680}" : "\u{1F4C9}";
   const sign = isUp ? "+" : "";
-
-  const time = new Date(event.created_at);
-  const timeStr = time.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
 
   return (
     <Paper p="xs" data-testid={`surge-card-${event.id}`}>
-      <Group justify="space-between" gap={4}>
-        <Group gap={4}>
-          <Text size="sm" fw={600}>{icon} {event.symbol}</Text>
+      <Group justify="space-between" align="center" gap={4}>
+        <Group align="center" gap={4}>
+          {isUp ? <IconTrendingUp size={14} /> : <IconTrendingDown size={14} />}
+          <Text size="sm" fw={600}>{event.symbol}</Text>
           <Text size="sm" c={color} fw={600}>{sign}{event.move_pct.toFixed(1)}%</Text>
         </Group>
         <Badge size="xs" variant="light" color="secondary">{event.screen_label}</Badge>
       </Group>
-      <Group gap={4}>
+      <Group align="center" gap={4}>
         {event.price != null && (
           <Text size="xs" c="dimmed">₹{event.price.toFixed(2)}</Text>
         )}
-        <Text size="xs" c="dimmed">{timeStr}</Text>
+        <Text size="xs" c="dimmed">{formatTimeAgo(event.created_at)}</Text>
       </Group>
     </Paper>
   );

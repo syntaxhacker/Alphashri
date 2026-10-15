@@ -43,6 +43,9 @@ export const ERROR = NEGATIVE_COLOR;
 export const WARNING = "#F0883E";
 export const INFO = PRIMARY;
 
+/** Dialog / modal drop shadow — flat design: one soft shadow, no elevation tint. */
+export const DIALOG_SHADOW = "0 8px 32px rgba(0, 0, 0, 0.5)";
+
 // Text / surfaces
 export const TEXT = TEXT_COLOR;
 export const TEXT_MUTED = TEXT_MUTED_COLOR;
@@ -81,6 +84,8 @@ export const TOOLTIP_TEXT = "#F0F6FC";
 export const AXIS_LINE = "#30363D";
 export const AXIS_SPLIT = "#21262D";
 export const CHART_BG = "#0D1117";
+/** Pure-black plot background for the TradingView (lightweight-charts) panels. */
+export const CHART_TV_BG = "#000000";
 export const CHART_TEXT = "#F0F6FC";
 export const CHART_MUTED = "#8B949E";
 export const CHART_BORDER = "#30363D";
@@ -90,6 +95,19 @@ export const CHART_OVERLAY = "rgba(13, 17, 23, 0.95)";
 export const CHART_DROPDOWN = "rgba(13, 17, 23, 0.92)";
 export const CHART_DATAZOOM_BG = "#0D1117";
 export const DATAZOOM_FILLER = "rgba(63, 185, 80, 0.15)";
+
+// --- Desk / terminal surface for the Nifty analytics panels ----------------
+// Matches the reference options-desk UI: pure-black panel, hairline border,
+// CE-blue / PE-orange legs, teal net-gamma accent.
+export const TERM_BG = "#000000";
+export const TERM_BORDER = "#1A1A1A";
+export const TERM_HEADER = "#0A0E14";
+export const TERM_CE = "#5B9CF6";
+export const TERM_PE = "#F2A65A";
+export const TERM_GAMMA = "#2DD4BF";
+export const TERM_GAMMA_NEG = "#F85149";
+export const TERM_SPOT = "#58A6FF";
+export const TERM_FLIP = "#D29922";
 
 // P&L / indicators / OI / pivots
 export const PERF_POSITIVE = POSITIVE_COLOR;

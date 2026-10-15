@@ -151,7 +151,7 @@ export function ReplayConfigBar({
 
   return (
     <Box>
-      <Group gap="sm" wrap="wrap" data-testid="replay-config">
+      <Group gap="sm" wrap="wrap" align="flex-start" data-testid="replay-config">
         <Box>
           <Text size="xs" fw={500} mb={2}>
             Bot
@@ -170,7 +170,7 @@ export function ReplayConfigBar({
           />
         </Box>
 
-        <Group gap="xs">
+        <Group gap="xs" align="flex-start">
           <Box data-testid="replay-date-from">
             <Text size="xs" fw={500} mb={2}>
               From
@@ -203,7 +203,7 @@ export function ReplayConfigBar({
           <Text size="xs" fw={500} mb={2}>
             Symbols
           </Text>
-          <Group gap={4}>
+          <Group gap={4} align="center">
             <ScreenerSymbolPicker
               symbols={config.symbols}
               onAddSymbols={(newSymbols) => setConfig({ symbols: [...config.symbols, ...newSymbols] })}
@@ -276,74 +276,81 @@ export function ReplayConfigBar({
           />
         </Box>
 
-        {isRunning ? (
-          <Button
-            size="sm"
-            color="error"
-            variant="filled"
-            leftSection={<IconPlayerStop size={16} />}
-            onClick={stopReplay}
-            data-testid="replay-stop-btn"
-          >
-            Stop
-          </Button>
-        ) : (
-          <>
-            <Button
-              size="sm"
-              leftSection={<IconPlayerPlay size={16} />}
-              disabled={!config.date}
-              onClick={startReplay}
-              data-testid="replay-run-btn"
-            >
-              Run Replay
-            </Button>
+        <Box>
+          <Text size="xs" fw={500} mb={2}>
+            &nbsp;
+          </Text>
+          <Group gap="xs" align="center">
+            {isRunning ? (
+              <Button
+                size="sm"
+                color="error"
+                variant="filled"
+                leftSection={<IconPlayerStop size={16} />}
+                onClick={stopReplay}
+                data-testid="replay-stop-btn"
+              >
+                Stop
+              </Button>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  leftSection={<IconPlayerPlay size={16} />}
+                  disabled={!config.date}
+                  onClick={startReplay}
+                  data-testid="replay-run-btn"
+                >
+                  Run Replay
+                </Button>
 
-            <Tooltip label="Save current config">
-              <ActionIcon
+                <Tooltip label="Save current config">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="secondary"
+                    onClick={() => {
+                      setNewConfigName("");
+                      setNewConfigDescription("");
+                      setSaveError(null);
+                      setSaveModalOpen(true);
+                    }}
+                    data-testid="replay-save-config-btn"
+                  >
+                    <IconDeviceFloppy size={16} />
+                  </ActionIcon>
+                </Tooltip>
+
+                <Tooltip label="Load saved config">
+                  <ActionIcon
+                    size="sm"
+                    variant="subtle"
+                    color="secondary"
+                    onClick={() => {
+                      setLoadError(null);
+                      setLoadModalOpen(true);
+                    }}
+                    data-testid="replay-load-config-btn"
+                  >
+                    <IconFolderOpen size={16} />
+                  </ActionIcon>
+                </Tooltip>
+              </>
+            )}
+
+            {!isRunning && config.date && (
+              <Button
                 size="sm"
                 variant="subtle"
                 color="secondary"
-                onClick={() => {
-                  setNewConfigName("");
-                  setNewConfigDescription("");
-                  setSaveError(null);
-                  setSaveModalOpen(true);
-                }}
-                data-testid="replay-save-config-btn"
+                onClick={reset}
+                data-testid="replay-reset-btn"
               >
-                <IconDeviceFloppy size={16} />
-              </ActionIcon>
-            </Tooltip>
-
-            <Tooltip label="Load saved config">
-              <ActionIcon
-                size="sm"
-                variant="subtle"
-                color="secondary"
-                onClick={() => {
-                  setLoadError(null);
-                  setLoadModalOpen(true);
-                }}
-                data-testid="replay-load-config-btn"
-              >
-                <IconFolderOpen size={16} />
-              </ActionIcon>
-            </Tooltip>
-          </>
-        )}
-
-        {!isRunning && config.date && (
-          <Button
-            size="sm"
-            variant="subtle"
-            color="secondary"
-            onClick={reset}
-            data-testid="replay-reset-btn"
-          >
-            Reset
-          </Button>
-        )}
+                Reset
+              </Button>
+            )}
+          </Group>
+        </Box>
       </Group>
 
       {/* Save Config Modal */}
@@ -374,7 +381,7 @@ export function ReplayConfigBar({
               {saveError}
             </Text>
           )}
-          <Group justify="flex-end" gap="xs">
+          <Group justify="flex-end" gap="xs" align="center">
             <Button size="xs" variant="subtle" color="secondary" onClick={() => setSaveModalOpen(false)}>
               Cancel
             </Button>
@@ -405,7 +412,7 @@ export function ReplayConfigBar({
             </Text>
           ) : (
             savedConfigs.map((saved) => (
-              <Group key={saved.id} gap="xs" wrap="nowrap">
+              <Group key={saved.id} gap="xs" wrap="nowrap" align="center">
                 <Box style={{ flex: 1 }}>
                   <Text size="sm" fw={500}>
                     {saved.name}

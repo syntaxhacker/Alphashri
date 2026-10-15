@@ -13,6 +13,9 @@ export interface Stock {
   sector: string;
   touched_52w: boolean;
   days_ago?: number | null;
+  approach_type?: "fresh" | "retest" | "touched";
+  days_since_touch?: number | null;
+  has_live_data?: boolean;
   last_touched?: string | null; // ISO date string of last 52w touch
   last_touched_price?: number | null;
   day_change?: number;

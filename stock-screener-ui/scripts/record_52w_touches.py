@@ -19,6 +19,12 @@ from db.models import Stock52WeekTouch
 from api.screener_api.screener_scan import fetch_screener_data
 
 
+# Screener profiles whose touched rows are persisted as touch events.
+# 52w_high is the full NSE_EQ universe (current screener); the other two are
+# the legacy momentum profiles.
+TOUCH_SCREENER_UNIVERSE = ["trending", "near_52w_breakout", "52w_high"]
+
+
 def record_touches_for_screener(
     provider: str = "upstox",
     mode: str = "intraday",
@@ -116,11 +122,10 @@ def record_touches_for_screener(
 
 def record_touches_for_all_screeners():
     """Record touches for all relevant 52w screeners."""
-    screeners = ["trending", "near_52w_breakout"]
     total_new = 0
     total_updated = 0
 
-    for screener in screeners:
+    for screener in TOUCH_SCREENER_UNIVERSE:
         try:
             new_cnt, upd_cnt = record_touches_for_screener(screener=screener)
             total_new += new_cnt

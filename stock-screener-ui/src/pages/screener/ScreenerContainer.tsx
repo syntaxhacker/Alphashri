@@ -1,4 +1,5 @@
-import { ScreenerPage } from "../../components/screener/ScreenerPage";
+import { useState } from "react";
+import { ScreenerPage, DEFAULT_DASHBOARD_UNIVERSE } from "../../components/screener/ScreenerPage";
 import { useScreenerState } from "../../hooks/useScreenerState";
 import { useSearchParams } from "react-router-dom";
 
@@ -30,6 +31,9 @@ export function ScreenerContainer() {
     onSymbolHover,
   } = useScreenerState(urlScreener);
 
+  const totalStocks = (approachingStocks ?? []).length + (touchedStocks ?? []).length;
+  const [universe, setUniverse] = useState(DEFAULT_DASHBOARD_UNIVERSE);
+
   return (
     <ScreenerPage
       screenerOptions={screenerOptions}
@@ -38,9 +42,9 @@ export function ScreenerContainer() {
       onConfigScreenerSelect={onConfigScreenerSelect}
       title={`${(screenerOptions ?? []).find((s) => s.id === activeScreener)?.label || "Screener"} | Alphashri`}
       status={
-        isLoading
+        isLoading && totalStocks === 0
           ? "Loading..."
-          : `${(approachingStocks ?? []).length + (touchedStocks ?? []).length} stocks`
+          : `${totalStocks} stocks${isLoading ? " • Updating..." : ""}`
       }
       isLoading={isLoading}
       autoRefreshSeconds={autoRefreshSeconds}
@@ -56,6 +60,8 @@ export function ScreenerContainer() {
       onSymbolHover={onSymbolHover}
       error={error}
       warning={warning}
+      universe={universe}
+      onUniverseChange={setUniverse}
     />
   );
 }

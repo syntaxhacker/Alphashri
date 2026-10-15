@@ -10,7 +10,7 @@ from typing import Optional
 
 from trading.orb_signals import ORBSignal, SignalType
 from trading.base_signals import BaseSignalGenerator
-from trading.ema_utils import calculate_ema as _calculate_ema
+from trading.indicators import ema as _calculate_ema
 
 
 class EMACrossSignalGenerator(BaseSignalGenerator):
@@ -37,7 +37,7 @@ class EMACrossSignalGenerator(BaseSignalGenerator):
     @staticmethod
     def calculate_ema(closes: list, period: int) -> list:
         """Wrapper for backward compatibility. Delegates to shared utility."""
-        return _calculate_ema(closes, period, return_full=True)
+        return _calculate_ema(closes, period, full=True)
 
     def check_entry(self, symbol: str, market_data: dict) -> Optional[ORBSignal]:
         current_price = market_data.get("current_price")

@@ -11,6 +11,6 @@ def import_all_models():
         User, UserSession, StrategyConfig, BotConfig, BacktestResult,
         BrokerConnection, NewsArticle, NewsSymbolMention, LLMRun, Instrument,
         Trade, Position, MarketHoliday, Stock52WeekTouch,
-        ChatConversation, ChatMessage,
+        ChatConversation, ChatMessage, Theme, ThemeConstituent,
     )
     return locals()

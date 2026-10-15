@@ -115,7 +115,7 @@ export function StrategyStatusCard({
           <Text fw={600} size="sm" ta="center">{strategy.strategy_name}</Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-          <Badge color={strategy.status === "running" ? "success" : "secondary"} variant="light" size="sm">
+          <Badge color={strategy.status === "running" ? "success" : "secondary"} variant="filled" size="sm">
             {strategy.status}
           </Badge>
         </Box>
@@ -200,7 +200,7 @@ export function PositionsTable({ positions }: { positions: BotPosition[] }) {
       header: "Entry",
       accessorKey: "entry_price",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" c="dimmed" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "current_price",
@@ -331,7 +331,7 @@ export function TradesTable({ trades, onRefresh }: { trades: BotTrade[]; onRefre
       header: "Entry",
       accessorKey: "entry_price",
       meta: { align: "right" } as any,
-      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" c="dimmed" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
+      cell: ({ row }) => <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-end" }}><Text size="sm" ta="right">₹{row.original.entry_price.toFixed(2)}</Text></Box>,
     },
     {
       id: "exit_price",
@@ -449,7 +449,7 @@ export const BotActionButtons = memo(function BotActionButtons({
   const marketClosed = isMarketClosedToday();
 
   return (
-    <Group gap="xs">
+    <Group gap="xs" align="center">
       <ActionIcon
         variant="subtle"
         color="primary"
@@ -517,20 +517,15 @@ interface BotSummaryCellProps {
 
 export function BotSummaryCell({ bot }: BotSummaryCellProps) {
   return (
-    <Stack gap={4}>
-      <Text size="sm">{bot.strategies.length} strategies</Text>
-      <Group gap={4} wrap="wrap">
+    <Stack gap={0.5}>
+      <Text size="xs" c="text.secondary">{bot.strategies.length} strategies</Text>
+      <Group gap={0.5} wrap="wrap" align="center">
         {bot.strategies.map((s) => (
-          <Text key={s.id} size="xs" c="dimmed">
-            {s.strategy_type}{!s.enable_shorts && " (long-only)"}
-          </Text>
+          <Badge key={s.id} size="xs" variant="light" color={s.enable_shorts ? "info" : "success"}>
+            {s.name}
+          </Badge>
         ))}
       </Group>
-      {bot.strategies.map((s) => (
-        <Text key={`name-${s.id}`} size="xs" c="dimmed">
-          {s.name}
-        </Text>
-      ))}
     </Stack>
   );
 }

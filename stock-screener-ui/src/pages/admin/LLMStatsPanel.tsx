@@ -55,6 +55,7 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         id: "url",
         header: "URL",
         accessorKey: "url",
+        meta: { align: "left" },
         cell: (info) => (
           <Text size="sm" title={info.getValue<string>()}>
             {truncateUrl(info.getValue<string>())}
@@ -65,6 +66,7 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         id: "model",
         header: "Model",
         accessorKey: "model",
+        meta: { align: "left" },
         cell: (info) => (
           <Text size="sm">{info.getValue<string>().split("/").pop()}</Text>
         ),
@@ -73,18 +75,21 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         id: "tokens",
         header: "Tokens",
         accessorFn: (row) => (row.input_tokens + row.output_tokens).toLocaleString(),
+        meta: { align: "right" },
         cell: (info) => <Text size="sm">{info.getValue<string>()}</Text>,
       },
       {
         id: "cost",
         header: "Cost",
         accessorKey: "cost_usd",
+        meta: { align: "right" },
         cell: (info) => <Text size="sm">{formatCost(info.getValue<number>())}</Text>,
       },
       {
         id: "time",
         header: "Time",
         accessorKey: "response_time_ms",
+        meta: { align: "right" },
         cell: (info) => (
           <Text size="sm">{formatResponseTime(info.getValue<number>())}</Text>
         ),
@@ -93,6 +98,7 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         id: "status",
         header: "Status",
         accessorKey: "status",
+        meta: { align: "center" },
         cell: (info) => (
           <Badge color={getStatusColor(info.getValue<string>())} variant="filled" size="sm">
             {info.getValue<string>()}
@@ -103,6 +109,7 @@ function RunsTable({ runs }: { runs: LLMRun[] }) {
         id: "created",
         header: "Created",
         accessorKey: "created_at",
+        meta: { align: "left" },
         cell: (info) => (
           <Text size="sm">{formatDateTime(info.getValue<string>())}</Text>
         ),
@@ -207,8 +214,8 @@ export function LLMStatsPanel() {
       <Group justify="space-between">
         <Text size="sm" fw={500}>Recent Runs</Text>
         <Group gap="xs">
-          <Button size="compact-xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStats} loading={loading}>Refresh</Button>
-          <Button size="compact-xs" variant="filled" color="error" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
+          <Button size="xs" variant="light" leftSection={<IconRefresh size={12} />} onClick={fetchStats} loading={loading}>Refresh</Button>
+          <Button size="xs" variant="filled" color="error" leftSection={<IconTrash size={12} />} onClick={clearLogs} loading={clearing}>Clear logs</Button>
         </Group>
       </Group>
 

@@ -635,8 +635,8 @@ class TestSRBreakoutConfig:
         
         assert config.pivot_type == 'classic'
         assert config.breakout_buffer_pct == 0.1
-        assert config.sl_pct == 0.5
-        assert config.tp_pct == 1.5
+        assert config.sl_pct == 1.5
+        assert config.tp_pct == 2.5
         assert config.trade_size == 100
         assert config.enable_shorts == False
         assert config.cooldown_bars == 3
@@ -916,8 +916,8 @@ class TestSRBreakoutNautilusStrategy:
         
         assert strategy._pivot_type == 'classic'
         assert strategy._breakout_buffer_pct == 0.1
-        assert strategy._sl_pct == 0.5
-        assert strategy._tp_pct == 1.5
+        assert strategy._sl_pct == 1.5
+        assert strategy._tp_pct == 2.5
         assert strategy._trade_size == 100
         assert strategy._enable_shorts == False
         assert strategy._cooldown_bars == 3

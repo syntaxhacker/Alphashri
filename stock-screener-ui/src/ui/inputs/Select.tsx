@@ -9,6 +9,7 @@ import MenuItem from "@mui/material/MenuItem";
 import IconButton from "@mui/material/IconButton";
 import ClearIcon from "@mui/icons-material/Clear";
 import type { UISelectProps } from "../types";
+import { stripLegacyInputProps } from "./legacyProps";
 
 type SelectOption = { value: string; label: string; disabled?: boolean };
 
@@ -44,16 +45,37 @@ export function Select({
   style,
   name,
   "data-testid": testId,
+  // Legacy Mantine-isms — accepted for backward compat, never forwarded.
+  allowDeselect: _allowDeselect,
+  maxDropdownHeight: _maxDropdownHeight,
+  comboboxProps: _comboboxProps,
+  withinPortal: _withinPortal,
+  InputProps: _InputProps,
   ...rest
 }: UISelectProps) {
   const autoId = useId();
   const labelId = label ? `${autoId}-label` : undefined;
+  const { w: widthProp, h: heightProp, ...restProps } = stripLegacyInputProps(rest as Record<string, unknown>) as {
+    w?: number | string;
+    h?: number | string;
+  } & Record<string, unknown>;
+  const explicitWidth = widthProp != null ? (typeof widthProp === "number" ? `${widthProp}px` : widthProp) : undefined;
+  const explicitHeight = heightProp != null ? (typeof heightProp === "number" ? `${heightProp}px` : heightProp) : undefined;
   const options = useMemo(() => normalizeOptions(data), [data]);
   const muiSize = mapSize(size);
   const isError = Boolean(error);
   const helperText = isError ? (typeof error === "string" ? error : String(error ?? "")) : (description as string | undefined);
-  // MUI Select uses "" for empty; normalize null -> ""
-  const controlledValue = value !== undefined ? (value ?? "") : undefined;
+  // MUI Select uses "" for empty; normalize null -> "".
+  // Controlled from the FIRST render whenever the caller manages the value
+  // (value or onChange present): MUI's useControlled latches controlled-ness
+  // in a ref on mount, so passing value={undefined} while async data (URL
+  // params, strategy lists) loads would lock the select uncontrolled and the
+  // late value would be ignored forever ("changing the uncontrolled value
+  // state of Select to be controlled", hidden input stuck at ""). Only stay
+  // uncontrolled when the caller provided neither value/defaultValue nor
+  // onChange (pure uncontrolled use, e.g. stories).
+  const isControlled = value !== undefined || (onChange !== undefined && defaultValue === undefined);
+  const controlledValue = isControlled ? (value ?? "") : undefined;
   const controlledDefaultValue = defaultValue !== undefined ? (defaultValue ?? "") : undefined;
 
   const handleChange = (event: SelectChangeEvent<string>) => {
@@ -70,7 +92,7 @@ export function Select({
 
   return (
     <FormControl
-      fullWidth
+      fullWidth={explicitWidth == null}
       size={muiSize}
       error={isError}
       required={required}
@@ -78,8 +100,8 @@ export function Select({
       className={className}
       style={style as React.CSSProperties}
       data-testid={testId}
-      sx={{ minWidth: 120 }}
-      {...(rest as object)}
+      sx={{ minWidth: explicitWidth == null ? 120 : 0, width: explicitWidth, ...(explicitHeight && { height: explicitHeight }) }}
+      {...(restProps as object)}
     >
       {label && (
         <InputLabel id={labelId} required={required}>

@@ -1,8 +1,7 @@
 import { Text, RingProgress } from "@/ui";
 import Box from "@mui/material/Box";
-import Stack from "@mui/material/Stack";
 import { useMemo } from "react";
-import { CompactPanel, CompactStat, CompactStatGrid } from "../../common/compact";
+import { CompactPanel, CompactStatGrid } from "../../common/compact";
 
 interface ChainSummaryProps {
   strikeMatrix: Array<{ strike: number; ce: any; pe: any }>;
@@ -23,6 +22,7 @@ export interface Summary {
   expected_move: { lower: number; upper: number; range: number } | null;
   total_ce_oi: number;
   total_pe_oi: number;
+  atm_iv?: number;
 }
 
 export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undefined) {
@@ -33,6 +33,7 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
       expectedMove: summary.expected_move,
       totalCE_OI: summary.total_ce_oi,
       totalPE_OI: summary.total_pe_oi,
+      atmIv: summary.atm_iv ?? 0,
       resistanceStrike:
         Math.max(...strikeMatrix.map((s) => s.ce?.market_data?.oi ?? 0)) > 0
           ? strikeMatrix.reduce((prev, curr) =>
@@ -54,6 +55,7 @@ export function computeStats(strikeMatrix: StrikeRow[], summary: Summary | undef
     expectedMove: null,
     totalCE_OI: 0,
     totalPE_OI: 0,
+    atmIv: 0,
     resistanceStrike: 0,
     supportStrike: 0,
   };
@@ -72,53 +74,91 @@ export function ChainSummary({
   const stats = useMemo(() => computeStats(strikeMatrix, summary), [strikeMatrix, summary]);
 
   const pcrColor = computePcrColor(stats.pcr);
+  const total = stats.totalCE_OI + stats.totalPE_OI || 1;
 
   return (
     <Box sx={{ display: "flex", justifyContent: "center", width: "100%" }}>
       <CompactStatGrid data-testid="chain-summary">
-        <CompactPanel className="chain-summary-card chain-summary-pcr" data-testid="options-chain-summary-pcr">
-          <Box sx={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", width: "100%" }}>
-            <Stack spacing={1}>
-              <CompactStat label="PCR" value={stats.pcr.toFixed(2)} tone={pcrColor} />
+        <CompactPanel data-testid="chain-summary-compact-row">
+          <Box
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexWrap: "wrap",
+              columnGap: 3,
+              rowGap: 1,
+              width: "100%",
+            }}
+          >
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              data-testid="options-chain-summary-pcr"
+            >
+              <RingProgress
+                size={44}
+                thickness={5}
+                roundCaps
+                sections={[
+                  { value: (stats.totalPE_OI / total) * 100, color: "error" },
+                  { value: (stats.totalCE_OI / total) * 100, color: "success" },
+                ]}
+              />
+              <Text size="sm" c="dimmed" fw={600}>
+                PCR
+              </Text>
+              <Text size="sm" fw={700} c={pcrColor}>
+                {stats.pcr.toFixed(2)}
+              </Text>
               <Text size="sm" c={pcrColor} fw={600}>
                 {stats.pcr > 1 ? "Bullish bias" : "Bearish bias"}
               </Text>
-            </Stack>
-            <RingProgress
-              size={60}
-              thickness={6}
-              roundCaps
-              sections={[
-                { value: (stats.totalPE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "error" },
-                { value: (stats.totalCE_OI / (stats.totalCE_OI + stats.totalPE_OI || 1)) * 100, color: "success" },
-              ]}
-            />
-          </Box>
-        </CompactPanel>
-
-        <CompactPanel className="chain-summary-card chain-summary-range" data-testid="options-chain-summary-range">
-          <Stack spacing={1} sx={{ alignItems: "center" }}>
-            <CompactStat
-              label="Market Range"
-              value={stats.expectedMove ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}` : "Data pending"}
-              tone={stats.expectedMove ? "primary" : "dimmed"}
-              hint={stats.expectedMove ? `+/- ${stats.expectedMove.range} points expected` : undefined}
-            />
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, width: "100%" }} data-testid="options-chain-support-resistance">
-              <Text size="sm" fw={700} c="error">
-                RES {stats.resistanceStrike}
-              </Text>
-              <Text size="sm" fw={700} c="success">
-                SUP {stats.supportStrike}
-              </Text>
             </Box>
-          </Stack>
-        </CompactPanel>
 
-        <CompactPanel className="chain-summary-card chain-summary-max-pain" data-testid="options-chain-summary-max-pain">
-          <Stack spacing={1} sx={{ alignItems: "center" }}>
-            <CompactStat label="Max Pain" value={stats.maxPain} tone="warning" hint="Institutional target" />
-          </Stack>
+            <Text size="sm" c="dimmed" aria-hidden="true">
+              |
+            </Text>
+
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              data-testid="options-chain-summary-range"
+            >
+              <Text size="sm" c="dimmed" fw={600}>
+                Range
+              </Text>
+              <Text size="sm" fw={700} c={stats.expectedMove ? "primary" : "dimmed"}>
+                {stats.expectedMove
+                  ? `${stats.expectedMove.lower} - ${stats.expectedMove.upper}`
+                  : "Data pending"}
+              </Text>
+              <Box
+                sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                data-testid="options-chain-support-resistance"
+              >
+                <Text size="sm" fw={700} c="error">
+                  RES {stats.resistanceStrike}
+                </Text>
+                <Text size="sm" fw={700} c="success">
+                  SUP {stats.supportStrike}
+                </Text>
+              </Box>
+            </Box>
+
+            <Text size="sm" c="dimmed" aria-hidden="true">
+              |
+            </Text>
+
+            <Box
+              sx={{ display: "flex", alignItems: "center", gap: 1 }}
+              data-testid="options-chain-summary-max-pain"
+            >
+              <Text size="sm" c="dimmed" fw={600}>
+                Max Pain
+              </Text>
+              <Text size="sm" fw={700} c="warning">
+                {stats.maxPain}
+              </Text>            </Box>
+          </Box>
         </CompactPanel>
       </CompactStatGrid>
     </Box>

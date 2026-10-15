@@ -214,7 +214,7 @@ export function ReplayTradeLog({
       data-testid="replay-trade-log"
       style={{ display: "flex", flexDirection: "column", height: "100%" }}
     >
-      <Group gap="sm" mb="xs" style={{ flex: "0 0 auto" }}>
+      <Group gap="sm" align="center" mb="xs" style={{ flex: "0 0 auto" }}>
         <Text size="xs" fw={500}>Trade Log</Text>
         <Select
           size="xs"

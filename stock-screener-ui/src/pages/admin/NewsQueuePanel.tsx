@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Button, Group, Loader, Stack, Text, Progress, Badge, Paper } from "@/ui";
-import { IconPlayerPlay, IconRefresh, IconPlus } from "@tabler/icons-react";
+import { IconPlayerPlay, IconPlus } from "@tabler/icons-react";
 import { useAuth } from "../../components/auth/AuthProvider2";
 import { CompactPanel } from "../../components/common/compact";
 import type { NewsAnalysisQueueStatusResponse } from "../../types/admin";

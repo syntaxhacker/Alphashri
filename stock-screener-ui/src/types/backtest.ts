@@ -138,6 +138,8 @@ export interface SymbolChartData {
   };
   total_candles: number;
   total_trades: number;
+  /** RSI(period) aligned index-wise to `candles` (may contain nulls for the warm-up). */
+  rsi?: { period: number; data: (number | null)[] };
 }
 
 export interface ChartTrade {
@@ -258,6 +260,8 @@ export interface Trade {
   // 52W Chaser strategy fields
   "52w_high"?: number;
   trailing_active?: boolean;
+  /** Trade direction — "LONG" | "SHORT" (absent on legacy payloads → treated as LONG). */
+  side?: string;
 }
 
 // Chart options

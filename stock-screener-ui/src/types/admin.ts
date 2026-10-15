@@ -94,3 +94,52 @@ export interface NewsAnalysisQueueStatusResponse {
   recent_failures: NewsQueueFailure[];
   error?: string;
 }
+
+/** Session-minute gap with no stored order-flow data. */
+export interface OrderFlowJournalGap {
+  from: string;
+  to: string;
+  minutes: number;
+}
+
+/** One symbol's stored order-flow data for a day (one journal file). */
+export interface OrderFlowJournalRow {
+  symbol: string;
+  file: string;
+  /** "fyers_tbt" | "fyers" | "upstox" | "mixed" | "unknown" — from the data */
+  broker: string;
+  /** Broker in the file name, or null for pre-prefix (legacy) files. */
+  named_broker: string | null;
+  /** True when the name promises one feed but the content holds another. */
+  broker_mismatch: boolean;
+  brokers_seen: string[];
+  bytes: number;
+  records: number;
+  ticks: number;
+  signals: number;
+  first_ts: number | null;
+  last_ts: number | null;
+  covered_minutes: number;
+  coverage_pct: number;
+  gaps: OrderFlowJournalGap[];
+}
+
+export interface OrderFlowJournalSummary {
+  day: string;
+  session_start: string;
+  /** End of continuous trading — coverage is measured against this. */
+  session_close: string;
+  session_minutes: number;
+  /** Wall-clock end of the session including the closing auction (e.g. 15:30). */
+  full_session_close: string;
+  full_session_minutes: number;
+  /** Minutes between the continuous close and the full close (the CAS window). */
+  auction_minutes: number;
+  rows: OrderFlowJournalRow[];
+  total_bytes: number;
+  total_records: number;
+  overall_coverage_pct: number;
+  available_days: string[];
+  broker_available: boolean;
+  fetched_at: string;
+}

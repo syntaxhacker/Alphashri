@@ -8,23 +8,25 @@ test.describe("UI Controls", () => {
   });
   test("should refresh data when refresh button clicked", async ({ page }) => {
     await page.goto("/");
+    // The home page now lands on the Dashboard tab; the results tables live
+    // under the Screener tab.
+    await page.getByTestId("tab-screener").click();
     await page.waitForSelector("table tbody tr", {
       timeout: 10000,
     });
 
-    // Click refresh button
-    const refreshBtn = page.locator("#refreshBtn");
-    if ((await refreshBtn.count()) > 0) {
-      await refreshBtn.click();
-      await expect(page.locator("table tbody tr")).toBeVisible({
-        timeout: 5000,
-      });
-      const rows = page.locator("table tbody tr");
-      expect(await rows.count()).toBeGreaterThan(0);
-    }
+    // Click refresh button (MUI ActionIcon: id/testid "refresh-btn")
+    const refreshBtn = page.getByTestId("refresh-btn");
+    await refreshBtn.click();
+    await expect(page.locator("table tbody tr").first()).toBeVisible({
+      timeout: 5000,
+    });
+    const rows = page.locator("table tbody tr");
+    expect(await rows.count()).toBeGreaterThan(0);
   });
   test("should copy trading list to clipboard", async ({ page }) => {
     await page.goto("/");
+    await page.getByTestId("tab-screener").click();
     await page.waitForSelector("table tbody tr", {
       timeout: 10000,
     });
@@ -32,31 +34,30 @@ test.describe("UI Controls", () => {
     // Grant clipboard permissions
     await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
 
-    // Find and click copy button
-    const copyBtn = page.getByRole("button", {
-      name: "Copy",
-    });
-    if ((await copyBtn.count()) > 0) {
-      await copyBtn.first().click();
-      await page.waitForLoadState("networkidle");
-      try {
-        const clipboardText = await page.evaluate(() => navigator.clipboard.readText());
-        // Verify clipboard contains stock symbols
-        expect(clipboardText.length).toBeGreaterThan(0);
-      } catch {}
-    }
+    // Copy buttons are icon-only ActionIcons (no accessible "Copy" name);
+    // each results table has a "copy all symbols" button.
+    const copyBtn = page.getByTestId("copy-all-symbols-btn").first();
+    await expect(copyBtn).toBeVisible({ timeout: 5000 });
+    await copyBtn.click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()), { timeout: 5000 })
+      .toContain("MOCK1");
   });
 
   test("should change auto-refresh interval", async ({ page }) => {
     await page.goto("/");
+    await page.getByTestId("tab-screener").click();
     await page.waitForSelector("table tbody tr", {
       timeout: 15000,
     });
+    // auto-refresh-input is the MUI TextField root; the native input is inside.
     const autoRefreshInput = page.locator('[data-testid="auto-refresh-input"] input');
     await expect(autoRefreshInput).toBeVisible();
+    // fill() already fires the input/change events React listens to; an extra
+    // synthetic change dispatch can clobber the controlled value, so just
+    // blur via Tab instead.
     await autoRefreshInput.fill("30");
-    await autoRefreshInput.blur();
-    await autoRefreshInput.dispatchEvent("change");
+    await autoRefreshInput.press("Tab");
     expect(await autoRefreshInput.inputValue()).toBe("30");
   });
   test("should show error state when API fails", async ({ page }) => {
@@ -65,19 +66,13 @@ test.describe("UI Controls", () => {
     });
     await page.goto("/");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
-    const errorElement = page.getByTestId("screener-error");
-    try {
-      await expect(errorElement).toBeVisible({
-        timeout: 5000,
-      });
-    } catch {
-      const retryBtn = page.getByRole("button", {
-        name: "Retry",
-      });
-      const errorAlert = page.locator(".mantine-Alert-root");
-      const count = (await retryBtn.count()) + (await errorAlert.count());
-      expect(count).toBeGreaterThan(0);
-    }
+    await page.getByTestId("tab-screener").click();
+    // The screener error panel renders under testid "screener-error-container"
+    // with a "Retry" button ("screener-retry-btn"); there is no .MuiAlert-root.
+    const errorElement = page.getByTestId("screener-error-container");
+    await expect(errorElement).toBeVisible({ timeout: 5000 });
+    await expect(errorElement).toContainText("Screener failed to load");
+    await expect(page.getByTestId("screener-retry-btn")).toBeVisible();
   });
   test("should show loading state during data fetch", async ({ page }) => {
     // Delay the response

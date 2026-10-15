@@ -82,7 +82,6 @@ interface StatusBadgeProps {
 
 export function StatusBadge({
   running,
-  pid,
   statusUnknown,
   size = "sm",
   "data-testid": testId,
@@ -95,8 +94,8 @@ export function StatusBadge({
     );
   }
   return (
-    <Badge color={running ? "success" : "secondary"} variant="light" size={size} data-testid={testId}>
-      {running ? (pid ? `Running (PID ${pid})` : "Running") : "Stopped"}
+    <Badge color={running ? "success" : "secondary"} variant="filled" size={size} data-testid={testId}>
+      {running ? "Running" : "Stopped"}
     </Badge>
   );
 }

@@ -164,7 +164,13 @@ class TestChartPreview:
         candles = response.json()['candles']
 
         for candle in candles:
-            assert candle['time'] > 1000000000000
+            # Contract (src/types/backtest.ts:82): time is the comparable ISO
+            # string "YYYY-MM-DDTHH:MM", which the chart converts with toTime().
+            # It has never been epoch-ms — asserting an int could only ever pass
+            # when `candles` was EMPTY, which is what happened whenever the cache
+            # was cold (the mock below patches free_indian_apis.UpstoxAPI while
+            # the endpoint imports upstox_api.UpstoxAPI, so it is never applied).
+            assert isinstance(candle['time'], str) and len(candle['time']) >= 16
             assert isinstance(candle['open'], (int, float))
             assert isinstance(candle['high'], (int, float))
             isinstance(candle['low'], (int, float))

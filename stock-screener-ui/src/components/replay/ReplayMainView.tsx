@@ -50,7 +50,7 @@ export function ReplayMainView({
   onTradeRowClick,
 }: ReplayMainViewProps) {
   return (
-    <Box flex="0 0 auto" style={{ height: 500, minHeight: 400 }}>
+    <Box style={{ flex: 1, minHeight: 0, minWidth: 0, height: "100%" }} data-testid="replay-main-view">
       <Flex gap="sm" h="100%">
         <Box style={{ flex: "0 0 60%", minHeight: 0 }}>
           <ReplayChart

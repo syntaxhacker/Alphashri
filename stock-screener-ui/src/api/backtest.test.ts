@@ -210,7 +210,8 @@ describe("runBacktest", () => {
     expect(setError).toHaveBeenCalledWith("Request failed (502)");
   });
 
-  it("returns data when response has no results", async () => {
+  it("treats a 200 with no results as an error (does not hang)", async () => {
+    const { setError } = await import("../state/backtest");
     const data = { message: "queued" };
     mockedFetch.mockResolvedValue({
       ok: true,
@@ -220,7 +221,8 @@ describe("runBacktest", () => {
 
     const result = await runBacktest();
 
-    expect(result).toEqual(data);
+    expect(result).toBeNull();
+    expect(setError).toHaveBeenCalledWith("Backtest returned no results");
   });
 });
 

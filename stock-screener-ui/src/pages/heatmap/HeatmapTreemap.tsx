@@ -1,9 +1,5 @@
-import { useMemo, useRef } from "react";
-import { Box, Stack } from "@/ui";
-import Grid from "@mui/material/Grid";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import Typography from "@mui/material/Typography";
+import { useCallback, useMemo, useRef } from "react";
+import { Box, Stack, Text } from "@/ui";
 import Select from "@mui/material/Select";
 import MenuItem from "@mui/material/MenuItem";
 import ReactECharts from "echarts-for-react";
@@ -53,7 +49,7 @@ export function HeatmapTreemap({
   metrics = METRICS,
   showMetricSelect = false,
   showLegend = true,
-  chartHeight = 480,
+  chartHeight = 320,
   onSymbolClick,
   testId = "heatmap-treemap",
 }: HeatmapTreemapProps) {
@@ -63,9 +59,18 @@ export function HeatmapTreemap({
   const activeMetric = metrics.find((m) => m.value === metric) || metrics[0];
   const metricKey = activeMetric.value;
 
-  const metricValues = stocks.map((s) => getMetricValue(s, metricKey));
+  const metricValues = useMemo(
+    () => stocks.map((stock) => getMetricValue(stock, metricKey)),
+    [stocks, metricKey],
+  );
   const metricMin = metricValues.length ? Math.min(...metricValues) : 0;
   const metricMax = metricValues.length ? Math.max(...metricValues) : 1;
+  const handleChartClick = useCallback(
+    (params: { name?: string }) => {
+      if (params?.name) onSymbolClick?.(params.name);
+    },
+    [onSymbolClick],
+  );
 
   const chartOption = useMemo(() => {
     const data = stocks.map((stock) => {
@@ -186,61 +191,35 @@ export function HeatmapTreemap({
   }, [stocks, activeMetric, metricKey, metricMin, metricMax, isDark, metrics]);
 
   return (
-    <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 1, p: 1, flex: 1, alignItems: "center", justifyContent: "center", width: "100%" }}>
-      <Stack spacing={1} sx={{ width: "100%", alignItems: "center", justifyContent: "center" }}>
+    <Box data-testid={testId} sx={{ display: "flex", flexDirection: "column", gap: 0, flex: 1, minHeight: 0, width: "100%", overflow: "hidden" }}>
+      <Stack spacing={0} sx={{ width: "100%", flex: 1, minHeight: 0 }}>
         {showMetricSelect && onMetricChange && (
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1, width: "100%" }}>
-                <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>Color by</Typography>
-                <Select size="small" value={metricKey} onChange={(e) => onMetricChange(String(e.target.value) || metrics[0].value)} sx={{ minWidth: 140 }} data-testid={`${testId}-metric`}>
-                  {metrics.map((m) => (<MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>))}
-                </Select>
-                <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{stocks.length} stocks</Typography>
-              </Box>
-            </CardContent>
-          </Card>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+            <Text size="xs" c="dimmed">Color by</Text>
+            <Select size="small" value={metricKey} onChange={(e) => onMetricChange(String(e.target.value) || metrics[0].value)} sx={{ minWidth: 140 }} data-testid={`${testId}-metric`}>
+              {metrics.map((m) => (<MenuItem key={m.value} value={m.value}>{m.label}</MenuItem>))}
+            </Select>
+            <Text size="xs" c="dimmed">{stocks.length} stocks</Text>
+          </Box>
         )}
-        <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-          <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-            <Box sx={{ flex: 1, minHeight: typeof chartHeight === "number" ? chartHeight : undefined, minWidth: 320, width: "100%", display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-              <ReactECharts
-                ref={chartRef}
-                option={chartOption}
-                style={{ height: chartHeight, width: "100%", flex: 1 }}
-                opts={{ renderer: "canvas" }}
-                onEvents={
-                  onSymbolClick
-                    ? {
-                        click: (params: { name?: string }) => {
-                          if (params?.name) onSymbolClick(params.name);
-                        },
-                      }
-                    : undefined
-                }
-              />
-            </Box>
-          </CardContent>
-        </Card>
+        <Box sx={{ flex: 1, minHeight: typeof chartHeight === "number" ? chartHeight : 320, width: "100%", display: "flex", p: 1 }}>
+          <ReactECharts
+            ref={chartRef}
+            option={chartOption}
+            style={{ height: "100%", width: "100%" }}
+            opts={{ renderer: "canvas" }}
+            onEvents={onSymbolClick ? { click: handleChartClick } : undefined}
+          />
+        </Box>
         {showLegend && stocks.length > 0 && (
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", p: 1, "&:last-child": { pb: 1 } }}>
-              <Grid container spacing={1} sx={{ justifyContent: "center", alignItems: "center" }}>
-                <Grid size={{ xs: 12 }} sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                  <Typography variant="caption" sx={{ fontWeight: 600, display: "flex", alignItems: "center", justifyContent: "center" }}>{activeMetric.label}</Typography>
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                    <Box sx={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMin, metricMin, metricMax), borderRadius: "2px" }} />
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{activeMetric.fmt(metricMin)}</Typography>
-                  </Box>
-                  <Box sx={{ flex: 1, maxWidth: 120, height: 8, borderRadius: "4px", background: isSignedHeatmapMetric(metricKey) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})`, display: "flex", alignItems: "center", justifyContent: "center" }} />
-                  <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
-                    <Box sx={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMax, metricMin, metricMax), borderRadius: "2px" }} />
-                    <Typography variant="caption" sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{activeMetric.fmt(metricMax)}</Typography>
-                  </Box>
-                </Grid>
-              </Grid>
-            </CardContent>
-          </Card>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1, px: 2, height: 32, flexShrink: 0, borderTop: "1px solid var(--mui-palette-divider)" }}>
+            <Text size="xs" fw={600}>{activeMetric.label}</Text>
+            <Box sx={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMin, metricMin, metricMax), borderRadius: "2px" }} />
+            <Text size="xs">{activeMetric.fmt(metricMin)}</Text>
+            <Box sx={{ flex: 1, maxWidth: 120, height: 8, borderRadius: "4px", background: isSignedHeatmapMetric(metricKey) ? `linear-gradient(to right, ${SECTOR_STRONG_RED}, ${SECTOR_NEUTRAL}, ${SECTOR_GREEN})` : `linear-gradient(to right, ${SECTOR_STRONG_GREEN}, ${SECTOR_GREEN}, ${SECTOR_NEUTRAL}, ${SECTOR_RED}, ${SECTOR_STRONG_RED})` }} />
+            <Box sx={{ width: 12, height: 12, backgroundColor: getHeatmapMetricColor(metricKey, metricMax, metricMin, metricMax), borderRadius: "2px" }} />
+            <Text size="xs">{activeMetric.fmt(metricMax)}</Text>
+          </Box>
         )}
       </Stack>
     </Box>

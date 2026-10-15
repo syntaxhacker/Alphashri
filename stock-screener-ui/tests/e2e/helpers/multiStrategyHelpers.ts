@@ -169,7 +169,7 @@ export async function navigateToBot(page: Page, _botId?: string) {
   await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
   await expect(page.locator('[data-testid="paper-trading-view"]')).toBeVisible({ timeout: 20000 });
 
-  // Select a bot via the Mantine Select dropdown
+  // Select a bot via the Select dropdown
   const botSelect = page.locator('[data-testid="bot-select"]');
   await expect(botSelect).toBeVisible({ timeout: 10000 });
   await botSelect.click();

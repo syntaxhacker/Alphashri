@@ -124,7 +124,7 @@ export function ScreenerSidePanel({ activeScreener }: Props) {
       data-testid="screener-side-panel"
     >
       <CardContent sx={{ p: 1, "&:last-child": { pb: 1 }, display: "flex", flexDirection: "column", gap: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", px: 0.5 }}>
+        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: 0.5 }}>
           <Text size="11px" fw={600} c="dimmed" tt="uppercase">
             Filters
           </Text>

@@ -111,31 +111,35 @@ test.describe("Multi-Strategy Bot - Signal Type Display", () => {
     await expect(page.locator(`[data-testid="bot-row-${BOT_ORB_ID}"]`)).toContainText("ORB");
   });
 
-  test("should display SR_BREAKOUT strategy type in bot list", async ({ page }) => {
+  test("should display SR Breakout strategy in bot list", async ({ page }) => {
     await gotoBotsViewAndWait(page);
+    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
     await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "SR_BREAKOUT",
+      "Classic S/R Breakout",
     );
   });
 
-  test("should display 52W_CHASER strategy type in bot list", async ({ page }) => {
+  test("should display 52W Chaser strategy in bot list", async ({ page }) => {
     await gotoBotsViewAndWait(page);
+    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
     await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "52W_CHASER",
+      "52W Chaser Swing",
     );
   });
 
-  test("should display 52W_TARGET strategy type in bot list", async ({ page }) => {
+  test("should display 52W Target strategy in bot list", async ({ page }) => {
     await gotoBotsViewAndWait(page);
+    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
     await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "52W_TARGET",
+      "52W Target Hold",
     );
   });
 
-  test("should display EMA_CROSS strategy type in bot list", async ({ page }) => {
+  test("should display EMA Cross strategy in bot list", async ({ page }) => {
     await gotoBotsViewAndWait(page);
+    // BotSummaryCell renders plain strategy names, not raw strategy_type codes.
     await expect(page.locator(`[data-testid="bot-row-${BOT_MIXED_ID}"]`)).toContainText(
-      "EMA_CROSS",
+      "EMA Cross Default",
     );
   });
 

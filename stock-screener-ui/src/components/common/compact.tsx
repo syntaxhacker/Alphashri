@@ -5,19 +5,23 @@ import MuiPaper from "@mui/material/Paper";
 import Box from "@mui/material/Box";
 import Stack from "@mui/material/Stack";
 import SimpleGrid from "@mui/material/Grid";
-import { Text, Title } from "@/ui";
+import { Text, Title, useDensity } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { UIStackProps, UIPaperProps } from "@/ui";
 
 const SCROLLABLE_PANEL_STYLE: CSSProperties = {
   display: "flex",
   flexDirection: "column",
+  flex: 1,
   minHeight: 0,
+  minWidth: 0,
+  overflow: "hidden",
 };
 
 const SCROLL_CONTAINER_STYLE: CSSProperties = {
   flex: 1,
   minHeight: 0,
+  minWidth: 0,
   overflow: "auto",
 };
 
@@ -26,6 +30,8 @@ interface CompactPageProps extends UIStackProps {
   description?: ReactNode;
   actions?: ReactNode;
   children: ReactNode;
+  /** Opt-in to the legacy centered layout. Default is left/stretch. */
+  center?: boolean;
 }
 
 export function CompactPage({
@@ -33,10 +39,11 @@ export function CompactPage({
   description,
   actions,
   children,
+  center = false,
   ...stackProps
 }: CompactPageProps) {
   return (
-    <Stack spacing={1} sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0, alignItems: "center", width: "100%" }} {...stackProps}>
+    <Stack spacing={1} style={{ alignItems: center ? "center" : "stretch" }} sx={{ height: "100%", display: "flex", flexDirection: "column", overflow: "hidden", minHeight: 0, width: "100%" }} {...stackProps}>
       {(title || description || actions) && (
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", width: "100%", gap: 1 }}>
           <Stack spacing={1} sx={{ alignItems: "flex-start" }}>
@@ -46,7 +53,7 @@ export function CompactPage({
           {actions}
         </Box>
       )}
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%", display: "flex", justifyContent: "center" }}>{children}</Box>
+      <Box style={{ justifyContent: center ? "center" : "flex-start" }} sx={{ flex: 1, minHeight: 0, overflow: "auto", width: "100%", display: "flex" }}>{children}</Box>
     </Stack>
   );
 }
@@ -73,14 +80,16 @@ export function CompactPanel({
   scrollable = false,
   ...paperProps
 }: CompactPanelProps) {
+  const { tokens: densityTokens } = useDensity();
+  const pad = padded ? densityTokens.panelPad : 0;
   const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
 
     return (
-      <MuiPaper elevation={0} sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
-        <MuiCardContent sx={{ p: padded ? 1 : 0, "&:last-child": { pb: padded ? 1 : 0 }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
+      <MuiPaper elevation={0} data-compact="" sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
+        <MuiCardContent sx={{ p: pad, "&:last-child": { pb: pad }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
         {(title || description || action) && (
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, mb: 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
-            <Stack spacing={1} sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start", gap: 1 }}>
+          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, mb: 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
+            <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 1, minWidth: 0 }}>
               {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
               {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
             </Stack>
@@ -111,9 +120,10 @@ export function CompactStat({
   valueSize = "lg",
   ...paperProps
 }: CompactStatProps) {
+  const { tokens: densityTokens } = useDensity();
   return (
-    <Card elevation={0} sx={{ bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }} {...(paperProps as any)}>
-      <MuiCardContent sx={{ p: 1, "&:last-child": { pb: 1 }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, textAlign: "center" }}>
+    <Card elevation={0} data-compact-stat="" sx={{ bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }} {...(paperProps as any)}>
+      <MuiCardContent sx={{ p: densityTokens.statPad, "&:last-child": { pb: densityTokens.statPad }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, textAlign: "center" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
           <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1} ta="center">
             {label}
@@ -142,14 +152,17 @@ export function CompactStat({
 
 export function CompactStatGrid({
   children,
+  center = false,
   ...props
 }: {
   children: ReactNode;
+  /** Opt-in to the legacy centered layout. Default is left/stretch. */
+  center?: boolean;
   [key: string]: any;
 }) {
   return (
-    <Box sx={{ display: "flex", justifyContent: "center", alignItems: "center", width: "100%", p: 1 }}>
-      <SimpleGrid container spacing={1} sx={{ justifyContent: "center", alignItems: "center", width: "100%", gap: 1 }} {...props}>
+    <Box style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ display: "flex", width: "100%", p: 1 }}>
+      <SimpleGrid container spacing={1} style={{ justifyContent: center ? "center" : "flex-start", alignItems: center ? "center" : "stretch" }} sx={{ width: "100%", gap: 1 }} {...props}>
         {children}
       </SimpleGrid>
     </Box>

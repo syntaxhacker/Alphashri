@@ -1,0 +1,26 @@
+== synthetic prior-day IV/RV proxy (2018-2026, daily) ==
+n=2269  ratio mean=1.189 med=1.172 p10=0.949 p90=1.447 min=0.629 max=2.200
+        vrp  mean=0.0167 med=0.0195 p10=-0.0099 p90=0.0457
+  IV>RV fraction: 0.830
+  prior-day IV/RV bucket -> forward realised vol (mean-reversion check):
+               n  iv_est    rv20  fwd_rv5
+ratio                                    
+(0.0, 1.0]   386  0.2104  0.2392   0.1536
+(1.0, 1.2]   894  0.1548  0.1409   0.1336
+(1.2, 1.4]   653  0.1420  0.1107   0.1203
+(1.4, 1.6]   241  0.1326  0.0905   0.1124
+(1.6, 1.8]    62  0.1410  0.0832   0.1074
+(1.8, 10.0]   33  0.1565  0.0831   0.1720
+
+== real surface VRP by DTE (2026-05..2026-09, listed) ==
+           count    mean  median     std
+dte                                     
+(0, 7]         4  0.0333  0.0334  0.0094
+(7, 14]        5  0.0513  0.0504  0.0048
+(14, 30]      10  0.0468  0.0482  0.0074
+(30, 60]      21  0.0522  0.0524  0.0064
+(60, 200]     56  0.0573  0.0616  0.0188
+
+real VRP (all): mean=0.0538 med=0.0536 min=0.0047 max=0.0960
+real vrp_ratio: mean=1.852 med=1.892
+term_slope (back-front IV): n=42 mean=0.0015 pos-frac=0.344

@@ -153,7 +153,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
         data-testid="screener-picker-modal"
       >
         <Stack gap="sm">
-          <Group gap="xs" wrap="nowrap">
+          <Group gap="xs" wrap="nowrap" align="center">
             <Select
               size="sm"
               w={260}
@@ -194,7 +194,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
 
           {!isLoading && stocks.length > 0 && (
             <>
-              <Group gap="md">
+              <Group gap="md" align="center">
                 <Checkbox
                   size="xs"
                   checked={allSelected}
@@ -226,6 +226,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
                         key={stock.symbol}
                         gap="xs"
                         wrap="nowrap"
+                        align="center"
                         px="xs"
                         py={3}
                         sx={{
@@ -274,7 +275,7 @@ export function ScreenerSymbolPicker({ symbols, onAddSymbols }: ScreenerSymbolPi
           {!isLoading && stocks.length > 0 && (
             <>
               <Divider />
-              <Group justify="space-between">
+              <Group justify="space-between" align="center">
                 <Text size="sm" c="dimmed">
                   {selectedSet.size} of {stocks.length} selected
                 </Text>

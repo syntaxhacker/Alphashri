@@ -2,15 +2,14 @@ import { useMemo, useCallback } from "react";
 import {
   Group,
   Text,
-  Badge,
   ActionIcon,
   Tooltip,
   Tree,
   useTree,
   getTreeExpandedState,
+  Box,
 } from "@/ui";
 import {
-  IconChevronDown,
   IconEdit,
   IconTrash,
   IconPlus,
@@ -18,7 +17,6 @@ import {
 } from "@tabler/icons-react";
 import type { StrategyConfig } from "../../types/strategies";
 import type { TemplateTreeViewProps } from "./types";
-import { CompactPanel } from "../common/compact";
 import { EditableNumberCell } from "./EditableNumberCell";
 
 export function TemplateTreeView({
@@ -65,7 +63,7 @@ export function TemplateTreeView({
   });
 
   const renderNode = useCallback(
-    ({ node, expanded, hasChildren, elementProps }: any) => {
+    ({ node, elementProps }: any) => {
       const config = nodeMap.get(node.value);
       if (!config) return <span {...elementProps}>{node.label}</span>;
 
@@ -85,34 +83,13 @@ export function TemplateTreeView({
           {...elementProps}
           style={{ ...(elementProps.style as React.CSSProperties), padding: "2px 0", display: "flex", alignItems: "center", gap: 8 }}
         >
-          {hasChildren ? (
-            <IconChevronDown
-              size={14}
-              style={{
-                cursor: "pointer",
-                transform: expanded ? "rotate(0deg)" : "rotate(-90deg)",
-                transition: "transform 150ms",
-                flexShrink: 0,
-              }}
-              onClick={(e) => {
-                e.stopPropagation();
-                tree.toggleExpanded(node.value);
-              }}
-            />
-          ) : (
-            <span style={{ width: 14, flexShrink: 0 }} />
-          )}
-
-          <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ minWidth: 80, flexShrink: 0, display: "flex", alignItems: "center" }}>
+          <Text size="sm" fw={isTemplate ? 600 : 400} c={isTemplate ? undefined : "dimmed"} style={{ width: 180, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", display: "flex", alignItems: "center" }}>
             {node.label as string}
           </Text>
 
-          {isTemplate && (
-            <Badge size="sm" variant="light" style={{ width: 90, flexShrink: 0 }}>
-              {config.strategy_type}
-            </Badge>
-          )}
-          {!isTemplate && <span style={{ width: 90, flexShrink: 0 }} />}
+          <Text size="xs" c="text.secondary" style={{ width: 90, flexShrink: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            {isTemplate ? config.strategy_type : ""}
+          </Text>
 
           <span style={colStyle}>
             <EditableNumberCell
@@ -241,39 +218,30 @@ export function TemplateTreeView({
 
   if (isLoading && templates.length === 0) {
     return (
-      <CompactPanel
-        title="Loading..."
-        description="Fetching strategy templates"
-        testId="template-tree-loading"
-      />
+      <Box data-testid="template-tree-loading" sx={{ p: 1 }}>
+        <Text size="sm" fw={600}>Loading…</Text>
+        <Text size="xs" c="dimmed">Fetching strategy templates</Text>
+      </Box>
     );
   }
   if (templates.length === 0) {
     return (
-      <CompactPanel
-        title="No Templates"
-        description="Run seed script to create strategy templates"
-        testId="template-tree-empty"
-      />
+      <Box data-testid="template-tree-empty" sx={{ p: 1 }}>
+        <Text size="sm" fw={600}>No templates</Text>
+        <Text size="xs" c="dimmed">Run the seed script to create strategy templates</Text>
+      </Box>
     );
   }
 
   return (
-    <CompactPanel
-      title="Strategy Tree"
-      description="Templates and their variations"
-      testId="template-tree-panel"
-      scrollable
-    >
+    <Box className="template-tree-view" data-testid="template-tree-panel" sx={{ minHeight: 0 }}>
       <Group
         gap={1}
         align="center"
-        px="sm"
-        pb={4}
-        sx={{ display: "flex", alignItems: "center", gap: 1, p: 1 }}
+        sx={{ display: "flex", alignItems: "center", gap: 1, pt: 1, pb: 0.5, pr: 1, pl: 0 }}
       >
-        <span style={{ width: 14, flexShrink: 0 }} />
-        <Text size="xs" c="dimmed" style={{ minWidth: 80, display: "flex", alignItems: "center" }}>
+        <span style={{ width: 18, flexShrink: 0 }} />
+        <Text size="xs" c="dimmed" style={{ width: 180, display: "flex", alignItems: "center" }}>
           Name
         </Text>
         <Text size="xs" c="dimmed" style={{ width: 90, display: "flex", alignItems: "center" }}>
@@ -300,6 +268,6 @@ export function TemplateTreeView({
         selectOnClick={false}
         renderNode={renderNode}
       />
-    </CompactPanel>
+    </Box>
   );
 }

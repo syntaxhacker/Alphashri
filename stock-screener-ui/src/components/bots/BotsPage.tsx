@@ -2,12 +2,7 @@ import { useEffect, useCallback, useMemo } from "react";
 import { useSearchParams } from "react-router-dom";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import * as palette from "@/ui/palette";
-import { Box, Tabs, Button, Stack, Group, Text, Badge } from "@/ui";
-import Container from "@mui/material/Container";
-import Card from "@mui/material/Card";
-import CardContent from "@mui/material/CardContent";
-import TableContainer from "@mui/material/TableContainer";
-import Paper from "@mui/material/Paper";
+import { Box, Tabs, Button, Stack, Group, Text, Badge, ToolbarRow } from "@/ui";
 
 import { IconRobot, IconChartLine, IconPlus, IconPlayerPlay, IconPlayerStop, IconChartBar } from "@tabler/icons-react";
 import {
@@ -103,15 +98,14 @@ function BotsPageTabs({
     performance: { color: palette.NT_TREND },
   };
   return (
-    <Box sx={{ flex: "0 0 auto", mb: 2, display: "flex", alignItems: "center", justifyContent: "center", p: 1 }} id="bots-tabs" data-testid="bots-tabs">
+    <ToolbarRow gap={8} wrap={false} id="bots-tabs" data-testid="bots-tabs" style={{ flex: "0 0 auto", height: 40, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
       <Tabs
         value={currentView}
         onChange={(v) => v && onViewChange(v)}
         id="bots-tabs"
         data-testid="bots-tabs"
-        sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}
       >
-        <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
+        <Tabs.List sx={{ display: "flex", alignItems: "center", gap: 1 }}>
           <Tabs.Tab value="list" icon={<IconRobot size={16} color={TAB_META.list.color} />} data-testid="bots-tab-list" id="bots-tab-list">
             Bots
           </Tabs.Tab>
@@ -134,7 +128,7 @@ function BotsPageTabs({
           </Tabs.Tab>
         </Tabs.List>
       </Tabs>
-    </Box>
+    </ToolbarRow>
   );
 }
 
@@ -184,7 +178,7 @@ function BotsTable({
               <Badge color="error" size="sm" variant="filled">LIVE</Badge>
             )}
             {!row.original.is_active && (
-              <Badge color="secondary" size="sm" variant="light">
+              <Badge color="secondary" size="sm" variant="filled">
                 Inactive
               </Badge>
             )}
@@ -250,30 +244,24 @@ function BotsTable({
   ], [onViewStatus, onStart, onStop, onEdit, onDelete]);
 
   return (
-    <Card elevation={1} id="bots-list-card" data-testid="bots-list-card" sx={{ p: 1 }}>
-      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }} mb="xs">
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-            <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
-            <Text size="sm" fw={600} ta="center">Configured Bots</Text>
-            <Badge size="sm" variant="light" color="info">{state.bots.length}</Badge>
-            <Badge size="sm" variant="dot" color="success">{state.bots.filter(b => b.running).length} running</Badge>
-          </Box>
-        </Box>
-        <TableContainer component={Paper} elevation={1}>
-          <TanStackTable
-            data={state.bots}
-            columns={columns}
-            dataTestId="bots-table"
-            getRowTestId={(row) => `bot-row-${row.id}`}
-            getRowClassName={() => "bot-row"}
-            getRowStyle={(row) => ({
-              backgroundColor: state.selectedBot?.id === row.id ? "rgba(var(--mui-palette-primary-mainChannel) / 0.15)" : undefined,
-            })}
-          />
-        </TableContainer>
-      </CardContent>
-    </Card>
+    <Box id="bots-list-card" data-testid="bots-list-card" sx={{ border: "1px solid var(--mui-palette-divider)", borderRadius: 1, overflow: "hidden", bgcolor: "background.paper" }}>
+      <ToolbarRow gap={8} wrap={false} style={{ padding: "8px 12px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+        <Box w={4} h={20} sx={(theme) => ({ borderRadius: 2, backgroundColor: theme.palette.success.main })} />
+        <Text size="sm" fw={600}>Configured Bots</Text>
+        <Badge size="sm" variant="light" color="info">{state.bots.length}</Badge>
+        <Badge size="sm" variant="dot" color="success">{state.bots.filter(b => b.running).length} running</Badge>
+      </ToolbarRow>
+      <TanStackTable
+        data={state.bots}
+        columns={columns}
+        dataTestId="bots-table"
+        getRowTestId={(row) => `bot-row-${row.id}`}
+        getRowClassName={() => "bot-row"}
+        getRowStyle={(row) => ({
+          backgroundColor: state.selectedBot?.id === row.id ? "rgba(var(--mui-palette-primary-mainChannel) / 0.15)" : undefined,
+        })}
+      />
+    </Box>
   );
 }
 
@@ -304,27 +292,23 @@ function renderPageContent({
   }
 
   return (
-    <Stack spacing={1} sx={{ height: "100%", minHeight: 0, display: "flex", flexDirection: "column" }} id="bots-page">
+    <Stack sx={{ flex: 1, minHeight: 0, minWidth: 0, display: "flex", flexDirection: "column", px: 2, py: 1, gap: 8 }} id="bots-page">
       <BotsPageTabs currentView={currentView} onViewChange={handleViewChange} />
-      <Box sx={{ flex: 1, minHeight: 0, overflow: "auto" }}>
+      <Box sx={{ flex: 1, minHeight: 0, minWidth: 0, overflow: "auto" }}>
         {isLoading ? (
           <Stack align="center" justify="center" sx={{ height: "100%" }} data-testid="bots-loading">
             <InlineLoader size="lg" />
           </Stack>
         ) : currentView === "performance" ? (
-          <Box sx={{ width: "100%", maxWidth: 1120, mx: "auto" }}>
-            <StrategyPerformance />
-          </Box>
+          <StrategyPerformance />
         ) : currentView === "status" && state.selectedBot ? (
-          <Box sx={{ width: "100%", maxWidth: 1120, mx: "auto" }}>
-            <BotStatusPanel
-              bot={state.selectedBot}
-              status={state.botStatus}
-              trades={state.botTrades}
-              onStart={handleStartBot}
-              onStop={handleStopBot}
-            />
-          </Box>
+          <BotStatusPanel
+            bot={state.selectedBot}
+            status={state.botStatus}
+            trades={state.botTrades}
+            onStart={handleStartBot}
+            onStop={handleStopBot}
+          />
         ) : (
           <BotsTable
             onViewStatus={handleViewStatus}
@@ -405,14 +389,13 @@ export function BotsPage() {
   const handleDeleteBot = useDeleteBotHandler();
 
   return (
-    <Container maxWidth="xl" sx={{ py: 2, height: "100%", display: "flex", flexDirection: "column", minHeight: 0 }} data-testid="bots-view">
-      <Stack spacing={1} sx={{ mb: 2, gap: 1, p: 1 }}>
-        <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1 }}>
-          <Stack spacing={1} sx={{ display: "flex", alignItems: "center", gap: 1 }}>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="lg" fw={600} ta="center">Bots</Text></Box>
-            <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}><Text size="sm" c="dimmed" ta="center">Manage bot configurations, live status, and execution controls.</Text></Box>
-          </Stack>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1, p: 1 }}>
+    <Box sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", bgcolor: "background.default" }} data-testid="bots-view">
+      <ToolbarRow gap={8} wrap={false} style={{ flex: "0 0 auto", height: 48, padding: "0 16px", borderBottom: "1px solid var(--mui-palette-divider)" }}>
+        <Text size="lg" fw={600}>Bots</Text>
+        <Text size="sm" c="dimmed" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+          Manage bot configurations, live status, and execution controls.
+        </Text>
+        <Box sx={{ flex: 1 }} />
             <Button
               variant="filled"
               color="success"
@@ -452,10 +435,8 @@ export function BotsPage() {
               data-testid="create-bot-btn"
             >
               New Bot
-            </Button>
-          </Box>
-        </Box>
-      </Stack>
+          </Button>
+      </ToolbarRow>
       {renderPageContent({
         currentView,
         handleViewChange,
@@ -467,6 +448,6 @@ export function BotsPage() {
         handleDeleteBot,
       })}
       <BotsConfigModal />
-    </Container>
+    </Box>
   );
 }

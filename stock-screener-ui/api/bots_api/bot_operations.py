@@ -885,6 +885,22 @@ async def bot_auto_recovery_task():
     await asyncio.sleep(30)
     while True:
         try:
+            # Out of hours a bot has nothing to do, and restarting is actively
+            # harmful: with the market shut the process exits immediately, so
+            # this task would crash-loop every active bot in a tight 60s cycle.
+            # Only recover during the session.
+            try:
+                from trading.utils import is_market_open
+
+                market_open = bool(is_market_open())
+            except Exception:
+                # Never let a market-check failure cause a restart storm.
+                market_open = False
+
+            if not market_open:
+                await asyncio.sleep(60)
+                continue
+
             user_bots: dict[int, list[tuple[int, bool]]] = {}
             with SessionLocal() as db:
                 bots = db.query(BotConfig).filter(

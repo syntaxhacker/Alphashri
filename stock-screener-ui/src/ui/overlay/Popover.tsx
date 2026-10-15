@@ -8,6 +8,7 @@ type PopoverContextValue = {
   setAnchorEl: (el: HTMLElement | null) => void;
   open: boolean;
   onClose?: () => void;
+  onChange?: (open: boolean) => void;
   position?: string;
   offset?: number;
   withArrow?: boolean;
@@ -51,6 +52,7 @@ export function Popover({
   children,
   opened,
   onClose,
+  onChange,
   position,
   withArrow,
   width,
@@ -81,13 +83,15 @@ export function Popover({
 
   const handleClose = React.useCallback(() => {
     if (isControlled) {
+      onChange?.(false);
       onClose?.();
     } else {
       setInternalAnchorEl(null);
       setUncontrolledOpen(false);
+      onChange?.(false);
       onClose?.();
     }
-  }, [isControlled, onClose]);
+  }, [isControlled, onClose, onChange]);
 
   const setAnchorEl = React.useCallback(
     (el: HTMLElement | null) => {
@@ -113,6 +117,7 @@ export function Popover({
     setAnchorEl,
     open,
     onClose: handleClose,
+    onChange,
     position,
     offset,
     withArrow,
@@ -137,12 +142,15 @@ export function Popover({
 }
 
 export function PopoverTarget({ children, className, style }: UIPopoverTargetProps) {
-  const { setAnchorEl, anchorEl, open } = usePopoverContext();
+  const { setAnchorEl, anchorEl, open, controlledOpen, onChange } = usePopoverContext();
   const child = React.Children.only(children as React.ReactElement<any>);
   const handleClick = (e: React.MouseEvent) => {
     const target = e.currentTarget as HTMLElement;
-    // toggle behavior: if already open and same anchor, close
-    if (open && anchorEl === target) {
+    if (controlledOpen !== undefined) {
+      // Controlled (Mantine-style): toggle via onChange.
+      setAnchorEl(target);
+      onChange?.(!open);
+    } else if (open && anchorEl === target) {
       setAnchorEl(null);
     } else {
       setAnchorEl(target);

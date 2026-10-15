@@ -1,3 +1,5 @@
+import { memo } from "react";
+import type { ReactNode } from "react";
 import { CompactPanel } from "../common/compact";
 import { ScreenerStockView } from "./ScreenerStockView";
 import type { Stock, ColumnDef } from "../../types";
@@ -11,6 +13,7 @@ interface ScreenerSectionProps {
   touchedSymbols: Set<string>;
   badgeLabel?: string;
   scoreFormula?: string;
+  action?: ReactNode;
   onSymbolClick: (symbol: string) => void;
   onSymbolHover: (symbol: string | null) => void;
   viewMode: "table" | "heatmap";
@@ -18,7 +21,7 @@ interface ScreenerSectionProps {
   activeScreener: string;
 }
 
-export function ScreenerSection({
+export const ScreenerSection = memo(function ScreenerSection({
   title,
   description,
   testId,
@@ -27,6 +30,7 @@ export function ScreenerSection({
   touchedSymbols,
   badgeLabel,
   scoreFormula,
+  action,
   onSymbolClick,
   onSymbolHover,
   viewMode,
@@ -38,6 +42,7 @@ export function ScreenerSection({
       title={title}
       description={viewMode === "heatmap" ? undefined : description}
       testId={testId}
+      action={action}
       scrollable={viewMode !== "heatmap"}
       padded={false}
     >
@@ -55,4 +60,4 @@ export function ScreenerSection({
       />
     </CompactPanel>
   );
-}
+});

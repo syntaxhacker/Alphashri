@@ -54,13 +54,17 @@ test.describe("Options View - Option Chain", () => {
   test("should display option chain table", async ({ page }) => {
     await expect(page.locator('[data-testid="options-chain-table"]')).toBeVisible();
 
-    // Check for some strike prices in the table using data-testid
+    // Check for some strike prices in the table using data-testid.
+    // NOTE: the ATM strike cell also renders an "ATM" badge, so its text
+    // content is e.g. "24000ATM" — assert per-cell containment, not exact
+    // array equality.
     const strikeCells = page.locator('[data-testid="strike-cell"]');
     await expect(strikeCells.first()).toBeVisible({ timeout: 10000 });
+    await expect(strikeCells).toHaveCount(2);
 
-    const strikeTexts = await strikeCells.allTextContents();
-    expect(strikeTexts).toContain("23900");
-    expect(strikeTexts).toContain("24000");
+    await expect(strikeCells.nth(0)).toContainText("23900");
+    await expect(strikeCells.nth(1)).toContainText("24000");
+    await expect(page.locator('[data-testid="options-chain-atm-badge"]')).toBeVisible();
   });
 
   test("should open user guide modal", async ({ page }) => {

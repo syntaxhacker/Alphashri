@@ -1,11 +1,6 @@
 import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import type { Dispatch, MutableRefObject, SetStateAction } from "react";
-import Container from "@mui/material/Container";
-import Grid from "@mui/material/Grid";
-import CardContent from "@mui/material/CardContent";
-import MuiPaper from "@mui/material/Paper";
-import Card from "@mui/material/Card";
-import { Box, Group, Text, Button, Stack, Tabs, Loader, SegmentedControl, Title, Badge, ScrollArea, Paper } from "@/ui";
+import { Box, Group, Text, Button, Stack, Tabs, Loader, SegmentedControl, Title, Badge, ScrollArea, Paper, ToolbarRow } from "@/ui";
 import {
   IconChartBar,
   IconBuildingFactory,
@@ -42,11 +37,11 @@ function AlertsAndMovers({
   intervalMovers: InternalStockMover[];
 }) {
   return (
-    <Stack spacing={1} sx={{ overflow: "hidden", display: "flex", alignItems: "stretch", justifyContent: "center" }}>
+    <Stack spacing={1} sx={{ overflow: "hidden", display: "flex", alignItems: "stretch" }}>
       <CompactPanel
         id="sector-alerts-card"
         data-testid="sector-alerts-card"
-        sx={{ flex: "1 1 50%", display: "flex", flexDirection: "column", p: 1 }}
+        sx={{ flex: "1 1 50%", minHeight: 0, display: "flex", flexDirection: "column", p: 1 }}
         title={
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Real-time Alerts</Title>
@@ -62,7 +57,7 @@ function AlertsAndMovers({
       <CompactPanel
         id="sector-interval-movers-card"
         data-testid="sector-interval-movers-card"
-        sx={{ flex: "1 1 50%", display: "flex", flexDirection: "column", p: 1 }}
+        sx={{ flex: "1 1 50%", minHeight: 0, display: "flex", flexDirection: "column", p: 1 }}
         title={
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1 }}>
             <Title order={4}>Interval Movers</Title>
@@ -82,7 +77,7 @@ function LoadingPanel() {
   return (
     <CompactPanel
       title={
-        <Group gap="xs" wrap="nowrap">
+        <Group gap="xs" wrap="nowrap" align="center">
           <Loader size="sm" />
           <Text fw={600} size="sm">
             Fetching sector performance
@@ -153,7 +148,7 @@ function DashboardContent({
   const totalDeclines = data.sectors.reduce((acc, s) => acc + s.declines, 0);
 
   return (
-    <Stack spacing={1} sx={{ p: 1 }}>
+    <Stack spacing={1} sx={{ flex: 1, minHeight: 0, overflow: "auto", p: 1 }}>
       <CompactStatGrid>
         <CompactStat
           label="Top Sector"
@@ -215,27 +210,23 @@ function DashboardContent({
         />
       </CompactPanel>
 
-      <Grid container spacing={2} justifyContent="center" sx={{ width: "100%" }}>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
-          <Card elevation={1} sx={{ width: "100%", p: 1 }}>
-            <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-              <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", p: 1 }}>
-                <Title order={4}>Sector Performance</Title>
-              </Box>
-              <Box
-                id="sector-table-container"
-                data-testid="sector-table-container"
-                sx={{ p: 1, display: "flex", alignItems: "center", justifyContent: "center", minHeight: 0, flex: 1 }}
-              >
-                <SectorTable sectors={data.sectors} />
-              </Box>
-            </CardContent>
-          </Card>
-        </Grid>
-        <Grid size={{ xs: 12, md: 6 }} sx={{ display: "flex", justifyContent: "center" }}>
+      <Box sx={{ display: "flex", gap: 1, alignItems: "stretch", flexWrap: "wrap" }}>
+        <Box sx={{ flex: "1 1 420px", minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden", border: "1px solid var(--mui-palette-divider)", borderRadius: 2 }}>
+          <Box sx={{ display: "flex", alignItems: "center", px: 1.5, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+            <Title order={4}>Sector Performance</Title>
+          </Box>
+          <Box
+            id="sector-table-container"
+            data-testid="sector-table-container"
+            sx={{ minHeight: 0, flex: 1, overflow: "auto" }}
+          >
+            <SectorTable sectors={data.sectors} />
+          </Box>
+        </Box>
+        <Box sx={{ flex: "1 1 420px", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <AlertsAndMovers alerts={alerts} intervalMovers={intervalMovers} />
-        </Grid>
-      </Grid>
+        </Box>
+      </Box>
     </Stack>
   );
 }
@@ -442,43 +433,40 @@ function SectorPageHeader({
   onRefresh: () => void;
 }) {
   return (
-    <Card elevation={1} className="sector-analysis-header" sx={{ width: "100%", flexShrink: 0, p: 1 }}>
-      <CardContent sx={{ p: 1, "&:last-child": { pb: 1 } }}>
-        <Box sx={{ minHeight: 48, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, flexShrink: 0 }}>
-          <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "center" }}>
-            <Title order={2} size="h4">
-              Sector Dashboard
-            </Title>
-            <Text size="sm" c="dimmed">
-              Real-time sector performance and technical strength.
-            </Text>
-          </Stack>
-          <Group gap={1} sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <SegmentedControl
-              value={market}
-              onChange={(v) => setMarket(v as "india" | "america")}
-              data={[
-                { label: "India", value: "india" },
-                { label: "US", value: "america" },
-              ]}
-              size="sm"
-              data-testid="sector-market-selector"
-            />
-            <Button
-              variant="light"
-              color="secondary"
-              size="sm"
-              leftSection={<IconRefresh size={14} />}
-              onClick={onRefresh}
-              loading={loading}
-              data-testid="sector-refresh-btn"
-            >
-              Refresh
-            </Button>
-          </Group>
-        </Box>
-      </CardContent>
-    </Card>
+    <ToolbarRow
+      gap={8}
+      data-testid="sector-header"
+      style={{ padding: "0 16px", minHeight: 48, height: 48, borderBottom: "1px solid var(--mui-palette-divider)", flexShrink: 0 }}
+    >
+      <Title order={3} size="h4">
+        Sector Dashboard
+      </Title>
+      <Text size="xs" c="dimmed" sx={{ whiteSpace: "nowrap" }}>
+        Real-time sector performance and technical strength.
+      </Text>
+      <Box sx={{ flex: 1 }} />
+      <SegmentedControl
+        value={market}
+        onChange={(v) => setMarket(v as "india" | "america")}
+        data={[
+          { label: "India", value: "india" },
+          { label: "US", value: "america" },
+        ]}
+        size="sm"
+        data-testid="sector-market-selector"
+      />
+      <Button
+        variant="light"
+        color="secondary"
+        size="sm"
+        leftSection={<IconRefresh size={14} />}
+        onClick={onRefresh}
+        loading={loading}
+        data-testid="sector-refresh-btn"
+      >
+        Refresh
+      </Button>
+    </ToolbarRow>
   );
 }
 
@@ -599,10 +587,9 @@ export function SectorPage() {
   }, [heatmapStocks]);
 
   return (
-    <Container
-      maxWidth="xl"
-      sx={{ py: 2, height: "100%", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column", gap: 1, width: "100%" }}
+    <Box
       data-testid="sector-analysis-view"
+      sx={{ width: "100%", height: "100%", minHeight: 0, display: "flex", flexDirection: "column", p: 0, gap: 0, overflow: "hidden" }}
     >
       <SectorPageHeader
         market={state.market}
@@ -610,53 +597,49 @@ export function SectorPage() {
         loading={state.loading}
         onRefresh={() => state.loadData(state.market)}
       />
-      <MuiPaper elevation={1} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", p: 1 }}>
-        <CardContent sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", p: 1, alignItems: "center", justifyContent: "center", "&:last-child": { pb: 1 }, overflow: "hidden" }}>
-          <Box
-            id="sector-page"
-            sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", width: "100%" }}
-          >
-            <Grid container spacing={2} justifyContent="center" sx={{ width: "100%", display: "flex", alignItems: "center", p: 1 }}>
-              <Grid size={12} sx={{ display: "flex", justifyContent: "center" }}>
-                <Tabs value={state.activeTab} onChange={state.setActiveTab}>
-                  <Tabs.List sx={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 1 }}>
-                    <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
-                      Live Dashboard
-                    </Tabs.Tab>
-                    <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
-                      Sector Correlation
-                    </Tabs.Tab>
-                    <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
-                      Historical Cycles
-                    </Tabs.Tab>
-                  </Tabs.List>
-                </Tabs>
-              </Grid>
-            </Grid>
-            <Box flex={1} sx={{ minHeight: 0, p: 1, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
-              <SectorTabContent
-                activeTab={state.activeTab}
-                data={state.data}
-                loading={state.loading}
-                error={state.error}
-                market={state.market}
-                alerts={state.alerts}
-                intervalMovers={state.intervalMovers}
-                loadData={state.loadData}
-                viewMode={viewMode}
-                onViewModeChange={setViewMode}
-                heatmapStocks={heatmapStocks}
-                heatmapMetric={heatmapMetric}
-                onHeatmapMetricChange={setHeatmapMetric}
-                stockSectorFilter={stockSectorFilter}
-                onStockSectorFilterChange={setStockSectorFilter}
-                sectorOptions={sectorOptions}
-                heatmapLoading={heatmapLoading}
-              />
-            </Box>
+      <Box sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+        <Box
+          id="sector-page"
+          sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden", width: "100%" }}
+        >
+          <Box sx={{ display: "flex", alignItems: "center", px: 2, height: 40, flexShrink: 0, borderBottom: "1px solid var(--mui-palette-divider)" }}>
+            <Tabs value={state.activeTab} onChange={state.setActiveTab}>
+              <Tabs.List sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                <Tabs.Tab value="dashboard" leftSection={<IconChartBar size={14} />}>
+                  Live Dashboard
+                </Tabs.Tab>
+                <Tabs.Tab value="correlation" leftSection={<IconNetwork size={14} />}>
+                  Sector Correlation
+                </Tabs.Tab>
+                <Tabs.Tab value="historical" leftSection={<IconBuildingFactory size={14} />}>
+                  Historical Cycles
+                </Tabs.Tab>
+              </Tabs.List>
+            </Tabs>
           </Box>
-        </CardContent>
-      </MuiPaper>
-    </Container>
+          <Box flex={1} sx={{ minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", alignItems: "stretch" }}>
+            <SectorTabContent
+              activeTab={state.activeTab}
+              data={state.data}
+              loading={state.loading}
+              error={state.error}
+              market={state.market}
+              alerts={state.alerts}
+              intervalMovers={state.intervalMovers}
+              loadData={state.loadData}
+              viewMode={viewMode}
+              onViewModeChange={setViewMode}
+              heatmapStocks={heatmapStocks}
+              heatmapMetric={heatmapMetric}
+              onHeatmapMetricChange={setHeatmapMetric}
+              stockSectorFilter={stockSectorFilter}
+              onStockSectorFilterChange={setStockSectorFilter}
+              sectorOptions={sectorOptions}
+              heatmapLoading={heatmapLoading}
+            />
+          </Box>
+        </Box>
+      </Box>
+    </Box>
   );
 }

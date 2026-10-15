@@ -54,13 +54,13 @@ describe("StrategiesPage", () => {
     expect(screen.getByTestId("strategies-view")).toBeInTheDocument();
   });
 
-  it("renders nav container", () => {
+  it("renders the merged strategies panel", () => {
     render(
       <UIProvider>
         <StrategiesPage {...baseProps} />
       </UIProvider>,
     );
-    expect(screen.getByTestId("strategies-nav-container")).toBeInTheDocument();
+    expect(screen.getByTestId("strategies-nav")).toBeInTheDocument();
   });
 
   it("renders content area", () => {

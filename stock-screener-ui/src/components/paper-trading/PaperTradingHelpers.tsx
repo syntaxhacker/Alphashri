@@ -225,7 +225,7 @@ export function HistoryFilters({
           onChange={filters.handleFilterSymbol}
           data={allOptions}
           data-testid="filter-symbol"
-          styles={{ input: { width: 120 } }}
+          w={120}
           clearable
         />
       </Group>

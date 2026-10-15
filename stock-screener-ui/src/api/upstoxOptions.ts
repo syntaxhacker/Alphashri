@@ -8,6 +8,7 @@ export interface OptionGreeks {
   vega: number;
   theta: number;
   iv: number;
+  pop?: number;
 }
 
 export interface MarketData {
@@ -17,6 +18,9 @@ export interface MarketData {
   bid_price: number;
   ask_price: number;
   prev_oi: number;
+  close_price?: number;
+  bid_qty?: number;
+  ask_qty?: number;
 }
 
 export interface OptionContract {
@@ -62,6 +66,14 @@ export interface OptionChainSummary {
   total_ce_oi: number;
   total_pe_oi: number;
   dte: number;
+  atm_iv?: number;
+}
+
+export interface StrikeRow {
+  strike: number;
+  ce: OptionContract | null;
+  pe: OptionContract | null;
+  pcr?: number | null;
 }
 
 export interface OptionChainResponse {
@@ -70,12 +82,15 @@ export interface OptionChainResponse {
   expiry: string;
   spot: number;
   timestamp?: string;
-  chain: Array<{
-    strike: number;
-    ce: OptionContract | null;
-    pe: OptionContract | null;
-  }>;
+  chain: StrikeRow[];
   summary?: OptionChainSummary;
+}
+
+export interface FyersSymbolResponse {
+  symbol: string;
+  fyToken: number | string | null;
+  oi?: number | null;
+  oich?: number | null;
 }
 
 export interface SpotPriceResponse {
@@ -101,6 +116,40 @@ export interface PositionsResponse {
   positions: Position[];
 }
 
+export type {
+  PositioningBiggestMove,
+  PositioningData,
+  PositioningMode,
+  PositioningStrikeRow,
+  PositioningVerdict,
+  PositioningView,
+} from "../utils/positioning";
+export type PositioningResponse = import("../utils/positioning").PositioningData & {
+  mode?: string;
+};
+
+export class PositioningApiError extends Error {
+  status: number;
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "PositioningApiError";
+    this.status = status;
+  }
+}
+
+export async function getPositioning(
+  underlying: string,
+  expiryDate: string,
+  mode = "since_open",
+): Promise<PositioningResponse> {
+  const params = new URLSearchParams({ expiry: expiryDate, mode });
+  const res = await fetchWithAuth(
+    `${API_BASE}/api/options/positioning/${underlying}?${params.toString()}`,
+  );
+  if (!res.ok) throw new PositioningApiError("Failed to fetch positioning", res.status);
+  return res.json();
+}
+
 export async function getUnderlyings(): Promise<Underlying[]> {
   const res = await fetchWithAuth(`${API_BASE}/api/options/underlyings`);
   if (!res.ok) throw new Error("Failed to fetch underlyings");
@@ -123,6 +172,23 @@ export async function getOptionChain(
     `${API_BASE}/api/options/chain/${underlying}?expiry=${expiryDate}`,
   );
   if (!res.ok) throw new Error("Failed to fetch option chain");
+  return res.json();
+}
+
+export async function getFyersSymbol(
+  underlying: string,
+  expiry: string,
+  strike: number,
+  optionType: string,
+): Promise<FyersSymbolResponse> {
+  const params = new URLSearchParams({
+    underlying,
+    expiry,
+    strike: String(strike),
+    option_type: optionType,
+  });
+  const res = await fetchWithAuth(`${API_BASE}/api/options/fyers-symbol?${params.toString()}`);
+  if (!res.ok) throw new Error("Failed to resolve Fyers symbol");
   return res.json();
 }
 

@@ -4,6 +4,7 @@
 - **NEVER delete or directly modify `db/alphashri.db`** — it contains user accounts, bot state, and trade history. Tests use in-memory SQLite via `test_engine` fixture. If a migration is stuck, use `SKIP_ALEMBIC=1` or ask the user.
 - **NEVER commit secrets, API keys, or tokens** to the repo.
 - **NEVER push directly to `develop` or `main`** — both are protected shared branches. All work goes through a short-lived feature branch (`feat/…`, `fix/…`, `chore/…`, `docs/…`) pushed to origin, then a PR targeting `develop` (or `develop` → `main` to release). No direct `git push origin develop` / `git push origin main`, ever.
+- **NEVER delete report artifacts** — anything under `reports/**` (figures, PNGs, HTML, CSV, JSON, scripts, notes) is kept, even after regeneration. Overwrite in place instead of `rm`-ing first. The user deletes their own reports.
 
 ## 🛡️ Agent Git Safety (STRICT — ZERO EXCEPTIONS)
 **Destructive git is FORBIDDEN without explicit user `yes` in same turn:** `reset --hard`, `checkout --`, `restore`, `clean -fd`, `branch -D`, `push --force`, `stash` (push/pop/apply/clear/drop), `rebase`, `merge`, `cherry-pick`, `revert`, or any `HEAD`-moving command.
@@ -23,7 +24,7 @@
 **Violation handling:** If destructive command is about to run, abort, report `blocked: <command>`, wait for explicit approval. On accidental `reset --hard`, run `git reflog --oneline | head` + `git fsck --lost-found` and report, do not auto-recover without user.
 
 ## Stack
-React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backend: FastAPI (Python).
+React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript. Backend: FastAPI (Python).
 
 ## Commands
 - `./start.sh` — starts both API (uvicorn) and UI (vite) together, auto-activates `.venv`. Background mode (reload on, uses `watchfiles`). Modes: `dev` (foreground, reload), `prod` (foreground, no reload), `restart [prod]`, `stop`, `status`, `logs`, `bots start|stop|status`. During market hours the 52W range batch now runs a prompt initial job quickly after startup (see the 52W section). Logs to `logs/alphashri.log`.
@@ -65,14 +66,26 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backen
 - **Chat history**: Conversations and messages stored in `chat_conversations`/`chat_messages` tables. CRUD endpoints at `/api/trading-agents/conversations`.
 - **Chat Popup** (`src/components/common/ChatPopup.tsx`): Floating action button, expandable to full screen, history sidebar, markdown rendering via `react-markdown`.
 
-## MUI 9 Financial Theme Rules (Migrated from Mantine)
+## MUI 9 Financial Theme Rules
 - Single source `src/ui/palette.ts` `FIN_*` (`FIN_PRIMARY #2563EB`, `FIN_POSITIVE #16A34A`, etc.) + layout tokens `FIN_HEADER_H 48`, `FIN_RADIUS 8`, `FIN_OUTER_PAD 16` — never hardcode hex outside palette
-- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never `var(--mantine-*)`
+- Theme `src/ui/muiTheme.ts` `muiTheme` (`contrastThreshold 4.5`, `shape 8`, `MuiPaper/Card` flat `elevation 0` + `1px divider` + `Dialog shadow 0 8px 32px`) — use `var(--mui-palette-*)` vars, never hardcode hex outside the palette
 - Use MUI wrappers from `src/ui/` (`Box/Flex/Stack/Group/Center/Grid/SimpleGrid/Paper/Card/ScrollArea` via `Box overflow:auto`) + `CompactPanel/CompactStat/CompactStatGrid` (`components/common/compact.tsx` `radius sm 8` `p sm 8` `gap sm 8`)
 - 8pt grid: outer `16`, inner `8`, table `8px 12px 12px`, header `48`, gaps `xs4 sm8 md16` — no raw `6px` slop
 - `TanStackTable` `src/components/common/TanStackTable.tsx` `ROW_ESTIMATED 28` `cell 8/12/12` `sticky shadow` — dense but scannable (12px)
 - Reference MUI docs — never guess APIs; use `sx` prop, not global CSS; `size="sm"` inputs/buttons, `size="xs"` badges/tables only
 - Tables — fin-app alignment is mandatory (text left, numbers right, badges/actions center; explicit `meta.align` per column, wrapper must match): rules + placement map in [TABLE_CHECKLIST.md](../TABLE_CHECKLIST.md)
+
+## UI Revamp Rules (MANDATORY — read before touching any tab/page)
+Full rules: [UI_RULES.md](./UI_RULES.md). Checklist to tick for every revamp: [UI_CHECKLIST.md](./UI_CHECKLIST.md).
+1. **`@/ui` is MUI, not Mantine.** Mantine-only props (`styles`, and historically `w`/`h`) are dropped. Never pass `styles={{...}}` (guard test fails). Inputs now honor `w`/`h`; when `w` is set the input stops being full-width.
+2. **Inputs default to `fullWidth`.** In a row, give each an explicit `w={n}` or wrap it in a flex cell (`<Box sx={{ flex: 1, minWidth: 0 }}>` + `style={{ width: "100%" }}`). Accidental full-width selects are a bug.
+3. **Control rows use `<ToolbarRow>`** (from `@/ui`) — it forces `align-items:center` + explicit gap. `Group` defaults to `align-items: stretch`; if used for controls, pass `align="center"`.
+4. **No nested bordered cards**; one border per section, inner separation via dividers. Panels/charts fill their flex container (`autoSize`, no fixed heights in flex panels).
+5. **Verify visually, not just build.** After any UI change: `bun run build && bun run lint`, then a chrome-devtools screenshot at a real viewport in empty/loading/full states, then the guards:
+   - `npx vitest run src/test/ui-guard.test.ts`
+   - `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`
+   - the feature's unit tests + its E2E spec.
+   Build/lint do NOT catch alignment bugs — the screenshot is part of the definition of done.
 
 ## State Management
 - All stores in `src/state/` — custom `createSubscriber` pattern + `useStoreSubscription` hook
@@ -80,7 +93,6 @@ React 19 + Vite 8 + MUI 9.3.1 + Emotion + TypeScript (Mantine 8 removed). Backen
 - Never call `useState` for data that lives in a store
 
 ## Component Patterns
-- Barrel files (`mantine.ts`) point to current components — edit `*2.tsx` files, update barrel, never edit old files
 - Page-level routing components in `src/pages/<feature>/` (e.g., `pages/chart/ChartView.tsx`, `pages/sector/SectorPage.tsx`)
 - Shared components: `SortableHeader`, `BadgeComponents`, `PnlText`, `DataTable`, `compact.tsx`, `states.tsx` in `src/components/common/`
 - Shared utilities: `formatNumber`, `formatSignedPnl`, `formatPercentage`, `formatCurrencyCompact`, `formatTimeOnly`, `formatElapsed`, `getPnLTextColor`, `getNextSortDirection`, `sortByField` in `src/utils/ui-helpers.ts`
@@ -189,7 +201,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
   - `runner_core.py:run(interval=5)` — global scan interval. Safe to keep but impacts all strategies.
-  - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
+  - `trading/utils.py:FORCE_EXIT=(15,10)` — global safety-net exit, NOT strategy-specific. Was 15:30 until NSE's Closing Auction Session (Aug 2026) made 15:30 non-continuous, so a forced market order there would execute in the auction; it now sits inside continuous trading. `MARKET_CLOSE=(15,30)` is still the session close and `CONTINUOUS_CLOSE=(15,15)` the end of continuous trading. A strategy's own `eod_exit_hour/minute` takes precedence.
   - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
   - `week52_chaser_signals.py:128-132` — ADX<25, RSI 50-70 filters. 52W-specific, could be config.
   - `runner_signals.py:581` — `0.8` daily loss alert multiplier. Could be global risk param.
@@ -208,7 +220,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Close All Positions**: API closes positions directly from DB (no command file). If bot is running, it detects the closed positions next cycle.
 - **Scan items**: persisted to `bot_runtime_states.scan_items` DB column. `/api/bots/{bot_id}/scan` reads from DB first, Redis as fallback.
 - **Position restore on restart**: `_load_positions_from_db()` in `runner_core.py` — force-closes positions from previous day with `FORCE_CLOSE` reason. `low_price` resets to `entry_price`.
-- **Force exit**: `runner_core.py:FORCE_EXIT=(15,30)` is global market close time
+- **Force exit**: `trading/utils.py:FORCE_EXIT=(15,10)` is the global safety-net exit — NOT 15:30 market close (see the Closing Auction Session note in the hardcoded-values audit). `runner_core` gates its main loop on `is_force_exit_time()`, so bots stop scanning at 15:10.
 - **Orphan bot stop**: `get_bot_pid()` reads PID from Redis key `bot:{user_id}:{bot_id}:pid` (24h TTL), sends SIGTERM
 - **Pipe deadlock fix**: bot stdout goes directly to log file (not PIPE) — prevents buffer fill on uvicorn reload
 - **Crash notification**: bot's `run()` wraps main loop in try/except, sends Telegram alert with open positions count + P&L on crash
@@ -253,6 +265,12 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Historical dates**: no TTL — data never changes
 - Today's intraday fetch that returns empty (pre-market) does NOT fall through to historical — returns empty to avoid caching wrong day's data
 - Pre-market cache poisoning fix: when `date == today` and `fetch_intraday_data_v3` returns None/empty, early return (no fallback to historical)
+
+## Chart-patterns caching
+- **Candle cache** (`chart_patterns/candles.py`): disk at `experiments/data/pattern_cache/candles/{tf}/{SYMBOL}.pkl` (+ `.meta`). Cleared via `clear_cache(symbols?, timeframe?)`.
+  - **Session-aware**: today's data has a 60s TTL while the market is open (`TODAY_TTL_SECONDS`, `trading.utils.is_market_open()`). When closed, the entry is pinned to `meta["session"]` = `_last_completed_session()` (last NSE session past 15:30 IST, walking back over weekends/holidays) — weekends/holidays never churn the cache. Historical/`as_of_date` files never expire. Lookback variants (`SYMBOL.lb250.pkl`) are namespaced so they never poison the default cache.
+- **Scan freshness** (`chart_patterns/scan.py`): a non-forced scan for a universe/timeframe whose last completed job is still fresh is a no-op (`_is_fresh`, `SCAN_FRESH_SECONDS`, default 300s, env `PATTERN_SCAN_FRESH_SEC`) — fresh = younger than TTL while open, same completed session while closed. `force: true` always recomputes. Frontend store additionally auto-refreshes combos whose `last_scan_at` is older than `STALE_SCAN_MINUTES` (30) (`src/state/chartPatterns.ts`).
+- **Force refresh**: `POST /api/chart-patterns/scan` with `refresh: true` clears the candle cache for the scope + timeframe and forces the scan. UI: "Force refresh" button in the patterns results toolbar → store `forceRefresh()` → `triggerScan(true, { refresh: true })` → `startScan` (`src/api/chartPatterns.ts` `ScanRequest.refresh`).
 
 ## 52W Range Screener Background Job
 - The 52W range batch job (`compute_52w_ranges_task`) and screener prewarm task are started from the FastAPI lifespan.

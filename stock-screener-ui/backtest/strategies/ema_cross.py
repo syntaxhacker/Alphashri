@@ -54,16 +54,16 @@ except ImportError:
     StrategyConfig = object  # type: ignore
     _NAUTILUS_AVAILABLE = False
 
-from .base import BaseStrategy, StrategyParam
+from .base import BaseStrategy, StrategyParam, get_ist_time
 from ..costs import calculate_trading_costs
-from trading.ema_utils import calculate_ema as _calculate_ema
+from trading.indicators import ema as _calculate_ema
 
 
 def calculate_ema(prices: List[float], period: int) -> float:
     """Calculate Exponential Moving Average from a list of prices.
     Wrapper for backward compatibility. Delegates to shared utility.
     """
-    return _calculate_ema(prices, period, return_full=False)
+    return _calculate_ema(prices, period)
 
 
 def run_single_stock_backtest(args):
@@ -560,7 +560,8 @@ class EMACrossStrategy(BaseStrategy):
         total = len(symbols)
         completed = 0
         num_workers = min(4, cpu_count() or 4, max(1, total))
-        use_parallel = total > 1 and num_workers > 1
+        from .base import PROCESS_POOL_ENABLED
+        use_parallel = PROCESS_POOL_ENABLED.get() and total > 1 and num_workers > 1
 
         if use_parallel:
             if progress_callback:
@@ -634,12 +635,21 @@ class EMACrossStrategy(BaseStrategy):
         if candles_df is None:
             return {}
 
-        import pandas as pd
+        # candles_df may be a DataFrame, the build_candle_data dict, or a list of
+        # candle dicts depending on the caller. Normalise to a list of closes.
+        if isinstance(candles_df, dict):
+            closes = list(candles_df.get('close') or [])
+        elif isinstance(candles_df, list):
+            closes = [c.get('close') for c in candles_df if isinstance(c, dict)]
+        else:
+            closes = candles_df['close'].tolist()
+        if not closes:
+            return {}
+
         ema_fast_period = int(params.get('ema_fast_period', 9))
         ema_slow_period = int(params.get('ema_slow_period', 21))
-        closes = candles_df['close'].tolist()
-        ema_fast = pd.Series(closes).ewm(span=ema_fast_period, adjust=False).mean().round(2).tolist()
-        ema_slow = pd.Series(closes).ewm(span=ema_slow_period, adjust=False).mean().round(2).tolist()
+        ema_fast = [None if v is None else round(v, 2) for v in _calculate_ema(closes, ema_fast_period, full=True)]
+        ema_slow = [None if v is None else round(v, 2) for v in _calculate_ema(closes, ema_slow_period, full=True)]
 
         return {
             'ema_series': [

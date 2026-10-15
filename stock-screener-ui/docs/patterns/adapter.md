@@ -35,7 +35,7 @@ The Adapter pattern is everywhere in modern software, often invisible because it
 - **CSS vendor prefixes** — `-webkit-`, `-moz-`, `-ms-` are adapters for experimental browser features. PostCSS/Autoprefixer automates adding them.
 - **ORMs** — Object-Relational Mapping is a giant Adapter (or set of Adapters) between the OOP world of classes and objects and the relational world of tables and rows.
 - **This codebase's data adapters** — Our `PaperCandleAdapter`, `PositionAdapter`, and `TradeAdapter` normalize heterogeneous API response shapes into typed interfaces.
-- **The `@/ui` abstraction layer** — This codebase wraps Mantine v8 components behind app-specific interfaces so that swapping out Mantine for another library would only require changing the adapter, not every consumer.
+- **The `@/ui` abstraction layer** — This codebase wraps MUI components behind app-specific interfaces so that swapping out the UI kit for another library would only require changing the adapter, not every consumer.
 
 ---
 

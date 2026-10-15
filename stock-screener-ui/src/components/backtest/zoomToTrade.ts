@@ -274,7 +274,7 @@ export function zoomToTrade(
 ) {
   if (!chartData) return;
 
-  // MUI theme has no fontSizes scale (Mantine-era leftover) — fixed chart label sizes.
+  // MUI theme has no fontSizes scale — fixed chart label sizes.
   const fontSizes = { xs: 10, sm: 11, md: 12 };
   const chart = chartInstances.get(symbol);
   if (!chart) return;

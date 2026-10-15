@@ -22,6 +22,7 @@ export function NewsSourceGroup({
     <Box className="news-source-group">
       <Group
         gap="xs"
+        align="center"
         p="xs"
         sx={{
           borderRadius: 1,

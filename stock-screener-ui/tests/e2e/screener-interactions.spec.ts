@@ -8,7 +8,7 @@ test.describe("Screener - Interactions", () => {
   });
 
   test("should copy all symbols to clipboard", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -19,7 +19,7 @@ test.describe("Screener - Interactions", () => {
   });
 
   test("should switch to heatmap view", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="app-shell"]', {
       timeout: 10000,
     });
@@ -38,7 +38,7 @@ test.describe("Screener - Interactions", () => {
   });
 
   test("should navigate to chart on symbol click", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -53,7 +53,7 @@ test.describe("Screener - Interactions", () => {
   });
 
   test("should display side panel with screener info", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });

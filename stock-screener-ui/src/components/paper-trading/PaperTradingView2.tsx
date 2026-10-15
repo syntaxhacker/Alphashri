@@ -171,11 +171,12 @@ function usePaperTradingViewModel() {
 
 interface LiveViewProps {
   state: ReturnType<typeof getPaperTradingState>;
+  activeBotId: string | null;
   scanRefreshing: boolean;
   handleScanRefresh: () => void;
 }
 
-function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
+function LiveView({ state, activeBotId, scanRefreshing, handleScanRefresh }: LiveViewProps) {
   const selectedPosition = useMemo(() => {
     if (!state.selectedSymbol) return null;
     return state.positions.find((p) => p.symbol === state.selectedSymbol) || null;
@@ -183,29 +184,29 @@ function LiveView({ state, scanRefreshing, handleScanRefresh }: LiveViewProps) {
 
   return (
     <Box className="paper-live-view-grid" sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="live-view-grid" id="live-view-grid">
-      <Box className="paper-live-left-panel" sx={{ flex: { xs: "1 1 auto", md: "0 0 42%" }, minWidth: 0, display: "flex", flexDirection: "column", gap: 1 }} data-testid="paper-left-panel" id="left-panel">
-        <Card className="paper-portfolio-card-wrap" id="paper-portfolio-card-wrap" elevation={0}>
+      <Box className="paper-live-left-panel" sx={{ flex: { xs: "1 1 auto", md: "0 0 42%" }, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 1 }} data-testid="paper-left-panel" id="left-panel">
+        <Card className="paper-portfolio-card-wrap" id="paper-portfolio-card-wrap" elevation={0} sx={{ border: 0 }}>
           <CardContent className="paper-portfolio-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperPortfolioCard portfolio={state.portfolio as any} />
           </CardContent>
         </Card>
-        <Card className="paper-positions-card-wrap" id="paper-positions-card-wrap" elevation={0} sx={{ flex: 1, minHeight: 160, display: "flex", flexDirection: "column" }}>
+        <Card className="paper-positions-card-wrap" id="paper-positions-card-wrap" elevation={0} sx={{ border: 0, flex: 1, minHeight: 160, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-positions-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <ScrollArea className="paper-positions-scroll" flex={1} sx={{ minHeight: 0 }}>
               <Stack className="paper-positions-stack" spacing={1}>
-                <PaperPositionsTable />
+                <PaperPositionsTable activeBotId={activeBotId} />
               </Stack>
             </ScrollArea>
           </CardContent>
         </Card>
-        <Card className="paper-watchlist-card-wrap" id="paper-watchlist-card-wrap" elevation={0} sx={{ flex: "0 1 auto", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
+        <Card className="paper-watchlist-card-wrap" id="paper-watchlist-card-wrap" elevation={0} sx={{ border: 0, flex: "0 1 auto", minHeight: 0, overflow: "hidden", display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-watchlist-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column" }}>
             <WatchlistScan2 snapshot={state.botSnapshot} selectedSymbol={state.selectedSymbol} onRefresh={handleScanRefresh} refreshing={scanRefreshing} />
           </CardContent>
         </Card>
       </Box>
-      <Box className="paper-live-right-panel" sx={{ flex: { xs: "1 1 auto", md: "1 1 58%" }, minWidth: 0, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }} data-testid="paper-right-panel" id="right-panel">
-        <Card className="paper-chart-card-wrap" id="paper-chart-card-wrap" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
+      <Box className="paper-live-right-panel" sx={{ flex: { xs: "1 1 auto", md: "1 1 58%" }, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", gap: 1, overflow: "hidden" }} data-testid="paper-right-panel" id="right-panel">
+        <Card className="paper-chart-card-wrap" id="paper-chart-card-wrap" elevation={0} sx={{ border: 0, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-chart-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperChart />
           </CardContent>
@@ -223,17 +224,17 @@ interface HistoryViewProps {
 function HistoryView({ state: _state }: HistoryViewProps) {
   return (
     <Box className="paper-history-view" sx={{ display: "flex", flexDirection: { xs: "column", md: "row" }, gap: 2, flex: 1, minHeight: 0 }} data-testid="paper-history-panel" id="history-view">
-      <Box className="paper-history-left" id="paper-history-left" sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box className="paper-history-left" id="paper-history-left" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Card className="paper-history-table-card" id="paper-history-table-card" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-history-table-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
             <PaperHistoryTable />
           </CardContent>
         </Card>
       </Box>
-      <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
+      <Box className="paper-history-right" id="paper-history-right" sx={{ flex: 1, minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }}>
         <Card className="paper-history-chart-card" id="paper-history-chart-card" elevation={0} sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
           <CardContent className="paper-history-chart-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-            <PaperChart />
+            <PaperChart engine="tradingview" />
           </CardContent>
         </Card>
       </Box>
@@ -249,12 +250,8 @@ function SettingsView({ state: _state }: SettingsViewProps) {
   return (
     <Box className="paper-settings-view" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} data-testid="paper-settings-panel" id="settings-view">
       <ScrollArea className="paper-settings-scroll" flex={1} sx={{ minHeight: 0 }} type="auto">
-        <Box className="paper-settings-inner" id="paper-settings-inner" sx={{ maxWidth: 780, mx: "auto", width: "100%" }}>
-          <Card className="paper-settings-card" id="paper-settings-card" elevation={0}>
-            <CardContent className="paper-settings-card-content" sx={{ p: 1, "&:last-child": { pb: 1 }, flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }}>
-              <PaperSettings />
-            </CardContent>
-          </Card>
+        <Box className="paper-settings-inner" id="paper-settings-inner" sx={{ maxWidth: 1200, mx: "auto", width: "100%", p: 1.5 }}>
+          <PaperSettings />
         </Box>
       </ScrollArea>
     </Box>
@@ -338,7 +335,7 @@ export function PaperTradingView() {
       />
 
       <Box className="paper-content" sx={{ flex: 1, minHeight: 0, display: "flex", flexDirection: "column" }} id="paper-content">
-        {state.currentView === "live" && <LiveView state={state} scanRefreshing={scanRefreshing} handleScanRefresh={handleScanRefresh} />}
+        {state.currentView === "live" && <LiveView state={state} activeBotId={activeBotId} scanRefreshing={scanRefreshing} handleScanRefresh={handleScanRefresh} />}
         {state.currentView === "history" && <HistoryView state={state} />}
         {state.currentView === "settings" && <SettingsView state={state} />}
         {state.currentView === "activity" && (

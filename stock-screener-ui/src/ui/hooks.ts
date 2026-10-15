@@ -167,7 +167,7 @@ export function useUICore() {
   return { useColorScheme, useMuiTheme };
 }
 
-// Tree state (Mantine useTree-compatible): tracks expanded node values.
+// Tree state: tracks expanded node values.
 // initialExpandedState accepts an array of values or a record of value->bool.
 export function useTree(options?: { initialExpandedState?: string[] | Record<string, boolean> }) {
   const initial = useRef<string[] | undefined>(undefined);

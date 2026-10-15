@@ -1,7 +1,7 @@
 import { useState, Fragment, useMemo, type ReactNode, type CSSProperties } from "react";
 import TableContainer from "@mui/material/TableContainer";
 import Paper from "@mui/material/Paper";
-import { Box, ScrollArea } from "@/ui";
+import { Box, ScrollArea, useDensity } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
   flexRender,
@@ -57,6 +57,8 @@ interface Props<T> {
   getRowClassName?: (row: T) => string | undefined;
   getRowStyle?: (row: T) => CSSProperties | undefined;
   getRowTestId?: (row: T, index: number) => string | undefined;
+  /** Extra DOM attributes for each row (e.g. data-* used for external lookup). */
+  getRowAttributes?: (row: T, index: number) => Record<string, string | number | undefined>;
   enableSorting?: boolean;
   enableSortingRemoval?: boolean;
   stickyHeader?: boolean;
@@ -70,9 +72,38 @@ interface Props<T> {
    * screener) responsive; the full row model still drives sorting/selection.
    */
   rowWindowSize?: number;
+  /**
+   * When true the table fills its parent's height (no 65vh cap) instead of
+   * being capped — use inside a flex column layout that already has a height.
+   */
+  fillContainer?: boolean;
+  /**
+   * Opt-in bare mode: skip the outer Paper/TableContainer wrapper (use when
+   * the page already provides its own bordered container — avoids nested
+   * double borders). Returns the scroll area + table only. Default false.
+   */
+  bare?: boolean;
 }
 
-const ROW_ESTIMATED = 20;
+const GROUP_ROW_ESTIMATE = 36;
+const EXPANDED_ROW_ESTIMATE = 220;
+
+/** Largest row index whose top offset is <= scrollTop (binary search). */
+function findRowIndexForOffset(offsets: number[], y: number): number {
+  let lo = 0;
+  let hi = offsets.length - 2;
+  let ans = 0;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (offsets[mid] <= y) {
+      ans = mid;
+      lo = mid + 1;
+    } else {
+      hi = mid - 1;
+    }
+  }
+  return ans;
+}
 
 /** Returns the explicit column width, or undefined when the column has no size set. */
 function getColumnWidth<T>(column: Column<T, unknown>): number | undefined {
@@ -98,6 +129,7 @@ export function TanStackTable<T>({
   getRowClassName,
   getRowStyle,
   getRowTestId,
+  getRowAttributes,
   enableSorting = true,
   // Matches TanStack's default: a third click on a sorted column clears sorting.
   // Pass false for tables that should only toggle asc/desc (e.g. experiments).
@@ -112,10 +144,14 @@ export function TanStackTable<T>({
   getRowCanExpand,
   renderSubComponent,
   rowWindowSize = 0,
+  fillContainer = false,
+  bare = false,
 }: Props<T>) {
   const [sorting, setSorting] = useState<SortingState>(initialState?.sorting ?? []);
   const [expanded, setExpanded] = useState<ExpandedState>(initialState?.expanded ?? {});
   const [scrollTop, setScrollTop] = useState(0);
+  const { tokens: densityTokens } = useDensity();
+  const rowEstimated = densityTokens.tableRowHeight;
 
   const hasSizedColumns = useMemo(
     () => columns.some((col) => typeof (col as { size?: number }).size === "number" && (col as { size?: number }).size !== 0),
@@ -170,24 +206,35 @@ export function TanStackTable<T>({
   const colCount = table.getHeaderGroups()[0]?.headers.length ?? 1;
 
   // Row windowing: for very large tables only a slice around the scroll
-  // position is mounted. The full row model remains active so sorting and
-  // row selection keep working over every row.
+  // position is mounted. The full row model remains active so sorting, grouping
+  // and row selection keep working over every row. Group headers and expanded
+  // sub-rows have different heights, so we track per-row estimates to keep the
+  // scroll spacers accurate.
   const allRows = table.getRowModel().rows;
-  const useRowWindow = rowWindowSize > 0 && !enableGrouping && allRows.length > rowWindowSize;
-  const ROW_ESTIMATED_HEIGHT = ROW_ESTIMATED;
+  const useRowWindow = rowWindowSize > 0 && allRows.length > rowWindowSize;
+
+  const rowHeights: number[] = [];
+  for (const row of allRows) {
+    if (row.getIsGrouped()) rowHeights.push(GROUP_ROW_ESTIMATE);
+    else if (renderSubComponent && row.getIsExpanded()) rowHeights.push(rowEstimated + EXPANDED_ROW_ESTIMATE);
+    else rowHeights.push(rowEstimated);
+  }
+  const rowOffsets: number[] = [0];
+  for (let i = 0; i < rowHeights.length; i++) rowOffsets.push(rowOffsets[i] + rowHeights[i]);
+  const totalHeight = rowOffsets[allRows.length] ?? 0;
+
+  const windowStartIndex = useRowWindow ? findRowIndexForOffset(rowOffsets, scrollTop) : 0;
   const rowWindowStart = useRowWindow
-    ? Math.min(
-        Math.max(0, Math.floor(scrollTop / ROW_ESTIMATED_HEIGHT) - 8),
-        Math.max(0, allRows.length - rowWindowSize),
-      )
+    ? Math.min(Math.max(0, windowStartIndex - 4), Math.max(0, allRows.length - rowWindowSize))
     : 0;
   const rowWindowEnd = useRowWindow
     ? Math.min(allRows.length, rowWindowStart + rowWindowSize)
     : allRows.length;
   const renderedRows = useRowWindow ? allRows.slice(rowWindowStart, rowWindowEnd) : allRows;
+  const topSpacerHeight = useRowWindow ? rowOffsets[rowWindowStart] : 0;
+  const bottomSpacerHeight = useRowWindow ? Math.max(0, totalHeight - rowOffsets[rowWindowEnd]) : 0;
 
-  return (
-    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: "65vh", minHeight: 200, border: 0, bgcolor: palette.SURFACE }}>
+  const tableScroll = (
       <ScrollArea className="paper-tanstack-scroll" sx={{ flex: 1, minHeight: 0, overflow: "auto", display: "flex", flexDirection: "column", bgcolor: palette.SURFACE }}
         onScrollPositionChange={useRowWindow ? (pos) => setScrollTop(pos.y) : undefined}
       >
@@ -217,9 +264,10 @@ export function TanStackTable<T>({
                     className="paper-tanstack-header-cell"
                     id={`paper-tanstack-header-${String(h.column.id)}`}
                     sx={{
-                      padding: width === 0 ? "0" : "3px 8px",
+                      padding: width === 0 ? "0" : densityTokens.tableCellPad,
                       fontSize: 11,
                       fontWeight: 600,
+                      fontVariantNumeric: "tabular-nums",
                       whiteSpace: "nowrap",
                       userSelect: "none",
                       bgcolor: palette.SURFACE_ALT,
@@ -265,8 +313,8 @@ export function TanStackTable<T>({
             </tr>
           ) : (
             <>
-              {useRowWindow && rowWindowStart > 0 && (
-                <tr aria-hidden style={{ height: rowWindowStart * ROW_ESTIMATED_HEIGHT }}>
+              {useRowWindow && topSpacerHeight > 0 && (
+                <tr aria-hidden style={{ height: topSpacerHeight }}>
                   <td colSpan={colCount} style={{ padding: 0, border: "none" }} />
                 </tr>
               )}
@@ -297,6 +345,7 @@ export function TanStackTable<T>({
                       onClick={() => onRowClick?.(row.original)}
                       className={getRowClassName?.(row.original)}
                       data-testid={getRowTestId?.(row.original, index)}
+                      {...getRowAttributes?.(row.original, index)}
                       data-row="stock"
                     >
                       {row.getVisibleCells().map((cell) => {
@@ -309,11 +358,12 @@ export function TanStackTable<T>({
                             className="paper-tanstack-cell"
                             id={`paper-tanstack-cell-${String(cell.column.id)}-${row.id}`}
                             sx={{
-                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : "3px 8px",
+                              padding: width === 0 ? "0" : cell.column.id === "toggle" ? "3px 4px" : densityTokens.tableCellPad,
                               fontSize: 11,
                               lineHeight: 1.2,
+                              fontVariantNumeric: "tabular-nums",
                               whiteSpace: "nowrap",
-                              height: 20,
+                              height: densityTokens.tableRowHeight,
                               borderBottom: 1,
                               borderColor: palette.BORDER,
                               bgcolor: palette.SURFACE,
@@ -341,8 +391,8 @@ export function TanStackTable<T>({
                 )}
               </Fragment>
               ))}
-              {useRowWindow && rowWindowEnd < allRows.length && (
-                <tr aria-hidden style={{ height: (allRows.length - rowWindowEnd) * ROW_ESTIMATED_HEIGHT }}>
+              {useRowWindow && bottomSpacerHeight > 0 && (
+                <tr aria-hidden style={{ height: bottomSpacerHeight }}>
                   <td colSpan={colCount} style={{ padding: 0, border: "none" }} />
                 </tr>
               )}
@@ -351,6 +401,13 @@ export function TanStackTable<T>({
         </tbody>
         </Box>
       </ScrollArea>
+  );
+
+  if (bare) return tableScroll;
+
+  return (
+    <TableContainer component={Paper} elevation={0} className={`paper-tanstack-container ${className || ""}`} id={dataTestId ? `paper-tanstack-${dataTestId}` : undefined} sx={{ borderRadius: 1, display: "flex", flexDirection: "column", overflow: "hidden", maxHeight: fillContainer ? "none" : "65vh", minHeight: fillContainer ? 0 : 200, flex: fillContainer ? 1 : undefined, height: fillContainer ? "100%" : undefined, border: 0, bgcolor: palette.SURFACE }}>
+      {tableScroll}
     </TableContainer>
   );
 }

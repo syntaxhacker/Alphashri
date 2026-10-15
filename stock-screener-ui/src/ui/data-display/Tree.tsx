@@ -52,7 +52,7 @@ function TreeNode({
           }}
         >
           {hasChildren && (
-            <IconButton size="small" onClick={handleToggle} sx={{ p: 0.25, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
+            <IconButton size="small" onClick={handleToggle} aria-label={expanded ? "collapse" : "expand"} sx={{ p: 0, width: 22, height: 22, color: "text.secondary", transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}>
               <ChevronRightIcon fontSize="small" />
             </IconButton>
           )}
@@ -104,7 +104,7 @@ function TreeNode({
             size="small"
             onClick={handleToggle}
             aria-label={expanded ? "collapse" : "expand"}
-            sx={{ p: 0.25, transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}
+            sx={{ p: 0, width: 22, height: 22, color: "text.secondary", transform: expanded ? "rotate(90deg)" : "none", transition: "transform 0.15s" }}
           >
             <ChevronRightIcon fontSize="small" />
           </IconButton>

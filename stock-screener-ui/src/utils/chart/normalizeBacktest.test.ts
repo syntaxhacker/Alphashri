@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { normalizeBacktest } from "./normalizeBacktest";
+import { getBacktestZoomStartIndex, normalizeBacktest } from "./normalizeBacktest";
 import {
   PIVOT_OR_HIGH,
   PIVOT_OR_LOW,
@@ -471,6 +471,25 @@ describe("normalizeBacktest", () => {
       const data = { candles: [], trades: [] };
       const result = normalizeBacktest(data, true);
       expect(result.isDark).toBe(true);
+    });
+  });
+
+  describe("getBacktestZoomStartIndex", () => {
+    const candles = [
+      { date: "2025-01-01", time: "2025-01-01T09:15:00" },
+      { date: "2025-01-05", time: "2025-01-05T09:15:00" },
+      { date: "2025-01-10", time: "2025-01-10T09:15:00" },
+    ];
+
+    it("returns zero for all, missing, or empty input", () => {
+      expect(getBacktestZoomStartIndex(candles, "all")).toBe(0);
+      expect(getBacktestZoomStartIndex(candles, null)).toBe(0);
+      expect(getBacktestZoomStartIndex([], "7d")).toBe(0);
+    });
+
+    it("selects the first candle inside the requested range", () => {
+      expect(getBacktestZoomStartIndex(candles, "7d")).toBe(1);
+      expect(getBacktestZoomStartIndex(candles, "1d")).toBe(2);
     });
   });
 });

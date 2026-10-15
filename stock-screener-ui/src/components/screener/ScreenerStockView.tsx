@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { ScreenerTable } from "./ScreenerTable";
 import { ScreenerHeatmapView } from "./ScreenerHeatmapView";
 import type { Stock, ColumnDef } from "../../types";
@@ -15,7 +16,7 @@ interface ScreenerStockViewProps {
   activeScreener: string;
 }
 
-export function ScreenerStockView({
+export const ScreenerStockView = memo(function ScreenerStockView({
   stocks,
   columns,
   touchedSymbols,
@@ -47,7 +48,7 @@ export function ScreenerStockView({
       scoreFormula={scoreFormula}
       onSymbolClick={onSymbolClick}
       onSymbolHover={onSymbolHover}
-      data-testid={`screener-table-${section}`}
+      testId={`screener-table-${section}`}
     />
   );
-}
+});

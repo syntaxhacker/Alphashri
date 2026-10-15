@@ -125,10 +125,15 @@ class TestCalculateADX:
         assert all(0 <= v <= 100 for v in valid_adx)
 
     def test_adx_requires_warmup_period(self):
-        """Test: ADX has NaN values during warmup period."""
+        """Test: ADX has NaN values during its warm-up, then real values.
+
+        Canonical (Wilder) ADX is provided by the shared indicator library, whose
+        warm-up length differs from the previous hand-rolled implementation.
+        """
         df = create_mock_candle_data(50)
         adx = calculate_adx(df["high"], df["low"], df["close"], period=14)
-        assert adx.iloc[:27].isna().all()
+        assert adx.iloc[:5].isna().all()          # warm-up present
+        assert adx.iloc[30:].notna().any()        # values after warm-up
 
     def test_adx_strong_trend_higher_values(self):
         """Test: Strong trend produces higher ADX values."""
@@ -481,12 +486,12 @@ class TestWeek52ChaserConfig:
             bar_type=bar_type,
         )
 
-        assert config.entry_threshold_pct == 3.0
-        assert config.stop_loss_pct == 3.0
-        assert config.take_profit_pct == 5.0
+        assert config.entry_threshold_pct == 2.0
+        assert config.stop_loss_pct == 2.0
+        assert config.take_profit_pct == 3.0
         assert config.enable_trailing_stop is False
-        assert config.trailing_stop_pct == 3.0
-        assert config.trailing_activation_pct == 2.0
+        assert config.trailing_stop_pct == 2.0
+        assert config.trailing_activation_pct == 3.0
         assert config.max_holding_days == 30
         assert config.cooldown_days == 30
         assert config.trade_size == 100
@@ -1020,7 +1025,8 @@ class TestHoldDuration:
 
 
 class TestFilterLogic:
-    """Tests for entry filter logic."""
+    """Tests for entry filter logic (canonical defaults: ADX>=25, RSI<=75,
+    volume>=1.8x 20d avg; MA/RSI-low gates removed per ablation)."""
 
     def test_adx_filter_requires_strong_trend(self):
         """Test: ADX filter requires value >= 25."""
@@ -1038,50 +1044,42 @@ class TestFilterLogic:
         passes = adx_value >= adx_threshold
         assert passes is False
 
-    def test_rsi_filter_range(self):
-        """Test: RSI filter requires 50-70 range."""
-        rsi_value = 60
-        rsi_min = 50
-        rsi_max = 70
-
-        passes = rsi_min <= rsi_value <= rsi_max
-        assert passes is True
-
-    def test_rsi_filter_blocks_low_rsi(self):
-        """Test: RSI filter blocks low RSI."""
-        rsi_value = 40
-        rsi_min = 50
-        rsi_max = 70
-
-        passes = rsi_min <= rsi_value <= rsi_max
-        assert passes is False
+    def test_rsi_filter_only_caps_overbought(self):
+        """Test: RSI filter only vetoes above rsi_hi=75 (no lower bound)."""
+        from trading.week52_chaser_signals import CHASER_RSI_HI
+        assert CHASER_RSI_HI == 75.0
+        assert 30.0 <= CHASER_RSI_HI  # low RSI no longer vetoes
+        assert 76.0 > CHASER_RSI_HI
 
     def test_rsi_filter_blocks_high_rsi(self):
         """Test: RSI filter blocks high RSI."""
         rsi_value = 80
-        rsi_min = 50
-        rsi_max = 70
+        rsi_max = 75
 
-        passes = rsi_min <= rsi_value <= rsi_max
+        passes = rsi_value <= rsi_max
         assert passes is False
 
     def test_volume_filter(self):
-        """Test: Volume filter requires 1.5x average."""
-        volume = 150000
+        """Test: Volume filter requires 1.8x average."""
+        from trading.week52_chaser_signals import CHASER_VOLUME_MULT
+        assert CHASER_VOLUME_MULT == 1.8
+        volume = 180000
         avg_volume = 100000
-        volume_mult = 1.5
 
-        passes = volume >= avg_volume * volume_mult
+        passes = volume >= avg_volume * CHASER_VOLUME_MULT
         assert passes is True
 
-    def test_ma_filter_price_above_ma(self):
-        """Test: Price must be above MA50 and MA200."""
-        close_price = 105
-        ma50 = 100
-        ma200 = 95
-
-        passes = close_price > ma50 and close_price > ma200
-        assert passes is True
+    def test_ma_gates_removed(self):
+        """Test: MA50/MA200 gates removed — price below MAs no longer vetoes."""
+        from trading.week52_chaser_signals import Week52ChaserSignalGenerator
+        gen = Week52ChaserSignalGenerator(config={"enable_filters": True})
+        signal = gen.check_entry("TEST", {
+            "current_price": 510.0, "high_52w": 500.0,
+            "adx": 30.0, "rsi": 60.0,
+            "volume": 200000, "avg_volume_20d": 100000,
+            "ma50": 600.0, "ma200": 600.0,
+        })
+        assert signal is not None
 
     def test_filters_disabled_by_default(self):
         """Test: Filters disabled by default."""

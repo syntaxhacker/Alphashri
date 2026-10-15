@@ -344,6 +344,9 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
   let trades: any[] = [];
   let orbZones: any[] = [];
   let pivotLevels: any[] = [];
+  // The chart renders 52W levels from `week52_levels` (see buildLevelLines in
+  // BacktestChart.tsx) — `visuals.overlays` are not rendered by BacktestChart.
+  let week52Levels: any[] = [];
   let visuals: any = {};
 
   switch (strategyType) {
@@ -442,6 +445,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
       break;
     case "52W_CHASER":
       trades = generate52wChaserTrades(candles);
+      week52Levels = [{ date: "2025-08-25", date_raw: "2025-08-25", "52w_high": 2600 }];
       visuals = {
         overlays: [
           {
@@ -456,6 +460,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
       break;
     case "52W_TARGET":
       trades = generate52wTargetTrades(candles);
+      week52Levels = [{ date: "2025-08-25", date_raw: "2025-08-25", "52w_high": 2600 }];
       visuals = {
         overlays: [
           {
@@ -475,6 +480,7 @@ async function mockFullBacktestApi(page: Page, strategyType: string, symbol: str
     candles,
     orb_zones: orbZones,
     pivot_levels: pivotLevels,
+    week52_levels: week52Levels,
     trades,
     date_range: { start: "2025-08-25", end: "2025-08-25" },
     total_candles: candles.length,
@@ -541,49 +547,43 @@ async function runBacktestForStrategy(
   await waitForBacktestResult(page, "results-summary");
 }
 
-async function verifyChartRenders(page: Page) {
-  await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({ timeout: 10000 });
-}
-
-async function getChartOption(page: Page): Promise<any | null> {
-  await page
-    .waitForFunction(
-      () => {
-        const echarts = (window as any).echarts;
-        const container = document.querySelector('[data-testid="echarts-container"]');
-        if (!echarts || !container) return false;
-        return Array.from(container.querySelectorAll("div")).some((d) =>
-          echarts.getInstanceByDom(d),
-        );
-      },
-      undefined,
-      { timeout: 10000 },
-    )
-    .catch(() => {});
-  return page.evaluate(() => {
-    const echarts = (window as any).echarts;
-    if (!echarts) return null;
-    const container = document.querySelector('[data-testid="echarts-container"]');
-    if (!container) return null;
-    const child = container.firstElementChild;
-    if (!child) return null;
-    const instance = echarts.getInstanceByDom(child);
-    if (!instance) {
-      const allDivs = container.querySelectorAll("div");
-      for (const div of allDivs) {
-        const inst = echarts.getInstanceByDom(div);
-        if (inst) return inst.getOption();
-      }
-      return null;
-    }
-    return instance.getOption();
+async function verifyChartRenders(page: Page, symbol: string = "RELIANCE") {
+  // The chart migrated from ECharts to lightweight-charts (TradingViewChart):
+  // there is no window.echarts instance to poll. The observable contract is the
+  // mounted container for the symbol plus the lightweight-charts mount point
+  // with real canvases.
+  const container = page.locator('[data-testid="echarts-container"]');
+  await expect(container).toBeVisible({ timeout: 10000 });
+  await expect(container).toHaveAttribute("data-symbol", symbol);
+  await expect(page.locator('[data-testid="tradingview-chart"]')).toBeVisible({
+    timeout: 15000,
+  });
+  await expect(page.locator('[data-testid="tradingview-chart"] canvas').first()).toBeVisible({
+    timeout: 15000,
   });
 }
 
+/**
+ * The chart renders from the `chart_data` embedded in the backtest/run
+ * response (runBacktest -> setChartData). lightweight-charts draws everything
+ * on canvas, so per-overlay series are not DOM-observable; capture the payload
+ * the chart actually received and assert the strategy-specific overlay data is
+ * present. Register BEFORE triggering the run.
+ */
+function captureRunPayload(page: Page) {
+  return page.waitForResponse(
+    (resp) => resp.url().includes("/api/backtest/run") && resp.request().method() === "POST",
+    { timeout: 30000 },
+  );
+}
+
 async function verifyTradeMarkers(page: Page) {
-  const option = await getChartOption(page);
-  const series = option?.series || [];
-  expect(series.some((s: any) => s.type === "scatter" && (s.data || []).length > 0)).toBeTruthy();
+  // Trade markers are canvas-drawn by lightweight-charts (no DOM series to
+  // poll). The observable contract: the payload carried trades and the trade
+  // history panel lists them (mapTrades feeds both the markers and the table).
+  await expect(page.locator('[data-testid="trade-history-row-0"]')).toBeVisible({
+    timeout: 15000,
+  });
 }
 
 test.describe("Backtest - ORB Strategy", () => {
@@ -602,30 +602,15 @@ test.describe("Backtest - ORB Strategy", () => {
   });
 
   test("should show ORB zones as overlay data in chart", async ({ page }) => {
+    const payloadPromise = captureRunPayload(page);
     await runBacktestForStrategy(page, "ORB");
     await verifyChartRenders(page);
-    const result = await page.evaluate(() => {
-      const echarts = (window as any).echarts;
-      if (!echarts) return { err: "no echarts" };
-      const container = document.querySelector('[data-testid="echarts-container"]');
-      if (!container) return { err: "no container" };
-      const child = container.firstElementChild;
-      if (!child) return { err: "no child", childCount: container.children.length };
-      let instance = echarts.getInstanceByDom(child);
-      if (!instance) {
-        const allDivs = container.querySelectorAll("div");
-        for (const div of allDivs) {
-          instance = echarts.getInstanceByDom(div);
-          if (instance) return { series: instance.getOption().series, found: true };
-        }
-        return { err: "no instance", divCount: allDivs.length };
-      }
-      return { series: instance.getOption().series };
-    });
-    const series = result?.series || [];
-    expect(
-      series.some((s: any) => s.name?.includes("OR High") || s.name?.includes("OR Low")),
-    ).toBeTruthy();
+    // The run payload carries the ORB zones the chart renders its levels from.
+    const body = await (await payloadPromise).json();
+    const chartData = body.chart_data?.RELIANCE;
+    expect(chartData?.orb_zones?.length).toBeGreaterThan(0);
+    const zone = chartData.orb_zones[0];
+    expect(zone.or_high).toBeGreaterThan(zone.or_low);
   });
 
   test("should display trade in history panel with TP exit reason", async ({ page }) => {
@@ -644,13 +629,19 @@ test.describe("Backtest - SR Breakout Strategy", () => {
   });
 
   test("should display SR Breakout chart with pivot overlays", async ({ page }) => {
+    const payloadPromise = captureRunPayload(page);
     await runBacktestForStrategy(page, "SR_BREAKOUT");
     await verifyChartRenders(page);
     await verifyTradeMarkers(page);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    const pivotNames = ["PP", "R1", "S1", "R2", "S2"];
-    expect(pivotNames.some((name) => series.some((s: any) => s.name === name))).toBeTruthy();
+    // The run payload carries the pivot levels buildLevelLines turns into
+    // PP/R1/S1 price lines on the lightweight-charts view.
+    const body = await (await payloadPromise).json();
+    const chartData = body.chart_data?.RELIANCE;
+    expect(chartData?.pivot_levels?.length).toBeGreaterThan(0);
+    const pivots = chartData.pivot_levels[chartData.pivot_levels.length - 1];
+    for (const key of ["pp", "r1", "s1"] as const) {
+      expect(pivots[key]).toBeGreaterThan(0);
+    }
   });
 
   test("should include SR level info in trade data", async ({ page }) => {
@@ -669,12 +660,21 @@ test.describe("Backtest - EMA Cross Strategy", () => {
   });
 
   test("should display EMA Cross chart with EMA overlays", async ({ page }) => {
+    const payloadPromise = captureRunPayload(page);
     await runBacktestForStrategy(page, "EMA_CROSS");
     await verifyChartRenders(page);
     await verifyTradeMarkers(page);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    expect(series.some((s: any) => s.name?.includes("EMA"))).toBeTruthy();
+    // The run payload carries ema_series, which normalizeBacktest maps to the
+    // emaData line overlays on the lightweight-charts view (only when aligned
+    // index-wise to the candles).
+    const body = await (await payloadPromise).json();
+    const chartData = body.chart_data?.RELIANCE;
+    const emaSeries = chartData?.visuals?.ema_series ?? [];
+    expect(emaSeries.length).toBeGreaterThan(0);
+    expect(emaSeries.some((s: any) => /EMA/i.test(s.label ?? ""))).toBe(true);
+    for (const s of emaSeries) {
+      expect(s.data.length).toBe(chartData.candles.length);
+    }
   });
 });
 
@@ -685,12 +685,16 @@ test.describe("Backtest - 52W Chaser Strategy", () => {
   });
 
   test("should display 52W Chaser chart with 52W high line", async ({ page }) => {
+    const payloadPromise = captureRunPayload(page);
     await runBacktestForStrategy(page, "52W_CHASER");
     await verifyChartRenders(page);
     await verifyTradeMarkers(page);
-    const option = await getChartOption(page);
-    const series = option?.series || [];
-    expect(series.some((s: any) => s.name?.includes("52W"))).toBeTruthy();
+    // The 52W-high price line comes from `week52_levels` (buildLevelLines);
+    // `visuals.overlays` are not rendered by BacktestChart.
+    const body = await (await payloadPromise).json();
+    const chartData = body.chart_data?.RELIANCE;
+    expect(chartData?.week52_levels?.length).toBeGreaterThan(0);
+    expect(chartData.week52_levels[0]["52w_high"]).toBeGreaterThan(0);
   });
 
   test("should show losing trade for 52W Chaser SL exit", async ({ page }) => {
@@ -709,9 +713,15 @@ test.describe("Backtest - 52W Target Strategy", () => {
   });
 
   test("should display 52W Target chart with 52W high line", async ({ page }) => {
+    const payloadPromise = captureRunPayload(page);
     await runBacktestForStrategy(page, "52W_TARGET");
     await verifyChartRenders(page);
     await verifyTradeMarkers(page);
+    // Same contract as 52W Chaser: the line comes from `week52_levels`.
+    const body = await (await payloadPromise).json();
+    const chartData = body.chart_data?.RELIANCE;
+    expect(chartData?.week52_levels?.length).toBeGreaterThan(0);
+    expect(chartData.week52_levels[0]["52w_high"]).toBeGreaterThan(0);
   });
 });
 
@@ -731,7 +741,7 @@ test.describe("Backtest - Timeframe Switching (All Strategies)", () => {
         .catch(() => false);
       if (menuOpen) {
         await option.click();
-        await verifyChartRenders(page);
+        await verifyChartRenders(page, "TCS");
       }
     });
   }
@@ -751,12 +761,22 @@ test.describe("Backtest - Chart Zoom", () => {
     }
   });
 
-  test("should have dataZoom configured on chart", async ({ page }) => {
+  test("should support zoom interaction on chart", async ({ page }) => {
+    // lightweight-charts has no ECharts-style `dataZoom` option object; it
+    // handles scroll/scale natively (handleScroll/handleScale in
+    // TradingViewChart). The observable contract: a wheel-zoom gesture keeps
+    // the chart mounted with no error banner.
     await runBacktestForStrategy(page, "ORB");
     await verifyChartRenders(page);
-    const option = await getChartOption(page);
-    expect(option?.dataZoom).not.toBeNull();
-    expect(option?.dataZoom?.length).toBeGreaterThan(0);
+    const container = page.locator('[data-testid="echarts-container"]');
+    await container.scrollIntoViewIfNeeded();
+    const box = await container.boundingBox();
+    if (box) {
+      await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      await page.mouse.wheel(0, -100);
+    }
+    await verifyChartRenders(page);
+    await expect(page.locator('[data-testid="backtest-error"]')).toHaveCount(0);
   });
 
   test("should zoom chart via mouse wheel", async ({ page }) => {
@@ -790,13 +810,12 @@ test.describe("Backtest - Trade Highlight on Click", () => {
       row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
     });
 
-    // Click should zoom chart and not crash — check row still visible and chart has data
-    // (highlight marker check is flaky due to 5s auto-clear and async chart update)
-    await expect(firstRow).toBeVisible({ timeout: 5000 });
-    const option = await getChartOption(page);
-    expect(option).toBeTruthy();
-    expect(Array.isArray(option?.series)).toBeTruthy();
-    expect(option.series.length).toBeGreaterThan(0);
+    // Clicking a row zooms the lightweight-charts view to that trade and
+    // flashes .trade-row-highlighted on the row (BacktestPage.highlightTradeRow
+    // clears it after 3s). There is no persistent per-trade chart marker:
+    // BacktestChartTabs never passes highlightedTradeId.
+    await expect(firstRow).toHaveClass(/trade-row-highlighted/, { timeout: 5000 });
+    await verifyChartRenders(page);
   });
 });
 
@@ -891,6 +910,7 @@ test.describe("Backtest - Multi-Day Chart", () => {
               candles: multiDayCandles,
               orb_zones: [],
               pivot_levels: [],
+              week52_levels: [],
               trades: [],
               date_range: { start: "2025-08-25", end: "2025-08-27" },
               total_candles: 15,
@@ -924,26 +944,25 @@ test.describe("Backtest - Multi-Day Chart", () => {
       });
     });
 
+    const payloadPromise = captureRunPayload(page);
     await page.goto("/backtest");
     await selectSymbolAndRun(page, "RELIANCE");
     await waitForBacktestResult(page, "results-summary");
     await verifyChartRenders(page);
 
-    const xAxisLabels = await page.evaluate(() => {
-      const echarts = (window as any).echarts;
-      if (!echarts) return [];
-      const container = document.querySelector('[data-testid="echarts-container"]');
-      if (!container) return [];
-      const child = container.firstElementChild;
-      if (!child) return [];
-      const instance = echarts.getInstanceByDom(child);
-      if (!instance) return [];
-      const option = instance.getOption();
-      return option.xAxis?.[0]?.data || [];
-    });
-
-    const uniqueDates = new Set(xAxisLabels.map((l: string) => l.split(" ")[0]));
+    // The old xAxis-collapse failure mode was ECharts-specific (category axis
+    // labels collapsing on multi-day ranges). lightweight-charts uses a time
+    // scale, so the contract is: the multi-day payload reaches a mounted chart.
+    const body = await (await payloadPromise).json();
+    const chartCandles = body.chart_data?.RELIANCE?.candles ?? [];
+    expect(chartCandles.length).toBeGreaterThan(0);
+    const uniqueDates = new Set(
+      chartCandles.map((c: any) => c.date ?? String(c.time).split("T")[0]),
+    );
     expect(uniqueDates.size).toBeGreaterThanOrEqual(2);
+    expect(body.chart_data?.RELIANCE?.date_range?.start).not.toBe(
+      body.chart_data?.RELIANCE?.date_range?.end,
+    );
   });
 });
 

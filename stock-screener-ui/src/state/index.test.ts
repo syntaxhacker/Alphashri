@@ -29,6 +29,7 @@ beforeEach(() => {
   indexModule.setNotifPanelOpen(true);
   indexModule.setNotifFilter("all");
   indexModule.setRecentAddedSymbols({});
+  indexModule.clearSelectedSymbols();
 });
 
 afterEach(() => {
@@ -319,5 +320,32 @@ describe("subscribe", () => {
 
     expect(cb1).not.toHaveBeenCalled();
     expect(cb2).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("symbol selection", () => {
+  it("notifies selection subscribers without triggering global subscribers", () => {
+    const globalCallback = vi.fn();
+    const selectionCallback = vi.fn();
+    unsubscribes.push(indexModule.subscribe(globalCallback));
+    unsubscribes.push(indexModule.subscribeToSelection(selectionCallback));
+
+    indexModule.setSelectedSymbols(["RELIANCE"]);
+
+    expect(indexModule.selectedSymbols).toEqual(["RELIANCE"]);
+    expect(selectionCallback).toHaveBeenCalledTimes(1);
+    expect(globalCallback).not.toHaveBeenCalled();
+  });
+
+  it("toggles and clears symbols through the selection channel", () => {
+    const selectionCallback = vi.fn();
+    unsubscribes.push(indexModule.subscribeToSelection(selectionCallback));
+
+    indexModule.toggleSymbolSelection("TCS");
+    indexModule.toggleSymbolSelection("TCS");
+    indexModule.clearSelectedSymbols();
+
+    expect(indexModule.selectedSymbols).toEqual([]);
+    expect(selectionCallback).toHaveBeenCalledTimes(3);
   });
 });

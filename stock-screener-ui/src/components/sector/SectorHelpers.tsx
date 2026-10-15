@@ -158,11 +158,9 @@ function TreemapTile({
             size="xs"
             variant="filled"
             color="secondary"
-            styles={{
-              root: {
-                backgroundColor: withAlpha(BLACK, 0.28),
-                color: "var(--mui-palette-common-white)",
-              },
+            style={{
+              backgroundColor: withAlpha(BLACK, 0.28),
+              color: "var(--mui-palette-common-white)",
             }}
           >
             #{index + 1}

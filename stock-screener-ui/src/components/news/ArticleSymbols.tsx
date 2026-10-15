@@ -15,8 +15,8 @@ export function ArticleSymbols({
       <Text size="sm" c="dimmed" mb="xs">
         Stocks mentioned:
       </Text>
-      <Group gap="xs">
-        {symbols.map((symbol, idx) => (
+      <Group gap="xs" align="center">
+        {symbols.map((symbol) => (
           <Tooltip
             key={symbol.code}
             label={

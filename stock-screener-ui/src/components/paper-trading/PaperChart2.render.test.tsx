@@ -83,6 +83,8 @@ vi.mock("../../state/paperTrading", () => ({
   getPaperTradingState: vi.fn(() => currentState),
   subscribe: vi.fn(() => vi.fn()),
   setChartTimeframe: (...args: any[]) => mockSetChartTimeframe(...args),
+  setChartTimeframeHistory: vi.fn(),
+  setChartTimeframeLive: vi.fn(),
   setShowAllTrades: (...args: any[]) => mockSetShowAllTrades(...args),
   setShowOrbLines: (...args: any[]) => mockSetShowOrbLines(...args),
   setShowPivotLines: (...args: any[]) => mockSetShowPivotLines(...args),

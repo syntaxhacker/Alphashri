@@ -364,7 +364,7 @@ function TradeLogTab({ trades }: { trades: StrategyRunnerTrade[] }) {
 
   return (
     <Box style={{ display: "flex", flexDirection: "column", height: "100%" }}>
-      <Group gap="sm" mb="xs" style={{ flex: "0 0 auto" }}>
+      <Group gap="sm" align="center" mb="xs" style={{ flex: "0 0 auto" }}>
         <Text size="xs" fw={500}>Trade Log</Text>
         <Text size="xs" c="dimmed">{trades.length} trade{trades.length !== 1 ? "s" : ""}</Text>
       </Group>

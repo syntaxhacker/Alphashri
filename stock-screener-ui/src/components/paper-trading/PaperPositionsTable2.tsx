@@ -91,7 +91,7 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
     <Tooltip label="Close all positions at current prices">
       <Button
         size="compact-xs"
-        variant="filled"
+        variant="light"
         color="error"
         loading={closing}
         onClick={handleCloseAll}
@@ -103,7 +103,7 @@ function CloseAllButton({ positions }: { positions: PaperPosition[] }) {
   );
 }
 
-export function PaperPositionsTable() {
+export function PaperPositionsTable({ activeBotId }: { activeBotId?: string | null } = {}) {
   const state = getPaperTradingState();
   const { isLoading, botSnapshot } = state;
   const sortedPositions = usePositionsData();
@@ -119,7 +119,7 @@ export function PaperPositionsTable() {
   ) => {
     try {
       setSelectedSymbol(symbol);
-      setSelectedTradeId("-1");
+      setSelectedTradeId("-1", _strategyType, strategyId);
       const entryDate = entryTime ? entryTime.split("T")[0] : undefined;
       const fromDate = entryDate
         ? dayjs(entryDate).subtract(7, "day").format("YYYY-MM-DD")
@@ -153,12 +153,11 @@ export function PaperPositionsTable() {
     return <LoadingState />;
   }
 
-  console.log("[PositionsView] sortedPositions:", sortedPositions.length, "sample:", sortedPositions[0]?.symbol, "order_id:", sortedPositions[0]?.order_id);
   if (sortedPositions.length === 0 && !botSnapshot) {
     return <EmptyOrLoadingState />;
   }
 
-  const isLive = state.availableBots.find(b => b.id === state.filterBot)?.live_trading ?? false;
+  const isLive = state.availableBots.find(b => b.id === (activeBotId ?? state.filterBot))?.live_trading ?? false;
 
   return (
     <Stack className="paper-positions-table-container" id="paper-positions-table-container" spacing={1} data-testid="positions-table-container">

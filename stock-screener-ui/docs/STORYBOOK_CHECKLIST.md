@@ -74,15 +74,15 @@ These are rendered **inside** their page template above, so they are visually co
 | `useAuth must be used within an AuthProvider` | `AdminPage`, `AppLayout` via `NavbarNested` | Global `AuthContext.Provider` HOC in `.storybook/preview.tsx:62` (mocked admin `qa@test.com`) — no per-story `vi.mock` | ✅ Fixed |
 | `useNewsWebSocket must be used within a NewsWebSocketProvider` | `NewsPanel2`, `SectorPage` | Same global HOC now wraps `NewsWebSocketProvider` | ✅ Fixed 2026-08-23 |
 | `You cannot render a <Router> inside another <Router>` | `ClickableSymbol` (had `BrowserRouter` + global `MemoryRouter`) | Removed global `MemoryRouter` from `preview.tsx` — only `Auth`+`News` globally, Router per-story | ✅ Fixed |
-| `NavLink` icons invisible (`icon="[object Object]"`) | `NavbarLinksGroup` + `AppShell` story | `src/ui/navigation/NavLink.tsx:4` now maps `icon` → `leftSection` (Mantine v8 API) | ✅ Fixed |
+| `NavLink` icons invisible (`icon="[object Object]"`) | `NavbarLinksGroup` + `AppShell` story | `src/ui/navigation/NavLink.tsx:4` now maps `icon` → `leftSection` (MUI API) | ✅ Fixed |
 | Trading Desk stories all same component | `Dashboard.stories.tsx` had 3× `AggregatedDashboard` | Now distinct: Paper=`AggregatedDashboard`, Sector=`SectorPage`, Admin=`AdminPage` | ✅ Fixed |
 | Heatmap no data | `HeatmapPage` fetches `/api/heatmap/pe` with no mock | `MOCK_HEATMAP_RESPONSE` (50 stocks) + `MOCK_SECTORS_RESPONSE` via `window.fetch` mock in `Heatmap.stories.tsx:7` | ✅ Fixed |
 | Paper dashboard not in sync (custom `Stat` vs `CompactStat`) | `Dashboard.stories.tsx:4` custom `Stat` | Rewrote to `CompactStat`/`CompactPanel`/`SectionHeader` from `common/` + extracted `SectionHeader` to `common/SectionHeader.tsx:1` and updated real `AggregatedDashboard.tsx:23` to use it | ✅ Fixed |
 | Detail View generic chrome not looking like app | `Detail.stories.tsx` used fake `DetailChrome` for News/Bot | Now uses exact `ArticleDetail` (with `NewsItem` mock) and `BotStatusPanel` (with `BotConfig`/`BotStatus` mock) | ✅ Fixed |
-| Hardcoded hex outside `palette.ts` | `style.css:194` etc. had `var(--mantine-color-dark-6)` not `palette.ts` — actually correct (Mantine vars), only `palette.ts` raw hex is allowed | No fix needed — `style.css` correctly uses `var(--mantine-color-*)` | ✅ |
+| Hardcoded hex outside `palette.ts` | `style.css:194` etc. had `var(--mui-palette-divider)` not `palette.ts` — actually correct (theme vars), only `palette.ts` raw hex is allowed | No fix needed — `style.css` correctly uses theme vars | ✅ |
 | `body { overflow:hidden }` killing Storybook scroll | `src/style.css:42`, `preview.tsx` fix | Injected `body.sb-show-main { overflow:auto !important }` in `preview.tsx:12` + `layout: "centered"` → `padded` tuning | ✅ Fixed |
 | `UINavLinkProps` missing `leftSection` | `src/ui/types.ts:455` | Added `leftSection?: ReactNode` + `icon` backwards compat | ✅ Fixed |
-| `UIAppShellProps` wrong `collapsed` shape | `src/ui/types.ts:471` | Now `collapsed?: boolean | { mobile, desktop }` per Mantine docs | ✅ Fixed |
+| `UIAppShellProps` wrong `collapsed` shape | `src/ui/types.ts:471` | Now `collapsed?: boolean | { mobile, desktop }` per MUI docs | ✅ Fixed |
 
 **Build verification:** `build-storybook` → **completed** (358 stories), `tsc` → clean on stories, `vitest` → 4395 passed.
 

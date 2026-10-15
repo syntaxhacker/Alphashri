@@ -1,0 +1,492 @@
+[
+  {
+    "slug": "wires-cables",
+    "name": "Wires & Cables",
+    "category": "Industrials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "POLYCAB",
+      "KEI",
+      "FINCABLES",
+      "RRKABEL",
+      "HAVELLS",
+      "PARACABLES",
+      "DYCL",
+      "UNIVCABLES",
+      "BIRLACABLE",
+      "SKIPPER",
+      "HFCL",
+      "VGUARD"
+    ]
+  },
+  {
+    "slug": "data-centres-cloud",
+    "name": "Data Centres & Cloud",
+    "category": "Technology",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "NETWEB",
+      "E2E",
+      "ANANTRAJ",
+      "TECHNOE",
+      "STLTECH",
+      "TATACOMM",
+      "RAILTEL",
+      "MCLOUD"
+    ]
+  },
+  {
+    "slug": "defence",
+    "name": "Defence",
+    "category": "Industrials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "HAL",
+      "BEL",
+      "BDL",
+      "DATAPATTNS",
+      "ASTRAMICRO",
+      "ZENTEC",
+      "IDEAFORGE",
+      "PARAS",
+      "MTARTECH",
+      "SOLARINDS",
+      "BEML",
+      "KRISHNADEF",
+      "AEQUS"
+    ]
+  },
+  {
+    "slug": "jewellery-gold",
+    "name": "Jewellery & Gold",
+    "category": "Consumer",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "TITAN",
+      "KALYANKJIL",
+      "THANGAMAYL",
+      "SKYGOLD",
+      "PCJEWELLER",
+      "SENCO",
+      "RBZJEWEL",
+      "RAJESHEXPO",
+      "GOLDIAM",
+      "TBZ",
+      "DECNGOLD"
+    ]
+  },
+  {
+    "slug": "ems-electronics",
+    "name": "EMS / Electronics Manufacturing",
+    "category": "Technology",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "DIXON",
+      "KAYNES",
+      "AMBER",
+      "SYRMA",
+      "PGEL",
+      "CENTUM",
+      "AVALON",
+      "CYIENTDLM",
+      "OPTIEMUS",
+      "ELIN",
+      "GENUSPOWER",
+      "HONAUT"
+    ]
+  },
+  {
+    "slug": "nuclear-power",
+    "name": "Nuclear Power",
+    "category": "Energy",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "BHEL",
+      "NTPC",
+      "NHPC",
+      "TDPOWERSYS",
+      "KEC",
+      "LT",
+      "HCC",
+      "GODREJIND",
+      "WALCHANNAG"
+    ]
+  },
+  {
+    "slug": "drones-space",
+    "name": "Drones & Space",
+    "category": "Industrials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "IDEAFORGE",
+      "ZENTEC",
+      "DATAPATTNS",
+      "ASTRAMICRO",
+      "PARAS",
+      "MTARTECH"
+    ]
+  },
+  {
+    "slug": "shipbuilding-maritime",
+    "name": "Shipbuilding & Maritime",
+    "category": "Industrials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "MAZDOCK",
+      "COCHINSHIP",
+      "GRSE",
+      "SCI",
+      "SEAMECLTD",
+      "GESHIP",
+      "JSWINFRA",
+      "GPPL",
+      "DREDGECORP",
+      "ABSMARINE",
+      "TRANSWORLD"
+    ]
+  },
+  {
+    "slug": "cdmo-crdmo",
+    "name": "CDMO / CRDMO",
+    "category": "Healthcare",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "DIVISLAB",
+      "LAURUSLABS",
+      "BIOCON",
+      "NEULANDLAB",
+      "PPLPHARMA",
+      "SYNGENE",
+      "HIKAL",
+      "COHANCE",
+      "AARTIIND"
+    ]
+  },
+  {
+    "slug": "sugar-ethanol",
+    "name": "Sugar & Ethanol",
+    "category": "Consumer",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "BALRAMCHIN",
+      "TRIVENI",
+      "DHAMPURSUG",
+      "DALMIASUG",
+      "UTTAMSUGAR",
+      "BAJAJHIND",
+      "RENUKA",
+      "DWARKESH",
+      "PRAJIND"
+    ]
+  },
+  {
+    "slug": "capital-markets",
+    "name": "Capital Markets",
+    "category": "Financial",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "BSE",
+      "CDSL",
+      "MCX",
+      "ANGELONE",
+      "CAMS",
+      "KFINTECH",
+      "5PAISA",
+      "JIOFIN",
+      "HDFCAMC",
+      "IIFL",
+      "MOTILALOFS",
+      "GEOJITFSL",
+      "NUVAMA",
+      "ANANDRATHI",
+      "360ONE",
+      "NAM-INDIA",
+      "ICICIAMC"
+    ]
+  },
+  {
+    "slug": "railways",
+    "name": "Railways",
+    "category": "Industrials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "RVNL",
+      "IRFC",
+      "IRCON",
+      "IRCTC",
+      "RITES",
+      "TITAGARH",
+      "TEXRAIL",
+      "RAILTEL",
+      "CONCOR",
+      "JWL",
+      "TEXINFRA",
+      "TRANSRAILL",
+      "NRAIL"
+    ]
+  },
+  {
+    "slug": "travel-hospitality",
+    "name": "Travel & Hospitality",
+    "category": "Consumer",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "INDHOTEL",
+      "EIHOTEL",
+      "CHALET",
+      "LEMONTREE",
+      "JUNIPER",
+      "ITCHOTELS",
+      "THELEELA",
+      "VENTIVE",
+      "ITDC",
+      "THOMASCOOK",
+      "EASEMYTRIP",
+      "YATRA",
+      "TRAVELFOOD"
+    ]
+  },
+  {
+    "slug": "qsr-restaurants",
+    "name": "QSR & Restaurants",
+    "category": "Consumer",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "JUBLFOOD",
+      "DEVYANI",
+      "SAPPHIRE",
+      "WESTLIFE",
+      "RBA",
+      "SPECIALITY",
+      "COFFEEDAY"
+    ]
+  },
+  {
+    "slug": "power-td",
+    "name": "Power T&D",
+    "category": "Utilities",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "POWERGRID",
+      "ABB",
+      "CGPOWER",
+      "POWERINDIA",
+      "SIEMENS",
+      "GVT&D",
+      "APARINDS",
+      "TDPOWERSYS",
+      "VOLTAMP",
+      "KEC",
+      "SKIPPER",
+      "KPIL"
+    ]
+  },
+  {
+    "slug": "internet-new-age",
+    "name": "Internet & New-Age Tech",
+    "category": "Technology",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "ETERNAL",
+      "SWIGGY",
+      "NYKAA",
+      "PAYTM",
+      "POLICYBZR",
+      "NAUKRI",
+      "TANLA",
+      "ROUTE",
+      "EASEMYTRIP",
+      "CARTRADE",
+      "INDIAMART",
+      "URBANCO",
+      "AFFLE",
+      "PINELABS",
+      "JUSTDIAL"
+    ]
+  },
+  {
+    "slug": "semiconductors",
+    "name": "Semiconductors",
+    "category": "Technology",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "MOSCHIP",
+      "CGPOWER",
+      "VEDL",
+      "TATAELXSI"
+    ]
+  },
+  {
+    "slug": "water-sanitation",
+    "name": "Water & Sanitation",
+    "category": "Utilities",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "WABAG",
+      "IONEXCHANG",
+      "THERMAX",
+      "PRAJIND",
+      "EMSLIMITED",
+      "BLUEWATER",
+      "CEWATER"
+    ]
+  },
+  {
+    "slug": "private-banks",
+    "name": "Private Banks",
+    "category": "Financial",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "HDFCBANK",
+      "ICICIBANK",
+      "KOTAKBANK",
+      "AXISBANK",
+      "FEDERALBNK",
+      "AUBANK",
+      "INDUSINDBK",
+      "IDFCFIRSTB",
+      "YESBANK",
+      "RBLBANK",
+      "KARURVYSYA",
+      "BANDHANBNK",
+      "CUB",
+      "CSBBANK",
+      "DCBBANK",
+      "SOUTHBANK",
+      "TMB"
+    ]
+  },
+  {
+    "slug": "building-materials",
+    "name": "Building Materials",
+    "category": "Materials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "ULTRACEMCO",
+      "GRASIM",
+      "AMBUJACEM",
+      "SHREECEM",
+      "ACC",
+      "DALBHARAT",
+      "JKCEMENT",
+      "RAMCOCEM",
+      "JSWCEMENT",
+      "NUVOCO",
+      "INDIACEM",
+      "BIRLACORPN",
+      "APLAPOLLO",
+      "SUPREMEIND",
+      "ASTRAL",
+      "CENTURYPLY",
+      "GREENPANEL"
+    ]
+  },
+  {
+    "slug": "hospitals-diagnostics",
+    "name": "Hospitals & Diagnostics",
+    "category": "Healthcare",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "APOLLOHOSP",
+      "MAXHEALTH",
+      "FORTIS",
+      "NH",
+      "KIMS",
+      "RAINBOW",
+      "MEDANTA",
+      "LALPATHLAB",
+      "METROPOLIS",
+      "THYROCARE",
+      "VIJAYA",
+      "YATHARTH",
+      "ASTERDM",
+      "PARKHOSPS"
+    ]
+  },
+  {
+    "slug": "ev-batteries",
+    "name": "EV & Batteries",
+    "category": "Consumer",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "TMPV",
+      "TMCV",
+      "M&M",
+      "TVSMOTOR",
+      "BAJAJ-AUTO",
+      "OLAELEC",
+      "EXIDEIND",
+      "ARE&M",
+      "ATHERENERG",
+      "HBLENGINE"
+    ]
+  },
+  {
+    "slug": "infra-epc",
+    "name": "Infra EPC",
+    "category": "Industrials",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "LT",
+      "IRB",
+      "KNRCON",
+      "HGINFRA",
+      "GRINFRA",
+      "PNCINFRA",
+      "NCC",
+      "AFCONS",
+      "KPIL",
+      "NBCC",
+      "ENGINERSIN",
+      "LLOYDSENGG"
+    ]
+  },
+  {
+    "slug": "renewable-energy",
+    "name": "Renewable Energy",
+    "category": "Energy",
+    "description": "",
+    "source": "curated",
+    "symbols": [
+      "SWSOLAR",
+      "SUZLON",
+      "INOXWIND",
+      "TATAPOWER",
+      "ADANIGREEN",
+      "JSWENERGY",
+      "NTPC",
+      "NTPCGREEN",
+      "NHPC",
+      "SJVN",
+      "WAAREEENER",
+      "PREMIERENE",
+      "ACMESOLAR",
+      "BORORENEW",
+      "KPIGREEN",
+      "CLEANMAX"
+    ]
+  }
+]

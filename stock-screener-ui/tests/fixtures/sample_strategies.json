@@ -1,0 +1,93 @@
+{
+  "templates": [
+    {
+      "name": "ORB Default",
+      "strategy_type": "ORB",
+      "is_template": true,
+      "is_active": true,
+      "is_default": true,
+      "description": "Default Opening Range Breakout strategy",
+      "or_minutes": 45,
+      "sl_pct": 0.4,
+      "tp_pct": 1.2,
+      "min_or_range_pct": 0.5,
+      "max_or_range_pct": 3.0,
+      "max_positions": 5,
+      "max_capital_per_trade_pct": 0.1,
+      "max_daily_loss_pct": 0.02,
+      "max_total_exposure_pct": 0.5,
+      "risk_per_trade_pct": 0.01,
+      "min_trade_value": 5000,
+      "max_trade_value": 100000,
+      "cooldown_minutes": 30,
+      "max_distance_from_or_pct": 1.5
+    },
+    {
+      "name": "Momentum Template",
+      "strategy_type": "MOMENTUM",
+      "is_template": true,
+      "is_active": true,
+      "is_default": false,
+      "description": "Momentum-based trading strategy",
+      "max_positions": 8,
+      "max_capital_per_trade_pct": 0.15,
+      "max_daily_loss_pct": 0.03,
+      "max_total_exposure_pct": 0.6,
+      "risk_per_trade_pct": 0.015,
+      "min_trade_value": 10000,
+      "max_trade_value": 150000,
+      "cooldown_minutes": 15
+    }
+  ],
+  "variations": [
+    {
+      "name": "ORB Conservative",
+      "strategy_type": "ORB",
+      "parent_id": 1,
+      "is_template": false,
+      "is_active": true,
+      "description": "More conservative ORB with wider stops",
+      "sl_pct": 0.5,
+      "tp_pct": 1.0,
+      "max_capital_per_trade_pct": 0.08,
+      "cooldown_minutes": 45
+    },
+    {
+      "name": "ORB Aggressive",
+      "strategy_type": "ORB",
+      "parent_id": 1,
+      "is_template": false,
+      "is_active": true,
+      "description": "Aggressive ORB with tighter stops and higher targets",
+      "sl_pct": 0.3,
+      "tp_pct": 1.5,
+      "max_capital_per_trade_pct": 0.15,
+      "cooldown_minutes": 20
+    },
+    {
+      "name": "ORB Scalper",
+      "strategy_type": "ORB",
+      "parent_id": 1,
+      "is_template": false,
+      "is_active": true,
+      "description": "Quick trades with small targets",
+      "sl_pct": 0.25,
+      "tp_pct": 0.75,
+      "min_or_range_pct": 0.3,
+      "max_or_range_pct": 2.0,
+      "max_capital_per_trade_pct": 0.2,
+      "cooldown_minutes": 15
+    },
+    {
+      "name": "Momentum Balanced",
+      "strategy_type": "MOMENTUM",
+      "parent_id": 2,
+      "is_template": false,
+      "is_active": true,
+      "description": "Balanced momentum approach",
+      "max_positions": 6,
+      "max_capital_per_trade_pct": 0.12,
+      "cooldown_minutes": 20
+    }
+  ]
+}

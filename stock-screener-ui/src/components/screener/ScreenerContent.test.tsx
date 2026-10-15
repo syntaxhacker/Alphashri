@@ -16,8 +16,14 @@ const renderWithProvider = (ui: ReactElement) =>
   render(<UIProvider>{ui}</UIProvider>);
 
 vi.mock("./ScreenerSection", () => ({
-  ScreenerSection: ({ title, description }: any) => (
-    <div data-testid="screener-section" data-title={title} data-description={description || ""}>
+  ScreenerSection: ({ title, description, stocks, action }: any) => (
+    <div
+      data-testid="screener-section"
+      data-title={title}
+      data-description={description || ""}
+      data-symbols={(stocks || []).map((s: any) => s.symbol).join(",")}
+    >
+      {action}
       {title}
     </div>
   ),
@@ -86,6 +92,18 @@ describe("ScreenerContent", () => {
   it("shows loading when isLoading is true", () => {
     renderWithProvider(<ScreenerContent {...defaultProps} isLoading totalStocks={0} />);
     expect(screen.getByTestId("screener-loading")).toBeInTheDocument();
+  });
+
+  it("retains loaded sections during a background refresh", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        isLoading
+        approachingStocks={[mockStock("A")]}
+      />,
+    );
+    expect(screen.getByTestId("screener-section")).toHaveAttribute("data-title", "Approaching (1)");
+    expect(screen.queryByTestId("screener-loading")).not.toBeInTheDocument();
   });
 
   it("shows error panel when error is set", () => {
@@ -179,5 +197,29 @@ describe("ScreenerContent", () => {
     const sections = screen.getAllByTestId("screener-section");
     expect(sections).toHaveLength(1);
     expect(sections[0]).toHaveAttribute("data-title", "Approaching (2)");
+  });
+
+  it("sorts approaching fresh-first, retest last", () => {
+    const retest = { ...mockStock("R"), approach_type: "retest" as const };
+    const fresh = { ...mockStock("F"), approach_type: "fresh" as const };
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        approachingStocks={[retest, mockStock("P"), fresh]}
+      />,
+    );
+    expect(screen.getByTestId("screener-section")).toHaveAttribute("data-symbols", "F,P,R");
+  });
+
+  it("renders copy-symbols actions for both sections", () => {
+    renderWithProvider(
+      <ScreenerContent
+        {...defaultProps}
+        approachingStocks={[mockStock("A")]}
+        touchedStocks={[mockStock("C")]}
+      />,
+    );
+    expect(screen.getByTestId("copy-approaching-symbols")).toBeInTheDocument();
+    expect(screen.getByTestId("copy-touched-symbols")).toBeInTheDocument();
   });
 });

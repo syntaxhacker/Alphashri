@@ -7,7 +7,11 @@ from alembic import context
 
 config = context.config
 if config.config_file_name is not None:
-    fileConfig(config.config_file_name)
+    # fileConfig() disables every *existing* logger by default. Importing this
+    # module (e.g. from a test that starts the app) therefore silenced loggers
+    # that were already created — including caplog-based assertions in unrelated
+    # test files, which became order-dependent. Keep them alive.
+    fileConfig(config.config_file_name, disable_existing_loggers=False)
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 

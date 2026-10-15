@@ -180,9 +180,9 @@ describe("StatusBadge", () => {
     expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
-  it("renders Running with PID when running=true and pid provided", () => {
+  it("renders Running when running=true and pid provided", () => {
     render(<StatusBadge running={true} pid={12345} />, { wrapper: Wrapper });
-    expect(screen.getByText("Running (PID 12345)")).toBeInTheDocument();
+    expect(screen.getByText("Running")).toBeInTheDocument();
   });
 
   it("renders Stopped when running=false", () => {

@@ -30,7 +30,7 @@ vi.mock("./SelectionBar", () => ({
 
 vi.mock("./ScreenerTable", () => ({
   ScreenerTable: (props: any) => (
-    <div data-testid={props["data-testid"] || "screener-table"}>
+    <div data-testid={props.testId || "screener-table"}>
       Table
       {props.columns.map((col: any) => (
         <span key={col.key} data-testid={`preview-sort-header-${col.key}`}>

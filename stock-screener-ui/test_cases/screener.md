@@ -194,7 +194,7 @@
 - [x] buildSummaryItems returns items with numeric values
 - [x] buildSummaryItems handles empty array
 - [x] buildSummaryItems handles single item
-- [x] getTone returns mantine color variable when color is set
+- [x] getTone returns theme color variable when color is set
 - [x] getTone returns default text color when color is undefined
 - [x] getTone returns default text color when color is not set
 - [x] Renders CompactStatGrid with CompactStat items

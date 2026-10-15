@@ -5,6 +5,9 @@ from db.database import SessionLocal
 
 from .screener_models import (
     MAX_WORKERS, PROFILES_WITH_52W_BUCKETS, _to_float, touched_52w_gap_threshold_pct,
+    classify_approach, exclude_etfs_from_screener, gap_pct_to_52w_high, is_likely_etf,
+    is_plausible_52w_gap, is_within_52w_touch_gap,
+    min_52w_turnover_cr, min_52w_volume_m,
 )
 from .screener_results import _profile_meta, _build_rationale, _summary_items_for
 
@@ -38,6 +41,7 @@ def _build_stock_data(
     impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
     is_bullish, sentiment, score, broker_diff,
     move_5m=None, move_10m=None, move_15m=None,
+    price_source='tv',
 ):
     return {
         'symbol': symbol,
@@ -47,6 +51,7 @@ def _build_stock_data(
         'broker_diff': broker_diff,
         'high_52w': round(tv_52w_high, 2),
         'to_52w_high': round(to_52w_high, 2),
+        'source': price_source,
         'recent_return_5d': round(recent_return_5d, 1),
         'perf_w': round(perf_w, 1),
         'sector': sector,
@@ -85,11 +90,11 @@ def _passes_profile_filters(screener, stock_data, profile_filters):
             return False
 
     if screener in ('52w_high', 'builtin:52w_high'):
-        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, 0.0)
+        min_vol = _to_float(profile_filters.get('min_volume_m') if profile_filters else None, min_52w_volume_m())
         vol = _to_float(stock_data.get('volume_m'), 0)
         if min_vol > 0 and vol < min_vol:
             return False
-        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, 0.0)
+        min_turnover = _to_float(profile_filters.get('min_turnover_cr') if profile_filters else None, min_52w_turnover_cr())
         turnover = _to_float(stock_data.get('turnover_cr'), 0)
         if min_turnover > 0 and turnover < min_turnover:
             return False
@@ -203,39 +208,133 @@ def estimate_days_to_52w(current_price, high_52w, adx, atr, recent_return_5d, pe
     return round(estimated_days), confidence
 
 
-def _compute_days_ago(api, symbol, today_high=None):
-    """Fetch 90 days of daily data, find the period high, and return days since it was last touched."""
+def _fetch_90d_daily(api, symbol):
+    """Fetch 90 days of daily bars for touch/near-high analysis. None on failure."""
     try:
         to_date = datetime.now(config.IST).strftime('%Y-%m-%d')
         from_date = (datetime.now(config.IST) - timedelta(days=90)).strftime('%Y-%m-%d')
         df = api.fetch_historical_data_v3(symbol=symbol, unit='days', interval=1, to_date=to_date, from_date=from_date)
         if df is None or df.empty:
-            return 0 if today_high is not None else None
-
-        # Use Upstox's own period high (avoids TV vs Upstox data mismatch)
-        period_high = df['high'].max()
-        if today_high is not None:
-            period_high = max(period_high, today_high)
-
-        threshold = period_high * 0.98
-
-        # If today's intraday high meets threshold, return 0 immediately
-        if today_high is not None and today_high >= threshold:
-            return 0
-
-        touched = df[df['high'] >= threshold]
-        if touched.empty:
             return None
-        last_touch = touched.index[-1]
-        if hasattr(last_touch, 'to_pydatetime'):
-            last_touch_dt = last_touch.to_pydatetime()
-        else:
-            last_touch_dt = last_touch
-        last_touch_dt = _ensure_ist(last_touch_dt)
-        days_ago = (datetime.now(config.IST) - last_touch_dt).days
-        return max(0, days_ago)
+        return df
     except Exception:
         return None
+
+
+def _lookup_upstox_52w_high(symbol):
+    """Upstox-computed 52W high for symbol (range cache / stock_52w_range table).
+
+    Returns the high as float, or None when unavailable/invalid. Never raises —
+    callers fall back to TradingView in that case.
+    """
+    try:
+        from trading.week52_range_lookup import get_52w_range
+    except Exception:
+        return None
+    try:
+        info = get_52w_range(symbol)
+    except Exception:
+        return None
+    if not isinstance(info, dict):
+        return None
+    return _to_float(info.get('high'), 0) or None
+
+
+def _resolve_52w_gap(symbol, tv_52w_high, price):
+    """Resolve (high_52w, to_52w_high, source) preferring Upstox.
+
+    Uses the Upstox-computed 52W high and the Upstox current price. Falls back
+    to the TradingView high (marked ``source='tv'``) only when the Upstox range
+    is genuinely unavailable. Returns ``(None, None, None)`` when no usable
+    high/price exists or the resulting gap is implausible (stale high far below
+    the live price) — callers must skip the row in that case.
+    """
+    price = _to_float(price, 0)
+    if price <= 0:
+        return None, None, None
+    upstox_high = _lookup_upstox_52w_high(symbol)
+    if upstox_high and upstox_high > 0:
+        gap = gap_pct_to_52w_high(upstox_high, price)
+        if gap is not None and is_plausible_52w_gap(gap):
+            return upstox_high, gap, 'upstox'
+        return None, None, None
+    tv_high = _to_float(tv_52w_high, 0)
+    if tv_high > 0:
+        gap = gap_pct_to_52w_high(tv_high, price)
+        if gap is not None and is_plausible_52w_gap(gap):
+            return tv_high, gap, 'tv'
+    return None, None, None
+def _last_touch_days_ago(df, threshold):
+    """Days since a daily high last reached threshold. None if never in frame."""
+    touched = df[df['high'] >= threshold]
+    if touched.empty:
+        return None
+    last_touch = touched.index[-1]
+    if hasattr(last_touch, 'to_pydatetime'):
+        last_touch = last_touch.to_pydatetime()
+    last_touch = _ensure_ist(last_touch)
+    return max(0, (datetime.now(config.IST) - last_touch).days)
+
+
+def _touch_stats_from_df(df, ref_high, today_high=None, eps_pct=None):
+    """Pure computation of near-high and touch recency from daily bars.
+
+    Returns (days_since_near, days_since_touch):
+    - near: daily high within 98% of the 90d period high (legacy days_ago semantic)
+    - touch: daily high within eps of ref_high (the high the gap is measured
+      against, so gap and touch can never disagree about the reference)
+    """
+    from .screener_models import touch_eps_pct
+
+    eps = eps_pct if eps_pct is not None else touch_eps_pct()
+    period_high = df['high'].max()
+    if today_high is not None:
+        period_high = max(period_high, today_high)
+
+    # Legacy near-high logic (unchanged semantics).
+    if today_high is not None and today_high >= period_high * 0.98:
+        days_since_near = 0
+    else:
+        days_since_near = _last_touch_days_ago(df, period_high * 0.98)
+
+    # True-touch logic against the gap reference high.
+    touch_threshold = ref_high * (1 - eps / 100)
+    if today_high is not None and today_high >= touch_threshold:
+        days_since_touch = 0
+    else:
+        days_since_touch = _last_touch_days_ago(df, touch_threshold)
+    return days_since_near, days_since_touch
+
+
+def _days_since_touch(api, symbol, ref_high, today_high=None, eps_pct=None):
+    """Days since price last traded within eps of ref_high. None if never/unknown."""
+    if not ref_high or ref_high <= 0:
+        return None
+    df = _fetch_90d_daily(api, symbol)
+    if df is None:
+        return None
+    _, days_since_touch = _touch_stats_from_df(df, ref_high, today_high, eps_pct)
+    return days_since_touch
+
+
+def _compute_days_ago(api, symbol, today_high=None):
+    """Fetch 90 days of daily data, find the period high, and return days since it was last touched."""
+    df = _fetch_90d_daily(api, symbol)
+    if df is None:
+        return 0 if today_high is not None else None
+
+    # Use Upstox's own period high (avoids TV vs Upstox data mismatch)
+    period_high = df['high'].max()
+    if today_high is not None:
+        period_high = max(period_high, today_high)
+
+    threshold = period_high * 0.98
+
+    # If today's intraday high meets threshold, return 0 immediately
+    if today_high is not None and today_high >= threshold:
+        return 0
+
+    return _last_touch_days_ago(df, threshold)
 
 
 def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52w_buckets, profile_filters):
@@ -245,6 +344,9 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
     symbol = row_data['name']
     screener_clean = screener.replace('builtin:', '') if screener.startswith('builtin:') else screener
     tv_price = row_data['close']
+
+    if exclude_etfs_from_screener() and is_likely_etf(symbol):
+        return None
 
     if tv_price >= 7000:
         return None
@@ -314,23 +416,30 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
             adx_val = _to_float(row_data.get('ADX'), adx)
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', adx))
-            to_52w_high = ((tv_52w_high - upstox_price) / tv_52w_high) * 100
+            # No live Upstox price here (synthetic TV-derived price), so the gap
+            # stays purely TradingView and is marked source='tv'.
+            high_52w = tv_52w_high
+            to_52w_high = gap_pct_to_52w_high(tv_52w_high, upstox_price)
+            if to_52w_high is None or not is_plausible_52w_gap(to_52w_high):
+                return None
+            price_source = 'tv'
 
-            est_days, confidence = estimate_days_to_52w(upstox_price, tv_52w_high, adx, atr, recent_return, perf_w)
+            est_days, confidence = estimate_days_to_52w(upstox_price, high_52w, adx, atr, recent_return, perf_w)
             touched_gap = touched_52w_gap_threshold_pct()
-            touched_52w = to_52w_high < touched_gap
+            touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap)
             is_bullish = tv_price >= tv_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
 
             turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
-                symbol, tv_price, upstox_price, tv_52w_high, to_52w_high,
+                symbol, tv_price, upstox_price, high_52w, to_52w_high,
                 recent_return, perf_w, sector, touched_52w, None,
                 day_change, rsi, stoch_k, wick_close_pct, volume_surge,
                 atr_pct, adx_val, interest_score, gap_pct, premarket_change,
                 impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
                 move_5m=0.0, move_10m=0.0, move_15m=0.0,
+                price_source=price_source,
             )
 
             stock_data['move_pct'] = 0.0
@@ -380,24 +489,23 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
             diff_pct = ((upstox_price - tv_price) / tv_price) * 100
             recent_return = ((upstox_price - start_price) / start_price) * 100
             tv_52w_high = float(row_data.get('price_52_week_high', 0))
-            recent_high = float(df_hist['high'].max())
-            high_diff_pct = ((recent_high - upstox_price) / recent_high) * 100
+            # Authoritative gap: Upstox 52W high vs Upstox current price.
+            # TradingView is only a fallback (marked source='tv'). Stale rows
+            # (price far above the recorded high) are skipped, not emitted.
+            high_52w, to_52w_high, price_source = _resolve_52w_gap(symbol, tv_52w_high, upstox_price)
+            if high_52w is None or to_52w_high is None:
+                return None
             adx = float(row_data.get('ADX', 0))
             atr = float(row_data.get('ATR', 0))
             atr_pct = (atr / tv_price * 100) if tv_price > 0 else 0.0
             perf_w = float(row_data.get('Perf.W', 0))
             interest_score = _to_float(row_data.get('interest_score'), row_data.get('swing_score', 0))
-            est_days, confidence = estimate_days_to_52w(upstox_price, recent_high, adx, atr, recent_return, perf_w)
+            est_days, confidence = estimate_days_to_52w(upstox_price, high_52w, adx, atr, recent_return, perf_w)
             touched_gap = touched_52w_gap_threshold_pct()
-            touched_52w = False
-            if tv_52w_high > 0:
-                if recent_high >= tv_52w_high:
-                    touched_52w = True
-                elif (tv_52w_high - recent_high) / tv_52w_high < touched_gap / 100:
-                    touched_52w = True
+            touched_52w = is_within_52w_touch_gap(to_52w_high, touched_gap)
             days_ago = None
             if screener_clean in ('touched_52w_high', '52w_high'):
-                days_ago = _compute_days_ago(api, symbol, today_high=recent_high)
+                days_ago = _compute_days_ago(api, symbol, today_high=upstox_price if touched_52w else None)
             c_open = _to_float(current_candle.get('open'), c_close)
             is_bullish = c_close >= c_open
             sentiment = _classify_sentiment(wick_close_pct, is_bullish)
@@ -424,13 +532,14 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
             turnover_cr = round(volume_m * upstox_price / 10, 2) if upstox_price else 0.0
             stock_data = _build_stock_data(
-                symbol, tv_price, upstox_price, tv_52w_high, high_diff_pct,
+                symbol, tv_price, upstox_price, high_52w, to_52w_high,
                 recent_return, perf_w, sector, touched_52w, days_ago,
                 day_change, rsi, stoch_k, wick_close_pct, volume_surge,
                 atr_pct, adx, interest_score, gap_pct, premarket_change,
                 impact_score, market_cap_b, volume_m, turnover_cr, reversal_signal,
                 is_bullish, sentiment, score, broker_diff,
                 move_5m=move_5m, move_10m=move_10m, move_15m=move_15m,
+                price_source=price_source,
             )
 
             stock_data['move_pct'] = 0.0
@@ -457,6 +566,17 @@ def _process_single_stock(row_data, screener, use_api, api, use_intraday, use_52
 
             if not touched_52w and est_days is not None:
                 stock_data['time_to_52w'] = {'days': est_days, 'confidence': confidence}
+
+            # Enrichment only: touch-recency is a nicety, so a bar-lookup
+            # failure must never drop an otherwise-valid row.
+            if use_52w_buckets and tv_52w_high > 0:
+                try:
+                    touch_days = _days_since_touch(api, symbol, tv_52w_high)
+                except Exception:
+                    touch_days = None
+                if touch_days is not None:
+                    stock_data['days_since_touch'] = touch_days
+                    stock_data['approach_type'] = classify_approach(touched_52w, touch_days)
 
             if _passes_profile_filters(screener, stock_data, profile_filters):
                 return (stock_data, 'touched' if (use_52w_buckets and touched_52w) else 'approaching')

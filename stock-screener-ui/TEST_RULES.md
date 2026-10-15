@@ -81,9 +81,9 @@ import userEvent from "@testing-library/user-event";
 ## Setup Patterns
 
 ```typescript
-// Wrapper for Mantine-dependent components
+// Wrapper for MUI-dependent components
 function TestWrapper({ children }: { children: React.ReactNode }) {
-  return <MantineProvider>{children}</MantineProvider>;
+  return <ThemeProvider theme={muiTheme}>{children}</ThemeProvider>;
 }
 
 // Render helper — keeps calls concise
@@ -159,7 +159,7 @@ Some UI components require context or render in portals. For isolated unit tests
 
 ```typescript
 // Mock at the top of your test file (before component imports)
-vi.mock("@mantine/core", async (importOriginal) => {
+vi.mock("@/ui", async (importOriginal) => {
   const actual = await importOriginal();
   return {
     ...actual,
@@ -201,7 +201,7 @@ vi.mock("@mantine/core", async (importOriginal) => {
 ```
 
 **Key principles:**
-- Spread `...actual` to keep other Mantine components (Provider, Text, etc.) intact
+- Spread `...actual` to keep the rest of the `@/ui` exports intact
 - Only override components that cause testing issues (context, portals)
 - Preserve `data-testid` props so tests can still query elements
 - For `SegmentedControl`/`RadioGroup`, expose `data-testid` on individual options if needed
@@ -444,7 +444,7 @@ expect(
 
 ## Accordion Interaction Patterns
 
-Mantine Accordion panels are hidden via CSS `display: none` when collapsed (keepMounted defaults to true). happy-dom does not enforce CSS visibility, so clicks on collapsed elements succeed in tests but would fail in a real browser.
+MUI Accordion panels are hidden via CSS `display: none` when collapsed (content stays mounted by default). happy-dom does not enforce CSS visibility, so clicks on collapsed elements succeed in tests but would fail in a real browser.
 
 ### ALWAYS expand collapsed accordions before clicking inside
 ```typescript
