@@ -403,6 +403,36 @@ async def watch_snapshot_task():
         except Exception as e:
             print(f"[Watch] Snapshot task error: {e}")
             await asyncio.sleep(60)
+async def touch_recorder_task():
+    """Persist daily 52W touches once per day after market close.
+
+    Corroborates bar-based approach_type with the touch log
+    (scripts/record_52w_touches.py). Disable with TOUCH_RECORDER_ENABLED=0.
+    """
+    import os
+
+    if _ci_mode() or os.getenv("TOUCH_RECORDER_ENABLED", "1").lower() in ("0", "false", "no"):
+        return
+
+    import config as _config
+    from datetime import datetime as _datetime
+
+    last_run = None
+    while True:
+        try:
+            now = _datetime.now(_config.IST)
+            if now.hour >= 16 and last_run != now.date():
+                from scripts.record_52w_touches import record_touches_for_all_screeners
+                await asyncio.to_thread(record_touches_for_all_screeners)
+                last_run = now.date()
+        except asyncio.CancelledError:
+            break
+        except Exception as e:
+            print(f"⚠️ Touch recorder failed: {e}")
+        try:
+            await asyncio.sleep(1800)
+        except asyncio.CancelledError:
+            break
 
 
 async def db_backup_task():
@@ -459,6 +489,7 @@ async def lifespan(app: FastAPI):
     _watch_task = None
     _dashboard_task = None
     _digest_task = None
+    _touch_task = None
     ci = _ci_mode()
     redis_connected = False
     try:
@@ -575,6 +606,11 @@ async def lifespan(app: FastAPI):
             except Exception as e:
                 print(f"⚠️ EOD report digest task failed: {e}")
                 _digest_task = None
+                _touch_task = asyncio.create_task(touch_recorder_task())
+                print("👆 52W touch recorder started")
+            except Exception as e:
+                print(f"⚠️ Touch recorder failed: {e}")
+                _touch_task = None
     except Exception as e:
         import traceback
         print(f"❌ Startup failed: {e}")
@@ -616,6 +652,8 @@ async def lifespan(app: FastAPI):
         orderflow_journal.close_all()
     except Exception:
         pass
+    if _touch_task:
+        _touch_task.cancel()
 
     try:
         from api.bots_api.bots_router import stop_bot_process, _bot_processes

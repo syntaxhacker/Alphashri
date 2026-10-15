@@ -79,6 +79,39 @@ def is_plausible_52w_gap(gap_pct: Optional[float]) -> bool:
     if not math.isfinite(gap):
         return False
     return gap >= -STALE_52W_BREAKOUT_PCT
+def touch_eps_pct() -> float:
+    """A daily high within this % of the 52W high counts as a touch."""
+    return float(os.environ.get('SCREENER_52W_TOUCH_EPS_PCT', '0.5'))
+
+
+def retest_window_days() -> int:
+    """A touch within this many days + now below high => 'retest' (else 'fresh')."""
+    return int(os.environ.get('SCREENER_RETEST_WINDOW_DAYS', '5'))
+
+
+def classify_approach(touched_now: bool, days_since_touch: Optional[int], window_days: Optional[int] = None) -> str:
+    """Bucket a near-high row as 'touched' | 'retest' | 'fresh'.
+
+    days_since_touch None means no touch found in the bar lookback => fresh
+    (callers omit the field entirely when no bar check was performed).
+    """
+    if touched_now:
+        return 'touched'
+    w = window_days if window_days is not None else retest_window_days()
+    if days_since_touch is not None and days_since_touch <= w:
+        return 'retest'
+    return 'fresh'
+
+
+def has_live_data(stock: dict) -> bool:
+    """False when TV enrichment missed entirely (RSI/ADX/volume all zero)."""
+    if _to_float(stock.get('volume_m'), 0) > 0:
+        return True
+    if _to_float(stock.get('rsi'), 0) > 0:
+        return True
+    if _to_float(stock.get('adx'), 0) > 0:
+        return True
+    return False
 
 
 PROFILES_WITH_52W_BUCKETS = {'trending', 'near_52w_breakout', 'touched_52w_high', '52w_high'}
