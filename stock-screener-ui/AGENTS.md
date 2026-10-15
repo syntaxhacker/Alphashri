@@ -201,7 +201,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **ORB Best strategy**: optimized via autoresearch (PF=1.61 on 5-min benchmark). Key params: `sl_pct=1.0`, `tp_pct=1.5`, `breakout_buffer_pct=0.3`, `cooldown_minutes=75`, `eod_exit=(15,0)`, `enable_shorts=False`, `min_or_range_pct=0.8`. Validated on 13 days with replay engine (PF=1.19). TP rarely hit — real edge is SL1.0 + 75min cooldown + 15:00 EOD exit.
 - **Hardcoded values audit** (all strategy-specific values are now configurable):
   - `runner_core.py:run(interval=5)` — global scan interval. Safe to keep but impacts all strategies.
-  - `runner_core.py:FORCE_EXIT=(15,30)` — global market close, NOT strategy-specific. Safe to keep.
+  - `trading/utils.py:FORCE_EXIT=(15,10)` — global safety-net exit, NOT strategy-specific. Was 15:30 until NSE's Closing Auction Session (Aug 2026) made 15:30 non-continuous, so a forced market order there would execute in the auction; it now sits inside continuous trading. `MARKET_CLOSE=(15,30)` is still the session close and `CONTINUOUS_CLOSE=(15,15)` the end of continuous trading. A strategy's own `eod_exit_hour/minute` takes precedence.
   - `runner_signals.py:178` — `day_change_pct > 2.0` ORB skip filter. Generic safety, could be config in future.
   - `week52_chaser_signals.py:128-132` — ADX<25, RSI 50-70 filters. 52W-specific, could be config.
   - `runner_signals.py:581` — `0.8` daily loss alert multiplier. Could be global risk param.
@@ -220,7 +220,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Close All Positions**: API closes positions directly from DB (no command file). If bot is running, it detects the closed positions next cycle.
 - **Scan items**: persisted to `bot_runtime_states.scan_items` DB column. `/api/bots/{bot_id}/scan` reads from DB first, Redis as fallback.
 - **Position restore on restart**: `_load_positions_from_db()` in `runner_core.py` — force-closes positions from previous day with `FORCE_CLOSE` reason. `low_price` resets to `entry_price`.
-- **Force exit**: `runner_core.py:FORCE_EXIT=(15,30)` is global market close time
+- **Force exit**: `trading/utils.py:FORCE_EXIT=(15,10)` is the global safety-net exit — NOT 15:30 market close (see the Closing Auction Session note in the hardcoded-values audit). `runner_core` gates its main loop on `is_force_exit_time()`, so bots stop scanning at 15:10.
 - **Orphan bot stop**: `get_bot_pid()` reads PID from Redis key `bot:{user_id}:{bot_id}:pid` (24h TTL), sends SIGTERM
 - **Pipe deadlock fix**: bot stdout goes directly to log file (not PIPE) — prevents buffer fill on uvicorn reload
 - **Crash notification**: bot's `run()` wraps main loop in try/except, sends Telegram alert with open positions count + P&L on crash
