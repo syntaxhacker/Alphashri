@@ -1,7 +1,9 @@
 """SNDK — today's playbook: raw signal, filter verdict, and both exits.
 
 Usable as a module: `build()` returns the result dict (and writes the chart).
-Regenerate standalone with: .venv/bin/python scripts/research/prerange/today_playbook.py
+Regenerate standalone with: .venv/bin/python scripts/research/prerange/today_playbook.py [TICKER] [DATE ...]
+Dates are YYYY-MM-DD session dates in America/New_York (default: latest session).
+e.g. .venv/bin/python scripts/research/prerange/today_playbook.py SNDK 2026-10-14 2026-10-15
 """
 import datetime
 import os
@@ -23,40 +25,79 @@ BG, FG, DIM, UP, DN = "#0D1117", "#E6EDF3", "#8B949E", "#3FB950", "#F85149"
 BLUE, YEL, PUR, TEAL = "#58A6FF", "#D29922", "#A371F7", "#39D2C0"
 
 
-def build(ticker="SNDK", min_move=1.0, max_move=5.0):
+def build(ticker="SNDK", min_move=1.0, max_move=5.0, date=None):
+    """Build the playbook chart for one session.
+
+    date: None (latest session) or a YYYY-MM-DD string / datetime.date.
+    Side/stop follow generate_gallery.py: RED pre -> LONG (stop pre_lo),
+    GREEN pre -> SHORT (stop pre_hi). prev_close is the daily close strictly
+    before D (not iloc[-2], which breaks for back-dated targets).
+    """
     FIG.mkdir(parents=True, exist_ok=True)
     plt.rcParams.update({"figure.facecolor": BG, "axes.facecolor": BG, "text.color": FG,
                          "axes.labelcolor": FG, "xtick.color": DIM, "ytick.color": DIM,
                          "axes.edgecolor": "#30363D", "savefig.facecolor": BG})
+    import datetime as _dt
     t = yf.Ticker(ticker)
     d = t.history(period="5d", interval="5m", prepost=True, auto_adjust=False)
+    if d is None or len(d) == 0:
+        raise ValueError(f"no intraday data for {ticker}")
     d.index = d.index.tz_convert(NY)
-    D = max(d.index.date)
+    sessions = sorted(set(d.index.date))
+    if date is None:
+        D = max(sessions)
+    else:
+        D = _dt.date.fromisoformat(str(date)) if not isinstance(date, _dt.date) else date
+        if D not in sessions:
+            # retry with a wider window (target may have fallen out of the 5d window)
+            d = t.history(period="1mo", interval="5m", prepost=True, auto_adjust=False)
+            d.index = d.index.tz_convert(NY)
+            sessions = sorted(set(d.index.date))
+            if D not in sessions:
+                raise ValueError(f"no 5m data for {ticker} on {D} (have {sessions[0]}..{sessions[-1]})")
     today = d[d.index.date == D].sort_index()
     pre = today[today.index.time < T(9, 30)]
     reg = today[(today.index.time >= T(9, 30)) & (today.index.time < T(16, 0))].copy()
+    if len(pre) == 0 or len(reg) == 0:
+        raise ValueError(f"empty pre/regular session for {ticker} on {D}")
     reg["ema9"] = reg["Close"].ewm(span=9, adjust=False).mean()
     tp = (reg["High"] + reg["Low"] + reg["Close"]) / 3
     reg["vwap"] = (tp * reg["Volume"]).cumsum() / reg["Volume"].cumsum()
 
-    daily = t.history(period="10d", interval="1d", auto_adjust=False)
+    daily = t.history(period="1mo", interval="1d", auto_adjust=False)
     daily.index = daily.index.tz_convert(NY)
-    pc = float(daily["Close"].iloc[-2])
+    closes = {idx.date(): float(r["Close"]) for idx, r in daily.iterrows()}
+    priors = [x for x in closes if x < D]
+    if not priors:
+        raise ValueError(f"no prior daily close for {ticker} before {D}")
+    pc = closes[max(priors)]
     pre_hi, pre_lo = float(pre["High"].max()), float(pre["Low"].min())
+    pre_last = float(pre["Close"].iloc[-1])
     entry = float(reg["Open"].iloc[0])
-    stop = pre_lo
-    pre_chg = (float(pre["Close"].iloc[-1]) / pc - 1) * 100
-    side = "LONG"
+    pre_chg = (pre_last / pc - 1) * 100
+    side = "LONG" if pre_last < pc else "SHORT"
+    stop = pre_lo if side == "LONG" else pre_hi
+    tgt_level = pre_hi if side == "LONG" else pre_lo
     passed = min_move <= abs(pre_chg) <= max_move
+    inside = bool(pre_lo < entry < pre_hi)
 
     tz_exit = tz_px = ema_exit = ema_px = None
     for ts, b in reg.iterrows():
-        if float(b["Low"]) <= stop:
-            break
-        if tz_exit is None and float(b["High"]) >= pre_hi:
-            tz_exit, tz_px = ts, pre_hi
-        if ema_exit is None and float(b["Close"]) < b["ema9"]:
-            ema_exit, ema_px = ts, float(b["Close"])
+        lo, hi, cl = float(b["Low"]), float(b["High"]), float(b["Close"])
+        if side == "LONG":
+            if lo <= stop:
+                break
+            if tz_exit is None and hi >= tgt_level:
+                tz_exit, tz_px = ts, tgt_level
+            if ema_exit is None and cl < b["ema9"]:
+                ema_exit, ema_px = ts, cl
+        else:
+            if hi >= stop:
+                break
+            if tz_exit is None and lo <= tgt_level:
+                tz_exit, tz_px = ts, tgt_level
+            if ema_exit is None and cl > b["ema9"]:
+                ema_exit, ema_px = ts, cl
 
     day = pd.concat([pre, reg])
     n, npre = len(day), len(pre)
@@ -74,19 +115,25 @@ def build(ticker="SNDK", min_move=1.0, max_move=5.0):
     axv.axvspan(-0.5, npre - 0.5, color="#161B22", zorder=0)
     ax.plot(xs, reg["ema9"].reindex(day.index).values, color=PUR, lw=1.1, label="EMA9")
     ax.plot(xs, reg["vwap"].reindex(day.index).values, color=TEAL, lw=1.1, label="VWAP")
+    stop_lbl = f"STOP {stop:.2f} ({'pre-low' if side == 'LONG' else 'pre-high'})"
+    tgt_lbl = (f"range hi / naive target {tgt_level:.2f}" if side == "LONG"
+               else f"range lo / naive target {tgt_level:.2f}")
     for y, col, ls, lab in [(pc, BLUE, "--", f"prev close {pc:.2f}"),
-                            (pre_hi, YEL, ":", f"range hi / naive target {pre_hi:.2f}"),
-                            (stop, DN, "-", f"STOP {stop:.2f}"),
+                            (tgt_level, YEL, ":", tgt_lbl),
+                            (stop, DN, "-", stop_lbl),
                             (entry, FG, "-", f"entry {entry:.2f}")]:
         ax.axhline(y, color=col, ls=ls, lw=1.1, alpha=0.85, label=lab)
-    ax.scatter([npre], [entry], marker="^", color=FG, s=70, zorder=5, edgecolor=BG)
+    ax.scatter([npre], [entry], marker="^" if side == "LONG" else "v",
+               color=FG, s=70, zorder=5, edgecolor=BG)
 
+    def _pct(px):
+        return (px / entry - 1) * 100 if side == "LONG" else (entry / px - 1) * 100
     idx_of = lambda ts: npre + list(reg.index).index(ts)
     if tz_exit is not None:
         x = idx_of(tz_exit)
         nr = x > n * 0.6
         ax.scatter([x], [tz_px], marker="X", color=YEL, s=110, zorder=6, edgecolor=BG)
-        ax.annotate(f"naive TARGET {tz_px:.2f}  ({(tz_px/entry-1)*100:+.2f}%)  {tz_exit.strftime('%H:%M')}",
+        ax.annotate(f"naive TARGET {tz_px:.2f}  ({_pct(tz_px):+.2f}%)  {tz_exit.strftime('%H:%M')}",
                     (x, tz_px), color=FG, fontsize=8, xytext=(-8, 14) if nr else (8, 14),
                     ha="right" if nr else "left", textcoords="offset points",
                     bbox=dict(boxstyle="round,pad=0.35", fc="#161B22", ec=YEL, lw=0.9))
@@ -94,7 +141,7 @@ def build(ticker="SNDK", min_move=1.0, max_move=5.0):
         x = idx_of(ema_exit)
         nr = x > n * 0.6
         ax.scatter([x], [ema_px], marker="X", color=PUR, s=110, zorder=6, edgecolor=BG)
-        ax.annotate(f"recommended EMA9 exit {ema_px:.2f}  ({(ema_px/entry-1)*100:+.2f}%)  {ema_exit.strftime('%H:%M')}",
+        ax.annotate(f"recommended EMA9 exit {ema_px:.2f}  ({_pct(ema_px):+.2f}%)  {ema_exit.strftime('%H:%M')}",
                     (x, ema_px), color=FG, fontsize=8, xytext=(-8, -22) if nr else (8, -22),
                     ha="right" if nr else "left", textcoords="offset points",
                     bbox=dict(boxstyle="round,pad=0.35", fc="#161B22", ec=PUR, lw=0.9))
@@ -106,8 +153,8 @@ def build(ticker="SNDK", min_move=1.0, max_move=5.0):
     ax.set_xticks(ticks)
     ax.set_xticklabels([day.index[i].strftime("%H:%M") for i in ticks], fontsize=8)
     ax.set_xlim(-0.5, n - 0.5)
-    lo_v = min(day["Low"].min(), stop, entry)
-    hi_v = max(day["High"].max(), pre_hi)
+    lo_v = min(day["Low"].min(), stop, entry, tgt_level)
+    hi_v = max(day["High"].max(), tgt_level, stop, entry)
     pad = (hi_v - lo_v) * 0.06
     ax.set_ylim(lo_v - pad, hi_v + pad)
     ax.grid(color="#21262D", lw=0.5, alpha=0.6)
@@ -120,6 +167,8 @@ def build(ticker="SNDK", min_move=1.0, max_move=5.0):
     fig.savefig(FIG / fn, dpi=105)
     plt.close(fig)
     return dict(date=str(D), symbol=ticker, side=side, fig=fn, passed=passed,
+                inside=inside, partial=bool(reg.index[-1].strftime("%H:%M") < "16:00"
+                                          and str(D) == str(max(sessions))),
                 prev_close=pc, pre_hi=pre_hi, pre_lo=pre_lo, pre_chg=pre_chg,
                 entry=entry, stop=stop,
                 naive=(str(tz_exit.time()), tz_px) if tz_exit is not None else None,
@@ -129,11 +178,24 @@ def build(ticker="SNDK", min_move=1.0, max_move=5.0):
 
 
 if __name__ == "__main__":
-    r = build()
-    print("saved", FIG / r["fig"])
-    print(f"pre_chg {r['pre_chg']:+.2f}% | filter -> {'PASS' if r['passed'] else 'SKIP'}")
-    if r["naive"]:
-        print(f"naive target {r['naive'][1]:.2f} {(r['naive'][1]/r['entry']-1)*100:+.2f}% at {r['naive'][0]}")
-    if r["ema"]:
-        print(f"EMA9 exit {r['ema'][1]:.2f} {(r['ema'][1]/r['entry']-1)*100:+.2f}% at {r['ema'][0]}")
-    print("last bar", r["last_time"], "close", r["last_close"])
+    import sys as _sys
+    _args = [a for a in _sys.argv[1:] if not a.startswith("-")]
+    _ticker = _args[0] if _args and not _args[0][:4].isdigit() else "SNDK"
+    _dates = [a for a in _args if a[:4].isdigit()]
+    if _ticker[:4].isdigit():  # first arg was a date, not a ticker
+        _dates = _args
+        _ticker = "SNDK"
+    if not _dates:
+        _dates = [None]
+    for _d in _dates:
+        r = build(_ticker, date=_d)
+        _sgn = 1 if r["side"] == "LONG" else -1
+        print("saved", FIG / r["fig"])
+        print(f"pre_chg {r['pre_chg']:+.2f}% | {r['side']} | filter -> {'PASS' if r['passed'] else 'SKIP'}"
+              f"{' | entry outside pre range' if not r['inside'] else ''}"
+              f"{' | PARTIAL session' if r['partial'] else ''}")
+        if r["naive"]:
+            print(f"naive target {r['naive'][1]:.2f} {_sgn*(r['naive'][1]/r['entry']-1)*100:+.2f}% at {r['naive'][0]}")
+        if r["ema"]:
+            print(f"EMA9 exit {r['ema'][1]:.2f} {_sgn*(r['ema'][1]/r['entry']-1)*100:+.2f}% at {r['ema'][0]}")
+        print("last bar", r["last_time"], "close", r["last_close"])
