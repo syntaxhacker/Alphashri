@@ -29,16 +29,17 @@ import { TanStackTable } from "@/components/common/TanStackTable";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact, ErrorAlert, InlineLoader } from "@/components/common/states";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { MarkLineData } from "@/utils/chart/types";
+import type { MarkLineData, PriceAreaData } from "@/utils/chart/types";
 import type {
   NiftyBurst,
   NiftyGex,
   NiftyReport,
   NiftyReportMode,
+  NiftySensex,
   NiftyStrike,
   NiftyTape,
 } from "@/types/niftyReport";
-import { fetchLiveNifty, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyTape, fetchNiftyBursts, snapshotNifty } from "@/api/reportNifty";
+import { fetchLiveNifty, fetchLiveSensex, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyTape, fetchNiftyBursts, snapshotNifty } from "@/api/reportNifty";
 
 export interface NiftyReportPanelProps {
   onOpenSymbol?: (s: string) => void;
@@ -47,41 +48,22 @@ export interface NiftyReportPanelProps {
 export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineData[] {
   const lines: MarkLineData[] = [];
   const used: number[] = [];
+  const primaryLevels = [
+    ...report.walls.calls.slice(0, 2).map((w) => w.strike),
+    ...report.walls.puts.slice(0, 2).map((w) => w.strike),
+    ...(Number.isFinite(report.maxPain) && report.maxPain > 0 ? [report.maxPain] : []),
+  ];
+  used.push(...primaryLevels);
   const fresh = (s: number) => !used.some((u) => Math.abs(u - s) <= 25);
-  const topCalls = [...report.walls.calls]
-    .sort((a, b) => b.oi - a.oi)
-    .slice(0, 2);
-  const topPuts = [...report.walls.puts]
-    .sort((a, b) => b.oi - a.oi)
-    .slice(0, 2);
-  for (const wall of topCalls) {
-    lines.push({
-      yAxis: wall.strike,
-      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `CW ${wall.strike}` },
-    });
-    used.push(wall.strike);
-  }
-  for (const wall of topPuts) {
-    lines.push({
-      yAxis: wall.strike,
-      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `PW ${wall.strike}` },
-    });
-    used.push(wall.strike);
-  }
-  if (Number.isFinite(report.maxPain) && report.maxPain > 0) {
-    lines.push({
-      yAxis: report.maxPain,
-      lineStyle: { color: palette.PRIMARY, type: "solid", width: 2 },
-      label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
-    });
-    used.push(report.maxPain);
-  }
+
+  // Call/put walls and max pain are price zones (see buildMarkAreas). Keep
+  // this line overlay for the optional live GEX levels only.
+  if (!withGex || !report.gex) return lines;
+
   // Live GEX overlay: flip + gamma support/resistance, skipping strikes
-  // already drawn as walls so the gutter never doubles up.
-  if (withGex && report.gex) {
-    const g = report.gex;
+  // already drawn as zones so the gutter never doubles up.
+  const g = report.gex;
+  if (g) {
     if (g.zeroCross != null && fresh(g.zeroCross)) {
       lines.push({
         yAxis: g.zeroCross,
@@ -110,6 +92,30 @@ export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineDa
     }
   }
   return lines;
+}
+
+/** Primary option levels rendered as shaded horizontal price zones. */
+export function buildMarkAreas(report: NiftyReport): PriceAreaData[] {
+  const strikes = report.strikes.map((s) => s.strike).filter((s) => Number.isFinite(s)).sort((a, b) => a - b);
+  const steps = strikes.slice(1).map((s, i) => s - strikes[i]).filter((s) => s > 0);
+  const step = steps.length > 0 ? Math.min(...steps) : 50;
+  const halfWidth = Math.max(5, Math.min(25, step / 2));
+  const areas: PriceAreaData[] = [];
+  const add = (level: number, label: string, color: string) => {
+    if (!Number.isFinite(level) || level <= 0) return;
+    areas.push({
+      from: level - halfWidth,
+      to: level + halfWidth,
+      color: hexToRgba(color, 0.14),
+      borderColor: color,
+      label: `${label} ${level}`,
+    });
+  };
+  // Labels match LevelLegend's codes (CW/PW/MP); "R"/"S" disagreed with it.
+  [...report.walls.calls].sort((a, b) => b.oi - a.oi).slice(0, 2).forEach((w) => add(w.strike, "CW", palette.NEGATIVE));
+  [...report.walls.puts].sort((a, b) => b.oi - a.oi).slice(0, 2).forEach((w) => add(w.strike, "PW", palette.POSITIVE));
+  if (Number.isFinite(report.maxPain) && report.maxPain > 0) add(report.maxPain, "MP", palette.PRIMARY);
+  return areas;
 }
 
 /** Overnight levels derived from the live chain — no static copy. */
@@ -149,10 +155,10 @@ export function buildOvernightLevels(report: NiftyReport): {
 
 /** What the chart level tags mean. GEX tags exist in live mode only. */
 export function LevelLegend({ live }: { live: boolean }) {
-  const items: { code: string; color: string; meaning: string }[] = [
-    { code: "CW", color: palette.NEGATIVE, meaning: "top call-OI wall · resistance" },
-    { code: "PW", color: palette.POSITIVE, meaning: "top put-OI wall · support" },
-    { code: "MP", color: palette.PRIMARY, meaning: "max pain · expiry magnet" },
+  const items: { code: string; color: string; meaning: string; zone?: boolean }[] = [
+    { code: "CW", color: palette.NEGATIVE, meaning: "top call-OI wall · resistance", zone: true },
+    { code: "PW", color: palette.POSITIVE, meaning: "top put-OI wall · support", zone: true },
+    { code: "MP", color: palette.PRIMARY, meaning: "max pain · expiry magnet", zone: true },
   ];
   if (live) {
     items.push(
@@ -173,7 +179,16 @@ export function LevelLegend({ live }: { live: boolean }) {
           key={it.code}
           sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}
         >
-          <Box sx={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: it.color, flexShrink: 0 }} />
+          <Box
+            sx={{
+              width: it.zone ? 12 : 8,
+              height: it.zone ? 8 : 8,
+              borderRadius: it.zone ? 1 : "50%",
+              backgroundColor: it.zone ? hexToRgba(it.color, 0.18) : it.color,
+              border: it.zone ? `1px solid ${it.color}` : "none",
+              flexShrink: 0,
+            }}
+          />
           <Text size="xs" fw={700} span>
             {it.code}
           </Text>
@@ -288,6 +303,39 @@ function pollDelayMs(failures: number): number {
 const STALE_AFTER_MS = 90_000;
 /** When the market is closed, poll this slowly just to catch the next open. */
 const REOPEN_CHECK_MS = 5 * 60_000;
+const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
+
+/**
+ * Raised when the Sensex request exceeds SENSEX_REQUEST_TIMEOUT_MS.
+ *
+ * Surfacing a timeout needs its own type: the timeout works by aborting the
+ * request controller, and the caller ignores aborted requests (that is how a
+ * superseding load and unmount are detected). Without this marker the timeout
+ * was indistinguishable from a cancellation, so its message never reached the
+ * UI and a failed refresh silently kept showing stale numbers.
+ */
+export class SensexTimeoutError extends Error {
+  constructor() {
+    super("Sensex data request timed out");
+    this.name = "SensexTimeoutError";
+  }
+}
+
+export async function fetchSensexWithTimeout(controller: AbortController): Promise<NiftySensex> {
+  let timedOut = false;
+  const timer = window.setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, SENSEX_REQUEST_TIMEOUT_MS);
+  try {
+    return await fetchLiveSensex(controller.signal);
+  } catch (error) {
+    if (timedOut) throw new SensexTimeoutError();
+    throw error;
+  } finally {
+    window.clearTimeout(timer);
+  }
+}
 
 /** Closest strike in the chain to spot; null when there is no data. Tie → lower strike. */
 export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | null {
@@ -428,11 +476,15 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
 }
 
 export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
+  const [selectedIndex, setSelectedIndex] = useState<"nifty" | "sensex">("nifty");
   const [mode, setMode] = useState<NiftyReportMode>("live");
   const [expiry, setExpiry] = useState<string>("nearest");
   const [expiryOptions, setExpiryOptions] = useState<string[]>([]);
   const [date, setDate] = useState<string>("");
   const [report, setReport] = useState<NiftyReport | null>(null);
+  const [sensex, setSensex] = useState<NiftySensex | null>(null);
+  const [sensexLoading, setSensexLoading] = useState(false);
+  const [sensexError, setSensexError] = useState<string | null>(null);
   const [tape, setTape] = useState<NiftyTape | null>(null);
   /** Backend-detected bursts; null = endpoint unavailable → derive locally. */
   const [bursts, setBursts] = useState<OiBurst[] | null>(null);
@@ -454,6 +506,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   // context after the new request was skipped by the overlap guard.
   const requestIdRef = useRef<number>(0);
   const requestControllerRef = useRef<AbortController | null>(null);
+  const sensexControllerRef = useRef<AbortController | null>(null);
   const [streamed, setStreamed] = useState<NiftyBurst[]>([]);
 
   // Exchange session gate (from the `market` block). When closed, the poll is
@@ -489,6 +542,41 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       ]);
       if (requestId !== requestIdRef.current) return;
       setReport(data);
+      if (mode === "live") {
+        // Sensex is optional context. Load it after Nifty succeeds so a slow
+        // BSE request can never hold the main Nifty report in loading state.
+        sensexControllerRef.current?.abort();
+        const sensexController = new AbortController();
+        sensexControllerRef.current = sensexController;
+        setSensexLoading(true);
+        setSensexError(null);
+        void fetchSensexWithTimeout(sensexController)
+          .then((sensexData) => {
+            if (requestId === requestIdRef.current && !sensexController.signal.aborted) {
+              setSensex(sensexData);
+            }
+          })
+          .catch((sensexFetchError) => {
+            const timedOut = sensexFetchError instanceof SensexTimeoutError;
+            // Ignore superseded loads (requestId moved on) and unmounts (the
+            // controller was aborted). A timeout aborts the controller too, so
+            // it must be excluded here or its message is never surfaced.
+            if (requestId !== requestIdRef.current) return;
+            if (sensexController.signal.aborted && !timedOut) return;
+            setSensex(null);
+            setSensexError(
+              sensexFetchError instanceof Error ? sensexFetchError.message : "Sensex data unavailable",
+            );
+          })
+          .finally(() => {
+            if (requestId === requestIdRef.current) setSensexLoading(false);
+          });
+      } else {
+        sensexControllerRef.current?.abort();
+        setSensex(null);
+        setSensexLoading(false);
+        setSensexError(null);
+      }
       if (tapeData) setTape(tapeData);
       setBursts(burstData as OiBurst[]);
       setFailures(0);
@@ -537,6 +625,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       loadingRef.current = false;
       setLoading(false);
       setReport(null);
+      setSensex(null);
+      sensexControllerRef.current?.abort();
+      sensexControllerRef.current = null;
+      setSensexLoading(false);
+      setSensexError(null);
       setTape(null);
       setBursts(null);
       setStreamed([]);
@@ -550,7 +643,9 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     () => () => {
       requestIdRef.current += 1;
       requestControllerRef.current?.abort();
+      sensexControllerRef.current?.abort();
       requestControllerRef.current = null;
+      sensexControllerRef.current = null;
     },
     [],
   );
@@ -614,6 +709,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const markLines = useMemo(
     () => (report ? buildMarkLines(report, mode === "live" && !!report.gex) : []),
     [report, mode],
+  );
+  const priceAreas = useMemo(
+    () => (report ? buildMarkAreas(report) : []),
+    [report],
   );
 
   /** Readability: full chain is noise — show the ATM window only. */
@@ -852,6 +951,23 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           }}
         >
           <SegmentedControl
+            data-testid="nifty-index-toggle"
+            value={selectedIndex}
+            onChange={(v) => {
+              const next = v as "nifty" | "sensex";
+              setSelectedIndex(next);
+              if (next === "sensex") {
+                setMode("live");
+                setView("chart");
+              }
+            }}
+            data={[
+              { value: "nifty", label: "NIFTY" },
+              { value: "sensex", label: "SENSEX" },
+            ]}
+            size="sm"
+          />
+          <SegmentedControl
             data-testid="nifty-mode-toggle"
             value={mode}
             onChange={(v) => setMode(v as NiftyReportMode)}
@@ -971,6 +1087,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
 
       {report && (
         <>
+          {selectedIndex === "nifty" ? (
+          <>
           <Box
             data-testid="nifty-stat-strip"
             sx={{
@@ -1008,6 +1126,41 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             </CompactStatGrid>
             <NiftyVerdictStrip report={report} />
           </Box>
+
+          {sensex && (
+            <CompactPanel title="Sensex live" testId="nifty-sensex-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
+              <CompactStatGrid>
+                <CompactStat
+                  data-testid="sensex-stat-spot"
+                  label="Spot"
+                  value={sensex.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                />
+                <CompactStat
+                  data-testid="sensex-stat-support"
+                  label="Support"
+                  value={sensex.walls.puts[0]?.strike.toLocaleString("en-IN") ?? "—"}
+                />
+                <CompactStat
+                  data-testid="sensex-stat-resistance"
+                  label="Resistance"
+                  value={sensex.walls.calls[0]?.strike.toLocaleString("en-IN") ?? "—"}
+                />
+                <CompactStat
+                  data-testid="sensex-stat-max-pain"
+                  label="Max Pain"
+                  value={sensex.maxPain > 0 ? sensex.maxPain.toLocaleString("en-IN") : "—"}
+                />
+                <CompactStat
+                  data-testid="sensex-stat-pcr-oi"
+                  label="PCR (OI)"
+                  value={sensex.pcrOi.toFixed(2)}
+                />
+              </CompactStatGrid>
+              <Text size="xs" c="dimmed">
+                Expiry {sensex.expiry || "—"} · levels are live option-chain walls.
+              </Text>
+            </CompactPanel>
+          )}
 
           <Box
             data-testid="nifty-main-row"
@@ -1050,6 +1203,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 <TradingViewChart
                   candles={report.candles}
                   markLines={markLines}
+                  priceAreas={priceAreas}
                 />
               </Box>
             ) : (
@@ -1403,6 +1557,53 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             >
               Open NIFTY chart
             </Button>
+          )}
+          </>
+          ) : (
+            <CompactPanel title="Sensex levels" testId="sensex-focus-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
+              {sensex ? (
+                <>
+                  <CompactStatGrid>
+                    <CompactStat
+                      data-testid="sensex-focus-spot"
+                      label="Spot"
+                      value={sensex.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+                    />
+                    <CompactStat
+                      data-testid="sensex-focus-support"
+                      label="Support zone"
+                      value={sensex.walls.puts[0]?.strike.toLocaleString("en-IN") ?? "—"}
+                    />
+                    <CompactStat
+                      data-testid="sensex-focus-resistance"
+                      label="Resistance zone"
+                      value={sensex.walls.calls[0]?.strike.toLocaleString("en-IN") ?? "—"}
+                    />
+                    <CompactStat
+                      data-testid="sensex-focus-max-pain"
+                      label="Max pain zone"
+                      value={sensex.maxPain > 0 ? sensex.maxPain.toLocaleString("en-IN") : "—"}
+                    />
+                    <CompactStat
+                      data-testid="sensex-focus-pcr"
+                      label="PCR (OI)"
+                      value={sensex.pcrOi.toFixed(2)}
+                    />
+                  </CompactStatGrid>
+                  <Text size="sm" c="dimmed">
+                    Expiry {sensex.expiry || "—"}. Sensex option-chain levels are live; switch back to NIFTY for the full chain report.
+                  </Text>
+                </>
+              ) : (
+                sensexLoading ? (
+                  <InlineLoader data-testid="sensex-focus-loading" />
+                ) : (
+                  <Text data-testid="sensex-focus-error" size="sm" c="dimmed">
+                    {sensexError || "Sensex data is currently unavailable."} Use Refresh to try again.
+                  </Text>
+                )
+              )}
+            </CompactPanel>
           )}
         </>
       )}

@@ -21,6 +21,7 @@ import type {
   NiftyRegimeBlock,
   NiftyRegimeVerdict,
   NiftyReport,
+  NiftySensex,
   NiftyStrike,
   NiftyStrengthBlock,
   NiftyStrengthVerdict,
@@ -363,6 +364,28 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
   };
 }
 
+export function normalizeSensex(raw: Record<string, unknown>): NiftySensex {
+  const walls = (raw.walls ?? {}) as Record<string, { strike: number; oi: number }[]>;
+  const ohlc = (raw.ohlc ?? {}) as Record<string, unknown>;
+  return {
+    symbol: "SENSEX",
+    spot: num(raw.spot),
+    expiry: String(raw.expiry ?? ""),
+    pcrOi: num(raw.pcrOi ?? raw.pcr_oi),
+    pcrVol: num(raw.pcrVol ?? raw.pcr_vol),
+    maxPain: num(raw.maxPain ?? raw.max_pain),
+    walls: { calls: walls.calls ?? [], puts: walls.puts ?? [] },
+    ohlc: {
+      open: num(ohlc.open),
+      high: num(ohlc.high),
+      low: num(ohlc.low),
+      close: num(ohlc.close),
+    },
+    fetchedAt: (raw.fetchedAt ?? raw.fetched_at) as string | undefined,
+    market: normalizeMarket(raw.market),
+  };
+}
+
 async function parseNiftyResponse(response: Response): Promise<NiftyReport> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
@@ -399,6 +422,15 @@ export async function fetchLiveNifty(
     : `${NIFTY_API_BASE}/live`;
   const response = await fetchWithAuth(url, { signal });
   return parseNiftyResponse(response);
+}
+
+export async function fetchLiveSensex(signal?: AbortSignal): Promise<NiftySensex> {
+  const response = await fetchWithAuth(`${NIFTY_API_BASE}/sensex`, { signal });
+  if (!response.ok) {
+    const error = await response.json().catch(() => ({}));
+    throw new Error((error as { detail?: string }).detail || "Failed to fetch Sensex report");
+  }
+  return normalizeSensex((await response.json()) as Record<string, unknown>);
 }
 
 export async function fetchNiftyByDate(

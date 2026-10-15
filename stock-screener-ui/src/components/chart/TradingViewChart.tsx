@@ -21,7 +21,7 @@ import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { withAlpha } from "@/utils/color";
 import type { ReplayCandle, ReplayTrade } from "@/types/replay";
-import type { MarkLineData, UnifiedLivePosition } from "@/utils/chart/types";
+import type { MarkLineData, PriceAreaData, UnifiedLivePosition } from "@/utils/chart/types";
 import { filterVisibleTrades } from "@/utils/chart/normalizeCommon";
 import { formatISTCrosshair, formatISTTick } from "@/utils/istChartTime";
 
@@ -35,6 +35,8 @@ export interface TradingViewChartProps {
   height?: number;
   /** Horizontal levels (ORB high/low, pivots, 52W high/low, highlighted SL/TP) */
   markLines?: MarkLineData[];
+  /** Horizontal price zones rendered as shaded rectangles. */
+  priceAreas?: PriceAreaData[];
   /** EMA overlays, each aligned index-wise to `candles` */
   emaData?: { label: string; color: string; data: (number | null)[] }[];
   /** RSI(period) series aligned index-wise to `candles`; rendered in its own pane. */
@@ -128,6 +130,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   showAllTrades,
   height,
   markLines,
+  priceAreas,
   emaData,
   rsiData,
   livePosition,
@@ -518,7 +521,37 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     }
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, rect.width, rect.height);
-    if (!entryLabels || !chart || !series || rect.width === 0) return;
+    if (!chart || !series || rect.width === 0) return;
+
+    // Draw price zones first so trade labels remain readable above them. The
+    // canvas follows the chart's price scale on every pan/zoom redraw.
+    for (const area of priceAreas || []) {
+      if (!Number.isFinite(area.from) || !Number.isFinite(area.to)) continue;
+      const fromY = series.priceToCoordinate(area.from);
+      const toY = series.priceToCoordinate(area.to);
+      if (fromY == null && toY == null) continue;
+      const y1 = fromY ?? toY!;
+      const y2 = toY ?? fromY!;
+      const top = Math.max(0, Math.min(y1, y2));
+      const bottom = Math.min(rect.height, Math.max(y1, y2));
+      if (bottom <= top) continue;
+      ctx.fillStyle = area.color;
+      ctx.fillRect(0, top, rect.width, bottom - top);
+      if (area.borderColor) {
+        ctx.strokeStyle = area.borderColor;
+        ctx.lineWidth = 1;
+        ctx.strokeRect(0.5, top + 0.5, Math.max(0, rect.width - 1), Math.max(0, bottom - top - 1));
+      }
+      if (area.label) {
+        ctx.font = "700 10px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
+        ctx.textBaseline = "middle";
+        ctx.textAlign = "left";
+        ctx.fillStyle = area.borderColor || "#E5E7EB";
+        ctx.fillText(area.label, 6, Math.max(8, top + Math.min(14, (bottom - top) / 2)));
+      }
+    }
+
+    if (!entryLabels) return;
 
     const visible = filterVisibleTrades(trades, highlightedTradeId, showAllTrades);
     ctx.font = "700 12px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace";
@@ -592,7 +625,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
         if (c) drawPill(c.x, c.y, reason, color, isBuy);
       }
     }
-  }, [entryLabels, trades, highlightedTradeId, showAllTrades, entryGeometry]);
+  }, [entryLabels, trades, highlightedTradeId, showAllTrades, entryGeometry, priceAreas]);
 
   useEffect(() => { drawEntryLabels(); }, [drawEntryLabels, ready]);
 

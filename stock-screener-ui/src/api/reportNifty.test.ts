@@ -6,6 +6,7 @@ import {
   fetchNiftyTape,
   normalizeBurst,
   normalizeReport,
+  normalizeSensex,
   normalizeTapeRow,
 } from "./reportNifty";
 import { fetchWithAuth } from "../state/auth";
@@ -131,6 +132,70 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     expect(rep.gex!.zeroCross).toBeNull();
     expect(rep.gex!.strikes).toEqual([]);
     expect(rep.gex!.topPositive).toEqual([]);
+  });
+});
+
+describe("normalizeSensex (snake_case backend -> camelCase card)", () => {
+  const snakeSensex = {
+    symbol: "SENSEX",
+    spot: 74268.85,
+    expiry: "2026-10-15",
+    pcr_oi: 1.78,
+    pcr_vol: 0.92,
+    max_pain: 74200,
+    walls: {
+      calls: [{ strike: 74500, oi: 1000 }],
+      puts: [{ strike: 74000, oi: 1200 }],
+    },
+    ohlc: { open: 72965.8, high: 74330.29, low: 72896.38, close: 74268.85 },
+    fetched_at: "2026-10-15T10:00:00+05:30",
+  };
+
+  test("maps snake_case PCR, max pain and fetched_at", () => {
+    const s = normalizeSensex(snakeSensex);
+    expect(s.symbol).toBe("SENSEX");
+    expect(s.spot).toBe(74268.85);
+    expect(s.expiry).toBe("2026-10-15");
+    expect(s.pcrOi).toBe(1.78);
+    expect(s.pcrVol).toBe(0.92);
+    expect(s.maxPain).toBe(74200);
+    expect(s.fetchedAt).toBe("2026-10-15T10:00:00+05:30");
+  });
+
+  test("keeps walls and the nested ohlc intact", () => {
+    const s = normalizeSensex(snakeSensex);
+    expect(s.walls.calls).toEqual([{ strike: 74500, oi: 1000 }]);
+    expect(s.walls.puts).toEqual([{ strike: 74000, oi: 1200 }]);
+    expect(s.ohlc).toEqual({
+      open: 72965.8,
+      high: 74330.29,
+      low: 72896.38,
+      close: 74268.85,
+    });
+  });
+
+  test("accepts camelCase keys too", () => {
+    const s = normalizeSensex({
+      ...snakeSensex,
+      pcrOi: 1.5,
+      pcrVol: 0.5,
+      maxPain: 74000,
+      fetchedAt: "camel",
+    });
+    expect(s.pcrOi).toBe(1.5);
+    expect(s.pcrVol).toBe(0.5);
+    expect(s.maxPain).toBe(74000);
+    expect(s.fetchedAt).toBe("camel");
+  });
+
+  test("sparse payload degrades to safe defaults", () => {
+    const s = normalizeSensex({});
+    expect(s.symbol).toBe("SENSEX");
+    expect(s.spot).toBe(0);
+    expect(s.expiry).toBe("");
+    expect(s.pcrOi).toBe(0);
+    expect(s.walls).toEqual({ calls: [], puts: [] });
+    expect(s.ohlc).toEqual({ open: 0, high: 0, low: 0, close: 0 });
   });
 });
 

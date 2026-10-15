@@ -241,6 +241,23 @@ export interface NiftyReport {
   structure?: NiftyStructureShift[];
 }
 
+/** Live Sensex context shown beside the Nifty report. */
+export interface NiftySensex {
+  symbol: "SENSEX";
+  spot: number;
+  expiry: string;
+  pcrOi: number;
+  pcrVol: number;
+  maxPain: number;
+  walls: {
+    calls: NiftyWall[];
+    puts: NiftyWall[];
+  };
+  ohlc: NiftyOhlc;
+  fetchedAt?: string;
+  market?: NiftyMarketBlock;
+}
+
 /** One per-minute OI tape row — `GET /api/reports/nifty/tape`. */
 export interface NiftyTapeRow {
   t: string;

@@ -4,12 +4,20 @@ import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
-import { NiftyReportPanel, getNiftyOiColumns, findAtmStrike, oiBurstLogHeight } from "./NiftyReportPanel";
+import {
+  NiftyReportPanel,
+  getNiftyOiColumns,
+  findAtmStrike,
+  oiBurstLogHeight,
+  fetchSensexWithTimeout,
+  SensexTimeoutError,
+} from "./NiftyReportPanel";
 import * as palette from "@/ui/palette";
 import type { NiftyReport } from "@/types/niftyReport";
 
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
+  fetchLiveSensex: vi.fn(),
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
   fetchNiftyTape: vi.fn(),
@@ -18,8 +26,12 @@ vi.mock("@/api/reportNifty", () => ({
 }));
 
 vi.mock("@/components/chart/TradingViewChart", () => ({
-  TradingViewChart: ({ markLines }: { markLines?: unknown[] }) => (
-    <div data-testid="tradingview-chart" data-marklines={markLines?.length ?? 0} />
+  TradingViewChart: ({ markLines, priceAreas }: { markLines?: unknown[]; priceAreas?: unknown[] }) => (
+    <div
+      data-testid="tradingview-chart"
+      data-marklines={markLines?.length ?? 0}
+      data-priceareas={priceAreas?.length ?? 0}
+    />
   ),
 }));
 
@@ -29,6 +41,7 @@ vi.mock("echarts-for-react", () => ({
 
 import {
   fetchLiveNifty,
+  fetchLiveSensex,
   fetchNiftyByDate,
   fetchNiftyTape,
   fetchNiftyBursts,
@@ -146,6 +159,7 @@ function burstTape() {
 
 beforeEach(() => {
   vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport());
+  vi.mocked(fetchLiveSensex).mockResolvedValue(null as never);
   vi.mocked(fetchNiftyByDate).mockResolvedValue(mockReport({ mode: "eod" }));
   vi.mocked(fetchNiftyTape).mockResolvedValue(mockTape());
   vi.mocked(fetchNiftyBursts).mockResolvedValue([] as never);
@@ -182,6 +196,80 @@ describe("NiftyReportPanel toolbar", () => {
     expect(within(strip).getByText("1.12")).toBeInTheDocument();
     expect(within(strip).getByText("0.95")).toBeInTheDocument();
     expect(within(strip).getByText("25,700")).toBeInTheDocument();
+  });
+
+  test("index switch opens the Sensex levels view", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchLiveSensex).mockResolvedValueOnce({
+      symbol: "SENSEX",
+      spot: 74268.85,
+      expiry: "2026-10-15",
+      pcrOi: 1.78,
+      pcrVol: 0.92,
+      maxPain: 74200,
+      walls: { calls: [{ strike: 74500, oi: 1000 }], puts: [{ strike: 74000, oi: 1200 }] },
+      ohlc: { open: 72965.8, high: 74330.29, low: 72896.38, close: 74268.85 },
+    });
+    r(<NiftyReportPanel />);
+    await waitFor(() => expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument());
+    await user.click(screen.getByTestId("nifty-index-toggle").querySelector('[data-value="sensex"]') ?? screen.getByText("SENSEX"));
+    expect(await screen.findByTestId("sensex-focus-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("sensex-focus-max-pain")).toHaveTextContent("74,200");
+    expect(screen.queryByTestId("nifty-stat-strip")).not.toBeInTheDocument();
+  });
+
+  test("a failed Sensex fetch never breaks the Nifty report", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchLiveSensex).mockRejectedValueOnce(
+      new Error("Sensex option chain fetch failed: boom"),
+    );
+    r(<NiftyReportPanel />);
+    // Sensex is optional context: a 502 must not hold up or blank the report.
+    await waitFor(() => expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument());
+    await user.click(
+      screen.getByTestId("nifty-index-toggle").querySelector('[data-value="sensex"]') ??
+        screen.getByText("SENSEX"),
+    );
+    expect(await screen.findByTestId("sensex-focus-error")).toHaveTextContent(
+      "Sensex option chain fetch failed: boom",
+    );
+  });
+
+  test("Sensex tab shows a fallback when no data is available", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    await waitFor(() => expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument());
+    await user.click(
+      screen.getByTestId("nifty-index-toggle").querySelector('[data-value="sensex"]') ??
+        screen.getByText("SENSEX"),
+    );
+    expect(await screen.findByTestId("sensex-focus-error")).toHaveTextContent(
+      "Sensex data is currently unavailable",
+    );
+  });
+
+  test("fetchSensexWithTimeout surfaces a timeout instead of staying silent", async () => {
+    vi.useFakeTimers();
+    try {
+      // A request that only settles when aborted, like the real fetch does.
+      // (A never-settling promise would hang instead of exercising the timeout.)
+      vi.mocked(fetchLiveSensex).mockImplementationOnce(
+        (signal?: AbortSignal) =>
+          new Promise((_resolve, reject) => {
+            signal?.addEventListener("abort", () =>
+              reject(new DOMException("Aborted", "AbortError")),
+            );
+          }),
+      );
+      const controller = new AbortController();
+      const pending = fetchSensexWithTimeout(controller);
+      const assertion = expect(pending).rejects.toBeInstanceOf(SensexTimeoutError);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await assertion;
+      expect(controller.signal.aborted).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   test("snapshot button calls snapshotNifty", async () => {
@@ -486,7 +574,7 @@ describe("NiftyReportPanel fit-to-screen", () => {
     };
   }
 
-  test("chart panel fills width and wall mark lines are top-2 plus max pain", async () => {
+  test("chart panel uses rectangles for top walls and max pain", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({ candles: candles() }),
     );
@@ -494,8 +582,29 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(await screen.findByTestId("nifty-chart-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
     const chart = screen.getByTestId("tradingview-chart");
-    // top-2 call walls + top-2 put walls + max-pain line (no gex in mock)
-    expect(chart).toHaveAttribute("data-marklines", "5");
+    expect(chart).toHaveAttribute("data-marklines", "0");
+    expect(chart).toHaveAttribute("data-priceareas", "5");
+  });
+
+  test("shows live Sensex levels beside the Nifty report", async () => {
+    vi.mocked(fetchLiveSensex).mockResolvedValueOnce({
+      symbol: "SENSEX",
+      spot: 74268.85,
+      expiry: "2026-10-15",
+      pcrOi: 1.78,
+      pcrVol: 0.92,
+      maxPain: 74200,
+      walls: {
+        calls: [{ strike: 74500, oi: 1000 }],
+        puts: [{ strike: 74000, oi: 1200 }],
+      },
+      ohlc: { open: 72965.8, high: 74330.29, low: 72896.38, close: 74268.85 },
+    });
+    r(<NiftyReportPanel />);
+    const panel = await screen.findByTestId("nifty-sensex-panel");
+    expect(within(panel).getByTestId("sensex-stat-support")).toHaveTextContent("74,000");
+    expect(within(panel).getByTestId("sensex-stat-resistance")).toHaveTextContent("74,500");
+    expect(within(panel).getByTestId("sensex-stat-max-pain")).toHaveTextContent("74,200");
   });
 
   test("live GEX overlay adds flip/support/resistance lines with dedupe", async () => {
@@ -516,8 +625,8 @@ describe("NiftyReportPanel fit-to-screen", () => {
     };
     const rep = mockReport({ gex });
     // walls 25800/25900/26000 calls, 25600/25500/25400 puts, pain 25700:
-    // 25800 dupes CW, 25900 dupes CW, 26100 fresh GSUP;
-    // 25700 dupes MP, 25900 dupes CW; flip 25650 fresh
+    // 25800 dupes a resistance zone, 26100 is fresh GSUP;
+    // 25700 is max pain and therefore not duplicated by GEX.
     const lines = buildMarkLines(rep, true);
     const labels = lines.map((l) => l.label.formatter);
     expect(labels).toContain("FLIP 25650");
@@ -528,7 +637,7 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(labels.filter((x) => x === "GRES 25700")).toHaveLength(0);
     // off without the flag
     expect(buildMarkLines(rep, false).map((l) => l.label.formatter)).not.toContain("FLIP 25650");
-    expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(5);
+    expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(0);
   });
 
   test("OI table windows to ATM ±750 so strike and signals stay visible", async () => {

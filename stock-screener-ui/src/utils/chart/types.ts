@@ -54,6 +54,15 @@ export interface MarkLineData {
   label: { position: string; formatter: string };
 }
 
+/** Horizontal price zone rendered as a shaded rectangle on the chart. */
+export interface PriceAreaData {
+  from: number;
+  to: number;
+  color: string;
+  borderColor?: string;
+  label?: string;
+}
+
 export interface MarkAreaItem {
   from: string;
   to: string;
