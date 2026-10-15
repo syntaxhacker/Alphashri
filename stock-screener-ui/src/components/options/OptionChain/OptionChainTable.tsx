@@ -349,18 +349,24 @@ function OptionColumn({
                 </Group>
 
                 {cell.isLTP && (
-                  <Box w="72%" mt={3}>
+                  <Box
+                    w="72%"
+                    mt={3}
+                    sx={{
+                      "& .MuiLinearProgress-root": {
+                        backgroundColor: hexToRgba(palette.accent, 0.08),
+                        height: 3,
+                      },
+                      "& .MuiLinearProgress-bar": {
+                        backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)`,
+                      },
+                    }}
+                  >
                     <Progress
                       value={clamp(Math.abs(delta) * 100, 0, 100)}
                       size="sm"
                       color={type === "CE" ? "teal" : "orange"}
                       radius="xl"
-                      styles={{
-                        root: { backgroundColor: hexToRgba(palette.accent, 0.08), height: 3 },
-                        bar: {
-                          backgroundImage: `linear-gradient(90deg, ${hexToRgba(palette.accent, 0.85)} 0%, ${hexToRgba(palette.accent, 0.45)} 100%)`,
-                        },
-                      }}
                     />
                   </Box>
                 )}

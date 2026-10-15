@@ -146,9 +146,11 @@ test.describe("Bots View - List", () => {
     await expect(page.locator(`[data-testid="bot-row-${BOT_ID_1}"]`)).toContainText("strategies");
   });
 
-  test("should show PID for running bots", async ({ page }) => {
+  test("should show Running status for running bots", async ({ page }) => {
     await gotoBotsViewAndWait(page);
-    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`)).toContainText("12345");
+    // StatusBadge renders Running/Stopped (PID intentionally not shown since c310bd99).
+    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_2}"]`)).toContainText("Running");
+    await expect(page.locator(`[data-testid="bot-status-${BOT_ID_1}"]`)).toContainText("Stopped");
   });
 });
 

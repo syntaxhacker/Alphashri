@@ -28,7 +28,7 @@ body[data-color-scheme="dark"] { color-scheme: dark; }
 .price-flash-up { animation: flash-up 0.6s ease-out; border-radius: 4px; }
 .price-flash-down { animation: flash-down 0.6s ease-out; border-radius: 4px; }
 @keyframes flash-chg {
-  0% { background-color: rgba(88, 166, 255, 0.16); }
+  0% { background-color: color-mix(in srgb, var(--mui-palette-info-main) 16%, transparent); }
   100% { background-color: transparent; }
 }
 .price-flash-chg { animation: flash-chg 0.6s ease-out; border-radius: 4px; }
