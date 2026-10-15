@@ -157,24 +157,24 @@ async function setupBacktest(page: Page) {
   await waitForBacktestResult(page, "results-summary");
 }
 
-async function getChartOption(page: Page): Promise<any | null> {
-  return page.evaluate(() => {
-    const echarts = (window as any).echarts;
-    if (!echarts) return null;
-    const container = document.querySelector('[data-testid="echarts-container"]');
-    if (!container) return null;
-    const child = container.firstElementChild;
-    if (!child) return null;
-    const instance = echarts.getInstanceByDom(child);
-    if (!instance) {
-      const allDivs = container.querySelectorAll("div");
-      for (const div of allDivs) {
-        const inst = echarts.getInstanceByDom(div);
-        if (inst) return inst.getOption();
-      }
-      return null;
-    }
-    return instance.getOption();
+async function expectRowHighlighted(page: Page) {
+  // BacktestPage.highlightTradeRow adds .trade-row-highlighted to the clicked
+  // row (background tint via style.css) and clears it after 3s.
+  await expect(page.locator('[data-testid="trade-history-row-0"]')).toHaveClass(
+    /trade-row-highlighted/,
+    { timeout: 5000 },
+  );
+}
+
+async function expectChartIntact(page: Page) {
+  // The chart migrated from ECharts to lightweight-charts (TradingViewChart);
+  // there is no window.echarts instance to poll. The zoom target is the
+  // lightweight-charts container for the selected symbol.
+  const chart = page.locator('[data-testid="echarts-container"]');
+  await expect(chart).toBeVisible({ timeout: 15000 });
+  await expect(chart).toHaveAttribute("data-symbol", "RELIANCE");
+  await expect(page.locator('[data-testid="tradingview-chart"]')).toBeVisible({
+    timeout: 15000,
   });
 }
 
@@ -193,16 +193,11 @@ async function openTradeHistoryForReliance(page: Page) {
 }
 
 async function expectChartHighlighted(page: Page) {
-  // Highlight is flaky (auto-clears after 5s, async). Just verify chart has data after click.
-  await expect
-    .poll(
-      async () => {
-        const option = await getChartOption(page);
-        return !!(option && Array.isArray(option.series) && option.series.length > 0);
-      },
-      { timeout: 10000, intervals: [500] },
-    )
-    .toBeTruthy();
+  // Row click zooms the lightweight-charts view to that trade (async, ~120ms)
+  // and flashes the row highlight. Verify both: the highlight class on the row
+  // and the chart container intact for the selected symbol.
+  await expectRowHighlighted(page);
+  await expectChartIntact(page);
 }
 
 test.describe("Backtest Features", () => {
@@ -320,7 +315,8 @@ test.describe("Backtest Features", () => {
         row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       });
 
-      // The trade's entry/exit markers are re-rendered with cream (#E1DCC9) styling
+      // The row flash (.trade-row-highlighted, tinted background via style.css)
+      // proves the click registered; the chart zoom target must stay intact.
       await expectChartHighlighted(page);
     });
 
@@ -339,26 +335,25 @@ test.describe("Backtest Features", () => {
         row?.dispatchEvent(new MouseEvent("click", { bubbles: true, cancelable: true }));
       });
 
-      // New behavior (replaces the removed 3s CSS-class timeout): the highlight is applied
-      // to the chart markers rather than a transient CSS class. Verify the chart and the
-      // trade history panel stay intact after the old timeout window.
-      await expectChartHighlighted(page);
-      // The old behavior cleared a transient CSS class after 3s. There is no "still highlighted"
-      // observable event, so wait past that window while requiring the chart instance to persist.
+      // The row flash is transient by design (BacktestPage.highlightTradeRow
+      // clears .trade-row-highlighted after 3s); the chart zoom persists.
+      // Verify the highlight fired, then wait past that window and require the
+      // chart instance to persist with no stale highlight class left behind.
+      await expectRowHighlighted(page);
       const clickedAt = Date.now();
       await page.waitForFunction(
         (t0) => {
-          const echarts = (window as any).echarts;
-          const container = document.querySelector('[data-testid="echarts-container"]');
-          if (!echarts || !container) return false;
-          const hasInstance = Array.from(container.querySelectorAll("div")).some((d) =>
-            echarts.getInstanceByDom(d),
+          const chart = document.querySelector('[data-testid="tradingview-chart"]');
+          return (
+            Date.now() - t0 >= 3500 &&
+            chart instanceof HTMLElement &&
+            chart.offsetParent !== null
           );
-          return Date.now() - t0 >= 3500 && hasInstance;
         },
         clickedAt,
         { timeout: 10000 },
       );
+      await expect(firstTradeRow).not.toHaveClass(/trade-row-highlighted/);
       await expect(page.locator('[data-testid="echarts-container"]')).toBeVisible({
         timeout: 10000,
       });

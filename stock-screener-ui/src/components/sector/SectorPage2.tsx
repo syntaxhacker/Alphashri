@@ -435,6 +435,7 @@ function SectorPageHeader({
   return (
     <ToolbarRow
       gap={8}
+      data-testid="sector-header"
       style={{ padding: "0 16px", minHeight: 48, height: 48, borderBottom: "1px solid var(--mui-palette-divider)", flexShrink: 0 }}
     >
       <Title order={3} size="h4">
