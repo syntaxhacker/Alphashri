@@ -7,7 +7,7 @@ test.describe("Screener - Data Display", () => {
     await loginAsTestUser(page);
   });
   test("should display stock data table", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -16,7 +16,7 @@ test.describe("Screener - Data Display", () => {
     expect(count).toBeGreaterThan(0);
   });
   test("@smoke should display correct columns in table", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] th', {
       timeout: 10000,
     });
@@ -25,7 +25,7 @@ test.describe("Screener - Data Display", () => {
     expect(headerTexts).toContain("Score");
   });
   test("should display stock symbols as clickable links", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -35,7 +35,7 @@ test.describe("Screener - Data Display", () => {
     await expect(firstSymbol).toBeVisible();
   });
   test("should display approaching and touched sections", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -45,7 +45,7 @@ test.describe("Screener - Data Display", () => {
     expect(rowCount).toBeGreaterThan(0);
   });
   test("should display last updated timestamp", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-page"]', {
       timeout: 15000,
     });
@@ -61,7 +61,7 @@ test.describe("Screener - Screener Navigation", () => {
     await loginAsTestUser(page);
   });
   test("@smoke should display screener navigation tabs", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-screener"]', {
       timeout: 10000,
     });
@@ -70,7 +70,7 @@ test.describe("Screener - Screener Navigation", () => {
     await expect(page.locator('[data-testid="tab-config"]')).toBeVisible();
   });
   test("should switch between screeners", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForLoadState("networkidle");
 
     // Wait for table rows to be ready first
@@ -86,7 +86,7 @@ test.describe("Screener - Screener Navigation", () => {
     });
   });
   test("should show active screener highlighted", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -103,7 +103,7 @@ test.describe("Screener - Auto Refresh", () => {
     await loginAsTestUser(page);
   });
   test("should have auto-refresh input", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -114,7 +114,7 @@ test.describe("Screener - Auto Refresh", () => {
   });
   test("should disable auto-refresh when set to 0", async ({ page }) => {
     test.slow();
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="app-shell"]', {
       timeout: 15000,
     });
@@ -134,7 +134,7 @@ test.describe("Screener - Summary Strip", () => {
     await loginAsTestUser(page);
   });
   test("should display summary strip when data available", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -144,7 +144,7 @@ test.describe("Screener - Summary Strip", () => {
     }
   });
   test("should show market summary metrics", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -161,7 +161,7 @@ test.describe("Screener - Trading List", () => {
     await loginAsTestUser(page);
   });
   test("should display trading list textarea", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -171,7 +171,7 @@ test.describe("Screener - Trading List", () => {
     }
   });
   test("should copy trading list to clipboard", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', {
       timeout: 10000,
     });
@@ -191,7 +191,7 @@ test.describe("Screener - Error Handling", () => {
     await page.route(apiRoute("screener"), async (route) => {
       await route.abort("failed");
     });
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="app-shell"]', { timeout: 15000 });
     const errorElement = page.getByTestId("screener-error");
     try {
@@ -220,14 +220,14 @@ test.describe("Screener - Config Tab", () => {
     await loginAsTestUser(page);
   });
   test("@smoke should display Config tab", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
     await expect(page.locator('[data-testid="tab-config"]')).toBeVisible();
   });
   test("should switch to Config tab", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -239,7 +239,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should display screener list in config view", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -251,7 +251,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should display filter badges for screener with filters", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -265,7 +265,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should display PREVIEW section", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -277,7 +277,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should show active screener in config list", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -291,7 +291,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should display Create button", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -302,7 +302,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should open create modal when clicking Create button", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -315,7 +315,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should show form fields in create modal", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -331,7 +331,7 @@ test.describe("Screener - Config Tab", () => {
     });
   });
   test("should have Create button disabled when no name entered", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -344,7 +344,7 @@ test.describe("Screener - Config Tab", () => {
   test.skip("should enable Create when columns selected", async ({ page }) => {
     // Skipped - needs more investigation on checkbox interaction
     // The Create button needs both name AND columns to be enabled
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });
@@ -360,7 +360,7 @@ test.describe("Screener - Config Tab", () => {
     await expect(page.locator('[data-testid="confirm-create-btn"]')).toBeEnabled();
   });
   test("should display live preview in create modal", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="tab-config"]', {
       timeout: 10000,
     });

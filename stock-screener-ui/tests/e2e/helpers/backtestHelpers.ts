@@ -245,3 +245,19 @@ export async function waitForBacktestResult(page: Page, testId: string = "result
   await expect(page.locator(`[data-testid="${testId}"]`)).toBeVisible({ timeout: 15000 });
   await expect(page.locator('[data-testid="backtest-error"]')).not.toBeVisible({ timeout: 5000 });
 }
+
+/**
+ * The backtest right rail is a set of collapsible panels and Results starts
+ * collapsed (useBacktestLayout DEFAULT_PANELS has `results: false`); it only
+ * auto-opens once a run produces results. CollapsiblePanel renders nothing while
+ * closed, so the results empty state is absent from the DOM until it is opened.
+ * Idempotent: expands only when the panel is currently collapsed.
+ */
+export async function ensureResultsPanelOpen(page: Page) {
+  const panel = page.locator('[data-testid="panel-results"]');
+  await expect(panel).toBeVisible({ timeout: 10000 });
+  if ((await panel.getAttribute("data-open")) !== "true") {
+    await page.getByRole("button", { name: /Expand Results/i }).click();
+    await expect(panel).toHaveAttribute("data-open", "true");
+  }
+}

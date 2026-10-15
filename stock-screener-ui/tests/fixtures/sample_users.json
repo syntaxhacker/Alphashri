@@ -1,0 +1,39 @@
+{
+  "users": [
+    {
+      "email": "user1@example.com",
+      "password": "Password123!",
+      "display_name": "Test User 1",
+      "initial_capital": 1000000,
+      "is_active": true
+    },
+    {
+      "email": "user2@example.com",
+      "password": "Password456!",
+      "display_name": "Test User 2",
+      "initial_capital": 500000,
+      "is_active": true
+    },
+    {
+      "email": "inactive@example.com",
+      "password": "Password789!",
+      "display_name": "Inactive User",
+      "initial_capital": 200000,
+      "is_active": false
+    },
+    {
+      "email": "admin@example.com",
+      "password": "AdminPass123!",
+      "display_name": "Admin User",
+      "initial_capital": 5000000,
+      "is_active": true
+    },
+    {
+      "email": "trader@example.com",
+      "password": "TraderPass123!",
+      "display_name": "Professional Trader",
+      "initial_capital": 10000000,
+      "is_active": true
+    }
+  ]
+}
