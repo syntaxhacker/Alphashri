@@ -212,7 +212,7 @@ test.describe("Paper Trading - Bot Controls", () => {
     await page.locator('[data-testid="start-bot-btn"]').click({ timeout: 15000 });
 
     await expect(page.locator('[data-testid="bot-status"]')).toContainText("Running");
-    await expect(page.locator('[data-testid="bot-status"]')).toContainText("22133");
+    // BotSelector renders Running/Stopped (PID intentionally not shown since c310bd99).
     await expect(page.locator('[data-testid="stop-bot-btn"]')).toBeVisible();
   });
 
@@ -756,44 +756,60 @@ test.describe("Paper Trading - Chart Controls", () => {
     await navigateToChartAndSelectSymbol(page);
 
     await page.getByTestId("chart-more-button").click();
-    const emaSwitch = page.getByTestId("overlay-ema");
-    await expect(emaSwitch).toBeVisible();
-    await emaSwitch.click();
+    const emaChip = page.getByTestId("chip-ema");
+    await expect(emaChip).toBeVisible();
+    // Checked state is conveyed via highlight style (background tint), not a class.
+    const emaBefore = await emaChip.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await emaChip.click();
 
-    await expect(page.getByTestId("chip-ema")).toHaveClass(/MuiChip-filled/);
+    await expect
+      .poll(async () => emaChip.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe(emaBefore);
   });
 
   test("should toggle ORB lines", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
     await page.getByTestId("chart-more-button").click();
-    const orbSwitch = page.getByTestId("overlay-orb");
-    await expect(orbSwitch).toBeVisible();
-    await orbSwitch.click();
+    const orbChip = page.getByTestId("chip-orb");
+    await expect(orbChip).toBeVisible();
+    // Checked state is conveyed via highlight style (background tint), not a class.
+    const orbBefore = await orbChip.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await orbChip.click();
 
-    await expect(page.getByTestId("chip-orb")).toHaveClass(/MuiChip-filled/);
+    await expect
+      .poll(async () => orbChip.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe(orbBefore);
   });
 
   test("should toggle 52W high line", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
     await page.getByTestId("chart-more-button").click();
-    const w52Switch = page.getByTestId("overlay-52w");
-    await expect(w52Switch).toBeVisible();
-    await w52Switch.click();
+    const w52Chip = page.getByTestId("chip-52w");
+    await expect(w52Chip).toBeVisible();
+    // Checked state is conveyed via highlight style (background tint), not a class.
+    const w52Before = await w52Chip.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await w52Chip.click();
 
-    await expect(page.getByTestId("chip-52w")).toHaveClass(/MuiChip-filled/);
+    await expect
+      .poll(async () => w52Chip.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe(w52Before);
   });
 
   test("should toggle SL/TP markers via All trades switch", async ({ page }) => {
     await navigateToChartAndSelectSymbol(page);
 
     await page.getByTestId("chart-more-button").click();
-    const allTradesSwitch = page.getByTestId("overlay-all");
-    await expect(allTradesSwitch).toBeVisible();
-    await allTradesSwitch.click();
+    const allTradesChip = page.getByTestId("chip-all");
+    await expect(allTradesChip).toBeVisible();
+    // Checked state is conveyed via highlight style (background tint), not a class.
+    const allBefore = await allTradesChip.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await allTradesChip.click();
 
-    await expect(page.getByTestId("chip-all")).toHaveClass(/MuiChip-filled/);
+    await expect
+      .poll(async () => allTradesChip.evaluate((el) => getComputedStyle(el).backgroundColor))
+      .not.toBe(allBefore);
   });
 
   test("should switch timeframe", async ({ page }) => {

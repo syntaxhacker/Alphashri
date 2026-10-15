@@ -65,8 +65,17 @@ export function Select({
   const muiSize = mapSize(size);
   const isError = Boolean(error);
   const helperText = isError ? (typeof error === "string" ? error : String(error ?? "")) : (description as string | undefined);
-  // MUI Select uses "" for empty; normalize null -> ""
-  const controlledValue = value !== undefined ? (value ?? "") : undefined;
+  // MUI Select uses "" for empty; normalize null -> "".
+  // Controlled from the FIRST render whenever the caller manages the value
+  // (value or onChange present): MUI's useControlled latches controlled-ness
+  // in a ref on mount, so passing value={undefined} while async data (URL
+  // params, strategy lists) loads would lock the select uncontrolled and the
+  // late value would be ignored forever ("changing the uncontrolled value
+  // state of Select to be controlled", hidden input stuck at ""). Only stay
+  // uncontrolled when the caller provided neither value/defaultValue nor
+  // onChange (pure uncontrolled use, e.g. stories).
+  const isControlled = value !== undefined || (onChange !== undefined && defaultValue === undefined);
+  const controlledValue = isControlled ? (value ?? "") : undefined;
   const controlledDefaultValue = defaultValue !== undefined ? (defaultValue ?? "") : undefined;
 
   const handleChange = (event: SelectChangeEvent<string>) => {

@@ -44,11 +44,13 @@ test.describe("Nifty Report - OI tape panel", () => {
     const table = page.locator('[data-testid="nifty-tape-table"]');
     await expect(table).toBeVisible({ timeout: 10000 });
 
-    const rows = table.getByTestId(/^nifty-tape-row-/);
+    const rows = table.getByTestId("nifty-tape-row");
     await expect(rows).toHaveCount(mockNiftyTape.rows.length, { timeout: 10000 });
     // Fixture is served chronological (09:16 first); the panel sorts latest-first.
-    await expect(rows.first()).toHaveAttribute("data-testid", "nifty-tape-row-09:19");
-    await expect(rows.last()).toHaveAttribute("data-testid", "nifty-tape-row-09:16");
+    // Row testids carry no time suffix (NiftyTapeTable getRowTestId is constant),
+    // so ordering is asserted via each row's IST time cell instead.
+    await expect(rows.first().getByTestId("nifty-tape-time")).toContainText("09:19");
+    await expect(rows.last().getByTestId("nifty-tape-time")).toContainText("09:16");
   });
 });
 
