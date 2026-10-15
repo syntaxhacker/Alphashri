@@ -10,7 +10,7 @@ test.describe("Buyer Interest+ Screener", () => {
   // Test Buyer Interest+ by loading it directly via URL parameter
   test("should load Buyer Interest+ data and show columns", async ({ page }) => {
     // Load page with buyer_interest_enhanced as the default
-    await page.goto("/");
+    await page.goto("/?tab=screener");
 
     // Wait for data to load - the fallback should include buyer_interest_enhanced
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
@@ -23,7 +23,7 @@ test.describe("Buyer Interest+ Screener", () => {
   });
 
   test("should display bullish stocks with high wick percentage", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
     // Get all rows
@@ -35,7 +35,7 @@ test.describe("Buyer Interest+ Screener", () => {
   });
 
   test("should show sentiment data in table", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
     const rows = page.locator('[data-testid="screener-table"] tbody tr');

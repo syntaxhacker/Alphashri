@@ -13,7 +13,7 @@ test.describe("Screener - URL Params", () => {
   });
 
   test("should restore screener from URL param on page load", async ({ page }) => {
-    await page.goto("/?screener=builtin%3Abuyer_interest_enhanced");
+    await page.goto("/?tab=screener&screener=builtin%3Abuyer_interest_enhanced");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
     await expect(page.getByTestId("screener-select")).toContainText("Buyer Interest+", {
@@ -25,7 +25,7 @@ test.describe("Screener - URL Params", () => {
   });
 
   test("should update URL when screener is changed", async ({ page }) => {
-    await page.goto("/");
+    await page.goto("/?tab=screener");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
     await selectScreener(page, "Buyer Interest+");
@@ -34,7 +34,7 @@ test.describe("Screener - URL Params", () => {
   });
 
   test("should update URL param when switching to trending", async ({ page }) => {
-    await page.goto("/?screener=builtin%3Abuyer_interest_enhanced");
+    await page.goto("/?tab=screener&screener=builtin%3Abuyer_interest_enhanced");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
     await selectScreener(page, "Trending");
@@ -43,7 +43,7 @@ test.describe("Screener - URL Params", () => {
   });
 
   test("should preserve URL screener param across tab switches", async ({ page }) => {
-    await page.goto("/?screener=builtin%3Abuyer_interest_enhanced");
+    await page.goto("/?tab=screener&screener=builtin%3Abuyer_interest_enhanced");
     await page.waitForSelector('[data-testid="screener-table"] tbody tr', { timeout: 10000 });
 
     await page.click('[data-testid="tab-config"]');
