@@ -178,9 +178,9 @@ function useBacktestActions(state: any, chartMode: "all" | "trades") {
   };
 }
 
-function EmptyPanel({ children }: { children: string }) {
+function EmptyPanel({ children, testId }: { children: string; testId?: string }) {
   return (
-    <Box sx={{ p: 1.5 }}>
+    <Box sx={{ p: 1.5 }} data-testid={testId}>
       <Text size="xs" c="dimmed">{children}</Text>
     </Box>
   );
@@ -350,7 +350,7 @@ export function BacktestPage() {
                 onSort={actions.resultsSort.handleSort}
               />
             ) : (
-              <EmptyPanel>Run a backtest to see results.</EmptyPanel>
+              <EmptyPanel testId="results-empty">Run a backtest to see results.</EmptyPanel>
             )}
           </CollapsiblePanel>
 
