@@ -26,11 +26,12 @@ vi.mock("@/api/reportNifty", () => ({
 }));
 
 vi.mock("@/components/chart/TradingViewChart", () => ({
-  TradingViewChart: ({ markLines, priceAreas }: { markLines?: unknown[]; priceAreas?: unknown[] }) => (
+  TradingViewChart: ({ markLines, priceAreas, emaData }: { markLines?: unknown[]; priceAreas?: unknown[]; emaData?: unknown[] }) => (
     <div
       data-testid="tradingview-chart"
       data-marklines={markLines?.length ?? 0}
       data-priceareas={priceAreas?.length ?? 0}
+      data-emas={emaData?.length ?? 0}
     />
   ),
 }));
@@ -140,8 +141,7 @@ function mockTape() {
   };
 }
 
-/** Steady +1,000/min call OI for 13 minutes, then one +60,000 burst minute. */
-function burstTape() {
+/** Steady +1,000/min call OI for 13 minutes, then one +60,000 burst minute. */function burstTape() {
   const hm = (i: number) => {
     const total = 9 * 60 + 15 + i;
     return `${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}`;
@@ -157,6 +157,8 @@ function burstTape() {
   return rows;
 }
 
+const REAL_WS = (globalThis as Record<string, unknown>).WebSocket;
+
 beforeEach(() => {
   vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport());
   vi.mocked(fetchLiveSensex).mockResolvedValue(null as never);
@@ -164,11 +166,18 @@ beforeEach(() => {
   vi.mocked(fetchNiftyTape).mockResolvedValue(mockTape());
   vi.mocked(fetchNiftyBursts).mockResolvedValue([] as never);
   vi.mocked(snapshotNifty).mockResolvedValue(mockReport());
+  // No live sockets in these tests: with happy-dom's real WebSocket a
+  // running dev backend on :8765 would push real frames mid-test and flip
+  // the panel into WS mode (racy assertions). Absent WS keeps both stream
+  // hooks disconnected so the panel renders from the initial REST load and
+  // Spot renders from `report.spot`.
+  (globalThis as Record<string, unknown>).WebSocket = undefined;
 });
 
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  (globalThis as Record<string, unknown>).WebSocket = REAL_WS;
 });
 
 describe("NiftyReportPanel toolbar", () => {
@@ -437,6 +446,36 @@ describe("NiftyReportPanel Chart|Depth view toggle", () => {
     expect(await screen.findByTestId("tradingview-chart")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-depthmap")).not.toBeInTheDocument();
   });
+
+  test("intraday candles feed the chart with EMA9/EMA20 overlays", async () => {
+    const intraday = [
+      { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620 },
+      { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25750.5 },
+    ];
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        intraday,
+        emas: [
+          { period: 9, data: [null, 25685.25] },
+          { period: 20, data: [null, 25690.5] },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const chart = await screen.findByTestId("tradingview-chart");
+    expect(chart).toBeInTheDocument();
+    expect(chart).toHaveAttribute("data-emas", "2");
+    expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
+  });
+
+  test("chart without emas passes an empty overlay list", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({ candles: candles() }),
+    );
+    r(<NiftyReportPanel />);
+    const chart = await screen.findByTestId("tradingview-chart");
+    expect(chart).toHaveAttribute("data-emas", "0");
+  });
 });
 
 describe("niftyOiColumns alignment meta", () => {
@@ -574,7 +613,7 @@ describe("NiftyReportPanel fit-to-screen", () => {
     };
   }
 
-  test("chart panel uses rectangles for top walls and max pain", async () => {
+  test("chart panel draws top walls and max pain as price lines", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({ candles: candles() }),
     );
@@ -582,8 +621,9 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(await screen.findByTestId("nifty-chart-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
     const chart = screen.getByTestId("tradingview-chart");
-    expect(chart).toHaveAttribute("data-marklines", "0");
-    expect(chart).toHaveAttribute("data-priceareas", "5");
+    // top-2 call walls + top-2 put walls + max pain, now as lines (not zones)
+    expect(chart).toHaveAttribute("data-marklines", "5");
+    expect(chart).toHaveAttribute("data-priceareas", "0");
   });
 
   test("shows live Sensex levels beside the Nifty report", async () => {
@@ -635,9 +675,9 @@ describe("NiftyReportPanel fit-to-screen", () => {
     // 25800 dupes the CW line, 25700 dupes MP — skipped, never doubled
     expect(labels.filter((x) => x === "GSUP 25800")).toHaveLength(0);
     expect(labels.filter((x) => x === "GRES 25700")).toHaveLength(0);
-    // off without the flag
+    // off without the flag: only the 5 wall/max-pain lines remain (no GEX)
     expect(buildMarkLines(rep, false).map((l) => l.label.formatter)).not.toContain("FLIP 25650");
-    expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(0);
+    expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(5);
   });
 
   test("OI table windows to ATM ±750 so strike and signals stay visible", async () => {
@@ -796,15 +836,7 @@ describe("NiftyReportPanel GEX levels (live mode)", () => {
   });
 });
 
-describe("NiftyReportPanel live auto-refresh", () => {
-  beforeEach(() => {
-    vi.useFakeTimers();
-  });
-
-  afterEach(() => {
-    vi.useRealTimers();
-  });
-
+describe("NiftyReportPanel live updates (WS-only, no polling)", () => {
   async function tick(ms: number) {
     await act(async () => {
       await vi.advanceTimersByTimeAsync(ms);
@@ -816,26 +848,45 @@ describe("NiftyReportPanel live auto-refresh", () => {
     await tick(0);
   }
 
-  test("auto-refetch fires on 30s tick in live mode and shows updated-at", async () => {
-    await renderLive();
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
-    expect(screen.getByTestId("nifty-updated-at")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent(/Updated/);
-    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent(/auto 30s/);
-    expect(screen.queryByTestId("nifty-stale-badge")).not.toBeInTheDocument();
-    await tick(30_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
-    await tick(30_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(3);
+  test("initial load runs once and the toolbar shows live (WS), never auto 30s", async () => {
+    vi.useFakeTimers();
+    try {
+      await renderLive();
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("nifty-updated-at")).toBeInTheDocument();
+      expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent(/Updated/);
+      expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent(/live \(WS\)/);
+      expect(screen.queryByText(/auto 30s/)).not.toBeInTheDocument();
+      expect(screen.queryByTestId("nifty-stale-badge")).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  test("an OI burst minute raises the in-app alert with a trade plan (local fallback)", async () => {
-    await renderLive();
+  test("advancing time never refetches in live mode (no interval)", async () => {
+    vi.useFakeTimers();
+    try {
+      await renderLive();
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      await tick(30_000);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      await tick(120_000);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("an OI burst minute raises the in-app alert with a trade plan (local fallback, via Refresh)", async () => {
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
     // history is silent by design — nothing on first load
     expect(screen.queryByTestId("nifty-oi-bursts-panel")).not.toBeInTheDocument();
     expect(screen.queryByTestId("nifty-oi-toasts")).not.toBeInTheDocument();
 
-    // next poll returns a steady tape plus one huge call-OI minute.
+    // next one-shot reload returns a steady tape plus one huge call-OI minute.
     // fetchNiftyBursts stays [] (backend has nothing / is unavailable), so the
     // client detector is what raises the alert.
     const rows = burstTape();
@@ -845,17 +896,19 @@ describe("NiftyReportPanel live auto-refresh", () => {
       rows,
     });
 
-    await tick(30_000);
-
-    expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("nifty-refresh-button"));
+    expect(await screen.findByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-oi-toasts")).toBeInTheDocument();
     // call OI build → fade with puts at the nearest tradeable strike
     expect(screen.getAllByText(/BUY PE 25,700/).length).toBeGreaterThan(0);
     expect(screen.getAllByText(/qty/).length).toBeGreaterThan(0);
   });
 
-  test("backend bursts are used when present and skip local detection", async () => {
-    await renderLive();
+  test("backend bursts are used when present and skip local detection (via Refresh)", async () => {
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
     expect(screen.queryByTestId("nifty-oi-bursts-panel")).not.toBeInTheDocument();
 
     // backend reports ONE burst; the tape stays flat so the local detector
@@ -864,7 +917,7 @@ describe("NiftyReportPanel live auto-refresh", () => {
     vi.mocked(fetchNiftyTape).mockResolvedValue({
       date: "2026-10-12",
       interval_sec: 60,
-      rows: rows.map((r) => ({ ...r, call_doi: 0, put_doi: 0 })),
+      rows: rows.map((row) => ({ ...row, call_doi: 0, put_doi: 0 })),
     });
     vi.mocked(fetchNiftyBursts).mockResolvedValue([
       {
@@ -882,78 +935,79 @@ describe("NiftyReportPanel live auto-refresh", () => {
       },
     ] as never);
 
-    await tick(30_000);
-
-    expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    fireEvent.click(screen.getByTestId("nifty-refresh-button"));
+    expect(await screen.findByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
     expect(screen.getAllByText(/BUY PE 25,700/).length).toBeGreaterThan(0);
   });
 
   test("no polling in EOD mode", async () => {
-    await renderLive();
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
-    fireEvent.click(screen.getByRole("button", { name: "EOD" }));
-    await tick(0);
-    await tick(120_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
-    expect(vi.mocked(fetchNiftyByDate)).not.toHaveBeenCalled();
+    vi.useFakeTimers();
+    try {
+      await renderLive();
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      fireEvent.click(screen.getByRole("button", { name: "EOD" }));
+      await tick(0);
+      await tick(120_000);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(fetchNiftyByDate)).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  test("error backoff keeps last-good stats with stale badge, then recovers", async () => {
-    vi.mocked(fetchLiveNifty)
-      .mockResolvedValueOnce(mockReport())
-      .mockRejectedValue(new Error("Upstox token expired"));
-    await renderLive();
-    expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
-    // t=30s: scheduled poll fails -> backoff shortens to 15s
-    await tick(30_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
-    // t=45s: backoff retry fails -> backoff widens to 30s
-    await tick(15_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(3);
-    // t=75s: fails -> backoff caps at 60s
-    await tick(30_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(4);
-    // t=135s: fails, data now >90s old -> stale badge, stats kept, no full error
-    await tick(60_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(5);
-    expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-stale-badge")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-stale-badge")).toHaveTextContent(/STALE/);
-    expect(screen.queryByTestId("nifty-error")).not.toBeInTheDocument();
-    // recovery on the next 60s tick clears the stale badge
-    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(mockReport({ spot: 26000 }));
-    await tick(60_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(6);
-    expect(screen.queryByTestId("nifty-stale-badge")).not.toBeInTheDocument();
-    expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent(/auto 30s/);
+  test("socket outage marks data stale after 90s without any refetch", async () => {
+    vi.useFakeTimers();
+    try {
+      await renderLive();
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+      // before the threshold: still fresh, still no refetch
+      await tick(60_000);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      expect(screen.queryByTestId("nifty-stale-badge")).not.toBeInTheDocument();
+      // past the threshold: stale badge, stats kept, no full error, no refetch
+      await tick(60_000);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+      expect(screen.getByTestId("nifty-stale-badge")).toBeInTheDocument();
+      expect(screen.getByTestId("nifty-stale-badge")).toHaveTextContent(/STALE/);
+      expect(screen.queryByTestId("nifty-error")).not.toBeInTheDocument();
+      // the toolbar stays on the WS label even while stale
+      expect(screen.getByTestId("nifty-updated-at")).toHaveTextContent(/live \(WS\)/);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  test("hidden tab pauses polling and resumes when visible", async () => {
-    await renderLive();
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
-    Object.defineProperty(document, "hidden", { value: true, configurable: true });
-    await tick(120_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
-    Object.defineProperty(document, "hidden", { value: false, configurable: true });
-    act(() => {
-      document.dispatchEvent(new Event("visibilitychange"));
+  test("failed Refresh keeps last-good stats without a full error", async () => {
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
     });
-    await tick(30_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
-    delete (document as unknown as Record<string, unknown>)["hidden"];
+    vi.mocked(fetchLiveNifty).mockRejectedValueOnce(new Error("Upstox token expired"));
+    fireEvent.click(screen.getByTestId("nifty-refresh-button"));
+    await waitFor(() => {
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
+    });
+    expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-error")).not.toBeInTheDocument();
   });
 
-  test("manual Refresh forces immediate fetch and resets the timer", async () => {
-    await renderLive();
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
-    await tick(10_000);
-    fireEvent.click(screen.getByTestId("nifty-refresh-button"));
-    await tick(0);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
-    await tick(20_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
-    await tick(10_000);
-    expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(3);
+  test("manual Refresh forces a one-shot refetch and nothing else polls", async () => {
+    vi.useFakeTimers();
+    try {
+      await renderLive();
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(1);
+      await tick(10_000);
+      fireEvent.click(screen.getByTestId("nifty-refresh-button"));
+      await tick(0);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
+      // no timer picks it up again — the count stays put
+      await tick(120_000);
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 
@@ -1121,7 +1175,7 @@ describe("NiftyReportPanel session verdict strip", () => {
     expect(control).toHaveTextContent("ΔOI C 55,30,000 P -12,00,000 · skew -2.40");
 
     const regime = screen.getByTestId("nifty-verdict-regime");
-    expect(regime).toHaveTextContent("RANGE · SELL PREMIUM");
+    expect(regime).toHaveTextContent("SELL PREMIUM");
     expect(regime).toHaveTextContent("180 vs ~210 pts · straddle -20.00%");
 
     const vix = screen.getByTestId("nifty-verdict-vix");
@@ -1179,7 +1233,7 @@ describe("NiftyReportPanel session verdict strip", () => {
       "PUT WRITERS IN CONTROL",
     );
     expect(screen.getByTestId("nifty-verdict-regime")).toHaveTextContent(
-      "TREND · BUY FAVOURED",
+      "BUY PREMIUM · RV > IV",
     );
     expect(screen.getByTestId("nifty-verdict-vix")).toHaveTextContent(
       "VIX 14.00 (+7.69%)",

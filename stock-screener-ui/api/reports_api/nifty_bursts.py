@@ -63,6 +63,55 @@ def severity_for_score(score: float) -> str:
     return "info"
 
 
+#: Severity ordering for picking a group's representative burst.
+_SEVERITY_RANK = {"info": 0, "watch": 1, "alert": 2, "critical": 3}
+
+
+def coalesce_bursts(bursts: Iterable[dict]) -> list[dict]:
+    """One alert per (minute, side), keeping the strongest.
+
+    A single directional minute lights up several strikes and can trip more
+    than one detector, so the raw feed carries an index burst *plus* a burst
+    per strike (e.g. 4 alerts at 10:01:35 on 2026-10-16: one index + 23000 +
+    22950 + 23100). They describe the same event, so they are merged into one:
+    the highest severity (then score) wins and the fired strikes are recorded
+    on ``strikes`` / ``coalesced`` so nothing is lost.
+    """
+    groups: dict[tuple[str, Any], list[dict]] = {}
+    order: list[tuple[str, Any]] = []
+    for b in bursts or []:
+        key = (str(b.get("t") or "")[:16], b.get("side"))
+        if key not in groups:
+            groups[key] = []
+            order.append(key)
+        groups[key].append(b)
+
+    out: list[dict] = []
+    for key in order:
+        group = groups[key]
+        # A squeeze is the most actionable event in the group (momentum, not a
+        # fade), so it represents the minute; otherwise severity then score.
+        primary = max(
+            group,
+            key=lambda b: (
+                1 if b.get("type") == "squeeze" else 0,
+                _SEVERITY_RANK.get(str(b.get("severity")), 0),
+                _f(b.get("score")),
+            ),
+        )
+        merged = dict(primary)
+        if len(group) > 1:
+            merged["coalesced"] = len(group)
+            merged["strikes"] = sorted(
+                {_f(b.get("strike")) for b in group if b.get("strike")}
+            )
+            types = sorted({str(b.get("type")) for b in group if b.get("type")})
+            if types:
+                merged["types"] = types
+        out.append(merged)
+    return out
+
+
 #: A burst is by definition a ONE-minute OI move, so only strictly adjacent
 #: minutes qualify. Anything further apart is not a burst we can judge: on
 #: 2026-10-14 a 12-minute recorder outage produced index "bursts" scoring 1037

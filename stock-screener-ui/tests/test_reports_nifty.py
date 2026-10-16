@@ -6,6 +6,7 @@ Call endpoint functions directly, passing every Query param explicitly
 (FastAPI Query defaults are Param objects when called outside HTTP).
 """
 
+import asyncio
 import json
 from unittest.mock import AsyncMock, patch
 
@@ -36,9 +37,11 @@ from api.reports_api.nifty import (
 def _clear_live_cache():
     nifty._live_cache.clear()
     nifty._sensex_cache.clear()
+    nifty._live_ws_cache.clear()
     yield
     nifty._live_cache.clear()
     nifty._sensex_cache.clear()
+    nifty._live_ws_cache.clear()
 
 
 @pytest.fixture()
@@ -259,14 +262,67 @@ class TestLiveEndpoint:
         with p1, p2, patch.object(n_mod, "_fetch_nifty_candles",
                                   return_value=fake) as fc:
             nifty._live_cache.clear()
+            n_mod._candles_cache.clear()
             rep = await get_nifty_live(expiry="2026-10-13")
         fc.assert_called_once()
         assert rep["candles"] == fake
+        n_mod._candles_cache.clear()
 
     def test_fetch_candles_never_raises(self):
         from api.reports_api import nifty as n_mod
         with patch("yfinance.download", side_effect=RuntimeError("down")):
             assert n_mod._fetch_nifty_candles("2026-10-12") == []
+
+
+class TestLiveRefresh:
+    def test_live_ttl_is_five_seconds(self):
+        assert nifty._LIVE_TTL == 5
+
+    async def test_cache_serves_within_ttl_and_recomputes_after(self):
+        p1, p2 = _mock_chain(_chain_payload())
+        with p1, p2:
+            first = await get_nifty_live(expiry="2026-10-13")
+            second = await get_nifty_live(expiry="2026-10-13")
+            assert first is second
+            # Age the entry past the TTL: the next call must recompute.
+            nifty._live_cache["2026-10-13"]["ts"] -= (nifty._LIVE_TTL + 1)
+            third = await get_nifty_live(expiry="2026-10-13")
+        assert third is not first
+
+    async def test_compute_live_runs_candles_off_event_loop(self, monkeypatch):
+        """The yfinance candle fetch must not run on the event loop thread."""
+        from api.reports_api import nifty as n_mod
+        p1, p2 = _mock_chain(_chain_payload())
+        # The call site now goes through the 60s candle cache wrapper.
+        monkeypatch.setattr(n_mod, "_fetch_nifty_candles_cached", lambda *a, **k: [])
+        seen: list = []
+        real_to_thread = asyncio.to_thread
+
+        async def _spy(func, /, *args, **kwargs):
+            seen.append(func)
+            return await real_to_thread(func, *args, **kwargs)
+
+        monkeypatch.setattr(asyncio, "to_thread", _spy)
+        with p1, p2:
+            await n_mod._compute_live("2026-10-13")
+        assert any(f is n_mod._fetch_nifty_candles_cached for f in seen)
+
+    def test_candle_cache_avoids_refetch(self, monkeypatch):
+        """The 5s report TTL must not hit Yahoo every 5s."""
+        from api.reports_api import nifty as n_mod
+        n_mod._candles_cache.clear()
+        calls = {"n": 0}
+
+        def _fake(date_str, walkback_days=0):
+            calls["n"] += 1
+            return [{"time": "t", "close": 1.0}]
+
+        monkeypatch.setattr(n_mod, "_fetch_nifty_candles", _fake)
+        a = n_mod._fetch_nifty_candles_cached("2026-10-13")
+        b = n_mod._fetch_nifty_candles_cached("2026-10-13")
+        assert a == b
+        assert calls["n"] == 1  # second call served from cache
+        n_mod._candles_cache.clear()
 
 
 class TestExpiriesEndpoint:
@@ -546,6 +602,52 @@ class TestComputeGex:
         assert [t["strike"] for t in out["top_negative"]] == [300.0, 100.0]
 
 
+def _intraday_candles(n=25, start=22000.0):
+    return [
+        {"time": f"2026-10-13T09:{15 + i:02d}:00+05:30",
+         "open": start + i, "high": start + i + 1, "low": start + i - 1,
+         "close": start + i}
+        for i in range(n)
+    ]
+
+
+class TestAttachVerdictsEmas:
+    async def test_sets_intraday_and_aligned_emas(self, monkeypatch):
+        import api.reports_api.nifty_verdicts as nv
+
+        fake = _intraday_candles()
+        monkeypatch.setattr(nv, "get_baseline_range", AsyncMock(return_value=None))
+        monkeypatch.setattr(nv, "get_vix_block", AsyncMock(return_value=None))
+        monkeypatch.setattr(nv, "get_intraday_candles", AsyncMock(return_value=fake))
+        monkeypatch.setattr(nifty, "read_tape", lambda date: [])
+        monkeypatch.setattr(nifty, "_today_str", lambda: "2026-10-13")
+
+        report: dict = {"candles": [], "gex": {"regime": "flat"}}
+        await nifty._attach_verdicts(report, [], 22024.0, "2026-10-13")
+
+        assert report["intraday"] == fake
+        assert [e["period"] for e in report["emas"]] == [9, 20]
+        for e in report["emas"]:
+            assert len(e["data"]) == len(fake)
+        closes = [c["close"] for c in fake]
+        assert report["emas"][0]["data"][-1] == pytest.approx(nv.ema(closes, 9))
+        assert report["emas"][1]["data"][-1] == pytest.approx(nv.ema(closes, 20))
+
+    async def test_no_intraday_degrades_to_empty(self, monkeypatch):
+        import api.reports_api.nifty_verdicts as nv
+
+        monkeypatch.setattr(nv, "get_baseline_range", AsyncMock(return_value=None))
+        monkeypatch.setattr(nv, "get_intraday_candles", AsyncMock(return_value=None))
+        monkeypatch.setattr(nifty, "read_tape", lambda date: [])
+        monkeypatch.setattr(nifty, "_today_str", lambda: "2026-10-13")
+
+        report: dict = {"candles": [], "gex": {"regime": "flat"}}
+        await nifty._attach_verdicts(report, [], 22000.0, "2026-10-13")
+
+        assert report["intraday"] == []
+        assert report["emas"] == []
+
+
 class TestBuildReportGex:
     def test_report_carries_gex_block(self):
         _, spot, rows = parse_chain_payload(_chain_payload())
@@ -560,3 +662,251 @@ class TestBuildReportGex:
         for key in ("mode", "expiry", "spot", "fetched_at", "pcr_oi",
                     "pcr_vol", "max_pain", "walls", "strikes", "candles"):
             assert key in rep, f"missing {key}"
+
+
+# ---------------- live WS snapshot path ----------------
+
+def _live_snapshot(n=25, spot=22700.0):
+    """Hand-built nifty_md-style snapshot: legs keyed '<strike>:ce|pe'."""
+    legs = {}
+    base = spot - (n // 2) * 50.0
+    for i in range(n):
+        strike = base + i * 50.0
+        # Calls stack above spot, puts below — walls land at the edges.
+        legs[f"{strike}:ce"] = {
+            "oi": 1000 + i * 500, "iv": 12.0, "ltp": max(5.0, 120.0 - i * 4.0),
+            "volume": 200 + i * 10, "delta": 0.45, "gamma": 0.0004}
+        legs[f"{strike}:pe"] = {
+            "oi": 1000 + (n - 1 - i) * 500, "iv": 13.0,
+            "ltp": max(5.0, 20.0 + i * 4.0),
+            "volume": 150 + i * 5, "delta": -0.45, "gamma": 0.0004}
+    return {"ts": "2026-10-16T10:00:00+05:30", "connected": True,
+            "spot": spot, "vix": 13.5, "sensex": 81400.0, "legs": legs}
+
+
+class TestBuildReportFromLive:
+    def test_full_envelope_from_legs(self):
+        from api.reports_api.nifty import build_report_from_live
+        snap = _live_snapshot()
+        rep = build_report_from_live(snap, "2026-10-29", candles=[])
+        assert rep is not None
+        for key in ("mode", "expiry", "spot", "fetched_at", "pcr_oi",
+                    "pcr_vol", "max_pain", "walls", "gex", "positioning",
+                    "strikes", "candles", "market"):
+            assert key in rep, f"missing {key}"
+        assert rep["mode"] == "live"
+        assert rep["expiry"] == "2026-10-29"
+        assert rep["spot"] == 22700.0
+        strikes = [r["strike"] for r in rep["strikes"]]
+        assert strikes == sorted(strikes) and len(strikes) == 25
+        ce_oi = sum(r["ce"]["oi"] for r in rep["strikes"])
+        pe_oi = sum(r["pe"]["oi"] for r in rep["strikes"])
+        assert rep["pcr_oi"] == compute_pcr(pe_oi, ce_oi)
+        assert min(strikes) <= rep["max_pain"] <= max(strikes)
+        assert len(rep["walls"]["calls"]) == 3
+        assert len(rep["walls"]["puts"]) == 3
+        # Calls stack upward, puts stack downward.
+        assert rep["walls"]["calls"][0]["oi"] >= rep["walls"]["calls"][-1]["oi"]
+        assert rep["walls"]["puts"][0]["oi"] >= rep["walls"]["puts"][-1]["oi"]
+        assert rep["gex"]["regime"] in ("long", "short", "flat")
+        assert len(rep["gex"]["strikes"]) == 25
+        assert isinstance(rep["positioning"], dict) and rep["positioning"]
+        assert "verdict" in rep["positioning"]
+
+    def test_too_few_strikes_returns_none(self):
+        from api.reports_api.nifty import build_report_from_live
+        assert build_report_from_live(_live_snapshot(n=5), "2026-10-29") is None
+        assert build_report_from_live(_live_snapshot(n=19), "2026-10-29") is None
+        assert build_report_from_live(
+            _live_snapshot(n=20), "2026-10-29") is not None
+
+    def test_missing_or_bad_legs_returns_none(self):
+        from api.reports_api.nifty import build_report_from_live
+        assert build_report_from_live({}, "2026-10-29") is None
+        assert build_report_from_live({"legs": {}}, "2026-10-29") is None
+        assert build_report_from_live({"legs": "nope"}, "2026-10-29") is None
+        assert build_report_from_live(None, "2026-10-29") is None
+
+
+class TestGetLiveReport:
+    async def test_falls_back_to_rest_when_not_live(self, monkeypatch):
+        from api.reports_api import nifty as n_mod
+        monkeypatch.setattr(n_mod, "_nifty_md", lambda: None)
+        sentinel = {"mode": "live", "spot": 1.0}
+        monkeypatch.setattr(n_mod, "get_cached_live",
+                            AsyncMock(return_value=sentinel))
+        assert await n_mod.get_live_report("2026-10-29") is sentinel
+
+    async def test_falls_back_when_chain_too_thin(self, monkeypatch):
+        """A live but tiny snapshot is not a real chain → REST fallback."""
+        import types
+        from api.reports_api import nifty as n_mod
+        fake = types.SimpleNamespace(
+            is_live=lambda: True,
+            snapshot=lambda: _live_snapshot(n=5),
+        )
+        monkeypatch.setattr(n_mod, "_nifty_md", lambda: fake)
+        sentinel = {"mode": "live", "spot": 2.0}
+        monkeypatch.setattr(n_mod, "get_cached_live",
+                            AsyncMock(return_value=sentinel))
+        assert await n_mod.get_live_report("2026-10-29") is sentinel
+
+    async def test_live_path_builds_and_caches(self, monkeypatch):
+        import types
+        from api.reports_api import nifty as n_mod
+        calls = {"n": 0}
+
+        def _snap():
+            calls["n"] += 1
+            return _live_snapshot()
+
+        fake = types.SimpleNamespace(is_live=lambda: True, snapshot=_snap)
+        monkeypatch.setattr(n_mod, "_nifty_md", lambda: fake)
+        monkeypatch.setattr(n_mod, "_fetch_nifty_candles_cached",
+                            lambda *a, **k: [])
+        monkeypatch.setattr(n_mod, "_attach_verdicts",
+                            AsyncMock(return_value=None))
+        first = await n_mod.get_live_report("2026-10-29")
+        assert first["spot"] == 22700.0
+        assert len(first["strikes"]) == 25
+        # WS vix preferred (_attach_verdicts was stubbed, so no REST block).
+        assert first["vix"] == 13.5
+        second = await n_mod.get_live_report("2026-10-29")
+        assert second is first  # ~1s cache: one build shared
+        assert calls["n"] == 1
+
+
+# ---------------- previous-session pivots ----------------
+
+def _daily_payload():
+    """Upstox /historical-candle daily shape, newest-first.
+
+    First row is today's (partial) session and must never be used as the
+    pivot source; the 2026-10-15 row is the previous completed session.
+    """
+    candles = [
+        ["2026-10-16T00:00:00+05:30", 23000.0, 23100.0, 22900.0, 23050.0, 0, 0],
+        ["2026-10-15T00:00:00+05:30", 22700.0, 23056.4, 22637.4, 22997.35, 0, 0],
+        ["2026-10-14T00:00:00+05:30", 22600.0, 22750.0, 22500.0, 22640.0, 0, 0],
+    ]
+    return {"data": {"candles": candles}}
+
+
+@pytest.fixture()
+def _clear_pivots_cache():
+    nifty._PIVOTS_CACHE.update(date=None, value=None)
+    yield
+    nifty._PIVOTS_CACHE.update(date=None, value=None)
+
+
+class TestComputePivotsFromCandles:
+    def test_classic_values_hand_computed(self):
+        # H 23056.4, L 22637.4, C 22997.35 → hl = 419.0, pp = 68691.15/3
+        out = nifty.compute_pivots_from_candles(
+            _daily_payload()["data"]["candles"], "2026-10-16")
+        assert out["type"] == "classic"
+        assert out["pp"] == 22897.05
+        assert out["r1"] == 23156.70   # 2*pp - L
+        assert out["r2"] == 23316.05   # pp + hl
+        assert out["r3"] == 23575.70   # H + 2*(pp - L)
+        assert out["s1"] == 22737.70   # 2*pp - H
+        assert out["s2"] == 22478.05   # pp - hl
+        assert out["s3"] == 22318.70   # L - 2*(H - pp)
+        assert out["prev"] == {"date": "2026-10-15", "high": 23056.4,
+                               "low": 22637.4, "close": 22997.35}
+
+    def test_picks_newest_prior_session_regardless_of_order(self):
+        rows = _daily_payload()["data"]["candles"]
+        # Feed oldest-first: date selection, not row order, must decide.
+        out = nifty.compute_pivots_from_candles(list(reversed(rows)),
+                                                "2026-10-16")
+        assert out["prev"]["date"] == "2026-10-15"
+        assert out["pp"] == 22897.05
+
+    def test_today_row_excluded(self):
+        rows = [
+            ["2026-10-16T00:00:00+05:30", 1.0, 2.0, 0.5, 1.5, 0, 0],
+            ["2026-10-15T00:00:00+05:30", 22700.0, 23056.4, 22637.4,
+             22997.35, 0, 0],
+        ]
+        out = nifty.compute_pivots_from_candles(rows, "2026-10-16")
+        assert out["prev"] == {"date": "2026-10-15", "high": 23056.4,
+                               "low": 22637.4, "close": 22997.35}
+
+    def test_empty_or_no_prior_session_is_none(self):
+        rows = [["2026-10-16T00:00:00+05:30", 1, 2, 1, 1.5, 0, 0]]
+        assert nifty.compute_pivots_from_candles(rows, "2026-10-16") is None
+        assert nifty.compute_pivots_from_candles([], "2026-10-16") is None
+        assert nifty.compute_pivots_from_candles(None, "2026-10-16") is None
+
+    def test_never_raises_on_garbage(self):
+        assert nifty.compute_pivots_from_candles(["nope"], "2026-10-16") is None
+        assert nifty.compute_pivots_from_candles(
+            [[None, None, None, None, None]], "2026-10-16") is None
+        assert nifty.compute_pivots_from_candles(
+            _daily_payload()["data"]["candles"], "not-a-date") is None
+
+
+class TestGetPivotsBlock:
+    async def test_success_returns_block(self, _clear_pivots_cache):
+        with patch("api.options.fetch_upstox",
+                   AsyncMock(return_value=_daily_payload())):
+            out = await nifty.get_pivots_block("2026-10-16")
+        assert out is not None
+        assert out["pp"] == 22897.05
+        assert out["type"] == "classic"
+
+    async def test_fetch_failure_is_none_without_raising(self, _clear_pivots_cache):
+        with patch("api.options.fetch_upstox",
+                   AsyncMock(side_effect=RuntimeError("boom"))):
+            out = await nifty.get_pivots_block("2026-10-16")
+        assert out is None
+
+    async def test_cache_one_fetch_per_day(self, _clear_pivots_cache):
+        fetch = AsyncMock(return_value=_daily_payload())
+        with patch("api.options.fetch_upstox", fetch):
+            first = await nifty.get_pivots_block("2026-10-16")
+            second = await nifty.get_pivots_block("2026-10-16")
+        assert fetch.call_count == 1  # second call served from the day cache
+        assert first is second
+
+    async def test_new_day_refetches(self, _clear_pivots_cache):
+        fetch = AsyncMock(return_value=_daily_payload())
+        with patch("api.options.fetch_upstox", fetch):
+            await nifty.get_pivots_block("2026-10-16")
+            await nifty.get_pivots_block("2026-10-17")
+        assert fetch.call_count == 2
+
+    async def test_live_report_carries_pivots(self, _clear_pivots_cache):
+        from api.reports_api import nifty as n_mod
+
+        async def fake_fetch(path, params=None):
+            if path.startswith("/historical-candle/"):
+                return _daily_payload()
+            return _chain_payload()
+
+        with patch("api.options.fetch_upstox",
+                   AsyncMock(side_effect=fake_fetch)), \
+             patch.object(n_mod, "_fetch_nifty_candles_cached",
+                          lambda *a, **k: []):
+            nifty._live_cache.clear()
+            rep = await get_nifty_live(expiry="2026-10-13")
+        assert rep["pivots"] is not None
+        assert rep["pivots"]["pp"] == 22897.05
+        assert rep["pivots"]["prev"]["date"] == "2026-10-15"
+
+    async def test_live_report_pivots_none_on_failure(self, _clear_pivots_cache):
+        from api.reports_api import nifty as n_mod
+
+        async def fake_fetch(path, params=None):
+            if path.startswith("/historical-candle/"):
+                raise RuntimeError("boom")
+            return _chain_payload()
+
+        with patch("api.options.fetch_upstox",
+                   AsyncMock(side_effect=fake_fetch)), \
+             patch.object(n_mod, "_fetch_nifty_candles_cached",
+                          lambda *a, **k: []):
+            nifty._live_cache.clear()
+            rep = await get_nifty_live(expiry="2026-10-13")
+        assert rep["pivots"] is None  # degrades, never raises

@@ -73,7 +73,9 @@ class TestSRBreakoutSignalGenerator:
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
         r1 = pivots["R1"]
         r2 = pivots["R2"]
-        price = r1 * (1 + self.gen.breakout_buffer_pct / 100) + 1
+        # +0.1 keeps the price a fresh breakout just past the buffer edge and
+        # clearly inside the tightened 2% max_distance_from_r1_pct guard.
+        price = r1 * (1 + self.gen.breakout_buffer_pct / 100) + 0.1
         signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
         assert signal is not None
         assert signal.signal_type == SignalType.LONG_ENTRY
@@ -85,7 +87,10 @@ class TestSRBreakoutSignalGenerator:
         pivots = self.gen.calculate_pivot_points(prev_high=100, prev_low=80, prev_close=90)
         s1 = pivots["S1"]
         s2 = pivots["S2"]
-        price = s1 * (1 - self.gen.breakout_buffer_pct / 100) - 1
+        # -0.1 keeps the price a fresh breakdown just past the buffer edge and
+        # inside the 2% max_distance_from_s1_pct guard.  (The old -1 price was
+        # 2.25% below S1 — exactly the late-chase entry the new guard rejects.)
+        price = s1 * (1 - self.gen.breakout_buffer_pct / 100) - 0.1
         signal = self.gen.check_entry("TEST", {"current_price": price, "pivot_points": pivots})
         assert signal is not None
         assert signal.signal_type == SignalType.SHORT_ENTRY

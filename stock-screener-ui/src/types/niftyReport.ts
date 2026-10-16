@@ -97,6 +97,10 @@ export interface NiftyRegimeBlock {
   straddle_open: number | null;
   straddle_now: number | null;
   straddle_pct: number | null;
+  /** Intraday bars backing `rv`; the RV/IV vote is ignored below a threshold. */
+  bars?: number | null;
+  /** True while too few bars exist for RV to be trusted. */
+  warmup?: boolean | null;
 }
 
 /** India VIX block. */
@@ -112,10 +116,52 @@ export interface NiftyVixBlock {
 export interface NiftyStrengthBlock {
   verdict: NiftyStrengthVerdict | null;
   score: number | null;
+  ema9?: number | null;
   ema20: number | null;
   ema50: number | null;
   rsi: number | null;
   pos_in_range: number | null;
+}
+
+/** One 1-minute intraday candle backing the Nifty chart + EMAs. */
+export interface NiftyIntradayCandle {
+  time: string;
+  open: number;
+  high: number;
+  low: number;
+  close: number;
+}
+
+/** One EMA series aligned index-wise to `intraday`. */
+export interface NiftyEmaSeries {
+  period: number;
+  data: (number | null)[];
+}
+
+/** Previous session's OHLC the pivots were derived from — null-safe fields. */
+export interface NiftyPivotPrev {
+  date: string | null;
+  high: number | null;
+  low: number | null;
+  close: number | null;
+}
+
+/**
+ * Classic pivots block — computed by the backend from the previous session's
+ * H/L/C. `NiftyReport.pivots` is `null`/absent when the backend has not
+ * produced the block yet (the chart draws nothing); each level is
+ * individually nullable so a partial payload still draws what it carries.
+ */
+export interface NiftyPivots {
+  type: string;
+  pp: number | null;
+  r1: number | null;
+  r2: number | null;
+  r3: number | null;
+  s1: number | null;
+  s2: number | null;
+  s3: number | null;
+  prev: NiftyPivotPrev | null;
 }
 
 /**
@@ -222,6 +268,12 @@ export interface NiftyReport {
   strikes: NiftyStrike[];
   timeline: NiftyTimelineEvent[];
   candles?: ReplayCandle[];
+  /** 1-minute intraday candles (preferred chart source when present). */
+  intraday?: NiftyIntradayCandle[];
+  /** EMA series aligned index-wise to `intraday`. */
+  emas?: NiftyEmaSeries[];
+  /** Classic pivots from the previous session — `null` renders nothing. */
+  pivots?: NiftyPivots | null;
   fetchedAt?: string;
   snapshotAt?: string;
   gex?: NiftyGex;

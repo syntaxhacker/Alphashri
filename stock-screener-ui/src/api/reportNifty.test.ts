@@ -578,3 +578,57 @@ describe("fetchNiftyBursts (additive feed, never throws)", () => {
     await expect(fetchNiftyBursts()).resolves.toEqual([]);
   });
 });
+
+describe("normalizeReport intraday + emas (1-minute chart overlays)", () => {
+  test("maps intraday candles and ema series", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      intraday: [
+        { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620 },
+        { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25750.5 },
+      ],
+      emas: [
+        { period: 9, data: [null, 25685.25] },
+        { period: 20, data: [null, 25690.5] },
+      ],
+    });
+    expect(rep.intraday).toHaveLength(2);
+    expect(rep.intraday![0]).toEqual({
+      time: "2026-10-12T09:15:00",
+      open: 25600,
+      high: 25650,
+      low: 25580,
+      close: 25620,
+    });
+    expect(rep.emas).toEqual([
+      { period: 9, data: [null, 25685.25] },
+      { period: 20, data: [null, 25690.5] },
+    ]);
+  });
+
+  test("non-finite ema points become null, non-array stays undefined", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      intraday: [{ time: "t", open: 1, high: 2, low: 0, close: 1.5 }],
+      emas: [{ period: 9, data: [null, "bad", Infinity, 100] }],
+    });
+    expect(rep.emas![0].data).toEqual([null, null, null, 100]);
+    const bare = normalizeReport(snakeReport);
+    expect(bare.intraday).toBeUndefined();
+    expect(bare.emas).toBeUndefined();
+  });
+
+  test("strength block carries ema9 null-safe", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      strength: { verdict: "strong", score: 72.5, ema9: 25680.25, ema20: 25700, ema50: 25600, rsi: 61.3 },
+    });
+    expect(rep.strength!.ema9).toBe(25680.25);
+    const partial = normalizeReport({
+      ...snakeReport,
+      strength: { verdict: "weak", ema9: "bad" },
+    });
+    expect(partial.strength!.ema9).toBeNull();
+    expect(partial.strength!.ema20).toBeNull();
+  });
+});

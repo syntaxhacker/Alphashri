@@ -247,6 +247,16 @@ class TestRegimeVerdict:
         assert nv.regime_verdict(None, None, None) == "neutral"
         assert nv.regime_verdict(None, 5.0, None) == "neutral"
 
+    def test_rv_ignored_during_warmup(self):
+        # 12 bars at the open: RV/IV ~1.8x must NOT call "buy premium".
+        assert nv.regime_verdict(83.0, 24.8, 13.7, bars=12) == "neutral"
+
+    def test_rv_trusted_after_warmup(self):
+        assert nv.regime_verdict(83.0, 24.8, 13.7, bars=30) == "trend_buy"
+
+    def test_bars_none_skips_guard(self):
+        assert nv.regime_verdict(83.0, 24.8, 13.7) == "trend_buy"
+
 
 class TestStraddle:
     def test_open_now_pct(self):
@@ -278,12 +288,14 @@ class TestComputeRegime:
         out = nv.compute_regime(candles=candles, baseline=200.0, iv=15.0,
                                 tape_rows=rows)
         assert set(out) == {"verdict", "range_pts", "range_baseline_pts",
-                            "range_pct", "rv", "iv", "straddle_open",
-                            "straddle_now", "straddle_pct"}
+                            "range_pct", "rv", "iv", "bars", "warmup",
+                            "straddle_open", "straddle_now", "straddle_pct"}
         assert out["range_pts"] == 119.0
         assert out["range_pct"] == pytest.approx(59.5, abs=0.01)
         assert out["straddle_open"] == 200.0
         assert out["straddle_now"] == 170.0
+        assert out["bars"] == 20
+        assert out["warmup"] is True  # 20 < REGIME_MIN_BARS
 
 
 # ---------------------------------------------------------------------------
@@ -331,8 +343,47 @@ class TestComputeStrength:
 
     def test_contract_keys(self):
         out = nv.compute_strength([], spot=None)
-        assert set(out) == {"verdict", "score", "ema20", "ema50", "rsi",
-                            "pos_in_range"}
+        assert set(out) == {"verdict", "score", "ema9", "ema20", "ema50",
+                            "rsi", "pos_in_range"}
+
+    def test_ema9_present_when_enough_closes(self):
+        candles = self._series(22000.0, 1.0)
+        out = nv.compute_strength(candles, spot=22059.0)
+        assert out["ema9"] is not None
+        assert out["ema9"] == pytest.approx(nv.ema(
+            [c["close"] for c in candles], 9), abs=0.01)
+
+    def test_ema9_none_with_few_closes(self):
+        candles = self._series(22000.0, 1.0, n=8)
+        out = nv.compute_strength(candles, spot=22007.0)
+        assert out["ema9"] is None
+        assert out["ema20"] is None
+
+
+class TestEmaSeries:
+    def test_length_and_seed(self):
+        values = [float(i) for i in range(1, 11)]
+        out = nv.ema_series(values, 3)
+        assert len(out) == len(values)
+        assert out[0] is None and out[1] is None
+        assert all(v is not None for v in out[2:])
+
+    def test_tail_matches_ema(self):
+        values = [float(i) for i in range(1, 31)]
+        for period in (9, 20):
+            out = nv.ema_series(values, period)
+            assert len(out) == len(values)
+            assert out[-1] == pytest.approx(nv.ema(values, period))
+
+    def test_insufficient_returns_all_none(self):
+        assert nv.ema_series([1.0, 2.0], 3) == [None, None]
+        assert nv.ema_series([], 9) == []
+
+    def test_missing_close_stays_aligned(self):
+        values = [1.0, 2.0, None, 4.0, 5.0, 6.0]
+        out = nv.ema_series(values, 3)
+        assert len(out) == len(values)
+        assert out[2] is None
 
 
 # ---------------------------------------------------------------------------

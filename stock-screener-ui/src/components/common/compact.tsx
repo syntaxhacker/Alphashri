@@ -109,6 +109,8 @@ interface CompactStatProps extends UIPaperProps {
   hint?: ReactNode;
   labelSize?: "xs" | "sm" | "md" | "lg" | "xl";
   valueSize?: "xs" | "sm" | "md" | "lg" | "xl";
+  /** Dense mode: smaller label/value fonts + tighter padding (report pages). */
+  dense?: boolean;
 }
 
 export function CompactStat({
@@ -118,19 +120,23 @@ export function CompactStat({
   hint,
   labelSize = "xs",
   valueSize = "lg",
+  dense = false,
   ...paperProps
 }: CompactStatProps) {
   const { tokens: densityTokens } = useDensity();
+  const pad = dense ? 0.5 : densityTokens.statPad;
+  const resolvedLabelSize = dense ? ("xs" as const) : labelSize;
+  const resolvedValueSize = dense ? ("sm" as const) : valueSize;
   return (
     <Card elevation={0} data-compact-stat="" sx={{ bgcolor: palette.SURFACE, border: `1px solid ${palette.BORDER}` }} {...(paperProps as any)}>
-      <MuiCardContent sx={{ p: densityTokens.statPad, "&:last-child": { pb: densityTokens.statPad }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, textAlign: "center" }}>
+      <MuiCardContent sx={{ p: pad, "&:last-child": { pb: pad }, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", gap: 1, textAlign: "center" }}>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-          <Text size={labelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1} ta="center">
+          <Text size={resolvedLabelSize} tt="uppercase" fw={700} c="dimmed" lh={1.1} ta="center">
             {label}
           </Text>
         </Box>
         <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center", width: "100%" }}>
-          <Text size={valueSize} fw={700} c={tone} lh={1.1} ta="center">
+          <Text size={resolvedValueSize} fw={700} c={tone} lh={1.1} ta="center">
             {value}
           </Text>
         </Box>

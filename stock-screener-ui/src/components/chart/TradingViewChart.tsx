@@ -45,6 +45,8 @@ export interface TradingViewChartProps {
   livePosition?: UnifiedLivePosition;
   /** Colour theme: "nt" = NinjaTrader high-contrast (tick-replay palette). */
   theme?: "default" | "nt";
+  /** Price series style: "candles" (default) or a single close-price line. */
+  chartType?: "candles" | "line";
   /** Draw larger, higher-contrast BUY/SELL pills over entry markers (opt-in). */
   entryLabels?: boolean;
   /** Notified once the chart is created (and again on recreate) so callers can draw overlays. */
@@ -135,6 +137,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   rsiData,
   livePosition,
   theme = "default",
+  chartType = "candles",
   entryLabels = false,
   onChartReady,
 }, ref) {
@@ -151,6 +154,8 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
   const onReadyRef = useRef(onChartReady);
   onReadyRef.current = onChartReady;
   const overlayRef = useRef<HTMLCanvasElement>(null);
+  /** Pending pan/zoom/resize redraw frame — cancelled on cleanup. */
+  const rafRef = useRef<number | null>(null);
   const [ready, setReady] = useState(false);
 
   // create chart once — not on height/candles.
@@ -185,18 +190,25 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
     });
     chartRef.current = chart;
 
-    const candleSeries = chart.addSeries(CandlestickSeries, {
-      upColor: c.bull,
-      downColor: c.bear,
-      borderColor: c.bear,
-      borderUpColor: c.bull,
-      borderDownColor: c.bear,
-      wickUpColor: c.bull,
-      wickDownColor: c.bear,
-      borderVisible: !nt,
-      wickVisible: true,
-    });
-    candleSeriesRef.current = candleSeries as any;
+    const candleSeries = chartType === "line"
+      ? chart.addSeries(LineSeries, {
+          color: nt ? "#E5E7EB" : palette.PRIMARY,
+          lineWidth: 2 as LineWidth,
+          priceLineVisible: false,
+          lastValueVisible: true,
+        })
+      : chart.addSeries(CandlestickSeries, {
+          upColor: c.bull,
+          downColor: c.bear,
+          borderColor: c.bear,
+          borderUpColor: c.bull,
+          borderDownColor: c.bear,
+          wickUpColor: c.bull,
+          wickDownColor: c.bear,
+          borderVisible: !nt,
+          wickVisible: true,
+        });
+    candleSeriesRef.current = candleSeries as unknown as ISeriesApi<"Candlestick">;
 
     const volumeSeries = chart.addSeries(HistogramSeries, {
       color: c.volMuted,
@@ -234,7 +246,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       rsiPriceLinesRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [theme]);
+  }, [theme, chartType]);
 
   // height updates without recreate (fixed-height mode only)
   useEffect(() => {
@@ -336,16 +348,23 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       volumeSeriesRef.current.setData([]);
       return;
     }
-    const candleData: CandlestickData[] = candles
-      .map((c) => ({
-        time: toTime(c.time),
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-      }))
-      .sort((a, b) => (a.time as number) - (b.time as number));
-    candleSeriesRef.current.setData(candleData);
+    if (chartType === "line") {
+      const lineData: LineData[] = candles
+        .map((c) => ({ time: toTime(c.time), value: c.close }))
+        .sort((a, b) => (a.time as number) - (b.time as number));
+      candleSeriesRef.current.setData(lineData as any);
+    } else {
+      const candleData: CandlestickData[] = candles
+        .map((c) => ({
+          time: toTime(c.time),
+          open: c.open,
+          high: c.high,
+          low: c.low,
+          close: c.close,
+        }))
+        .sort((a, b) => (a.time as number) - (b.time as number));
+      candleSeriesRef.current.setData(candleData);
+    }
 
     // Index/indicator symbols carry no volume — an all-zero histogram leaves a
     // stray zero baseline + "0" last-value tag, so hide the series instead.
@@ -365,7 +384,7 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
       }))
       .sort((a: any, b: any) => (a.time as number) - (b.time as number));
     volumeSeriesRef.current.setData(volData as any);
-  }, [candles, theme]);
+  }, [candles, theme, chartType]);
 
   // horizontal overlay levels: ORB / pivots / 52W / highlighted SL-TP / position
   useEffect(() => {
@@ -629,16 +648,30 @@ export const TradingViewChart = forwardRef<TradingViewChartHandle, TradingViewCh
 
   useEffect(() => { drawEntryLabels(); }, [drawEntryLabels, ready]);
 
+  // Pan/zoom/resize redraws are coalesced into a single pending frame:
+  // without this every event queued its own RAF, each retaining the
+  // previous `drawEntryLabels` closure (and its candle arrays) until the
+  // frame fired — and a frame pending across cleanup drew on a dead canvas.
   useEffect(() => {
     const chart = chartRef.current;
     if (!chart) return;
-    const onRedraw = () => requestAnimationFrame(drawEntryLabels);
+    const onRedraw = () => {
+      if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        drawEntryLabels();
+      });
+    };
     chart.timeScale().subscribeVisibleLogicalRangeChange(onRedraw);
     const parent = overlayRef.current?.parentElement;
     const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(onRedraw) : null;
     if (parent && ro) ro.observe(parent);
     window.addEventListener("resize", onRedraw);
     return () => {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
       chart.timeScale().unsubscribeVisibleLogicalRangeChange(onRedraw);
       ro?.disconnect();
       window.removeEventListener("resize", onRedraw);

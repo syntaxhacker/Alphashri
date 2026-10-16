@@ -9,11 +9,15 @@ import type {
   NiftyBurstSignal,
   NiftyControlBlock,
   NiftyControlVerdict,
+  NiftyEmaSeries,
   NiftyGex,
   NiftyGexLevel,
   NiftyGexStrike,
+  NiftyIntradayCandle,
   NiftyMarketBlock,
   NiftyOptionSide,
+  NiftyPivots,
+  NiftyPivotPrev,
   NiftyPositioningBlock,
   NiftyPositioningLeg,
   NiftyPositioningStrike,
@@ -194,6 +198,8 @@ function normalizeRegime(raw: unknown): NiftyRegimeBlock | undefined {
     straddle_open: nullNum(r.straddle_open ?? r.straddleOpen),
     straddle_now: nullNum(r.straddle_now ?? r.straddleNow),
     straddle_pct: nullNum(r.straddle_pct ?? r.straddlePct),
+    bars: nullNum(r.bars),
+    warmup: typeof r.warmup === "boolean" ? r.warmup : null,
   };
 }
 
@@ -217,6 +223,7 @@ function normalizeStrength(raw: unknown): NiftyStrengthBlock | undefined {
   return {
     verdict: coerceVerdict(s.verdict, STRENGTH_VERDICTS) as NiftyStrengthVerdict | null,
     score: nullNum(s.score),
+    ema9: nullNum(s.ema9),
     ema20: nullNum(s.ema20),
     ema50: nullNum(s.ema50),
     rsi: nullNum(s.rsi),
@@ -318,6 +325,77 @@ function normalizeStructure(raw: unknown): NiftyStructureShift[] | undefined {
   return raw.map(normalizeStructureShift);
 }
 
+/** 1-minute intraday candles — absent/non-array → undefined. */
+export function normalizeIntraday(raw: unknown): NiftyIntradayCandle[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((c) => {
+    const row = (c ?? {}) as Record<string, unknown>;
+    return {
+      time: String(row.time ?? ""),
+      open: num(row.open),
+      high: num(row.high),
+      low: num(row.low),
+      close: num(row.close),
+    };
+  });
+}
+
+/** Non-finite EMA point → null so gaps render instead of breaking the line. */
+function nullEmaPoint(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  const n = typeof value === "string" ? Number(value) : (value as number);
+  return typeof n === "number" && Number.isFinite(n) ? n : null;
+}
+
+/** EMA series — absent/non-array → undefined, snake_case-tolerant. */
+export function normalizeEmas(raw: unknown): NiftyEmaSeries[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  return raw.map((e) => {
+    const row = (e ?? {}) as Record<string, unknown>;
+    const dataRaw = Array.isArray(row.data) ? row.data : [];
+    return {
+      period: num(row.period),
+      data: dataRaw.map(nullEmaPoint),
+    };
+  });
+}
+
+/**
+ * `pivots` block — classic pivots from the previous session's H/L/C.
+ * Null-safe: absent → `null`, non-finite levels → `null`, a partial payload
+ * keeps the levels it actually carries. Kept as `null` (not undefined) so a
+ * backend that explicitly answers `pivots: null` stays `null` — the chart
+ * treats both as "nothing to draw".
+ */
+export function normalizePivots(raw: unknown): NiftyPivots | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const p = raw as Record<string, unknown>;
+  const prevRaw = p.prev;
+  const prev: NiftyPivotPrev | null =
+    prevRaw !== null && prevRaw !== undefined && typeof prevRaw === "object"
+      ? (() => {
+          const r = prevRaw as Record<string, unknown>;
+          return {
+            date: typeof r.date === "string" ? r.date : null,
+            high: nullNum(r.high),
+            low: nullNum(r.low),
+            close: nullNum(r.close),
+          };
+        })()
+      : null;
+  return {
+    type: typeof p.type === "string" ? p.type : "classic",
+    pp: nullNum(p.pp),
+    r1: nullNum(p.r1),
+    r2: nullNum(p.r2),
+    r3: nullNum(p.r3),
+    s1: nullNum(p.s1),
+    s2: nullNum(p.s2),
+    s3: nullNum(p.s3),
+    prev,
+  };
+}
+
 /** Backend speaks snake_case; the panel speaks camelCase. Normalize once here. */
 export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
   const walls = (raw.walls ?? {}) as Record<string, { strike: number; oi: number }[]>;
@@ -351,6 +429,9 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     candles: Array.isArray(raw.candles)
       ? (raw.candles as NiftyReport["candles"])
       : undefined,
+    intraday: normalizeIntraday(raw.intraday),
+    emas: normalizeEmas(raw.emas),
+    pivots: normalizePivots(raw.pivots),
     fetchedAt: (raw.fetchedAt ?? raw.fetched_at) as string | undefined,
     snapshotAt: (raw.snapshotAt ?? raw.snapshot_at) as string | undefined,
     gex: normalizeGex(raw.gex),

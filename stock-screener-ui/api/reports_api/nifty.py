@@ -2,7 +2,7 @@
 
 Endpoints (all under the shared ``/api/reports`` prefix):
   - ``GET  /api/reports/nifty/live?expiry=YYYY-MM-DD`` — on-demand report built
-    from the live Upstox option chain (60s in-memory TTL).
+    from the live Upstox option chain (5s in-memory TTL).
   - ``GET  /api/reports/nifty?date=YYYY-MM-DD`` — serve a saved snapshot from
     ``experiments/data/nifty_reports/{date}.json`` (404 envelope when missing).
   - ``POST /api/reports/nifty/snapshot`` — build a snapshot (same computation
@@ -17,7 +17,7 @@ from __future__ import annotations
 import asyncio
 import json
 import time
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Optional
 
@@ -31,6 +31,7 @@ from api.reports_api.nifty_bursts import (
     OI_BURST_MIN_ABS,
     OI_BURST_WINDOW,
     attach_news,
+    coalesce_bursts,
     derive_oi_signal,
     detect_coiling,
     detect_oi_bursts,
@@ -46,9 +47,13 @@ router = APIRouter(prefix="/api/reports", tags=["reports-nifty"])
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_reports"
 
-_LIVE_TTL = 30
+_LIVE_TTL = 5
 _live_cache: dict[str, dict] = {}
 _sensex_cache: dict[str, dict] = {}
+#: yfinance 15m candles change at most once per 15-min bar, so a 5s report TTL
+#: must NOT refetch Yahoo every 5s (slow + rate-limited). 60s is plenty.
+_CANDLES_TTL = 60
+_candles_cache: dict[str, dict] = {}
 
 _MAX_PAIN_WINDOW = 1500.0
 _TOP_WALLS = 3
@@ -235,6 +240,22 @@ def _fetch_nifty_candles(date_str: str, walkback_days: int = 0) -> list[dict]:
         return []
 
 
+def _fetch_nifty_candles_cached(date_str: str, walkback_days: int = 0) -> list[dict]:
+    """``_fetch_nifty_candles`` behind a short TTL.
+
+    The report TTL is 5s but the 15-minute candles only change once per bar,
+    so without this Yahoo would be hit every 5s per report refresh.
+    """
+    key = f"{date_str}:{walkback_days}"
+    now = time.time()
+    hit = _candles_cache.get(key)
+    if hit and now - hit["ts"] < _CANDLES_TTL:
+        return hit["data"]
+    data = _fetch_nifty_candles(date_str, walkback_days)
+    _candles_cache[key] = {"ts": now, "data": data}
+    return data
+
+
 def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
     """Simplified dealer gamma exposure (GEX) per strike, in Cr per point.
 
@@ -325,6 +346,123 @@ def market_block() -> dict:
         "session_date": now.strftime("%Y-%m-%d"),
         "as_of": now.isoformat(),
     }
+
+
+# ---------------------------------------------------------------------------
+# Previous-session pivot levels (classic)
+# ---------------------------------------------------------------------------
+
+#: NSE index instrument key for Nifty 50 daily candles (pivot source), same
+#: form as ``NIFTY_KEY`` / ``VIX_KEY`` in :mod:`api.reports_api.nifty_verdicts`.
+NIFTY_PIVOT_KEY = "NSE_INDEX|Nifty 50"
+#: Calendar days to look back for the previous completed session's candle.
+_PIVOT_LOOKBACK_DAYS = 15
+
+#: One fetch per process day: the previous session's HLC only changes at the
+#: day boundary, so the pivot block is memoised like nifty_verdicts' baseline
+#: instead of being refetched on every 5s report rebuild.
+_PIVOTS_CACHE: dict = {"date": None, "value": None}
+
+
+def compute_pivots_from_candles(candles: Optional[list], today: str) -> Optional[dict]:
+    """Pure: classic pivot levels from raw Upstox daily candle rows.
+
+    Rows are ``[timestamp, open, high, low, close, volume, oi]`` and come
+    newest-first, so the previous completed session is ``candles[1]`` — but the
+    selection picks the newest row whose date is strictly less than ``today``
+    to be resilient to ordering quirks. Returns the report ``pivots`` envelope
+    (``type`` + ``pp/r1/r2/r3/s1/s2/s3`` + ``prev`` HLC) or ``None`` when no
+    usable prior session exists. Never raises.
+    """
+    try:
+        datetime.strptime(today, "%Y-%m-%d")  # an invalid reference date
+        rows = [r for r in (candles or [])
+                if isinstance(r, (list, tuple)) and len(r) >= 5
+                and str(r[0])[:10] < today]
+        if not rows:
+            return None
+        prev = max(rows, key=lambda r: str(r[0])[:10])
+        high, low, close = float(prev[2]), float(prev[3]), float(prev[4])
+        if not (high and low and close):
+            return None
+        from trading.pivot_utils import calculate_pivot_points
+        pp = calculate_pivot_points(high, low, close, "classic")
+        return {
+            "type": "classic",
+            "pp": round(pp.pp, 2),
+            "r1": round(pp.r1, 2),
+            "r2": round(pp.r2, 2),
+            "r3": round(pp.r3, 2),
+            "s1": round(pp.s1, 2),
+            "s2": round(pp.s2, 2),
+            "s3": round(pp.s3, 2),
+            "prev": {
+                "date": str(prev[0])[:10],
+                "high": round(high, 2),
+                "low": round(low, 2),
+                "close": round(close, 2),
+            },
+        }
+    except Exception:
+        return None
+
+
+def _extract_daily_candles(payload: Any) -> list:
+    """``data.candles`` list from an Upstox historical-candle payload."""
+    try:
+        candles = ((payload or {}).get("data") or {}).get("candles") or []
+        return candles if isinstance(candles, list) else []
+    except Exception:
+        return []
+
+
+async def _fetch_pivots(today: str) -> Optional[dict]:
+    """Previous-session pivots from the Upstox daily-candle endpoint.
+
+    Same shape as ``nifty_verdicts._fetch_vix_prev_close``: daily candles come
+    newest-first and the v2 endpoint has several interval spellings (``day`` is
+    canonical; ``days/1`` and ``day/1`` both 404 with UDAPI100060). Tries each
+    until one yields a usable prior session.
+    """
+    from api.options import fetch_upstox
+    import urllib.parse
+    enc = urllib.parse.quote(NIFTY_PIVOT_KEY, safe="")
+    try:
+        ref = datetime.strptime(today, "%Y-%m-%d")
+    except ValueError:
+        return None
+    from_date = (ref - timedelta(days=_PIVOT_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+    for interval in ("day", "days/1", "day/1"):
+        try:
+            payload = await fetch_upstox(
+                f"/historical-candle/{enc}/{interval}/{today}/{from_date}")
+        except Exception:
+            continue
+        value = compute_pivots_from_candles(_extract_daily_candles(payload), today)
+        if value is not None:
+            return value
+    return None
+
+
+async def get_pivots_block(today: Optional[str] = None) -> Optional[dict]:
+    """Pivot block for ``today``, fetched at most once per process day.
+
+    Only successful fetches are memoised (same policy as the VIX block) so a
+    transient failure at 09:20 does not blank the levels for the whole day.
+    Never raises — ``None`` on any failure (the UI renders nothing).
+    """
+    date_str = today or _today_str()
+    if _PIVOTS_CACHE["date"] == date_str and _PIVOTS_CACHE["value"] is not None:
+        return _PIVOTS_CACHE["value"]
+    value: Optional[dict] = None
+    try:
+        value = await _fetch_pivots(date_str)
+    except Exception:
+        value = None
+    if value is not None:
+        _PIVOTS_CACHE["date"] = date_str
+        _PIVOTS_CACHE["value"] = value
+    return value
 
 
 def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
@@ -460,6 +598,33 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
         report["structure"] = detect_structure_shifts(tape)[-12:]
     except Exception:
         report["structure"] = []
+    # 1-minute intraday candles + index-aligned EMA9/EMA20 series for the UI
+    # chart overlay. Degrades to [] so a failure never breaks /live.
+    try:
+        report["intraday"] = intraday or []
+        if intraday:
+            vals: list = []
+            for c in intraday:
+                v = (c or {}).get("close")
+                if v is None:
+                    vals.append(None)
+                else:
+                    try:
+                        vals.append(float(v))
+                    except (TypeError, ValueError):
+                        vals.append(None)
+            report["emas"] = [
+                {"period": 9, "data": nv.ema_series(vals, 9)},
+                {"period": 20, "data": nv.ema_series(vals, 20)},
+            ]
+        else:
+            report["emas"] = []
+    except Exception:
+        try:
+            report["intraday"] = intraday or []
+        except Exception:
+            report["intraday"] = []
+        report["emas"] = []
 
 
 async def _async_none() -> None:
@@ -502,12 +667,19 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
             spot = (await get_spot_price("NIFTY")).get("spot", 0)
         except Exception:
             pass
-    candles = (_fetch_nifty_candles(for_date or _today_str(),
-                                     walkback_days=walkback_days)
+    candles = (await asyncio.to_thread(_fetch_nifty_candles_cached,
+                                          for_date or _today_str(),
+                                          walkback_days)
                if with_candles else [])
     report = build_report(chain_expiry or expiry, spot, rows, mode="live",
                           candles=candles)
     report["market"] = market_block()
+    # Previous-session pivot levels (classic), cached per process day. A
+    # failure stores None so the chart simply renders no levels.
+    try:
+        report["pivots"] = await get_pivots_block(for_date or _today_str())
+    except Exception:
+        report["pivots"] = None
     if with_verdicts:
         await _attach_verdicts(report, rows, spot, for_date)
     return report
@@ -617,12 +789,14 @@ async def get_nifty_expiries():
         raise HTTPException(status_code=502, detail=f"expiries fetch failed: {e}")
 
 
-@router.get("/nifty/live")
-async def get_nifty_live(expiry: Optional[str] = Query(default=None, description="Expiry YYYY-MM-DD (default: nearest)")):
-    """On-demand Nifty report from the live Upstox option chain (60s TTL)."""
-    _ensure_tape_task()
-    if expiry:
-        _validate_date(expiry)
+async def get_cached_live(expiry: Optional[str] = None) -> dict:
+    """Live report with the shared 5s in-memory TTL.
+
+    The WS and the REST endpoint must both go through this: calling
+    ``_compute_live`` directly regenerates ``fetched_at`` on every call, which
+    made the WebSocket re-send the whole report every tick (heavy upstream
+    fetches + a 60KB frame + a full re-parse/re-render every 1s).
+    """
     key = expiry or "default"
     now = time.time()
     hit = _live_cache.get(key)
@@ -631,6 +805,183 @@ async def get_nifty_live(expiry: Optional[str] = Query(default=None, description
     report = await _compute_live(expiry)
     _live_cache[key] = {"ts": now, "data": report}
     return report
+
+
+# ---------------------------------------------------------------------------
+# Live WS path (api.reports_api.nifty_md, optional) with REST fallback
+# ---------------------------------------------------------------------------
+
+#: Minimum distinct strikes for a WS snapshot to count as a real chain.
+_MIN_LIVE_STRIKES = 20
+#: Live-built reports are fresh for ~1s so multiple WS clients share one build.
+_LIVE_WS_TTL = 1.0
+_live_ws_cache: dict[str, dict] = {}
+
+
+def _nifty_md() -> Optional[Any]:
+    """Return the ``nifty_md`` module, or ``None`` when unavailable.
+
+    The module is built in parallel — it may be missing, empty, or lack the
+    expected attrs. Every caller must treat ``None`` as "use the REST path".
+    """
+    try:
+        import importlib
+        mod = importlib.import_module("api.reports_api.nifty_md")
+    except Exception:
+        return None
+    if mod is None:
+        return None
+    for attr in ("is_live", "snapshot"):
+        if not callable(getattr(mod, attr, None)):
+            return None
+    return mod
+
+
+def build_report_from_live(snapshot: dict, expiry: Optional[str],
+                           candles: Optional[list[dict]] = None) -> Optional[dict]:
+    """Build the report envelope from a WS ``snapshot`` instead of REST rows.
+
+    ``snapshot`` legs are keyed ``"<strike>:ce"`` / ``"<strike>:pe"`` with
+    ``{oi, iv, ltp, volume, delta, gamma}``. Returns ``None`` when the legs
+    hold fewer than ~20 distinct strikes (not a real chain — the caller
+    falls back to REST). Never raises.
+    """
+    try:
+        legs = (snapshot or {}).get("legs") or {}
+        if not isinstance(legs, dict):
+            return None
+        grouped: dict[float, dict] = {}
+        for key, leg in legs.items():
+            try:
+                strike_raw, side = str(key).rsplit(":", 1)
+                strike = float(strike_raw)
+                side = side.strip().lower()
+                if side not in ("ce", "pe"):
+                    continue
+            except (TypeError, ValueError):
+                continue
+            if not isinstance(leg, dict):
+                leg = {}
+            grouped.setdefault(strike, {})[side] = leg
+        if len(grouped) < _MIN_LIVE_STRIKES:
+            return None
+
+        def _leg(d: dict) -> dict:
+            return {
+                "ltp": _safe_float(d.get("ltp")),
+                "oi": _safe_int(d.get("oi")),
+                "volume": _safe_int(d.get("volume")),
+                "oi_change": 0,
+                "sentiment": {"type": "Neutral"},
+                "gamma": _safe_float(d.get("gamma")),
+                "delta": _safe_float(d.get("delta")) if d.get("delta") is not None else None,
+                "iv": _safe_float(d.get("iv")) if d.get("iv") is not None else None,
+            }
+
+        rows = [
+            {"strike": strike,
+             "ce": _leg(sides.get("ce") or {}),
+             "pe": _leg(sides.get("pe") or {})}
+            for strike, sides in grouped.items()
+        ]
+        rows.sort(key=lambda r: r["strike"])
+        spot = _safe_float((snapshot or {}).get("spot"))
+        exp = expiry or (snapshot or {}).get("expiry") or ""
+        report = build_report(exp, spot, rows, mode="live",
+                              candles=candles or [])
+        try:
+            report["market"] = market_block()
+        except Exception:
+            pass
+        return report
+    except Exception:
+        return None
+
+
+async def get_live_report(expiry: Optional[str] = None) -> dict:
+    """Live report, preferring the WS snapshot when it is live.
+
+    When ``nifty_md.is_live()`` and the snapshot converts to a full report,
+    it is built once per ~1s (shared across WS clients) with verdicts
+    attached; otherwise this degrades to :func:`get_cached_live` (REST).
+    Never raises anything the REST path wouldn't raise.
+    """
+    key = expiry or "default"
+    try:
+        now = time.time()
+        hit = _live_ws_cache.get(key)
+        if hit and now - hit["ts"] < _LIVE_WS_TTL:
+            return hit["data"]
+    except Exception:
+        pass
+    try:
+        md = _nifty_md()
+        if md is not None and bool(md.is_live()):
+            snap = md.snapshot() or {}
+            if isinstance(snap, dict) and isinstance(snap.get("legs"), dict):
+                exp = expiry or snap.get("expiry") or ""
+                if not exp:
+                    try:
+                        from api.options import get_expiries as _get_expiries
+                        listing = await _get_expiries("NIFTY")
+                        exps = (listing or {}).get("expiries", []) or []
+                        if exps:
+                            exp = exps[0].get("date", "")
+                    except Exception:
+                        exp = ""
+                try:
+                    candles = await asyncio.to_thread(
+                        _fetch_nifty_candles_cached, _today_str(), 5)
+                except Exception:
+                    candles = []
+                report = build_report_from_live(snap, exp, candles)
+                if report is not None:
+                    try:
+                        await _attach_verdicts(
+                            report, report.get("strikes", []),
+                            report.get("spot", 0), None)
+                    except Exception:
+                        pass
+                    # Prefer the WS VIX reading when present; _attach_verdicts
+                    # already set report["vix"] to the REST block (or null).
+                    try:
+                        ws_vix = snap.get("vix")
+                        if ws_vix is not None:
+                            if isinstance(ws_vix, dict):
+                                report["vix"] = ws_vix
+                            elif isinstance(report.get("vix"), dict):
+                                try:
+                                    report["vix"] = {**report["vix"],
+                                                     "ltp": float(ws_vix)}
+                                except (TypeError, ValueError):
+                                    pass
+                            else:
+                                report["vix"] = ws_vix
+                    except Exception:
+                        pass
+                    # Previous-session pivot levels (classic), cached per
+                    # process day; None keeps the chart level-free.
+                    try:
+                        report["pivots"] = await get_pivots_block(None)
+                    except Exception:
+                        report["pivots"] = None
+                    try:
+                        _live_ws_cache[key] = {"ts": time.time(), "data": report}
+                    except Exception:
+                        pass
+                    return report
+    except Exception:
+        pass
+    return await get_cached_live(expiry)
+
+
+@router.get("/nifty/live")
+async def get_nifty_live(expiry: Optional[str] = Query(default=None, description="Expiry YYYY-MM-DD (default: nearest)")):
+    """On-demand Nifty report from the live Upstox option chain (5s TTL)."""
+    _ensure_tape_task()
+    if expiry:
+        _validate_date(expiry)
+    return await get_cached_live(expiry)
 
 
 @router.get("/nifty/sensex")
@@ -1355,6 +1706,9 @@ def get_nifty_bursts(
     except Exception:
         pass
     bursts.sort(key=lambda b: str(b.get("t") or ""))
+    # One alert per (minute, side): a single directional minute trips several
+    # strikes/detectors and they describe the same event.
+    bursts = coalesce_bursts(bursts)
     strikes, spot = _snapshot_oi_context(date_str)
     try:
         trend = session_trend(rows)

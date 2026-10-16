@@ -24,12 +24,14 @@ import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/Mar
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { detectOiBursts, sessionTrend } from "./niftyOiBursts";
 import { useNiftyBurstStream } from "@/hooks/useNiftyBurstStream";
+import { useNiftyReportStream } from "@/hooks/useNiftyReportStream";
 import type { OiBurst } from "./niftyOiBursts";
 import { TanStackTable } from "@/components/common/TanStackTable";
+import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact, ErrorAlert, InlineLoader } from "@/components/common/states";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { MarkLineData, PriceAreaData } from "@/utils/chart/types";
+import type { MarkLineData } from "@/utils/chart/types";
 import type {
   NiftyBurst,
   NiftyGex,
@@ -48,20 +50,41 @@ export interface NiftyReportPanelProps {
 export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineData[] {
   const lines: MarkLineData[] = [];
   const used: number[] = [];
-  const primaryLevels = [
-    ...report.walls.calls.slice(0, 2).map((w) => w.strike),
-    ...report.walls.puts.slice(0, 2).map((w) => w.strike),
-    ...(Number.isFinite(report.maxPain) && report.maxPain > 0 ? [report.maxPain] : []),
-  ];
-  used.push(...primaryLevels);
   const fresh = (s: number) => !used.some((u) => Math.abs(u - s) <= 25);
 
-  // Call/put walls and max pain are price zones (see buildMarkAreas). Keep
-  // this line overlay for the optional live GEX levels only.
+  // Call/put walls and max pain as horizontal price LINES. These were shaded
+  // price zones previously; the bands were too heavy, so they are lines now.
+  const topCalls = [...report.walls.calls].sort((a, b) => b.oi - a.oi).slice(0, 2);
+  const topPuts = [...report.walls.puts].sort((a, b) => b.oi - a.oi).slice(0, 2);
+  for (const w of topCalls) {
+    lines.push({
+      yAxis: w.strike,
+      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
+      label: { position: "insideEndTop", formatter: `CW ${w.strike}` },
+    });
+    used.push(w.strike);
+  }
+  for (const w of topPuts) {
+    lines.push({
+      yAxis: w.strike,
+      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
+      label: { position: "insideEndTop", formatter: `PW ${w.strike}` },
+    });
+    used.push(w.strike);
+  }
+  if (Number.isFinite(report.maxPain) && report.maxPain > 0) {
+    lines.push({
+      yAxis: report.maxPain,
+      lineStyle: { color: palette.PRIMARY, type: "solid", width: 2 },
+      label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
+    });
+    used.push(report.maxPain);
+  }
+
+  // Optional live GEX overlay: flip + gamma support/resistance, skipping
+  // strikes already drawn so the gutter never doubles up.
   if (!withGex || !report.gex) return lines;
 
-  // Live GEX overlay: flip + gamma support/resistance, skipping strikes
-  // already drawn as zones so the gutter never doubles up.
   const g = report.gex;
   if (g) {
     if (g.zeroCross != null && fresh(g.zeroCross)) {
@@ -92,30 +115,6 @@ export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineDa
     }
   }
   return lines;
-}
-
-/** Primary option levels rendered as shaded horizontal price zones. */
-export function buildMarkAreas(report: NiftyReport): PriceAreaData[] {
-  const strikes = report.strikes.map((s) => s.strike).filter((s) => Number.isFinite(s)).sort((a, b) => a - b);
-  const steps = strikes.slice(1).map((s, i) => s - strikes[i]).filter((s) => s > 0);
-  const step = steps.length > 0 ? Math.min(...steps) : 50;
-  const halfWidth = Math.max(5, Math.min(25, step / 2));
-  const areas: PriceAreaData[] = [];
-  const add = (level: number, label: string, color: string) => {
-    if (!Number.isFinite(level) || level <= 0) return;
-    areas.push({
-      from: level - halfWidth,
-      to: level + halfWidth,
-      color: hexToRgba(color, 0.14),
-      borderColor: color,
-      label: `${label} ${level}`,
-    });
-  };
-  // Labels match LevelLegend's codes (CW/PW/MP); "R"/"S" disagreed with it.
-  [...report.walls.calls].sort((a, b) => b.oi - a.oi).slice(0, 2).forEach((w) => add(w.strike, "CW", palette.NEGATIVE));
-  [...report.walls.puts].sort((a, b) => b.oi - a.oi).slice(0, 2).forEach((w) => add(w.strike, "PW", palette.POSITIVE));
-  if (Number.isFinite(report.maxPain) && report.maxPain > 0) add(report.maxPain, "MP", palette.PRIMARY);
-  return areas;
 }
 
 /** Overnight levels derived from the live chain — no static copy. */
@@ -287,22 +286,15 @@ export function formatGexLevel(strike: number, netGex: number): string {
 export function oiBurstLogHeight(count: number): number {
   return Math.min(22 + count * 20 + 18, 140);
 }
-/** Live poll cadence; backend `/live` already caches for 60s. */
-const LIVE_POLL_MS = 30_000;
-/** Current poll delay including the failure backoff (ms). */
-function pollDelayMs(failures: number): number {
-  return failures <= 0
-    ? LIVE_POLL_MS
-    : failures === 1
-      ? 15_000
-      : failures === 2
-        ? 30_000
-        : 60_000;
-}
-/** Data older than this is shown with a stale badge instead of an error. */
+/** Live updates arrive over the report WebSocket (the single live source) —
+    there is no HTTP polling in live mode. The one-shot REST `load()` below
+    only paints the first frame (and serves EOD mode). */
+/** The socket has been down this long → show the stale badge, not an error. */
 const STALE_AFTER_MS = 90_000;
-/** When the market is closed, poll this slowly just to catch the next open. */
-const REOPEN_CHECK_MS = 5 * 60_000;
+
+/** Chart height presets (px) for the "Nifty chart" panel size control. */
+export const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
+export type ChartSize = keyof typeof CHART_HEIGHTS;
 const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
@@ -489,17 +481,17 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   /** Backend-detected bursts; null = endpoint unavailable → derive locally. */
   const [bursts, setBursts] = useState<OiBurst[] | null>(null);
   const [view, setView] = useState<"chart" | "depth">("chart");
+  const [chartSize, setChartSize] = useState<ChartSize>("s");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
-  // Live auto-refresh bookkeeping: last-good timestamp, consecutive
-  // failures (drives retry backoff), wall-clock for staleness display,
-  // and a nonce so manual Refresh restarts the poll timer.
+  // Live bookkeeping: last-good timestamp + wall-clock for the staleness
+  // display. Live updates arrive via WS; Refresh re-runs the one-shot load.
   const [updatedAtMs, setUpdatedAtMs] = useState<number | null>(null);
-  const [failures, setFailures] = useState<number>(0);
   const [nowMs, setNowMs] = useState<number>(() => Date.now());
-  const [refreshKey, setRefreshKey] = useState<number>(0);
-  // Overlap guard: skip a poll tick while a fetch is still in flight.
+  // When the report socket dropped (null while connected / not live).
+  const [wsDownSinceMs, setWsDownSinceMs] = useState<number | null>(null);
+  // Overlap guard: skip a one-shot reload while a fetch is still in flight.
   const loadingRef = useRef<boolean>(false);
   // Invalidate and cancel requests when the report context changes. Without
   // this, a slow Live response can overwrite a newly selected EOD/expiry
@@ -509,8 +501,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const sensexControllerRef = useRef<AbortController | null>(null);
   const [streamed, setStreamed] = useState<NiftyBurst[]>([]);
 
-  // Exchange session gate (from the `market` block). When closed, the poll is
-  // stopped and the snapshot is labelled "Market closed" instead of "live".
+  // Exchange session gate (from the `market` block). When closed, the
+  // snapshot is labelled "Market closed" instead of "live".
   const marketClosed = report?.market?.is_open === false;
   const contextKey = mode === "eod" ? `eod:${date}` : `live:${expiry}`;
   const prevContext = useRef(contextKey);
@@ -579,7 +571,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       }
       if (tapeData) setTape(tapeData);
       setBursts(burstData as OiBurst[]);
-      setFailures(0);
       const now = Date.now();
       setUpdatedAtMs(now);
       setNowMs(now);
@@ -587,7 +578,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       if (requestId !== requestIdRef.current || controller.signal.aborted) return;
       // Keep the last-good report on screen; the full error alert only
       // renders when there is no cached data (see below).
-      setFailures((f) => f + 1);
       setNowMs(Date.now());
       setError(e instanceof Error ? e.message : "Failed to load Nifty report");
     } finally {
@@ -634,7 +624,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       setBursts(null);
       setStreamed([]);
       setError(null);
-      setFailures(0);
     }
   }, [contextKey]);
 
@@ -656,27 +645,76 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     }
   }, [mode, load, date]);
 
-  // Live auto-refresh: refetch on a 30s interval; on failure back off to
-  // 15s/30s/60s (capped at 60s) until success. The interval resets whenever
-  // mode/expiry/date/failure-count changes or Refresh is pressed, and is
-  // cleared on unmount or when leaving live mode. Ticks are skipped while
-  // the tab is hidden or a fetch is in flight — never piled up.
+  // Live report over WebSocket — the single live source. There is no HTTP
+  // polling fallback; the one-shot REST load above only paints the first
+  // frame so the page never waits on the socket.
+  const { report: wsReport, tape: wsTape, sensex: wsSensex, tick: wsTick, connected: wsConnected } = useNiftyReportStream({
+    expiry: expiry === "nearest" ? undefined : expiry,
+    enabled: mode === "live",
+  });
+
+  // A pushed report replaces the REST state directly — no refetch needed.
   useEffect(() => {
-    if (mode !== "live") return;
-    // Closed market: poll slowly (just to catch the next open), not every 30s.
-    const delay = marketClosed ? REOPEN_CHECK_MS : pollDelayMs(failures);
-    const id = setInterval(() => {
+    if (wsReport) {
+      setReport(wsReport);
+      setUpdatedAtMs(Date.now());
+    }
+  }, [wsReport]);
+
+  // Pushed tape/sensex keep those blocks live after the initial REST load.
+  // Nulls never arrive here (the hook keeps the last good value), so a
+  // non-null push always replaces the REST state.
+  useEffect(() => {
+    if (wsTape) {
+      setTape(wsTape);
+      setUpdatedAtMs(Date.now());
+    }
+  }, [wsTape]);
+
+  useEffect(() => {
+    if (wsSensex) {
+      setSensex(wsSensex);
+      setSensexError(null);
+      setUpdatedAtMs(Date.now());
+    }
+  }, [wsSensex]);
+
+  // A pushed spot tick advances the "Updated" label so the header feels live
+  // between report frames.
+  useEffect(() => {
+    if (wsTick) {
+      setUpdatedAtMs(Date.now());
+    }
+  }, [wsTick]);
+
+  // Track how long the live socket has been down. `nowMs` only moves on
+  // loads, WS pushes and tab-visibility flips, so schedule a one-shot
+  // wake-up at the stale threshold — this is a clock, never a refetch.
+  useEffect(() => {
+    if (mode !== "live" || marketClosed) {
+      setWsDownSinceMs(null);
+      return;
+    }
+    if (wsConnected) {
+      setWsDownSinceMs(null);
+      return;
+    }
+    setWsDownSinceMs((prev) => prev ?? Date.now());
+  }, [mode, marketClosed, wsConnected]);
+
+  useEffect(() => {
+    if (mode !== "live" || marketClosed || wsConnected || wsDownSinceMs === null) return;
+    const remaining = wsDownSinceMs + STALE_AFTER_MS - Date.now();
+    if (remaining <= 0) {
       setNowMs(Date.now());
-      if (document.hidden) return;
-      if (loadingRef.current) return;
-      void load();
-    }, delay);
-    return () => clearInterval(id);
-  }, [mode, expiry, date, failures, refreshKey, load, marketClosed]);
+      return;
+    }
+    const id = setTimeout(() => setNowMs(Date.now()), remaining + 250);
+    return () => clearTimeout(id);
+  }, [mode, marketClosed, wsConnected, wsDownSinceMs]);
 
   // Track tab visibility so the clock (and staleness badge) refreshes when
-  // the user returns; the poll loop above resumes on its own — no catch-up
-  // burst.
+  // the user returns.
   useEffect(() => {
     const onVisibility = () => {
       setNowMs(Date.now());
@@ -686,7 +724,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   }, []);
 
   const handleRefresh = useCallback(() => {
-    setRefreshKey((k) => k + 1);
     void load();
   }, [load]);
 
@@ -709,10 +746,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const markLines = useMemo(
     () => (report ? buildMarkLines(report, mode === "live" && !!report.gex) : []),
     [report, mode],
-  );
-  const priceAreas = useMemo(
-    () => (report ? buildMarkAreas(report) : []),
-    [report],
   );
 
   /** Readability: full chain is noise — show the ATM window only. */
@@ -788,12 +821,32 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     [report],
   );
 
+  /** Prefer 1-minute intraday candles (enough bars for EMAs); fall back to 15-min. */
+  const chartCandles = useMemo(
+    () =>
+      report?.intraday && report.intraday.length > 0
+        ? report.intraday
+        : (report?.candles ?? []),
+    [report],
+  );
+
+  /** EMA9 (warning) + EMA20 (primary) overlays, aligned to `intraday`. */
+  const emaData = useMemo(
+    () =>
+      (report?.emas ?? []).map((s) => ({
+        label: `EMA${s.period}`,
+        color: s.period === 9 ? palette.WARNING : palette.PRIMARY,
+        data: s.data,
+      })),
+    [report],
+  );
+
   // In-app OI-burst alerts. Bursts come from the backend when it has any
   // (they survive the tab being closed); an empty/absent backend answer falls
   // back to the local detector so the page never goes blind. Plain hook state.
-  // Server-pushed alerts (SSE) land here within ~seconds of the tape row,
-  // instead of waiting for the next 30s poll. The hook's seen-set dedupes, so
-  // an event arrives only once whether it came from the stream or the poll.
+  // Server-pushed alerts (WebSocket) land here within ~seconds of the tape row,
+  // instead of waiting for the next report frame. The hook's seen-set dedupes,
+  // so a burst from the REST snapshot and the stream arrives only once.
   const onStreamEvent = useCallback((b: NiftyBurst) => {
     setStreamed((prev) =>
       prev.some((x) => x.id === b.id) ? prev : [...prev, b].slice(-200),
@@ -847,20 +900,19 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     return () => clearTimeout(id);
   }, [replayCursor, trail, pushToast]);
 
-  // "Next update" mirrors the live poll schedule (EOD does not poll).
-  const liveDelay = mode === "live" && !marketClosed ? pollDelayMs(failures) : 0;
-  const nextUpdateAtMs =
-    mode === "live" && !marketClosed && updatedAtMs !== null && liveDelay > 0
-      ? updatedAtMs + liveDelay
-      : null;
+  // No "next update" in live mode — the socket pushes; EOD never updates.
+  const nextUpdateAtMs: number | null = null;
 
-  const staleAgeMs = updatedAtMs === null ? 0 : nowMs - updatedAtMs;
+  // Stale = the WS has been down for longer than STALE_AFTER_MS while the
+  // market is open. Derived purely from the socket, never from a poll timer.
+  const wsDownForMs = wsDownSinceMs === null ? 0 : nowMs - wsDownSinceMs;
   const isStale =
     mode === "live" &&
     !marketClosed &&
-    updatedAtMs !== null &&
-    staleAgeMs > STALE_AFTER_MS;
-  const staleMins = Math.max(1, Math.floor(staleAgeMs / 60_000));
+    !wsConnected &&
+    wsDownSinceMs !== null &&
+    wsDownForMs > STALE_AFTER_MS;
+  const staleMins = Math.max(1, Math.floor(wsDownForMs / 60_000));
   const updatedAtLabel =
     updatedAtMs === null
       ? ""
@@ -869,14 +921,19 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           timeZone: "Asia/Kolkata",
         });
 
+  // Hoisted so the GEX stat formats below can close over consts (keeps
+  // TS narrowing inside the format callbacks).
+  const gexTopSup = report?.gex?.topPositive[0] ?? null;
+  const gexTopRes = report?.gex?.topNegative[0] ?? null;
+
   return (
     <Box
       data-testid="nifty-report-panel"
       sx={{
         display: "flex",
         flexDirection: "column",
-        gap: 0.5,
-        p: 0.5,
+        gap: 0.25,
+        p: 0.25,
         width: "100%",
         maxWidth: "100%",
         minWidth: 0,
@@ -897,40 +954,37 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           boxShadow: "none",
         },
         "& [data-compact-header]": {
-          p: "2px 4px !important",
-          mb: "2px !important",
+          p: "1px 4px !important",
+          mb: "1px !important",
           borderBottom: `1px solid ${palette.TERM_BORDER} !important`,
         },
         "& [data-compact-header] .MuiTypography-root": {
-          fontSize: "11px !important",
+          fontSize: "10px !important",
           textTransform: "uppercase",
           letterSpacing: "0.05em",
           color: `${palette.TEXT_MUTED} !important`,
           fontWeight: 700,
         },
         "& .MuiCardContent-root": {
-          p: "4px 6px !important",
-          "&:last-child": { pb: "4px !important" },
+          p: "2px 4px !important",
+          "&:last-child": { pb: "2px !important" },
         },
         "& [data-compact-stat]": {
           bgcolor: "transparent !important",
           border: "none !important",
         },
         "& [data-compact-stat] .MuiCardContent-root": {
-          p: "1px 4px !important",
-          gap: "1px !important",
+          p: "0px 3px !important",
+          gap: "0px !important",
         },
         "& [data-compact-stat] .MuiTypography-root": { lineHeight: 1.05 },
         "& .MuiCardContent-root > div": { mb: "2px !important" },
         // Tables: smaller, tighter rows.
         "& .paper-tanstack-cell": {
-          fontSize: "11px !important",
-          paddingTop: "1px !important",
-          paddingBottom: "1px !important",
-          paddingLeft: "6px !important",
-          paddingRight: "6px !important",
+          fontSize: "10px !important",
+          padding: "0px 5px !important",
         },
-        "& .paper-tanstack-header-cell": { fontSize: "10px !important" },
+        "& .paper-tanstack-header-cell": { fontSize: "9px !important" },
       }}
     >
       <CompactPanel>
@@ -1025,7 +1079,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             >
               {marketClosed
                 ? `Market closed${report?.market?.session_date ? ` · last session ${report.market.session_date}` : ""}`
-                : `Updated ${updatedAtLabel} · auto 30s`}
+                : `Updated ${updatedAtLabel} · live (WS)`}
             </Text>
           )}
           {isStale && (
@@ -1094,7 +1148,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             sx={{
               display: "grid",
               gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "auto minmax(0, 1fr)" },
-              gap: 1,
+              gap: 0.5,
               alignItems: "stretch",
               width: "100%",
               maxWidth: "100%",
@@ -1104,24 +1158,48 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           >
             <CompactStatGrid>
               <CompactStat
+                dense
                 data-testid="nifty-stat-spot"
                 label="Spot"
-                value={report.spot.toLocaleString("en-IN")}
+                value={
+                  <AnimatedValue
+                    value={wsTick?.spot ?? report.spot}
+                    format={(v) => v.toLocaleString("en-IN")}
+                  />
+                }
               />
               <CompactStat
+                dense
                 data-testid="nifty-stat-pcr-oi"
                 label="PCR (OI)"
-                value={report.pcrOi.toFixed(2)}
+                value={
+                  <AnimatedValue
+                    value={report.pcrOi}
+                    format={(v) => v.toFixed(2)}
+                  />
+                }
               />
               <CompactStat
+                dense
                 data-testid="nifty-stat-pcr-vol"
                 label="PCR (Vol)"
-                value={report.pcrVol.toFixed(2)}
+                value={
+                  <AnimatedValue
+                    value={report.pcrVol}
+                    format={(v) => v.toFixed(2)}
+                  />
+                }
               />
               <CompactStat
+                dense
                 data-testid="nifty-stat-max-pain"
                 label="Max Pain"
-                value={report.maxPain.toLocaleString("en-IN")}
+                value={
+                  <AnimatedValue
+                    value={report.maxPain}
+                    format={(v) => v.toLocaleString("en-IN")}
+                  />
+                }
               />
             </CompactStatGrid>
             <NiftyVerdictStrip report={report} />
@@ -1131,26 +1209,31 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             <CompactPanel title="Sensex live" testId="nifty-sensex-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
               <CompactStatGrid>
                 <CompactStat
+                  dense
                   data-testid="sensex-stat-spot"
                   label="Spot"
                   value={sensex.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                 />
                 <CompactStat
+                  dense
                   data-testid="sensex-stat-support"
                   label="Support"
                   value={sensex.walls.puts[0]?.strike.toLocaleString("en-IN") ?? "—"}
                 />
                 <CompactStat
+                  dense
                   data-testid="sensex-stat-resistance"
                   label="Resistance"
                   value={sensex.walls.calls[0]?.strike.toLocaleString("en-IN") ?? "—"}
                 />
                 <CompactStat
+                  dense
                   data-testid="sensex-stat-max-pain"
                   label="Max Pain"
                   value={sensex.maxPain > 0 ? sensex.maxPain.toLocaleString("en-IN") : "—"}
                 />
                 <CompactStat
+                  dense
                   data-testid="sensex-stat-pcr-oi"
                   label="PCR (OI)"
                   value={sensex.pcrOi.toFixed(2)}
@@ -1181,16 +1264,33 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               flexShrink: 0,
             }}
           >
-          <CompactPanel title={view === "depth" ? "Nifty depth map" : "Nifty chart"} testId="nifty-chart-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
+          <CompactPanel
+            title={view === "depth" ? "Nifty depth map" : "Nifty chart"}
+            testId="nifty-chart-panel"
+            sx={{ minWidth: 0, flexShrink: 0 }}
+            action={
+              view === "chart" ? (
+                <SegmentedControl
+                  data-testid="nifty-chart-size"
+                  value={chartSize}
+                  onChange={(v) => setChartSize(v as ChartSize)}
+                  data={[
+                    { value: "s", label: "S" },
+                    { value: "m", label: "M" },
+                    { value: "l", label: "L" },
+                    { value: "xl", label: "XL" },
+                  ]}
+                  size="sm"
+                />
+              ) : undefined
+            }
+          >
             {view === "depth" ? (
               <NiftyDepthMap report={report} />
-            ) : report.candles && report.candles.length > 0 ? (
-              // Fixed pixel height, never vh: vh balloons on tall monitors and
-              // squishes on short ones. Inner box (inside the panel, not a
-              // direct page-column child) so overflow:hidden is safe here.
+            ) : chartCandles && chartCandles.length > 0 ? (
               <Box
                 data-testid="nifty-chart-wrap"
-                style={{ height: 180 }}
+                style={{ height: CHART_HEIGHTS[chartSize] }}
                 sx={{
                   display: "flex",
                   width: "100%",
@@ -1201,9 +1301,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 }}
               >
                 <TradingViewChart
-                  candles={report.candles}
+                  candles={chartCandles}
                   markLines={markLines}
-                  priceAreas={priceAreas}
+                  emaData={emaData}
+                  height={CHART_HEIGHTS[chartSize]}
                 />
               </Box>
             ) : (
@@ -1457,46 +1558,61 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             <Box data-testid="nifty-gex-row">
               <CompactStatGrid>
                 <CompactStat
+                  dense
                   data-testid="nifty-gex-net"
                   label="Net GEX"
-                  value={formatGexTotal(report.gex.netTotal)}
+                  value={
+                    <AnimatedValue
+                      value={report.gex.netTotal}
+                      format={(v) => formatGexTotal(v)}
+                    />
+                  }
                 />
                 <CompactStat
+                  dense
                   data-testid="nifty-gex-regime"
                   label="Regime"
                   value={gexRegimeText(report.gex.regime)}
                 />
                 <CompactStat
+                  dense
                   data-testid="nifty-gex-flip"
                   label="Gamma flip"
                   value={
-                    report.gex.zeroCross === null || report.gex.zeroCross === undefined
-                      ? "—"
-                      : report.gex.zeroCross.toLocaleString("en-IN")
+                    <AnimatedValue
+                      value={report.gex.zeroCross}
+                      format={(v) => v.toLocaleString("en-IN")}
+                    />
                   }
                 />
                 <CompactStat
+                  dense
                   data-testid="nifty-gex-sup"
                   label="Top support"
                   value={
-                    report.gex.topPositive[0]
-                      ? formatGexLevel(
-                          report.gex.topPositive[0].strike,
-                          report.gex.topPositive[0].netGex,
-                        )
-                      : "—"
+                    gexTopSup ? (
+                      <AnimatedValue
+                        value={gexTopSup.strike}
+                        format={(s) => formatGexLevel(s, gexTopSup.netGex)}
+                      />
+                    ) : (
+                      "—"
+                    )
                   }
                 />
                 <CompactStat
+                  dense
                   data-testid="nifty-gex-res"
                   label="Top resistance"
                   value={
-                    report.gex.topNegative[0]
-                      ? formatGexLevel(
-                          report.gex.topNegative[0].strike,
-                          report.gex.topNegative[0].netGex,
-                        )
-                      : "—"
+                    gexTopRes ? (
+                      <AnimatedValue
+                        value={gexTopRes.strike}
+                        format={(s) => formatGexLevel(s, gexTopRes.netGex)}
+                      />
+                    ) : (
+                      "—"
+                    )
                   }
                 />
               </CompactStatGrid>
@@ -1515,6 +1631,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               <CompactStatGrid>
                 {levels.resistance.map((r, i) => (
                   <CompactStat
+                    dense
                     key={`r-${r.strike}`}
                     data-testid={`nifty-level-r${i + 1}`}
                     label={i === 0 ? "Resistance R1" : "Resistance R2"}
@@ -1522,12 +1639,14 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   />
                 ))}
                 <CompactStat
+                  dense
                   data-testid="nifty-level-pain"
                   label={`Max-pain pull ${levels.painPull.dir}`}
                   value={`${report.maxPain.toLocaleString("en-IN")} (${levels.painPull.pct >= 0 ? "+" : ""}${levels.painPull.pct.toFixed(2)}%)`}
                 />
                 {levels.support.map((s, i) => (
                   <CompactStat
+                    dense
                     key={`s-${s.strike}`}
                     data-testid={`nifty-level-s${i + 1}`}
                     label={i === 0 ? "Support S1" : "Support S2"}
@@ -1565,26 +1684,31 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 <>
                   <CompactStatGrid>
                     <CompactStat
+                      dense
                       data-testid="sensex-focus-spot"
                       label="Spot"
                       value={sensex.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
                     />
                     <CompactStat
+                      dense
                       data-testid="sensex-focus-support"
                       label="Support zone"
                       value={sensex.walls.puts[0]?.strike.toLocaleString("en-IN") ?? "—"}
                     />
                     <CompactStat
+                      dense
                       data-testid="sensex-focus-resistance"
                       label="Resistance zone"
                       value={sensex.walls.calls[0]?.strike.toLocaleString("en-IN") ?? "—"}
                     />
                     <CompactStat
+                      dense
                       data-testid="sensex-focus-max-pain"
                       label="Max pain zone"
                       value={sensex.maxPain > 0 ? sensex.maxPain.toLocaleString("en-IN") : "—"}
                     />
                     <CompactStat
+                      dense
                       data-testid="sensex-focus-pcr"
                       label="PCR (OI)"
                       value={sensex.pcrOi.toFixed(2)}

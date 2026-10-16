@@ -177,6 +177,42 @@ def ema(values: list[float], period: int) -> Optional[float]:
     return e
 
 
+def ema_series(values: list, period: int) -> list[Optional[float]]:
+    """Per-bar EMA aligned index-wise to ``values`` (same length).
+
+    Same seeding as :func:`ema` (first value = mean of the first ``period``
+    valid closes, then recursive). Entries before the seed — and any gap
+    where the close is missing/``None`` — are ``None``; the tail equals
+    ``ema(values, period)`` when every close is present.
+    """
+    n = len(values or [])
+    out: list[Optional[float]] = [None] * n
+    if period <= 0 or n == 0:
+        return out
+    valid_idx: list[int] = []
+    valid_vals: list[float] = []
+    for i, v in enumerate(values):
+        if v is None:
+            continue
+        try:
+            valid_vals.append(float(v))
+        except (TypeError, ValueError):
+            continue
+        else:
+            valid_idx.append(i)
+    if len(valid_vals) < period:
+        return out
+    k = 2.0 / (period + 1.0)
+    e = sum(valid_vals[:period]) / period
+    seq: list[Optional[float]] = [None] * (period - 1) + [e]
+    for v in valid_vals[period:]:
+        e = v * k + e * (1.0 - k)
+        seq.append(e)
+    for j, idx in enumerate(valid_idx):
+        out[idx] = seq[j]
+    return out
+
+
 def rsi_wilder(closes: list[float], period: int = 14) -> Optional[float]:
     """Wilder's RSI over ``closes``; ``None`` until ``period + 1`` bars exist.
 
@@ -276,17 +312,26 @@ RV_IV_TREND = 1.15
 RV_IV_SELL = 0.60
 #: An ATM straddle down this much says long premium paid for nothing today.
 STRADDLE_BLEED_PCT = -15.0
+#: Annualising fewer than this many intraday bars makes RV unreliable — a
+#: 12-bar sample at the open routinely prints 2-3x the day's true RV, which
+#: fired a false "buy premium" at 09:27 on 2026-10-16. Below it the RV/IV ratio
+#: is ignored and the verdict falls back to range / straddle / neutral.
+REGIME_MIN_BARS = 30
 
 
 def regime_verdict(range_pct: Optional[float], rv: Optional[float],
                    iv: Optional[float],
-                   straddle_pct: Optional[float] = None) -> str:
+                   straddle_pct: Optional[float] = None,
+                   bars: Optional[int] = None) -> str:
     """Is this a tape worth BUYING premium on? First match wins.
 
-    The old rule said "trend_buy" whenever rv barely exceeded iv, or the range
-    cleared 110% — which on 2026-10-14 called a tape with a -22.6% ATM straddle
-    "BUY FAVOURED". Premium bleed is direct evidence against buying, so it now
-    votes, and a marginal vol ratio no longer decides on its own.
+    These are VOL regimes, not direction: ``trend_buy`` means "long premium"
+    (realised > implied), ``range_sell_premium`` means "short premium".
+
+    ``bars`` is the number of intraday candles backing ``rv``. When it is below
+    :data:`REGIME_MIN_BARS` the RV/IV ratio is not trusted (early-session RV is
+    inflated by the tiny sample); ``None`` skips the guard so the pure function
+    stays easy to unit-test.
     """
     if range_pct is not None and range_pct < RANGE_SELL_BELOW_PCT:
         return "range_sell_premium"
@@ -294,7 +339,7 @@ def regime_verdict(range_pct: Optional[float], rv: Optional[float],
     ratio = (rv / iv) if (rv is not None and iv) else None
     if range_pct is not None and range_pct > RANGE_TREND_ABOVE_PCT:
         return "trend_buy"
-    if ratio is not None:
+    if ratio is not None and (bars is None or bars >= REGIME_MIN_BARS):
         if ratio >= RV_IV_TREND:
             return "trend_buy"
         if ratio <= RV_IV_SELL:
@@ -334,14 +379,17 @@ def compute_regime(candles: Optional[list[dict]], baseline: Optional[float],
     if range_pts is not None and baseline:
         range_pct = round(range_pts / baseline * 100.0, 2)
     rv = realized_vol_pct(candles)
+    bars = len(_closes(candles))
     straddle_open, straddle_now, straddle_pct = straddle_from_tape(tape_rows)
     return {
-        "verdict": regime_verdict(range_pct, rv, iv, straddle_pct),
+        "verdict": regime_verdict(range_pct, rv, iv, straddle_pct, bars=bars),
         "range_pts": range_pts,
         "range_baseline_pts": baseline,
         "range_pct": range_pct,
         "rv": rv,
         "iv": iv,
+        "bars": bars,
+        "warmup": bars < REGIME_MIN_BARS,
         "straddle_open": straddle_open,
         "straddle_now": straddle_now,
         "straddle_pct": straddle_pct,
@@ -362,8 +410,9 @@ def strength_verdict(score: int) -> str:
 
 def compute_strength(candles: Optional[list[dict]],
                      spot: Optional[float] = None) -> dict:
-    """EMA20/50 + Wilder RSI(14) + position-in-range, blended into a 0-100 score."""
+    """EMA9/20/50 + Wilder RSI(14) + position-in-range, blended into a 0-100 score."""
     closes = _closes(candles)
+    ema9 = ema(closes, 9) if len(closes) >= 9 else None
     ema20 = ema(closes, 20) if len(closes) >= 20 else None
     ema50 = ema(closes, 50) if len(closes) >= 50 else None
     rsi = rsi_wilder(closes, 14)
@@ -381,6 +430,7 @@ def compute_strength(candles: Optional[list[dict]],
     return {
         "verdict": strength_verdict(score),
         "score": score,
+        "ema9": round(ema9, 2) if ema9 is not None else None,
         "ema20": round(ema20, 2) if ema20 is not None else None,
         "ema50": round(ema50, 2) if ema50 is not None else None,
         "rsi": round(rsi, 2) if rsi is not None else None,

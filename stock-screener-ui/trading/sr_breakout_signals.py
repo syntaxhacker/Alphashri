@@ -6,6 +6,17 @@ computed from the previous day's high, low, and close.  It supports classic,
 Fibonacci, and Camarilla pivot types and uses a configurable breakout buffer to
 filter false breakouts.  Exit logic covers stop-loss, take-profit, and an EOD
 force exit at 15:15 IST.
+
+Entry distance guards (independent checks, applied per side):
+
+- ``breakout_buffer_pct`` — MINIMUM trigger distance.  Price must be at least
+  this far past the level (above R1 / below S1) before an entry fires at all.
+- ``max_distance_from_r1_pct`` / ``max_distance_from_s1_pct`` — MAXIMUM chase
+  distance.  If price is already further than this past the level, the entry
+  is skipped: a breakout/breakdown that fired long ago is a chase at the
+  extreme of the move and tends to mean-revert straight into the stop.
+  (2026-10-16 evidence: shorts entered 2.5-14.4% below S1 and a long 4.8%
+  above R1 all stopped out — hence the symmetric guard, default 2.0%.)
 """
 
 from typing import Dict, Optional
@@ -24,7 +35,12 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
         self.tp_pct = config.get("tp_pct", 2.5)
         self.pivot_type = config.get("pivot_type", "classic")
         self.breakout_buffer_pct = config.get("breakout_buffer_pct", 1.0)
-        self.max_distance_from_r1_pct = float(config.get("max_distance_from_r1_pct", 5.0))
+        # Maximum chase distance past the level, per side.  Symmetric guards:
+        # the long default was tightened 5.0 -> 2.0 (a 4.8%-above-R1 entry
+        # stopped out on 2026-10-16); the short guard is new for the same
+        # reason (shorts entered up to 14.4% below S1 and all stopped out).
+        self.max_distance_from_r1_pct = float(config.get("max_distance_from_r1_pct", 2.0))
+        self.max_distance_from_s1_pct = float(config.get("max_distance_from_s1_pct", 2.0))
         eod_hour = int(config.get("eod_exit_hour", 15))
         eod_minute = int(config.get("eod_exit_minute", 15))
         super().__init__(sl_pct=self.sl_pct, tp_pct=self.tp_pct,
@@ -64,7 +80,10 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
 
         buf = self.breakout_buffer_pct / 100
 
-        # Skip if price is too far above R1 (already ran up too much)
+        # Minimum trigger distance: price must clear the level by at least the
+        # buffer to fire (different check from the max-distance guards below).
+        # Maximum chase distance (long): skip if price is too far above R1
+        # (already ran up too much — late entry at the extreme of the move).
         max_price = r1 * (1 + self.max_distance_from_r1_pct / 100)
         if current_price > max_price:
             return None
@@ -81,6 +100,15 @@ class SRBreakoutSignalGenerator(BaseSignalGenerator):
                 take_profit=tp,
                 notes=f"Breakout above R1 ₹{r1:.2f} -> TP=R2 ₹{tp:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%" if r2 and r2 > current_price else f"Breakout above R1 ₹{r1:.2f} | {self.pivot_type} pivots | SL {self.sl_pct}% buffer {self.breakout_buffer_pct}%",
             )
+
+        # Maximum chase distance (short): skip if price is too far below S1
+        # (already broke down too much — symmetric to the R1 guard above).
+        # Without this, "Breakdown below S1" fired no matter how far below S1
+        # price already was (2026-10-16: CCL entered 6.8% below S1, CYIENTDLM
+        # 14.4% below — all stopped out).
+        min_price = s1 * (1 - self.max_distance_from_s1_pct / 100)
+        if current_price < min_price:
+            return None
 
         if current_price < s1 * (1 - buf):
             sl, default_tp = self._calc_sl_tp("SELL", current_price)

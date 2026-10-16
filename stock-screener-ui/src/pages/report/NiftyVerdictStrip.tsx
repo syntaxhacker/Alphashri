@@ -1,6 +1,8 @@
 import Box from "@mui/material/Box";
+import type { ReactNode } from "react";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
+import { AnimatedValue } from "@/components/common/AnimatedValue";
 import type {
   NiftyControlVerdict,
   NiftyRegimeVerdict,
@@ -41,8 +43,11 @@ const CONTROL_LABELS: Record<NiftyControlVerdict, string> = {
 };
 
 const REGIME_LABELS: Record<NiftyRegimeVerdict, string> = {
-  range_sell_premium: "RANGE · SELL PREMIUM",
-  trend_buy: "TREND · BUY FAVOURED",
+  // These are VOL regimes, not direction: "buy premium" = long vol (realised >
+  // implied), "sell premium" = short vol. The old "TREND · BUY FAVOURED" label
+  // read as a directional uptrend and contradicted the control block.
+  range_sell_premium: "SELL PREMIUM",
+  trend_buy: "BUY PREMIUM · RV > IV",
   neutral: "NEUTRAL",
 };
 
@@ -91,10 +96,12 @@ interface VerdictCellProps {
   accent: string;
   primary: string;
   secondary: string;
+  /** Rich primary line (e.g. with AnimatedValue flashes); falls back to `primary`. */
+  primaryNode?: ReactNode;
 }
 
 /** One compact cell: a small status dot + verdict line + muted detail line. */
-function VerdictCell({ testId, accent, primary, secondary }: VerdictCellProps) {
+function VerdictCell({ testId, accent, primary, secondary, primaryNode }: VerdictCellProps) {
   return (
     <Box
       data-testid={testId}
@@ -118,7 +125,7 @@ function VerdictCell({ testId, accent, primary, secondary }: VerdictCellProps) {
           sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
         />
         <Text data-testid={`${testId}-primary`} size="xs" fw={700} c={accent} span truncate>
-          {primary}
+          {primaryNode ?? primary}
         </Text>
       </Box>
       <Text data-testid={`${testId}-secondary`} size="xs" c="dimmed" span truncate>
@@ -158,11 +165,20 @@ export function NiftyVerdictStrip({ report }: NiftyVerdictStripProps) {
   )} vs ~${fmtVerdictNum(regime?.range_baseline_pts)} pts · straddle ${fmtVerdictNum(
     regime?.straddle_pct,
     2,
-  )}%`;
+  )}%${regime?.warmup ? " · warm-up" : ""}`;
 
   const vixPrimary = `VIX ${fmtVerdictNum(vix?.ltp, 2)} (${fmtVerdictChange(
     vix?.change_pct,
   )}%)`;
+  // Same text as vixPrimary, but the two numbers flash on poll updates.
+  const vixPrimaryNode = (
+    <>
+      VIX{" "}
+      <AnimatedValue value={vix?.ltp ?? null} format={(v) => fmtVerdictNum(v, 2)} /> (
+      <AnimatedValue value={vix?.change_pct ?? null} format={(v) => fmtVerdictChange(v)} />
+      %)
+    </>
+  );
   const vixSecondary = `day ${fmtVerdictNum(vix?.day_low, 2)}–${fmtVerdictNum(
     vix?.day_high,
     2,
@@ -209,6 +225,7 @@ export function NiftyVerdictStrip({ report }: NiftyVerdictStripProps) {
         testId="nifty-verdict-vix"
         accent={vixAccent(vix?.change_pct)}
         primary={vixPrimary}
+        primaryNode={vixPrimaryNode}
         secondary={vixSecondary}
       />
       <VerdictCell
