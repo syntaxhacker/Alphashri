@@ -7,6 +7,9 @@ Endpoints (all under the shared ``/api/reports`` prefix):
     ``experiments/data/nifty_reports/{date}.json`` (404 envelope when missing).
   - ``POST /api/reports/nifty/snapshot`` — build a snapshot (same computation
     as live, plus timeline skeleton / snapshot_at / source) and persist it.
+  - ``GET  /api/reports/nifty/replay?date=YYYY-MM-DD[&t=ISO]`` — per-minute
+    FULL report snapshots recorded by the background tape tick into
+    ``experiments/data/nifty_snapshots/{date}.jsonl`` (replay source).
 
 Upstox access goes through :mod:`api.options` helpers, imported lazily inside
 the handlers so this module stays import-light (and cycle-free).
@@ -416,6 +419,43 @@ def _extract_daily_candles(payload: Any) -> list:
         return []
 
 
+def compute_reference(tape_rows: Optional[list[dict]],
+                      rows: Optional[list[dict]]) -> Optional[dict]:
+    """Fixed-strike ATM reference for the premium-vs-spot read.
+
+    The panel's rolling ATM leg re-anchors to the nearest strike every minute,
+    so it looks flat even when a *fixed* strike gains — on 2026-10-16 the 23,150
+    PE went 108 → 134 as spot fell 48 pts, while the rolling ATM read −2. This
+    pins the day's FIRST ATM strike and reports its open premium (from the
+    tape's first row) against its current premium (from the chain), so the
+    directional move is visible instead of self-cancelling. Never raises.
+    """
+    try:
+        first = next((r for r in (tape_rows or [])
+                      if _safe_float(r.get("atm_strike")) > 0), None)
+        if not first:
+            return None
+        strike = _safe_float(first.get("atm_strike"))
+        ce_open = _safe_float(first.get("atm_ce_ltp")) or None
+        pe_open = _safe_float(first.get("atm_pe_ltp")) or None
+        row = next((r for r in (rows or [])
+                    if _safe_float(r.get("strike")) == strike), None)
+        if row is None:
+            return None
+        ce = _safe_float((row.get("ce") or {}).get("ltp")) or None
+        pe = _safe_float((row.get("pe") or {}).get("ltp")) or None
+        return {
+            "strike": strike,
+            "ce_open": ce_open, "pe_open": pe_open,
+            "ce_ltp": ce, "pe_ltp": pe,
+            "ce_change": round(ce - ce_open, 2) if (ce is not None and ce_open) else None,
+            "pe_change": round(pe - pe_open, 2) if (pe is not None and pe_open) else None,
+            "since": first.get("t"),
+        }
+    except Exception:
+        return None
+
+
 async def _fetch_pivots(today: str) -> Optional[dict]:
     """Previous-session pivots from the Upstox daily-candle endpoint.
 
@@ -583,6 +623,12 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
     # 1-minute today candles when available, else the report's own spot candles.
     candles = intraday or report.get("candles") or []
     tape = read_tape(today)
+    # Fixed-strike ATM reference (see compute_reference) so the UI can show the
+    # premium move instead of the self-cancelling rolling ATM leg.
+    try:
+        report["reference"] = compute_reference(tape, rows)
+    except Exception:
+        report["reference"] = None
     try:
         report.update(nv.build_verdicts(
             rows=rows, spot=spot, gex=report.get("gex"), candles=candles,
@@ -984,9 +1030,8 @@ async def get_nifty_live(expiry: Optional[str] = Query(default=None, description
     return await get_cached_live(expiry)
 
 
-@router.get("/nifty/sensex")
-async def get_sensex_live():
-    """Live Sensex levels for the Nifty report's cross-index context card."""
+async def _get_cached_sensex() -> dict:
+    """Sensex context block behind the shared 5s cache (endpoint + snapshot)."""
     now = time.time()
     hit = _sensex_cache.get("default")
     if hit and now - hit["ts"] < _LIVE_TTL:
@@ -994,6 +1039,12 @@ async def get_sensex_live():
     report = await _compute_sensex_live()
     _sensex_cache["default"] = {"ts": now, "data": report}
     return report
+
+
+@router.get("/nifty/sensex")
+async def get_sensex_live():
+    """Live Sensex levels for the Nifty report's cross-index context card."""
+    return await _get_cached_sensex()
 
 
 @router.get("/nifty")
@@ -1073,6 +1124,106 @@ def read_tape(date_str: str) -> list[dict]:
     except OSError:
         return []
     return rows
+
+
+# ---------------------------------------------------------------------------
+# Full per-minute replay snapshots (the exact report envelope the UI renders)
+# ---------------------------------------------------------------------------
+
+#: One JSONL line per minute: ``{"t", "fetched_at", "report", "sensex"}`` where
+#: ``report`` is the FULL envelope ``/api/reports/nifty/live`` returns, so the
+#: whole report screen can be replayed after the day ends (single source of
+#: truth: recorded once per minute here, served by ``/nifty/replay``).
+SNAPSHOT_LOG_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_snapshots"
+
+
+def snapshot_log_path(date_str: str) -> Path:
+    return SNAPSHOT_LOG_DIR / f"{date_str}.jsonl"
+
+
+def read_snapshots(date_str: str) -> list[dict]:
+    """Full replay snapshot lines for ``date_str`` (JSONL, appended per minute).
+
+    Skips blank/corrupt/non-object lines; returns [] when the file is missing.
+    Every line the recorder writes is a ``{"t", ..., "report": {...}}`` object,
+    so anything else is corruption from an interrupted write.
+    """
+    path = snapshot_log_path(date_str)
+    if not path.exists():
+        return []
+    rows: list[dict] = []
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if not isinstance(value, dict):
+                    continue
+                rows.append(value)
+    except OSError:
+        return []
+    return rows
+
+
+def _peek_last_snapshot_t(path: Path) -> Optional[str]:
+    """The last snapshot line's ``t`` (minute dedupe anchor) — never raises."""
+    try:
+        if not path.exists():
+            return None
+        with open(path) as f:
+            lines = [ln.strip() for ln in f if ln.strip()]
+        if not lines:
+            return None
+        last = json.loads(lines[-1])
+        t = last.get("t") if isinstance(last, dict) else None
+        return str(t) if t else None
+    except Exception:
+        return None
+
+
+async def _append_minute_snapshot(date_str: str, t_iso: str) -> Optional[dict]:
+    """Append ONE full-report snapshot line for tick minute ``t_iso``.
+
+    ``report`` comes from a second ``_compute_live`` pass with verdicts +
+    candles ON — the exact envelope ``/nifty/live`` renders (strikes, gex,
+    positioning, control/regime/vix/strength, pivots, reference, intraday,
+    emas, market). The upstream fetchers behind it are cached (per-day
+    baseline, TTL'd VIX/intraday/15m-candles), so the second pass costs no
+    extra history round-trips. ``sensex`` reuses the cached Sensex helper
+    (``null`` on failure).
+
+    Deduped by minute (skipped when the file's last line carries the same
+    ``t``) and NEVER raises — a snapshot failure must not stop the light tape
+    row, which is written before this runs. Memory stays bounded: pure
+    append-only JSONL, no in-memory accumulation.
+    """
+    try:
+        if _peek_last_snapshot_t(snapshot_log_path(date_str)) == t_iso:
+            return None
+        report = await _compute_live(None, walkback_days=0, with_verdicts=True,
+                                     with_candles=True)
+        sensex: Optional[dict] = None
+        try:
+            sensex = await _get_cached_sensex()
+        except Exception:
+            sensex = None
+        line = {
+            "t": t_iso,
+            "fetched_at": report.get("fetched_at"),
+            "report": report,
+            "sensex": sensex,
+        }
+        SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(snapshot_log_path(date_str), "a") as f:
+            f.write(json.dumps(line) + "\n")
+        return line
+    except Exception:
+        return None
 
 
 def drop_empty_chain_rows(rows: list[dict]) -> list[dict]:
@@ -1441,6 +1592,15 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             })
         except Exception:
             pass
+        # Full per-minute replay snapshot: append the exact report envelope the
+        # UI renders (verdicts + candles ON) plus the Sensex context block, so
+        # the whole report screen can be replayed after the day ends. Strictly
+        # after the light row (its fresh spot anchors compute_reference) and
+        # infallible — a snapshot failure must not stop the light tape row.
+        try:
+            await _append_minute_snapshot(date_str, t_iso)
+        except Exception:
+            pass
         _tape_last_skip = None
         return row
     except Exception:
@@ -1601,6 +1761,46 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
     baseline_t = rows[0].get("t") if rows else None
     return {"date": date_str, "interval_sec": TAPE_INTERVAL_SEC,
             "baseline_t": baseline_t, "rows": rows}
+
+
+@router.get("/nifty/replay", dependencies=[Depends(get_current_user)])
+def get_nifty_replay(
+    date: str = Query(..., description="Replay date YYYY-MM-DD"),
+    t: Optional[str] = Query(default=None, description=(
+        "ISO minute; when given, returns the snapshot recorded at the last "
+        "minute at or before ``t`` instead of the whole day")),
+):
+    """Serve the day's per-minute FULL report snapshots (replay source).
+
+    Without ``t``: ``{"date", "count", "interval_sec", "snapshots"}`` — every
+    recorded snapshot line in ascending-order as appended. A missing/empty log
+    yields the same 404 ``{is_trading_day: False}`` envelope as ``/nifty/tape``.
+    With ``t``: ``{"date", "snapshot"}`` — the single snapshot whose minute is
+    the closest at or before ``t`` (``snapshot: null`` when none qualify —
+    e.g. before the day's first recording).
+    """
+    date_str = _validate_date(date)
+    snaps = read_snapshots(date_str)
+    if not snaps:
+        raise HTTPException(status_code=404, detail={
+            "is_trading_day": False,
+            "date": date_str,
+            "message": f"no Nifty snapshots for {date_str}",
+        })
+    if t and isinstance(t, str):
+        # Same-tz ISO strings: the minute bucket (YYYY-MM-DDTHH:MM) compares
+        # correctly as text, so a sub-minute stamp picks its own minute. The
+        # isinstance guard also keeps the direct (non-HTTP) call sentinel
+        # Query object out of the path.
+        target = t.strip()
+        chosen: Optional[dict] = None
+        for snap in snaps:
+            snap_t = str(snap.get("t") or "")
+            if snap_t and snap_t[:16] <= target[:16]:
+                chosen = snap
+        return {"date": date_str, "snapshot": chosen}
+    return {"date": date_str, "count": len(snaps),
+            "interval_sec": TAPE_INTERVAL_SEC, "snapshots": snaps}
 
 
 # ---------------------------------------------------------------------------

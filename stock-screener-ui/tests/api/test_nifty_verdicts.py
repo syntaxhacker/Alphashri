@@ -257,6 +257,15 @@ class TestRegimeVerdict:
     def test_bars_none_skips_guard(self):
         assert nv.regime_verdict(83.0, 24.8, 13.7) == "trend_buy"
 
+    def test_straddle_bleed_vetoes_range_expansion(self):
+        # 2026-10-16: a 157%-range tape with a −22.65% ATM straddle — long
+        # premium LOST money, so the range branch must not call it buy-premium.
+        assert nv.regime_verdict(157.4, 9.75, 10.88, straddle_pct=-22.65) == "range_sell_premium"
+
+    def test_mild_bleed_does_not_veto_range_expansion(self):
+        # −5% is inside the −15% bleed threshold → the range rule still wins.
+        assert nv.regime_verdict(157.4, 9.75, 10.88, straddle_pct=-5.0) == "trend_buy"
+
 
 class TestStraddle:
     def test_open_now_pct(self):

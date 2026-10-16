@@ -35,12 +35,14 @@ import type { MarkLineData } from "@/utils/chart/types";
 import type {
   NiftyBurst,
   NiftyGex,
+  NiftyIntradayCandle,
   NiftyReport,
   NiftyReportMode,
   NiftySensex,
   NiftyStrike,
   NiftyTape,
 } from "@/types/niftyReport";
+import type { ReplayCandle } from "@/types/replay";
 import { fetchLiveNifty, fetchLiveSensex, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyTape, fetchNiftyBursts, snapshotNifty } from "@/api/reportNifty";
 
 export interface NiftyReportPanelProps {
@@ -79,6 +81,33 @@ export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineDa
       label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
     });
     used.push(report.maxPain);
+  }
+
+  // Prior-session pivots: PP anchors the day (solid muted); resistance above
+  // (dashed red) and support below (dashed green). Levels are computed by the
+  // backend (`pivots` block, null-safe); nulls are skipped and anything that
+  // lands within 25 pts of an already-drawn line is de-duped like GEX tags.
+  const pivot = report.pivots;
+  if (pivot) {
+    const levels: [string, number | null, string, string][] = [
+      ["PP", pivot.pp, palette.TEXT_MUTED, "solid"],
+      ["R1", pivot.r1, palette.NEGATIVE, "dashed"],
+      ["R2", pivot.r2, palette.NEGATIVE, "dashed"],
+      ["S1", pivot.s1, palette.POSITIVE, "dashed"],
+      ["S2", pivot.s2, palette.POSITIVE, "dashed"],
+    ];
+    for (const [code, value, color, lineType] of levels) {
+      if (value === null || !Number.isFinite(value) || !fresh(value)) continue;
+      lines.push({
+        yAxis: value,
+        lineStyle: { color, type: lineType, width: 1 },
+        label: {
+          position: "insideEndTop",
+          formatter: `${code} ${Math.round(value).toLocaleString("en-IN")}`,
+        },
+      });
+      used.push(value);
+    }
   }
 
   // Optional live GEX overlay: flip + gamma support/resistance, skipping
@@ -150,6 +179,107 @@ export function buildOvernightLevels(report: NiftyReport): {
         ? `Bullish (PCR-OI ${report.pcrOi.toFixed(2)} — put writers in control)`
         : `Neutral (PCR-OI ${report.pcrOi.toFixed(2)})`;
   return { resistance, support, painPull, pcrVerdict };
+}
+
+/** One candle timestamp split into wall-clock parts. `offset` keeps the
+ *  source's timezone suffix (e.g. "+05:30") so bucket timestamps stay on the
+ *  same timezone semantics as the candles they were built from. */
+interface CandleClock {
+  day: string;
+  hh: number;
+  mm: number;
+  offset: string;
+}
+
+function parseCandleClock(time: string): CandleClock | null {
+  const m =
+    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?(Z|[+-]\d{2}:?\d{2})?/.exec(
+      time,
+    );
+  if (!m) return null;
+  return {
+    day: m[1],
+    hh: Number(m[2]),
+    mm: Number(m[3]),
+    offset: m[4] ?? "",
+  };
+}
+
+/**
+ * Resample candles into `minutes` bars for the Nifty chart timeframe toggle.
+ * Buckets key on `floor(minutesSinceMidnight / minutes)` per calendar day —
+ * the candle's own wall clock, never UTC math — so NSE's 09:15 open stays
+ * bucket-aligned for both 5m and 15m. OHLCV folds first-open / max-high /
+ * min-low / last-close / summed-volume per bucket. 1m returns the input
+ * element-for-element (intraday candles may lack `volume`, which the chart
+ * treats as 0; resampled buckets always carry a summed volume). Candles whose
+ * timestamp cannot be parsed are skipped — they have no bucket to join.
+ */
+export function resampleCandles(
+  candles: (NiftyIntradayCandle | ReplayCandle)[],
+  minutes: number,
+): ReplayCandle[] {
+  // Normalize once: intraday candles may lack `volume` (the chart treats it
+  // as 0); resampled buckets always carry a summed volume.
+  const src: ReplayCandle[] = candles.map((c): ReplayCandle =>
+    "volume" in c ? c : { ...c, volume: 0 },
+  );
+  if (minutes <= 1) return src;
+  const out: ReplayCandle[] = [];
+  let curDay = "";
+  let curBucket = -1;
+  let cur: ReplayCandle | null = null;
+  const flush = () => {
+    if (cur) out.push(cur);
+    cur = null;
+  };
+  for (const c of src) {
+    const clock = parseCandleClock(c.time);
+    if (!clock) continue;
+    const bucket = Math.floor((clock.hh * 60 + clock.mm) / minutes);
+    if (cur && curDay === clock.day && curBucket === bucket) {
+      cur.high = Math.max(cur.high, c.high);
+      cur.low = Math.min(cur.low, c.low);
+      cur.close = c.close;
+      cur.volume += c.volume;
+    } else {
+      flush();
+      const start = bucket * minutes;
+      const hh = String(Math.floor(start / 60)).padStart(2, "0");
+      const mm = String(start % 60).padStart(2, "0");
+      curDay = clock.day;
+      curBucket = bucket;
+      cur = {
+        time: `${clock.day}T${hh}:${mm}:00${clock.offset}`,
+        open: c.open,
+        high: c.high,
+        low: c.low,
+        close: c.close,
+        volume: c.volume,
+      };
+    }
+  }
+  flush();
+  return out;
+}
+
+/**
+ * EMA(period) over `closes`, aligned index-wise. Seeded with the mean of the
+ * first `period` closes, then recursive; points before the seed are `null`.
+ * Pure, so the panel recomputes it on the displayed (resampled) candles and
+ * the overlays always match the charted timeframe.
+ */
+export function emaSeries(closes: number[], period: number): (number | null)[] {
+  const out: (number | null)[] = closes.map(() => null);
+  if (period < 1 || closes.length < period) return out;
+  const k = 2 / (period + 1);
+  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
+  out[period - 1] = ema;
+  for (let i = period; i < closes.length; i++) {
+    ema = closes[i] * k + ema * (1 - k);
+    out[i] = ema;
+  }
+  return out;
 }
 
 /** What the chart level tags mean. GEX tags exist in live mode only. */
@@ -295,6 +425,15 @@ const STALE_AFTER_MS = 90_000;
 /** Chart height presets (px) for the "Nifty chart" panel size control. */
 export const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
 export type ChartSize = keyof typeof CHART_HEIGHTS;
+
+/** Chart timeframe presets and their bar size in minutes. The `intraday`
+    feed is 1-minute; 5m/15m are resampled client-side (see `resampleCandles`). */
+export type ChartTimeframe = "1m" | "5m" | "15m";
+export const CHART_TF_MINUTES: Record<ChartTimeframe, number> = {
+  "1m": 1,
+  "5m": 5,
+  "15m": 15,
+};
 const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
@@ -482,6 +621,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const [bursts, setBursts] = useState<OiBurst[] | null>(null);
   const [view, setView] = useState<"chart" | "depth">("chart");
   const [chartSize, setChartSize] = useState<ChartSize>("s");
+  /** Chart bar timeframe: 1m native; 5m/15m resampled client-side. */
+  const [chartTf, setChartTf] = useState<ChartTimeframe>("1m");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
@@ -821,25 +962,29 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     [report],
   );
 
-  /** Prefer 1-minute intraday candles (enough bars for EMAs); fall back to 15-min. */
+  /** 1-minute intraday candles when present, else the 15-min EOD candles —
+   *  each resampled to the selected timeframe (1m passes through). */
   const chartCandles = useMemo(
     () =>
-      report?.intraday && report.intraday.length > 0
-        ? report.intraday
-        : (report?.candles ?? []),
-    [report],
+      resampleCandles(
+        report?.intraday && report.intraday.length > 0
+          ? report.intraday
+          : (report?.candles ?? []),
+        CHART_TF_MINUTES[chartTf],
+      ),
+    [report, chartTf],
   );
 
-  /** EMA9 (warning) + EMA20 (primary) overlays, aligned to `intraday`. */
-  const emaData = useMemo(
-    () =>
-      (report?.emas ?? []).map((s) => ({
-        label: `EMA${s.period}`,
-        color: s.period === 9 ? palette.WARNING : palette.PRIMARY,
-        data: s.data,
-      })),
-    [report],
-  );
+  /** EMA9 (warning) + EMA20 (primary), recomputed on the displayed candles so
+   *  the overlays always match the selected timeframe. The backend `emas`
+   *  block is intentionally ignored here (it is fixed to the 1-minute grid). */
+  const emaData = useMemo(() => {
+    const closes = chartCandles.map((c) => c.close);
+    return [
+      { label: "EMA9", color: palette.WARNING, data: emaSeries(closes, 9) },
+      { label: "EMA20", color: palette.PRIMARY, data: emaSeries(closes, 20) },
+    ];
+  }, [chartCandles]);
 
   // In-app OI-burst alerts. Bursts come from the backend when it has any
   // (they survive the tab being closed); an empty/absent backend answer falls
@@ -1270,18 +1415,31 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             sx={{ minWidth: 0, flexShrink: 0 }}
             action={
               view === "chart" ? (
-                <SegmentedControl
-                  data-testid="nifty-chart-size"
-                  value={chartSize}
-                  onChange={(v) => setChartSize(v as ChartSize)}
-                  data={[
-                    { value: "s", label: "S" },
-                    { value: "m", label: "M" },
-                    { value: "l", label: "L" },
-                    { value: "xl", label: "XL" },
-                  ]}
-                  size="sm"
-                />
+                <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                  <SegmentedControl
+                    data-testid="nifty-tf-toggle"
+                    value={chartTf}
+                    onChange={(v) => setChartTf(v as ChartTimeframe)}
+                    data={[
+                      { value: "1m", label: "1m" },
+                      { value: "5m", label: "5m" },
+                      { value: "15m", label: "15m" },
+                    ]}
+                    size="sm"
+                  />
+                  <SegmentedControl
+                    data-testid="nifty-chart-size"
+                    value={chartSize}
+                    onChange={(v) => setChartSize(v as ChartSize)}
+                    data={[
+                      { value: "s", label: "S" },
+                      { value: "m", label: "M" },
+                      { value: "l", label: "L" },
+                      { value: "xl", label: "XL" },
+                    ]}
+                    size="sm"
+                  />
+                </Box>
               ) : undefined
             }
           >
@@ -1449,7 +1607,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             }}
           >
             <Box sx={{ minWidth: 0 }}>
-              <NiftyIvStraddle tape={tape} candles={report.candles} regime={report.regime} />
+              <NiftyIvStraddle tape={tape} candles={report.candles} regime={report.regime} reference={report.reference} />
             </Box>
             <Box sx={{ minWidth: 0 }}>
               <NiftyGammaTime tape={tape} gex={report.gex} spot={report.spot} />

@@ -8,8 +8,9 @@ Call endpoint functions directly, passing every Query param explicitly
 """
 
 import asyncio
+import json
 from datetime import datetime
-from unittest.mock import AsyncMock, patch
+from unittest.mock import AsyncMock, call, patch
 
 import pytest
 from fastapi import HTTPException
@@ -19,6 +20,7 @@ import api.reports_api.nifty as nifty
 from api.reports_api.nifty import (
     derive_tape_rows,
     get_nifty_tape,
+    read_snapshots,
     read_tape,
     record_nifty_tape_tick,
 )
@@ -27,7 +29,15 @@ from api.reports_api.nifty import (
 @pytest.fixture()
 def _tmp_tape(tmp_path, monkeypatch):
     monkeypatch.setattr(nifty, "TAPE_DIR", tmp_path)
-    return tmp_path
+    monkeypatch.setattr(nifty, "SNAPSHOT_LOG_DIR", tmp_path / "snapshots")
+    # The per-minute snapshot also pulls the Sensex context block; no network
+    # in tests — it degrades to `sensex: null` on the snapshot line.
+    monkeypatch.setattr(
+        nifty, "_compute_sensex_live",
+        AsyncMock(side_effect=RuntimeError("no sensex in tests")), raising=False)
+    nifty._sensex_cache.clear()
+    yield tmp_path
+    nifty._sensex_cache.clear()
 
 
 def _raw(t, spot, ce_oi, pe_oi, ce_vol, pe_vol, pcr_oi, flip):
@@ -127,11 +137,19 @@ def _ist(h, m):
 
 class TestRecorder:
     async def test_append_row(self, _tmp_tape):
-        with patch.object(nifty, "_compute_live",
-                          AsyncMock(return_value=_fake_report())) as cl:
+        full = _fake_report(control={"verdict": "Calls control"},
+                            positioning={"verdict": "Calls"})
+        with patch.object(
+                nifty, "_compute_live",
+                AsyncMock(side_effect=[_fake_report(), full])) as cl:
             row = await record_nifty_tape_tick(now=_ist(9, 15))
-        cl.assert_awaited_once_with(None, walkback_days=0,
-                                 with_verdicts=False, with_candles=False)
+        assert cl.await_count == 2
+        # Pass 1 is the light tape computation (unchanged), pass 2 the full
+        # replay snapshot (verdicts + candles ON).
+        assert cl.call_args_list[0] == call(
+            None, walkback_days=0, with_verdicts=False, with_candles=False)
+        assert cl.call_args_list[1] == call(
+            None, walkback_days=0, with_verdicts=True, with_candles=True)
         assert row is not None
         assert row["t"] == _ist(9, 15).isoformat()
         assert row["spot"] == 25000.0
@@ -146,6 +164,35 @@ class TestRecorder:
         assert row["atm_ce_iv"] is None
         assert row["atm_pe_iv"] is None
         assert read_tape("2026-10-13") == [row]
+        # One full snapshot line alongside the light row.
+        snaps = read_snapshots("2026-10-13")
+        assert len(snaps) == 1
+        snap = snaps[0]
+        assert snap["t"] == row["t"]
+        assert "fetched_at" in snap
+        assert snap["sensex"] is None  # fetch failed in tests -> null, not raise
+        for key in ("strikes", "gex", "positioning", "control"):
+            assert key in snap["report"], f"missing {key}"
+
+    async def test_snapshot_records_sensex_when_available(self, _tmp_tape):
+        sensex = {"symbol": "SENSEX", "spot": 81400.0}
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())), \
+             patch.object(nifty, "_compute_sensex_live",
+                          AsyncMock(return_value=sensex)):
+            await record_nifty_tape_tick(now=_ist(9, 15))
+        snap = read_snapshots("2026-10-13")[0]
+        assert snap["sensex"] == sensex
+
+    async def test_snapshot_sensex_cached_second_tick(self, _tmp_tape):
+        """The cached Sensex helper stores its result in the shared cache."""
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())), \
+             patch.object(nifty, "_compute_sensex_live",
+                          AsyncMock(return_value={"symbol": "SENSEX",
+                                                  "spot": 81400.0})):
+            await record_nifty_tape_tick(now=_ist(9, 15))
+        assert "default" in nifty._sensex_cache
 
     async def test_row_records_gex_and_atm_iv(self, _tmp_tape):
         rep = _fake_report(gex={"zero_cross": 25100.0, "net_total": -3440.31})
@@ -200,6 +247,68 @@ class TestRecorder:
         with patch.object(nifty, "_compute_live", AsyncMock(return_value=rep)):
             row = await record_nifty_tape_tick(now=_ist(9, 15))
         assert row["flip"] is None
+
+    async def test_snapshot_failure_still_writes_tape_row(self, _tmp_tape):
+        """The full-snapshot pass is best-effort: the light tape row survives."""
+        with patch.object(
+                nifty, "_compute_live",
+                AsyncMock(side_effect=[_fake_report(),
+                                       RuntimeError("full pass boom")])):
+            row = await record_nifty_tape_tick(now=_ist(9, 15))
+        assert row is not None
+        assert len(read_tape("2026-10-13")) == 1
+        assert read_snapshots("2026-10-13") == []
+
+    async def test_snapshot_dedupes_same_minute(self, _tmp_tape):
+        """A snapshot line already carrying this minute never appends twice."""
+        t = _ist(9, 16).isoformat()
+        seeded = {"t": t, "fetched_at": t, "report": {}, "sensex": None}
+        nifty.SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        nifty.snapshot_log_path("2026-10-13").write_text(
+            json.dumps(seeded) + "\n")
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())) as cl:
+            line = await nifty._append_minute_snapshot("2026-10-13", t)
+        assert line is None
+        assert cl.await_count == 0  # deduped BEFORE the second upstream pass
+        content = json.loads(nifty.snapshot_log_path("2026-10-13").read_text())
+        assert content["report"] == {}  # the seeded line is kept, untouched
+
+    async def test_snapshot_happy_path_line_shape(self, _tmp_tape):
+        full = _fake_report(gex={"zero_cross": 25100.0, "net_total": -3440.31},
+                            positioning={"verdict": "Calls"},
+                            control={"verdict": "Calls control"},
+                            regime={"verdict": "high-vol"},
+                            vix={"ltp": 13.2},
+                            strength={"score": 2},
+                            pivots={"pp": 22897.05},
+                            reference={"strike": 25000.0},
+                            market={"is_open": True},
+                            intraday=[], emas=[])
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=full)):
+            line = await nifty._append_minute_snapshot(
+                "2026-10-13", "2026-10-13T09:15:00+05:30")
+        assert line is not None
+        assert set(line) == {"t", "fetched_at", "report", "sensex"}
+        for key in ("strikes", "gex", "positioning", "control", "regime",
+                    "vix", "strength", "pivots", "reference", "walls",
+                    "intraday", "emas", "market"):
+            assert key in line["report"], f"missing {key}"
+
+    async def test_read_snapshots_skips_corrupt_lines(self, _tmp_tape):
+        p = nifty.snapshot_log_path("2026-10-13")
+        nifty.SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        good = json.dumps({"t": "2026-10-13T09:15:00+05:30", "report": {}})
+        # blank line, plain-JSON-bad text, a bare `null`, and a JSON array are
+        # all skipped; JSON-object noise like {"x": 1} is an object but carry
+        # it through — corrupt-SHAPE filtering is the caller's concern.
+        p.write_text("\n".join([good, "", "{not json", "null", "[1, 2]", good,
+                                "\n"]))
+        snaps = read_snapshots("2026-10-13")
+        assert len(snaps) == 2
+        assert all(s["t"] == "2026-10-13T09:15:00+05:30" for s in snaps)
+        assert read_snapshots("1999-01-01") == []  # missing file
 
 
 class TestTapeEndpoint:

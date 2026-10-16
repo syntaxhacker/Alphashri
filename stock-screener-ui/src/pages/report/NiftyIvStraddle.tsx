@@ -3,7 +3,7 @@ import * as palette from "@/ui/palette";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyState } from "@/components/common/states";
-import type { NiftyRegimeBlock, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
+import type { NiftyReference, NiftyRegimeBlock, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 import type { ReplayCandle } from "@/types/replay";
 
 /** Rendered for any absent/null field so a stat never shows a blank/NaN. */
@@ -264,6 +264,13 @@ export function fmtIvSignedPct(v: number | null | undefined): string {
   return `${sign}${Math.abs(v).toFixed(2)}%`;
 }
 
+/** Signed points (always shows +/-) to 1 dp, or a dash when absent. */
+export function fmtIvSigned(v: number | null | undefined): string {
+  if (v === null || v === undefined || !Number.isFinite(v)) return IV_DASH;
+  const sign = v > 0 ? "+" : v < 0 ? "-" : "";
+  return `${sign}${Math.abs(v).toFixed(1)}`;
+}
+
 /** Up = premium expanding (positive), down = bleeding (negative). */
 export function straddlePctTone(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v) || v === 0) {
@@ -330,6 +337,11 @@ export interface NiftyIvStraddleProps {
   candles?: ReplayCandle[];
   /** Backend regime block — authoritative source for IV / straddle / RV. */
   regime?: NiftyRegimeBlock;
+  /**
+   * Fixed-strike ATM reference. The rolling ATM leg reads ~flat by design, so
+   * this pins the day's first ATM strike to show the premium's real move.
+   */
+  reference?: NiftyReference | null;
 }
 
 /**
@@ -338,7 +350,7 @@ export interface NiftyIvStraddleProps {
  * tracks the rolling straddle premium against ATM IV. Absent/empty tape
  * degrades to a friendly empty state without crashing.
  */
-export function NiftyIvStraddle({ tape, candles, regime }: NiftyIvStraddleProps) {
+export function NiftyIvStraddle({ tape, candles, regime, reference }: NiftyIvStraddleProps) {
   const rows = useMemo(
     () => (Array.isArray(tape?.rows) ? tape!.rows : []),
     [tape],
@@ -394,6 +406,22 @@ export function NiftyIvStraddle({ tape, candles, regime }: NiftyIvStraddleProps)
           label="Realised vol"
           valueSize="md"
           value={fmtIvPct(rv)}
+        />
+        <CompactStat
+          data-testid="nifty-iv-ref-pe"
+          label={reference?.strike ? `PE ${Math.round(reference.strike)} Δ` : "PE Δ"}
+          hint="fixed strike"
+          tone={
+            reference?.pe_change == null
+              ? undefined
+              : reference.pe_change > 0
+                ? palette.POSITIVE
+                : reference.pe_change < 0
+                  ? palette.NEGATIVE
+                  : undefined
+          }
+          valueSize="md"
+          value={fmtIvSigned(reference?.pe_change)}
         />
       </CompactStatGrid>
 

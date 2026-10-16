@@ -632,3 +632,85 @@ describe("normalizeReport intraday + emas (1-minute chart overlays)", () => {
     expect(partial.strength!.ema20).toBeNull();
   });
 });
+
+describe("normalizeReport pivots (classic levels, null-safe)", () => {
+  test("maps a full block, prev included", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: {
+        type: "classic",
+        pp: 22897.4, r1: 23157, r2: 23316.2, r3: 23500,
+        s1: 22738, s2: 22478, s3: 22000,
+        prev: { date: "2026-10-09", high: 23200, low: 22650.5, close: 23100 },
+      },
+    });
+    expect(rep.pivots).toEqual({
+      type: "classic",
+      pp: 22897.4, r1: 23157, r2: 23316.2, r3: 23500,
+      s1: 22738, s2: 22478, s3: 22000,
+      prev: { date: "2026-10-09", high: 23200, low: 22650.5, close: 23100 },
+    });
+  });
+
+  test("explicit null and absent both stay null (chart draws nothing)", () => {
+    expect(normalizeReport({ ...snakeReport, pivots: null }).pivots).toBeNull();
+    expect(normalizeReport(snakeReport).pivots).toBeNull();
+  });
+
+  test("partial payload keeps the levels it carries, missing ones null", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: { pp: 22897, s1: 22738 },
+    });
+    expect(rep.pivots).toEqual({
+      type: "classic",
+      pp: 22897, r1: null, r2: null, r3: null,
+      s1: 22738, s2: null, s3: null,
+      prev: null,
+    });
+  });
+
+  test("non-finite and junk numeric fields become null", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: {
+        pp: "22,000", // comma-grouped junk
+        r1: Infinity,
+        r2: NaN,
+        r3: "bad",
+        s1: null,
+        s2: "",
+        type: "weird",
+      },
+    });
+    expect(rep.pivots?.pp).toBeNull();
+    expect(rep.pivots?.r1).toBeNull();
+    expect(rep.pivots?.r2).toBeNull();
+    expect(rep.pivots?.r3).toBeNull();
+    expect(rep.pivots?.s1).toBeNull();
+    expect(rep.pivots?.s2).toBeNull();
+    expect(rep.pivots?.type).toBe("weird"); // string passes through verbatim
+  });
+
+  test("prev is null-safe: junk date becomes null, junk prev block nulls out", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      pivots: {
+        pp: 22897,
+        prev: { date: 20261009, high: 23200, low: "bad", close: null },
+      },
+    });
+    expect(rep.pivots?.prev).toEqual({ date: null, high: 23200, low: null, close: null });
+    const prevless = normalizeReport({
+      ...snakeReport,
+      pivots: { pp: 22897, prev: "yesterday" },
+    });
+    expect(prevless.pivots?.prev).toBeNull();
+  });
+
+  test("non-object payloads (string, scalar) null out like absent", () => {
+    expect(normalizeReport({ ...snakeReport, pivots: "none" }).pivots).toBeNull();
+    expect(normalizeReport({ ...snakeReport, pivots: 42 }).pivots).toBeNull();
+    expect(normalizeReport({ ...snakeReport, pivots: [] }).pivots).not.toBeNull();
+  });
+});

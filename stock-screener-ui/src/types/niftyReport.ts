@@ -174,6 +174,22 @@ export interface NiftyMarketBlock {
   as_of: string | null;
 }
 
+/**
+ * Fixed-strike ATM reference. The panel's rolling ATM leg re-anchors to the
+ * nearest strike each minute and so reads ~flat; this pins the day's FIRST ATM
+ * strike so the premium move vs spot is visible.
+ */
+export interface NiftyReference {
+  strike: number | null;
+  ce_open: number | null;
+  pe_open: number | null;
+  ce_ltp: number | null;
+  pe_ltp: number | null;
+  ce_change: number | null;
+  pe_change: number | null;
+  since: string | null;
+}
+
 /** Delta-positioning direction — `positioning` block on the live payload. */
 export type NiftyPositioningVerdict = "bullish" | "bearish" | "balanced";
 
@@ -287,6 +303,8 @@ export interface NiftyReport {
   strength?: NiftyStrengthBlock;
   /** Exchange session gate — absent means "unknown", keep polling. */
   market?: NiftyMarketBlock;
+  /** Fixed-strike ATM reference — absent/partial renders as dashes. */
+  reference?: NiftyReference | null;
   /** Delta-positioning block — absent/partial payloads render as dashes. */
   positioning?: NiftyPositioningBlock;
   /** Structural tape shifts — absent renders nothing, `[]` renders empty. */

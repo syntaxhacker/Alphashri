@@ -336,6 +336,14 @@ def regime_verdict(range_pct: Optional[float], rv: Optional[float],
     if range_pct is not None and range_pct < RANGE_SELL_BELOW_PCT:
         return "range_sell_premium"
 
+    # A bleeding ATM straddle is direct evidence that long premium LOST money
+    # today, so it vetoes "buy premium" BEFORE the range-expansion rule. On
+    # 2026-10-16 a 157%-range tape with a −22.65% straddle was labelled
+    # "BUY PREMIUM" by the range branch even though premium buyers were down
+    # 22% — the bleed is the stronger signal.
+    if straddle_pct is not None and straddle_pct <= STRADDLE_BLEED_PCT:
+        return "range_sell_premium"
+
     ratio = (rv / iv) if (rv is not None and iv) else None
     if range_pct is not None and range_pct > RANGE_TREND_ABOVE_PCT:
         return "trend_buy"
@@ -344,8 +352,6 @@ def regime_verdict(range_pct: Optional[float], rv: Optional[float],
             return "trend_buy"
         if ratio <= RV_IV_SELL:
             return "range_sell_premium"
-    if straddle_pct is not None and straddle_pct <= STRADDLE_BLEED_PCT:
-        return "range_sell_premium"
     return "neutral"
 
 

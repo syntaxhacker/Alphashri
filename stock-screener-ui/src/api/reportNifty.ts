@@ -22,6 +22,7 @@ import type {
   NiftyPositioningLeg,
   NiftyPositioningStrike,
   NiftyPositioningVerdict,
+  NiftyReference,
   NiftyRegimeBlock,
   NiftyRegimeVerdict,
   NiftyReport,
@@ -244,6 +245,22 @@ function normalizeMarket(raw: unknown): NiftyMarketBlock | undefined {
   };
 }
 
+/** `reference` block — absent/empty → null, partial → null fields. */
+function normalizeReference(raw: unknown): NiftyReference | null {
+  const r = asBlock(raw);
+  if (!r) return null;
+  return {
+    strike: nullNum(r.strike),
+    ce_open: nullNum(r.ce_open ?? r.ceOpen),
+    pe_open: nullNum(r.pe_open ?? r.peOpen),
+    ce_ltp: nullNum(r.ce_ltp ?? r.ceLtp),
+    pe_ltp: nullNum(r.pe_ltp ?? r.peLtp),
+    ce_change: nullNum(r.ce_change ?? r.ceChange),
+    pe_change: nullNum(r.pe_change ?? r.peChange),
+    since: typeof r.since === "string" ? r.since : null,
+  };
+}
+
 const POSITIONING_VERDICTS = [
   "bullish",
   "bearish",
@@ -440,6 +457,7 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     vix: normalizeVix(raw.vix),
     strength: normalizeStrength(raw.strength),
     market: normalizeMarket(raw.market),
+    reference: normalizeReference(raw.reference),
     positioning: normalizePositioning(raw.positioning),
     structure: normalizeStructure(raw.structure),
   };

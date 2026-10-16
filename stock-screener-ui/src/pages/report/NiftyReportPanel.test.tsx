@@ -6,6 +6,9 @@ import userEvent from "@testing-library/user-event";
 import { UIProvider } from "@/ui";
 import {
   NiftyReportPanel,
+  buildMarkLines,
+  emaSeries,
+  resampleCandles,
   getNiftyOiColumns,
   findAtmStrike,
   oiBurstLogHeight,
@@ -26,10 +29,17 @@ vi.mock("@/api/reportNifty", () => ({
 }));
 
 vi.mock("@/components/chart/TradingViewChart", () => ({
-  TradingViewChart: ({ markLines, priceAreas, emaData }: { markLines?: unknown[]; priceAreas?: unknown[]; emaData?: unknown[] }) => (
+  TradingViewChart: ({ candles, markLines, priceAreas, emaData }: {
+    candles?: unknown[];
+    markLines?: { label: { formatter: string } }[];
+    priceAreas?: unknown[];
+    emaData?: unknown[];
+  }) => (
     <div
       data-testid="tradingview-chart"
+      data-candles={candles?.length ?? 0}
       data-marklines={markLines?.length ?? 0}
+      data-marklabels={JSON.stringify((markLines ?? []).map((l) => l.label.formatter))}
       data-priceareas={priceAreas?.length ?? 0}
       data-emas={emaData?.length ?? 0}
     />
@@ -93,6 +103,15 @@ function mockReport(overrides?: Partial<NiftyReport>): NiftyReport {
       },
     ],
     timeline: [{ time: "09:15", title: "Open", detail: "Nifty opened flat" }],
+    // Prior-session pivots far from the walls/MP cluster so every level
+    // survives the 25-pt fresh() dedupe → 5 chart lines on top of the
+    // 5 wall/max-pain ones.
+    pivots: {
+      type: "classic",
+      pp: 22897, r1: 23157, r2: 23316, r3: 23500,
+      s1: 22738, s2: 22478, s3: 22000,
+      prev: { date: "2026-10-09", high: 23200, low: 22650, close: 23100 },
+    },
     ...overrides,
   };
 }
@@ -468,13 +487,16 @@ describe("NiftyReportPanel Chart|Depth view toggle", () => {
     expect(screen.queryByTestId("nifty-chart-empty")).not.toBeInTheDocument();
   });
 
-  test("chart without emas passes an empty overlay list", async () => {
+  test("chart without backend emas still gets client-side EMA9/EMA20 series", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({ candles: candles() }),
     );
     r(<NiftyReportPanel />);
     const chart = await screen.findByTestId("tradingview-chart");
-    expect(chart).toHaveAttribute("data-emas", "0");
+    // EMAs are recomputed client-side from the displayed candles now (the
+    // backend `emas` block is fixed to the 1-minute grid and is ignored),
+    // so the overlay count no longer depends on the payload.
+    expect(chart).toHaveAttribute("data-emas", "2");
   });
 });
 
@@ -621,8 +643,9 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(await screen.findByTestId("nifty-chart-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-chart-wrap")).toBeInTheDocument();
     const chart = screen.getByTestId("tradingview-chart");
-    // top-2 call walls + top-2 put walls + max pain, now as lines (not zones)
-    expect(chart).toHaveAttribute("data-marklines", "5");
+    // top-2 call walls + top-2 put walls + max pain, plus the 5 prior-session
+    // pivots (PP/R1/R2/S1/S2) from the base mock — all now lines (not zones)
+    expect(chart).toHaveAttribute("data-marklines", "10");
     expect(chart).toHaveAttribute("data-priceareas", "0");
   });
 
@@ -675,9 +698,9 @@ describe("NiftyReportPanel fit-to-screen", () => {
     // 25800 dupes the CW line, 25700 dupes MP — skipped, never doubled
     expect(labels.filter((x) => x === "GSUP 25800")).toHaveLength(0);
     expect(labels.filter((x) => x === "GRES 25700")).toHaveLength(0);
-    // off without the flag: only the 5 wall/max-pain lines remain (no GEX)
+    // off without the flag: only walls/max-pain + pivots remain (no GEX)
     expect(buildMarkLines(rep, false).map((l) => l.label.formatter)).not.toContain("FLIP 25650");
-    expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(5);
+    expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(10);
   });
 
   test("OI table windows to ATM ±750 so strike and signals stay visible", async () => {
@@ -1462,5 +1485,197 @@ describe("NiftyReportPanel ultra-compact layout", () => {
     expect(oiBurstLogHeight(2)).toBe(80);
     expect(oiBurstLogHeight(5)).toBe(140);
     expect(oiBurstLogHeight(50)).toBe(140);
+  });
+});
+
+describe("NiftyReportPanel pivot marklines", () => {
+  function byLabel(lines: ReturnType<typeof buildMarkLines>) {
+    return new Map(lines.map((l) => [l.label.formatter, l]));
+  }
+
+  test("draws PP solid muted + R dashed red + S dashed green with en-IN labels", () => {
+    const labels = buildMarkLines(mockReport()).map((l) => l.label.formatter);
+    expect(labels).toContain("PP 22,897");
+    expect(labels).toContain("R1 23,157");
+    expect(labels).toContain("R2 23,316");
+    expect(labels).toContain("S1 22,738");
+    expect(labels).toContain("S2 22,478");
+    // R3/S3 are never drawn — gutter hygiene
+    expect(labels.filter((x) => x.startsWith("R3") || x.startsWith("S3"))).toHaveLength(0);
+
+    const m = byLabel(buildMarkLines(mockReport()));
+    const pp = m.get("PP 22,897");
+    expect(pp?.yAxis).toBe(22897);
+    expect(pp?.lineStyle.color).toBe(palette.TEXT_MUTED);
+    expect(pp?.lineStyle.type).toBe("solid");
+    const r1 = m.get("R1 23,157");
+    expect(r1?.yAxis).toBe(23157);
+    expect(r1?.lineStyle.color).toBe(palette.NEGATIVE);
+    expect(r1?.lineStyle.type).toBe("dashed");
+    const s1 = m.get("S1 22,738");
+    expect(s1?.yAxis).toBe(22738);
+    expect(s1?.lineStyle.color).toBe(palette.POSITIVE);
+    expect(s1?.lineStyle.type).toBe("dashed");
+  });
+
+  test("null levels are skipped, near-drawn levels are deduped", () => {
+    const partial = buildMarkLines(
+      mockReport({
+        pivots: {
+          type: "classic",
+          pp: 22897, r1: null, r2: null, r3: null,
+          s1: 22738, s2: null, s3: null, prev: null,
+        },
+      }),
+    ).map((l) => l.label.formatter);
+    expect(partial).toContain("PP 22,897");
+    expect(partial).toContain("S1 22,738");
+    expect(partial.filter((x) => x.startsWith("R1 ") || x.startsWith("R2 "))).toHaveLength(0);
+
+    // 25905 lands within 25 pts of the 25,900 call-wall line — deduped
+    const dedupe = buildMarkLines(
+      mockReport({
+        pivots: {
+          type: "classic",
+          pp: null, r1: 25905, r2: null, r3: null,
+          s1: null, s2: null, s3: null, prev: null,
+        },
+      }),
+    ).map((l) => l.label.formatter);
+    expect(dedupe.filter((x) => x.startsWith("R1"))).toHaveLength(0);
+
+    // whole block absent/null → only the 5 wall/MP lines remain
+    expect(buildMarkLines(mockReport({ pivots: null }))).toHaveLength(5);
+  });
+
+  test("the live chart receives the pivot labels via markLines", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        candles: [
+          { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const chart = await screen.findByTestId("tradingview-chart");
+    const labels = JSON.parse(chart.getAttribute("data-marklabels") ?? "[]") as string[];
+    for (const want of ["PP 22,897", "R1 23,157", "R2 23,316", "S1 22,738", "S2 22,478"]) {
+      expect(labels).toContain(want);
+    }
+  });
+});
+
+describe("NiftyReportPanel chart timeframe toggle", () => {
+  function oneMin(n: number) {
+    return Array.from({ length: n }, (_, i) => {
+      const total = 9 * 60 + 15 + i; // NSE open 09:15
+      const time = `2026-10-12T${String(Math.floor(total / 60)).padStart(2, "0")}:${String(total % 60).padStart(2, "0")}:00+05:30`;
+      return { time, open: 25600 + i, high: 25650 + i, low: 25580, close: 25620 + i, volume: 10 };
+    });
+  }
+
+  test("defaults to 1m; resamples 5m and 15m client-side, EMAs follow", async () => {
+    const user = userEvent.setup();
+    // 60 one-minute candles: 09:15 → 10:14
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({ intraday: oneMin(60) }),
+    );
+    r(<NiftyReportPanel />);
+    const chart = await screen.findByTestId("tradingview-chart");
+    const toggle = screen.getByTestId("nifty-tf-toggle");
+    expect(toggle).toBeInTheDocument();
+    expect(chart).toHaveAttribute("data-candles", "60");
+    expect(chart).toHaveAttribute("data-emas", "2");
+
+    await user.click(within(toggle).getByRole("button", { name: "15m" }));
+    // session opens on a 15-min boundary, so 60 minutes fold into 4 buckets
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "4");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "2");
+
+    await user.click(within(toggle).getByRole("button", { name: "5m" }));
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "12");
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-emas", "2");
+
+    await user.click(within(toggle).getByRole("button", { name: "1m" }));
+    expect(screen.getByTestId("tradingview-chart")).toHaveAttribute("data-candles", "60");
+  });
+});
+
+describe("resampleCandles (pure timeframe resampler)", () => {
+  const ts = (day: string, mins: number) =>
+    `${day}T${String(Math.floor(mins / 60)).padStart(2, "0")}:${String(mins % 60).padStart(2, "0")}:00+05:30`;
+
+  test("5m buckets fold OHLCV and stamp the bucket-start time", () => {
+    const oneMin20 = Array.from({ length: 20 }, (_, i) => ({
+      time: ts("2026-10-12", 555 + i), // 09:15 → 09:34
+      open: 25600 + i, high: 25600 + 2 * i, low: 25600 - i, close: 25600 + i, volume: 12,
+    }));
+    const out = resampleCandles(oneMin20, 5);
+    expect(out).toHaveLength(4);
+    // bucket 0 folds the five 09:15-09:19 minutes: first open, max high,
+    // min low, last close, summed volume
+    expect(out[0]).toEqual({
+      time: "2026-10-12T09:15:00+05:30",
+      open: 25600, high: 25608, low: 25596, close: 25604, volume: 60,
+    });
+    expect(out[3].time).toBe("2026-10-12T09:30:00+05:30");
+    expect(out[3].close).toBe(25619); // last 1-min close in the 09:30 bucket
+  });
+
+  test("bucket clock is wall-clock local, resetting per calendar day", () => {
+    const out = resampleCandles(
+      [
+        { time: ts("2026-10-12", 555), open: 1, high: 1, low: 1, close: 1, volume: 1 },
+        { time: ts("2026-10-13", 555), open: 2, high: 2, low: 2, close: 2, volume: 1 },
+      ],
+      5,
+    );
+    expect(out).toHaveLength(2);
+    expect(out[1].time).toBe("2026-10-13T09:15:00+05:30");
+  });
+
+  test("candles with unparseable timestamps are skipped", () => {
+    const out = resampleCandles(
+      [
+        { time: "not-a-time", open: 9, high: 9, low: 9, close: 9, volume: 9 },
+        { time: ts("2026-10-12", 555), open: 1, high: 2, low: 0, close: 1, volume: 1 },
+      ],
+      15,
+    );
+    expect(out).toHaveLength(1);
+    expect(out[0]).toEqual({
+      time: "2026-10-12T09:15:00+05:30",
+      open: 1, high: 2, low: 0, close: 1, volume: 1,
+    });
+  });
+
+  test("1m returns the input element-for-element, mending missing volume", () => {
+    const src = [
+      { time: ts("2026-10-12", 555), open: 1, high: 2, low: 0, close: 1 },
+      { time: ts("2026-10-12", 556), open: 1, high: 2, low: 0, close: 2, volume: 4 },
+    ];
+    const out = resampleCandles(src as Parameters<typeof resampleCandles>[0], 1);
+    expect(out).toEqual([
+      { time: ts("2026-10-12", 555), open: 1, high: 2, low: 0, close: 1, volume: 0 },
+      { time: ts("2026-10-12", 556), open: 1, high: 2, low: 0, close: 2, volume: 4 },
+    ]);
+  });
+
+  test("empty input → empty output", () => {
+    expect(resampleCandles([], 5)).toEqual([]);
+  });
+});
+
+describe("emaSeries (pure EMA recomputation)", () => {
+  test("seeds with the mean of the first `period` closes, nulls before", () => {
+    expect(emaSeries([2, 4, 6, 8, 10], 3)).toEqual([null, null, 4, 6, 8]);
+  });
+
+  test("input shorter than period → all null", () => {
+    expect(emaSeries([1, 2], 20)).toEqual([null, null]);
+  });
+
+  test("empty input → empty series", () => {
+    expect(emaSeries([], 9)).toEqual([]);
   });
 });

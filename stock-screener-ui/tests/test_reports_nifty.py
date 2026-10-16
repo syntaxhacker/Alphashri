@@ -23,6 +23,7 @@ from api.reports_api.nifty import (
     create_nifty_snapshot,
     get_nifty_expiries,
     get_nifty_live,
+    get_nifty_replay,
     get_nifty_report,
     get_sensex_live,
     get_sentiment,
@@ -47,6 +48,12 @@ def _clear_live_cache():
 @pytest.fixture()
 def _tmp_snapshots(tmp_path, monkeypatch):
     monkeypatch.setattr(nifty, "SNAPSHOT_DIR", tmp_path)
+    return tmp_path
+
+
+@pytest.fixture()
+def _tmp_replay(tmp_path, monkeypatch):
+    monkeypatch.setattr(nifty, "SNAPSHOT_LOG_DIR", tmp_path)
     return tmp_path
 
 
@@ -910,3 +917,123 @@ class TestGetPivotsBlock:
             nifty._live_cache.clear()
             rep = await get_nifty_live(expiry="2026-10-13")
         assert rep["pivots"] is None  # degrades, never raises
+
+
+class TestComputeReference:
+    """Fixed-strike ATM reference — pins the day's first ATM strike so the
+    premium move is visible (the rolling ATM leg reads ~flat by design)."""
+
+    def test_pins_first_atm_strike(self):
+        from api.reports_api import nifty as n
+        tape = [
+            {"t": "2026-10-16T09:15:00+05:30", "atm_strike": 23150.0,
+             "atm_ce_ltp": 83.1, "atm_pe_ltp": 108.3},
+            {"t": "2026-10-16T09:16:00+05:30", "atm_strike": 23150.0,
+             "atm_ce_ltp": 85.0, "atm_pe_ltp": 106.0},
+        ]
+        rows = [{"strike": 23150.0, "ce": {"ltp": 77.35}, "pe": {"ltp": 134.05}}]
+        out = n.compute_reference(tape, rows)
+        assert out["strike"] == 23150.0
+        assert out["pe_open"] == 108.3
+        assert out["pe_ltp"] == 134.05
+        assert out["pe_change"] == 25.75   # the put DID rise
+        assert out["ce_change"] == -5.75
+        assert out["since"] == tape[0]["t"]
+
+    def test_absent_or_mismatched_returns_none(self):
+        from api.reports_api import nifty as n
+        assert n.compute_reference([], []) is None
+        assert n.compute_reference([{"atm_strike": 0}], []) is None
+        # strike present in the tape but not in the chain
+        assert n.compute_reference(
+            [{"atm_strike": 23150.0, "atm_ce_ltp": 1.0, "atm_pe_ltp": 1.0}], []) is None
+
+    def test_never_raises_on_garbage(self):
+        from api.reports_api import nifty as n
+        assert n.compute_reference(None, None) is None
+        assert n.compute_reference([{"atm_strike": "x"}], [{"strike": "y"}]) is None
+
+
+# ---------------- replay endpoint (per-minute full snapshots) ----------------
+
+def _replay_line(t: str) -> dict:
+    return {
+        "t": t,
+        "fetched_at": t,
+        "report": {"mode": "live", "spot": 23150.0, "strikes": [],
+                   "gex": {"regime": "flat"}, "positioning": {"verdict": "x"},
+                   "control": {"verdict": "Calls control"}},
+        "sensex": None,
+    }
+
+
+def _seed_replay(date_str: str, times: list[str]) -> None:
+    nifty.SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    with open(nifty.snapshot_log_path(date_str), "a") as f:
+        for t in times:
+            f.write(json.dumps(_replay_line(t)) + "\n")
+
+
+class TestReplayEndpoint:
+    def test_serves_all_snapshots(self, _tmp_replay):
+        times = ["2026-10-13T09:15:00+05:30", "2026-10-13T09:16:00+05:30",
+                 "2026-10-13T09:17:00+05:30"]
+        _seed_replay("2026-10-13", times)
+        out = get_nifty_replay(date="2026-10-13")
+        assert out["date"] == "2026-10-13"
+        assert out["count"] == 3
+        assert out["interval_sec"] == 60
+        assert [s["t"] for s in out["snapshots"]] == times
+        assert "report" in out["snapshots"][0]
+        assert "gex" in out["snapshots"][0]["report"]
+
+    def test_skips_corrupt_lines(self, _tmp_replay):
+        # Corrupt lines never appear in the served replay.
+        _seed_replay("2026-10-13", ["2026-10-13T09:15:00+05:30"])
+        path = nifty.snapshot_log_path("2026-10-13")
+        path.write_text(path.read_text() + "\n{not json\n\n")
+        out = get_nifty_replay(date="2026-10-13")
+        assert out["count"] == 1
+
+    def test_404_envelope_on_missing_date(self, _tmp_replay):
+        with pytest.raises(HTTPException) as exc:
+            get_nifty_replay(date="1999-01-01")
+        assert exc.value.status_code == 404
+        assert exc.value.detail["is_trading_day"] is False
+        assert exc.value.detail["date"] == "1999-01-01"
+
+    def test_404_on_empty_file(self, _tmp_replay):
+        _seed_replay("2026-10-13", [])
+        with pytest.raises(HTTPException) as exc:
+            get_nifty_replay(date="2026-10-13")
+        assert exc.value.status_code == 404
+
+    def test_bad_date_400(self, _tmp_replay):
+        with pytest.raises(HTTPException) as exc:
+            get_nifty_replay(date="not-a-date")
+        assert exc.value.status_code == 400
+
+    def test_t_picks_closest_at_or_before(self, _tmp_replay):
+        times = ["2026-10-13T09:15:00+05:30", "2026-10-13T09:16:00+05:30"]
+        _seed_replay("2026-10-13", times)
+        # mid-minute: the earlier minute is the closest <= t
+        out = get_nifty_replay(date="2026-10-13",
+                               t="2026-10-13T09:15:30+05:30")
+        assert out["snapshot"]["t"] == times[0]
+        # exactly on a recorded minute: that minute itself
+        out = get_nifty_replay(date="2026-10-13",
+                               t="2026-10-13T09:16:00+05:30")
+        assert out["snapshot"]["t"] == times[1]
+        # before the first recording: null snapshot, not an error
+        out = get_nifty_replay(date="2026-10-13",
+                               t="2026-10-13T09:14:00+05:30")
+        assert out == {"date": "2026-10-13", "snapshot": None}
+        # after the last recording: the newest minute
+        out = get_nifty_replay(date="2026-10-13",
+                               t="2026-10-13T12:00:00+05:30")
+        assert out["snapshot"]["t"] == times[1]
+
+    def test_t_404_when_file_missing(self, _tmp_replay):
+        with pytest.raises(HTTPException) as exc:
+            get_nifty_replay(date="1999-01-01", t="1999-01-01T09:15:00+05:30")
+        assert exc.value.status_code == 404
