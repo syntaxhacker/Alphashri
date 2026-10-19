@@ -178,7 +178,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
     const cd = dayjs(to).format("YYYY-MM-DD");
     const s = getPaperTradingState();
     if (s.selectedSymbol) {
-      fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true);
+      fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true, s.selectedTradeId || undefined);
     }
   }, []);
 
@@ -191,7 +191,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       const s = getPaperTradingState();
       const cd = r[1] ? dayjs(r[1]).format("YYYY-MM-DD") : s.chartData?.date;
       if (s.selectedSymbol && cd) {
-        fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true);
+        fetchPaperChart(s.selectedSymbol, cd, s.chartTimeframe, s.selectedStrategyId, fd, true, s.selectedTradeId || undefined);
       }
       if (r[0] && r[1]) setPopoverOpened(false);
     },
@@ -208,7 +208,7 @@ function ChartHeader({ state }: { state: ReturnType<typeof getPaperTradingState>
       else if (s.currentView === "live") setChartTimeframeLive(value);
       const cd = s.chartData?.date;
       if (s.selectedSymbol && cd) {
-        await fetchPaperChart(s.selectedSymbol, cd, value, s.selectedStrategyId, s.chartFromDate || undefined, true);
+        await fetchPaperChart(s.selectedSymbol, cd, value, s.selectedStrategyId, s.chartFromDate || undefined, true, s.selectedTradeId || undefined);
       }
     },
     [],
@@ -401,7 +401,9 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
       state.chartData,
       isDark,
       state.selectedTradeId,
-      state.showAllTrades,
+      // When a trade is explicitly selected, do not filter to its (possibly
+      // non-numeric) id — the chart would drop every trade and show no markers.
+      state.showAllTrades || !!state.selectedTradeId,
       state.showOrbLines,
       state.showPivotLines,
       state.show52wLines,
@@ -423,7 +425,7 @@ export function PaperChart({ engine = "echarts" }: { engine?: "echarts" | "tradi
         )}
         {emptyState.className === "paper-chart-error" && state.selectedSymbol && (
           <Button size="xs" variant="light" mt="xs" onClick={() =>
-            fetchPaperChart(state.selectedSymbol, state.chartData?.date || dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true)
+            fetchPaperChart(state.selectedSymbol, state.chartData?.date || dayjs().format("YYYY-MM-DD"), state.chartTimeframe, state.selectedStrategyId, undefined, true, state.selectedTradeId || undefined)
           }>
             Retry
           </Button>

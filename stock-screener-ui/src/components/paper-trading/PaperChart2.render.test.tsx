@@ -254,14 +254,15 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
     await user.click(await screen.findByRole("option", { name: "1h" }));
     expect(mockSetChartTimeframe).toHaveBeenCalledWith("1hour");
     await waitFor(() => expect(mockFetchPaperChart).toHaveBeenCalled());
-    // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true
+    // fetchPaperChart called with symbol, date, new timeframe, strategy, fromDate, true, tradeId
     expect(mockFetchPaperChart).toHaveBeenCalledWith(
       "RELIANCE",
       "2026-04-24",
       "1hour",
       1,
       undefined,
-      true
+      true,
+      undefined
     );
   });
 
@@ -325,7 +326,8 @@ describe("PaperChart2 component rendering - empty states via DOM", () => {
       "5min",
       2,
       undefined,
-      true
+      true,
+      undefined
     );
   });
 

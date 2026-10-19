@@ -22,6 +22,7 @@ import type {
 import { deleteTrade, updateTradeNotes, updatePositionNotes } from "../api/paperTrading";
 import { createSubscriber } from "./createSubscriber";
 import { isMarketClosedToday } from "./holidays";
+import type { TradeSourceFilter } from "../types/paperTrading";
 
 // Initial state
 export const initialPaperTradingState: PaperTradingState = {
@@ -40,6 +41,7 @@ export const initialPaperTradingState: PaperTradingState = {
   filterSymbol: null,
   filterStrategy: null,
   filterBot: null,
+  filterSource: "all",
 
   selectedSymbol: null,
   selectedStrategyId: null,
@@ -438,6 +440,12 @@ export function setAvailableBots(bots: BotInfo[]) {
 // Bot filter management
 export function setFilterBot(botId: string | null) {
   state = { ...state, filterBot: botId };
+  notify();
+}
+
+// Source filter management (book: equity / options / futures / commodities)
+export function setFilterSource(source: TradeSourceFilter) {
+  state = { ...state, filterSource: source };
   notify();
 }
 

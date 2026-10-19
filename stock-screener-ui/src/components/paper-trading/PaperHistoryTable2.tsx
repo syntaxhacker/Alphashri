@@ -16,7 +16,7 @@ import {
 } from "@/ui";
 import Box from "@mui/material/Box";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { PaperTrade } from "../../types/paperTrading";
+import type { PaperTrade, TradeSourceFilter } from "../../types/paperTrading";
 import {
   formatNumber,
   formatSignedPnl,
@@ -36,12 +36,14 @@ import {
   setSelectedSymbol,
   setFilterStrategy,
   setFilterBot,
+  setFilterSource,
   setFilterFromDate,
   setFilterToDate,
   setSelectedTradeId,
   updateTradeNotesAction,
 } from "../../state/paperTrading";
 import { fetchPaperChart, refreshHistoryData } from "../../api/paperTrading";
+import { resolveUnderlyingSymbol, listBookFilters, tradeMatchesBook } from "./optionTradeUtils";
 import {
   getUniqueStrategies,
   getUniqueBots,
@@ -103,6 +105,9 @@ function HistoryFilters({
   state: ReturnType<typeof getPaperTradingState>;
 }) {
   const { handleQuickFilter, getCurrentPeriod } = useQuickFilter();
+  // Source filter is data-driven: the books offered follow the distinct trade
+  // sources in the loaded trades (All / Equity / Options are always there).
+  const bookFilters = useMemo(() => listBookFilters(state.trades), [state.trades]);
 
   return (
     <>
@@ -137,6 +142,15 @@ function HistoryFilters({
                 data-testid="strategy-filter-select"
               />
             )}
+            <Select
+              placeholder="All"
+              data={bookFilters}
+              value={state.filterSource || "all"}
+              onChange={(v) => setFilterSource(((v || "all") as TradeSourceFilter))}
+              w={120}
+              size="xs"
+              data-testid="source-filter-select"
+            />
           </Box>
           <Box className="paper-history-filters-right" sx={{ display: "flex", alignItems: "center", justifyContent: { xs: "flex-start", sm: "flex-end" }, flexWrap: "wrap", gap: 0.5, flexShrink: 0 }}>
             <SegmentedControl
@@ -357,8 +371,12 @@ function TradeHistoryTable({
 
   const handleSelect = useCallback(
     (trade: PaperTrade) => {
+      // Option contracts (e.g. "NIFTY 2026-10-19 22900CE" / "NIFTY26OCT23000PE")
+      // have no equity chart endpoint — chart the underlying instead. The
+      // resolved symbol is also trimmed/space-free for the chart URL.
+      const chartSymbol = resolveUnderlyingSymbol(trade.symbol);
       onSelectSymbol(
-        trade.symbol,
+        chartSymbol,
         trade.exit_time,
         trade.trade_id,
         trade.strategy_type || getStrategyTypeFromName(trade.strategy_name),
@@ -581,6 +599,12 @@ function useFilteredTrades() {
       trades = filterByRange(trades, state.filterFromDate, state.filterToDate);
     if (state.filterStrategy) trades = trades.filter((t) => t.strategy_id === state.filterStrategy);
     if (state.filterBot) trades = trades.filter((t) => t.bot_id === state.filterBot);
+    // Book filter (equity / options / futures / commodities). Books are derived
+    // from the trade `source` prefix, so new asset classes work automatically.
+    const book = state.filterSource;
+    if (book && book !== "all") {
+      trades = trades.filter((t) => tradeMatchesBook(t, book));
+    }
     return trades;
   }, [
     state.trades,
@@ -589,6 +613,7 @@ function useFilteredTrades() {
     state.filterToDate,
     state.filterStrategy,
     state.filterBot,
+    state.filterSource,
   ]);
 
   const strategies = useMemo(() => getUniqueStrategies(state.trades), [state.trades]);
