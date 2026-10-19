@@ -543,6 +543,18 @@ PREWARM_UNIVERSES = ("nifty500", "nifty50")
 PREWARM_INTERVAL_SEC = 60
 
 
+def _build_and_sanitize(uid: str, records: list[dict], limit: int) -> dict:
+    """Build the dashboard payload and make it JSON-safe (blocking).
+
+    ``_build_payload`` fans out to the spark fetchers (up to
+    ``SPARK_MAX_SYMBOLS`` 1m candle reads); measured at 8-13s for nifty500.
+    It used to run directly in the prewarm coroutine, which froze the event
+    loop for that whole window — the cause of the multi-second /api/health
+    timeouts and the 2-5 minute tape gaps. Call it via ``asyncio.to_thread``.
+    """
+    return _sanitize_for_json(_build_payload(uid, records, limit))
+
+
 async def run_dashboard_prewarm_once(
     universes: tuple[str, ...] = PREWARM_UNIVERSES,
     limit: int = 8,
@@ -568,7 +580,8 @@ async def run_dashboard_prewarm_once(
                 for r in records
                 if r.get("market_cap") is not None and r["market_cap"] >= floor
             ]
-            payload = _sanitize_for_json(_build_payload(uid, records, limit))
+            payload = await asyncio.to_thread(
+                _build_and_sanitize, uid, records, limit)
             _cache[_cache_key(uid, limit, float(min_market_cap_cr))] = (
                 time.time(),
                 payload,
@@ -639,7 +652,8 @@ async def screener_dashboard(
             for r in records
             if r.get("market_cap") is not None and r["market_cap"] >= floor
         ]
-        payload = _sanitize_for_json(_build_payload(uid, records, limit))
+        payload = await asyncio.to_thread(
+            _build_and_sanitize, uid, records, limit)
         _cache[key] = (time.time(), payload)
         return payload
     except Exception:

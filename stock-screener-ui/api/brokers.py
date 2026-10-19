@@ -197,6 +197,13 @@ async def upstox_callback(code: str = Query(...)):
             print(f"💾 Saving token to DB: {access_token[:20]}...")
             save_broker_token("upstox", access_token, user_id=None)
             print(f"✅ Token saved to DB successfully")
+            # Drop the 30s in-process token cache so the new token is used at
+            # once (api.options.get_upstox_token caches it).
+            try:
+                from api.options import clear_upstox_token_cache
+                clear_upstox_token_cache()
+            except Exception:
+                pass
             
             if TOKEN_FILE.exists():
                 try:
@@ -218,6 +225,12 @@ async def upstox_disconnect(user: User = Depends(get_current_user)):
     Clears stored token from DB and any local files/environment.
     """
     delete_broker_token("upstox", user_id=None)
+    # Drop the cached token so a disconnect takes effect immediately.
+    try:
+        from api.options import clear_upstox_token_cache
+        clear_upstox_token_cache()
+    except Exception:
+        pass
 
     if TOKEN_FILE.exists():
         try:

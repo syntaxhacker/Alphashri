@@ -13,6 +13,7 @@ import httpx
 import os
 import json
 import math
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
 
@@ -152,28 +153,54 @@ def get_instrument_key(underlying: str) -> str:
     return f"NSE_INDEX|{underlying}"
 
 
+#: Token lookups are a synchronous SQLite round-trip. One Nifty tape tick used
+#: to make 13 of them (chain, expiries, spot, Sensex, VIX, pivots, ...), and
+#: every one of those blocked the event loop for the duration of the query.
+#: Under write contention that is 5s per lookup (SQLAlchemy's SQLite
+#: ``busy_timeout``) — measured as the repeated /api/health timeouts. The
+#: token only changes on OAuth reconnect, so a short TTL is safe and keeps a
+#: reconnect visible within seconds.
+_TOKEN_TTL_SEC = 30.0
+_token_cache: dict = {"token": None, "ts": 0.0}
+
+
+def clear_upstox_token_cache() -> None:
+    """Drop the cached token (call after an OAuth connect/disconnect)."""
+    _token_cache["token"] = None
+    _token_cache["ts"] = 0.0
+
+
 def get_upstox_token() -> str:
-    """Get Upstox access token from DB or token file.
+    """Get Upstox access token from DB or token file (30s in-process cache).
 
     Environment variable fallback is intentionally not used to ensure
     disconnect properly clears the connection state. Tokens should be
     managed via the OAuth flow (stored in DB).
     """
+    now = time.monotonic()
+    cached = _token_cache["token"]
+    if cached and now - _token_cache["ts"] < _TOKEN_TTL_SEC:
+        return cached
+
+    token = None
     # 1. Check database first (OAuth tokens)
     token_data = get_shared_broker_token("upstox")
     if token_data and token_data.get("access_token"):
-        return token_data["access_token"]
+        token = token_data["access_token"]
 
     # 2. Check token file (legacy fallback)
-    if TOKEN_FILE.exists():
+    if not token and TOKEN_FILE.exists():
         try:
             with open(TOKEN_FILE, "r") as f:
                 token_data = json.load(f)
             token = token_data.get("access_token")
-            if token:
-                return token
         except (json.JSONDecodeError, KeyError):
-            pass
+            token = None
+
+    if token:
+        _token_cache["token"] = token
+        _token_cache["ts"] = now
+        return token
 
     raise HTTPException(
         status_code=401,
@@ -181,26 +208,53 @@ def get_upstox_token() -> str:
     )
 
 
+#: Hard ceiling for a single Upstox REST call. The chain/contract endpoints
+#: normally answer in 0.1-0.5s; anything near this means the upstream (or the
+#: network) is wedged and the tick must move on instead of stalling the loop.
+UPSTOX_TIMEOUT_SEC = 12.0
+
+
 async def fetch_upstox(endpoint: str, params: Optional[dict] = None) -> dict:
-    token = get_upstox_token()
+    # The token comes from SQLite. A cache hit is cheap, but a miss (or the
+    # 30s refresh) is a synchronous query that must never run on the event
+    # loop — under write contention that was a 5s freeze per call.
+    from api.options import get_upstox_token as _get_token
+    token = await asyncio.to_thread(_get_token)
     url = f"{UPSTOX_BASE}{endpoint}"
-    
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        headers = {
-            "Authorization": f"Bearer {token}",
-            "Accept": "application/json",
-        }
-        response = await client.get(url, headers=headers, params=params or {})
-        
-        if response.status_code == 401:
-            raise HTTPException(status_code=401, detail="Upstox token expired or invalid")
-        elif response.status_code != 200:
-            raise HTTPException(
-                status_code=response.status_code,
-                detail=f"Upstox API error: {response.text}"
-            )
-        
-        return response.json()
+
+    # Two layers on purpose:
+    #  - httpx's timeout bounds connect/read per phase;
+    #  - ``asyncio.wait_for`` bounds the WHOLE call (DNS + pool + retries), so
+    #    a wedged connection can never outlive the caller's budget.
+    # The synchronous token lookup is pushed to a thread: it is a SQLite query
+    # and must never run on the event loop.
+    timeout = httpx.Timeout(UPSTOX_TIMEOUT_SEC, connect=5.0)
+
+    async def _get() -> dict:
+        async with httpx.AsyncClient(timeout=timeout) as client:
+            headers = {
+                "Authorization": f"Bearer {token}",
+                "Accept": "application/json",
+            }
+            response = await client.get(url, headers=headers, params=params or {})
+
+            if response.status_code == 401:
+                raise HTTPException(status_code=401, detail="Upstox token expired or invalid")
+            elif response.status_code != 200:
+                raise HTTPException(
+                    status_code=response.status_code,
+                    detail=f"Upstox API error: {response.text}"
+                )
+
+            return response.json()
+
+    try:
+        return await asyncio.wait_for(_get(), timeout=UPSTOX_TIMEOUT_SEC + 1.0)
+    except asyncio.TimeoutError:
+        raise HTTPException(
+            status_code=504,
+            detail=f"Upstox {endpoint} timed out after {UPSTOX_TIMEOUT_SEC:.0f}s",
+        )
 
 
 @router.get("/health")
@@ -215,16 +269,39 @@ async def get_underlyings():
     return {"underlyings": AVAILABLE_UNDERLYINGS}
 
 
+#: A real ``/option/contract`` listing only changes when the exchange rolls an
+#: expiry, so it is cached for a few minutes. The previous implementation made
+#: this call on EVERY report build (and again for Sensex) and, on any failure,
+#: silently invented "next Thursday" dates. Those synthetic expiries do not
+#: exist upstream: ``/option/chain`` answers ``status:success, data:[]`` for
+#: them, which is exactly how an empty chain (strikes=[], net_gex=0,
+#: regime="flat", max_pain=0) got persisted to the snapshot log.
+_EXPIRIES_TTL_SEC = 300.0
+_expiries_cache: dict[str, dict] = {}
+
+
 @router.get("/expiries/{underlying}")
 async def get_expiries(underlying: str):
-    """Get available expiry dates for an underlying instrument."""
+    """Get available expiry dates for an underlying instrument.
+
+    Returns ``{"underlying", "expiries"}`` with the real exchange listing,
+    cached for ``_EXPIRIES_TTL_SEC``. A failure returns the last good listing
+    (stale but real) and never fabricates dates — a synthetic expiry makes the
+    option chain come back empty, which callers cannot distinguish from a
+    genuinely empty market.
+    """
+    now = time.monotonic()
+    cached = _expiries_cache.get(underlying)
+    if cached and now - cached["ts"] < _EXPIRIES_TTL_SEC:
+        return {"underlying": underlying, "expiries": cached["expiries"]}
+
     today = datetime.now(config.IST)
     expiries = []
-    
+
     try:
         instrument_key = get_instrument_key(underlying)
         data = await fetch_upstox("/option/contract", {"instrument_key": instrument_key})
-        
+
         if data.get("status") == "success" and data.get("data"):
             seen_dates = set()
             for contract in data["data"]:
@@ -242,19 +319,21 @@ async def get_expiries(underlying: str):
                             "weekly": contract.get("weekly", False),
                             "days_to_expiry": days
                         })
-            
+
             expiries.sort(key=lambda x: x["date"])
     except Exception:
-        for i in range(8):
-            days_until_thursday = (3 - today.weekday() + 7) % 7
-            expiry = today + timedelta(days=days_until_thursday + i * 7)
-            expiries.append({
-                "date": expiry.strftime("%Y-%m-%d"),
-                "weekly": True,
-                "days_to_expiry": (expiry - today).days
-            })
-    
-    return {"underlying": underlying, "expiries": expiries}
+        expiries = []
+
+    if expiries:
+        _expiries_cache[underlying] = {"ts": now, "expiries": expiries}
+        return {"underlying": underlying, "expiries": expiries}
+
+    # Upstream failed/empty: serve the last real listing when we have one.
+    # Never invent a date — an invented expiry yields an empty chain.
+    if cached:
+        return {"underlying": underlying, "expiries": cached["expiries"]}
+
+    return {"underlying": underlying, "expiries": []}
 
 
 @router.get("/fyers-symbol")
