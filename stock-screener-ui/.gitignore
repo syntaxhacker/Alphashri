@@ -85,3 +85,6 @@ reports/
 
 # Local DB backups (retention-managed by scripts/backup_db.py)
 backups/
+
+# Options-paper runtime journal (positions/state; source lives in options_paper/*.py)
+options_paper/journal/
