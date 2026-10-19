@@ -21,6 +21,8 @@ from .bots_router import (
     _db_available,
     get_db,
     SessionLocal,
+    is_headless_strategy,
+    equity_bots_disabled,
 )
 
 from api.auth import get_current_user
@@ -329,6 +331,9 @@ async def start_all_bots(
     db: Session = Depends(get_db) if get_db else None
 ):
     """Start all inactive/stopped bots for the current user."""
+    if equity_bots_disabled():
+        return {"message": "EQUITY_BOTS_DISABLED is set — equity bots are off",
+                "started": []}
     if not _db_available:
         raise HTTPException(status_code=500, detail="Database not available")
 
@@ -348,6 +353,12 @@ async def start_all_bots(
 
         started = []
         for bot in bots:
+            # Never start a headless (options-paper) bot with the equity runner.
+            try:
+                if any(is_headless_strategy(s.strategy_type) for s in bot.strategies):
+                    continue
+            except Exception:
+                pass
             running, _ = is_bot_running(user_id, bot.id)
             if not running:
                 try:
@@ -882,6 +893,10 @@ async def bot_auto_recovery_task():
     from db.database import SessionLocal
     from db.models.bot import BotConfig
 
+    if equity_bots_disabled():
+        print("[Auto-Recovery] EQUITY_BOTS_DISABLED=1 — equity bots are off; task idle")
+        return
+
     await asyncio.sleep(30)
     while True:
         try:
@@ -908,6 +923,14 @@ async def bot_auto_recovery_task():
                     BotConfig.user_id.isnot(None),
                 ).all()
                 for b in bots:
+                    # Options-paper bots are headless (run by options_paper.runner,
+                    # not the equity runner). Restarting one here is what produced
+                    # the OPT_* restart storm — never scan them.
+                    try:
+                        if any(is_headless_strategy(s.strategy_type) for s in b.strategies):
+                            continue
+                    except Exception:
+                        pass
                     user_bots.setdefault(b.user_id, []).append(
                         (b.id, bool(getattr(b, 'live_trading', False)))
                     )
