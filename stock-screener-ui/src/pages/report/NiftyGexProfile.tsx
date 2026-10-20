@@ -1,7 +1,9 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import * as palette from "@/ui/palette";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
+import { Text } from "@/ui";
+import { spotVsFlip } from "./NiftyGammaTime";
 import { MiniLineChart } from "@/components/common/charts/MiniLineChart";
 import type {
   MiniMarker,
@@ -19,11 +21,17 @@ import type { NiftyGex } from "@/types/niftyReport";
  *
  * Rendered with the dependency-free inline-SVG `MiniLineChart` (not ECharts):
  * these are static monitoring visuals, so a full canvas charting instance per
- * panel is not worth the bundle/heap cost. The line/area is the netGex
+ * panel is not worth the bundle/heap cost.
+ *
+ * Reading it: only the strike band that actually carries gamma is plotted
+ * (`trimGexProfile`). Upstox returns greeks for a subset of strikes — mostly
+ * near the money — and every other strike comes back as a hard `0.0`, so
+ * plotting all ~100 listed strikes drew ~85 dead points and stretched the
+ * x-axis across the far-OTM wings: the profile collapsed into a flat line with
+ * one spike in the middle. Inside the plotted band the line is the netGex
  * profile in strike order, a horizontal dashed line marks netGex = 0, and
- * vertical dashed markers point at the SPOT strike and the ZERO-gamma strike
- * (each omitted when off-profile). Absent/empty data degrades to a friendly
- * empty state.
+ * vertical dashed markers point at the strike nearest SPOT and at the
+ * ZERO-gamma flip. Absent/empty data degrades to a friendly empty state.
  */
 
 /** A single point of the per-strike net-GEX profile (sorted ascending). */
@@ -47,12 +55,19 @@ export interface GexChartProps {
   series: MiniSeries[];
   markers: MiniMarker[];
   zeroLine: boolean;
+  /** Strike window actually plotted (drives the coverage caption). */
+  band: GexProfilePoint[];
+  /** Strikes at/above the significance cut in the whole profile. */
+  significant: number;
 }
 
 /** Rendered for any absent numeric field so a cell never shows blank. */
 export const GEX_DASH = "—";
 
 function num(v: unknown): number {
+  // `Number(null)` and `Number("")` are 0 — treat those as absent so a null
+  // leg is dropped instead of being plotted as a genuine zero exposure.
+  if (v === null || v === undefined || v === "") return NaN;
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
 }
@@ -68,6 +83,107 @@ export function buildGexProfile(gex?: NiftyGex): GexProfilePoint[] {
     .map((s) => ({ strike: num(s?.strike), netGex: num(s?.netGex) }))
     .filter((p) => Number.isFinite(p.strike) && Number.isFinite(p.netGex))
     .sort((a, b) => a.strike - b.strike);
+}
+
+/**
+ * Share of the peak |netGex| below which a strike is treated as noise.
+ *
+ * The raw profile is long-tailed: on a real 19-Oct tape the peak strike held
+ * ~6,500 Cr while the median strike held ~74 Cr, and far-OTM strikes reported
+ * tiny non-zero gammas out to the wings. Plotting those wings stretched the
+ * x-axis over 4,200 points and squashed the actionable band into a sliver.
+ * 1% of the peak keeps every wall that can actually move the tape while
+ * dropping the off-strike dust.
+ */
+export const GEX_SIGNIFICANCE_SHARE = 0.01;
+
+/** Result of picking the strike window worth plotting. */
+export interface GexBand {
+  /** Contiguous slice of the profile (the plotted band). */
+  points: GexProfilePoint[];
+  /** Significance cut in Cr/pt (`peak * share`). */
+  threshold: number;
+  /** Strikes at/above the cut across the whole profile. */
+  significant: number;
+}
+
+/**
+ * Pick the strike band that actually carries dealer gamma.
+ *
+ * Upstox quotes greeks for a subset of strikes (mostly near the money); the
+ * rest come back as a hard `0.0`, not as "no exposure". On top of that the
+ * quoted far wings are near-zero noise. Plotting every listed strike drew a
+ * flat line with a single spike — the chart looked broken because most of it
+ * *was* dead space.
+ *
+ * The window is the first..last strike whose |netGex| reaches
+ * `peak * minShare`; everything in between is kept (real flat spots included).
+ * `include` forces context strikes — the gamma flip, the strike nearest spot —
+ * into the window so their markers never fall off the plot.
+ */
+export function selectGexBand(
+  profile: GexProfilePoint[],
+  opts: { minShare?: number; include?: (number | null | undefined)[] } = {},
+): GexBand {
+  if (profile.length === 0) return { points: [], threshold: 0, significant: 0 };
+
+  const peak = profile.reduce((m, p) => Math.max(m, Math.abs(p.netGex)), 0);
+  const threshold = peak * (opts.minShare ?? GEX_SIGNIFICANCE_SHARE);
+  const significant = profile.filter((p) => Math.abs(p.netGex) > threshold).length;
+  if (peak === 0) return { points: [], threshold: 0, significant: 0 };
+
+  let first = -1;
+  let last = -1;
+  profile.forEach((p, i) => {
+    if (Math.abs(p.netGex) > threshold) {
+      if (first === -1) first = i;
+      last = i;
+    }
+  });
+  if (first === -1) return { points: [], threshold, significant };
+
+  for (const v of opts.include ?? []) {
+    if (v == null || !Number.isFinite(v)) continue;
+    const i = profile.findIndex((p) => p.strike === v);
+    if (i === -1) continue;
+    if (i < first) first = i;
+    if (i > last) last = i;
+  }
+
+  return { points: profile.slice(first, last + 1), threshold, significant };
+}
+
+/** The plotted band only (`selectGexBand(...).points`). */
+export function trimGexProfile(
+  profile: GexProfilePoint[],
+  opts: { minShare?: number; include?: (number | null | undefined)[] } = {},
+): GexProfilePoint[] {
+  return selectGexBand(profile, opts).points;
+}
+
+/**
+ * Index of the band strike closest to `value`, or -1 when `value` sits outside
+ * the band. Spot is a continuous price (e.g. 22,873.55) that essentially never
+ * lands exactly on the 50-point strike grid, so exact matching would mean the
+ * SPOT marker never drew at all. Snapping to the nearest strike keeps it
+ * visible; refusing to snap outside the band avoids implying spot is at an
+ * edge strike when it is not.
+ */
+export function nearestStrikeIndex(profile: GexProfilePoint[], value: number): number {
+  if (!Number.isFinite(value) || profile.length === 0) return -1;
+  const lo = profile[0].strike;
+  const hi = profile[profile.length - 1].strike;
+  if (value < lo || value > hi) return -1;
+  let best = -1;
+  let bestDist = Infinity;
+  profile.forEach((p, i) => {
+    const d = Math.abs(p.strike - value);
+    if (d < bestDist || (d === bestDist && i < best)) {
+      best = i;
+      bestDist = d;
+    }
+  });
+  return best;
 }
 
 /**
@@ -134,12 +250,12 @@ export function gexTone(v: number | null): string {
 }
 
 /**
- * Pure MiniLineChart prop builder (unit-testable). Labels are the strikes in
- * ascending profile order; the single series carries netGex in the same order.
- * Markers:
- *   - vertical `SPOT` line at the spot strike (omitted when off-profile)
- *   - vertical `ZERO` line at the zero-gamma strike (omitted when null or
- *     off-profile)
+ * Pure MiniLineChart prop builder (unit-testable). The plotted window is the
+ * significance band from `selectGexBand`, widened to keep the flip level and
+ * the strike nearest spot inside it. Markers:
+ *   - vertical `SPOT` line at the strike nearest spot
+ *   - vertical `ZERO` line at the zero-gamma strike, unless it collides with
+ *     the SPOT line
  * The zero reference line is always on (`zeroLine: true`).
  */
 export function buildGexChart(
@@ -147,11 +263,17 @@ export function buildGexChart(
   stats: GexProfileStats,
   spot: number,
 ): GexChartProps {
-  const labels = profile.map((p) => formatGexStrike(p.strike));
+  const spotIdxFull = nearestStrikeIndex(profile, spot);
+  const spotStrike = spotIdxFull >= 0 ? profile[spotIdxFull].strike : null;
+  const { points: band, significant } = selectGexBand(profile, {
+    include: [stats.zeroCross, spotStrike],
+  });
+
+  const labels = band.map((p) => formatGexStrike(p.strike));
   const series: MiniSeries[] = [
     {
       name: "Net GEX",
-      points: profile.map((p) => p.netGex),
+      points: band.map((p) => p.netGex),
       color: palette.TERM_GAMMA,
       area: true,
       axis: 0,
@@ -159,19 +281,21 @@ export function buildGexChart(
   ];
 
   const markers: MiniMarker[] = [];
-  const strikes = profile.map((p) => p.strike);
-  const spotIdx = Number.isFinite(spot) ? strikes.indexOf(spot) : -1;
+  const strikes = band.map((p) => p.strike);
+  const spotIdx = nearestStrikeIndex(band, spot);
   if (spotIdx >= 0) {
     markers.push({ index: spotIdx, label: "SPOT", color: palette.TERM_SPOT });
   }
   if (stats.zeroCross != null) {
     const zeroIdx = strikes.indexOf(stats.zeroCross);
-    if (zeroIdx >= 0) {
+    // SPOT is pushed first and wins the strike when both land on it, so two
+    // dashed lines are never stacked on one x position.
+    if (zeroIdx >= 0 && zeroIdx !== spotIdx) {
       markers.push({ index: zeroIdx, label: "ZERO", color: palette.TERM_FLIP });
     }
   }
 
-  return { labels, series, markers, zeroLine: true };
+  return { labels, series, markers, zeroLine: true, band, significant };
 }
 
 export interface NiftyGexProfileProps {
@@ -179,22 +303,33 @@ export interface NiftyGexProfileProps {
   spot: number;
 }
 
-export function NiftyGexProfile({ gex, spot }: NiftyGexProfileProps) {
+function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
   const profile = useMemo(() => buildGexProfile(gex), [gex]);
   const stats = useMemo(() => gexProfileStats(gex, spot), [gex, spot]);
   const chart = useMemo(
     () => buildGexChart(profile, stats, spot),
     [profile, stats, spot],
   );
+  const band = chart.band;
 
   const regimeText = stats.regime ? `${stats.regime} GAMMA` : GEX_DASH;
   const regimeTone = gexTone(
     stats.regime === "LONG" ? 1 : stats.regime === "SHORT" ? -1 : null,
   );
+  const flipDistance = useMemo(
+    () => spotVsFlip(spot, stats.zeroCross),
+    [spot, stats.zeroCross],
+  );
+  const regimeSentence =
+    stats.regime === "LONG"
+      ? "Dealers hold long gamma — the big peak is a magnet: dips there get bought, rallies get sold into."
+      : stats.regime === "SHORT"
+        ? "Dealers are short gamma — the deep trough is fuel: a move through it accelerates instead of stalling."
+        : "";
 
   return (
     <CompactPanel
-      title="Price × gamma"
+      title="Gamma by strike (price × γ)"
       testId="nifty-gex-profile-panel"
       sx={{
         background: palette.TERM_BG,
@@ -210,7 +345,7 @@ export function NiftyGexProfile({ gex, spot }: NiftyGexProfileProps) {
         <Box
           sx={{
             display: "grid",
-            gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
+            gridTemplateColumns: "repeat(4, minmax(0, 1fr))",
             gap: 0.5,
             width: "100%",
             minWidth: 0,
@@ -218,7 +353,7 @@ export function NiftyGexProfile({ gex, spot }: NiftyGexProfileProps) {
         >
           <CompactStat
             data-testid="nifty-gex-profile-net"
-            label="Net GEX @ spot"
+            label="Net γ @ spot"
             tone={gexTone(stats.netTotal)}
             valueSize="md"
             value={formatGexCr(stats.netTotal)}
@@ -226,19 +361,89 @@ export function NiftyGexProfile({ gex, spot }: NiftyGexProfileProps) {
           />
           <CompactStat
             data-testid="nifty-gex-profile-zero"
-            label="Zero gamma"
+            label="Flip level"
             valueSize="md"
             value={formatGexStrike(stats.zeroCross)}
-            hint="flip level"
+            hint="zero γ"
           />
           <CompactStat
-            data-testid="nifty-gex-profile-regime"
-            label="Regime"
-            tone={regimeTone}
+            data-testid="nifty-gex-profile-support"
+            label="γ support"
             valueSize="md"
-            value={regimeText}
+            value={formatGexStrike(stats.peakStrike)}
+            hint="pin magnet"
+          />
+          <CompactStat
+            data-testid="nifty-gex-profile-resist"
+            label="γ resistance"
+            valueSize="md"
+            value={formatGexStrike(stats.troughStrike)}
+            hint="breakout fuel"
           />
         </Box>
+
+        {/* What the profile means for the next move — the panel's whole point.
+            The regime chip keeps `nifty-gex-profile-regime` for callers/tests. */}
+        <Box
+          data-testid="nifty-gex-profile-regime"
+          sx={{
+            display: "flex",
+            alignItems: "center",
+            gap: 0.75,
+            flexWrap: "wrap",
+            minWidth: 0,
+          }}
+        >
+          <Text
+            size="xs"
+            span
+            fw={700}
+            sx={{
+              color: regimeTone,
+              border: `1px solid ${regimeTone}`,
+              borderRadius: 0.75,
+              px: 0.5,
+              py: 0.1,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {regimeText}
+          </Text>
+          {regimeSentence && (
+            <Text
+              size="xs"
+              span
+              title={regimeSentence}
+              sx={{
+                color: "text.secondary",
+                minWidth: 0,
+                flex: 1,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {regimeSentence}
+            </Text>
+          )}
+          {flipDistance && (
+            <Text size="xs" span c="dimmed" sx={{ whiteSpace: "nowrap" }}>
+              Spot {formatGexStrike(Number.isFinite(spot) ? spot : null)} · {flipDistance}
+            </Text>
+          )}
+        </Box>
+
+        {/* Why the chart only spans a slice of the strike list: Upstox quotes
+            greeks for the near-money strikes only, so the far wings are dead
+            zero points. Stating the coverage up front is what makes the plot
+            readable — otherwise it looks like the profile is "missing". */}
+        {profile.length > 0 && band.length > 0 && (
+          <Text data-testid="nifty-gex-profile-coverage" size="xs" span c="dimmed">
+            {`band ${formatGexStrike(band[0].strike)}–${formatGexStrike(
+              band[band.length - 1].strike,
+            )} · ${chart.significant} of ${profile.length} strikes carry ≥1% of peak γ`}
+          </Text>
+        )}
 
         {/* Explicit px height (never vh): ECharts/SVG need a non-zero fixed
             box, and vh balloons on tall monitors. 120px still resolves the
@@ -249,13 +454,30 @@ export function NiftyGexProfile({ gex, spot }: NiftyGexProfileProps) {
             labels={chart.labels}
             markers={chart.markers}
             zeroLine={chart.zeroLine}
+            scale="sqrt"
             height={120}
             formatValue={formatGexCr}
             testId="nifty-gex-profile-chart"
             emptyMessage="No per-strike GEX profile"
           />
         </Box>
+        {profile.length > 0 && (
+          <Text
+            data-testid="nifty-gex-profile-caption"
+            size="xs"
+            span
+            c="dimmed"
+            title="x: strike · y: net dealer gamma in ₹ Cr/pt on a sqrt scale (so the big walls don't flatten every other strike). Above the 0 line dealers dampen moves at that strike (magnet); below it they amplify them (fuel). SPOT / ZERO mark today's spot and the gamma flip. The tallest peak is the gamma-support strike, the deepest trough the gamma-resistance strike."
+            sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
+          >
+            x: strike · y: net γ (₹ Cr/pt, √ scale) · above 0 = dampening, below 0 = amplifying
+          </Text>
+        )}
       </Box>
     </CompactPanel>
   );
 }
+
+/** Memoised leaf panel — `gex` keeps identity between unrelated parent renders. */
+export const NiftyGexProfile = memo(NiftyGexProfileInner);
+NiftyGexProfile.displayName = "NiftyGexProfile";

@@ -21,9 +21,16 @@ vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
+  fetchNiftyReplayDates: vi.fn().mockResolvedValue([]),
   fetchNiftyTape: vi.fn(),
   fetchNiftyBursts: vi.fn().mockResolvedValue([]),
   snapshotNifty: vi.fn(),
+}));
+
+// Keep the panel on Live regardless of when the suite runs (a closed-market
+// default would otherwise switch it to EOD on nights/weekends).
+vi.mock("./marketClock", () => ({
+  isMarketOpenIst: () => true,
 }));
 
 vi.mock("@/components/chart/TradingViewChart", () => ({

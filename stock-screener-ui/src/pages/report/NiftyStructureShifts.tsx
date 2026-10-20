@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
@@ -76,11 +77,17 @@ export interface NiftyStructureShiftsProps {
  * option tape. Absent `structure` renders nothing; an empty array renders a
  * friendly empty state. Newest arrives last on the payload and is shown first.
  */
-export function NiftyStructureShifts({ structure }: NiftyStructureShiftsProps) {
-  if (!structure) return null;
-
+function NiftyStructureShiftsInner({ structure }: NiftyStructureShiftsProps) {
+  // Hooks stay unconditional: the absent-payload case returns null AFTER
+  // them, so toggling between null/defined never changes the hook order.
   // Newest is last in the payload — reverse so the latest shift leads.
-  const ordered = [...structure].reverse();
+  const ordered = useMemo(
+    () => (structure ? [...structure].reverse() : []),
+    [structure],
+  );
+  const summary = useMemo(() => structureSummary(structure ?? []), [structure]);
+
+  if (!structure) return null;
 
   return (
     // Wrapper is a flex item inside the report's "signals row" (structure +
@@ -92,7 +99,7 @@ export function NiftyStructureShifts({ structure }: NiftyStructureShiftsProps) {
       <CompactPanel title="Structure shifts">
         <Box data-testid="nifty-structure-summary" sx={{ mb: 0.25 }}>
           <Text size="xs" fw={600} c="dimmed" span>
-            {structureSummary(structure)}
+            {summary}
           </Text>
         </Box>
 
@@ -172,3 +179,7 @@ export function NiftyStructureShifts({ structure }: NiftyStructureShiftsProps) {
     </Box>
   );
 }
+
+/** Memoised leaf panel — `structure` keeps identity between unrelated parent renders. */
+export const NiftyStructureShifts = memo(NiftyStructureShiftsInner);
+NiftyStructureShifts.displayName = "NiftyStructureShifts";

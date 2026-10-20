@@ -1,5 +1,6 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Box from "@mui/material/Box";
+import type { SxProps, Theme } from "@mui/material/styles";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
@@ -595,7 +596,138 @@ export function formatIstClock(ms: number): string {
   });
 }
 
-export function NiftyTapeTable({
+/** Stable row test-id getter — a module constant so the table never gets a new fn. */
+function getTapeRowTestId(): string {
+  return "nifty-tape-row";
+}
+
+/**
+ * Cheap serialised signature of the live change-flash map. The flash map only
+ * ever holds genuinely moved cells (tiny), so this string is cheap to build
+ * and lets the column model keep a stable identity for equal content.
+ */
+function serializeChangedCells(changed: Map<string, Set<string>>): string {
+  if (changed.size === 0) return "";
+  const parts: string[] = [];
+  changed.forEach((set, t) => parts.push(`${t}:${[...set].sort().join(",")}`));
+  parts.sort();
+  return parts.join("|");
+}
+
+/**
+ * Inverse of `serializeChangedCells`. Rebuilding the map from its canonical
+ * string lets the column memo key on content instead of Map identity without
+ * disabling a hook rule — a suppressed `exhaustive-deps` makes React Compiler
+ * skip the whole component (it refuses to optimise files that silence rules).
+ *
+ * Timestamps are `HH:MM`, so the split is on the LAST colon; column ids never
+ * contain one.
+ */
+function deserializeChangedCells(key: string): Map<string, Set<string>> {
+  const map = new Map<string, Set<string>>();
+  if (!key) return map;
+  for (const part of key.split("|")) {
+    if (!part) continue;
+    const sep = part.lastIndexOf(":");
+    if (sep < 0) continue;
+    const cells = part.slice(sep + 1);
+    map.set(part.slice(0, sep), new Set(cells ? cells.split(",") : []));
+  }
+  return map;
+}
+
+/**
+ * Static styles for the tape table wrap — hoisted so the `@keyframes`
+ * tapeRowFlash / tapeCellFlash declarations (and every nested selector) keep
+ * a stable identity instead of being re-allocated on every render.
+ */
+const TAPE_TABLE_WRAP_SX: SxProps<Theme> = {
+  display: "flex",
+  // Fixed px, not vh: vh balloons on tall monitors and squishes on
+  // short ones. ~150px shows the header + ~6 rows; the rest scrolls
+  // inside TanStackTable's own ScrollArea (the inner scroller — this
+  // wrap itself has no `overflow`, so no flex-collapse risk).
+  minHeight: 120,
+  height: 150,
+  minWidth: 0,
+  background: TAPE_TERM_BG,
+  // Terminal density: pitch-black surfaces, muted grid lines,
+  // monospaced tabular numerals. Scoped descendant overrides only.
+  "& .paper-tanstack-container, & .paper-tanstack-scroll, & .paper-tanstack-table": {
+    background: `${TAPE_TERM_BG} !important`,
+  },
+  "& .paper-tanstack-cell": {
+    paddingTop: "3px",
+    paddingBottom: "3px",
+    background: `${TAPE_TERM_BG} !important`,
+    borderBottom: "1px solid #141414 !important",
+    fontSize: 12,
+    fontFamily:
+      'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  "& .paper-tanstack-header-cell": {
+    paddingTop: "3px",
+    paddingBottom: "4px",
+    background: `${TAPE_TERM_BG} !important`,
+    borderBottom: "1px solid #2A2A2A !important",
+    color: "#8B949E",
+    fontSize: 10,
+    textTransform: "uppercase",
+    verticalAlign: "bottom",
+  },
+  // Thin rules group the OI-delta trio and the flip column so the
+  // tape reads in blocks instead of one undifferentiated run.
+  "& [id^='paper-tanstack-cell-put_doi-'], & [id^='paper-tanstack-cell-net-'], & [id^='paper-tanstack-cell-spot_flip-']": {
+    borderLeft: "1px solid #1F1F1F !important",
+  },
+  // Row hover: lift the whole tape line so the eye can track across.
+  "& tbody tr[data-row='stock']:hover .paper-tanstack-cell": {
+    background: "#101418 !important",
+  },
+  // Newest minute pinned with a blue left accent.
+  "& tbody tr.tape-latest .paper-tanstack-cell:first-of-type": {
+    boxShadow: `inset 2px 0 0 0 ${TAPE_CALL_DOI}`,
+  },
+  "& tbody tr.tape-latest .paper-tanstack-cell": {
+    background: "#0A0F16 !important",
+  },
+  // IST column stays put while the numeric block scrolls sideways.
+  "& th:first-of-type, & td:first-of-type": {
+    position: "sticky",
+    left: 0,
+    zIndex: 2,
+    background: `${TAPE_TERM_BG} !important`,
+    boxShadow: "1px 0 0 0 #1F1F1F",
+  },
+  "& th:first-of-type": { zIndex: 3 },
+  // OI-burst minutes get a coloured spine on the IST cell — the same
+  // blue/orange language as the tape columns. Declared after the
+  // latest-row rule so it wins on the newest minute.
+  "& tbody tr.tape-burst-call .paper-tanstack-cell:first-of-type": {
+    boxShadow: `inset 3px 0 0 0 ${TAPE_CALL_DOI}`,
+  },
+  "& tbody tr.tape-burst-put .paper-tanstack-cell:first-of-type": {
+    boxShadow: `inset 3px 0 0 0 ${TAPE_PUT_DOI}`,
+  },
+  // Live tick animations — inset glow fades out (background can't be
+  // animated here because cells pin it with !important).
+  "@keyframes tapeRowFlash": {
+    "0%": { boxShadow: "inset 0 0 0 100px rgba(31, 127, 255, 0.40)" },
+    "100%": { boxShadow: "inset 0 0 0 100px rgba(31, 127, 255, 0)" },
+  },
+  "@keyframes tapeCellFlash": {
+    "0%": { boxShadow: "inset 0 0 0 100px rgba(242, 204, 96, 0.45)" },
+    "100%": { boxShadow: "inset 0 0 0 100px rgba(242, 204, 96, 0)" },
+  },
+  "& tbody tr.tape-flash .paper-tanstack-cell": {
+    animation: "tapeRowFlash 1.5s ease-out",
+  },
+  "& .tape-cell-flash": {
+    animation: "tapeCellFlash 1.5s ease-out",
+  },
+};
+
+function NiftyTapeTableInner({
   rows,
   tape,
   live = false,
@@ -628,9 +760,17 @@ export function NiftyTapeTable({
   }, [rows, order]);
   const scale = useMemo(() => computeTapeScale(rows), [rows]);
   const spotDeltas = useMemo(() => computeSpotDeltas(rows), [rows]);
+  // The column model embeds the live flash map in its cell closures. Keying
+  // the memo on a cheap serialised signature (instead of the Map identity)
+  // keeps the whole 12-column model stable across ticks whose flash content
+  // is unchanged — a fresh-but-equal Map never rebuilds it.
+  const changedKey = useMemo(() => serializeChangedCells(changed), [changed]);
+  // Content-keyed identity: a fresh-but-equal Map keeps the previous instance,
+  // so the 12-column model is not rebuilt on every tick.
+  const stableChanged = useMemo(() => deserializeChangedCells(changedKey), [changedKey]);
   const columns = useMemo(
-    () => getNiftyTapeColumns(baseline ?? undefined, scale, spotDeltas, changed),
-    [baseline, scale, spotDeltas, changed],
+    () => getNiftyTapeColumns(baseline ?? undefined, scale, spotDeltas, stableChanged),
+    [baseline, scale, spotDeltas, stableChanged],
   );
   const head = useMemo(() => buildTapeHead(rows, tape), [rows, tape]);
   const doiLabel = useMemo(() => tapeDoiLabel(tape, rows), [rows, tape]);
@@ -646,26 +786,55 @@ export function NiftyTapeTable({
   // Diff each incoming snapshot against the previous one: a new minute →
   // row flash; a revised value on an existing minute → cell flash. Both
   // auto-clear after the animation window so nothing stays lit.
+  // Perf: snapshots whose content did not move skip setState AND the 1.6s
+  // clear timer entirely, so a quiescent tick costs one effect with no
+  // second render. The timer only (re)starts while a flash is actually lit.
+  const flashPendingRef = useRef(false);
   useEffect(() => {
     const prevRows = prevRowsRef.current;
     const prevLatest = prevLatestRef.current;
     prevLatestRef.current = latestT;
-    if (prevLatest && latestT && prevLatest !== latestT) {
+    const isNewLatest = Boolean(prevLatest && latestT && prevLatest !== latestT);
+    if (isNewLatest) {
       setFlashT(latestT);
     }
     // A brand-new minute is never in the previous snapshot, so it can't
     // appear here — the row flash covers it. Only genuine revisions flash.
     const moved = computeChangedCells(prevRows, rows);
-    setChanged(moved);
+    if (moved.size > 0) {
+      setChanged(moved);
+    }
     const snapshot = new Map<string, NiftyTapeRow>();
     for (const r of rows) snapshot.set(r.t, r);
     prevRowsRef.current = snapshot;
+    if (isNewLatest || moved.size > 0) {
+      flashPendingRef.current = true;
+    }
+    if (!flashPendingRef.current) return;
     const id = setTimeout(() => {
-      setFlashT(null);
-      setChanged(new Map());
+      flashPendingRef.current = false;
+      // Functional updates that return the previous state when already
+      // clear — React bails out, so an idle timer never forces a render.
+      setFlashT((prev) => (prev === null ? prev : null));
+      setChanged((prev) => (prev.size === 0 ? prev : new Map()));
     }, 1600);
     return () => clearTimeout(id);
   }, [rows, latestT]);
+
+  // Stable row class-name resolver: only identity-changes when its inputs do,
+  // so the table is not handed a new function every render.
+  const getRowClassName = useCallback(
+    (row: NiftyTapeRow) => {
+      const cls: string[] = [];
+      const side = bursts?.get(row.t);
+      if (side === "call") cls.push("tape-burst-call");
+      else if (side === "put") cls.push("tape-burst-put");
+      if (row.t === flashT) cls.push("tape-flash");
+      else if (row.t === latestT) cls.push("tape-latest");
+      return cls.length > 0 ? cls.join(" ") : undefined;
+    },
+    [bursts, flashT, latestT],
+  );
 
   return (
     // Fixed px chrome: root gaps are 4px; the table wrap below owns the only
@@ -794,91 +963,7 @@ export function NiftyTapeTable({
       </Box>
       <Box
         data-testid="nifty-tape-table-wrap"
-        sx={{
-          display: "flex",
-          // Fixed px, not vh: vh balloons on tall monitors and squishes on
-          // short ones. ~150px shows the header + ~6 rows; the rest scrolls
-          // inside TanStackTable's own ScrollArea (the inner scroller — this
-          // wrap itself has no `overflow`, so no flex-collapse risk).
-          minHeight: 120,
-          height: 150,
-          minWidth: 0,
-          background: TAPE_TERM_BG,
-          // Terminal density: pitch-black surfaces, muted grid lines,
-          // monospaced tabular numerals. Scoped descendant overrides only.
-          "& .paper-tanstack-container, & .paper-tanstack-scroll, & .paper-tanstack-table": {
-            background: `${TAPE_TERM_BG} !important`,
-          },
-          "& .paper-tanstack-cell": {
-            paddingTop: "3px",
-            paddingBottom: "3px",
-            background: `${TAPE_TERM_BG} !important`,
-            borderBottom: "1px solid #141414 !important",
-            fontSize: 12,
-            fontFamily:
-              'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-          },
-          "& .paper-tanstack-header-cell": {
-            paddingTop: "3px",
-            paddingBottom: "4px",
-            background: `${TAPE_TERM_BG} !important`,
-            borderBottom: "1px solid #2A2A2A !important",
-            color: "#8B949E",
-            fontSize: 10,
-            textTransform: "uppercase",
-            verticalAlign: "bottom",
-          },
-          // Thin rules group the OI-delta trio and the flip column so the
-          // tape reads in blocks instead of one undifferentiated run.
-          "& [id^='paper-tanstack-cell-put_doi-'], & [id^='paper-tanstack-cell-net-'], & [id^='paper-tanstack-cell-spot_flip-']": {
-            borderLeft: "1px solid #1F1F1F !important",
-          },
-          // Row hover: lift the whole tape line so the eye can track across.
-          "& tbody tr[data-row='stock']:hover .paper-tanstack-cell": {
-            background: "#101418 !important",
-          },
-          // Newest minute pinned with a blue left accent.
-          "& tbody tr.tape-latest .paper-tanstack-cell:first-of-type": {
-            boxShadow: `inset 2px 0 0 0 ${TAPE_CALL_DOI}`,
-          },
-          "& tbody tr.tape-latest .paper-tanstack-cell": {
-            background: "#0A0F16 !important",
-          },
-          // IST column stays put while the numeric block scrolls sideways.
-          "& th:first-of-type, & td:first-of-type": {
-            position: "sticky",
-            left: 0,
-            zIndex: 2,
-            background: `${TAPE_TERM_BG} !important`,
-            boxShadow: "1px 0 0 0 #1F1F1F",
-          },
-          "& th:first-of-type": { zIndex: 3 },
-          // OI-burst minutes get a coloured spine on the IST cell — the same
-          // blue/orange language as the tape columns. Declared after the
-          // latest-row rule so it wins on the newest minute.
-          "& tbody tr.tape-burst-call .paper-tanstack-cell:first-of-type": {
-            boxShadow: `inset 3px 0 0 0 ${TAPE_CALL_DOI}`,
-          },
-          "& tbody tr.tape-burst-put .paper-tanstack-cell:first-of-type": {
-            boxShadow: `inset 3px 0 0 0 ${TAPE_PUT_DOI}`,
-          },
-          // Live tick animations — inset glow fades out (background can't be
-          // animated here because cells pin it with !important).
-          "@keyframes tapeRowFlash": {
-            "0%": { boxShadow: "inset 0 0 0 100px rgba(31, 127, 255, 0.40)" },
-            "100%": { boxShadow: "inset 0 0 0 100px rgba(31, 127, 255, 0)" },
-          },
-          "@keyframes tapeCellFlash": {
-            "0%": { boxShadow: "inset 0 0 0 100px rgba(242, 204, 96, 0.45)" },
-            "100%": { boxShadow: "inset 0 0 0 100px rgba(242, 204, 96, 0)" },
-          },
-          "& tbody tr.tape-flash .paper-tanstack-cell": {
-            animation: "tapeRowFlash 1.5s ease-out",
-          },
-          "& .tape-cell-flash": {
-            animation: "tapeCellFlash 1.5s ease-out",
-          },
-        }}
+        sx={TAPE_TABLE_WRAP_SX}
       >
         <TanStackTable<NiftyTapeRow>
           data={ordered}
@@ -888,16 +973,8 @@ export function NiftyTapeTable({
           fillContainer
           enableSorting={false}
           rowWindowSize={40}
-          getRowTestId={() => "nifty-tape-row"}
-          getRowClassName={(row) => {
-            const cls: string[] = [];
-            const side = bursts?.get(row.t);
-            if (side === "call") cls.push("tape-burst-call");
-            else if (side === "put") cls.push("tape-burst-put");
-            if (row.t === flashT) cls.push("tape-flash");
-            else if (row.t === latestT) cls.push("tape-latest");
-            return cls.length > 0 ? cls.join(" ") : undefined;
-          }}
+          getRowTestId={getTapeRowTestId}
+          getRowClassName={getRowClassName}
         />
       </Box>
       {/* One dense legend line: tight column gap + no row gap so it stays a
@@ -933,3 +1010,7 @@ export function NiftyTapeTable({
     </Box>
   );
 }
+
+/** Memoised leaf panel — report-payload props keep identity between unrelated parent renders. */
+export const NiftyTapeTable = memo(NiftyTapeTableInner);
+NiftyTapeTable.displayName = "NiftyTapeTable";

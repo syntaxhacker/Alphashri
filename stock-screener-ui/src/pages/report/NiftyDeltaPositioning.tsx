@@ -1,3 +1,4 @@
+import { memo } from "react";
 import Box from "@mui/material/Box";
 import type { ReactNode } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -155,8 +156,22 @@ export function getPositioningColumns(): ColumnDef<NiftyPositioningStrike>[] {
         );
       },
     },
-    { id: "calls", header: "Calls", columns: legColumns("ce") },
-    { id: "puts", header: "Puts", columns: legColumns("pe") },
+    // Group headers sit centred over their two numeric columns; leaf
+    // headers/values stay right-aligned (TABLE_CHECKLIST alignment map).
+    {
+      id: "calls",
+      header: "Calls",
+      size: 64 + 82,
+      meta: { align: "center" },
+      columns: legColumns("ce"),
+    },
+    {
+      id: "puts",
+      header: "Puts",
+      size: 64 + 82,
+      meta: { align: "center" },
+      columns: legColumns("pe"),
+    },
     {
       id: "netInitiated",
       header: "Net initiated",
@@ -171,7 +186,24 @@ export function getPositioningColumns(): ColumnDef<NiftyPositioningStrike>[] {
   ];
 }
 
-function PositioningStatRow({
+/**
+ * Module-level column model — the positioning columns are fully static (no
+ * closure over render state), so one shared instance replaces the per-render
+ * `getPositioningColumns()` call. `getPositioningColumns` stays exported for
+ * compatibility; `POSITIONING_COLUMNS` is what the panel renders.
+ */
+export const POSITIONING_COLUMNS: ColumnDef<NiftyPositioningStrike>[] =
+  getPositioningColumns();
+
+/** Stable row test-id getter — hoisted so the table never gets a new fn. */
+function getPositioningRowTestId(
+  row: NiftyPositioningStrike | null | undefined,
+  index: number,
+): string {
+  return `nifty-positioning-row-${row?.strike ?? "na"}-${index}`;
+}
+
+const PositioningStatRow = memo(function PositioningStatRow({
   testId,
   label,
   value,
@@ -219,7 +251,8 @@ function PositioningStatRow({
       </Box>
     </Box>
   );
-}
+});
+PositioningStatRow.displayName = "PositioningStatRow";
 
 export interface NiftyDeltaPositioningProps {
   positioning?: NiftyPositioningBlock;
@@ -230,7 +263,7 @@ export interface NiftyDeltaPositioningProps {
  * field on the payload is nullable, so an absent/partial block renders the
  * panel with em dashes and an empty table instead of crashing.
  */
-export function NiftyDeltaPositioning({ positioning }: NiftyDeltaPositioningProps) {
+export function NiftyDeltaPositioningInner({ positioning }: NiftyDeltaPositioningProps) {
   const verdict = positioning?.verdict ?? null;
   const accent = positioningAccent(verdict);
   const strikes = Array.isArray(positioning?.strikes) ? positioning.strikes : [];
@@ -242,7 +275,7 @@ export function NiftyDeltaPositioning({ positioning }: NiftyDeltaPositioningProp
     positioning?.bearCr,
     positioning?.splitPct,
   );
-  const columns = getPositioningColumns();
+  const columns = POSITIONING_COLUMNS;
   // Bullish vs bearish share of gross initiated for the split bar. The split
   // pct is the dominant side's share; below 50 the bear side dominates.
   const splitPct = positioning?.splitPct;
@@ -268,10 +301,16 @@ export function NiftyDeltaPositioning({ positioning }: NiftyDeltaPositioningProp
 
   return (
     <CompactPanel
+      flush
+      scrollable
       title="Delta positioning"
       testId="nifty-positioning-panel"
     >
-      <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0 }}>
+      {/* `scrollable` gives the panel a flex column body with `overflow:
+          hidden`; without it the 2,000px-tall table painted past the panel
+          and stretched the page's scroll area. `height: 100%` (not flex:1)
+          because the body is an overflow container, not a flex parent. */}
+      <Box sx={{ display: "flex", flexDirection: "column", gap: 1, minWidth: 0, height: "100%", minHeight: 0 }}>
         <Box
           data-testid="nifty-positioning-verdict"
           title="Direction of net delta positioning — positive = bullish, negative = bearish"
@@ -345,11 +384,10 @@ export function NiftyDeltaPositioning({ positioning }: NiftyDeltaPositioningProp
           />
         </Box>
 
-        {/* Capped: at 220px this panel was the tallest child of
-            `nifty-analytics-row` (which is align-items: stretch), so it held the
-            whole row at 315px even after its sibling dropped to 224px. The
-            table scrolls internally, so the visible row count costs nothing. */}
-        <Box sx={{ minWidth: 0, height: { xs: 120, lg: 130 } }}>
+        {/* Fills the row: the panel stretches to the analytics row height
+            (align-items: stretch), so the table takes the remaining space and
+            scrolls internally instead of leaving a hole under 4 rows. */}
+        <Box sx={{ minWidth: 0, flex: 1, minHeight: 120 }}>
           <TanStackTable<NiftyPositioningStrike>
             data={strikes}
             columns={columns}
@@ -357,12 +395,14 @@ export function NiftyDeltaPositioning({ positioning }: NiftyDeltaPositioningProp
             emptyMessage="No strike breakdown"
             rowWindowSize={30}
             fillContainer
-            getRowTestId={(row, index) =>
-              `nifty-positioning-row-${row?.strike ?? "na"}-${index}`
-            }
+            getRowTestId={getPositioningRowTestId}
           />
         </Box>
       </Box>
     </CompactPanel>
   );
 }
+
+/** Memoised leaf panel — `positioning` keeps identity between unrelated parent renders. */
+export const NiftyDeltaPositioning = memo(NiftyDeltaPositioningInner);
+NiftyDeltaPositioning.displayName = "NiftyDeltaPositioning";

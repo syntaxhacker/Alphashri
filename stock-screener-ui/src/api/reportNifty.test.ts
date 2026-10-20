@@ -3,6 +3,7 @@ import { describe, expect, test, vi } from "vitest";
 
 import {
   fetchNiftyBursts,
+  fetchNiftyReplay,
   fetchNiftyTape,
   normalizeBurst,
   normalizeReport,
@@ -712,5 +713,167 @@ describe("normalizeReport pivots (classic levels, null-safe)", () => {
     expect(normalizeReport({ ...snakeReport, pivots: "none" }).pivots).toBeNull();
     expect(normalizeReport({ ...snakeReport, pivots: 42 }).pivots).toBeNull();
     expect(normalizeReport({ ...snakeReport, pivots: [] }).pivots).not.toBeNull();
+  });
+});
+
+describe("fetchNiftyReplay (recorded EOD minute frames)", () => {
+  test("normalizes every frame's report and sensex (null-safe)", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-10",
+        count: 2,
+        interval_sec: 60,
+        snapshots: [
+          {
+            t: "2026-10-10T09:15:00+05:30",
+            fetched_at: "2026-10-10T09:15:12+05:30",
+            report: {
+              ...snakeReport,
+              mode: "eod",
+              spot: 25100,
+              pcr_oi: 1.05,
+              max_pain: 25200,
+            },
+            sensex: {
+              symbol: "SENSEX",
+              spot: 82000,
+              pcr_oi: 1.4,
+              pcr_vol: 0.9,
+              max_pain: 81900,
+              walls: {
+                calls: [{ strike: 82500, oi: 1000 }],
+                puts: [{ strike: 81500, oi: 1200 }],
+              },
+              ohlc: { open: 81900, high: 82100, low: 81800, close: 82000 },
+              fetched_at: "2026-10-10T09:15:10+05:30",
+            },
+          },
+          {
+            t: "2026-10-10T09:16:00+05:30",
+            fetched_at: "2026-10-10T09:16:11+05:30",
+            report: { ...snakeReport, mode: "eod", spot: 25105 },
+            sensex: null,
+          },
+        ],
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-10");
+    expect(replay).not.toBeNull();
+    expect(replay!.date).toBe("2026-10-10");
+    expect(replay!.count).toBe(2);
+    expect(replay!.interval_sec).toBe(60);
+    expect(replay!.snapshots).toHaveLength(2);
+
+    const f0 = replay!.snapshots[0];
+    expect(f0.t).toBe("2026-10-10T09:15:00+05:30");
+    expect(f0.fetched_at).toBe("2026-10-10T09:15:12+05:30");
+    // report went through normalizeReport (snake_case → camelCase)
+    expect(f0.report.mode).toBe("eod");
+    expect(f0.report.spot).toBe(25100);
+    expect(f0.report.pcrOi).toBe(1.05);
+    expect(f0.report.maxPain).toBe(25200);
+    // sensex went through normalizeSensex
+    expect(f0.sensex?.symbol).toBe("SENSEX");
+    expect(f0.sensex?.spot).toBe(82000);
+    expect(f0.sensex?.pcrOi).toBe(1.4);
+    expect(f0.sensex?.maxPain).toBe(81900);
+
+    const f1 = replay!.snapshots[1];
+    expect(f1.report.spot).toBe(25105);
+    expect(f1.sensex).toBeNull();
+
+    expect(vi.mocked(fetchWithAuth)).toHaveBeenCalledWith(
+      expect.stringContaining("/api/reports/nifty/replay?date=2026-10-10"),
+      { signal: undefined },
+    );
+  });
+
+  test("carries the gap journal and drops junk reason counts", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-19",
+        count: 1,
+        interval_sec: 60,
+        snapshots: [{ t: "10:33", report: snakeReport }],
+        gap_reasons: { "chain-failed": 41, timeout: 12, zero: 0, neg: -3, junk: "x" },
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-19");
+    expect(replay!.gap_reasons).toEqual({ "chain-failed": 41, timeout: 12 });
+  });
+
+  test("leaves gap_reasons undefined when the day has no journal", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-13",
+        count: 0,
+        interval_sec: 60,
+        snapshots: [],
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-13");
+    expect(replay!.gap_reasons).toBeUndefined();
+  });
+
+  test("skips frames without a usable report envelope", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-10",
+        interval_sec: 60,
+        snapshots: [
+          { t: "09:15", report: snakeReport },
+          { t: "09:16", report: null },
+          { t: "09:17", report: "junk" },
+          { t: "09:18" },
+          null,
+        ],
+      }),
+    } as unknown as Response);
+    const replay = await fetchNiftyReplay("2026-10-10");
+    expect(replay!.snapshots).toHaveLength(1);
+    expect(replay!.snapshots[0].t).toBe("09:15");
+  });
+
+  test("tolerates an empty snapshots list", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => ({
+        date: "2026-10-11",
+        count: 0,
+        interval_sec: 60,
+        snapshots: [],
+      }),
+    } as unknown as Response);
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toEqual({
+      date: "2026-10-11",
+      count: 0,
+      interval_sec: 60,
+      snapshots: [],
+    });
+  });
+
+  test("404 / missing-day envelope resolves null", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({ is_trading_day: false, detail: "No replay" }),
+    } as unknown as Response);
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
+  });
+
+  test("malformed JSON and network failure resolve null (never throws)", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: true,
+      json: async () => {
+        throw new Error("bad json");
+      },
+    } as unknown as Response);
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
+
+    vi.mocked(fetchWithAuth).mockRejectedValueOnce(new Error("aborted"));
+    await expect(fetchNiftyReplay("2026-10-11")).resolves.toBeNull();
   });
 });

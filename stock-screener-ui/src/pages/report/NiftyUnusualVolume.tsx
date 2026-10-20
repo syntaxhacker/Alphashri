@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { memo, useCallback, useMemo, useState } from "react";
 import type { CSSProperties } from "react";
 import Box from "@mui/material/Box";
 import { Text } from "@/ui";
@@ -313,7 +313,64 @@ function clock(ms: number): string {
   return new Date(ms).toLocaleTimeString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" });
 }
 
-export function NiftyUnusualVolume({
+/** Stable row test-id getter — hoisted so the table never gets a new fn. */
+function getUnusualRowTestId(row: UnusualLegRow): string {
+  return `nifty-unusual-row-${row.strike}-${row.leg}`;
+}
+
+/** Hoisted pill chrome — constant halves of the filter-pill style. */
+const UNUSUAL_PILL_BASE_SX = {
+  border: "1px solid",
+  borderRadius: 999,
+  px: 1,
+  py: 0.25,
+  fontSize: 11,
+  fontWeight: 700,
+  cursor: "pointer",
+  whiteSpace: "nowrap",
+} as const;
+
+const UNUSUAL_PILL_ACTIVE_SX = {
+  borderColor: "#2FC0AC",
+  background: "rgba(47, 192, 172, 0.18)",
+  color: "#8AE6D4",
+} as const;
+
+const UNUSUAL_PILL_IDLE_SX = {
+  borderColor: "#30363D",
+  background: "transparent",
+  color: "#8B949E",
+} as const;
+
+/** Memoised filter pill — replaces the per-render `pill()` closure. */
+const UnusualFilterPill = memo(function UnusualFilterPill({
+  active,
+  label,
+  testId,
+  onClick,
+}: {
+  active: boolean;
+  label: string;
+  testId: string;
+  onClick: () => void;
+}) {
+  return (
+    <Box
+      component="button"
+      data-testid={testId}
+      onClick={onClick}
+      sx={{
+        ...UNUSUAL_PILL_BASE_SX,
+        ...(active ? UNUSUAL_PILL_ACTIVE_SX : UNUSUAL_PILL_IDLE_SX),
+      }}
+    >
+      {label}
+    </Box>
+  );
+});
+UnusualFilterPill.displayName = "UnusualFilterPill";
+
+function NiftyUnusualVolumeInner({
   strikes,
   spot,
   sx,
@@ -347,34 +404,23 @@ export function NiftyUnusualVolume({
     [visible],
   );
   const columns = useMemo(() => getNiftyUnusualColumns(maxVol), [maxVol]);
+  // Stable filter callbacks so the memoised pills keep working props.
+  const selectAll = useCallback(() => setLegFilter("all"), []);
+  const selectCalls = useCallback(() => setLegFilter("CE"), []);
+  const selectPuts = useCallback(() => setLegFilter("PE"), []);
+  // Stable row-style resolver (depends only on spot, not on every render).
+  const getRowStyle = useCallback(
+    (row: UnusualLegRow) =>
+      isItmLeg(row.strike, row.leg, spot)
+        ? { background: hexToRgba(palette.WARNING, 0.08) }
+        : undefined,
+    [spot],
+  );
   const top = rows[0];
   const focus = top ? formatUnusualFocus(top, spot) : "";
   // Split the focus line into label/value pairs for terminal rendering while
   // keeping the exact same text (tests assert the full string).
   const focusParts = focus ? focus.split(" · ") : [];
-
-  const pill = (active: boolean, label: string, testId: string, onClick: () => void) => (
-    <Box
-      component="button"
-      data-testid={testId}
-      onClick={onClick}
-      sx={{
-        border: "1px solid",
-        borderColor: active ? "#2FC0AC" : "#30363D",
-        background: active ? "rgba(47, 192, 172, 0.18)" : "transparent",
-        color: active ? "#8AE6D4" : "#8B949E",
-        borderRadius: 999,
-        px: 1,
-        py: 0.25,
-        fontSize: 11,
-        fontWeight: 700,
-        cursor: "pointer",
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </Box>
-  );
 
   return (
     <Box
@@ -384,9 +430,9 @@ export function NiftyUnusualVolume({
       <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 0.75, pt: 0.25 }}>
         <Text size="xs" fw={700} span>Unusual volume</Text>
         <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
-          {pill(legFilter === "all", "C + P", "nifty-unusual-filter-all", () => setLegFilter("all"))}
-          {pill(legFilter === "CE", "Calls", "nifty-unusual-filter-ce", () => setLegFilter("CE"))}
-          {pill(legFilter === "PE", "Puts", "nifty-unusual-filter-pe", () => setLegFilter("PE"))}
+          <UnusualFilterPill active={legFilter === "all"} label="C + P" testId="nifty-unusual-filter-all" onClick={selectAll} />
+          <UnusualFilterPill active={legFilter === "CE"} label="Calls" testId="nifty-unusual-filter-ce" onClick={selectCalls} />
+          <UnusualFilterPill active={legFilter === "PE"} label="Puts" testId="nifty-unusual-filter-pe" onClick={selectPuts} />
         </Box>
       </Box>
       {/* Single wrapping stat line (was two stacked rows): call/put vol +
@@ -483,14 +529,15 @@ export function NiftyUnusualVolume({
           dataTestId="nifty-unusual-table"
           emptyMessage="No chain data"
           fillContainer
-          getRowStyle={(row) =>
-            isItmLeg(row.strike, row.leg, spot)
-              ? { background: hexToRgba(palette.WARNING, 0.08) }
-              : undefined
-          }
-          getRowTestId={(row) => `nifty-unusual-row-${row.strike}-${row.leg}`}
+          getRowStyle={getRowStyle}
+          getRowTestId={getUnusualRowTestId}
+          style={{ minWidth: 0 }}
         />
       </Box>
     </Box>
   );
 }
+
+/** Memoised leaf panel — `strikes` keeps identity between unrelated parent renders. */
+export const NiftyUnusualVolume = memo(NiftyUnusualVolumeInner);
+NiftyUnusualVolume.displayName = "NiftyUnusualVolume";

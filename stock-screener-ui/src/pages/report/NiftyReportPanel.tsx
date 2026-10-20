@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import type { CSSProperties } from "react";
 import Box from "@mui/material/Box";
 import {
   Button,
@@ -10,8 +11,21 @@ import {
   TimelineItem,
 } from "@/ui";
 import * as palette from "@/ui/palette";
-import { TradingViewChart } from "@/components/chart/TradingViewChart";
-import { NiftyDepthMap } from "./NiftyDepthMap";
+import {
+  NiftyChartPanel,
+  buildMarkLines as buildChartMarkLines,
+  resampleCandles as resampleChartCandles,
+  emaSeries as emaChartSeries,
+} from "./NiftyChartPanel";
+import {
+  NiftyReplayBar,
+  buildReplaySegments,
+  countReplayHoles,
+  replayTimeLabel as replayTimeLabelBar,
+  toReplayReasons,
+} from "./NiftyReplayBar";
+import type { ReplayReason } from "./NiftyReplayBar";
+import { NiftyUpdatedLabel } from "./NiftyUpdatedLabel";
 import { NiftyTapeTable } from "./NiftyTapeTable";
 import { NiftyUnusualVolume, UNUSUAL_TERM_BG, UNUSUAL_TERM_BORDER } from "./NiftyUnusualVolume";
 import { NiftyStructureShifts } from "./NiftyStructureShifts";
@@ -22,7 +36,7 @@ import { NiftyGammaTime } from "./NiftyGammaTime";
 import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
-import { detectOiBursts, sessionTrend } from "./niftyOiBursts";
+import { detectOiBursts, TREND_EMA_SPAN } from "./niftyOiBursts";
 import { useNiftyBurstStream } from "@/hooks/useNiftyBurstStream";
 import { useNiftyReportStream } from "@/hooks/useNiftyReportStream";
 import type { OiBurst } from "./niftyOiBursts";
@@ -31,120 +45,94 @@ import { AnimatedValue } from "@/components/common/AnimatedValue";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact, ErrorAlert, InlineLoader } from "@/components/common/states";
 import type { ColumnDef } from "@tanstack/react-table";
-import type { MarkLineData } from "@/utils/chart/types";
 import type {
   NiftyBurst,
   NiftyGex,
-  NiftyIntradayCandle,
   NiftyReport,
   NiftyReportMode,
+  NiftyReplay,
   NiftySensex,
   NiftyStrike,
   NiftyTape,
 } from "@/types/niftyReport";
-import type { ReplayCandle } from "@/types/replay";
-import { fetchLiveNifty, fetchLiveSensex, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyTape, fetchNiftyBursts, snapshotNifty } from "@/api/reportNifty";
+import { fetchLiveNifty, fetchLiveSensex, fetchNiftyByDate, fetchNiftyExpiries, fetchNiftyReplay, fetchNiftyReplayDates, fetchNiftyTape, fetchNiftyBursts, snapshotNifty } from "@/api/reportNifty";
+import {
+  computeReplayCoverage,
+} from "./niftyReplayCoverage";
+import { isMarketOpenIst } from "./marketClock";
 
 export interface NiftyReportPanelProps {
   onOpenSymbol?: (s: string) => void;
 }
 
-export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineData[] {
-  const lines: MarkLineData[] = [];
-  const used: number[] = [];
-  const fresh = (s: number) => !used.some((u) => Math.abs(u - s) <= 25);
+/**
+ * One cell of the two-line stat band: a muted label on top, a tabular value
+ * below. Cells are separated by hairlines (no gaps, no per-cell boxes) so the
+ * band reads as a single strip and every value sits on the same baseline.
+ */
+const STAT_BAND_CELL_SX = {
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  gap: "2px",
+  minWidth: 0,
+  px: 1.5,
+  py: 0.75,
+  borderLeft: `1px solid ${palette.TERM_BORDER}`,
+  "&:first-child": { borderLeft: "none" },
+} as const;
 
-  // Call/put walls and max pain as horizontal price LINES. These were shaded
-  // price zones previously; the bands were too heavy, so they are lines now.
-  const topCalls = [...report.walls.calls].sort((a, b) => b.oi - a.oi).slice(0, 2);
-  const topPuts = [...report.walls.puts].sort((a, b) => b.oi - a.oi).slice(0, 2);
-  for (const w of topCalls) {
-    lines.push({
-      yAxis: w.strike,
-      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `CW ${w.strike}` },
-    });
-    used.push(w.strike);
-  }
-  for (const w of topPuts) {
-    lines.push({
-      yAxis: w.strike,
-      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `PW ${w.strike}` },
-    });
-    used.push(w.strike);
-  }
-  if (Number.isFinite(report.maxPain) && report.maxPain > 0) {
-    lines.push({
-      yAxis: report.maxPain,
-      lineStyle: { color: palette.PRIMARY, type: "solid", width: 2 },
-      label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
-    });
-    used.push(report.maxPain);
-  }
+const STAT_BAND_LABEL_STYLE: CSSProperties = {
+  fontSize: 9,
+  lineHeight: 1.3,
+  letterSpacing: "0.07em",
+  textTransform: "uppercase",
+};
 
-  // Prior-session pivots: PP anchors the day (solid muted); resistance above
-  // (dashed red) and support below (dashed green). Levels are computed by the
-  // backend (`pivots` block, null-safe); nulls are skipped and anything that
-  // lands within 25 pts of an already-drawn line is de-duped like GEX tags.
-  const pivot = report.pivots;
-  if (pivot) {
-    const levels: [string, number | null, string, string][] = [
-      ["PP", pivot.pp, palette.TEXT_MUTED, "solid"],
-      ["R1", pivot.r1, palette.NEGATIVE, "dashed"],
-      ["R2", pivot.r2, palette.NEGATIVE, "dashed"],
-      ["S1", pivot.s1, palette.POSITIVE, "dashed"],
-      ["S2", pivot.s2, palette.POSITIVE, "dashed"],
-    ];
-    for (const [code, value, color, lineType] of levels) {
-      if (value === null || !Number.isFinite(value) || !fresh(value)) continue;
-      lines.push({
-        yAxis: value,
-        lineStyle: { color, type: lineType, width: 1 },
-        label: {
-          position: "insideEndTop",
-          formatter: `${code} ${Math.round(value).toLocaleString("en-IN")}`,
-        },
-      });
-      used.push(value);
-    }
-  }
+const STAT_BAND_VALUE_STYLE: CSSProperties = {
+  fontSize: 13,
+  lineHeight: 1.2,
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
 
-  // Optional live GEX overlay: flip + gamma support/resistance, skipping
-  // strikes already drawn so the gutter never doubles up.
-  if (!withGex || !report.gex) return lines;
+/** Analytics grid cell: the panel fills the row height so both columns end on
+ *  the same line instead of leaving a hole under the shorter panel. */
+const ANALYTICS_CELL_SX = {
+  minWidth: 0,
+  minHeight: 0,
+  display: "flex",
+  flexDirection: "column",
+  "& > *": { flex: 1, minHeight: 0 },
+} as const;
 
-  const g = report.gex;
-  if (g) {
-    if (g.zeroCross != null && fresh(g.zeroCross)) {
-      lines.push({
-        yAxis: g.zeroCross,
-        lineStyle: { color: palette.WARNING, type: "dotted", width: 1 },
-        label: { position: "insideEndTop", formatter: `FLIP ${g.zeroCross}` },
-      });
-      used.push(g.zeroCross);
-    }
-    for (const s of g.topPositive) {
-      if (!fresh(s.strike)) continue;
-      lines.push({
-        yAxis: s.strike,
-        lineStyle: { color: palette.POSITIVE, type: "solid", width: 1 },
-        label: { position: "insideEndTop", formatter: `GSUP ${s.strike}` },
-      });
-      used.push(s.strike);
-    }
-    for (const s of g.topNegative) {
-      if (!fresh(s.strike)) continue;
-      lines.push({
-        yAxis: s.strike,
-        lineStyle: { color: palette.NEGATIVE, type: "solid", width: 1 },
-        label: { position: "insideEndTop", formatter: `GRES ${s.strike}` },
-      });
-      used.push(s.strike);
-    }
-  }
-  return lines;
+/** The delta table has unbounded rows; contain it so the (bounded) gamma
+ *  panel sets the analytics row height and the table scrolls inside. */
+const ANALYTICS_FILL_CELL_SX = {
+  ...ANALYTICS_CELL_SX,
+  contain: { xs: "none", lg: "size" },
+} as const;
+
+/** One inline `LABEL value` pair of the secondary Sensex ticker strip. */
+function SensexCell({ testId, label, value }: { testId: string; label: string; value: string }) {
+  return (
+    <Box data-testid={testId} sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}>
+      <Text span size="xs" c="dimmed" tt="uppercase" style={{ fontSize: 9, letterSpacing: "0.07em", lineHeight: 1.2 }}>
+        {label}
+      </Text>
+      <Text span size="sm" fw={700} style={{ fontSize: 12, lineHeight: 1.2, fontVariantNumeric: "tabular-nums", whiteSpace: "nowrap" }}>
+        {value}
+      </Text>
+    </Box>
+  );
 }
+
+/** Single implementation lives in the memoised chart panel — re-exported
+ *  here so existing imports keep working. */
+export const buildMarkLines = buildChartMarkLines;
+
 
 /** Overnight levels derived from the live chain — no static copy. */
 export function buildOvernightLevels(report: NiftyReport): {
@@ -181,154 +169,15 @@ export function buildOvernightLevels(report: NiftyReport): {
   return { resistance, support, painPull, pcrVerdict };
 }
 
-/** One candle timestamp split into wall-clock parts. `offset` keeps the
- *  source's timezone suffix (e.g. "+05:30") so bucket timestamps stay on the
- *  same timezone semantics as the candles they were built from. */
-interface CandleClock {
-  day: string;
-  hh: number;
-  mm: number;
-  offset: string;
-}
+/** Single implementations live in the memoised chart panel — re-exported
+ *  here so existing imports keep working. */
+export const resampleCandles = resampleChartCandles;
+export const emaSeries = emaChartSeries;
 
-function parseCandleClock(time: string): CandleClock | null {
-  const m =
-    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?(Z|[+-]\d{2}:?\d{2})?/.exec(
-      time,
-    );
-  if (!m) return null;
-  return {
-    day: m[1],
-    hh: Number(m[2]),
-    mm: Number(m[3]),
-    offset: m[4] ?? "",
-  };
-}
 
-/**
- * Resample candles into `minutes` bars for the Nifty chart timeframe toggle.
- * Buckets key on `floor(minutesSinceMidnight / minutes)` per calendar day —
- * the candle's own wall clock, never UTC math — so NSE's 09:15 open stays
- * bucket-aligned for both 5m and 15m. OHLCV folds first-open / max-high /
- * min-low / last-close / summed-volume per bucket. 1m returns the input
- * element-for-element (intraday candles may lack `volume`, which the chart
- * treats as 0; resampled buckets always carry a summed volume). Candles whose
- * timestamp cannot be parsed are skipped — they have no bucket to join.
- */
-export function resampleCandles(
-  candles: (NiftyIntradayCandle | ReplayCandle)[],
-  minutes: number,
-): ReplayCandle[] {
-  // Normalize once: intraday candles may lack `volume` (the chart treats it
-  // as 0); resampled buckets always carry a summed volume.
-  const src: ReplayCandle[] = candles.map((c): ReplayCandle =>
-    "volume" in c ? c : { ...c, volume: 0 },
-  );
-  if (minutes <= 1) return src;
-  const out: ReplayCandle[] = [];
-  let curDay = "";
-  let curBucket = -1;
-  let cur: ReplayCandle | null = null;
-  const flush = () => {
-    if (cur) out.push(cur);
-    cur = null;
-  };
-  for (const c of src) {
-    const clock = parseCandleClock(c.time);
-    if (!clock) continue;
-    const bucket = Math.floor((clock.hh * 60 + clock.mm) / minutes);
-    if (cur && curDay === clock.day && curBucket === bucket) {
-      cur.high = Math.max(cur.high, c.high);
-      cur.low = Math.min(cur.low, c.low);
-      cur.close = c.close;
-      cur.volume += c.volume;
-    } else {
-      flush();
-      const start = bucket * minutes;
-      const hh = String(Math.floor(start / 60)).padStart(2, "0");
-      const mm = String(start % 60).padStart(2, "0");
-      curDay = clock.day;
-      curBucket = bucket;
-      cur = {
-        time: `${clock.day}T${hh}:${mm}:00${clock.offset}`,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume,
-      };
-    }
-  }
-  flush();
-  return out;
-}
+export { LevelLegend, CHART_HEIGHTS, CHART_TF_MINUTES } from "./NiftyChartPanel";
+export type { ChartSize, ChartTimeframe } from "./NiftyChartPanel";
 
-/**
- * EMA(period) over `closes`, aligned index-wise. Seeded with the mean of the
- * first `period` closes, then recursive; points before the seed are `null`.
- * Pure, so the panel recomputes it on the displayed (resampled) candles and
- * the overlays always match the charted timeframe.
- */
-export function emaSeries(closes: number[], period: number): (number | null)[] {
-  const out: (number | null)[] = closes.map(() => null);
-  if (period < 1 || closes.length < period) return out;
-  const k = 2 / (period + 1);
-  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  out[period - 1] = ema;
-  for (let i = period; i < closes.length; i++) {
-    ema = closes[i] * k + ema * (1 - k);
-    out[i] = ema;
-  }
-  return out;
-}
-
-/** What the chart level tags mean. GEX tags exist in live mode only. */
-export function LevelLegend({ live }: { live: boolean }) {
-  const items: { code: string; color: string; meaning: string; zone?: boolean }[] = [
-    { code: "CW", color: palette.NEGATIVE, meaning: "top call-OI wall · resistance", zone: true },
-    { code: "PW", color: palette.POSITIVE, meaning: "top put-OI wall · support", zone: true },
-    { code: "MP", color: palette.PRIMARY, meaning: "max pain · expiry magnet", zone: true },
-  ];
-  if (live) {
-    items.push(
-      { code: "FLIP", color: palette.WARNING, meaning: "gamma flip · dealers switch sides here" },
-      { code: "GSUP", color: palette.POSITIVE, meaning: "gamma support · pin magnet" },
-      { code: "GRES", color: palette.NEGATIVE, meaning: "gamma resistance · breakout fuel" },
-    );
-  }
-  return (
-    // Single dense wrapped row: tight gaps + minimal top pad so the legend
-    // costs one ~16px row instead of two. Fonts/symbols untouched.
-    <Box
-      data-testid="nifty-level-legend"
-      sx={{ display: "flex", flexWrap: "wrap", columnGap: 1, rowGap: 0.5, pt: 0.5 }}
-    >
-      {items.map((it) => (
-        <Box
-          key={it.code}
-          sx={{ display: "flex", alignItems: "center", gap: 1, whiteSpace: "nowrap" }}
-        >
-          <Box
-            sx={{
-              width: it.zone ? 12 : 8,
-              height: it.zone ? 8 : 8,
-              borderRadius: it.zone ? 1 : "50%",
-              backgroundColor: it.zone ? hexToRgba(it.color, 0.18) : it.color,
-              border: it.zone ? `1px solid ${it.color}` : "none",
-              flexShrink: 0,
-            }}
-          />
-          <Text size="xs" fw={700} span>
-            {it.code}
-          </Text>
-          <Text size="xs" c="dimmed" span>
-            {it.meaning}
-          </Text>
-        </Box>
-      ))}
-    </Box>
-  );
-}
 
 function sentimentBadge(sentiment: string, side: "ce" | "pe") {
   const code = sentiment.trim().toUpperCase();
@@ -422,18 +271,11 @@ export function oiBurstLogHeight(count: number): number {
 /** The socket has been down this long → show the stale badge, not an error. */
 const STALE_AFTER_MS = 90_000;
 
-/** Chart height presets (px) for the "Nifty chart" panel size control. */
-export const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
-export type ChartSize = keyof typeof CHART_HEIGHTS;
+/** Replay play cadence — one recorded minute per ~700 ms. */
+const REPLAY_PLAY_MS = 700;
 
-/** Chart timeframe presets and their bar size in minutes. The `intraday`
-    feed is 1-minute; 5m/15m are resampled client-side (see `resampleCandles`). */
-export type ChartTimeframe = "1m" | "5m" | "15m";
-export const CHART_TF_MINUTES: Record<ChartTimeframe, number> = {
-  "1m": 1,
-  "5m": 5,
-  "15m": 15,
-};
+/** Chart presets are re-exported from the memoised chart panel (single implementation). */
+
 const SENSEX_REQUEST_TIMEOUT_MS = 10_000;
 
 /**
@@ -485,6 +327,10 @@ export function findAtmStrike(strikes: NiftyStrike[], spot: number): number | nu
   return best;
 }
 
+/** Re-exported from the memoised replay bar (single implementation). */
+export const replayTimeLabel = replayTimeLabelBar;
+
+
 /** Build an rgba() string from a palette hex token — never hardcode the channels. */
 function hexToRgba(hex: string, alpha: number): string {
   const h = hex.replace("#", "");
@@ -500,7 +346,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     header: "CE Chg%",
     accessorKey: "ce.priceChange",
     accessorFn: (row) => row.ce.priceChange,
-    size: 84,
+    size: 66,
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
@@ -511,7 +357,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     header: "CE OI Chg",
     accessorKey: "ce.oiChange",
     accessorFn: (row) => row.ce.oiChange,
-    size: 110,
+    size: 88,
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
@@ -522,14 +368,14 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     header: "CE Signal",
     accessorKey: "ce.sentiment",
     accessorFn: (row) => row.ce.sentiment,
-    size: 112,
+    size: 114,
     meta: { align: "center" },
     cell: (info) => sentimentBadge(String(info.getValue() ?? ""), "ce"),
   },
   {
     header: "Strike",
     accessorKey: "strike",
-    size: 88,
+    size: 62,
     meta: { align: "right" },
     cell: (info) => {
       const strike = Number(info.getValue());
@@ -577,7 +423,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     header: "PE Signal",
     accessorKey: "pe.sentiment",
     accessorFn: (row) => row.pe.sentiment,
-    size: 112,
+    size: 114,
     meta: { align: "center" },
     cell: (info) => sentimentBadge(String(info.getValue() ?? ""), "pe"),
   },
@@ -585,7 +431,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     header: "PE OI Chg",
     accessorKey: "pe.oiChange",
     accessorFn: (row) => row.pe.oiChange,
-    size: 110,
+    size: 88,
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
@@ -596,7 +442,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     header: "PE Chg%",
     accessorKey: "pe.priceChange",
     accessorFn: (row) => row.pe.priceChange,
-    size: 84,
+    size: 66,
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
@@ -606,12 +452,54 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
   ];
 }
 
+
+/** Module-level toggle data — one stable array identity for every render, so
+ *  memoised children never see a new `data` prop. */
+const INDEX_TOGGLE_DATA: { value: string; label: string }[] = [
+  { value: "nifty", label: "NIFTY" },
+  { value: "sensex", label: "SENSEX" },
+];
+const MODE_TOGGLE_DATA: { value: string; label: string }[] = [
+  { value: "live", label: "Live" },
+  { value: "eod", label: "EOD" },
+];
+const VIEW_TOGGLE_DATA: { value: string; label: string }[] = [
+  { value: "chart", label: "Chart" },
+  { value: "depth", label: "Depth" },
+];
+
+/** Hoisted `sx` objects — inline literals here would defeat `React.memo` on
+ *  the receiving child (e.g. `NiftyUnusualVolume sx={{ minWidth: 0 }}`). */
+const EXPIRY_SELECT_SX = { width: 220, flex: "0 0 auto", minWidth: 0 };
+const UNUSUAL_VOLUME_SX = { minWidth: 0 };
+
+/** Hoisted `AnimatedValue` formatters — inline arrows would be new closures. */
+const formatInt = (v: number): string => v.toLocaleString("en-IN");
+const format2dp = (v: number): string => v.toFixed(2);
+const formatGexTotalValue = (v: number): string => formatGexTotal(v);
+
+/** Live Spot stat, isolated so the ~1/second tick repaints only this value.
+ *  Props are primitives, so the memo holds across unrelated parent renders. */
+const NiftySpotValue = memo(function NiftySpotValue({
+  tickSpot,
+  fallback,
+}: {
+  tickSpot: number | undefined;
+  fallback: number;
+}) {
+  return <AnimatedValue value={tickSpot ?? fallback} format={formatInt} />;
+});
+
 export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const [selectedIndex, setSelectedIndex] = useState<"nifty" | "sensex">("nifty");
   const [mode, setMode] = useState<NiftyReportMode>("live");
   const [expiry, setExpiry] = useState<string>("nearest");
   const [expiryOptions, setExpiryOptions] = useState<string[]>([]);
   const [date, setDate] = useState<string>("");
+  // Gate the first fetch until we know whether to open on Live or on the
+  // newest recorded day (the bootstrap effect lives just above `load`).
+  const [booted, setBooted] = useState(false);
+  const wasOpenAtMount = useRef(isMarketOpenIst());
   const [report, setReport] = useState<NiftyReport | null>(null);
   const [sensex, setSensex] = useState<NiftySensex | null>(null);
   const [sensexLoading, setSensexLoading] = useState(false);
@@ -620,9 +508,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   /** Backend-detected bursts; null = endpoint unavailable → derive locally. */
   const [bursts, setBursts] = useState<OiBurst[] | null>(null);
   const [view, setView] = useState<"chart" | "depth">("chart");
-  const [chartSize, setChartSize] = useState<ChartSize>("s");
-  /** Chart bar timeframe: 1m native; 5m/15m resampled client-side. */
-  const [chartTf, setChartTf] = useState<ChartTimeframe>("1m");
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [snapshotting, setSnapshotting] = useState<boolean>(false);
@@ -641,12 +526,90 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const requestControllerRef = useRef<AbortController | null>(null);
   const sensexControllerRef = useRef<AbortController | null>(null);
   const [streamed, setStreamed] = useState<NiftyBurst[]>([]);
+  // EOD replay: the date's recorded minute frames plus the playhead index.
+  // Null (or an empty list) = no replay for that day → the single EOD
+  // snapshot stays on screen and the replay bar stays hidden.
+  const [replay, setReplay] = useState<NiftyReplay | null>(null);
+  const [replayIndex, setReplayIndex] = useState(0);
+  const [replayPlaying, setReplayPlaying] = useState(false);
+  // Scrub coalescing: slider input can fire far faster than the ~5,668-node
+  // panel tree can repaint. Only the newest frame is kept; one rAF applies
+  // it, so stale frames never land. The concrete frame (not the index) is
+  // stored so a context switch cannot redirect it onto a new replay.
+  const scrubRafRef = useRef<number | null>(null);
+  const pendingScrubRef = useRef<{ report: NiftyReport; sensex: NiftySensex | null } | null>(null);
+
+  // How complete is this day's recording? The replay only has the minutes the
+  // recorder captured; playback jumps the holes in one tick, which reads as a
+  // stutter. Show the coverage instead of leaving it implicit.
+  const replayCoverage = useMemo(
+    () => (replay ? computeReplayCoverage(replay.snapshots) : null),
+    [replay],
+  );
+  // Why the day has holes — the recorder's own skip reasons (gap journal).
+  // Absent for days recorded before the journal existed, so this can be empty.
+  // Memoised on `replay` identity so the memoised replay bar keeps stable props.
+  const replayReasons: ReplayReason[] = useMemo(
+    () => toReplayReasons(replay?.gap_reasons),
+    [replay],
+  );
+
+  // In-session holes only — the lead-in and tail are the recorder starting
+  // late / stopping early, not missed ticks. Memoised on `replay` so the
+  // replay bar's segment strip is never rebuilt by unrelated renders.
+  const replayHoles = useMemo(
+    () => countReplayHoles(buildReplaySegments(replay, replayCoverage)),
+    [replay, replayCoverage],
+  );
 
   // Exchange session gate (from the `market` block). When closed, the
   // snapshot is labelled "Market closed" instead of "live".
   const marketClosed = report?.market?.is_open === false;
   const contextKey = mode === "eod" ? `eod:${date}` : `live:${expiry}`;
   const prevContext = useRef(contextKey);
+
+  // Closed-market default: open on the newest day that has a recording instead
+  // of an empty Live screen. The dates endpoint only lists days with
+  // snapshots, so a holiday/weekend resolves to the last real session.
+  useEffect(() => {
+    let alive = true;
+    void (async () => {
+      try {
+        if (!isMarketOpenIst()) {
+          const dates = await fetchNiftyReplayDates();
+          if (alive && dates.length > 0) {
+            setMode("eod");
+            setDate(dates[0]);
+          }
+        }
+      } catch {
+        // A failed/absent dates lookup must never block the first load — the
+        // panel falls back to Live.
+      } finally {
+        if (alive) setBooted(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  // The tab can stay open across the 15:30 close. Switch once, at the close,
+  // to that day's EOD replay; a later manual Live choice is respected.
+  useEffect(() => {
+    if (!wasOpenAtMount.current) return;
+    const id = window.setInterval(() => {
+      if (isMarketOpenIst()) return;
+      wasOpenAtMount.current = false;
+      void fetchNiftyReplayDates().then((dates) => {
+        if (dates.length > 0) {
+          setMode("eod");
+          setDate(dates[0]);
+        }
+      });
+    }, 30_000);
+    return () => window.clearInterval(id);
+  }, []);
 
   const load = useCallback(async () => {
     if (loadingRef.current) return;
@@ -710,6 +673,31 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
         setSensexLoading(false);
         setSensexError(null);
       }
+      if (mode === "eod" && date) {
+        // EOD replay — after the snapshot paints, load the recorded minute
+        // frames for the same date. Absence (404 / empty tape) is not an
+        // error: replay state stays null and the snapshot stays on screen.
+        const replayRequest = requestId;
+        void fetchNiftyReplay(date, controller.signal)
+          .then((replayData) => {
+            if (replayRequest !== requestIdRef.current || controller.signal.aborted) return;
+            if (replayData && replayData.snapshots.length > 0) {
+              setReplay(replayData);
+              setReplayIndex(0);
+              setReplayPlaying(false);
+              const first = replayData.snapshots[0];
+              setReport(first.report);
+              setSensex(first.sensex ?? null);
+            } else {
+              setReplay(null);
+              setReplayIndex(0);
+              setReplayPlaying(false);
+            }
+          })
+          .catch(() => {
+            if (replayRequest === requestIdRef.current) setReplay(null);
+          });
+      }
       if (tapeData) setTape(tapeData);
       setBursts(burstData as OiBurst[]);
       const now = Date.now();
@@ -764,6 +752,18 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       setTape(null);
       setBursts(null);
       setStreamed([]);
+      // Replay belongs to one (mode, date) context only — dropping it also
+      // tears down the playback interval via the play effect's cleanup.
+      // Cancel any coalesced scrub frame so a stale frame from the old
+      // context never lands on the new one.
+      if (scrubRafRef.current !== null) {
+        window.cancelAnimationFrame(scrubRafRef.current);
+        scrubRafRef.current = null;
+      }
+      pendingScrubRef.current = null;
+      setReplay(null);
+      setReplayIndex(0);
+      setReplayPlaying(false);
       setError(null);
     }
   }, [contextKey]);
@@ -776,15 +776,21 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       sensexControllerRef.current?.abort();
       requestControllerRef.current = null;
       sensexControllerRef.current = null;
+      if (scrubRafRef.current !== null) {
+        window.cancelAnimationFrame(scrubRafRef.current);
+        scrubRafRef.current = null;
+      }
+      pendingScrubRef.current = null;
     },
     [],
   );
 
   useEffect(() => {
+    if (!booted) return;
     if (mode === "live" || (mode === "eod" && date)) {
       void load();
     }
-  }, [mode, load, date]);
+  }, [mode, load, date, booted]);
 
   // Live report over WebSocket — the single live source. There is no HTTP
   // polling fallback; the one-shot REST load above only paints the first
@@ -820,13 +826,11 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     }
   }, [wsSensex]);
 
-  // A pushed spot tick advances the "Updated" label so the header feels live
-  // between report frames.
-  useEffect(() => {
-    if (wsTick) {
-      setUpdatedAtMs(Date.now());
-    }
-  }, [wsTick]);
+  // The ~1/second spot tick is consumed by the isolated header label (which
+  // owns its own clock) and the Spot stat only — it deliberately never bumps
+  // `updatedAtMs`, so the tick no longer re-renders the whole report tree
+  // once per second just to move a clock label. `updatedAtMs` is fed by
+  // report/tape frames only (~30-60s).
 
   // Track how long the live socket has been down. `nowMs` only moves on
   // loads, WS pushes and tab-visibility flips, so schedule a one-shot
@@ -884,10 +888,68 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     }
   }, [mode, date, expiry]);
 
-  const markLines = useMemo(
-    () => (report ? buildMarkLines(report, mode === "live" && !!report.gex) : []),
-    [report, mode],
+  // Scrub the replay playhead. The thumb/counter follow the pointer
+  // immediately (urgent `replayIndex`), while the heavy `report`/`sensex`
+  // swap is coalesced to one frame per animation frame — newest wins, stale
+  // frames never land — and applied in a transition so React can skip
+  // intermediate frames instead of blocking input. Pausing first so a scrub
+  // never fights the play interval. Stable identity keeps the memoised
+  // replay bar's props stable.
+  const scrubReplay = useCallback(
+    (rawIndex: number) => {
+      if (!replay) return;
+      const clamped = Math.max(
+        0,
+        Math.min(replay.snapshots.length - 1, Math.floor(rawIndex)),
+      );
+      const frame = replay.snapshots[clamped];
+      if (!frame) return;
+      setReplayPlaying(false);
+      setReplayIndex(clamped);
+      pendingScrubRef.current = { report: frame.report, sensex: frame.sensex ?? null };
+      if (scrubRafRef.current !== null) return;
+      scrubRafRef.current = window.requestAnimationFrame(() => {
+        scrubRafRef.current = null;
+        const pending = pendingScrubRef.current;
+        pendingScrubRef.current = null;
+        if (!pending) return;
+        startTransition(() => {
+          setReport(pending.report);
+          setSensex(pending.sensex);
+        });
+      });
+    },
+    [replay],
   );
+
+  // Play/Pause. Pressing Play on the last frame restarts the day from
+  // minute one (replaying from the end would otherwise be a no-op).
+  // Pausing cancels any coalesced-but-unapplied scrub frame so nothing
+  // lands after the pause.
+  const handleReplayPlayToggle = useCallback(() => {
+    if (replayPlaying) {
+      if (scrubRafRef.current !== null) {
+        window.cancelAnimationFrame(scrubRafRef.current);
+        scrubRafRef.current = null;
+      }
+      pendingScrubRef.current = null;
+      setReplayPlaying(false);
+      return;
+    }
+    if (replay && replayIndex >= replay.snapshots.length - 1) {
+      const first = replay.snapshots[0];
+      setReplayIndex(0);
+      if (first) {
+        startTransition(() => {
+          setReport(first.report);
+          setSensex(first.sensex ?? null);
+        });
+      }
+      setReplayPlaying(true);
+      return;
+    }
+    setReplayPlaying(true);
+  }, [replay, replayIndex, replayPlaying]);
 
   /** Readability: full chain is noise — show the ATM window only. */
   const visibleStrikes = useMemo(
@@ -962,29 +1024,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     [report],
   );
 
-  /** 1-minute intraday candles when present, else the 15-min EOD candles —
-   *  each resampled to the selected timeframe (1m passes through). */
-  const chartCandles = useMemo(
-    () =>
-      resampleCandles(
-        report?.intraday && report.intraday.length > 0
-          ? report.intraday
-          : (report?.candles ?? []),
-        CHART_TF_MINUTES[chartTf],
-      ),
-    [report, chartTf],
-  );
-
-  /** EMA9 (warning) + EMA20 (primary), recomputed on the displayed candles so
-   *  the overlays always match the selected timeframe. The backend `emas`
-   *  block is intentionally ignored here (it is fixed to the 1-minute grid). */
-  const emaData = useMemo(() => {
-    const closes = chartCandles.map((c) => c.close);
-    return [
-      { label: "EMA9", color: palette.WARNING, data: emaSeries(closes, 9) },
-      { label: "EMA20", color: palette.PRIMARY, data: emaSeries(closes, 20) },
-    ];
-  }, [chartCandles]);
+  // (Chart candles, EMAs and mark-lines now live in the memoised
+  // NiftyChartPanel, which owns the size/timeframe state.)
 
   // In-app OI-burst alerts. Bursts come from the backend when it has any
   // (they survive the tab being closed); an empty/absent backend answer falls
@@ -999,18 +1040,51 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   }, []);
   useNiftyBurstStream(onStreamEvent, mode === "live");
 
-  const effectiveBursts = useMemo<OiBurst[]>(() => {
-    const base = bursts && bursts.length > 0 ? bursts : detectOiBursts(tape?.rows ?? []);
-    const byId = new Map<string, OiBurst>();
-    for (const b of base) byId.set(b.id, b);
-    for (const b of streamed) if (!byId.has(b.id)) byId.set(b.id, b);
+  // Base detection, memoised on `tape` identity so an unrelated parent render
+  // never re-runs the detector.
+  const detectedBursts = useMemo<OiBurst[]>(
+    () => (bursts && bursts.length > 0 ? bursts : detectOiBursts(tape?.rows ?? [])),
+    [bursts, tape],
+  );
+
+  // Session trend per tape minute, computed ONCE per tape (single sort + one
+  // EMA pass) instead of re-sorting the whole tape for every burst
+  // (O(bursts × rows log rows) per render). Bursts then attach their trend by
+  // minute lookup — the signal gate still runs on data available at each
+  // burst's own minute (never the close). A burst whose minute is absent from
+  // the tape falls back to the end-of-tape trend, exactly like the old
+  // per-burst `sessionTrend` call (which scanned to the end on no match).
+  const sessionTrends = useMemo(() => {
     const rows = tape?.rows ?? [];
+    const asc = [...rows].sort((a, b) => (a.t < b.t ? -1 : a.t > b.t ? 1 : 0));
+    const byMinute = new Map<string, "up" | "down" | null>();
+    const alpha = 2 / (TREND_EMA_SPAN + 1);
+    let ema: number | null = null;
+    let last = 0;
+    for (const r of asc) {
+      if (!Number.isFinite(r.spot) || r.spot === 0) continue;
+      ema = ema === null ? r.spot : alpha * r.spot + (1 - alpha) * ema;
+      last = r.spot;
+      byMinute.set(r.t, last > (ema as number) ? "up" : last < (ema as number) ? "down" : null);
+    }
+    const end: "up" | "down" | null =
+      ema === null ? null : last > ema ? "up" : last < ema ? "down" : null;
+    return { byMinute, end };
+  }, [tape]);
+
+  const effectiveBursts = useMemo<OiBurst[]>(() => {
+    const byId = new Map<string, OiBurst>();
+    for (const b of detectedBursts) byId.set(b.id, b);
+    for (const b of streamed) if (!byId.has(b.id)) byId.set(b.id, b);
     const merged = [...byId.values()];
-    if (rows.length === 0) return merged;
+    if (sessionTrends.byMinute.size === 0) return merged;
     // Attach the session trend at each burst's own minute so the signal gate
     // runs on data available at that time (never the close).
-    return merged.map((b) => ({ ...b, trend: b.trend ?? sessionTrend(rows, b.t) ?? null }));
-  }, [bursts, tape, streamed]);
+    return merged.map((b) => ({
+      ...b,
+      trend: b.trend ?? sessionTrends.byMinute.get(b.t) ?? sessionTrends.end,
+    }));
+  }, [detectedBursts, streamed, sessionTrends]);
   /** Minute → burst side, for the tape's burst spine. */
   const burstMap = useMemo(() => {
     const m = new Map<string, "call" | "put">();
@@ -1045,6 +1119,34 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     return () => clearTimeout(id);
   }, [replayCursor, trail, pushToast]);
 
+  // EOD minute replay — advances the playhead one recorded frame at a time.
+  // The counter moves urgently so it tracks playback; the heavy
+  // report/sensex swap runs in a transition so a slow paint never blocks
+  // the next tick. The interval is torn down here on pause, when `replay`
+  // is dropped (mode/date change) and on unmount. Reaching the last frame
+  // auto-pauses.
+  useEffect(() => {
+    if (!replayPlaying || !replay) return;
+    if (replayIndex >= replay.snapshots.length - 1) {
+      setReplayPlaying(false);
+      return;
+    }
+    const next = replayIndex + 1;
+    const id = window.setInterval(() => {
+      const frame = replay.snapshots[next];
+      if (!frame) {
+        setReplayPlaying(false);
+        return;
+      }
+      setReplayIndex(next);
+      startTransition(() => {
+        setReport(frame.report);
+        setSensex(frame.sensex ?? null);
+      });
+    }, REPLAY_PLAY_MS);
+    return () => window.clearInterval(id);
+  }, [replayPlaying, replay, replayIndex]);
+
   // No "next update" in live mode — the socket pushes; EOD never updates.
   const nextUpdateAtMs: number | null = null;
 
@@ -1058,18 +1160,54 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     wsDownSinceMs !== null &&
     wsDownForMs > STALE_AFTER_MS;
   const staleMins = Math.max(1, Math.floor(wsDownForMs / 60_000));
-  const updatedAtLabel =
-    updatedAtMs === null
-      ? ""
-      : new Date(updatedAtMs).toLocaleTimeString("en-IN", {
-          hour12: false,
-          timeZone: "Asia/Kolkata",
-        });
 
   // Hoisted so the GEX stat formats below can close over consts (keeps
   // TS narrowing inside the format callbacks).
   const gexTopSup = report?.gex?.topPositive[0] ?? null;
   const gexTopRes = report?.gex?.topNegative[0] ?? null;
+
+  // Stable per-render callbacks / derived data for the memoised children.
+  const scrollToBursts = useCallback(() => {
+    burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+  }, []);
+  const handleOpenSymbol = useCallback(() => {
+    onOpenSymbol?.("NIFTY");
+  }, [onOpenSymbol]);
+  const expiryData = useMemo(
+    () => [
+      { value: "nearest", label: "Nearest expiry" },
+      ...expiryOptions.map((d) => ({ value: d, label: d })),
+    ],
+    [expiryOptions],
+  );
+  const handleIndexChange = useCallback((v: string) => {
+    const next = v as "nifty" | "sensex";
+    setSelectedIndex(next);
+    if (next === "sensex") {
+      setMode("live");
+      setView("chart");
+    }
+  }, []);
+  const handleModeChange = useCallback((v: string) => {
+    setMode(v as NiftyReportMode);
+  }, []);
+  const handleViewChange = useCallback((v: string) => {
+    setView(v as "chart" | "depth");
+  }, []);
+  const handleExpiryChange = useCallback((v: string | null) => {
+    setExpiry(v ?? "nearest");
+  }, []);
+  const handleReplayTrail = useCallback(() => {
+    setReplayCursor(trail.length - 1);
+  }, [trail.length]);
+  const formatGexSup = useCallback(
+    (s: number) => formatGexLevel(s, gexTopSup?.netGex ?? 0),
+    [gexTopSup],
+  );
+  const formatGexRes = useCallback(
+    (s: number) => formatGexLevel(s, gexTopRes?.netGex ?? 0),
+    [gexTopRes],
+  );
 
   return (
     <Box
@@ -1077,59 +1215,66 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
       sx={{
         display: "flex",
         flexDirection: "column",
-        gap: 0.25,
-        p: 0.25,
+        gap: 1,
+        p: 1,
         width: "100%",
         maxWidth: "100%",
         minWidth: 0,
         boxSizing: "border-box",
         bgcolor: palette.TERM_BG,
-        // Never shrink below content: the page must scroll in #app-main rather
-        // than squeeze rows (which clipped panels when the viewport was short).
+        // Never shrink below content: the page scrolls in #app-main, not in
+        // this panel. Do NOT set `overflow-x: hidden` here — a lone axis
+        // forces the other to `auto`, which silently turned the whole report
+        // into a second scroll container (content appeared clipped/shifted
+        // relative to the page scrollbar).
         flexShrink: 0,
-        overflowX: "hidden",
-        // --- Dense / cardless skin (report page only) ---------------------
-        // Panels drop their card chrome; headers become small uppercase
-        // labels; every surface's padding shrinks. Scoped via data hooks on
-        // CompactPanel/CompactStat so other pages keep their card look.
+        // Numbers are the content on this page — align every column of digits.
+        fontVariantNumeric: "tabular-nums",
+        // --- Desk skin (report page only) --------------------------------
+        // Panels keep a hairline frame + a filled header bar so sections read
+        // as a grid; the body stays black (terminal surface) and the spacing
+        // comes from the 8px page gap, never from 1px paddings.
         "& [data-compact]": {
           bgcolor: "transparent",
-          border: "none !important",
-          borderRadius: "0 !important",
+          border: `1px solid ${palette.TERM_BORDER} !important`,
+          borderRadius: "4px !important",
           boxShadow: "none",
         },
         "& [data-compact-header]": {
-          p: "1px 4px !important",
-          mb: "1px !important",
+          minHeight: "28px",
+          bgcolor: palette.TERM_HEADER,
           borderBottom: `1px solid ${palette.TERM_BORDER} !important`,
         },
         "& [data-compact-header] .MuiTypography-root": {
           fontSize: "10px !important",
           textTransform: "uppercase",
-          letterSpacing: "0.05em",
+          letterSpacing: "0.07em",
           color: `${palette.TEXT_MUTED} !important`,
           fontWeight: 700,
-        },
-        "& .MuiCardContent-root": {
-          p: "2px 4px !important",
-          "&:last-child": { pb: "2px !important" },
+          lineHeight: 1.2,
         },
         "& [data-compact-stat]": {
           bgcolor: "transparent !important",
           border: "none !important",
+          borderRadius: "0 !important",
+          boxShadow: "none !important",
         },
         "& [data-compact-stat] .MuiCardContent-root": {
-          p: "0px 3px !important",
-          gap: "0px !important",
+          p: "0 !important",
+          gap: "1px !important",
+          alignItems: "flex-start !important",
+          textAlign: "left !important",
         },
-        "& [data-compact-stat] .MuiTypography-root": { lineHeight: 1.05 },
-        "& .MuiCardContent-root > div": { mb: "2px !important" },
-        // Tables: smaller, tighter rows.
+        "& [data-compact-stat] .MuiTypography-root": { textAlign: "left !important" },
+        // Tables: dense but scannable — 10px numerals, 2/8 padding.
         "& .paper-tanstack-cell": {
           fontSize: "10px !important",
-          padding: "0px 5px !important",
+          padding: "2px 8px !important",
         },
-        "& .paper-tanstack-header-cell": { fontSize: "9px !important" },
+        "& .paper-tanstack-header-cell": {
+          fontSize: "9px !important",
+          letterSpacing: "0.05em",
+        },
       }}
     >
       <CompactPanel>
@@ -1152,50 +1297,31 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <SegmentedControl
             data-testid="nifty-index-toggle"
             value={selectedIndex}
-            onChange={(v) => {
-              const next = v as "nifty" | "sensex";
-              setSelectedIndex(next);
-              if (next === "sensex") {
-                setMode("live");
-                setView("chart");
-              }
-            }}
-            data={[
-              { value: "nifty", label: "NIFTY" },
-              { value: "sensex", label: "SENSEX" },
-            ]}
+            onChange={handleIndexChange}
+            data={INDEX_TOGGLE_DATA}
             size="sm"
           />
           <SegmentedControl
             data-testid="nifty-mode-toggle"
             value={mode}
-            onChange={(v) => setMode(v as NiftyReportMode)}
-            data={[
-              { value: "live", label: "Live" },
-              { value: "eod", label: "EOD" },
-            ]}
+            onChange={handleModeChange}
+            data={MODE_TOGGLE_DATA}
             size="sm"
           />
           <SegmentedControl
             data-testid="nifty-view-toggle"
             value={view}
-            onChange={(v) => setView(v as "chart" | "depth")}
-            data={[
-              { value: "chart", label: "Chart" },
-              { value: "depth", label: "Depth" },
-            ]}
+            onChange={handleViewChange}
+            data={VIEW_TOGGLE_DATA}
             size="sm"
           />
           <Select
             data-testid="nifty-expiry-select"
             value={expiry}
-            onChange={(v) => setExpiry(v ?? "nearest")}
-            data={[
-              { value: "nearest", label: "Nearest expiry" },
-              ...expiryOptions.map((d) => ({ value: d, label: d })),
-            ]}
+            onChange={handleExpiryChange}
+            data={expiryData}
             size="sm"
-            sx={{ width: 220, flex: "0 0 auto", minWidth: 0 }}
+            sx={EXPIRY_SELECT_SX}
           />
           {mode === "eod" && (
             <TextInput
@@ -1207,6 +1333,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               w={160}
             />
           )}
+          <Box sx={{ flex: 1, minWidth: 8 }} />
           <Button
             data-testid="nifty-refresh-button"
             size="sm"
@@ -1216,16 +1343,13 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             Refresh
           </Button>
           {mode === "live" && updatedAtMs !== null && (
-            <Text
-              data-testid="nifty-updated-at"
-              size="xs"
-              c={isStale ? "warning" : "dimmed"}
-              span
-            >
-              {marketClosed
-                ? `Market closed${report?.market?.session_date ? ` · last session ${report.market.session_date}` : ""}`
-                : `Updated ${updatedAtLabel} · live (WS)`}
-            </Text>
+            <NiftyUpdatedLabel
+              tick={wsTick}
+              marketClosed={marketClosed}
+              sessionDate={report?.market?.session_date}
+              updatedAtMs={updatedAtMs}
+              isStale={isStale}
+            />
           )}
           {isStale && (
             <Box
@@ -1258,6 +1382,21 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             Snapshot
           </Button>
         </Box>
+        {/* EOD minute replay — scrub/play the day's recorded frames. Only
+            rendered when a replay actually exists for the picked date; live
+            mode (and days without recordings) never mount the bar. */}
+        {mode === "eod" && replay !== null && replay.snapshots.length > 0 && (
+          <NiftyReplayBar
+            replay={replay}
+            replayIndex={replayIndex}
+            playing={replayPlaying}
+            coverage={replayCoverage}
+            reasons={replayReasons}
+            holes={replayHoles}
+            onScrub={scrubReplay}
+            onTogglePlay={handleReplayPlayToggle}
+          />
+        )}
       </CompactPanel>
 
       {loading && !report && <InlineLoader data-testid="nifty-loading" />}
@@ -1292,102 +1431,111 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             data-testid="nifty-stat-strip"
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "auto minmax(0, 1fr)" },
-              gap: 0.5,
+              gridTemplateColumns: {
+                xs: "repeat(2, minmax(0, 1fr))",
+                md: "repeat(8, minmax(0, 1fr))",
+              },
               alignItems: "stretch",
+              border: `1px solid ${palette.TERM_BORDER}`,
+              borderRadius: "4px",
+              bgcolor: palette.TERM_HEADER,
+              overflow: "hidden",
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
               flexShrink: 0,
             }}
           >
-            <CompactStatGrid>
-              <CompactStat
-                dense
-                data-testid="nifty-stat-spot"
-                label="Spot"
-                value={
-                  <AnimatedValue
-                    value={wsTick?.spot ?? report.spot}
-                    format={(v) => v.toLocaleString("en-IN")}
-                  />
-                }
-              />
-              <CompactStat
-                dense
-                data-testid="nifty-stat-pcr-oi"
-                label="PCR (OI)"
-                value={
-                  <AnimatedValue
-                    value={report.pcrOi}
-                    format={(v) => v.toFixed(2)}
-                  />
-                }
-              />
-              <CompactStat
-                dense
-                data-testid="nifty-stat-pcr-vol"
-                label="PCR (Vol)"
-                value={
-                  <AnimatedValue
-                    value={report.pcrVol}
-                    format={(v) => v.toFixed(2)}
-                  />
-                }
-              />
-              <CompactStat
-                dense
-                data-testid="nifty-stat-max-pain"
-                label="Max Pain"
-                value={
-                  <AnimatedValue
-                    value={report.maxPain}
-                    format={(v) => v.toLocaleString("en-IN")}
-                  />
-                }
-              />
-            </CompactStatGrid>
+            <Box data-testid="nifty-stat-spot" sx={STAT_BAND_CELL_SX}>
+              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
+                Spot
+              </Text>
+              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
+                <NiftySpotValue tickSpot={wsTick?.spot} fallback={report.spot} />
+              </Text>
+            </Box>
+            <Box data-testid="nifty-stat-pcr-oi" sx={STAT_BAND_CELL_SX}>
+              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
+                PCR (OI)
+              </Text>
+              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
+                <AnimatedValue value={report.pcrOi} format={format2dp} />
+              </Text>
+            </Box>
+            <Box data-testid="nifty-stat-pcr-vol" sx={STAT_BAND_CELL_SX}>
+              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
+                PCR (Vol)
+              </Text>
+              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
+                <AnimatedValue value={report.pcrVol} format={format2dp} />
+              </Text>
+            </Box>
+            <Box data-testid="nifty-stat-max-pain" sx={STAT_BAND_CELL_SX}>
+              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
+                Max Pain
+              </Text>
+              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
+                <AnimatedValue value={report.maxPain} format={formatInt} />
+              </Text>
+            </Box>
             <NiftyVerdictStrip report={report} />
           </Box>
 
           {sensex && (
-            <CompactPanel title="Sensex live" testId="nifty-sensex-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
-              <CompactStatGrid>
-                <CompactStat
-                  dense
-                  data-testid="sensex-stat-spot"
-                  label="Spot"
-                  value={sensex.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
-                />
-                <CompactStat
-                  dense
-                  data-testid="sensex-stat-support"
-                  label="Support"
-                  value={sensex.walls.puts[0]?.strike.toLocaleString("en-IN") ?? "—"}
-                />
-                <CompactStat
-                  dense
-                  data-testid="sensex-stat-resistance"
-                  label="Resistance"
-                  value={sensex.walls.calls[0]?.strike.toLocaleString("en-IN") ?? "—"}
-                />
-                <CompactStat
-                  dense
-                  data-testid="sensex-stat-max-pain"
-                  label="Max Pain"
-                  value={sensex.maxPain > 0 ? sensex.maxPain.toLocaleString("en-IN") : "—"}
-                />
-                <CompactStat
-                  dense
-                  data-testid="sensex-stat-pcr-oi"
-                  label="PCR (OI)"
-                  value={sensex.pcrOi.toFixed(2)}
-                />
-              </CompactStatGrid>
-              <Text size="xs" c="dimmed">
-                Expiry {sensex.expiry || "—"} · levels are live option-chain walls.
+            <Box
+              data-testid="nifty-sensex-panel"
+              sx={{
+                display: "grid",
+                gridTemplateColumns: {
+                  xs: "repeat(2, minmax(0, 1fr))",
+                  md: "auto repeat(5, auto) 1fr",
+                },
+                alignItems: "center",
+                columnGap: 3,
+                px: 1.5,
+                minHeight: 30,
+                border: `1px solid ${palette.TERM_BORDER}`,
+                borderRadius: "4px",
+                bgcolor: palette.TERM_HEADER,
+                width: "100%",
+                maxWidth: "100%",
+                minWidth: 0,
+                flexShrink: 0,
+              }}
+            >
+              <Text span size="xs" fw={700} style={{ fontSize: 10, letterSpacing: "0.08em", lineHeight: 1.2 }}>
+                SENSEX
               </Text>
-            </CompactPanel>
+              <SensexCell
+                testId="sensex-stat-spot"
+                label="Spot"
+                value={sensex.spot.toLocaleString("en-IN", { maximumFractionDigits: 2 })}
+              />
+              <SensexCell
+                testId="sensex-stat-support"
+                label="Support"
+                value={sensex.walls.puts[0]?.strike.toLocaleString("en-IN") ?? "—"}
+              />
+              <SensexCell
+                testId="sensex-stat-resistance"
+                label="Resistance"
+                value={sensex.walls.calls[0]?.strike.toLocaleString("en-IN") ?? "—"}
+              />
+              <SensexCell
+                testId="sensex-stat-max-pain"
+                label="Max Pain"
+                value={sensex.maxPain > 0 ? sensex.maxPain.toLocaleString("en-IN") : "—"}
+              />
+              <SensexCell testId="sensex-stat-pcr-oi" label="PCR (OI)" value={sensex.pcrOi.toFixed(2)} />
+              <Text
+                span
+                size="xs"
+                c="dimmed"
+                style={{ fontSize: 9, lineHeight: 1.2, textAlign: "right", whiteSpace: "nowrap" }}
+              >
+                EXP {sensex.expiry || "—"} · walls from live chain
+              </Text>
+            </Box>
           )}
 
           <Box
@@ -1409,74 +1557,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               flexShrink: 0,
             }}
           >
-          <CompactPanel
-            title={view === "depth" ? "Nifty depth map" : "Nifty chart"}
-            testId="nifty-chart-panel"
-            sx={{ minWidth: 0, flexShrink: 0 }}
-            action={
-              view === "chart" ? (
-                <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                  <SegmentedControl
-                    data-testid="nifty-tf-toggle"
-                    value={chartTf}
-                    onChange={(v) => setChartTf(v as ChartTimeframe)}
-                    data={[
-                      { value: "1m", label: "1m" },
-                      { value: "5m", label: "5m" },
-                      { value: "15m", label: "15m" },
-                    ]}
-                    size="sm"
-                  />
-                  <SegmentedControl
-                    data-testid="nifty-chart-size"
-                    value={chartSize}
-                    onChange={(v) => setChartSize(v as ChartSize)}
-                    data={[
-                      { value: "s", label: "S" },
-                      { value: "m", label: "M" },
-                      { value: "l", label: "L" },
-                      { value: "xl", label: "XL" },
-                    ]}
-                    size="sm"
-                  />
-                </Box>
-              ) : undefined
-            }
-          >
-            {view === "depth" ? (
-              <NiftyDepthMap report={report} />
-            ) : chartCandles && chartCandles.length > 0 ? (
-              <Box
-                data-testid="nifty-chart-wrap"
-                style={{ height: CHART_HEIGHTS[chartSize] }}
-                sx={{
-                  display: "flex",
-                  width: "100%",
-                  maxWidth: "100%",
-                  minWidth: 0,
-                  flexShrink: 0,
-                  overflow: "hidden",
-                }}
-              >
-                <TradingViewChart
-                  candles={chartCandles}
-                  markLines={markLines}
-                  emaData={emaData}
-                  height={CHART_HEIGHTS[chartSize]}
-                />
-              </Box>
-            ) : (
-              <EmptyCompact
-                data-testid="nifty-chart-empty"
-                title="No intraday candles"
-                description="Showing option-chain levels only."
-              />
-            )}
-            <LevelLegend live={mode === "live" && !!report.gex} />
-          </CompactPanel>
+          <NiftyChartPanel report={report} mode={mode} view={view} />
 
           {report.timeline.length > 0 && (
-            <CompactPanel title="Session timeline" testId="nifty-timeline-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
+            <CompactPanel flush title="Session timeline" testId="nifty-timeline-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
               {/* Inner cap: long sessions scroll here so the main row never
                   grows with the event count. Inside the panel, never a direct
                   page-column child. */}
@@ -1498,25 +1582,45 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             </CompactPanel>
           )}
 
-          <CompactPanel title="Option-chain OI (±750 ATM)" testId="nifty-oi-panel" sx={{ minWidth: 0, flexShrink: 0 }}>
-            {/* Fixed 180px body: the table fills it and scrolls internally
-                (fillContainer). No min-height larger than content, no vh. */}
+          <CompactPanel
+            flush
+            scrollable
+            title="Option-chain OI (±750 ATM)"
+            testId="nifty-oi-panel"
+            sx={{
+              minWidth: 0,
+              minHeight: 0,
+              // The chain must not size the row: without this the table's
+              // natural height (all ~30 legs) sets the chart row to ~900px
+              // and leaves the chart floating in a void. `size` containment
+              // makes the panel take the row height from the chart instead,
+              // and the table scrolls inside it. Desktop only — on xs the
+              // grid is one column and the panel needs its own height.
+              contain: { xs: "none", lg: "size" },
+            }}
+          >
+            {/* The chain fills whatever height the chart row gives it and
+                scrolls internally — no fixed 180px cap, so XL charts show
+                ~30 strikes instead of the same 6 with a blank column. */}
             <Box
               ref={oiWrapRef}
               data-testid="nifty-oi-wrap"
-              style={{ height: 180 }}
               sx={{
                 display: "flex",
+                height: "100%",
                 minWidth: 0,
-                flexShrink: 0,
+                minHeight: 0,
               }}
             >
+            {/* `minWidth: 0` overrides the shared 640px floor, which forced a
+                sideways scrollbar and cut the PE columns off at the panel edge. */}
             <TanStackTable<NiftyStrike>
               data={visibleStrikes}
               columns={oiColumns}
               dataTestId="nifty-oi-table"
               emptyMessage="No strikes for this expiry"
               fillContainer
+              style={{ minWidth: 0 }}
               getRowStyle={getOiRowStyle}
               getRowTestId={getOiRowTestId}
             />
@@ -1537,10 +1641,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               flexShrink: 0,
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
+            <Box sx={ANALYTICS_FILL_CELL_SX}>
               <NiftyDeltaPositioning positioning={report.positioning} />
             </Box>
-            <Box sx={{ minWidth: 0 }}>
+            <Box sx={ANALYTICS_CELL_SX}>
               <NiftyGexProfile gex={report.gex} spot={report.spot} />
             </Box>
           </Box>
@@ -1558,7 +1662,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               flexShrink: 0,
             }}
           >
-          <CompactPanel title="OI · tick tape" testId="nifty-tape-panel" sx={{ minWidth: 0, background: palette.TERM_BG, borderColor: palette.TERM_BORDER }}>
+          <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" sx={{ minWidth: 0, background: palette.TERM_BG, borderColor: palette.TERM_BORDER }}>
             {tape && tape.rows.length > 0 ? (
               <NiftyTapeTable
                 rows={tape.rows}
@@ -1579,6 +1683,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               Box with borderRadius:8, which MUI multiplies by
               theme.shape.borderRadius (8) -> a 64px radius. */}
           <CompactPanel
+            flush
             padded={false}
             testId="nifty-unusual-panel-wrap"
             sx={{ minWidth: 0, background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
@@ -1586,7 +1691,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             <NiftyUnusualVolume
               strikes={report.strikes}
               spot={report.spot}
-              sx={{ minWidth: 0 }}
+              sx={UNUSUAL_VOLUME_SX}
               updatedAtMs={mode === "live" ? updatedAtMs : null}
               nextUpdateAtMs={nextUpdateAtMs}
             />
@@ -1657,6 +1762,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 sx={{ minWidth: 0 }}
               >
                 <CompactPanel
+                  flush
                   title={`OI bursts (${trail.length})`}
                   testId="nifty-oi-bursts-panel"
                   action={
@@ -1666,7 +1772,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                         size="sm"
                         variant="subtle"
                         disabled={replayCursor !== null || trail.length === 0}
-                        onClick={() => setReplayCursor(trail.length - 1)}
+                        onClick={handleReplayTrail}
                       >
                         {replayCursor !== null ? "Replaying…" : "Replay"}
                       </Button>
@@ -1680,7 +1786,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                     alerts={trail}
                     fill={false}
                     height={oiBurstLogHeight(trail.length)}
-                    onOpen={() => burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+                    onOpen={scrollToBursts}
                   />
                 </CompactPanel>
               </Box>
@@ -1706,13 +1812,13 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                 alerts={toasts}
                 max={OI_ALERT_TOAST_MAX}
                 onDismiss={dismissToast}
-                onOpen={() => burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}
+                onOpen={scrollToBursts}
               />
             </Box>
           )}
 
           {mode === "live" && report.gex ? (
-          <CompactPanel title="GEX levels" testId="nifty-gex-panel">
+          <CompactPanel flush title="GEX levels" testId="nifty-gex-panel">
             <Box data-testid="nifty-gex-row">
               <CompactStatGrid>
                 <CompactStat
@@ -1720,10 +1826,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   data-testid="nifty-gex-net"
                   label="Net GEX"
                   value={
-                    <AnimatedValue
-                      value={report.gex.netTotal}
-                      format={(v) => formatGexTotal(v)}
-                    />
+                    <AnimatedValue value={report.gex.netTotal} format={formatGexTotalValue} />
                   }
                 />
                 <CompactStat
@@ -1737,10 +1840,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   data-testid="nifty-gex-flip"
                   label="Gamma flip"
                   value={
-                    <AnimatedValue
-                      value={report.gex.zeroCross}
-                      format={(v) => v.toLocaleString("en-IN")}
-                    />
+                    <AnimatedValue value={report.gex.zeroCross} format={formatInt} />
                   }
                 />
                 <CompactStat
@@ -1749,10 +1849,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   label="Top support"
                   value={
                     gexTopSup ? (
-                      <AnimatedValue
-                        value={gexTopSup.strike}
-                        format={(s) => formatGexLevel(s, gexTopSup.netGex)}
-                      />
+                      <AnimatedValue value={gexTopSup.strike} format={formatGexSup} />
                     ) : (
                       "—"
                     )
@@ -1764,10 +1861,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
                   label="Top resistance"
                   value={
                     gexTopRes ? (
-                      <AnimatedValue
-                        value={gexTopRes.strike}
-                        format={(s) => formatGexLevel(s, gexTopRes.netGex)}
-                      />
+                      <AnimatedValue value={gexTopRes.strike} format={formatGexRes} />
                     ) : (
                       "—"
                     )
@@ -1783,7 +1877,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             </Box>
           </CompactPanel>
           ) : (
-          <CompactPanel title="Tomorrow's levels" testId="nifty-tomorrow-panel">
+          <CompactPanel flush title="Tomorrow's levels" testId="nifty-tomorrow-panel">
             {levels && (
             <Box data-testid="nifty-levels-row">
               <CompactStatGrid>
@@ -1830,7 +1924,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               data-testid="nifty-open-symbol"
               size="sm"
               variant="subtle"
-              onClick={() => onOpenSymbol("NIFTY")}
+              onClick={handleOpenSymbol}
             >
               Open NIFTY chart
             </Button>

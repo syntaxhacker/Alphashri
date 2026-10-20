@@ -28,6 +28,7 @@ from api.reports_api.nifty import (
     get_sensex_live,
     get_sentiment,
     parse_chain_payload,
+    has_usable_chain,
     read_snapshot,
     top_walls,
     write_snapshot,
@@ -135,6 +136,34 @@ class TestMaxPain:
             {"strike": 100.0, "ce_oi": 10, "pe_oi": 0},
         ]
         assert compute_max_pain(rows) == 100.0
+
+    def test_all_zero_oi_is_zero_not_lowest_strike(self):
+        """No OI anywhere means "unknown", not "the lowest strike"."""
+        rows = [{"strike": 100.0, "ce_oi": 0, "pe_oi": 0},
+                {"strike": 200.0, "ce_oi": 0, "pe_oi": 0}]
+        assert compute_max_pain(rows) == 0.0
+
+
+# ---------------- usable-chain guard ----------------
+
+class TestHasUsableChain:
+    def test_empty_and_none(self):
+        assert has_usable_chain([]) is False
+        assert has_usable_chain(None) is False
+
+    def test_all_zero_oi_is_not_usable(self):
+        assert has_usable_chain([
+            {"strike": 100.0, "ce": {"oi": 0}, "pe": {"oi": 0}},
+        ]) is False
+
+    def test_any_oi_is_usable(self):
+        assert has_usable_chain([
+            {"strike": 100.0, "ce": {"oi": 0}, "pe": {"oi": 0}},
+            {"strike": 200.0, "ce": {"oi": 5}, "pe": {"oi": 0}},
+        ]) is True
+
+    def test_missing_legs_do_not_raise(self):
+        assert has_usable_chain([{"strike": 100.0}]) is False
 
 
 # ---------------- parse + legs ----------------
@@ -510,9 +539,13 @@ class TestGammaParsing:
 
     def test_build_leg_existing_keys_preserved(self):
         leg = build_leg({"ltp": 1}, {"gamma": 0.001})
-        assert set(leg) == {"ltp", "close_price", "oi", "prev_oi",
-                            "oi_change", "volume", "price_change",
-                            "sentiment", "gamma", "delta", "iv"}
+        # Every Upstox field is carried through (order-book/flow included).
+        assert {"ltp", "close_price", "oi", "prev_oi", "oi_change", "volume",
+                "price_change", "sentiment", "gamma", "delta", "iv",
+                "theta", "vega", "rho", "pop", "instrument_key",
+                "bid_price", "ask_price", "bid_qty", "ask_qty",
+                "buy_qty", "sell_qty", "last_trade_price",
+                "last_trade_qty"} <= set(leg)
         assert leg["iv"] is None  # absent greeks.iv stays None, not 0.0
         assert leg["delta"] is None  # absent greeks.delta stays None, not 0.0
 
@@ -598,6 +631,33 @@ class TestComputeGex:
                _gex_row(200, 0, 0, 0.02, 1000)]
         assert compute_gex(neg, 10000.0, lot_size=100)["zero_cross"] is None
         assert compute_gex([], 10000.0)["zero_cross"] is None
+
+    def test_missing_greeks_never_report_flat(self):
+        """A usable chain with no gamma must not claim net_total=0 / flat.
+
+        Upstox omits greeks for far-OTM strikes and occasionally for a whole
+        chain; a gamma-weighted sum is then identically zero, which used to
+        make a perfectly good chain look like "flat / 0".
+        """
+        rows = [{"strike": 100.0, "ce": {"oi": 1000, "gamma": 0},
+                 "pe": {"oi": 400, "gamma": 0}},
+                {"strike": 200.0, "ce": {"oi": 200, "gamma": 0},
+                 "pe": {"oi": 900, "gamma": 0}}]
+        out = compute_gex(rows, 10000.0, lot_size=100)
+        assert out["net_total"] == (1000 - 400) + (200 - 900)
+        assert out["regime"] == "short"  # 600 - 700 = -100
+        assert out["strikes"][0]["call_gex"] == 1000.0
+        assert out["strikes"][0]["put_gex"] == -400.0
+
+    def test_missing_spot_uses_strike_scale(self):
+        """A zero spot must not zero out every gamma term."""
+        # spot falls back to the median strike (200 of [100, 200]): each
+        # 0.01*100000*100*200/1e7 = 2.0, so net_total is 4.0 rather than 0.
+        rows = [_gex_row(100, 0.01, 100000, 0, 0),
+                _gex_row(200, 0.01, 100000, 0, 0)]
+        out = compute_gex(rows, 0.0, lot_size=100)
+        assert out["net_total"] == 4.0
+        assert out["regime"] == "long"
 
     def test_top_two_selection(self):
         rows = [_gex_row(100, 0.01, 1000, 0, 0),   # net +1.0

@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import * as palette from "@/ui/palette";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
 import { CompactPanel, CompactStat, CompactStatGrid } from "@/components/common/compact";
@@ -178,6 +178,11 @@ export function realizedVolPct(candles?: ReplayCandle[]): number | null {
   return Math.round(vol * 100) / 100;
 }
 
+/** Stable MiniLineChart value formatter — hoisted so the chart never gets a new fn. */
+function formatIvChartValue(v: number): string {
+  return v.toFixed(2);
+}
+
 /** Prefer the regime's IV, else the last usable tape IV. */
 export function atmIvNow(
   regime: NiftyRegimeBlock | undefined,
@@ -350,7 +355,7 @@ export interface NiftyIvStraddleProps {
  * tracks the rolling straddle premium against ATM IV. Absent/empty tape
  * degrades to a friendly empty state without crashing.
  */
-export function NiftyIvStraddle({ tape, candles, regime, reference }: NiftyIvStraddleProps) {
+function NiftyIvStraddleInner({ tape, candles, regime, reference }: NiftyIvStraddleProps) {
   const rows = useMemo(
     () => (Array.isArray(tape?.rows) ? tape!.rows : []),
     [tape],
@@ -363,13 +368,18 @@ export function NiftyIvStraddle({ tape, candles, regime, reference }: NiftyIvStr
     [straddleSeries, ivSeries],
   );
 
-  const atmIv = atmIvNow(regime, rows);
-  const straddleVal = straddleNow(regime, rows);
-  const straddlePct = straddleChangePct(regime, straddleSeries);
-  const rv = rvNow(regime, candles);
+  // Derived stats memoised on their true inputs: the helpers re-walk the
+  // tape/candles on every call, so invoking them per render re-ran full
+  // series builds + sorts on each parent render.
+  const atmIv = useMemo(() => atmIvNow(regime, rows), [regime, rows]);
+  const straddleVal = useMemo(() => straddleNow(regime, rows), [regime, rows]);
+  const straddlePct = useMemo(
+    () => straddleChangePct(regime, straddleSeries),
+    [regime, straddleSeries],
+  );
+  const rv = useMemo(() => rvNow(regime, candles), [regime, candles]);
 
   const hasTape = straddleSeries.length > 0 || ivSeries.length > 0;
-
   return (
     <CompactPanel
       title="IV · ATM IV, straddle & RV"
@@ -434,7 +444,7 @@ export function NiftyIvStraddle({ tape, candles, regime, reference }: NiftyIvStr
           labels={chart.labels}
           height={100}
           testId="nifty-iv-straddle-chart"
-          formatValue={(v) => v.toFixed(2)}
+          formatValue={formatIvChartValue}
           emptyMessage="No intraday IV tape"
         />
       ) : (
@@ -447,3 +457,7 @@ export function NiftyIvStraddle({ tape, candles, regime, reference }: NiftyIvStr
     </CompactPanel>
   );
 }
+
+/** Memoised leaf panel — tape/regime/candle props keep identity between unrelated parent renders. */
+export const NiftyIvStraddle = memo(NiftyIvStraddleInner);
+NiftyIvStraddle.displayName = "NiftyIvStraddle";

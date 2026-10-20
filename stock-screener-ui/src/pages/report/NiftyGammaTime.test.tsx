@@ -10,8 +10,10 @@ import {
   buildGammaChart,
   buildGammaSeries,
   formatGammaCr,
+  gammaRegime,
   gammaSignColor,
   gammaStats,
+  spotVsFlip,
 } from "./NiftyGammaTime";
 
 afterEach(cleanup);
@@ -253,5 +255,60 @@ describe("NiftyGammaTime render", () => {
     expect(screen.getByTestId("nifty-gamma-flip")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-gamma-callwall")).toHaveTextContent("—");
     expect(screen.getByTestId("nifty-gamma-putwall")).toHaveTextContent("—");
+  });
+
+  test("explains the regime in words and shows spot vs flip", () => {
+    render(
+      <NiftyGammaTime
+        tape={tape([row({ net_gex: 5.5, flip: 25680 })])}
+        spot={25750}
+      />,
+      { wrapper: TestWrapper },
+    );
+    expect(screen.getByTestId("nifty-gamma-regime")).toHaveTextContent("LONG γ");
+    expect(screen.getByTestId("nifty-gamma-regime")).toHaveTextContent("pinned");
+    expect(screen.getByTestId("nifty-gamma-spot-flip")).toHaveTextContent(
+      "70 pts above flip",
+    );
+    expect(screen.getByTestId("nifty-gamma-caption")).toHaveTextContent(
+      "0 line is the gamma flip",
+    );
+  });
+});
+
+describe("gammaRegime", () => {
+  test("positive net gamma reads as long gamma (moves dampened)", () => {
+    const r = gammaRegime(5.5);
+    expect(r?.label).toBe("LONG γ");
+    expect(r?.tone).toBe(palette.TERM_GAMMA);
+    expect(r?.detail).toContain("pinned");
+  });
+
+  test("negative net gamma reads as short gamma (moves amplified)", () => {
+    const r = gammaRegime(-2.4);
+    expect(r?.label).toBe("SHORT γ");
+    expect(r?.tone).toBe(palette.TERM_GAMMA_NEG);
+    expect(r?.detail).toContain("accelerate");
+  });
+
+  test("zero is flat; missing is null", () => {
+    expect(gammaRegime(0)?.label).toBe("FLAT γ");
+    expect(gammaRegime(null)).toBeNull();
+    expect(gammaRegime(undefined)).toBeNull();
+    expect(gammaRegime(NaN)).toBeNull();
+  });
+});
+
+describe("spotVsFlip", () => {
+  test("states the distance and side", () => {
+    expect(spotVsFlip(23083, 22350)).toBe("733 pts above flip");
+    expect(spotVsFlip(22000, 22350)).toBe("350 pts below flip");
+    expect(spotVsFlip(22350, 22350)).toBe("at flip");
+  });
+
+  test("is null when either level is missing", () => {
+    expect(spotVsFlip(null, 22350)).toBeNull();
+    expect(spotVsFlip(23083, null)).toBeNull();
+    expect(spotVsFlip(undefined, undefined)).toBeNull();
   });
 });

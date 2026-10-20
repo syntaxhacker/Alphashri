@@ -1,6 +1,6 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
-import { describe, expect, test, afterEach } from "vitest";
+import { describe, expect, test, afterEach, vi } from "vitest";
 import { render, screen, within, cleanup, fireEvent } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import {
@@ -340,6 +340,26 @@ describe("live change detection", () => {
     );
     const rows = within(screen.getByTestId("nifty-tape-table")).getAllByTestId("nifty-tape-row");
     expect(rows[0].className).toContain("tape-flash");
+  });
+
+  test("an unchanged snapshot schedules no clear timer and lights no flash", () => {
+    vi.useFakeTimers();
+    try {
+      const first = [tapeRow({ t: "09:15", call_doi: 100 })];
+      const { rerender, container } = r(<NiftyTapeTable rows={first} />);
+      // A brand-new minute on the NEXT snapshot is the row flash; here the
+      // re-pushed snapshot carries identical values under new identities.
+      const again = [{ ...first[0] }];
+      const timersAfterMount = vi.getTimerCount();
+      rerender(<NiftyTapeTable rows={again} />);
+      // No moved cells → no setChanged, no restarted 1.6s timer: an idle
+      // tick costs the diff effect alone, not a second full render cycle.
+      expect(vi.getTimerCount()).toBe(timersAfterMount);
+      expect(container.querySelectorAll(".tape-cell-flash")).toHaveLength(0);
+      expect(container.querySelectorAll(".tape-flash")).toHaveLength(0);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
 

@@ -1,8 +1,9 @@
-import { useMemo } from "react";
+import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import { MiniLineChart, type MiniSeries } from "@/components/common/charts/MiniLineChart";
 import { CompactPanel, CompactStat } from "@/components/common/compact";
 import { EmptyState } from "@/components/common/states";
+import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyGex, NiftyTape, NiftyTapeRow } from "@/types/niftyReport";
 
@@ -158,6 +159,53 @@ export function buildGammaChart(series: GammaPoint[]): {
   };
 }
 
+/** Plain-language reading of the net-gamma sign — what dealers do next. */
+export interface GammaRegime {
+  label: string;
+  tone: string;
+  detail: string;
+}
+
+export function gammaRegime(now: number | null | undefined): GammaRegime | null {
+  const v = finiteOrNull(now);
+  if (v === null) return null;
+  if (v > 0) {
+    return {
+      label: "LONG γ",
+      tone: palette.TERM_GAMMA,
+      detail:
+        "Dealers are long gamma — they sell rallies and buy dips, so spot gets pinned. Fades work; breakouts stall.",
+    };
+  }
+  if (v < 0) {
+    return {
+      label: "SHORT γ",
+      tone: palette.TERM_GAMMA_NEG,
+      detail:
+        "Dealers are short gamma — they chase the move, so dips and rips accelerate. Trends extend; fades get run over.",
+    };
+  }
+  return {
+    label: "FLAT γ",
+    tone: palette.TERM_FLIP,
+    detail: "Net gamma is near zero — no strong pin or squeeze bias right now.",
+  };
+}
+
+/** `"733 pts above flip"` — how far spot sits from the gamma flip level. */
+export function spotVsFlip(
+  spot: number | null | undefined,
+  flip: number | null | undefined,
+): string | null {
+  const s = finiteOrNull(spot);
+  const f = finiteOrNull(flip);
+  if (s === null || f === null) return null;
+  const d = s - f;
+  if (d === 0) return "at flip";
+  const side = d > 0 ? "above" : "below";
+  return `${Math.abs(Math.round(d)).toLocaleString("en-IN")} pts ${side} flip`;
+}
+
 export interface NiftyGammaTimeProps {
   tape?: NiftyTape | null;
   gex?: NiftyGex;
@@ -169,15 +217,17 @@ export interface NiftyGammaTimeProps {
  * purely from the tape (+ GEX fallback); absent data renders dashes and an
  * empty chart state, never an exception.
  */
-export function NiftyGammaTime({ tape, gex, spot }: NiftyGammaTimeProps) {
+function NiftyGammaTimeInner({ tape, gex, spot }: NiftyGammaTimeProps) {
   const rows = useMemo(() => (Array.isArray(tape?.rows) ? tape.rows : []), [tape]);
   const series = useMemo(() => buildGammaSeries(rows), [rows]);
   const stats = useMemo(() => gammaStats(rows, gex, spot), [rows, gex, spot]);
   const chart = useMemo(() => buildGammaChart(series), [series]);
+  const regime = useMemo(() => gammaRegime(stats.now), [stats.now]);
+  const flipDistance = useMemo(() => spotVsFlip(spot, stats.flip), [spot, stats.flip]);
 
   return (
     <CompactPanel
-      title="Cumulative net gamma"
+      title="Dealer gamma — net per minute"
       testId="nifty-gamma-time-panel"
       sx={{
         background: palette.TERM_BG,
@@ -235,6 +285,51 @@ export function NiftyGammaTime({ tape, gex, spot }: NiftyGammaTimeProps) {
           />
         </Box>
 
+        {/* What the sign actually means for the next move — the panel's whole
+            point. Without this the four numbers read as trivia. */}
+        {regime && (
+          <Box
+            data-testid="nifty-gamma-regime"
+            sx={{
+              display: "flex",
+              alignItems: "center",
+              gap: 0.75,
+              flexWrap: "wrap",
+              minWidth: 0,
+            }}
+          >
+            <Text
+              size="xs"
+              span
+              fw={700}
+              sx={{
+                color: regime.tone,
+                border: `1px solid ${regime.tone}`,
+                borderRadius: 0.75,
+                px: 0.5,
+                py: 0.1,
+                whiteSpace: "nowrap",
+              }}
+            >
+              {regime.label}
+            </Text>
+            <Text size="xs" span sx={{ color: "text.secondary", minWidth: 0 }}>
+              {regime.detail}
+            </Text>
+            {flipDistance && (
+              <Text
+                data-testid="nifty-gamma-spot-flip"
+                size="xs"
+                span
+                c="dimmed"
+                sx={{ whiteSpace: "nowrap" }}
+              >
+                Spot {formatGammaLevel(spot)} · {flipDistance}
+              </Text>
+            )}
+          </Box>
+        )}
+
         {series.length === 0 ? (
           <EmptyState
             data-testid="nifty-gamma-time-empty"
@@ -249,13 +344,24 @@ export function NiftyGammaTime({ tape, gex, spot }: NiftyGammaTimeProps) {
             series={chart.series}
             labels={chart.labels}
             zeroLine={chart.zeroLine}
-            height={80}
+            height={120}
             testId="nifty-gamma-time-chart"
             formatValue={formatGammaCr}
             emptyMessage="No gamma tape yet"
           />
         )}
+        {series.length > 0 && (
+          <Text data-testid="nifty-gamma-caption" size="xs" span c="dimmed">
+            Net dealer gamma each minute (₹ Cr) · the 0 line is the gamma flip —
+            above it dealers dampen moves (pinning), below it they amplify them
+            (squeeze).
+          </Text>
+        )}
       </Box>
     </CompactPanel>
   );
 }
+
+/** Memoised leaf panel — `tape`/`gex` keep identity between unrelated parent renders. */
+export const NiftyGammaTime = memo(NiftyGammaTimeInner);
+NiftyGammaTime.displayName = "NiftyGammaTime";

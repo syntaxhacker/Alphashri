@@ -1,3 +1,4 @@
+import { memo, useMemo } from "react";
 import Box from "@mui/material/Box";
 import type { ReactNode } from "react";
 import { Text } from "@/ui";
@@ -101,39 +102,55 @@ interface VerdictCellProps {
 }
 
 /** One compact cell: a small status dot + verdict line + muted detail line. */
-function VerdictCell({ testId, accent, primary, secondary, primaryNode }: VerdictCellProps) {
+const VerdictCell = memo(function VerdictCell({ testId, accent, primary, secondary, primaryNode }: VerdictCellProps) {
   return (
     <Box
       data-testid={testId}
       title={`${primary} — ${secondary}`}
       sx={{
-        flex: "1 1 0",
-        minWidth: 0,
-        overflow: "hidden",
         display: "flex",
         flexDirection: "column",
         justifyContent: "center",
-        gap: 0.25,
-        px: 1,
-        py: 0.5,
+        gap: "2px",
+        minWidth: 0,
+        overflow: "hidden",
+        px: 1.5,
+        py: 0.75,
+        borderLeft: `1px solid ${palette.TERM_BORDER}`,
       }}
     >
-      <Box sx={{ display: "flex", alignItems: "center", gap: 0.5, minWidth: 0 }}>
+      <Box sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0 }}>
         <Box
           aria-hidden
           data-testid={`${testId}-dot`}
           sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: accent, flexShrink: 0 }}
         />
-        <Text data-testid={`${testId}-primary`} size="xs" fw={700} c={accent} span truncate>
+        <Text
+          data-testid={`${testId}-primary`}
+          size="xs"
+          fw={700}
+          c={accent}
+          span
+          truncate
+          style={{ fontSize: 10, lineHeight: 1.3, letterSpacing: "0.04em" }}
+        >
           {primaryNode ?? primary}
         </Text>
       </Box>
-      <Text data-testid={`${testId}-secondary`} size="xs" c="dimmed" span truncate>
+      <Text
+        data-testid={`${testId}-secondary`}
+        size="xs"
+        c="dimmed"
+        span
+        truncate
+        style={{ fontSize: 9, lineHeight: 1.3 }}
+      >
         {secondary}
       </Text>
     </Box>
   );
-}
+});
+VerdictCell.displayName = "VerdictCell";
 
 export interface NiftyVerdictStripProps {
   report: NiftyReport;
@@ -144,7 +161,7 @@ export interface NiftyVerdictStripProps {
  * under the spot+Pcr stat pills. Every block is optional on the payload, so
  * each cell falls back to an em dash instead of crashing or showing NaN.
  */
-export function NiftyVerdictStrip({ report }: NiftyVerdictStripProps) {
+function NiftyVerdictStripInner({ report }: NiftyVerdictStripProps) {
   const control = report.control;
   const regime = report.regime;
   const vix = report.vix;
@@ -171,13 +188,17 @@ export function NiftyVerdictStrip({ report }: NiftyVerdictStripProps) {
     vix?.change_pct,
   )}%)`;
   // Same text as vixPrimary, but the two numbers flash on poll updates.
-  const vixPrimaryNode = (
-    <>
-      VIX{" "}
-      <AnimatedValue value={vix?.ltp ?? null} format={(v) => fmtVerdictNum(v, 2)} /> (
-      <AnimatedValue value={vix?.change_pct ?? null} format={(v) => fmtVerdictChange(v)} />
-      %)
-    </>
+  // Memoised so the VIX cell keeps stable props when unrelated blocks change.
+  const vixPrimaryNode = useMemo(
+    () => (
+      <>
+        VIX{" "}
+        <AnimatedValue value={vix?.ltp ?? null} format={(v) => fmtVerdictNum(v, 2)} /> (
+        <AnimatedValue value={vix?.change_pct ?? null} format={(v) => fmtVerdictChange(v)} />
+        %)
+      </>
+    ),
+    [vix?.ltp, vix?.change_pct],
   );
   const vixSecondary = `day ${fmtVerdictNum(vix?.day_low, 2)}–${fmtVerdictNum(
     vix?.day_high,
@@ -195,19 +216,7 @@ export function NiftyVerdictStrip({ report }: NiftyVerdictStripProps) {
   return (
     <Box
       data-testid="nifty-verdict-strip"
-      sx={{
-        display: "flex",
-        flexWrap: "nowrap",
-        gap: 1,
-        width: "100%",
-        maxWidth: "100%",
-        minWidth: 0,
-        // No `overflow: hidden` here: the parent is a flex column that overflows
-        // vertically, and hiding overflow drops this item's implicit
-        // `min-height: auto`, letting the row collapse to ~0px. flexShrink: 0
-        // keeps its natural content height instead.
-        flexShrink: 0,
-      }}
+      sx={{ display: "contents" }}
     >
       <VerdictCell
         testId="nifty-verdict-control"
@@ -237,3 +246,7 @@ export function NiftyVerdictStrip({ report }: NiftyVerdictStripProps) {
     </Box>
   );
 }
+
+/** Memoised leaf strip — `report` keeps identity between unrelated parent renders. */
+export const NiftyVerdictStrip = memo(NiftyVerdictStripInner);
+NiftyVerdictStrip.displayName = "NiftyVerdictStrip";

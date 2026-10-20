@@ -25,6 +25,8 @@ import type {
   NiftyReference,
   NiftyRegimeBlock,
   NiftyRegimeVerdict,
+  NiftyReplay,
+  NiftyReplayFrame,
   NiftyReport,
   NiftySensex,
   NiftyStrike,
@@ -556,6 +558,90 @@ export async function snapshotNifty(
     { method: "POST" },
   );
   return parseNiftyResponse(response);
+}
+
+/**
+ * `GET /api/reports/nifty/replay?date=…` — the day's recorded minute frames.
+ * Each frame's `report` runs through `normalizeReport` and its `sensex` through
+ * `normalizeSensex` (null-safe), so a frame is drop-in interchangeable with the
+ * single EOD report. Never throws: a missing day (404 / `is_trading_day:false`),
+ * a bad payload, or a network failure resolves `null` (or empty `snapshots`)
+ * and the caller keeps the plain EOD snapshot.
+ */
+/** `{reason: count}` with non-finite/negative counts dropped. */
+function normalizeReasonCounts(raw: unknown): Record<string, number> | undefined {
+  if (raw === null || typeof raw !== "object") return undefined;
+  const out: Record<string, number> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const n = Number(value);
+    if (key && Number.isFinite(n) && n > 0) out[key] = n;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
+}
+
+export async function fetchNiftyReplay(
+  date: string,
+  signal?: AbortSignal,
+): Promise<NiftyReplay | null> {
+  try {
+    const response = await fetchWithAuth(
+      `${NIFTY_API_BASE}/replay?date=${encodeURIComponent(date)}`,
+      { signal },
+    );
+    if (!response.ok) return null;
+    const data = (await response.json().catch(() => null)) as
+      | (Record<string, unknown> & { snapshots?: unknown })
+      | null;
+    if (!data) return null;
+    const raw = Array.isArray(data.snapshots) ? data.snapshots : [];
+    const snapshots = raw
+      .map((frame): NiftyReplayFrame | null => {
+        const f = (frame ?? {}) as Record<string, unknown>;
+        const reportRaw = f.report;
+        // A frame without a usable report envelope cannot paint the screen.
+        if (reportRaw === null || typeof reportRaw !== "object") return null;
+        const sensexRaw = f.sensex;
+        return {
+          t: typeof f.t === "string" ? f.t : "",
+          fetched_at: typeof f.fetched_at === "string" ? f.fetched_at : "",
+          report: normalizeReport(reportRaw as Record<string, unknown>),
+          sensex:
+            sensexRaw !== null &&
+            sensexRaw !== undefined &&
+            typeof sensexRaw === "object"
+              ? normalizeSensex(sensexRaw as Record<string, unknown>)
+              : null,
+        };
+      })
+      .filter((x): x is NiftyReplayFrame => x !== null);
+    return {
+      date: typeof data.date === "string" && data.date ? data.date : date,
+      count:
+        typeof data.count === "number" && Number.isFinite(data.count)
+          ? data.count
+          : snapshots.length,
+      interval_sec: num(data.interval_sec ?? data.intervalSec, 60),
+      snapshots,
+      gap_reasons: normalizeReasonCounts(data.gap_reasons),
+    };
+  } catch {
+    // Network failure or abort — treat like "no replay recorded".
+    return null;
+  }
+}
+
+/** Dates that have a per-minute replay log, newest first. */
+export async function fetchNiftyReplayDates(signal?: AbortSignal): Promise<string[]> {
+  try {
+    const response = await fetchWithAuth(`${NIFTY_API_BASE}/replay/dates`, { signal });
+    if (!response.ok) return [];
+    const data = (await response.json().catch(() => null)) as { dates?: unknown } | null;
+    if (!data || !Array.isArray(data.dates)) return [];
+    return data.dates.filter((d): d is string => typeof d === "string");
+  } catch {
+    // A missing endpoint (older backend) must not break the panel.
+    return [];
+  }
 }
 
 /** One tape row, snake_case-tolerant; numbers default 0, spot_flip stays null-safe. */

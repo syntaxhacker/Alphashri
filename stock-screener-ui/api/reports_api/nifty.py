@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import os
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -84,6 +85,29 @@ def _safe_int(value: Any, default: int = 0) -> int:
         return default
 
 
+def has_usable_chain(rows: Optional[list[dict]]) -> bool:
+    """True when ``rows`` describe a real chain (strikes + non-zero OI).
+
+    An empty ``strikes`` list or an all-zero-OI chain is a failed/empty
+    upstream fetch, never a market state. Persisting it writes a report whose
+    ``gex.net_total`` is 0 / ``regime`` is "flat" / ``max_pain`` is 0, which
+    then gets differenced against real rows by the burst detectors and looks
+    like a huge one-minute OI collapse. Both the live path and the recorder
+    gate on this.
+    """
+    if not rows:
+        return False
+    total_oi = 0
+    for r in rows:
+        if not isinstance(r, dict):
+            continue
+        total_oi += _safe_int((r.get("ce") or {}).get("oi"))
+        total_oi += _safe_int((r.get("pe") or {}).get("oi"))
+        if total_oi:
+            return True
+    return False
+
+
 def get_sentiment(price_change: float, oi_change: int) -> dict:
     """Map price/OI changes to a buildup label (delegates to api.options)."""
     from api.options import get_option_sentiment
@@ -105,6 +129,11 @@ def compute_max_pain(strikes: list[dict]) -> float:
     """
     if not strikes:
         return 0.0
+    if not any(_safe_int(r.get("ce_oi")) + _safe_int(r.get("pe_oi"))
+               for r in strikes):
+        # No open interest anywhere: there is no pain level to report. Returning
+        # the lowest strike here would look like a real (and wildly wrong) level.
+        return 0.0
     ordered = sorted(strikes, key=lambda r: r["strike"])
     best_strike = ordered[0]["strike"]
     min_loss = float("inf")
@@ -123,13 +152,15 @@ def compute_max_pain(strikes: list[dict]) -> float:
     return best_strike
 
 
-def build_leg(market_data: dict, greeks: Optional[dict] = None) -> dict:
-    """Flatten one side's Upstox ``market_data`` into the report leg shape.
+def build_leg(market_data: dict, greeks: Optional[dict] = None,
+              instrument_key: Optional[str] = None) -> dict:
+    """Flatten one side's Upstox leg into the report shape — **everything**.
 
-    ``greeks`` is the sibling ``option_greeks`` mapping (``{delta, gamma,
-    vega, theta, iv}``); only ``gamma`` is carried forward (safe float,
-    default 0.0). When omitted, falls back to ``market_data["option_greeks"]``
-    if present, else 0.0.
+    Upstox serves, per leg: ``market_data`` (ltp, close, oi, prev_oi, volume,
+    bid/ask + quantities, total buy/sell qty, last trade) and ``option_greeks``
+    (delta, gamma, theta, vega, iv, rho). This keeps **all** of it so the
+    snapshot log is a complete record and theta/vega are available later
+    (previously only gamma/delta/iv survived).
     """
     md = market_data or {}
     ltp = _safe_float(md.get("ltp"))
@@ -140,21 +171,23 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None) -> dict:
     oi_change = oi - prev_oi
     price_change = round(ltp - close_price, 2)
     g = greeks if greeks is not None else (md.get("option_greeks") or {})
-    gamma = _safe_float((g or {}).get("gamma"))
-    # Delta is needed by the delta-positioning block (state/flow/initiated Δ).
-    raw_delta = (g or {}).get("delta")
-    try:
-        delta: Optional[float] = float(raw_delta) if raw_delta is not None else None
-    except (TypeError, ValueError):
-        delta = None
-    # IV is needed for the ATM skew / regime verdicts; None (not 0.0) when the
-    # greeks block is absent so callers can distinguish "unknown" from "zero".
-    raw_iv = (g or {}).get("iv")
-    try:
-        iv: Optional[float] = float(raw_iv) if raw_iv is not None else None
-    except (TypeError, ValueError):
-        iv = None
+
+    def _opt_float(key):
+        v = (md or {}).get(key)
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
+    def _greek(key):
+        v = (g or {}).get(key)
+        try:
+            return float(v) if v is not None else None
+        except (TypeError, ValueError):
+            return None
+
     return {
+        "instrument_key": instrument_key,
         "ltp": ltp,
         "close_price": close_price,
         "oi": oi,
@@ -163,9 +196,23 @@ def build_leg(market_data: dict, greeks: Optional[dict] = None) -> dict:
         "volume": volume,
         "price_change": price_change,
         "sentiment": get_sentiment(price_change, oi_change),
-        "gamma": gamma,
-        "delta": delta,
-        "iv": iv,
+        # --- greeks: ALL of them ---
+        "gamma": _safe_float((g or {}).get("gamma")),
+        "delta": _greek("delta"),
+        "theta": _greek("theta"),
+        "vega": _greek("vega"),
+        "rho": _greek("rho"),
+        "iv": _greek("iv"),
+        "pop": _greek("pop"),        # probability of profit (Upstox option_greeks)
+        # --- order-book / flow fields Upstox provides ---
+        "bid_price": _opt_float("bid_price"),
+        "ask_price": _opt_float("ask_price"),
+        "bid_qty": _safe_int(md.get("bid_qty")),
+        "ask_qty": _safe_int(md.get("ask_qty")),
+        "buy_qty": _safe_int(md.get("total_buy_quantity")),
+        "sell_qty": _safe_int(md.get("total_sell_quantity")),
+        "last_trade_price": _opt_float("last_trade_price"),
+        "last_trade_qty": _safe_int(md.get("last_trade_qty")),
     }
 
 
@@ -186,8 +233,10 @@ def parse_chain_payload(payload: dict) -> tuple[str, float, list[dict]]:
         call_greeks = call_opts.get("option_greeks") or {}
         put_greeks = put_opts.get("option_greeks") or {}
         rows.append({"strike": strike,
-                     "ce": build_leg(call_md, call_greeks),
-                     "pe": build_leg(put_md, put_greeks)})
+                     "ce": build_leg(call_md, call_greeks,
+                                     call_opts.get("instrument_key")),
+                     "pe": build_leg(put_md, put_greeks,
+                                     put_opts.get("instrument_key"))})
     rows.sort(key=lambda r: r["strike"])
     return expiry, spot, rows
 
@@ -278,8 +327,26 @@ def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
     ``zero_cross`` is the strike where cumulative net_gex (ascending) first
     crosses or touches zero, else None. Pure function, no network.
     All floats rounded to 2 decimals.
+
+    Degraded mode: when the chain is usable (non-empty, non-zero OI) but
+    Upstox returned no gamma for any leg, a gamma-weighted sum is identically
+    zero and the report would claim ``net_total: 0 / regime: "flat"`` for a
+    perfectly good chain. In that case the per-strike OI itself is used as the
+    signed exposure proxy (calls positive, puts negative), which preserves the
+    sign convention and the shape while keeping the block meaningful.
     """
     spot_f = _safe_float(spot)
+    # A zero spot makes every gamma term zero, which would report "flat" for a
+    # live chain. Fall back to the median strike as the scale reference.
+    strikes = sorted(_safe_float((r or {}).get("strike")) for r in (rows or []))
+    strikes = [s for s in strikes if s > 0]
+    if spot_f <= 0 and strikes:
+        spot_f = strikes[len(strikes) // 2]
+    has_gamma = any(
+        _safe_float(((r or {}).get("ce") or {}).get("gamma"))
+        or _safe_float(((r or {}).get("pe") or {}).get("gamma"))
+        for r in (rows or [])
+    )
     per = []
     for r in rows or []:
         ce = r.get("ce", {}) or {}
@@ -288,8 +355,13 @@ def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
         g_pe = _safe_float(pe.get("gamma"))
         oi_ce = _safe_int(ce.get("oi"))
         oi_pe = _safe_int(pe.get("oi"))
-        call_gex = round(g_ce * oi_ce * lot_size * spot_f / 1e7, 2)
-        put_gex = round(-g_pe * oi_pe * lot_size * spot_f / 1e7, 2)
+        if has_gamma:
+            call_gex = round(g_ce * oi_ce * lot_size * spot_f / 1e7, 2)
+            put_gex = round(-g_pe * oi_pe * lot_size * spot_f / 1e7, 2)
+        else:
+            # No greeks anywhere: OI is the only exposure signal available.
+            call_gex = round(float(oi_ce), 2)
+            put_gex = round(-float(oi_pe), 2)
         net_gex = round(call_gex + put_gex, 2)
         per.append({"strike": r.get("strike", 0.0), "call_gex": call_gex,
                     "put_gex": put_gex, "net_gex": net_gex})
@@ -565,10 +637,20 @@ def read_snapshot(date_str: str) -> Optional[dict]:
 
 
 def write_snapshot(date_str: str, data: dict) -> Path:
+    """Persist the day's snapshot atomically.
+
+    Called once per minute by the recorder, so it is written compactly (the
+    ``indent=2`` form was ~35% larger for zero benefit — this file is only ever
+    read with ``json.load``) and via a temp file + ``os.replace`` so a reader
+    can never observe a half-written snapshot. Blocking: callers on the event
+    loop must use ``asyncio.to_thread``.
+    """
     SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
     path = snapshot_path(date_str)
-    with open(path, "w") as f:
-        json.dump(data, f, indent=2)
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    with open(tmp, "w") as f:
+        json.dump(data, f, separators=(",", ":"))
+    os.replace(tmp, path)
     return path
 
 
@@ -622,7 +704,8 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
         pass
     # 1-minute today candles when available, else the report's own spot candles.
     candles = intraday or report.get("candles") or []
-    tape = read_tape(today)
+    # The tape is a growing JSONL (1.4 MB today); parse it in a worker thread.
+    tape = await asyncio.to_thread(read_tape, today)
     # Fixed-strike ATM reference (see compute_reference) so the UI can show the
     # premium move instead of the self-cancelling rolling ATM leg.
     try:
@@ -677,17 +760,12 @@ async def _async_none() -> None:
     return None
 
 
-async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
-                      walkback_days: int = 5, with_verdicts: bool = True,
-                      with_candles: bool = True) -> dict:
-    """Fetch the Upstox chain + spot and build a live report (no caching).
+async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
+    """Resolve the nearest expiry (when needed) and fetch one raw chain payload.
 
-    ``with_verdicts`` attaches the four session-verdict blocks (live/snapshot).
-    ``with_candles`` / ``with_verdicts`` are both off for the per-minute tape
-    tick, which only reads chain aggregates and must stay yfinance-free.
+    Raises ``HTTPException(502)`` when no expiry is listed or the fetch fails.
     """
-    # Lazy imports: keeps this module import-light and avoids import cycles.
-    from api.options import fetch_upstox, get_instrument_key, get_spot_price
+    from api.options import fetch_upstox, get_instrument_key
     from api.options import get_expiries as _get_expiries
 
     if not expiry:
@@ -706,8 +784,43 @@ async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
         raise
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"option chain fetch failed: {e}")
+    return expiry, payload
+
+
+async def _compute_live(expiry: Optional[str], for_date: Optional[str] = None,
+                      walkback_days: int = 5, with_verdicts: bool = True,
+                      with_candles: bool = True,
+                      payload: Optional[dict] = None) -> dict:
+    """Fetch the Upstox chain + spot and build a live report (no caching).
+
+    ``with_verdicts`` attaches the four session-verdict blocks (live/snapshot).
+    ``with_candles`` / ``with_verdicts`` are both off for the per-minute tape
+    tick, which only reads chain aggregates and must stay yfinance-free.
+    ``payload`` lets a caller reuse an already-fetched raw chain (the recorder
+    builds two views per minute from a single upstream call).
+
+    Raises ``HTTPException(502)`` when the chain comes back empty or with no
+    OI at all: that is a failed fetch, not a market state, and serving it as a
+    report produced the ``strikes: [] / net_total: 0 / regime: "flat" /
+    max_pain: 0`` payloads that then got persisted.
+    """
+    # Lazy imports: keeps this module import-light and avoids import cycles.
+    from api.options import get_spot_price
+
+    if payload is None:
+        expiry, payload = await _fetch_chain_payload(expiry)
 
     chain_expiry, spot, rows = parse_chain_payload(payload)
+    if not has_usable_chain(rows):
+        # ``status: success`` with an empty ``data`` array is what Upstox
+        # returns for an expiry that does not exist (e.g. the synthetic
+        # "next Thursday" the old expiry fallback invented). Never build a
+        # report from it.
+        raise HTTPException(
+            status_code=502,
+            detail=(f"option chain empty for expiry {expiry} "
+                    f"({len(rows)} rows)"),
+        )
     if not spot:
         try:
             spot = (await get_spot_price("NIFTY")).get("spot", 0)
@@ -1082,6 +1195,18 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
         "timeline": build_timeline_skeleton(report),
     }
     write_snapshot(date_str, snapshot)
+    # Also land it in the replay log (one line) so a manual/EOD snapshot is
+    # replayable even on a day the per-minute recorder never ran.
+    try:
+        sensex = None
+        try:
+            sensex = await _get_cached_sensex()
+        except Exception:
+            sensex = None
+        _append_snapshot_line(date_str, snapshot.get("snapshot_at") or datetime.now(config.IST).isoformat(),
+                              report, sensex)
+    except Exception:
+        pass
     return snapshot
 
 
@@ -1100,6 +1225,64 @@ TAPE_TICK_TIMEOUT_SEC = 55
 
 def tape_path(date_str: str) -> Path:
     return TAPE_DIR / f"{date_str}.jsonl"
+
+
+def gap_log_path(date_str: str) -> Path:
+    return TAPE_DIR / f"{date_str}.gaps.jsonl"
+
+
+def _tick_stamp(now: Optional[datetime] = None) -> tuple[str, str]:
+    """ISO stamp + ``YYYY-MM-DD`` for a recorder tick (IST)."""
+    ts = now or datetime.now(config.IST)
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=config.IST)
+    t_iso = ts.isoformat()
+    return t_iso, t_iso[:10]
+
+
+def _append_gap(date_str: str, t_iso: str, reason: str) -> None:
+    """Best-effort append of one *skipped* minute to the day's gap journal.
+
+    The recorder's skip reasons used to live only in memory
+    (``_tape_last_skip``) while the API log is truncated (``: >`` in
+    start.sh) on every restart — so "why are there holes in yesterday?" was
+    unanswerable. This is the durable, append-only record: one
+    ``{"t", "reason"}`` line per skipped minute. Never raises.
+    """
+    try:
+        TAPE_DIR.mkdir(parents=True, exist_ok=True)
+        with open(gap_log_path(date_str), "a") as f:
+            f.write(json.dumps({"t": t_iso, "reason": reason}) + "\n")
+    except Exception:
+        pass
+
+
+def read_gap_reasons(date_str: str) -> dict:
+    """``{reason: count}`` from the day's gap journal (``{}`` when absent).
+
+    Days recorded before the journal existed simply have no file — the UI
+    treats a missing journal as "reasons not recorded" and falls back to the
+    coverage numbers alone.
+    """
+    path = gap_log_path(date_str)
+    if not path.exists():
+        return {}
+    counts: dict[str, int] = {}
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    reason = json.loads(line).get("reason")
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if isinstance(reason, str) and reason:
+                    counts[reason] = counts.get(reason, 0) + 1
+    except OSError:
+        return {}
+    return counts
 
 
 def read_tape(date_str: str) -> list[dict]:
@@ -1170,48 +1353,62 @@ def read_snapshots(date_str: str) -> list[dict]:
     return rows
 
 
-def _peek_last_snapshot_t(path: Path) -> Optional[str]:
-    """The last snapshot line's ``t`` (minute dedupe anchor) — never raises."""
+def _tail_last_json_line(path: Path, chunk: int = 65536) -> Optional[dict]:
+    """Last complete JSON object in a growing JSONL file, reading only the tail.
+
+    These logs reach tens of MB by the close, and both the tape and snapshot
+    writers only need the final line. Reading the whole file every minute was
+    O(file) blocking work; this is O(1) (last ``chunk`` bytes, growing if the
+    last line is longer). Never raises.
+    """
     try:
         if not path.exists():
             return None
-        with open(path) as f:
-            lines = [ln.strip() for ln in f if ln.strip()]
+        with open(path, "rb") as f:
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            window = min(chunk, size)
+            while True:
+                f.seek(size - window)
+                data = f.read(window)
+                lines = [ln for ln in data.split(b"\n") if ln.strip()]
+                if len(lines) >= (1 if window == size else 2) or window == size:
+                    break
+                window = min(window * 2, size)
         if not lines:
             return None
-        last = json.loads(lines[-1])
-        t = last.get("t") if isinstance(last, dict) else None
-        return str(t) if t else None
+        value = json.loads(lines[-1])
+        return value if isinstance(value, dict) else None
     except Exception:
         return None
 
 
-async def _append_minute_snapshot(date_str: str, t_iso: str) -> Optional[dict]:
-    """Append ONE full-report snapshot line for tick minute ``t_iso``.
+def _peek_last_snapshot_t(path: Path) -> Optional[str]:
+    """The last snapshot line's ``t`` (minute dedupe anchor) — never raises."""
+    last = _tail_last_json_line(path)
+    t = last.get("t") if last else None
+    return str(t) if t else None
 
-    ``report`` comes from a second ``_compute_live`` pass with verdicts +
-    candles ON — the exact envelope ``/nifty/live`` renders (strikes, gex,
-    positioning, control/regime/vix/strength, pivots, reference, intraday,
-    emas, market). The upstream fetchers behind it are cached (per-day
-    baseline, TTL'd VIX/intraday/15m-candles), so the second pass costs no
-    extra history round-trips. ``sensex`` reuses the cached Sensex helper
-    (``null`` on failure).
 
-    Deduped by minute (skipped when the file's last line carries the same
-    ``t``) and NEVER raises — a snapshot failure must not stop the light tape
-    row, which is written before this runs. Memory stays bounded: pure
-    append-only JSONL, no in-memory accumulation.
+def _append_snapshot_line(date_str: str, t_iso: str,
+                          report: Optional[dict],
+                          sensex: Optional[dict]) -> Optional[dict]:
+    """Append ONE snapshot line to the replay log (deduped by minute).
+
+    The lower-level writer shared by the per-minute recorder and the manual/EOD
+    snapshot path. Never raises; returns the line on success.
+
+    An empty/all-zero-OI report is refused: those are failed fetches, and a
+    persisted empty row is what made the replay and burst views read a
+    ``net_total: 0 / regime: "flat" / max_pain: 0`` frame as real data.
     """
     try:
+        if not isinstance(report, dict) or not report:
+            return None
+        if not has_usable_chain(report.get("strikes")):
+            return None
         if _peek_last_snapshot_t(snapshot_log_path(date_str)) == t_iso:
             return None
-        report = await _compute_live(None, walkback_days=0, with_verdicts=True,
-                                     with_candles=True)
-        sensex: Optional[dict] = None
-        try:
-            sensex = await _get_cached_sensex()
-        except Exception:
-            sensex = None
         line = {
             "t": t_iso,
             "fetched_at": report.get("fetched_at"),
@@ -1222,6 +1419,46 @@ async def _append_minute_snapshot(date_str: str, t_iso: str) -> Optional[dict]:
         with open(snapshot_log_path(date_str), "a") as f:
             f.write(json.dumps(line) + "\n")
         return line
+    except Exception:
+        return None
+
+
+async def _append_minute_snapshot(date_str: str, t_iso: str,
+                                  report: Optional[dict] = None) -> Optional[dict]:
+    """Append ONE full-report snapshot line for tick minute ``t_iso``.
+
+    ``report`` is the full envelope ``/nifty/live`` renders (strikes, gex,
+    positioning, control/regime/vix/strength, pivots, reference, intraday,
+    emas, market). The recorder passes the report it already fetched; when it
+    is omitted (manual/EOD callers) a full pass is made here.
+
+    Historically this ALWAYS did a second ``_compute_live`` pass per minute on
+    top of the tape row's pass — two chain fetches, two Sensex builds and two
+    expiry listings every minute, each of which could stall the event loop.
+    Callers that already have the report must pass it.
+
+    Deduped by minute (skipped when the file's last line carries the same
+    ``t``) and NEVER raises — a snapshot failure must not stop the light tape
+    row, which is written before this runs.
+    """
+    try:
+        last_t = await asyncio.to_thread(
+            _peek_last_snapshot_t, snapshot_log_path(date_str))
+        if last_t == t_iso:
+            return None
+        if not isinstance(report, dict) or not report:
+            report = await _compute_live(None, walkback_days=0,
+                                         with_verdicts=True, with_candles=True)
+        if not has_usable_chain(report.get("strikes")):
+            return None
+        sensex: Optional[dict] = None
+        try:
+            sensex = await _get_cached_sensex()
+        except Exception:
+            sensex = None
+        # JSON encoding + append are blocking; keep them off the event loop.
+        return await asyncio.to_thread(
+            _append_snapshot_line, date_str, t_iso, report, sensex)
     except Exception:
         return None
 
@@ -1387,6 +1624,36 @@ def _atm_premium_snapshot(strikes: list, spot: float) -> tuple[Optional[float], 
     return best[1], best[2], best[3]
 
 
+def _premium_chain_snapshot(strikes: list, spot: float,
+                            n: Optional[int] = None) -> dict:
+    """``{"strike": [ce_ltp, pe_ltp, ce_oi, pe_oi, ce_vol, pe_vol]}``.
+
+    ``n=None`` records **every** strike in the chain: the paper engine marks a
+    position at its entry strike, and per-strike OI/volume let walls, PCR and
+    per-strike flow be rebuilt later from the tape alone. A dead leg is stored as
+    ``null`` rather than ``0`` so "no trade" is distinguishable from "no price".
+    Pass ``n`` to keep only ATM +/- n strikes (a smaller row).
+    """
+    out: dict = {}
+    if not strikes or not spot:
+        return out
+    ordered = sorted(strikes,
+                     key=lambda r: abs(_safe_float(r.get("strike")) - spot))
+    for r in (ordered if not n else ordered[: 2 * n + 1]):
+        k = _safe_float(r.get("strike"))
+        if not k:
+            continue
+        ce, pe = (r.get("ce") or {}), (r.get("pe") or {})
+
+        def _g(leg: dict, key: str):
+            v = _safe_float(leg.get(key))
+            return v if v > 0 else None
+
+        out[str(int(k))] = [_g(ce, "ltp"), _g(pe, "ltp"), _g(ce, "oi"),
+                            _g(pe, "oi"), _g(ce, "volume"), _g(pe, "volume")]
+    return out
+
+
 def _strike_oi_snapshot(strikes: list, spot: float, n: int = 3) -> list[dict]:
     """ATM ± ``n`` strikes with both legs' OI, for per-strike burst detection.
 
@@ -1464,37 +1731,44 @@ def reconcile_spot(chain_spot: float, index_spot: Optional[float],
 
 def _peek_last_tape_row(path: Path, minute: str) -> tuple[Optional[float], bool]:
     """``(last row's spot, last row shares this minute)`` — never raises."""
-    last_spot: Optional[float] = None
-    try:
-        if not path.exists():
-            return None, False
-        with open(path) as f:
-            lines = [ln.strip() for ln in f if ln.strip()]
-        if not lines:
-            return None, False
-        last = json.loads(lines[-1])
-        last_spot = _safe_float(last.get("spot")) or None
-        return last_spot, str(last.get("t", ""))[:16] == minute
-    except Exception:
-        return last_spot, False
+    last = _tail_last_json_line(path)
+    if not last:
+        return None, False
+    last_spot = _safe_float(last.get("spot")) or None
+    return last_spot, str(last.get("t", ""))[:16] == minute
+
+
+def _append_tape_line(path: Path, row: dict) -> None:
+    """Append one JSON line to the day's tape (blocking; call via a thread)."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a") as f:
+        f.write(json.dumps(row) + "\n")
 
 
 async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dict]:
     """Record ONE per-minute tape row from the live chain; never raises.
-    Reuses ``_compute_live(None)`` (nearest expiry, no candle walkback) and
-    persists the light aggregates ``{t, spot, ce_oi, pe_oi, ce_vol, pe_vol,
-    pcr_oi, pcr_vol, max_pain, flip, walls, expiry, atm_strike, atm_ce_ltp,
-    atm_pe_ltp}`` to the day's JSONL.
-    Rows sharing the same IST minute bucket as the file's last row are
-    skipped (returns None). ALL exceptions are swallowed — returns the row
+
+    ONE ``_compute_live(None)`` pass (nearest expiry) serves BOTH the tape row
+    (aggregates ``{t, spot, ce_oi, pe_oi, ce_vol, pe_vol, pcr_oi, pcr_vol,
+    max_pain, flip, walls, expiry, atm_strike, atm_ce_ltp, atm_pe_ltp}``) and
+    the full replay snapshot. An empty/all-zero-OI chain is skipped, never
+    persisted. Rows sharing the same IST minute bucket as the file's last row
+    are skipped (returns None). ALL exceptions are swallowed — returns the row
     on success, None otherwise.
     """
     global _tape_last_skip
+    # ONE computation per minute serves both the light tape row and the full
+    # replay snapshot. This used to be two separate ``_compute_live`` passes
+    # (one light, one full), i.e. two chain fetches + two Sensex builds every
+    # minute; the extra pass bought nothing (the tape row reads aggregates that
+    # the full report already contains) and doubled the per-minute stall budget.
     try:
-        report = await _compute_live(None, walkback_days=0, with_verdicts=False,
-                                     with_candles=False)
+        report = await _compute_live(None, walkback_days=0, with_verdicts=True,
+                                     with_candles=True)
     except Exception:
         _tape_last_skip = "chain-failed"
+        stamp, gdate = _tick_stamp(now)
+        _append_gap(gdate, stamp, "chain-failed")
         return None
     try:
         ts = now or datetime.now(config.IST)
@@ -1504,7 +1778,8 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
         date_str = ts.strftime("%Y-%m-%d")
         path = tape_path(date_str)
         minute = t_iso[:16]
-        last_spot, same_minute = _peek_last_tape_row(path, minute)
+        last_spot, same_minute = await asyncio.to_thread(
+            _peek_last_tape_row, path, minute)
         if same_minute:
             _tape_last_skip = "same-minute"
             return None
@@ -1526,14 +1801,16 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             global _tape_spot_rejections
             _tape_spot_rejections += 1
             _tape_last_skip = "spot-rejected"
+            _append_gap(date_str, t_iso, "spot-rejected")
             return None
         strikes = report.get("strikes", []) or []
         ce_oi = sum(_safe_int((r.get("ce") or {}).get("oi")) for r in strikes)
         pe_oi = sum(_safe_int((r.get("pe") or {}).get("oi")) for r in strikes)
         # An empty chain is a failed fetch, not a market state: writing it makes
         # the NEXT row difference into a fake +100M "burst".
-        if not strikes or ce_oi + pe_oi == 0:
+        if not has_usable_chain(strikes):
             _tape_last_skip = "empty-chain"
+            _append_gap(date_str, t_iso, "empty-chain")
             return None
         ce_vol = sum(_safe_int((r.get("ce") or {}).get("volume")) for r in strikes)
         pe_vol = sum(_safe_int((r.get("pe") or {}).get("volume")) for r in strikes)
@@ -1571,10 +1848,14 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             # ATM +/-3 strikes with both legs' OI — lets a future alert name the
             # exact strike instead of only the index total.
             "strikes_top": _strike_oi_snapshot(strikes, spot),
+            # EVERY strike: CE/PE LTP + OI + volume per strike. Lets the options
+            # paper engine mark a position at the contract it actually bought
+            # (the ATM drifts), and lets walls/PCR be rebuilt per strike later.
+            "chain": _premium_chain_snapshot(strikes, spot),
         }
         TAPE_DIR.mkdir(parents=True, exist_ok=True)
-        with open(path, "a") as f:
-            f.write(json.dumps(row) + "\n")
+        # JSON encoding + append are blocking; off the event loop.
+        await asyncio.to_thread(_append_tape_line, path, row)
         # Keep the day's snapshot fresh so the EOD tab has data. Previously the
         # snapshot was written ONLY by POST /nifty/snapshot (the SNAPSHOT button),
         # so GET /nifty raised its 404 envelope on every day nobody clicked it —
@@ -1582,29 +1863,34 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
         # the chain every minute, so persisting it here costs one small JSON write
         # (overwritten in place, never deleted).
         try:
-            write_snapshot(date_str, {
+            snapshot = {
                 **report,
                 "mode": "snapshot",
                 "date": date_str,
                 "snapshot_at": t_iso,
                 "source": "upstox-option-chain",
                 "timeline": build_timeline_skeleton(report),
-            })
+            }
+            # ~150-200 KB with indent=2; encoding it on the loop was a visible
+            # per-minute stall, so both encode and write happen in a thread.
+            await asyncio.to_thread(write_snapshot, date_str, snapshot)
         except Exception:
             pass
         # Full per-minute replay snapshot: append the exact report envelope the
         # UI renders (verdicts + candles ON) plus the Sensex context block, so
-        # the whole report screen can be replayed after the day ends. Strictly
-        # after the light row (its fresh spot anchors compute_reference) and
-        # infallible — a snapshot failure must not stop the light tape row.
+        # the whole report screen can be replayed after the day ends. Reuses the
+        # single report computed above. Infallible: a snapshot failure must not
+        # stop the light tape row.
         try:
-            await _append_minute_snapshot(date_str, t_iso)
+            await _append_minute_snapshot(date_str, t_iso, report)
         except Exception:
             pass
         _tape_last_skip = None
         return row
     except Exception:
         _tape_last_skip = "chain-failed"
+        stamp, gdate = _tick_stamp(now)
+        _append_gap(gdate, stamp, "chain-failed")
         return None
 
 
@@ -1676,9 +1962,13 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
                     _tape_last_error = (
                         f"tick timed out after {timeout_sec:.0f}s"
                     )
+                    stamp, gdate = _tick_stamp()
+                    _append_gap(gdate, stamp, "timeout")
                 except Exception as e:
                     _tape_iterations += 1
                     _tape_last_error = f"{type(e).__name__}: {str(e)[:200]}"
+                    stamp, gdate = _tick_stamp()
+                    _append_gap(gdate, stamp, "loop-error")
             next_tick += poll_sec
             await asyncio.sleep(max(0.0, next_tick - loop.time()))
         except asyncio.CancelledError:
@@ -1763,6 +2053,31 @@ def get_nifty_tape(date: Optional[str] = Query(default=None, description="Tape d
             "baseline_t": baseline_t, "rows": rows}
 
 
+@router.get("/nifty/replay/dates", dependencies=[Depends(get_current_user)])
+def get_nifty_replay_dates(limit: int = Query(15, ge=1, le=120)):
+    """Dates that have a per-minute replay log, newest first.
+
+    The report panel opens on the newest recorded day when the market is
+    closed, so a holiday or weekend resolves to the last session that actually
+    recorded — never to an empty Live screen.
+    """
+    dates: list[str] = []
+    for path in sorted(SNAPSHOT_LOG_DIR.glob("*.jsonl"), reverse=True):
+        try:
+            datetime.strptime(path.stem, "%Y-%m-%d")
+        except ValueError:
+            continue
+        try:
+            if path.stat().st_size == 0:
+                continue
+        except OSError:
+            continue
+        dates.append(path.stem)
+        if len(dates) >= limit:
+            break
+    return {"dates": dates, "latest": dates[0] if dates else None}
+
+
 @router.get("/nifty/replay", dependencies=[Depends(get_current_user)])
 def get_nifty_replay(
     date: str = Query(..., description="Replay date YYYY-MM-DD"),
@@ -1800,7 +2115,8 @@ def get_nifty_replay(
                 chosen = snap
         return {"date": date_str, "snapshot": chosen}
     return {"date": date_str, "count": len(snaps),
-            "interval_sec": TAPE_INTERVAL_SEC, "snapshots": snaps}
+            "interval_sec": TAPE_INTERVAL_SEC, "snapshots": snaps,
+            "gap_reasons": read_gap_reasons(date_str)}
 
 
 # ---------------------------------------------------------------------------

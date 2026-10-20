@@ -328,6 +328,27 @@ export interface NiftySensex {
   market?: NiftyMarketBlock;
 }
 
+/** One recorded per-minute snapshot — a full report envelope plus the
+ *  optional Sensex context captured at the same minute by the recorder. */
+export interface NiftyReplayFrame {
+  t: string;
+  fetched_at: string;
+  report: NiftyReport;
+  sensex: NiftySensex | null;
+}
+
+/** `GET /api/reports/nifty/replay?date=…` — every recorded snapshot for one
+ *  date, oldest first, so EOD mode can replay the day minute-by-minute. */
+export interface NiftyReplay {
+  date: string;
+  count: number;
+  interval_sec: number;
+  snapshots: NiftyReplayFrame[];
+  /** Skipped-minute counts by reason (``{chain-failed: 41, timeout: 12}``).
+   *  Absent for days recorded before the gap journal existed. */
+  gap_reasons?: Record<string, number>;
+}
+
 /** One per-minute OI tape row — `GET /api/reports/nifty/tape`. */
 export interface NiftyTapeRow {
   t: string;

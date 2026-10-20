@@ -23,10 +23,20 @@ vi.mock("@/api/reportNifty", () => ({
   fetchLiveSensex: vi.fn(),
   fetchNiftyByDate: vi.fn(),
   fetchNiftyExpiries: vi.fn().mockResolvedValue([]),
+  fetchNiftyReplay: vi.fn(),
+  fetchNiftyReplayDates: vi.fn(),
   fetchNiftyTape: vi.fn(),
   fetchNiftyBursts: vi.fn(),
   snapshotNifty: vi.fn(),
 }));
+
+// Market clock is mocked so the suite behaves the same at 11:00 and at 23:00
+// IST: open by default, closed only in the tests that assert the auto-EOD path.
+const { marketOpenMock } = vi.hoisted(() => ({ marketOpenMock: vi.fn(() => true) }));
+vi.mock("./marketClock", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./marketClock")>();
+  return { ...actual, isMarketOpenIst: marketOpenMock };
+});
 
 vi.mock("@/components/chart/TradingViewChart", () => ({
   TradingViewChart: ({ candles, markLines, priceAreas, emaData }: {
@@ -54,10 +64,13 @@ import {
   fetchLiveNifty,
   fetchLiveSensex,
   fetchNiftyByDate,
+  fetchNiftyReplay,
+  fetchNiftyReplayDates,
   fetchNiftyTape,
   fetchNiftyBursts,
   snapshotNifty,
 } from "@/api/reportNifty";
+import type { NiftyReplay } from "@/types/niftyReport";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -179,9 +192,13 @@ function mockTape() {
 const REAL_WS = (globalThis as Record<string, unknown>).WebSocket;
 
 beforeEach(() => {
+  marketOpenMock.mockReturnValue(true);
+  vi.mocked(fetchNiftyReplayDates).mockResolvedValue([]);
   vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport());
   vi.mocked(fetchLiveSensex).mockResolvedValue(null as never);
   vi.mocked(fetchNiftyByDate).mockResolvedValue(mockReport({ mode: "eod" }));
+  // No replay by default: EOD tests exercise the plain single-snapshot path.
+  vi.mocked(fetchNiftyReplay).mockResolvedValue(null as never);
   vi.mocked(fetchNiftyTape).mockResolvedValue(mockTape());
   vi.mocked(fetchNiftyBursts).mockResolvedValue([] as never);
   vi.mocked(snapshotNifty).mockResolvedValue(mockReport());
@@ -240,7 +257,11 @@ describe("NiftyReportPanel toolbar", () => {
     });
     r(<NiftyReportPanel />);
     await waitFor(() => expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument());
-    await user.click(screen.getByTestId("nifty-index-toggle").querySelector('[data-value="sensex"]') ?? screen.getByText("SENSEX"));
+    const indexToggle = screen.getByTestId("nifty-index-toggle");
+    await user.click(
+      indexToggle.querySelector('[data-value="sensex"]') ??
+        within(indexToggle).getByText("SENSEX"),
+    );
     expect(await screen.findByTestId("sensex-focus-panel")).toBeInTheDocument();
     expect(screen.getByTestId("sensex-focus-max-pain")).toHaveTextContent("74,200");
     expect(screen.queryByTestId("nifty-stat-strip")).not.toBeInTheDocument();
@@ -418,6 +439,336 @@ describe("NiftyReportPanel EOD mode", () => {
   });
 });
 
+describe("closed-market default", () => {
+  test("opens the newest recorded day in EOD instead of Live", async () => {
+    marketOpenMock.mockReturnValue(false);
+    vi.mocked(fetchNiftyReplayDates).mockResolvedValue(["2026-10-19", "2026-10-16"]);
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-date-input")).toHaveValue("2026-10-19");
+    });
+    expect(vi.mocked(fetchNiftyByDate)).toHaveBeenCalledWith(
+      "2026-10-19",
+      expect.anything(),
+    );
+    expect(vi.mocked(fetchLiveNifty)).not.toHaveBeenCalled();
+  });
+
+  test("falls back to Live when no day has a recording", async () => {
+    marketOpenMock.mockReturnValue(false);
+    vi.mocked(fetchNiftyReplayDates).mockResolvedValue([]);
+    r(<NiftyReportPanel />);
+    await waitFor(() => expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalled());
+  });
+});
+
+describe("NiftyReportPanel EOD minute replay", () => {
+  /** Three recorded minutes with distinct spots so scrubbing is observable. */
+  function replayFixture(gapReasons?: Record<string, number>): NiftyReplay {
+    const frame = (hm: string, spot: number) => ({
+      t: `2026-10-10T${hm}:00+05:30`,
+      fetched_at: `2026-10-10T${hm}:05+05:30`,
+      report: mockReport({ mode: "eod", spot }),
+      sensex: null,
+    });
+    return {
+      date: "2026-10-10",
+      count: 3,
+      interval_sec: 60,
+      snapshots: [frame("09:15", 25100), frame("10:30", 25200), frame("15:29", 25300)],
+      ...(gapReasons ? { gap_reasons: gapReasons } : {}),
+    };
+  }
+
+  async function engageEodWithReplay(gapReasons?: Record<string, number>) {
+    const user = userEvent.setup();
+    vi.mocked(fetchNiftyReplay).mockResolvedValue(replayFixture(gapReasons));
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+    return screen.findByTestId("nifty-replay-bar");
+  }
+
+  test("bar renders in EOD with a recorded day and applies frame 0", async () => {
+    const bar = await engageEodWithReplay();
+    expect(within(bar).getByTestId("nifty-replay-slider")).toBeInTheDocument();
+    expect(within(bar).getByTestId("nifty-replay-time")).toHaveTextContent("09:15");
+    expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("1/3");
+    // the first frame paints the panels — the strip shows that minute's spot
+    expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+    expect(vi.mocked(fetchNiftyReplay)).toHaveBeenCalledWith(
+      "2026-10-10",
+      expect.anything(),
+    );
+  });
+
+  test("shows coverage and the size of the next hole", async () => {
+    const bar = await engageEodWithReplay();
+    const coverage = within(bar).getByTestId("nifty-replay-coverage");
+    // 3 recorded minutes out of the 375-minute session → 0.8%.
+    expect(coverage).toHaveTextContent("Data 0.8%");
+    expect(coverage).toHaveTextContent("372m missing");
+    // Frame 0 is 09:15 and frame 1 is 10:30 → 74 minutes are skipped.
+    expect(within(bar).getByTestId("nifty-replay-gap")).toHaveTextContent("+74m gap");
+    expect(within(bar).getByTestId("nifty-replay-coverage-strip")).toBeInTheDocument();
+  });
+
+  test("names the recorder's skip reasons when the gap journal exists", async () => {
+    const bar = await engageEodWithReplay({ "chain-failed": 41, timeout: 12 });
+    const reasons = within(bar).getByTestId("nifty-replay-reasons");
+    expect(reasons).toHaveTextContent("chain fetch failed ×41");
+    expect(reasons).toHaveTextContent("tick timed out ×12");
+  });
+
+  test("falls back to a hole count when the day has no gap journal", async () => {
+    const bar = await engageEodWithReplay();
+    const reasons = within(bar).getByTestId("nifty-replay-reasons");
+    // Frames 09:15, 10:30, 15:29 → two in-session holes (74m and 298m).
+    expect(reasons).toHaveTextContent("2 in-session holes");
+    expect(reasons).toHaveTextContent("reason not logged");
+  });
+
+  test("scrubbing the slider repaints the panels for that minute", async () => {
+    const bar = await engageEodWithReplay();
+    const input = within(bar).getByTestId("nifty-replay-slider");
+    // The heavy report swap is coalesced behind one rAF — capture it so the
+    // test drives the frame explicitly instead of racing the clock.
+    const queued: FrameRequestCallback[] = [];
+    const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      queued.push(cb);
+      return queued.length;
+    });
+    const flushFrames = () =>
+      act(async () => {
+        for (const cb of queued.splice(0)) cb(16);
+      });
+    try {
+      // frame 0 is already applied...
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+      // ...scrub to frame 1 — thumb and counter move urgently, panels follow
+      // on the next animation frame
+      fireEvent.change(input, { target: { value: "1" } });
+      expect(within(bar).getByTestId("nifty-replay-time")).toHaveTextContent("10:30");
+      expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("2/3");
+      await flushFrames();
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,200");
+      // and the spot changes back between frame 0 and frame 1
+      fireEvent.change(input, { target: { value: "0" } });
+      await flushFrames();
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+    } finally {
+      rafSpy.mockRestore();
+    }
+  });
+
+  test("rapid scrubs coalesce to one frame — newest wins, intermediates never paint", async () => {
+    const bar = await engageEodWithReplay();
+    const input = within(bar).getByTestId("nifty-replay-slider");
+    const queued: FrameRequestCallback[] = [];
+    const rafSpy = vi.spyOn(window, "requestAnimationFrame").mockImplementation((cb) => {
+      queued.push(cb);
+      return queued.length;
+    });
+    try {
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+      // five scrubs in the same tick, before any rAF fires
+      for (const v of ["1", "2", "1", "0", "2"]) {
+        fireEvent.change(input, { target: { value: v } });
+      }
+      // thumb + counter tracked every input urgently...
+      expect(within(bar).getByTestId("nifty-replay-time")).toHaveTextContent("15:29");
+      expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("3/3");
+      // ...but only ONE frame was scheduled and the panels still show frame 0
+      expect(queued).toHaveLength(1);
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+      // firing the coalesced frame paints only the newest (frame 2)
+      await act(async () => {
+        for (const cb of queued.splice(0)) cb(16);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("3/3");
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,300");
+      // no second frame was ever queued — nothing stale can land afterwards
+      expect(queued).toHaveLength(0);
+    } finally {
+      rafSpy.mockRestore();
+    }
+  });
+
+  test("scrubbing mid-play pauses and the play timer never fires a late frame", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchNiftyReplay).mockResolvedValue(replayFixture());
+      r(<NiftyReportPanel />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      fireEvent.click(screen.getByRole("button", { name: "EOD" }));
+      fireEvent.change(screen.getByTestId("nifty-date-input"), { target: { value: "2026-10-10" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const slider = within(screen.getByTestId("nifty-replay-bar")).getByTestId(
+        "nifty-replay-slider",
+      );
+      fireEvent.click(screen.getByTestId("nifty-replay-play"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("2/3");
+      // scrub back to frame 0 mid-play — pauses, counter moves urgently
+      fireEvent.change(slider, { target: { value: "0" } });
+      expect(screen.getByTestId("nifty-replay-play")).toHaveTextContent("Play");
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("1/3");
+      // the coalesced scrub frame (rAF ≈16ms) lands, then nothing else moves
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(2100);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("1/3");
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+      expect(screen.getByTestId("nifty-replay-play")).toHaveTextContent("Play");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("pressing Play on the last frame restarts the day from minute one", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchNiftyReplay).mockResolvedValue(replayFixture());
+      r(<NiftyReportPanel />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      fireEvent.click(screen.getByRole("button", { name: "EOD" }));
+      fireEvent.change(screen.getByTestId("nifty-date-input"), { target: { value: "2026-10-10" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      // play through to the end — auto-pauses on the last frame (one tick
+      // per advance so the interval reschedules between ticks)
+      fireEvent.click(screen.getByTestId("nifty-replay-play"));
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("3/3");
+      expect(screen.getByTestId("nifty-replay-play")).toHaveTextContent("Play");
+      // pressing Play again restarts from minute one — counter urgently,
+      // panels via the transition
+      fireEvent.click(screen.getByTestId("nifty-replay-play"));
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("1/3");
+      expect(screen.getByTestId("nifty-replay-play")).toHaveTextContent("Pause");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,100");
+      // ...and playback continues from there
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("2/3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("Play advances one frame per 700ms, toggles, and stops at the last frame", async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(fetchNiftyReplay).mockResolvedValue(replayFixture());
+      r(<NiftyReportPanel />);
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      fireEvent.click(screen.getByRole("button", { name: "EOD" }));
+      const dateInput = screen.getByTestId("nifty-date-input");
+      fireEvent.change(dateInput, { target: { value: "2026-10-10" } });
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(0);
+      });
+      const counter = within(screen.getByTestId("nifty-replay-bar")).getByTestId(
+        "nifty-replay-count",
+      );
+      expect(counter).toHaveTextContent("1/3");
+
+      fireEvent.click(screen.getByTestId("nifty-replay-play"));
+      expect(screen.getByTestId("nifty-replay-play")).toHaveTextContent("Pause");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("2/3");
+      expect(screen.getByTestId("nifty-replay-time")).toHaveTextContent("10:30");
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,200");
+
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      // reached the last frame — playback auto-pauses and stays there
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("3/3");
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,300");
+      expect(screen.getByTestId("nifty-replay-play")).toHaveTextContent("Play");
+      await act(async () => {
+        await vi.advanceTimersByTimeAsync(700);
+      });
+      expect(screen.getByTestId("nifty-replay-count")).toHaveTextContent("3/3");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  test("days without a replay fall back to the plain EOD snapshot", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+    await waitFor(() => {
+      expect(vi.mocked(fetchNiftyByDate)).toHaveBeenCalledWith(
+        "2026-10-10",
+        expect.anything(),
+      );
+    });
+    expect(screen.queryByTestId("nifty-replay-bar")).not.toBeInTheDocument();
+    // the single EOD snapshot still paints the panels
+    expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+  });
+
+  test("live mode never shows the replay bar", async () => {
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    expect(screen.queryByTestId("nifty-replay-bar")).not.toBeInTheDocument();
+    expect(vi.mocked(fetchNiftyReplay)).not.toHaveBeenCalled();
+  });
+
+  test("switching back to live hides the bar", async () => {
+    const user = userEvent.setup();
+    await engageEodWithReplay();
+    expect(screen.getByTestId("nifty-replay-bar")).toBeInTheDocument();
+
+    vi.mocked(fetchNiftyReplay).mockClear();
+    await user.click(screen.getByRole("button", { name: "Live" }));
+    await waitFor(() => {
+      expect(vi.mocked(fetchLiveNifty)).toHaveBeenCalled();
+    });
+    expect(screen.queryByTestId("nifty-replay-bar")).not.toBeInTheDocument();
+    expect(vi.mocked(fetchNiftyReplay)).not.toHaveBeenCalled();
+  });
+});
+
 describe("NiftyReportPanel states", () => {
   test("error state shows alert with retry", async () => {
     const user = userEvent.setup();
@@ -457,13 +808,19 @@ describe("NiftyReportPanel Chart|Depth view toggle", () => {
     expect(await screen.findByTestId("tradingview-chart")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-view-toggle")).toBeInTheDocument();
 
+    // Both views stay mounted after the first Depth selection; switching only
+    // flips `display`, so the ECharts instance is never cold-created again.
     await user.click(screen.getByRole("button", { name: "Depth" }));
     expect(await screen.findByTestId("nifty-depthmap")).toBeInTheDocument();
-    expect(screen.queryByTestId("tradingview-chart")).not.toBeInTheDocument();
+    expect(screen.getByTestId("tradingview-chart")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-view").style.display).toBe("none");
+    expect(screen.getByTestId("nifty-depth-view").style.display).toBe("block");
 
     await user.click(screen.getByRole("button", { name: "Chart" }));
     expect(await screen.findByTestId("tradingview-chart")).toBeInTheDocument();
-    expect(screen.queryByTestId("nifty-depthmap")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-view").style.display).toBe("block");
+    expect(screen.getByTestId("nifty-depth-view").style.display).toBe("none");
   });
 
   test("intraday candles feed the chart with EMA9/EMA20 overlays", async () => {
@@ -1433,7 +1790,7 @@ describe("NiftyReportPanel ultra-compact layout", () => {
     ];
   }
 
-  test("chart and OI bodies use fixed pixel heights, never vh", async () => {
+  test("chart body uses a fixed pixel height and the OI body fills its column", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({ candles: candles() }),
     );
@@ -1441,7 +1798,7 @@ describe("NiftyReportPanel ultra-compact layout", () => {
     const chartWrap = await screen.findByTestId("nifty-chart-wrap");
     expect(chartWrap).toHaveStyle({ height: "180px" });
     const oiWrap = screen.getByTestId("nifty-oi-wrap");
-    expect(oiWrap).toHaveStyle({ height: "180px" });
+    expect(oiWrap).toHaveStyle({ height: "100%" });
   });
 
   test("timeline scrolls inside a capped inner box", async () => {

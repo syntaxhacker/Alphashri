@@ -67,6 +67,13 @@ interface CompactPanelProps extends UIPaperProps {
   testId?: string;
   id?: string;
   scrollable?: boolean;
+  /**
+   * Edge-to-edge header divider: the header spans the panel width and the
+   * body keeps `panelPad`, instead of the header sitting inside the card's
+   * padding. Terminal/desk pages use this so panel headers line up with the
+   * grid rather than being inset by 8px on each side.
+   */
+  flush?: boolean;
 }
 
 export function CompactPanel({
@@ -78,17 +85,19 @@ export function CompactPanel({
   testId,
   style,
   scrollable = false,
+  flush = false,
   ...paperProps
 }: CompactPanelProps) {
   const { tokens: densityTokens } = useDensity();
   const pad = padded ? densityTokens.panelPad : 0;
   const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
+  const bodyStyle: CSSProperties = flush ? { padding: pad } : {};
 
     return (
       <MuiPaper elevation={0} data-compact="" sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
-        <MuiCardContent sx={{ p: pad, "&:last-child": { pb: pad }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
+        <MuiCardContent sx={{ p: flush ? 0 : pad, "&:last-child": { pb: flush ? 0 : pad }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
         {(title || description || action) && (
-          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, p: 1, mb: 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
+          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: flush ? 1.5 : 1, py: flush ? 0.75 : 1, mb: flush ? 0 : 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
             <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 1, minWidth: 0 }}>
               {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
               {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}
@@ -96,7 +105,7 @@ export function CompactPanel({
             {action ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>{action}</Box> : null}
           </Box>
         )}
-        {scrollable ? <Box sx={SCROLL_CONTAINER_STYLE}>{children}</Box> : children}
+        {scrollable ? <Box sx={SCROLL_CONTAINER_STYLE} style={bodyStyle}>{children}</Box> : flush ? <Box style={bodyStyle}>{children}</Box> : children}
       </MuiCardContent>
     </MuiPaper>
   );

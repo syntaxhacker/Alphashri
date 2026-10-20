@@ -141,14 +141,12 @@ class TestRecorder:
                             positioning={"verdict": "Calls"})
         with patch.object(
                 nifty, "_compute_live",
-                AsyncMock(side_effect=[_fake_report(), full])) as cl:
+                AsyncMock(return_value=full)) as cl:
             row = await record_nifty_tape_tick(now=_ist(9, 15))
-        assert cl.await_count == 2
-        # Pass 1 is the light tape computation (unchanged), pass 2 the full
-        # replay snapshot (verdicts + candles ON).
+        # ONE pass per minute: the same report feeds the tape row and the
+        # replay snapshot (it used to be a light pass + a full pass).
+        assert cl.await_count == 1
         assert cl.call_args_list[0] == call(
-            None, walkback_days=0, with_verdicts=False, with_candles=False)
-        assert cl.call_args_list[1] == call(
             None, walkback_days=0, with_verdicts=True, with_candles=True)
         assert row is not None
         assert row["t"] == _ist(9, 15).isoformat()
@@ -225,7 +223,7 @@ class TestRecorder:
             assert await record_nifty_tape_tick(now=_ist(9, 15)) is None
         assert read_tape("2026-10-13") == []
 
-    async def test_background_tick_timeout_is_recorded(self, monkeypatch):
+    async def test_background_tick_timeout_is_recorded(self, monkeypatch, _tmp_tape):
         async def slow_tick():
             await asyncio.Event().wait()
 
@@ -249,14 +247,34 @@ class TestRecorder:
         assert row["flip"] is None
 
     async def test_snapshot_failure_still_writes_tape_row(self, _tmp_tape):
-        """The full-snapshot pass is best-effort: the light tape row survives."""
-        with patch.object(
-                nifty, "_compute_live",
-                AsyncMock(side_effect=[_fake_report(),
-                                       RuntimeError("full pass boom")])):
+        """The replay snapshot is best-effort: the tape row survives it."""
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())), \
+                patch.object(nifty, "_append_minute_snapshot",
+                             AsyncMock(side_effect=RuntimeError("snapshot boom"))):
             row = await record_nifty_tape_tick(now=_ist(9, 15))
         assert row is not None
         assert len(read_tape("2026-10-13")) == 1
+        assert read_snapshots("2026-10-13") == []
+
+    async def test_empty_chain_is_not_persisted(self, _tmp_tape):
+        """An empty/all-zero-OI chain is a failed fetch, never a data point.
+
+        This is the regression guard for the persisted ``strikes: []`` rows:
+        the recorder must skip the tape row AND the snapshot instead of
+        writing a ``net_total: 0 / regime: "flat" / max_pain: 0`` frame.
+        """
+        empty = _fake_report(strikes=[
+            {"strike": 25000.0,
+             "ce": {"oi": 0, "volume": 0},
+             "pe": {"oi": 0, "volume": 0}},
+        ], gex={"net_total": 0, "regime": "flat", "zero_cross": None},
+            max_pain=0.0)
+        with patch.object(nifty, "_compute_live", AsyncMock(return_value=empty)):
+            row = await record_nifty_tape_tick(now=_ist(9, 15))
+        assert row is None
+        assert nifty._tape_last_skip == "empty-chain"
+        assert read_tape("2026-10-13") == []
         assert read_snapshots("2026-10-13") == []
 
     async def test_snapshot_dedupes_same_minute(self, _tmp_tape):
@@ -310,6 +328,37 @@ class TestRecorder:
         assert all(s["t"] == "2026-10-13T09:15:00+05:30" for s in snaps)
         assert read_snapshots("1999-01-01") == []  # missing file
 
+    async def test_append_minute_snapshot_refuses_empty_chain(self, _tmp_tape):
+        """An empty-all-OI report never reaches the replay log."""
+        empty = _fake_report(strikes=[], gex={"net_total": 0, "regime": "flat"},
+                             max_pain=0.0)
+        assert await nifty._append_minute_snapshot(
+            "2026-10-13", "2026-10-13T09:15:00+05:30", empty) is None
+        assert read_snapshots("2026-10-13") == []
+
+    async def test_tail_reader_handles_edge_cases(self, _tmp_tape):
+        """The tail reader replaces a full-file scan of a growing log."""
+        p = _tmp_tape / "tail.jsonl"
+        assert nifty._tail_last_json_line(p) is None  # missing
+        p.write_text("")
+        assert nifty._tail_last_json_line(p) is None  # empty
+        p.write_text('{"a": 1}\n{"b": 2}\n')
+        assert nifty._tail_last_json_line(p) == {"b": 2}
+        # A last line larger than the initial 64 KiB window is still found.
+        p.write_text("x" * 200_000 + "\n" + json.dumps({"c": 3}) + "\n")
+        assert nifty._tail_last_json_line(p) == {"c": 3}
+
+
+class TestWriteSnapshot:
+    def test_compact_and_atomic_roundtrip(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(nifty, "SNAPSHOT_DIR", tmp_path)
+        data = {"mode": "snapshot", "strikes": [{"strike": 1.0}], "x": 2}
+        path = nifty.write_snapshot("2026-10-12", data)
+        assert nifty.read_snapshot("2026-10-12") == data
+        # No temp file left behind, and no pretty-printing whitespace.
+        assert not (tmp_path / "2026-10-12.json.tmp").exists()
+        assert "\n" not in path.read_text()
+
 
 class TestTapeEndpoint:
     def test_404_on_missing_date(self, _tmp_tape):
@@ -357,3 +406,55 @@ class TestTapeEndpoint:
         assert out["baseline_t"] == _ist(12, 4).isoformat()
         assert out["baseline_t"] == out["rows"][0]["t"]
         assert out["baseline_t"] < out["rows"][-1]["t"]
+
+
+class TestGapJournal:
+    """Why a recorded day has holes, kept durably per day.
+
+    Skip reasons used to live only in memory (``_tape_last_skip``) while the
+    API log is truncated on every restart, so a past day's gaps were
+    unexplainable. The journal is one ``{"t", "reason"}`` line per skipped
+    minute; this is what the report UI reads back as "why".
+    """
+
+    def test_append_and_read_reasons(self, _tmp_tape):
+        nifty._append_gap("2026-10-13", _ist(9, 16).isoformat(), "chain-failed")
+        nifty._append_gap("2026-10-13", _ist(9, 17).isoformat(), "chain-failed")
+        nifty._append_gap("2026-10-13", _ist(9, 25).isoformat(), "timeout")
+        assert nifty.read_gap_reasons("2026-10-13") == {
+            "chain-failed": 2, "timeout": 1}
+        lines = nifty.gap_log_path("2026-10-13").read_text().strip().splitlines()
+        assert len(lines) == 3
+        assert json.loads(lines[0])["reason"] == "chain-failed"
+
+    def test_missing_journal_is_empty(self, _tmp_tape):
+        # A day recorded before the journal existed has no file at all.
+        assert nifty.read_gap_reasons("2026-10-12") == {}
+
+    def test_corrupt_lines_are_skipped(self, _tmp_tape):
+        nifty.gap_log_path("2026-10-14").write_text(
+            'not json\n{"t":"x","reason":"timeout"}\n{"t":"y"}\n')
+        assert nifty.read_gap_reasons("2026-10-14") == {"timeout": 1}
+
+    async def test_chain_failure_is_journaled(self, _tmp_tape):
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(side_effect=RuntimeError("boom"))):
+            assert await record_nifty_tape_tick(now=_ist(9, 16)) is None
+        assert nifty.read_gap_reasons("2026-10-13") == {"chain-failed": 1}
+
+    async def test_duplicate_minute_is_not_a_gap(self, _tmp_tape):
+        # `same-minute` is a normal double-tick, not a hole — never journaled.
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=_fake_report())):
+            await record_nifty_tape_tick(now=_ist(9, 16))
+            await record_nifty_tape_tick(now=_ist(9, 16))
+        assert nifty.read_gap_reasons("2026-10-13") == {}
+
+    async def test_empty_chain_is_journaled(self, _tmp_tape):
+        # An all-zero chain is a failed fetch, not a market state.
+        rep = _fake_report()
+        rep["strikes"] = []
+        with patch.object(nifty, "_compute_live",
+                          AsyncMock(return_value=rep)):
+            assert await record_nifty_tape_tick(now=_ist(9, 20)) is None
+        assert nifty.read_gap_reasons("2026-10-13") == {"empty-chain": 1}

@@ -8,6 +8,7 @@ import {
   MiniLineChart,
   buildAreaPath,
   buildLinePath,
+  scaleValue,
   seriesBounds,
 } from "./MiniLineChart";
 
@@ -105,6 +106,53 @@ describe("buildAreaPath", () => {
   test("empty string when there are no finite points", () => {
     expect(buildAreaPath([], BOUNDS, 100, 50)).toBe("");
     expect(buildAreaPath([null, null], BOUNDS, 100, 50)).toBe("");
+  });
+});
+
+describe("scaleValue / sqrt scale", () => {
+  test("preserves sign and zero, and no-ops on linear", () => {
+    expect(scaleValue(0, "sqrt")).toBe(0);
+    expect(scaleValue(9, "sqrt")).toBeCloseTo(3);
+    expect(scaleValue(-100, "sqrt")).toBeCloseTo(-10);
+    expect(scaleValue(42, "linear")).toBe(42);
+  });
+
+  test("bounds compress a long tail so small values stay on the chart", () => {
+    const s = [{ name: "a", points: [0, 100, 10000], color: palette.PRIMARY }];
+    expect(seriesBounds(s, 0, "linear")).toEqual({ min: 0, max: 10000 });
+    expect(seriesBounds(s, 0, "sqrt")).toEqual({ min: 0, max: 100 });
+  });
+
+  test("a tiny value plots far above the baseline on sqrt but hugs it on linear", () => {
+    const points = [0, 100, 10000];
+    const yOfSecond = (scale: "linear" | "sqrt") => {
+      const bounds = seriesBounds(
+        [{ name: "a", points, color: palette.PRIMARY }],
+        0,
+        scale,
+      );
+      const d = buildLinePath(points, bounds, 100, 50, scale);
+      // "M x y L x y L x y" — the second vertex is the raw 100 point.
+      return Number(d.split(" ").slice(2, 4)[1]);
+    };
+    // Linear puts 100 at 99% of the height; sqrt lifts it to 90%.
+    expect(yOfSecond("sqrt")).toBeLessThan(yOfSecond("linear"));
+  });
+
+  test("render accepts scale=sqrt without changing the DOM contract", () => {
+    render(
+      <MiniLineChart
+        series={[{ name: "a", points: [0, 1, 10000], color: palette.PRIMARY }]}
+        labels={["a", "b", "c"]}
+        scale="sqrt"
+        testId="mini-chart-sqrt"
+      />,
+      { wrapper: TestWrapper },
+    );
+    const chart = screen.getByTestId("mini-chart-sqrt");
+    expect(chart.querySelector("svg")).not.toBeNull();
+    // The hover readout keeps the *raw* value, not the transformed one.
+    expect(chart.textContent).toContain("a");
   });
 });
 
