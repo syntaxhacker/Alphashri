@@ -184,6 +184,28 @@ class TestDeltaFlipLevel:
         ]
         assert delta_flip_level(strikes) == 20100
 
+    def test_spot_prefers_the_cross_nearest_the_money(self):
+        # A thin wing can wobble through zero far from spot; the level that
+        # matters is the long-delta pivot nearest the traded price.
+        strikes = [
+            {"strike": 20000, "net_state": -10},
+            {"strike": 20100, "net_state": 20},   # - -> + (flip)
+            {"strike": 21000, "net_state": 50},
+            {"strike": 21100, "net_state": -100},  # + -> - (put wall, ignored)
+            {"strike": 21200, "net_state": 80},   # - -> + (flip)
+        ]
+        assert delta_flip_level(strikes, spot=21120) == 21200
+        assert delta_flip_level(strikes, spot=20050) == 20100
+        # No spot keeps the deterministic first-cross fallback.
+        assert delta_flip_level(strikes) == 20100
+
+    def test_put_wall_crossing_is_not_a_flip(self):
+        strikes = [
+            {"strike": 20000, "net_state": 10},
+            {"strike": 20100, "net_state": -50},
+        ]
+        assert delta_flip_level(strikes, spot=20100) is None
+
     def test_no_crossing_returns_none(self):
         assert delta_flip_level([{"strike": 20000, "net_state": -5}]) is None
         assert delta_flip_level([]) is None

@@ -111,30 +111,36 @@ def positioning_verdict(bull_cr: float, bear_cr: float) -> str:
     return "balanced"
 
 
-def delta_flip_level(strikes: list[dict]) -> Optional[float]:
-    """Strike where cumulative net delta exposure crosses zero.
+def delta_flip_level(strikes: list[dict], spot: Optional[float] = None) -> Optional[float]:
+    """Strike where the cumulative book turns from short to long delta.
 
-    Mirrors the GEX zero-gamma convention: walk strikes low→high adding each
-    strike's ``net_state`` (calls +, puts −) and return the first strike whose
-    cumulative flips sign. Leading all-zero strikes are ignored so a dead wing
-    cannot fake a level, and an all-zero book returns ``None``.
-
-    Below the flip the cumulative book is put-heavy (short delta); above it the
-    call book dominates (long delta) — the pivot where directional hedging
-    changes sign.
+    Walk strikes low→high adding each strike's ``net_state`` (calls +, puts −).
+    Only a **negative → positive** cross is a flip: below it the book is
+    put-heavy (short delta), above it calls dominate (long delta). A
+    positive → negative cross is a put wall, not the pivot, so it is ignored.
+    Thin wings can wobble through zero far from the money, so when ``spot`` is
+    known the cross **closest to spot** wins; without it the first cross is
+    returned (deterministic for snapshots that carry no spot).
     """
     cum = 0.0
     prev: Optional[float] = None
+    crossings: list[float] = []
     for s in sorted(strikes or [], key=lambda r: _f(r.get("strike"))):
         cum = round(cum + _f(s.get("net_state")), 2)
         if cum == 0:
             if prev is not None:
-                return _f(s.get("strike"))
+                crossings.append(_f(s.get("strike")))
+                prev = 0.0
             continue
-        if prev is not None and (prev < 0) != (cum < 0):
-            return _f(s.get("strike"))
+        if prev is not None and prev < 0 <= cum:
+            crossings.append(_f(s.get("strike")))
         prev = cum
-    return None
+    if not crossings:
+        return None
+    spot_f = _f(spot)
+    if spot_f > 0:
+        return min(crossings, key=lambda level: abs(level - spot_f))
+    return crossings[0]
 
 
 def compute_positioning(rows: list[dict], spot: float,
@@ -217,6 +223,6 @@ def compute_positioning(rows: list[dict], spot: float,
         "ce_doi": ce_doi_total,
         "pe_doi": pe_doi_total,
         "lot_size": int(lot_size),
-        "delta_flip": delta_flip_level(strikes),
+        "delta_flip": delta_flip_level(strikes, spot_f),
         "strikes": strikes,
     }
