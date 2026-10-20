@@ -5,6 +5,7 @@ import "@testing-library/jest-dom/vitest";
 import { MarketTicker } from "./MarketTicker";
 import { UIProvider } from "@/ui";
 import { setupBrowserMocks } from "../../test-utils/setupBrowser";
+import { isMarketClosedToday, getHolidayState } from "../../state/holidays";
 
 // Mock fetch
 const mockFetch = vi.fn();
@@ -21,11 +22,13 @@ vi.mock("../../hooks/useMarketTickerEnabled", () => ({
 vi.mock("../../state/holidays", () => ({
   subscribeToHolidays: vi.fn(),
   isMarketClosedToday: vi.fn().mockReturnValue(false),
+  getHolidayState: vi.fn(() => ({ holidays: [] })),
 }));
 
 describe("MarketTicker", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    vi.mocked(isMarketClosedToday).mockReturnValue(false);
     // Reset mock to enabled by default
     mockMarketTickerEnabled = true;
     setupBrowserMocks();
@@ -330,6 +333,30 @@ describe("MarketTicker", () => {
     expect(setIntervalSpy).toHaveBeenCalledWith(expect.any(Function), 300000);
 
     setIntervalSpy.mockRestore();
+  });
+
+  it("shows market-closed status instead of a tape on holidays", () => {
+    vi.mocked(isMarketClosedToday).mockReturnValue(true);
+    const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+    vi.mocked(getHolidayState).mockReturnValue({
+      holidays: [{ date: today, description: "Dussehra", type: "trading" }],
+      tradingDates: new Set<string>([today]),
+      clearingDates: new Set<string>(),
+      loaded: true,
+      loading: false,
+    });
+
+    render(
+      <UIProvider>
+        <MarketTicker />
+      </UIProvider>,
+    );
+
+    expect(screen.getByTestId("market-ticker-status")).toBeInTheDocument();
+    expect(screen.getByText("Market closed")).toBeInTheDocument();
+    expect(screen.getByText(/Dussehra/)).toBeInTheDocument();
+    expect(screen.queryByTestId("market-ticker-loading")).not.toBeInTheDocument();
+    expect(mockFetch).not.toHaveBeenCalled();
   });
 
   it("returns null when disabled", () => {

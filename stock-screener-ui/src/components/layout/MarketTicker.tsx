@@ -3,7 +3,7 @@ import { Box, Group, Text, Badge, Skeleton } from "@/ui";
 import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
-import { subscribeToHolidays, isMarketClosedToday } from "../../state/holidays";
+import { subscribeToHolidays, isMarketClosedToday, getHolidayState } from "../../state/holidays";
 
 export interface MarketTickerItem {
   symbol: string;
@@ -171,15 +171,41 @@ function TickerErrorState({ background }: { background: string }) {
   );
 }
 
+function TickerStatus({ label, detail }: { label: string; detail?: string | null }) {
+  return (
+    <Box
+      data-testid="market-ticker-status"
+      sx={{ display: "flex", alignItems: "center", gap: 0.75, minWidth: 0, px: 0.5, overflow: "hidden" }}
+    >
+      <Box
+        aria-hidden
+        sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "text.disabled", flexShrink: 0 }}
+      />
+      <Text size="sm" fw={600} c="dimmed">{label}</Text>
+      {detail ? (
+        <Text
+          size="sm"
+          c="dimmed"
+          sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+        >
+          · {detail}
+        </Text>
+      ) : null}
+    </Box>
+  );
+}
+
+function findTodayHoliday() {
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kolkata" }).format(new Date());
+  return getHolidayState().holidays.find((h) => h.date === today) ?? null;
+}
+
 export function MarketTicker() {
   const [enabled] = useMarketTickerEnabled();
   const [data, setData] = useState<MarketTickerData | null>(null);
   useStoreSubscription(subscribeToHolidays);
-
-  // If disabled, render nothing
-  if (!enabled) {
-    return null;
-  }
+  const closed = isMarketClosedToday();
+  const holiday = closed ? findTodayHoliday() : null;
 
   const fetchTicker = useCallback(async () => {
     if (isMarketClosedToday()) return;
@@ -196,11 +222,22 @@ export function MarketTicker() {
   }, []);
 
   useEffect(() => {
+    if (!enabled || closed) return;
     fetchTicker();
     const interval = setInterval(fetchTicker, POLL_INTERVAL_MS);
 
     return () => clearInterval(interval);
-  }, [fetchTicker]);
+  }, [enabled, closed, fetchTicker]);
+
+  if (!enabled) {
+    return null;
+  }
+
+  // A closed exchange has no tape to poll: state the reason instead of
+  // leaving skeletons (or a blank flex row) sitting in the header.
+  if (closed) {
+    return <TickerStatus label="Market closed" detail={holiday?.description} />;
+  }
 
   if (!data || data.loading) {
     return <TickerLoadingState background="background.paper" />;
