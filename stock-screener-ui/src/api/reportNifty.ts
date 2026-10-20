@@ -487,12 +487,38 @@ export function normalizeSensex(raw: Record<string, unknown>): NiftySensex {
   };
 }
 
+/** FastAPI `detail` can be a string, a validation array, or a structured
+ *  object (the Nifty 404 sends `{is_trading_day, date, message}`). Passing an
+ *  object to `new Error()` leaked "[object Object]" into the report banner. */
+function detailMessage(payload: unknown, fallback: string): string {
+  const detail = (payload as { detail?: unknown } | null)?.detail;
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const parts = detail
+      .map((d) => (typeof d === "string" ? d : (d as { msg?: unknown } | null)?.msg))
+      .filter((d): d is string => typeof d === "string" && d.trim() !== "");
+    if (parts.length > 0) return parts.join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    const d = detail as {
+      is_trading_day?: boolean;
+      date?: string;
+      message?: unknown;
+      msg?: unknown;
+    };
+    if (d.is_trading_day === false && d.date) {
+      return `${d.date} was not a trading day — no snapshot recorded.`;
+    }
+    const msg = d.message ?? d.msg;
+    if (typeof msg === "string" && msg.trim()) return msg;
+  }
+  return fallback;
+}
+
 async function parseNiftyResponse(response: Response): Promise<NiftyReport> {
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
-      (error as { detail?: string }).detail || "Failed to fetch Nifty report",
-    );
+    throw new Error(detailMessage(error, "Failed to fetch Nifty report"));
   }
   return normalizeReport((await response.json()) as Record<string, unknown>);
 }
@@ -529,7 +555,7 @@ export async function fetchLiveSensex(signal?: AbortSignal): Promise<NiftySensex
   const response = await fetchWithAuth(`${NIFTY_API_BASE}/sensex`, { signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error((error as { detail?: string }).detail || "Failed to fetch Sensex report");
+    throw new Error(detailMessage(error, "Failed to fetch Sensex report"));
   }
   return normalizeSensex((await response.json()) as Record<string, unknown>);
 }
@@ -757,9 +783,7 @@ export async function fetchNiftyTape(
   const response = await fetchWithAuth(url, { signal });
   if (!response.ok) {
     const error = await response.json().catch(() => ({}));
-    throw new Error(
-      (error as { detail?: string }).detail || "Failed to fetch Nifty tape",
-    );
+    throw new Error(detailMessage(error, "Failed to fetch Nifty tape"));
   }
   const raw = (await response.json()) as Record<string, unknown>;
   const pcrOi = num(raw.pcr_oi ?? raw.pcrOi);

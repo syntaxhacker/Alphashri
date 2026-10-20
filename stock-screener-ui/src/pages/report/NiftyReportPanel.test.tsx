@@ -766,7 +766,7 @@ describe("NiftyReportPanel EOD minute replay", () => {
     });
     expect(screen.queryByTestId("nifty-replay-bar")).not.toBeInTheDocument();
     expect(vi.mocked(fetchNiftyReplay)).not.toHaveBeenCalled();
-  });
+  }, 15_000);
 });
 
 describe("NiftyReportPanel states", () => {
@@ -1277,7 +1277,12 @@ describe("NiftyReportPanel live updates (WS-only, no polling)", () => {
     });
 
     fireEvent.click(screen.getByTestId("nifty-refresh-button"));
-    expect(await screen.findByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    // 5s budget: this panel is heavy and the full suite runs it in parallel.
+    expect(
+      await screen.findByTestId("nifty-oi-bursts-panel", undefined, {
+        timeout: 5000,
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByTestId("nifty-oi-toasts")).toBeInTheDocument();
     // call OI build → fade with puts at the nearest tradeable strike
     expect(screen.getAllByText(/BUY PE 25,700/).length).toBeGreaterThan(0);

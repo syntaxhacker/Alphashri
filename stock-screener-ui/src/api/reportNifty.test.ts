@@ -329,6 +329,32 @@ describe("fetchNiftyTape (top-level summary + sparse rows)", () => {
     } as unknown as Response);
     await expect(fetchNiftyTape()).rejects.toThrow("Tape unavailable");
   });
+
+  test("structured holiday detail renders a readable message", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        detail: {
+          is_trading_day: false,
+          date: "2026-10-20",
+          message: "no Nifty snapshot for 2026-10-20",
+        },
+      }),
+    } as unknown as Response);
+    await expect(fetchNiftyTape()).rejects.toThrow(
+      "2026-10-20 was not a trading day — no snapshot recorded.",
+    );
+  });
+
+  test("validation-array detail is flattened", async () => {
+    vi.mocked(fetchWithAuth).mockResolvedValueOnce({
+      ok: false,
+      json: async () => ({
+        detail: [{ msg: "bad date" }, { msg: "want YYYY-MM-DD" }],
+      }),
+    } as unknown as Response);
+    await expect(fetchNiftyTape()).rejects.toThrow("bad date; want YYYY-MM-DD");
+  });
 });
 
 describe("normalizeTapeRow walls", () => {
