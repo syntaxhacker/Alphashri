@@ -128,7 +128,9 @@ export function AppLayout({ children }: AppLayoutProps) {
             width: navWidth,
             boxSizing: "border-box",
             transition: theme.transitions.create("width", { easing: theme.transitions.easing.sharp, duration: theme.transitions.duration.enteringScreen }),
-            overflowX: "hidden",
+            // The nav body owns the only scrollbar: the drawer paper is just a
+            // fixed-width flex column (Toolbar + nav + footer).
+            overflow: "hidden",
           },
         }}
         open
