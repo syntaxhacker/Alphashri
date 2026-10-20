@@ -7,11 +7,14 @@ import * as palette from "@/ui/palette";
 import {
   NiftyDeltaPositioning,
   POSITIONING_DASH,
+  POSITIONING_WINDOW_PTS,
   fmtCr,
+  nearestPositioningStrike,
   positioningAccent,
   positioningSplitLabel,
   positioningVerdictLabel,
   signedPositioningAccent,
+  windowPositioningStrikes,
 } from "./NiftyDeltaPositioning";
 import type {
   NiftyPositioningBlock,
@@ -223,5 +226,55 @@ describe("NiftyDeltaPositioning render", () => {
     expect(screen.getByTestId("nifty-positioning-table")).toBeInTheDocument();
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();
     expect(screen.queryAllByTestId(/^nifty-positioning-row-/)).toHaveLength(0);
+  });
+});
+
+describe("ladder window", () => {
+  const strikeRow = (strike: number) => ({
+    strike,
+    ce: { class: "CE", doi: 10, initiated: 10 },
+    pe: { class: "PE", doi: -10, initiated: -10 },
+    netInitiated: 0,
+  });
+
+  test("keeps the ±750 band around spot and drops far strikes", () => {
+    const rows = [23000, 23100, 23300, 25000].map(strikeRow);
+    const kept = windowPositioningStrikes(rows, 23_100);
+    expect(kept.map((r) => r.strike)).toEqual([23000, 23100, 23300]);
+    expect(POSITIONING_WINDOW_PTS).toBe(750);
+  });
+
+  test("no spot (old snapshot) keeps every row", () => {
+    const rows = [23000, 25000].map(strikeRow);
+    expect(windowPositioningStrikes(rows, null)).toHaveLength(2);
+    expect(windowPositioningStrikes(rows, undefined)).toHaveLength(2);
+    expect(windowPositioningStrikes(rows, 0)).toHaveLength(2);
+  });
+
+  test("an empty window falls back to the full list", () => {
+    const rows = [20000].map(strikeRow);
+    expect(windowPositioningStrikes(rows, 23_100)).toHaveLength(1);
+  });
+
+  test("ATM rounds to the 50-point strike step", () => {
+    expect(nearestPositioningStrike(23_082.95)).toBe(23_100);
+    expect(nearestPositioningStrike(23_074)).toBe(23_050);
+    expect(nearestPositioningStrike(null)).toBeNull();
+  });
+
+  test("render windows the rows and labels the ATM strike", () => {
+    const block = fullBlock({
+      strikes: [23000, 23100, 25000].map(strikeRow),
+    });
+    r(<NiftyDeltaPositioning positioning={block} spot={23_100} />);
+    const table = screen.getByTestId("nifty-positioning-table");
+    const rows = within(table).getAllByTestId(/^nifty-positioning-row-/);
+    expect(rows.map((row) => row.getAttribute("data-testid"))).toEqual([
+      "nifty-positioning-row-23000-0",
+      "nifty-positioning-row-23100-1",
+    ]);
+    expect(screen.getByTestId("nifty-positioning-window")).toHaveTextContent(
+      "Ladder ±750 pts · ATM 23,100",
+    );
   });
 });
