@@ -1417,17 +1417,33 @@ describe("NiftyReportPanel OI tape", () => {
     expect(within(head).getByTestId("nifty-tape-head-pcr-oi")).toHaveTextContent("1.15");
   });
 
-  test("tape + unusual panels sit in a shared side-by-side row", async () => {
+  test("tape spans the row; unusual volume lives in the session detail", async () => {
     r(<NiftyReportPanel />);
-    const row = await screen.findByTestId("nifty-tape-duo");
-    const tapePanel = within(row).getByTestId("nifty-tape-panel");
-    const unusualPanel = within(row).getByTestId("nifty-unusual-panel");
+    const tapePanel = await screen.findByTestId("nifty-tape-panel");
     expect(tapePanel).toBeInTheDocument();
+    const detail = screen.getByTestId("nifty-detail-body");
+    const unusualPanel = within(detail).getByTestId("nifty-unusual-panel");
     expect(unusualPanel).toBeInTheDocument();
-    // tape left, unusual right — same order as the reference terminal
-    expect(tapePanel.compareDocumentPosition(unusualPanel) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    // The tape is the live surface; the slower per-strike volume table is detail.
+    expect(
+      tapePanel.compareDocumentPosition(unusualPanel) & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(within(tapePanel).getByTestId("nifty-tape-table")).toBeInTheDocument();
     expect(within(unusualPanel).getByTestId("nifty-unusual-table")).toBeInTheDocument();
+  });
+
+  test("session detail starts collapsed and opens from the toggle", async () => {
+    r(<NiftyReportPanel />);
+    const toggle = await screen.findByTestId("nifty-detail-toggle");
+    expect(toggle).toHaveAttribute("aria-expanded", "false");
+    const body = screen.getByTestId("nifty-detail-body");
+    expect(body).not.toBeVisible();
+    // Panels stay mounted behind display:none, so opening is instant and the
+    // chart/table state is preserved.
+    expect(within(body).getByTestId("nifty-iv-straddle-panel")).toBeInTheDocument();
+    fireEvent.click(toggle);
+    expect(toggle).toHaveAttribute("aria-expanded", "true");
+    await waitFor(() => expect(body).toBeVisible());
   });
 
   test("empty tape shows the pre-market empty state", async () => {
@@ -1546,11 +1562,11 @@ describe("NiftyReportPanel session verdict strip", () => {
     });
   }
 
-  test("renders four verdicts right under the stat pills", async () => {
+  test("renders the regime headline and three context verdicts", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(withVerdicts());
     r(<NiftyReportPanel />);
     const strip = await screen.findByTestId("nifty-verdict-strip");
-    // sits after the spot/PCR stat pills
+    // sits inside the decision band, after the headline numbers
     const stat = screen.getByTestId("nifty-stat-strip");
     expect(
       stat.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -1560,9 +1576,11 @@ describe("NiftyReportPanel session verdict strip", () => {
     expect(control).toHaveTextContent("CALL WRITERS IN CONTROL");
     expect(control).toHaveTextContent("ΔOI C 55,30,000 P -12,00,000 · skew -2.40");
 
-    const regime = screen.getByTestId("nifty-verdict-regime");
+    // Regime is a headline decision, not a fourth cell in the context row.
+    const regime = screen.getByTestId("nifty-stat-regime");
     expect(regime).toHaveTextContent("SELL PREMIUM");
     expect(regime).toHaveTextContent("180 vs ~210 pts · straddle -20.00%");
+    expect(screen.queryByTestId("nifty-verdict-regime")).not.toBeInTheDocument();
 
     const vix = screen.getByTestId("nifty-verdict-vix");
     expect(vix).toHaveTextContent("VIX 13.45 (-2.54%)");
@@ -1618,7 +1636,7 @@ describe("NiftyReportPanel session verdict strip", () => {
     expect(screen.getByTestId("nifty-verdict-control")).toHaveTextContent(
       "PUT WRITERS IN CONTROL",
     );
-    expect(screen.getByTestId("nifty-verdict-regime")).toHaveTextContent(
+    expect(screen.getByTestId("nifty-stat-regime")).toHaveTextContent(
       "BUY PREMIUM · RV > IV",
     );
     expect(screen.getByTestId("nifty-verdict-vix")).toHaveTextContent(
@@ -1637,11 +1655,11 @@ describe("NiftyReportPanel session verdict strip", () => {
     expect(
       screen.getByTestId("nifty-verdict-control-secondary"),
     ).toHaveTextContent("ΔOI C — P — · skew —");
-    expect(screen.getByTestId("nifty-verdict-regime-primary")).toHaveTextContent(
+    expect(screen.getByTestId("nifty-stat-regime-value")).toHaveTextContent(
       /^—$/,
     );
     expect(
-      screen.getByTestId("nifty-verdict-regime-secondary"),
+      screen.getByTestId("nifty-stat-regime-hint"),
     ).toHaveTextContent("— vs ~— pts · straddle —%");
     expect(screen.getByTestId("nifty-verdict-vix-primary")).toHaveTextContent(
       "VIX — (—%)",

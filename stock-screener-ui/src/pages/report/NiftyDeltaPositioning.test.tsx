@@ -181,7 +181,7 @@ describe("NiftyDeltaPositioning render", () => {
     );
 
     const flip = screen.getByTestId("nifty-positioning-flip");
-    expect(flip).toHaveTextContent("Δ flip");
+    expect(flip).toHaveTextContent("Δ pivot");
     expect(flip).toHaveTextContent("25,750");
   });
 

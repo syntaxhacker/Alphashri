@@ -6,6 +6,7 @@ import * as palette from "@/ui/palette";
 import { AnimatedValue } from "@/components/common/AnimatedValue";
 import type {
   NiftyControlVerdict,
+  NiftyRegimeBlock,
   NiftyRegimeVerdict,
   NiftyReport,
   NiftyStrengthVerdict,
@@ -43,7 +44,7 @@ const CONTROL_LABELS: Record<NiftyControlVerdict, string> = {
   balanced: "BALANCED",
 };
 
-const REGIME_LABELS: Record<NiftyRegimeVerdict, string> = {
+export const REGIME_LABELS: Record<NiftyRegimeVerdict, string> = {
   // These are VOL regimes, not direction: "buy premium" = long vol (realised >
   // implied), "sell premium" = short vol. The old "TREND · BUY FAVOURED" label
   // read as a directional uptrend and contradicted the control block.
@@ -51,6 +52,18 @@ const REGIME_LABELS: Record<NiftyRegimeVerdict, string> = {
   trend_buy: "BUY PREMIUM · RV > IV",
   neutral: "NEUTRAL",
 };
+
+/**
+ * One definition of the regime detail line, shared by the verdict strip and
+ * the decision strip so the same numbers never read two different ways.
+ */
+export function regimeDetail(regime: NiftyRegimeBlock | null | undefined): string {
+  return `${fmtVerdictNum(regime?.range_pts)} vs ~${fmtVerdictNum(
+    regime?.range_baseline_pts,
+  )} pts · straddle ${fmtVerdictNum(regime?.straddle_pct, 2)}%${
+    regime?.warmup ? " · warm-up" : ""
+  }`;
+}
 
 const STRENGTH_LABELS: Record<NiftyStrengthVerdict, string> = {
   strong: "STRONG",
@@ -132,7 +145,7 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
           c={accent}
           span
           truncate
-          style={{ fontSize: 10, lineHeight: 1.3, letterSpacing: "0.04em" }}
+          style={{ fontSize: 11, lineHeight: 1.3, letterSpacing: "0.04em" }}
         >
           {primaryNode ?? primary}
         </Text>
@@ -143,7 +156,7 @@ const VerdictCell = memo(function VerdictCell({ testId, accent, primary, seconda
         c="dimmed"
         span
         truncate
-        style={{ fontSize: 9, lineHeight: 1.3 }}
+        style={{ fontSize: 10, lineHeight: 1.3 }}
       >
         {secondary}
       </Text>
@@ -154,6 +167,12 @@ VerdictCell.displayName = "VerdictCell";
 
 export interface NiftyVerdictStripProps {
   report: NiftyReport;
+  /**
+   * `full` (default) renders control / regime / VIX / strength. `context`
+   * drops the regime cell because the decision strip already carries it as a
+   * headline number — one meaning per word, no duplicate on screen.
+   */
+  mode?: "full" | "context";
 }
 
 /**
@@ -161,7 +180,7 @@ export interface NiftyVerdictStripProps {
  * under the spot+Pcr stat pills. Every block is optional on the payload, so
  * each cell falls back to an em dash instead of crashing or showing NaN.
  */
-function NiftyVerdictStripInner({ report }: NiftyVerdictStripProps) {
+function NiftyVerdictStripInner({ report, mode = "full" }: NiftyVerdictStripProps) {
   const control = report.control;
   const regime = report.regime;
   const vix = report.vix;
@@ -177,12 +196,7 @@ function NiftyVerdictStripInner({ report }: NiftyVerdictStripProps) {
   const regimePrimary = regime?.verdict
     ? REGIME_LABELS[regime.verdict]
     : VERDICT_DASH;
-  const regimeSecondary = `${fmtVerdictNum(
-    regime?.range_pts,
-  )} vs ~${fmtVerdictNum(regime?.range_baseline_pts)} pts · straddle ${fmtVerdictNum(
-    regime?.straddle_pct,
-    2,
-  )}%${regime?.warmup ? " · warm-up" : ""}`;
+  const regimeSecondary = regimeDetail(regime);
 
   const vixPrimary = `VIX ${fmtVerdictNum(vix?.ltp, 2)} (${fmtVerdictChange(
     vix?.change_pct,
@@ -216,7 +230,24 @@ function NiftyVerdictStripInner({ report }: NiftyVerdictStripProps) {
   return (
     <Box
       data-testid="nifty-verdict-strip"
-      sx={{ display: "contents" }}
+      sx={
+        mode === "context"
+          ? {
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "stretch",
+              width: "100%",
+              minWidth: 0,
+              borderTop: `1px solid ${palette.TERM_BORDER}`,
+              "& > *": {
+                borderLeft: `1px solid ${palette.TERM_BORDER}`,
+                flex: "0 1 340px",
+                minWidth: 220,
+              },
+              "& > *:first-of-type": { borderLeft: "none" },
+            }
+          : { display: "contents" }
+      }
     >
       <VerdictCell
         testId="nifty-verdict-control"
@@ -224,12 +255,14 @@ function NiftyVerdictStripInner({ report }: NiftyVerdictStripProps) {
         primary={controlPrimary}
         secondary={controlSecondary}
       />
-      <VerdictCell
-        testId="nifty-verdict-regime"
-        accent={regimeAccent(regime?.verdict)}
-        primary={regimePrimary}
-        secondary={regimeSecondary}
-      />
+      {mode === "full" && (
+        <VerdictCell
+          testId="nifty-verdict-regime"
+          accent={regimeAccent(regime?.verdict)}
+          primary={regimePrimary}
+          secondary={regimeSecondary}
+        />
+      )}
       <VerdictCell
         testId="nifty-verdict-vix"
         accent={vixAccent(vix?.change_pct)}

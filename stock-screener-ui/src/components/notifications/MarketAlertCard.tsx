@@ -468,7 +468,7 @@ export function MarketAlertLog({
         <Box sx={{ width: 92, flexShrink: 0 }}>
           <Text size="xs" span c="dimmed">SYMBOL</Text>
         </Box>
-        <Box sx={{ flex: 1, minWidth: 0 }}>
+        <Box sx={{ flex: 1, minWidth: 0, overflow: "hidden" }}>
           <Text size="xs" span c="dimmed">HEADLINE</Text>
         </Box>
         <Box sx={{ width: 232, flexShrink: 0 }}>

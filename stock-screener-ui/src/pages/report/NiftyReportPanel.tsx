@@ -1,5 +1,5 @@
 import { memo, startTransition, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Box from "@mui/material/Box";
 import {
   Button,
@@ -34,7 +34,12 @@ import { NiftyGexProfile } from "./NiftyGexProfile";
 import { NiftyIvSkew } from "./NiftyIvSkew";
 import { NiftyIvStraddle } from "./NiftyIvStraddle";
 import { NiftyGammaTime } from "./NiftyGammaTime";
-import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
+import {
+  NiftyVerdictStrip,
+  REGIME_LABELS,
+  regimeAccent,
+  regimeDetail,
+} from "./NiftyVerdictStrip";
 import { MarketAlertLog, MarketAlertStack } from "@/components/notifications/MarketAlertCard";
 import { OI_ALERT_TOAST_MAX, useNiftyOiAlerts } from "./useNiftyOiAlerts";
 import { detectOiBursts, TREND_EMA_SPAN } from "./niftyOiBursts";
@@ -67,37 +72,137 @@ export interface NiftyReportPanelProps {
 }
 
 /**
- * One cell of the two-line stat band: a muted label on top, a tabular value
- * below. Cells are separated by hairlines (no gaps, no per-cell boxes) so the
- * band reads as a single strip and every value sits on the same baseline.
+ * Headline cell of the decision strip: a 10px muted label, a 20px tabular
+ * value, and a 10px detail line. The strip answers five questions in the same
+ * order every session — where is spot, what regime, where does dealer gamma
+ * flip, and where are the call/put walls. Everything else is context.
  */
-const STAT_BAND_CELL_SX = {
+const DECISION_CELL_SX = {
   display: "flex",
   flexDirection: "column",
   justifyContent: "center",
   gap: "2px",
-  minWidth: 0,
+  minWidth: { xs: 118, md: 132 },
   px: 1.5,
   py: 0.75,
   borderLeft: `1px solid ${palette.TERM_BORDER}`,
-  "&:first-child": { borderLeft: "none" },
+  "&:first-of-type": { borderLeft: "none" },
 } as const;
 
-const STAT_BAND_LABEL_STYLE: CSSProperties = {
-  fontSize: 9,
-  lineHeight: 1.3,
-  letterSpacing: "0.07em",
+const DECISION_LABEL_STYLE: CSSProperties = {
+  fontSize: 10,
+  lineHeight: 1.25,
+  letterSpacing: "0.08em",
   textTransform: "uppercase",
 };
 
-const STAT_BAND_VALUE_STYLE: CSSProperties = {
-  fontSize: 13,
-  lineHeight: 1.2,
+const DECISION_VALUE_STYLE: CSSProperties = {
+  fontSize: 20,
+  fontWeight: 700,
+  lineHeight: 1.15,
   fontVariantNumeric: "tabular-nums",
   whiteSpace: "nowrap",
   overflow: "hidden",
   textOverflow: "ellipsis",
 };
+
+const DECISION_HINT_STYLE: CSSProperties = {
+  fontSize: 10,
+  lineHeight: 1.25,
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+};
+
+/** Secondary context cell (PCR / max pain) — same rows, quieter type. */
+const CONTEXT_CELL_SX = {
+  display: "flex",
+  flexDirection: "column",
+  justifyContent: "center",
+  gap: "1px",
+  minWidth: 78,
+  px: 1.25,
+  py: 0.75,
+  borderLeft: `1px solid ${palette.TERM_BORDER}`,
+} as const;
+
+const CONTEXT_LABEL_STYLE: CSSProperties = {
+  fontSize: 9,
+  lineHeight: 1.25,
+  letterSpacing: "0.07em",
+  textTransform: "uppercase",
+};
+
+const CONTEXT_VALUE_STYLE: CSSProperties = {
+  fontSize: 13,
+  fontWeight: 700,
+  lineHeight: 1.2,
+  fontVariantNumeric: "tabular-nums",
+  whiteSpace: "nowrap",
+};
+
+/** One headline number. `hint` carries the definition, not another number. */
+function DecisionCell({
+  testId,
+  label,
+  value,
+  hint,
+  accent,
+  title,
+}: {
+  testId: string;
+  label: string;
+  value: ReactNode;
+  hint: string;
+  accent?: string;
+  title?: string;
+}) {
+  return (
+    <Box
+      data-testid={testId}
+      title={title ?? `${label}: ${hint}`}
+      sx={DECISION_CELL_SX}
+    >
+      <Text span size="xs" fw={700} c="dimmed" style={DECISION_LABEL_STYLE}>
+        {label}
+      </Text>
+      <Text span fw={700} c={accent} style={DECISION_VALUE_STYLE} data-testid={`${testId}-value`}>
+        {value}
+      </Text>
+      <Text
+        data-testid={`${testId}-hint`}
+        span
+        c="dimmed"
+        style={DECISION_HINT_STYLE}
+      >
+        {hint}
+      </Text>
+    </Box>
+  );
+}
+
+/** Compact context number (label above, 13px value). */
+function ContextCell({
+  testId,
+  label,
+  value,
+}: {
+  testId: string;
+  label: string;
+  value: ReactNode;
+}) {
+  return (
+    <Box data-testid={testId} sx={CONTEXT_CELL_SX}>
+      <Text span size="xs" fw={700} c="dimmed" style={CONTEXT_LABEL_STYLE}>
+        {label}
+      </Text>
+      <Text span fw={700} style={CONTEXT_VALUE_STYLE}>
+        {value}
+      </Text>
+    </Box>
+  );
+}
 
 /** Analytics grid cell: the panel fills the row height so both columns end on
  *  the same line instead of leaving a hole under the shorter panel. */
@@ -128,6 +233,20 @@ function SensexCell({ testId, label, value }: { testId: string; label: string; v
       </Text>
     </Box>
   );
+}
+
+/** Signed integer points, Indian grouping (`+733 pts`). */
+function formatSignedPoints(value: number): string {
+  const rounded = Math.round(value);
+  return `${rounded > 0 ? "+" : ""}${rounded.toLocaleString("en-IN")} pts`;
+}
+
+/** Open interest in contracts, compact (`2.69 Cr`, `18.4 L`). */
+function formatOiCr(oi: number | null | undefined): string {
+  if (oi == null || !Number.isFinite(oi) || oi <= 0) return "—";
+  if (oi >= 1e7) return `${(oi / 1e7).toFixed(2)} Cr`;
+  if (oi >= 1e5) return `${(oi / 1e5).toFixed(1)} L`;
+  return oi.toLocaleString("en-IN");
 }
 
 /** Single implementation lives in the memoised chart panel — re-exported
@@ -1100,6 +1219,25 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     for (const b of effectiveBursts) m.set(b.t, b.side);
     return m;
   }, [effectiveBursts]);
+
+  // EOD replay: the tape must agree with the frame on screen. Without this the
+  // header kept the last row of the day (15:28) while the chain/GEX showed the
+  // scrubbed frame — three different flips and two max pains on one page.
+  const replayFrameT =
+    replay && replayIndex < replay.snapshots.length
+      ? replay.snapshots[replayIndex].t
+      : null;
+  const tapeRows = useMemo(() => {
+    const rows = tape?.rows ?? [];
+    if (!replayFrameT) return rows;
+    return rows.filter((r) => r.t <= replayFrameT);
+  }, [tape, replayFrameT]);
+
+  // Slow-moving session detail (bursts, structure, volume, straddle, gamma) is
+  // collapsed by default so the first screen is the decision surface. Nothing
+  // unmounts — the chart/tables stay warm and re-measure on reveal.
+  const [detailOpen, setDetailOpen] = useState(false);
+  const toggleDetail = useCallback(() => setDetailOpen((v) => !v), []);
   const { trail, toasts, dismissToast, clearTrail, pushToast } = useNiftyOiAlerts(
     effectiveBursts,
     report?.strikes ?? [],
@@ -1177,7 +1315,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
 
   // Stable per-render callbacks / derived data for the memoised children.
   const scrollToBursts = useCallback(() => {
-    burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    setDetailOpen(true);
+    requestAnimationFrame(() => {
+      burstsRef.current?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    });
   }, []);
   const handleOpenSymbol = useCallback(() => {
     onOpenSymbol?.("NIFTY");
@@ -1217,6 +1358,28 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
     (s: number) => formatGexLevel(s, gexTopRes?.netGex ?? 0),
     [gexTopRes],
   );
+
+  const regime = report?.regime ?? null;
+  const gammaFlip = report?.gex?.zeroCross ?? null;
+  const flipDelta = report && gammaFlip != null ? report.spot - gammaFlip : null;
+  const callWall = report?.walls?.calls?.[0] ?? null;
+  const putWall = report?.walls?.puts?.[0] ?? null;
+  // Replay frames carry candles but not always an `ohlc` block — derive the
+  // day range from the bars so the Spot hint never reads "day 0–0".
+  const dayRange = useMemo(() => {
+    const candles = report?.candles ?? [];
+    let low = report?.ohlc?.low ?? 0;
+    let high = report?.ohlc?.high ?? 0;
+    if ((!low || !high) && candles.length > 0) {
+      low = Math.min(...candles.map((c) => c.low));
+      high = Math.max(...candles.map((c) => c.high));
+    }
+    return low > 0 && high > 0 ? { low, high } : null;
+  }, [report]);
+  const detailPanelCount =
+    4 +
+    (trail.length > 0 ? 1 : 0) +
+    (report?.structure != null ? 1 : 0);
 
   return (
     <Box
@@ -1439,12 +1602,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           <Box
             data-testid="nifty-stat-strip"
             sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "repeat(2, minmax(0, 1fr))",
-                md: "repeat(8, minmax(0, 1fr))",
-              },
-              alignItems: "stretch",
+              display: "flex",
+              flexDirection: "column",
               border: `1px solid ${palette.TERM_BORDER}`,
               borderRadius: "4px",
               bgcolor: palette.TERM_HEADER,
@@ -1455,39 +1614,100 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               flexShrink: 0,
             }}
           >
-            <Box data-testid="nifty-stat-spot" sx={STAT_BAND_CELL_SX}>
-              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
-                Spot
-              </Text>
-              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
-                <NiftySpotValue tickSpot={wsTick?.spot} fallback={report.spot} />
-              </Text>
+            <Box
+              sx={{
+                display: "flex",
+                flexWrap: { xs: "wrap", lg: "nowrap" },
+                alignItems: "stretch",
+                minWidth: 0,
+              }}
+            >
+              <Box
+                data-testid="nifty-decision-stats"
+                sx={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  flex: "1 1 auto",
+                  minWidth: 0,
+                }}
+              >
+                <DecisionCell
+                  testId="nifty-stat-spot"
+                  label="Spot"
+                  value={<NiftySpotValue tickSpot={wsTick?.spot} fallback={report.spot} />}
+                  hint={
+                    dayRange
+                      ? `day ${Math.round(dayRange.low).toLocaleString("en-IN")}–${Math.round(
+                          dayRange.high,
+                        ).toLocaleString("en-IN")}`
+                      : "intraday range"
+                  }
+                  title="NIFTY 50 spot, with today's low–high range underneath."
+                />
+                <DecisionCell
+                  testId="nifty-stat-regime"
+                  label="Regime"
+                  value={regime?.verdict ? REGIME_LABELS[regime.verdict] : "—"}
+                  hint={regimeDetail(regime)}
+                  accent={regimeAccent(regime?.verdict)}
+                  title="Volatility regime: sell premium in a range (realised < implied), buy premium in expansion (realised > implied)."
+                />
+                <DecisionCell
+                  testId="nifty-stat-flip"
+                  label="γ flip"
+                  value={gammaFlip != null ? formatInt(gammaFlip) : "—"}
+                  hint={
+                    flipDelta != null
+                      ? `spot ${formatSignedPoints(flipDelta)}`
+                      : "no zero-γ cross"
+                  }
+                  accent={palette.TERM_FLIP}
+                  title="Gamma flip (GEX zero-γ): strike where net dealer gamma crosses zero. Above it dealers damp moves; below it they amplify. Hint is spot minus the flip."
+                />
+                <DecisionCell
+                  testId="nifty-stat-call-wall"
+                  label="Call wall"
+                  value={callWall ? formatInt(callWall.strike) : "—"}
+                  hint={callWall ? `CE OI ${formatOiCr(callWall.oi)}` : "no call OI"}
+                  accent={palette.TERM_CE}
+                  title="Call wall: highest call open-interest strike — the dealers' upside hedge."
+                />
+                <DecisionCell
+                  testId="nifty-stat-put-wall"
+                  label="Put wall"
+                  value={putWall ? formatInt(putWall.strike) : "—"}
+                  hint={putWall ? `PE OI ${formatOiCr(putWall.oi)}` : "no put OI"}
+                  accent={palette.TERM_PE}
+                  title="Put wall: highest put open-interest strike — the dealers' downside hedge."
+                />
+              </Box>
+              <Box
+                data-testid="nifty-context-stats"
+                sx={{
+                  display: "flex",
+                  alignItems: "stretch",
+                  flexShrink: 0,
+                  marginLeft: "auto",
+                }}
+              >
+                <ContextCell
+                  testId="nifty-stat-pcr-oi"
+                  label="PCR (OI)"
+                  value={<AnimatedValue value={report.pcrOi} format={format2dp} />}
+                />
+                <ContextCell
+                  testId="nifty-stat-pcr-vol"
+                  label="PCR (Vol)"
+                  value={<AnimatedValue value={report.pcrVol} format={format2dp} />}
+                />
+                <ContextCell
+                  testId="nifty-stat-max-pain"
+                  label="Max pain"
+                  value={<AnimatedValue value={report.maxPain} format={formatInt} />}
+                />
+              </Box>
             </Box>
-            <Box data-testid="nifty-stat-pcr-oi" sx={STAT_BAND_CELL_SX}>
-              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
-                PCR (OI)
-              </Text>
-              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
-                <AnimatedValue value={report.pcrOi} format={format2dp} />
-              </Text>
-            </Box>
-            <Box data-testid="nifty-stat-pcr-vol" sx={STAT_BAND_CELL_SX}>
-              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
-                PCR (Vol)
-              </Text>
-              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
-                <AnimatedValue value={report.pcrVol} format={format2dp} />
-              </Text>
-            </Box>
-            <Box data-testid="nifty-stat-max-pain" sx={STAT_BAND_CELL_SX}>
-              <Text span size="xs" fw={700} c="dimmed" tt="uppercase" style={STAT_BAND_LABEL_STYLE}>
-                Max Pain
-              </Text>
-              <Text span size="sm" fw={700} style={STAT_BAND_VALUE_STYLE}>
-                <AnimatedValue value={report.maxPain} format={formatInt} />
-              </Text>
-            </Box>
-            <NiftyVerdictStrip report={report} />
+            <NiftyVerdictStrip report={report} mode="context" />
           </Box>
 
           {sensex && (
@@ -1685,12 +1905,8 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
           </Box>
 
           <Box
-            data-testid="nifty-tape-duo"
+            data-testid="nifty-tape-row"
             sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 2fr) minmax(0, 1fr)" },
-              alignItems: "stretch",
-              gap: 1,
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
@@ -1698,9 +1914,9 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             }}
           >
           <CompactPanel flush title="OI · tick tape" testId="nifty-tape-panel" sx={{ minWidth: 0, background: palette.TERM_BG, borderColor: palette.TERM_BORDER }}>
-            {tape && tape.rows.length > 0 ? (
+            {tape && tapeRows.length > 0 ? (
               <NiftyTapeTable
-                rows={tape.rows}
+                rows={tapeRows}
                 tape={tape}
                 live={mode === "live"}
                 bursts={burstMap}
@@ -1713,123 +1929,298 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               </Text>
             )}
           </CompactPanel>
-
-          {/* Same CompactPanel chrome as the tape beside it. Previously a bare
-              Box with borderRadius:8, which MUI multiplies by
-              theme.shape.borderRadius (8) -> a 64px radius. */}
-          <CompactPanel
-            flush
-            padded={false}
-            testId="nifty-unusual-panel-wrap"
-            sx={{ minWidth: 0, background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
-          >
-            <NiftyUnusualVolume
-              strikes={report.strikes}
-              spot={report.spot}
-              sx={UNUSUAL_VOLUME_SX}
-              updatedAtMs={mode === "live" ? updatedAtMs : null}
-              nextUpdateAtMs={nextUpdateAtMs}
-            />
-          </CompactPanel>
           </Box>
 
+          {/* Progressive disclosure: the decision surface above is enough to
+              trade; the slower session forensics live here. Nothing unmounts,
+              so opening the section is instant and charts keep their state. */}
           <Box
-            data-testid="nifty-gamma-iv-row"
+            data-testid="nifty-detail"
             sx={{
-              display: "grid",
-              gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 1fr) minmax(0, 1fr)" },
-              alignItems: "start",
-              gap: 1,
+              border: `1px solid ${palette.TERM_BORDER}`,
+              borderRadius: "4px",
+              bgcolor: palette.TERM_HEADER,
+              overflow: "hidden",
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
               flexShrink: 0,
             }}
           >
-            <Box sx={{ minWidth: 0 }}>
-              <NiftyIvStraddle tape={tape} candles={report.candles} regime={report.regime} reference={report.reference} />
-            </Box>
-            <Box sx={{ minWidth: 0 }}>
-              <NiftyGammaTime tape={tape} gex={report.gex} spot={report.spot} />
-            </Box>
-          </Box>
-
-          {/* Signals grid only mounts its burst/structure wrapper when there is
-              content for it (trail alerts or a structure payload). The old
-              always-mounted wrapper was empty most of the session — an empty
-              flex item at h=0 that still cost grid gap. `flexShrink: 0` holds
-              natural height as a direct child of the page column (no
-              `overflow` here — that would drop min-height:auto and collapse). */}
-          <Box
-            data-testid="nifty-signals-grid"
-            sx={{
-              display: "grid",
-              gridTemplateColumns: {
-                xs: "minmax(0, 1fr)",
-                lg: trail.length > 0
-                  ? "minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr)"
-                  : "minmax(0, 1fr) minmax(0, 1fr)",
-              },
-              alignItems: "start",
-              gap: 1,
-              width: "100%",
-              maxWidth: "100%",
-              minWidth: 0,
-              flexShrink: 0,
-            }}
-          >
-          {(trail.length > 0 || report.structure != null) && (
-          <Box
-            data-testid="nifty-signals-row"
-            sx={{
-              display: { xs: "flex", lg: "contents" },
-              flexWrap: "wrap",
-              alignItems: "stretch",
-              gap: 1,
-              minWidth: 0,
-              flexShrink: 0,
-            }}
-          >
-            {trail.length > 0 && (
+            <Button
+              data-testid="nifty-detail-toggle"
+              variant="subtle"
+              size="sm"
+              aria-expanded={detailOpen}
+              aria-controls="nifty-detail-body"
+              onClick={toggleDetail}
+              sx={{
+                width: "100%",
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                gap: 1,
+                px: 1.5,
+                py: 0.5,
+                borderRadius: 0,
+                textTransform: "none",
+              }}
+            >
               <Box
-                ref={burstsRef}
-                data-testid="nifty-oi-bursts-wrap"
-                sx={{ minWidth: 0 }}
+                component="span"
+                sx={{ display: "flex", alignItems: "baseline", gap: 1, minWidth: 0 }}
+              >
+                <Box
+                  component="span"
+                  sx={{
+                    fontSize: 10,
+                    fontWeight: 700,
+                    letterSpacing: "0.08em",
+                    textTransform: "uppercase",
+                    color: palette.TEXT,
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Session detail
+                </Box>
+                <Box
+                  component="span"
+                  sx={{
+                    fontSize: 10,
+                    color: palette.TEXT_MUTED,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {detailPanelCount} slower panels · OI bursts, structure, volume, levels, straddle, gamma
+                </Box>
+              </Box>
+              <Box
+                component="span"
+                sx={{ fontSize: 11, fontWeight: 700, color: palette.TEXT_MUTED, flexShrink: 0 }}
+              >
+                {detailOpen ? "Hide" : "Show"}
+              </Box>
+            </Button>
+
+            <Box
+              id="nifty-detail-body"
+              data-testid="nifty-detail-body"
+              sx={{
+                display: detailOpen ? "flex" : "none",
+                flexDirection: "column",
+                gap: 1,
+                p: 1,
+                borderTop: `1px solid ${palette.TERM_BORDER}`,
+                minWidth: 0,
+              }}
+            >
+              <Box
+                data-testid="nifty-gamma-iv-row"
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "minmax(0, 1fr)", lg: "minmax(0, 2fr) minmax(0, 1fr)" },
+                  alignItems: "start",
+                  gap: 1,
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                }}
+              >
+                <Box sx={{ minWidth: 0 }}>
+                  <NiftyIvStraddle tape={tape} candles={report.candles} regime={report.regime} reference={report.reference} />
+                </Box>
+                <Box sx={{ minWidth: 0 }}>
+                  <NiftyGammaTime tape={tape} gex={report.gex} spot={report.spot} />
+                </Box>
+              </Box>
+
+              <Box
+                data-testid="nifty-signals-grid"
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: {
+                    xs: "minmax(0, 1fr)",
+                    lg: "repeat(2, minmax(0, 1fr))",
+                  },
+                  alignItems: "start",
+                  gap: 1,
+                  width: "100%",
+                  maxWidth: "100%",
+                  minWidth: 0,
+                }}
               >
                 <CompactPanel
                   flush
-                  title={`OI bursts (${trail.length})`}
-                  testId="nifty-oi-bursts-panel"
-                  action={
-                    <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
-                      <Button
-                        data-testid="nifty-oi-replay-button"
-                        size="sm"
-                        variant="subtle"
-                        disabled={replayCursor !== null || trail.length === 0}
-                        onClick={handleReplayTrail}
-                      >
-                        {replayCursor !== null ? "Replaying…" : "Replay"}
-                      </Button>
-                      <Button size="sm" variant="subtle" onClick={clearTrail}>
-                        Clear
-                      </Button>
-                    </Box>
-                  }
+                  padded={false}
+                  testId="nifty-unusual-panel-wrap"
+                  sx={{ minWidth: 0, background: UNUSUAL_TERM_BG, borderColor: UNUSUAL_TERM_BORDER }}
                 >
-                  <MarketAlertLog
-                    alerts={trail}
-                    fill={false}
-                    height={oiBurstLogHeight(trail.length)}
-                    onOpen={scrollToBursts}
+                  <NiftyUnusualVolume
+                    strikes={report.strikes}
+                    spot={report.spot}
+                    sx={UNUSUAL_VOLUME_SX}
+                    updatedAtMs={mode === "live" ? updatedAtMs : null}
+                    nextUpdateAtMs={nextUpdateAtMs}
                   />
                 </CompactPanel>
-              </Box>
-            )}
 
-            <NiftyStructureShifts structure={report.structure} />
+                {(trail.length > 0 || report.structure != null) && (
+                <Box
+                  data-testid="nifty-signals-row"
+                  sx={{
+                    display: { xs: "flex", lg: "contents" },
+                    flexWrap: "wrap",
+                    alignItems: "stretch",
+                    gap: 1,
+                    minWidth: 0,
+                  }}
+                >
+                  {trail.length > 0 && (
+                    <Box
+                      ref={burstsRef}
+                      data-testid="nifty-oi-bursts-wrap"
+                      sx={{ minWidth: 0 }}
+                    >
+                      <CompactPanel
+                        flush
+                        title={`OI bursts (${trail.length})`}
+                        testId="nifty-oi-bursts-panel"
+                        action={
+                          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+                            <Button
+                              data-testid="nifty-oi-replay-button"
+                              size="sm"
+                              variant="subtle"
+                              disabled={replayCursor !== null || trail.length === 0}
+                              onClick={handleReplayTrail}
+                            >
+                              {replayCursor !== null ? "Replaying…" : "Replay"}
+                            </Button>
+                            <Button size="sm" variant="subtle" onClick={clearTrail}>
+                              Clear
+                            </Button>
+                          </Box>
+                        }
+                      >
+                        <MarketAlertLog
+                          alerts={trail}
+                          fill={false}
+                          height={oiBurstLogHeight(trail.length)}
+                          onOpen={scrollToBursts}
+                        />
+                      </CompactPanel>
+                    </Box>
+                  )}
+
+                  <NiftyStructureShifts structure={report.structure} />
+                </Box>
+                )}
+
+                {mode === "live" && report.gex ? (
+                <CompactPanel flush title="GEX levels" testId="nifty-gex-panel" sx={{ minWidth: 0 }}>
+                  <Box data-testid="nifty-gex-row">
+                    <CompactStatGrid>
+                      <CompactStat
+                        dense
+                        data-testid="nifty-gex-net"
+                        label="Net GEX"
+                        value={
+                          <AnimatedValue value={report.gex.netTotal} format={formatGexTotalValue} />
+                        }
+                      />
+                      <CompactStat
+                        dense
+                        data-testid="nifty-gex-regime"
+                        label="Regime"
+                        value={gexRegimeText(report.gex.regime)}
+                      />
+                      <CompactStat
+                        dense
+                        data-testid="nifty-gex-flip"
+                        label="Gamma flip"
+                        value={
+                          <AnimatedValue value={report.gex.zeroCross} format={formatInt} />
+                        }
+                      />
+                      <CompactStat
+                        dense
+                        data-testid="nifty-gex-sup"
+                        label="γ support"
+                        value={
+                          gexTopSup ? (
+                            <AnimatedValue value={gexTopSup.strike} format={formatGexSup} />
+                          ) : (
+                            "—"
+                          )
+                        }
+                      />
+                      <CompactStat
+                        dense
+                        data-testid="nifty-gex-res"
+                        label="γ resistance"
+                        value={
+                          gexTopRes ? (
+                            <AnimatedValue value={gexTopRes.strike} format={formatGexRes} />
+                          ) : (
+                            "—"
+                          )
+                        }
+                      />
+                    </CompactStatGrid>
+                    <Text data-testid="nifty-gex-verdict" size="sm" c="dimmed">
+                      {gexRegimeText(report.gex.regime)}
+                      {levels
+                        ? ` — max-pain pull ${levels.painPull.dir} (${levels.painPull.pct >= 0 ? "+" : ""}${levels.painPull.pct.toFixed(2)}%). ${levels.pcrVerdict}.`
+                        : "."}
+                    </Text>
+                  </Box>
+                </CompactPanel>
+                ) : (
+                <CompactPanel flush title="Tomorrow's levels" testId="nifty-tomorrow-panel" sx={{ minWidth: 0 }}>
+                  {levels && (
+                  <Box data-testid="nifty-levels-row">
+                    <CompactStatGrid>
+                      {levels.resistance.map((r, i) => (
+                        <CompactStat
+                          dense
+                          key={`r-${r.strike}`}
+                          data-testid={`nifty-level-r${i + 1}`}
+                          label={i === 0 ? "Resistance R1" : "Resistance R2"}
+                          value={`${r.strike.toLocaleString("en-IN")} (${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%)`}
+                        />
+                      ))}
+                      <CompactStat
+                        dense
+                        data-testid="nifty-level-pain"
+                        label={`Max-pain pull ${levels.painPull.dir}`}
+                        value={`${report.maxPain.toLocaleString("en-IN")} (${levels.painPull.pct >= 0 ? "+" : ""}${levels.painPull.pct.toFixed(2)}%)`}
+                      />
+                      {levels.support.map((s, i) => (
+                        <CompactStat
+                          dense
+                          key={`s-${s.strike}`}
+                          data-testid={`nifty-level-s${i + 1}`}
+                          label={i === 0 ? "Support S1" : "Support S2"}
+                          value={`${s.strike.toLocaleString("en-IN")} (${s.pct.toFixed(2)}%)`}
+                        />
+                      ))}
+                    </CompactStatGrid>
+                    <Text data-testid="nifty-levels-verdict" size="sm" c="dimmed">
+                      {levels.pcrVerdict}. Gap above{" "}
+                      {levels.resistance[0]?.strike.toLocaleString("en-IN") ?? "—"}{" "}
+                      squeezes call writers; acceptance below{" "}
+                      {levels.support[0]?.strike.toLocaleString("en-IN") ?? "—"}{" "}
+                      opens the next put wall.
+                    </Text>
+                  </Box>
+                  )}
+                </CompactPanel>
+                )}
+              </Box>
+            </Box>
           </Box>
-          )}
 
           {toasts.length > 0 && (
             <Box
@@ -1851,108 +2242,6 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               />
             </Box>
           )}
-
-          {mode === "live" && report.gex ? (
-          <CompactPanel flush title="GEX levels" testId="nifty-gex-panel">
-            <Box data-testid="nifty-gex-row">
-              <CompactStatGrid>
-                <CompactStat
-                  dense
-                  data-testid="nifty-gex-net"
-                  label="Net GEX"
-                  value={
-                    <AnimatedValue value={report.gex.netTotal} format={formatGexTotalValue} />
-                  }
-                />
-                <CompactStat
-                  dense
-                  data-testid="nifty-gex-regime"
-                  label="Regime"
-                  value={gexRegimeText(report.gex.regime)}
-                />
-                <CompactStat
-                  dense
-                  data-testid="nifty-gex-flip"
-                  label="Gamma flip"
-                  value={
-                    <AnimatedValue value={report.gex.zeroCross} format={formatInt} />
-                  }
-                />
-                <CompactStat
-                  dense
-                  data-testid="nifty-gex-sup"
-                  label="Top support"
-                  value={
-                    gexTopSup ? (
-                      <AnimatedValue value={gexTopSup.strike} format={formatGexSup} />
-                    ) : (
-                      "—"
-                    )
-                  }
-                />
-                <CompactStat
-                  dense
-                  data-testid="nifty-gex-res"
-                  label="Top resistance"
-                  value={
-                    gexTopRes ? (
-                      <AnimatedValue value={gexTopRes.strike} format={formatGexRes} />
-                    ) : (
-                      "—"
-                    )
-                  }
-                />
-              </CompactStatGrid>
-              <Text data-testid="nifty-gex-verdict" size="sm" c="dimmed">
-                {gexRegimeText(report.gex.regime)}
-                {levels
-                  ? ` — max-pain pull ${levels.painPull.dir} (${levels.painPull.pct >= 0 ? "+" : ""}${levels.painPull.pct.toFixed(2)}%). ${levels.pcrVerdict}.`
-                  : "."}
-              </Text>
-            </Box>
-          </CompactPanel>
-          ) : (
-          <CompactPanel flush title="Tomorrow's levels" testId="nifty-tomorrow-panel">
-            {levels && (
-            <Box data-testid="nifty-levels-row">
-              <CompactStatGrid>
-                {levels.resistance.map((r, i) => (
-                  <CompactStat
-                    dense
-                    key={`r-${r.strike}`}
-                    data-testid={`nifty-level-r${i + 1}`}
-                    label={i === 0 ? "Resistance R1" : "Resistance R2"}
-                    value={`${r.strike.toLocaleString("en-IN")} (${r.pct >= 0 ? "+" : ""}${r.pct.toFixed(2)}%)`}
-                  />
-                ))}
-                <CompactStat
-                  dense
-                  data-testid="nifty-level-pain"
-                  label={`Max-pain pull ${levels.painPull.dir}`}
-                  value={`${report.maxPain.toLocaleString("en-IN")} (${levels.painPull.pct >= 0 ? "+" : ""}${levels.painPull.pct.toFixed(2)}%)`}
-                />
-                {levels.support.map((s, i) => (
-                  <CompactStat
-                    dense
-                    key={`s-${s.strike}`}
-                    data-testid={`nifty-level-s${i + 1}`}
-                    label={i === 0 ? "Support S1" : "Support S2"}
-                    value={`${s.strike.toLocaleString("en-IN")} (${s.pct.toFixed(2)}%)`}
-                  />
-                ))}
-              </CompactStatGrid>
-              <Text data-testid="nifty-levels-verdict" size="sm" c="dimmed">
-                {levels.pcrVerdict}. Gap above{" "}
-                {levels.resistance[0]?.strike.toLocaleString("en-IN") ?? "—"}{" "}
-                squeezes call writers; acceptance below{" "}
-                {levels.support[0]?.strike.toLocaleString("en-IN") ?? "—"}{" "}
-                opens the next put wall.
-              </Text>
-            </Box>
-            )}
-          </CompactPanel>
-          )}
-          </Box>
 
           {onOpenSymbol && (
             <Button

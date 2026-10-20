@@ -653,10 +653,10 @@ export function NiftyDeltaPositioningInner({
           />
           <PositioningStatRow
             testId="nifty-positioning-flip"
-            label="Δ flip"
+            label="Δ pivot"
             value={fmtFlipStrike(deltaFlip)}
             tone={deltaFlip === null ? palette.TEXT_MUTED : palette.TERM_FLIP}
-            title="Delta flip = strike where cumulative OI×delta exposure crosses zero (calls + / puts −). Below it the book is put-heavy (short delta); above it the call book dominates (long delta) — the pivot where directional hedging flips."
+            title="Delta pivot = strike where cumulative OI×delta exposure crosses zero (calls + / puts −). Below it the book is put-heavy (short delta); above it the call book dominates (long delta). Not the same thing as the GEX gamma flip."
             trailing={
               <Text size="xs" c="dimmed" span>
                 {flipDistance}
