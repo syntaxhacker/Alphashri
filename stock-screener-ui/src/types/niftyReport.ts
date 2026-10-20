@@ -208,6 +208,12 @@ export interface NiftyPositioningStrike {
   ce: NiftyPositioningLeg;
   pe: NiftyPositioningLeg;
   netInitiated: number;
+  /**
+   * Per-strike open-interest delta exposure (Cr) — calls positive, puts
+   * negative. The running sum across strikes is what defines `deltaFlip`.
+   * Absent on older snapshots recorded before the field was emitted.
+   */
+  netState?: number | null;
 }
 
 /**

@@ -307,6 +307,7 @@ function normalizePositioning(raw: unknown): NiftyPositioningBlock | undefined {
         ce: normalizePositioningLeg(row.ce),
         pe: normalizePositioningLeg(row.pe),
         netInitiated: num(row.net_initiated ?? row.netInitiated),
+        netState: nullNum(row.net_state ?? row.netState),
       };
     }),
   };

@@ -1,7 +1,7 @@
 // @vitest-environment happy-dom
 import "@testing-library/jest-dom/vitest";
 import { afterEach, describe, expect, test } from "vitest";
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, render, screen } from "@testing-library/react";
 import { UIProvider } from "@/ui";
 import * as palette from "@/ui/palette";
 import {
@@ -16,8 +16,8 @@ import {
   positioningSplitLabel,
   positioningVerdictLabel,
   signedPositioningAccent,
-  windowPositioningStrikes,
 } from "./NiftyDeltaPositioning";
+import { buildDeltaProfile } from "./DeltaProfileChart";
 import type {
   NiftyPositioningBlock,
   NiftyPositioningVerdict,
@@ -52,12 +52,14 @@ function fullBlock(
         ce: { class: "CE", doi: 1200, initiated: 900 },
         pe: { class: "PE", doi: -800, initiated: -600 },
         netInitiated: 300,
+        netState: -1200,
       },
       {
         strike: 25800,
         ce: { class: "CE", doi: -400, initiated: -250 },
         pe: { class: "PE", doi: 650, initiated: 500 },
         netInitiated: 250,
+        netState: 1800,
       },
     ],
     ...overrides,
@@ -192,26 +194,29 @@ describe("NiftyDeltaPositioning render", () => {
     expect(flip).toHaveTextContent("-50 pts");
   });
 
-  test("full block: one row per strike with each numeric cell formatted", () => {
-    r(<NiftyDeltaPositioning positioning={fullBlock()} />);
-    const table = screen.getByTestId("nifty-positioning-table");
-    const rows = within(table).getAllByTestId(/^nifty-positioning-row-/);
-    expect(rows).toHaveLength(2);
-
-    const first = within(table).getByTestId("nifty-positioning-row-25700-0");
-    expect(first).toHaveTextContent("25,700");
-    expect(first).toHaveTextContent("+1,200");
-    expect(first).toHaveTextContent("+900");
-    expect(first).toHaveTextContent("-800");
-    expect(first).toHaveTextContent("-600");
-    expect(first).toHaveTextContent("+300");
-    expect(first).not.toHaveTextContent("NaN");
-
-    const second = within(table).getByTestId("nifty-positioning-row-25800-1");
-    expect(second).toHaveTextContent("25,800");
-    expect(second).toHaveTextContent("-400");
-    expect(second).toHaveTextContent("+650");
-    expect(second).toHaveTextContent("+250");
+  test("full block: draws the cumulative profile over the initiated flow", () => {
+    r(<NiftyDeltaPositioning positioning={fullBlock()} spot={25750} />);
+    const profile = screen.getByTestId("nifty-positioning-profile");
+    expect(profile).toBeInTheDocument();
+    const svg = profile.querySelector("svg");
+    expect(svg).toBeInTheDocument();
+    expect(svg).toHaveAttribute(
+      "aria-label",
+      "Cumulative delta exposure and today's initiated delta by strike",
+    );
+    expect(
+      screen.getByTestId("nifty-positioning-profile-readout"),
+    ).toHaveTextContent("25,700–25,800");
+    expect(profile).toHaveTextContent("Cumulative δ");
+    expect(profile).toHaveTextContent("Flow +");
+    expect(profile).toHaveTextContent("Δ pivot");
+    expect(
+      screen.getByTestId("nifty-positioning-profile-marker-spot"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByTestId("nifty-positioning-profile-marker-flip"),
+    ).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-positioning-table")).not.toBeInTheDocument();
   });
 
   test("undefined block: dashes everywhere, empty table, no crash", () => {
@@ -238,8 +243,8 @@ describe("NiftyDeltaPositioning render", () => {
     );
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();
     expect(
-      screen.queryAllByTestId(/^nifty-positioning-row-/),
-    ).toHaveLength(0);
+      screen.queryByTestId("nifty-positioning-profile-readout"),
+    ).not.toBeInTheDocument();
   });
 
   test("partial block: absent strikes still renders the panel safely", () => {
@@ -255,39 +260,92 @@ describe("NiftyDeltaPositioning render", () => {
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();
   });
 
-  test("empty strikes array renders the table empty state", () => {
+  test("empty strikes array renders the chart empty state", () => {
     r(<NiftyDeltaPositioning positioning={fullBlock({ strikes: [] })} />);
-    expect(screen.getByTestId("nifty-positioning-table")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-positioning-profile")).toBeInTheDocument();
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();
-    expect(screen.queryAllByTestId(/^nifty-positioning-row-/)).toHaveLength(0);
+    expect(
+      screen.queryByTestId("nifty-positioning-profile-readout"),
+    ).not.toBeInTheDocument();
   });
 });
 
-describe("ladder window", () => {
-  const strikeRow = (strike: number) => ({
+describe("delta profile", () => {
+  const strikeRow = (strike: number, netState: number, netInitiated = 0) => ({
     strike,
     ce: { class: "CE", doi: 10, initiated: 10 },
     pe: { class: "PE", doi: -10, initiated: -10 },
-    netInitiated: 0,
+    netInitiated,
+    netState,
   });
 
   test("keeps the ±750 band around spot and drops far strikes", () => {
-    const rows = [23000, 23100, 23300, 25000].map(strikeRow);
-    const kept = windowPositioningStrikes(rows, 23_100);
-    expect(kept.map((r) => r.strike)).toEqual([23000, 23100, 23300]);
+    const rows = [23000, 23100, 23300, 25000].map((s) => strikeRow(s, 0));
+    const points = buildDeltaProfile(rows, 23_100);
+    expect(points.map((p) => p.strike)).toEqual([23000, 23100, 23300]);
     expect(POSITIONING_WINDOW_PTS).toBe(750);
   });
 
+  test("accumulates across the whole chain before windowing", () => {
+    // 20,000 sits outside the window and must still feed the running total.
+    const rows = [
+      strikeRow(20000, 1000),
+      strikeRow(23000, -500),
+      strikeRow(23100, -300),
+      strikeRow(23300, -400),
+      strikeRow(25000, 900),
+    ];
+    const points = buildDeltaProfile(rows, 23_100);
+    expect(points.map((p) => p.strike)).toEqual([23000, 23100, 23300]);
+    expect(points.map((p) => p.cumulative)).toEqual([500, 200, -200]);
+    // The zero crossing lands between 23,100 and 23,300 — the pivot.
+    expect(points[1].cumulative).toBeGreaterThan(0);
+    expect(points[2].cumulative).toBeLessThan(0);
+  });
+
   test("no spot (old snapshot) keeps every row", () => {
-    const rows = [23000, 25000].map(strikeRow);
-    expect(windowPositioningStrikes(rows, null)).toHaveLength(2);
-    expect(windowPositioningStrikes(rows, undefined)).toHaveLength(2);
-    expect(windowPositioningStrikes(rows, 0)).toHaveLength(2);
+    const rows = [23000, 25000].map((s) => strikeRow(s, 1));
+    expect(buildDeltaProfile(rows, null)).toHaveLength(2);
+    expect(buildDeltaProfile(rows, undefined)).toHaveLength(2);
+    expect(buildDeltaProfile(rows, 0)).toHaveLength(2);
   });
 
   test("an empty window falls back to the full list", () => {
-    const rows = [20000].map(strikeRow);
-    expect(windowPositioningStrikes(rows, 23_100)).toHaveLength(1);
+    const rows = [20000].map((s) => strikeRow(s, 1));
+    expect(buildDeltaProfile(rows, 23_100)).toHaveLength(1);
+  });
+
+  test("payloads without per-strike net_state return no profile", () => {
+    const rows = [
+      {
+        strike: 23000,
+        ce: { class: "CE", doi: 10, initiated: 10 },
+        pe: { class: "PE", doi: -10, initiated: -10 },
+        netInitiated: 0,
+      },
+    ];
+    expect(buildDeltaProfile(rows, 23_000)).toEqual([]);
+  });
+
+  test("a flip outside the band omits the flip marker", () => {
+    // A whole-chain pivot can sit far outside the ±750 window; pinning the
+    // marker to the nearest edge strike would claim a level that is not there.
+    r(
+      <NiftyDeltaPositioning
+        positioning={fullBlock({ deltaFlip: 20000 })}
+        spot={25750}
+      />,
+    );
+    expect(
+      screen.getByTestId("nifty-positioning-profile-marker-spot"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByTestId("nifty-positioning-profile-marker-flip"),
+    ).not.toBeInTheDocument();
+    // The headline chip still reports the true pivot.
+    expect(screen.getByTestId("nifty-positioning-flip")).toHaveTextContent(
+      "20,000",
+    );
   });
 
   test("ATM rounds to the 50-point strike step", () => {
@@ -296,19 +354,16 @@ describe("ladder window", () => {
     expect(nearestPositioningStrike(null)).toBeNull();
   });
 
-  test("render windows the rows and labels the ATM strike", () => {
+  test("render windows the profile and labels the ATM strike", () => {
     const block = fullBlock({
-      strikes: [23000, 23100, 25000].map(strikeRow),
+      strikes: [23000, 23100, 25000].map((s) => strikeRow(s, 1)),
     });
     r(<NiftyDeltaPositioning positioning={block} spot={23_100} />);
-    const table = screen.getByTestId("nifty-positioning-table");
-    const rows = within(table).getAllByTestId(/^nifty-positioning-row-/);
-    expect(rows.map((row) => row.getAttribute("data-testid"))).toEqual([
-      "nifty-positioning-row-23000-0",
-      "nifty-positioning-row-23100-1",
-    ]);
+    expect(
+      screen.getByTestId("nifty-positioning-profile-readout"),
+    ).toHaveTextContent("23,000–23,100");
     expect(screen.getByTestId("nifty-positioning-window")).toHaveTextContent(
-      "Ladder ±750 pts · ATM 23,100",
+      "Profile ±750 pts · ATM 23,100",
     );
   });
 });
