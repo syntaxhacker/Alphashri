@@ -45,9 +45,81 @@ function BreadthStat({ label, value, testId, color }: { label: string; value: st
   );
 }
 
-/** Leadership strip: winners vs losers as pill groups, not a text wall.
- * Splits `{top, bottom}` (or ± sign for flat arrays) into ▲/▼ groups with
- * adv/dec counts in the tooltip. Omitted silently when there are no leaders. */
+/** One side of the leadership board: fixed header + aligned rows. Names are
+ * left, change is right, so the eye scans a single numeric column. */
+function LeaderRows({
+  items,
+  side,
+  testId,
+}: {
+  items: SectorLeader[];
+  side: "up" | "down";
+  testId: string;
+}) {
+  if (items.length === 0) return null;
+  const up = side === "up";
+  return (
+    <Box sx={{ minWidth: 0 }}>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          alignItems: "center",
+          gap: 1,
+          px: 1,
+          py: 0.25,
+          borderBottom: "1px solid",
+          borderColor: "divider",
+        }}
+      >
+        <Text size="xs" c={up ? "success" : "error"} fw={700} span>
+          {up ? "▲ Leaders" : "▼ Laggards"}
+        </Text>
+        <Text size="xs" c="dimmed" fw={600} span>
+          CHG
+        </Text>
+      </Box>
+      {items.map((leader) => (
+        <Tooltip
+          key={leader.name}
+          label={`${leader.stock_count} stocks · ${leader.advances} adv / ${leader.declines} dec`}
+          withArrow
+          placement="left"
+        >
+          <Box
+            data-testid={`${testId}-item-${leader.name}`}
+            sx={{
+              display: "grid",
+              gridTemplateColumns: "minmax(0, 1fr) auto",
+              alignItems: "center",
+              gap: 1,
+              px: 1,
+              minHeight: 20,
+              "&:hover": { bgcolor: "action.hover" },
+            }}
+          >
+            <Text size="xs" span truncate>
+              {leader.name}
+            </Text>
+            <Text
+              size="xs"
+              fw={600}
+              c={leader.change >= 0 ? "success" : "error"}
+              span
+              sx={{ fontVariantNumeric: "tabular-nums" }}
+            >
+              {formatPercentage(leader.change)}
+            </Text>
+          </Box>
+        </Tooltip>
+      ))}
+    </Box>
+  );
+}
+
+/** Leadership board: sectors/themes split into leaders and laggards inside one
+ * bordered section. Unlike a pill tape this never overflows horizontally —
+ * every group is always visible at any width. */
 function LeaderStrip({ leaders, testId, label }: { leaders: SectorLeader[] | SectorLeaderBoard | undefined; testId: string; label: string }) {
   // Backend sends `{top: [...5], bottom: [...5]}`; accept a flat array too.
   const all = (Array.isArray(leaders) ? leaders : [...(leaders?.top ?? []), ...(leaders?.bottom ?? [])]).filter(
@@ -57,66 +129,41 @@ function LeaderStrip({ leaders, testId, label }: { leaders: SectorLeader[] | Sec
   const board = Array.isArray(leaders) ? null : leaders;
   const winners = (board ? board.top : all.filter((l) => l.change >= 0)).filter((l) => l && typeof l.name === "string");
   const losers = (board ? board.bottom : all.filter((l) => l.change < 0)).filter((l) => l && typeof l.name === "string");
-  const renderPill = (leader: SectorLeader) => {
-    const up = leader.change >= 0;
-    return (
-      <Tooltip
-        key={leader.name}
-        label={`${leader.stock_count} stocks · ${leader.advances} adv / ${leader.declines} dec`}
-        withArrow
-      >
-        <Box
-          data-testid={`${testId}-item-${leader.name}`}
-          sx={{
-            display: "flex",
-            alignItems: "baseline",
-            gap: 6,
-            flexShrink: 0,
-            alignSelf: "center",
-            whiteSpace: "nowrap",
-            fontVariantNumeric: "tabular-nums",
-            border: "1px solid",
-            borderColor: up ? "success.main" : "error.main",
-            borderRadius: 999,
-            px: 1,
-            py: 0.25,
-          }}
-        >
-          <Text size="xs" c="dimmed" span truncate>
-            {leader.name}
-          </Text>
-          <Text size="xs" fw={700} c={up ? "success" : "error"} span>
-            {formatPercentage(leader.change)}
-          </Text>
-        </Box>
-      </Tooltip>
-    );
-  };
   return (
-    <ToolbarRow gap={2} wrap={false} data-testid={testId} sx={{ alignItems: "center", overflowX: "auto", py: 0.5 }}>
-      <Text size="xs" c="dimmed" span fw={700} sx={{ whiteSpace: "nowrap", textTransform: "uppercase" }}>
-        {label}
-      </Text>
-      {winners.length > 0 ? (
-        <ToolbarRow gap={1} wrap={false} sx={{ flexShrink: 0 }}>
-          <Text size="xs" c="success" span fw={700}>
-            ▲
-          </Text>
-          {winners.map(renderPill)}
-        </ToolbarRow>
-      ) : null}
-      {winners.length > 0 && losers.length > 0 ? (
-        <Box sx={{ width: 1, alignSelf: "stretch", bgcolor: "divider", flexShrink: 0 }} />
-      ) : null}
-      {losers.length > 0 ? (
-        <ToolbarRow gap={1} wrap={false} sx={{ flexShrink: 0 }}>
-          <Text size="xs" c="error" span fw={700}>
-            ▼
-          </Text>
-          {losers.map(renderPill)}
-        </ToolbarRow>
-      ) : null}
-    </ToolbarRow>
+    <Box
+      data-testid={testId}
+      sx={{
+        display: "flex",
+        flexDirection: "column",
+        minWidth: 0,
+        border: "1px solid",
+        borderColor: "divider",
+        borderRadius: 1,
+        overflow: "hidden",
+      }}
+    >
+      <Box sx={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 1, px: 1, py: 0.5, bgcolor: "action.hover" }}>
+        <Text size="xs" c="dimmed" fw={700} tt="uppercase" span>
+          {label}
+        </Text>
+        <Text size="xs" c="dimmed" span>
+          {winners.length} up · {losers.length} down
+        </Text>
+      </Box>
+      <Box
+        sx={{
+          display: "grid",
+          gridTemplateColumns: { xs: "1fr", sm: "repeat(2, minmax(0, 1fr))" },
+          columnGap: 2,
+          rowGap: 1,
+          p: 1,
+          minWidth: 0,
+        }}
+      >
+        <LeaderRows items={winners} side="up" testId={testId} />
+        <LeaderRows items={losers} side="down" testId={testId} />
+      </Box>
+    </Box>
   );
 }
 
@@ -373,6 +420,8 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
   const isCached = daily?.cached === true || breakouts?.cached === true;
   const breadth = daily?.breadth ?? null;
   const indexSnapshot = daily?.index ?? null;
+  const breadthTotal = breadth ? breadth.advances + breadth.declines + breadth.unchanged : 0;
+  const breadthShare = (n: number) => (breadthTotal > 0 ? `${(n / breadthTotal) * 100}%` : "0%");
 
   // Spark range toggle only appears when at least one breakout/breakdown row
   // carries daily closes; otherwise rows keep the single intraday spark.
@@ -532,28 +581,52 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           ) : (
             <>
               {breadth ? (
-            <ToolbarRow gap={8} wrap data-testid="report-breadth">
-              {indexSnapshot ? (
-                <BreadthStat
-                  label={indexSnapshot.name}
-                  value={formatPercentage(indexSnapshot.change)}
-                  testId="report-breadth-index"
-                  color={getPnLTextColor(indexSnapshot.change)}
-                />
+                <Box sx={{ display: "flex", flexDirection: "column", gap: 0.5, minWidth: 0 }} data-testid="report-breadth-block">
+                  <ToolbarRow gap={8} wrap data-testid="report-breadth">
+                    {indexSnapshot ? (
+                      <BreadthStat
+                        label={indexSnapshot.name}
+                        value={formatPercentage(indexSnapshot.change)}
+                        testId="report-breadth-index"
+                        color={getPnLTextColor(indexSnapshot.change)}
+                      />
+                    ) : null}
+                    <BreadthStat label="Adv" value={String(breadth.advances)} testId="report-breadth-advances" color="success" />
+                    <BreadthStat label="Dec" value={String(breadth.declines)} testId="report-breadth-declines" color="error" />
+                    <BreadthStat label="Unch" value={String(breadth.unchanged)} testId="report-breadth-unchanged" color="dimmed" />
+                    <BreadthStat label="New highs" value={String(breadth.new_highs)} testId="report-breadth-new-highs" color="success" />
+                    <BreadthStat label="New lows" value={String(breadth.new_lows)} testId="report-breadth-new-lows" color="error" />
+                    <BreadthStat label="Avg" value={formatPercentage(breadth.avg_change)} testId="report-breadth-avg" />
+                    <BreadthStat label="Median" value={formatPercentage(breadth.median_change)} testId="report-breadth-median" />
+                    <BreadthStat label="Up vol" value={formatVolume(breadth.up_volume)} testId="report-breadth-up-volume" />
+                    <BreadthStat label="Down vol" value={formatVolume(breadth.down_volume)} testId="report-breadth-down-volume" />
+                  </ToolbarRow>
+                  {breadthTotal > 0 ? (
+                    <Box
+                      data-testid="report-breadth-bar"
+                      role="img"
+                      aria-label={`${breadth.advances} advances, ${breadth.declines} declines, ${breadth.unchanged} unchanged`}
+                      sx={{ display: "flex", width: "100%", height: 6, borderRadius: 0.5, overflow: "hidden", bgcolor: "divider" }}
+                    >
+                      <Box sx={{ width: breadthShare(breadth.advances), bgcolor: "success.main" }} />
+                      <Box sx={{ width: breadthShare(breadth.unchanged), bgcolor: "text.disabled" }} />
+                      <Box sx={{ width: breadthShare(breadth.declines), bgcolor: "error.main" }} />
+                    </Box>
+                  ) : null}
+                </Box>
               ) : null}
-              <BreadthStat label="Adv" value={String(breadth.advances)} testId="report-breadth-advances" color="success" />
-              <BreadthStat label="Dec" value={String(breadth.declines)} testId="report-breadth-declines" color="error" />
-              <BreadthStat label="Unch" value={String(breadth.unchanged)} testId="report-breadth-unchanged" color="dimmed" />
-              <BreadthStat label="New highs" value={String(breadth.new_highs)} testId="report-breadth-new-highs" color="success" />
-              <BreadthStat label="New lows" value={String(breadth.new_lows)} testId="report-breadth-new-lows" color="error" />
-              <BreadthStat label="Avg" value={formatPercentage(breadth.avg_change)} testId="report-breadth-avg" />
-              <BreadthStat label="Median" value={formatPercentage(breadth.median_change)} testId="report-breadth-median" />
-              <BreadthStat label="Up vol" value={formatVolume(breadth.up_volume)} testId="report-breadth-up-volume" />
-              <BreadthStat label="Down vol" value={formatVolume(breadth.down_volume)} testId="report-breadth-down-volume" />
-            </ToolbarRow>
-          ) : null}
-          <LeaderStrip leaders={daily?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
-          <LeaderStrip leaders={daily?.theme_leaders} testId="report-theme-leaders" label="Themes" />
+              <Box
+                sx={{
+                  display: "grid",
+                  gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+                  gap: 1,
+                  minWidth: 0,
+                  alignItems: "start",
+                }}
+              >
+                <LeaderStrip leaders={daily?.sector_leaders} testId="report-sector-leaders" label="Sectors" />
+                <LeaderStrip leaders={daily?.theme_leaders} testId="report-theme-leaders" label="Themes" />
+              </Box>
             </>
           )}
             </Box>
