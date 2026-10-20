@@ -935,7 +935,7 @@ describe("NiftyReportPanel ATM anchor", () => {
     expect(findAtmStrike([mk(25700), mk(25800)], 25750)).toBe(25700);
   });
 
-  test("ATM badge renders on the strike closest to spot", async () => {
+  test("ATM marker lands on the strike closest to spot", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({
         spot: 25760,
@@ -948,7 +948,8 @@ describe("NiftyReportPanel ATM anchor", () => {
     // 25800 is closer to 25760 than 25700 → single ATM badge
     const badges = within(table).getAllByTestId("nifty-strike-atm-badge");
     expect(badges).toHaveLength(1);
-    expect(badges[0]).toHaveTextContent("ATM");
+    expect(badges[0]).toHaveTextContent("25,800");
+    expect(badges[0]).toHaveAttribute("title", "ATM strike");
   });
 
   test("ATM row has anchor testid + tinted style, non-ATM rows plain", async () => {
@@ -963,10 +964,10 @@ describe("NiftyReportPanel ATM anchor", () => {
     const atmRow = screen.getByTestId("nifty-strike-atm");
     expect(atmRow).toBeInTheDocument();
     expect(within(atmRow).getByTestId("nifty-strike-atm-badge")).toBeInTheDocument();
-    const bg = atmRow.style.background;
-    expect(bg).toMatch(/rgba/);
-    expect(atmRow.style.borderTop).toContain(palette.WARNING);
-    expect(atmRow.style.borderBottom).toContain(palette.WARNING);
+    expect(atmRow.style.background).toMatch(/rgba/);
+    // One anchor per panel: the gold band, not a bordered box.
+    expect(atmRow.style.borderTop).toBe("");
+    expect(atmRow.style.borderBottom).toBe("");
     const plainRows = screen.getAllByTestId("nifty-strike-row");
     expect(plainRows.length).toBeGreaterThan(0);
     for (const row of plainRows) {

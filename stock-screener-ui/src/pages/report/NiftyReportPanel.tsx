@@ -179,6 +179,12 @@ export { LevelLegend, CHART_HEIGHTS, CHART_TF_MINUTES } from "./NiftyChartPanel"
 export type { ChartSize, ChartTimeframe } from "./NiftyChartPanel";
 
 
+/**
+ * Buildup chip. The hue here *is* the direction (green = bullish, red =
+ * bearish), which is why the numbers around it stay in leg hue. Rendered as a
+ * tinted label with a colour tick instead of an outlined capsule: 60 of those
+ * capsules turn the chain into a wall of pills and read as decoration.
+ */
 function sentimentBadge(sentiment: string, side: "ce" | "pe") {
   const code = sentiment.trim().toUpperCase();
   const label = SENTIMENT_NAMES[code] ?? sentiment;
@@ -186,33 +192,55 @@ function sentimentBadge(sentiment: string, side: "ce" | "pe") {
   // calls rise on buying (LB/SC bullish), puts rise on fear (LB bearish).
   const bullish =
     side === "ce" ? code === "LB" || code === "SC" : code === "SB" || code === "SC";
-  const tone = code === "NEUTRAL" || !SENTIMENT_NAMES[code] ? palette.TEXT_MUTED : bullish ? palette.POSITIVE : palette.NEGATIVE;
+  const known = Boolean(SENTIMENT_NAMES[code]);
+  const tone = known ? (bullish ? palette.POSITIVE : palette.NEGATIVE) : palette.TEXT_MUTED;
+  if (!known) {
+    return (
+      <Text size="xs" span truncate c="dimmed">
+        {label}
+      </Text>
+    );
+  }
   return (
     <Box
       component="span"
       sx={{
-        display: "inline-block",
-        border: "1px solid",
-        borderColor: tone,
-        borderRadius: 999,
-        px: 1,
-        py: 0.25,
+        display: "inline-flex",
+        alignItems: "center",
+        gap: "4px",
         maxWidth: "100%",
         overflow: "hidden",
-        textOverflow: "ellipsis",
+        px: "4px",
+        py: "1px",
+        borderRadius: "3px",
+        // No fill: a coloured block behind 16 identical labels turns both
+        // signal columns into a pair of neon bands. The tick + coloured text
+        // carries the same meaning on a black surface.
         whiteSpace: "nowrap",
         verticalAlign: "middle",
       }}
     >
-      <Text size="xs" fw={600} c={tone} span truncate>
+      <Box
+        component="span"
+        aria-hidden
+        sx={{ width: 3, height: 11, borderRadius: "1px", bgcolor: tone, flexShrink: 0 }}
+      />
+      <Text size="xs" fw={600} span truncate sx={{ color: tone }}>
         {label}
       </Text>
     </Box>
   );
 }
 
-/** Numeric cell with tabular figures + ellipsis so 1440px needs no h-scroll. */
-function tabularCell(value: string, tone?: "success" | "error") {
+/**
+ * Numeric cell with tabular figures + ellipsis so 1440px needs no h-scroll.
+ *
+ * `color` is the **leg hue** (CE blue / PE orange), never a signed tone: in a
+ * chain the column already says which side it is, and a green/red wash across
+ * every number buries the one thing that is really directional (the signal and
+ * the net flow). Sign stays in the numeral.
+ */
+function tabularCell(value: string, color?: string) {
   return (
     <Box
       component="span"
@@ -223,7 +251,7 @@ function tabularCell(value: string, tone?: "success" | "error") {
         fontVariantNumeric: "tabular-nums",
       }}
     >
-      <Text size="xs" span c={tone ?? "default"} fw={tone ? 600 : 400}>
+      <Text size="xs" span fw={500} sx={color ? { color } : undefined}>
         {value}
       </Text>
     </Box>
@@ -236,12 +264,6 @@ const SENTIMENT_NAMES: Record<string, string> = {
   SC: "Short Cover",
   LU: "Long Unwind",
 };
-
-function signedTone(v: number): "success" | "error" | undefined {
-  if (v > 0) return "success";
-  if (v < 0) return "error";
-  return undefined;
-}
 
 /** GEX regime line shown in LIVE mode. */
 export function gexRegimeText(regime: NiftyGex["regime"]): string {
@@ -350,7 +372,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
-      return tabularCell(v.toFixed(2), signedTone(v));
+      return tabularCell(v.toFixed(2), palette.TERM_CE);
     },
   },
   {
@@ -361,7 +383,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
-      return tabularCell(v.toLocaleString("en-IN"), signedTone(v));
+      return tabularCell(v.toLocaleString("en-IN"), palette.TERM_CE);
     },
   },
   {
@@ -387,34 +409,24 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
             display: "flex",
             alignItems: "center",
             justifyContent: "flex-end",
-            gap: 1,
             overflow: "hidden",
             fontVariantNumeric: "tabular-nums",
           }}
         >
-          <Text size="xs" span fw={700}>
+          {/* No inline "ATM" capsule: at the chain's real width the number
+              plus a capsule overflows the 50px strike column and clips the
+              numeral. The anchor is the gold numeral + gold row band, the
+              same language the delta ladder uses. */}
+          <Text
+            size="xs"
+            span
+            fw={700}
+            c={isAtm ? palette.TERM_FLIP : undefined}
+            data-testid={isAtm ? "nifty-strike-atm-badge" : undefined}
+            title={isAtm ? "ATM strike" : undefined}
+          >
             {strike.toLocaleString("en-IN")}
           </Text>
-          {isAtm && (
-            <Box
-              component="span"
-              data-testid="nifty-strike-atm-badge"
-              sx={{
-                display: "inline-block",
-                border: "1px solid",
-                borderColor: palette.WARNING,
-                borderRadius: 999,
-                px: 1,
-                py: 0.25,
-                whiteSpace: "nowrap",
-                verticalAlign: "middle",
-              }}
-            >
-              <Text size="xs" fw={600} c="warning" span>
-                ATM
-              </Text>
-            </Box>
-          )}
         </Box>
       );
     },
@@ -435,7 +447,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
-      return tabularCell(v.toLocaleString("en-IN"), signedTone(v));
+      return tabularCell(v.toLocaleString("en-IN"), palette.TERM_PE);
     },
   },
   {
@@ -446,7 +458,7 @@ export function getNiftyOiColumns(atmStrike: number | null): ColumnDef<NiftyStri
     meta: { align: "right" },
     cell: (info) => {
       const v = Number(info.getValue());
-      return tabularCell(v.toFixed(2), signedTone(v));
+      return tabularCell(v.toFixed(2), palette.TERM_PE);
     },
   },
   ];
@@ -971,11 +983,7 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
   const getOiRowStyle = useCallback(
     (row: NiftyStrike) =>
       atmStrike !== null && row.strike === atmStrike
-        ? {
-            background: hexToRgba(palette.WARNING, 0.1),
-            borderTop: `1px solid ${palette.WARNING}`,
-            borderBottom: `1px solid ${palette.WARNING}`,
-          }
+        ? { background: hexToRgba(palette.TERM_FLIP, 0.08) }
         : undefined,
     [atmStrike],
   );
@@ -1544,10 +1552,16 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
               display: "grid",
               gridTemplateColumns: {
                 xs: "minmax(0, 1fr)",
+                // The chain is a seven-column fixed table whose tracks are a
+                // hard floor (table-layout cannot shrink below them), so a
+                // plain `1fr` overflowed into a horizontal scrollbar as soon
+                // as the panel dipped under ~614px — which is most screens at
+                // 100% zoom. Cap the chain instead and give every remaining
+                // pixel to the chart.
                 lg:
                   report.timeline.length > 0
-                    ? "minmax(0, 2fr) minmax(0, 1fr) minmax(0, 1fr)"
-                    : "minmax(0, 2fr) minmax(0, 1fr)",
+                    ? "minmax(0, 1fr) minmax(0, 280px) minmax(0, 624px)"
+                    : "minmax(0, 1fr) minmax(0, 624px)",
               },
               gap: 1,
               alignItems: "stretch",
@@ -1642,7 +1656,10 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             }}
           >
             <Box sx={ANALYTICS_FILL_CELL_SX}>
-              <NiftyDeltaPositioning positioning={report.positioning} />
+              <NiftyDeltaPositioning
+                positioning={report.positioning}
+                spot={report.spot}
+              />
             </Box>
             <Box sx={ANALYTICS_CELL_SX}>
               <NiftyGexProfile gex={report.gex} spot={report.spot} />
