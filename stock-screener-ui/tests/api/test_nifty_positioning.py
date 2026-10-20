@@ -4,6 +4,7 @@ from api.reports_api.nifty_positioning import (
     NIFTY_LOT_SIZE,
     class_sign,
     compute_positioning,
+    delta_flip_level,
     positioning_verdict,
 )
 
@@ -126,6 +127,8 @@ class TestComputePositioning:
         assert s["strike"] == 20000
         assert set(s["ce"]) == {"class", "doi", "initiated"}
         assert "net_initiated" in s
+        # OI × delta per strike, calls + / puts − (signed Cr) for the flip curve.
+        assert "net_state" in s
 
     def test_dict_sentiment_produces_initiated(self):
         # The chain stores sentiment as a mapping; initiated must still compute.
@@ -137,3 +140,61 @@ class TestComputePositioning:
         assert out["initiated"] == 65.0
         assert out["bull_cr"] == 65.0
         assert out["strikes"][0]["ce"]["class"] == "LB"
+
+    def test_delta_flip_is_the_cumulative_zero_cross(self):
+        # 20000: puts dominate -> cumulative negative. 20100: calls dominate
+        # hard enough to cross zero, so the flip is 20100.
+        rows = [
+            _row(20000, _leg(100, 0, 0.5, "Neutral"), _leg(300, 0, 0.5, "Neutral")),
+            _row(20100, _leg(300, 0, 0.5, "Neutral"), _leg(100, 0, 0.5, "Neutral")),
+        ]
+        out = compute_positioning(rows, spot=20000)
+        assert out["strikes"][0]["net_state"] < 0
+        assert out["strikes"][1]["net_state"] > 0
+        assert out["delta_flip"] == 20100
+
+    def test_empty_book_has_no_delta_flip(self):
+        out = compute_positioning([], spot=20000)
+        assert out["delta_flip"] is None
+
+
+class TestDeltaFlipLevel:
+    def test_crossing_returns_the_first_sign_change(self):
+        strikes = [
+            {"strike": 20000, "net_state": -10},
+            {"strike": 20050, "net_state": -5},
+            {"strike": 20100, "net_state": 25},
+            {"strike": 20150, "net_state": 4},
+        ]
+        assert delta_flip_level(strikes) == 20100
+
+    def test_exact_zero_counts_as_the_flip(self):
+        strikes = [
+            {"strike": 20000, "net_state": -10},
+            {"strike": 20050, "net_state": 10},
+        ]
+        assert delta_flip_level(strikes) == 20050
+
+    def test_leading_dead_strikes_do_not_fake_a_level(self):
+        strikes = [
+            {"strike": 19500, "net_state": 0},
+            {"strike": 19600, "net_state": 0},
+            {"strike": 20000, "net_state": -3},
+            {"strike": 20100, "net_state": 3},
+        ]
+        assert delta_flip_level(strikes) == 20100
+
+    def test_no_crossing_returns_none(self):
+        assert delta_flip_level([{"strike": 20000, "net_state": -5}]) is None
+        assert delta_flip_level([]) is None
+        assert delta_flip_level([
+            {"strike": 20000, "net_state": 0},
+            {"strike": 20050, "net_state": 0},
+        ]) is None
+
+    def test_input_order_does_not_matter(self):
+        strikes = [
+            {"strike": 20100, "net_state": 20},
+            {"strike": 20000, "net_state": -10},
+        ]
+        assert delta_flip_level(strikes) == 20100

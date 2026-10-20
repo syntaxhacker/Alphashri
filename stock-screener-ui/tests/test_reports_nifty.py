@@ -244,6 +244,29 @@ class TestSnapshots:
         write_snapshot("2026-10-12", {"mode": "snapshot", "spot": 22363.35})
         assert get_nifty_report(date="2026-10-12")["spot"] == 22363.35
 
+    def test_get_backfills_delta_flip_for_old_snapshots(self, _tmp_snapshots):
+        # Snapshots written before the flip existed have no delta_flip key but
+        # still carry per-leg deltas, so the route derives the block on read.
+        write_snapshot("2026-10-14", {
+            "mode": "snapshot",
+            "spot": 20000.0,
+            "strikes": [
+                {"strike": 20000,
+                 "ce": {"oi": 100, "delta": 0.5, "sentiment": "Neutral"},
+                 "pe": {"oi": 300, "delta": 0.5, "sentiment": "Neutral"}},
+                {"strike": 20100,
+                 "ce": {"oi": 300, "delta": 0.5, "sentiment": "Neutral"},
+                 "pe": {"oi": 100, "delta": 0.5, "sentiment": "Neutral"}},
+            ],
+            "positioning": {"verdict": "balanced", "strikes": []},
+        })
+        rep = get_nifty_report(date="2026-10-14")
+        assert rep["positioning"]["delta_flip"] == 20100
+        assert rep["positioning"]["strikes"][0]["net_state"] < 0
+        # The stored file is left untouched — this is a read-time projection.
+        stored = read_snapshot("2026-10-14")
+        assert "delta_flip" not in stored["positioning"]
+
     def test_bad_date_400(self, _tmp_snapshots):
         with pytest.raises(HTTPException) as exc:
             get_nifty_report(date="not-a-date")
@@ -1046,6 +1069,31 @@ class TestReplayEndpoint:
         assert [s["t"] for s in out["snapshots"]] == times
         assert "report" in out["snapshots"][0]
         assert "gex" in out["snapshots"][0]["report"]
+
+    def test_backfills_delta_flip_on_replayed_frames(self, _tmp_replay):
+        line = _replay_line("2026-10-13T09:15:00+05:30")
+        line["report"] = {
+            "mode": "live",
+            "spot": 20000.0,
+            "strikes": [
+                {"strike": 20000,
+                 "ce": {"oi": 100, "delta": 0.5, "sentiment": "Neutral"},
+                 "pe": {"oi": 300, "delta": 0.5, "sentiment": "Neutral"}},
+                {"strike": 20100,
+                 "ce": {"oi": 300, "delta": 0.5, "sentiment": "Neutral"},
+                 "pe": {"oi": 100, "delta": 0.5, "sentiment": "Neutral"}},
+            ],
+            "positioning": {"verdict": "balanced", "strikes": []},
+        }
+        nifty.SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        with open(nifty.snapshot_log_path("2026-10-13"), "a") as f:
+            f.write(json.dumps(line) + "\n")
+        out = get_nifty_replay(date="2026-10-13")
+        assert out["snapshots"][0]["report"]["positioning"]["delta_flip"] == 20100
+        one = get_nifty_replay(
+            date="2026-10-13", t="2026-10-13T09:15:00+05:30"
+        )
+        assert one["snapshot"]["report"]["positioning"]["delta_flip"] == 20100
 
     def test_skips_corrupt_lines(self, _tmp_replay):
         # Corrupt lines never appear in the served replay.

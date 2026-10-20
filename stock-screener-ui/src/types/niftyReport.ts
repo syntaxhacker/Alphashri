@@ -14,6 +14,8 @@ export interface NiftyOptionSide {
   volume?: number;
   /** Option delta; `null` when the greeks block was absent. */
   delta?: number | null;
+  /** Implied volatility %; `null` when the greeks block was absent. */
+  iv?: number | null;
 }
 
 export interface NiftyStrike {
@@ -229,6 +231,8 @@ export interface NiftyPositioningBlock {
   ceDoi: number | null;
   peDoi: number | null;
   lotSize: number | null;
+  /** Strike where cumulative OI×delta exposure changes sign (call-heavy above). */
+  deltaFlip: number | null;
   strikes: NiftyPositioningStrike[];
 }
 

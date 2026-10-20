@@ -1160,6 +1160,34 @@ async def get_sensex_live():
     return await _get_cached_sensex()
 
 
+def _with_delta_flip(report: dict) -> dict:
+    """Project ``delta_flip`` onto snapshots recorded before the level existed.
+
+    Older snapshots still carry per-leg deltas in ``strikes``, so the block can
+    be derived on read by the same pure function that computes it live. Returns
+    the report untouched when there is nothing to derive (no positioning block,
+    empty chain, or the key is already present), so current payloads pay
+    nothing for this.
+    """
+    if not isinstance(report, dict):
+        return report
+    positioning = report.get("positioning")
+    if not isinstance(positioning, dict) or "delta_flip" in positioning:
+        return report
+    strikes = report.get("strikes")
+    if not isinstance(strikes, list) or not strikes:
+        return report
+    try:
+        return {
+            **report,
+            "positioning": compute_positioning(
+                strikes, _safe_float(report.get("spot"))
+            ),
+        }
+    except Exception:
+        return report
+
+
 @router.get("/nifty")
 def get_nifty_report(date: Optional[str] = Query(default=None, description="Snapshot date YYYY-MM-DD (default: today)")):
     """Serve the saved Nifty snapshot for ``date``; 404 envelope when missing."""
@@ -1171,7 +1199,7 @@ def get_nifty_report(date: Optional[str] = Query(default=None, description="Snap
             "date": date_str,
             "message": f"no Nifty snapshot for {date_str}",
         })
-    return data
+    return _with_delta_flip(data)
 
 
 class NiftySnapshotRequest(BaseModel):
@@ -2102,6 +2130,14 @@ def get_nifty_replay(
             "date": date_str,
             "message": f"no Nifty snapshots for {date_str}",
         })
+    # Frames recorded before the delta-flip level existed still carry the
+    # per-leg deltas, so project it on read (same as the EOD snapshot route).
+    snaps = [
+        {**s, "report": _with_delta_flip(s.get("report"))}
+        if isinstance(s, dict) and isinstance(s.get("report"), dict)
+        else s
+        for s in snaps
+    ]
     if t and isinstance(t, str):
         # Same-tz ISO strings: the minute bucket (YYYY-MM-DDTHH:MM) compares
         # correctly as text, so a sub-minute stamp picks its own minute. The

@@ -31,6 +31,7 @@ import { NiftyUnusualVolume, UNUSUAL_TERM_BG, UNUSUAL_TERM_BORDER } from "./Nift
 import { NiftyStructureShifts } from "./NiftyStructureShifts";
 import { NiftyDeltaPositioning } from "./NiftyDeltaPositioning";
 import { NiftyGexProfile } from "./NiftyGexProfile";
+import { NiftyIvSkew } from "./NiftyIvSkew";
 import { NiftyIvStraddle } from "./NiftyIvStraddle";
 import { NiftyGammaTime } from "./NiftyGammaTime";
 import { NiftyVerdictStrip } from "./NiftyVerdictStrip";
@@ -1664,6 +1665,23 @@ export function NiftyReportPanel({ onOpenSymbol }: NiftyReportPanelProps) {
             <Box sx={ANALYTICS_CELL_SX}>
               <NiftyGexProfile gex={report.gex} spot={report.spot} />
             </Box>
+          </Box>
+
+          {/* Vol surface row: per-strike IV smile. Sits between the exposure
+              panels (delta / gamma) and the tape because it prices the same
+              strikes those panels are positioning around. Full width on
+              purpose — a smile squeezed into a third of the row flattens the
+              wings into a sliver. */}
+          <Box
+            data-testid="nifty-iv-skew-row"
+            sx={{
+              width: "100%",
+              maxWidth: "100%",
+              minWidth: 0,
+              flexShrink: 0,
+            }}
+          >
+            <NiftyIvSkew strikes={report.strikes} spot={report.spot} />
           </Box>
 
           <Box

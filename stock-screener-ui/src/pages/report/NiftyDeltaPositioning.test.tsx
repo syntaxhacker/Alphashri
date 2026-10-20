@@ -8,7 +8,9 @@ import {
   NiftyDeltaPositioning,
   POSITIONING_DASH,
   POSITIONING_WINDOW_PTS,
+  flipDistanceLabel,
   fmtCr,
+  fmtFlipStrike,
   nearestPositioningStrike,
   positioningAccent,
   positioningSplitLabel,
@@ -43,6 +45,7 @@ function fullBlock(
     ceDoi: 1500,
     peDoi: -800,
     lotSize: 75,
+    deltaFlip: 25750,
     strikes: [
       {
         strike: 25700,
@@ -129,6 +132,23 @@ describe("verdict + signed tone + split helpers", () => {
   });
 });
 
+describe("delta flip helpers", () => {
+  test("fmtFlipStrike groups integers and dashes absent values", () => {
+    expect(fmtFlipStrike(25750)).toBe("25,750");
+    expect(fmtFlipStrike(0)).toBe("0");
+    expect(fmtFlipStrike(null)).toBe(POSITIONING_DASH);
+    expect(fmtFlipStrike(Number.NaN)).toBe(POSITIONING_DASH);
+  });
+
+  test("flipDistanceLabel signs the gap, handles at-spot and absent", () => {
+    expect(flipDistanceLabel(25800, 25750)).toBe("-50 pts");
+    expect(flipDistanceLabel(25700, 25750)).toBe("+50 pts");
+    expect(flipDistanceLabel(25750, 25750)).toBe("at spot");
+    expect(flipDistanceLabel(null, 25750)).toBe(POSITIONING_DASH);
+    expect(flipDistanceLabel(25750, null)).toBe(POSITIONING_DASH);
+  });
+});
+
 describe("NiftyDeltaPositioning render", () => {
   test("full block: verdict, signed summary rows with formula tooltips", () => {
     r(<NiftyDeltaPositioning positioning={fullBlock()} />);
@@ -159,6 +179,17 @@ describe("NiftyDeltaPositioning render", () => {
     expect(screen.getByTestId("nifty-positioning-split")).toHaveTextContent(
       "53,185 Cr · 83%",
     );
+
+    const flip = screen.getByTestId("nifty-positioning-flip");
+    expect(flip).toHaveTextContent("Δ flip");
+    expect(flip).toHaveTextContent("25,750");
+  });
+
+  test("delta flip stat carries the signed distance from spot", () => {
+    r(<NiftyDeltaPositioning positioning={fullBlock()} spot={25800} />);
+    const flip = screen.getByTestId("nifty-positioning-flip");
+    expect(flip).toHaveTextContent("25,750");
+    expect(flip).toHaveTextContent("-50 pts");
   });
 
   test("full block: one row per strike with each numeric cell formatted", () => {
@@ -200,6 +231,9 @@ describe("NiftyDeltaPositioning render", () => {
       POSITIONING_DASH,
     );
     expect(screen.getByTestId("nifty-positioning-split")).toHaveTextContent(
+      POSITIONING_DASH,
+    );
+    expect(screen.getByTestId("nifty-positioning-flip")).toHaveTextContent(
       POSITIONING_DASH,
     );
     expect(screen.getByText("No strike breakdown")).toBeInTheDocument();

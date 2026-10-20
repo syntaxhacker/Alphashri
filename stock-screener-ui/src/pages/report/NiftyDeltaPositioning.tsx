@@ -55,6 +55,34 @@ function fmtCrMagnitude(value: number): string {
   return Math.abs(value).toLocaleString("en-IN", { maximumFractionDigits: 0 });
 }
 
+/** Integer strike with Indian grouping (`25,750`), or an em dash when absent. */
+export function fmtFlipStrike(value: number | null | undefined): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) {
+    return POSITIONING_DASH;
+  }
+  return value.toLocaleString("en-IN");
+}
+
+/**
+ * `-50 pts` / `+50 pts` / `at spot` — how far a level sits from spot. Used as
+ * the delta-flip stat's trailing hint; absent inputs render a dash.
+ */
+export function flipDistanceLabel(
+  spot: number | null | undefined,
+  level: number | null | undefined,
+): string {
+  if (
+    !Number.isFinite(spot as number) ||
+    !Number.isFinite(level as number)
+  ) {
+    return POSITIONING_DASH;
+  }
+  const d = Math.round((level as number) - (spot as number));
+  if (d === 0) return "at spot";
+  const sign = d > 0 ? "+" : "-";
+  return `${sign}${Math.abs(d).toLocaleString("en-IN")} pts`;
+}
+
 /** Small tone helper for signed numbers; zero/absent stays muted. */
 export function signedPositioningAccent(value: number | null | undefined): string {
   if (value === null || value === undefined || !Number.isFinite(value) || value === 0) {
@@ -454,6 +482,8 @@ export function NiftyDeltaPositioningInner({
   const state = positioning?.state ?? null;
   const flow = positioning?.flow ?? null;
   const initiated = positioning?.initiated ?? null;
+  const deltaFlip = positioning?.deltaFlip ?? null;
+  const flipDistance = flipDistanceLabel(spot, deltaFlip);
   const split = positioningSplitLabel(
     positioning?.bullCr,
     positioning?.bearCr,
@@ -619,6 +649,18 @@ export function NiftyDeltaPositioningInner({
                 <Box sx={{ flexGrow: bullShare, flexShrink: 1, flexBasis: 0, background: palette.POSITIVE }} />
                 <Box sx={{ flexGrow: bearShare, flexShrink: 1, flexBasis: 0, background: palette.NEGATIVE }} />
               </Box>
+            }
+          />
+          <PositioningStatRow
+            testId="nifty-positioning-flip"
+            label="Δ flip"
+            value={fmtFlipStrike(deltaFlip)}
+            tone={deltaFlip === null ? palette.TEXT_MUTED : palette.TERM_FLIP}
+            title="Delta flip = strike where cumulative OI×delta exposure crosses zero (calls + / puts −). Below it the book is put-heavy (short delta); above it the call book dominates (long delta) — the pivot where directional hedging flips."
+            trailing={
+              <Text size="xs" c="dimmed" span>
+                {flipDistance}
+              </Text>
             }
           />
         </Box>

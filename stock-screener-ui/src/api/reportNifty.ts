@@ -58,6 +58,7 @@ function normalizeSide(raw: Record<string, unknown> = {}): NiftyOptionSide {
     priceChange: num(raw.priceChange ?? raw.price_change),
     volume: num(raw.volume),
     delta: nullNum(raw.delta),
+    iv: nullNum(raw.iv),
     sentiment:
       typeof raw.sentiment === "string"
         ? raw.sentiment
@@ -298,6 +299,7 @@ function normalizePositioning(raw: unknown): NiftyPositioningBlock | undefined {
     ceDoi: nullNum(p.ce_doi ?? p.ceDoi),
     peDoi: nullNum(p.pe_doi ?? p.peDoi),
     lotSize: nullNum(p.lot_size ?? p.lotSize),
+    deltaFlip: nullNum(p.delta_flip ?? p.deltaFlip),
     strikes: rows.map((r): NiftyPositioningStrike => {
       const row = (r ?? {}) as Record<string, unknown>;
       return {

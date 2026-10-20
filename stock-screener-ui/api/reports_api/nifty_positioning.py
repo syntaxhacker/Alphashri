@@ -17,6 +17,10 @@ Conventions (kept explicit so the numbers stay auditable):
   negative ΔOI but its sign is carried by the class, not the delta.
 * ``bull_cr`` / ``bear_cr`` — gross magnitude of the bullish / bearish
   initiated legs; ``split_pct`` is the dominant side's share.
+* ``delta_flip`` — strike where the cumulative per-strike ``net_state``
+  (open-interest delta exposure, ascending strikes) crosses zero. Below it the
+  book is put-heavy, above it call-heavy. ``net_state`` is also emitted per
+  strike for callers that want the raw profile.
 * ``verdict`` uses the same asymmetric 25% dominance rule as the control block.
 
 Pure functions only — no I/O, directly unit-testable.
@@ -107,6 +111,32 @@ def positioning_verdict(bull_cr: float, bear_cr: float) -> str:
     return "balanced"
 
 
+def delta_flip_level(strikes: list[dict]) -> Optional[float]:
+    """Strike where cumulative net delta exposure crosses zero.
+
+    Mirrors the GEX zero-gamma convention: walk strikes low→high adding each
+    strike's ``net_state`` (calls +, puts −) and return the first strike whose
+    cumulative flips sign. Leading all-zero strikes are ignored so a dead wing
+    cannot fake a level, and an all-zero book returns ``None``.
+
+    Below the flip the cumulative book is put-heavy (short delta); above it the
+    call book dominates (long delta) — the pivot where directional hedging
+    changes sign.
+    """
+    cum = 0.0
+    prev: Optional[float] = None
+    for s in sorted(strikes or [], key=lambda r: _f(r.get("strike"))):
+        cum = round(cum + _f(s.get("net_state")), 2)
+        if cum == 0:
+            if prev is not None:
+                return _f(s.get("strike"))
+            continue
+        if prev is not None and (prev < 0) != (cum < 0):
+            return _f(s.get("strike"))
+        prev = cum
+    return None
+
+
 def compute_positioning(rows: list[dict], spot: float,
                         lot_size: int = NIFTY_LOT_SIZE) -> dict:
     """Aggregate per-leg delta exposure into the positioning block.
@@ -142,7 +172,12 @@ def compute_positioning(rows: list[dict], spot: float,
         ce_doi = _i(ce.get("oi_change"))
         pe_doi = _i(pe.get("oi_change"))
 
-        state += (ce_oi * ce_d - pe_oi * pe_d) * factor
+        # Per-strike open-interest delta exposure, same sign convention as
+        # ``state``: calls positive, puts negative. The cumulative sum across
+        # strikes is what carries the flip level below.
+        ce_state = ce_oi * ce_d * factor
+        pe_state = -pe_oi * pe_d * factor
+        state += ce_state + pe_state
         flow += (ce_doi * ce_d - pe_doi * pe_d) * factor
 
         ce_init = class_sign(ce.get("sentiment"), "CE") * abs(ce_doi) * ce_d * factor
@@ -166,6 +201,7 @@ def compute_positioning(rows: list[dict], spot: float,
             "pe": {"class": sentiment_code(pe.get("sentiment")) or "Neutral",
                    "doi": pe_doi, "initiated": round(pe_init, 2)},
             "net_initiated": round(ce_init + pe_init, 2),
+            "net_state": round(ce_state + pe_state, 2),
         })
 
     total = bull + bear
@@ -181,5 +217,6 @@ def compute_positioning(rows: list[dict], spot: float,
         "ce_doi": ce_doi_total,
         "pe_doi": pe_doi_total,
         "lot_size": int(lot_size),
+        "delta_flip": delta_flip_level(strikes),
         "strikes": strikes,
     }
