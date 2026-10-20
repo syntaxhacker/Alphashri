@@ -694,7 +694,11 @@ export function DailyReportPage({ universe: universeProp = "nifty500", onOpenSym
           <Box
             sx={{
               display: "grid",
-              gridTemplateColumns: { xs: "1fr", lg: "repeat(2, minmax(0, 1fr))" },
+              // Full-width stacked tables: nine columns per side do not fit in
+              // a half-width cell, and each table grew its own horizontal
+              // scrollbar. Stacking keeps one reading column and no inner
+              // horizontal scroll.
+              gridTemplateColumns: "minmax(0, 1fr)",
               gap: 1,
               alignItems: "start",
               minWidth: 0,
