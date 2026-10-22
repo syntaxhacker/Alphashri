@@ -2,7 +2,7 @@
 
 import { fetchWithAuth } from "../state/auth";
 import { API_BASE } from "./config";
-import type { UsEod, UsLive, UsStatus, UsTape } from "../types/usReport";
+import type { UsBar, UsEod, UsLive, UsPrice, UsStatus, UsTape } from "../types/usReport";
 
 const US_API = `${API_BASE}/api/reports/us`;
 
@@ -33,3 +33,8 @@ export const fetchUsDates = (root: string) =>
   getJson<{ root: string; dates: string[] }>(`/replay/dates?root=${root}`);
 
 export const fetchUsStatus = () => getJson<UsStatus>(`/tape/status`);
+
+export const fetchUsPrice = (root: string) => getJson<UsPrice>(`/price?root=${root}`);
+
+export const fetchUsBars = (root: string, date: string) =>
+  getJson<{ root: string; date: string; bars: UsBar[] }>(`/bars?root=${root}&date=${date}`);

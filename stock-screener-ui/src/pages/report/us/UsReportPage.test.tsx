@@ -6,7 +6,7 @@ import "@testing-library/jest-dom/vitest";
 
 import { UIProvider } from "@/ui";
 import { UsReportPage } from "./UsReportPage";
-import { fetchUsDates, fetchUsEod, fetchUsLive, fetchUsStatus, fetchUsTape } from "../../../api/usReport";
+import { fetchUsDates, fetchUsEod, fetchUsLive, fetchUsPrice, fetchUsStatus, fetchUsTape } from "../../../api/usReport";
 import type { UsRow } from "../../../types/usReport";
 
 vi.mock("../../../api/usReport", () => ({
@@ -15,6 +15,7 @@ vi.mock("../../../api/usReport", () => ({
   fetchUsDates: vi.fn(),
   fetchUsTape: vi.fn(),
   fetchUsEod: vi.fn(),
+  fetchUsPrice: vi.fn(),
 }));
 
 const liveRow = (spot: number, t: string): UsRow => ({
@@ -67,6 +68,12 @@ describe("UsReportPage", () => {
       dir: "/tmp/us_tape",
     });
     vi.mocked(fetchUsDates).mockResolvedValue({ root: "NQ", dates: ["2026-10-22"] });
+    vi.mocked(fetchUsPrice).mockResolvedValue({
+      root: "NQ",
+      t: "2026-10-22T14:00:05-04:00",
+      spot: 29_100,
+      source: "tv",
+    });
     vi.mocked(fetchUsTape).mockResolvedValue({
       root: "NQ",
       date: "2026-10-22",

@@ -97,13 +97,25 @@ const H = 260;
 /** SVG polylines (no scaling distortion: viewBox is fixed 1000x260). */
 export function buildChart(frames: UsRow[], cursor: number): ChartGeometry | null {
   if (!frames.length) return null;
-  const vals: number[] = [];
+
+  // Keep the y-range tight around the traded spot. A call wall 5% away would
+  // otherwise flatten the entire session into the bottom 2% of the chart; far
+  // levels stay in the legend and get an edge marker instead.
+  const spots = frames.map((f) => f.spot);
+  const mid = spots.reduce((a, b) => a + b, 0) / spots.length;
+  const near = (v: number) => Math.abs(v / mid - 1) <= 0.025;
+  const vals = [...spots];
   for (const f of frames) {
-    vals.push(f.spot, f.call_wall, f.put_wall, f.max_pain);
+    if (f.h != null) vals.push(f.h);
+    if (f.l != null) vals.push(f.l);
+    for (const v of [f.call_wall, f.put_wall, f.max_pain]) {
+      if (near(v)) vals.push(v);
+    }
   }
+
   const lo = Math.min(...vals);
   const hi = Math.max(...vals);
-  const pad = (hi - lo) * 0.04 || 1;
+  const pad = (hi - lo) * 0.06 || mid * 0.002;
   const min = lo - pad;
   const max = hi + pad;
 

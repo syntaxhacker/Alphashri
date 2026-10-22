@@ -70,14 +70,23 @@ describe("buildChart", () => {
     expect(buildChart([], 0)).toBeNull();
   });
 
-  it("spans every plotted level and puts the cursor on the last frame", () => {
+  it("spans the traded range and keeps far walls out of the scale", () => {
     const frames = [row(), row({ t: "2026-10-22T14:01:00-04:00", spot: 29_050 })];
     const g = buildChart(frames, 1);
     expect(g).not.toBeNull();
-    expect(g!.min).toBeLessThan(29_000);
-    expect(g!.max).toBeGreaterThan(30_500);
+    expect(g!.min).toBeLessThan(29_050);
+    expect(g!.max).toBeGreaterThan(29_100);
+    // 30,500 is >2.5% away — it must not flatten the chart
+    expect(g!.max).toBeLessThan(29_800);
     expect(g!.cursorX).toBe(1000);
     expect(g!.spot.split(" ")).toHaveLength(2);
+  });
+
+  it("includes a wall that sits close to spot", () => {
+    const near = row({ call_wall: 29_200, put_wall: 29_000, max_pain: 29_150 });
+    const g = buildChart([near], 0);
+    expect(g!.max).toBeGreaterThan(29_200);
+    expect(g!.min).toBeLessThan(29_000);
   });
 });
 

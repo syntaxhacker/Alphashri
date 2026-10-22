@@ -30,6 +30,17 @@ export function UsChart({ frames, cursor, compact = false }: Props) {
   const first = frames[0];
   const last = frames[frames.length - 1];
 
+  // Build 1-minute bars. Tape rows carry o/h/l/c once the sampler has run;
+  // older rows fall back to close-to-close bodies so playback still works.
+  const bars = frames.map((f, i) => {
+    const c = f.c ?? f.spot;
+    const prev = i > 0 ? (frames[i - 1].c ?? frames[i - 1].spot) : f.o ?? c;
+    const o = f.o ?? prev;
+    return { t: f.t, o, c, h: f.h ?? Math.max(o, c), l: f.l ?? Math.min(o, c) };
+  });
+  const step = g.width / Math.max(1, bars.length);
+  const bodyW = Math.max(1.5, Math.min(14, step * 0.62));
+
   return (
     <Box
       data-testid="us-chart"
@@ -55,13 +66,31 @@ export function UsChart({ frames, cursor, compact = false }: Props) {
         <polyline points={g.callWall} fill="none" stroke={POSITIVE} strokeWidth={1} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" opacity={0.85} />
         <polyline points={g.putWall} fill="none" stroke={NEGATIVE} strokeWidth={1} strokeDasharray="5 4" vectorEffect="non-scaling-stroke" opacity={0.85} />
         <polyline points={g.maxPain} fill="none" stroke={WARNING} strokeWidth={1} strokeDasharray="2 4" vectorEffect="non-scaling-stroke" opacity={0.75} />
-        <polyline points={g.spot} fill="none" stroke={INFO} strokeWidth={1.8} vectorEffect="non-scaling-stroke" />
+
+        {bars.map((b, i) => {
+          const x = step * i + step / 2;
+          const up = b.c >= b.o;
+          const color = up ? POSITIVE : NEGATIVE;
+          const top = yFor(Math.max(b.o, b.c));
+          const bottom = yFor(Math.min(b.o, b.c));
+          return (
+            <g key={b.t}>
+              <line x1={x} x2={x} y1={yFor(b.h)} y2={yFor(b.l)} stroke={color} strokeWidth={1} vectorEffect="non-scaling-stroke" opacity={0.9} />
+              <rect
+                x={x - bodyW / 2}
+                y={top}
+                width={bodyW}
+                height={Math.max(1, bottom - top)}
+                fill={color}
+                opacity={0.85}
+              />
+            </g>
+          );
+        })}
 
         <line x1={g.cursorX} x2={g.cursorX} y1={0} y2={H} stroke="rgba(240,246,252,0.35)" strokeWidth={1} vectorEffect="non-scaling-stroke" />
 
-        <circle cx={g.cursorX} cy={yFor(frame.spot)} r={4} fill={INFO} vectorEffect="non-scaling-stroke" />
-        <circle cx={g.cursorX} cy={yFor(frame.call_wall)} r={2.5} fill={POSITIVE} vectorEffect="non-scaling-stroke" />
-        <circle cx={g.cursorX} cy={yFor(frame.put_wall)} r={2.5} fill={NEGATIVE} vectorEffect="non-scaling-stroke" />
+        <circle cx={g.cursorX} cy={yFor(frame.spot)} r={3.5} fill={INFO} vectorEffect="non-scaling-stroke" />
       </svg>
 
       <Box

@@ -22,6 +22,11 @@ export interface UsRow {
   spot: number;
   change_pct: number | null;
   change_pts: number | null;
+  /** One-minute OHLC (present on tape rows written after the sampler landed). */
+  o?: number;
+  h?: number;
+  l?: number;
+  c?: number;
   call_oi: number;
   put_oi: number;
   call_vol: number;
@@ -81,6 +86,21 @@ export interface UsEod {
   max_pain_touches: number;
   total_call_vol: number;
   total_put_vol: number;
+}
+
+export interface UsPrice {
+  root: string;
+  t: string;
+  spot: number;
+  source: "tv" | "tape";
+}
+
+export interface UsBar {
+  t: string;
+  o: number;
+  h: number;
+  l: number;
+  c: number;
 }
 
 export interface UsStatus {

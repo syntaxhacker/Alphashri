@@ -84,6 +84,39 @@ def get_replay_dates(root: str = Query("NQ"), limit: int = Query(30, ge=1, le=18
     return {"root": root, "dates": us_tape.replay_dates(root, limit)}
 
 
+@router.get("/price")
+def get_price(root: str = Query("NQ")):
+    """Futures last price only — cheap enough for a 5 s poll."""
+    if root not in us_chain.ROOTS:
+        raise HTTPException(status_code=400, detail=f"unsupported root {root!r}")
+    px = us_chain.live_price(root)
+    if px is None:
+        rows = us_tape.read_tape(root, us_tape.now_et().date().isoformat())
+        if rows:
+            return {"root": root, "t": rows[-1]["t"], "spot": rows[-1]["spot"], "source": "tape"}
+        raise HTTPException(status_code=502, detail="price unavailable")
+    return {"root": root, "t": us_tape.now_et().isoformat(), "spot": px, "source": "tv"}
+
+
+@router.get("/bars")
+def get_bars(root: str = Query("NQ"), date: Optional[str] = Query(None),
+             limit: int = Query(390, ge=1, le=2000)):
+    """One-minute OHLC candles (o/h/l/c from the 10 s sampler)."""
+    date_str = _date(date)
+    rows = us_tape.read_tape(root, date_str)[-limit:]
+    bars = [
+        {
+            "t": r["t"],
+            "o": r.get("o", r.get("spot")),
+            "h": r.get("h", r.get("spot")),
+            "l": r.get("l", r.get("spot")),
+            "c": r.get("c", r.get("spot")),
+        }
+        for r in rows
+    ]
+    return {"root": root, "date": date_str, "bars": bars}
+
+
 @router.get("/tape/status")
 def get_tape_status():
     return us_tape.tape_status()

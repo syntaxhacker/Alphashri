@@ -85,6 +85,14 @@ def tv_price(ticker: str, timeout: int = 20) -> float | None:
         return None
 
 
+def live_price(root: str = "NQ") -> float | None:
+    """Futures last price only (one TradingView request, no chain)."""
+    meta = ROOTS.get(root)
+    if meta is None:
+        return None
+    return tv_price(meta["tv"])
+
+
 def weekly_series(on: dt.date) -> tuple[str, dt.date]:
     """``MQ<week-of-month><month><yy>`` for the Friday of ``on``'s week."""
     fri = on + dt.timedelta(days=(4 - on.weekday()) % 7)

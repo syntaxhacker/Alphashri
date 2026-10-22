@@ -35,6 +35,11 @@ _last_tick: str | None = None
 _last_error: str | None = None
 _iterations = 0
 _task: asyncio.Task | None = None
+_price_task: asyncio.Task | None = None
+
+#: (ts, price) samples for the current and previous minutes, per root.
+SAMPLES: dict[str, list[tuple[dt.datetime, float]]] = {}
+SAMPLE_INTERVAL_SEC = 10
 
 
 def now_et() -> dt.datetime:
@@ -119,6 +124,18 @@ def record_tick(root: str = "NQ", *, now: dt.datetime | None = None,
         logger.warning("us tape %s: %s", root, _last_error)
         return None
 
+    # One-minute OHLC from the 10 s price samples taken since the minute began.
+    minute_start = stamp.replace(second=0, microsecond=0)
+    samples = [px for ts, px in SAMPLES.get(root, []) if ts >= minute_start]
+    spot = float(row["spot"])
+    row["o"] = round(samples[0] if samples else spot, 2)
+    row["h"] = round(max(samples) if samples else spot, 2)
+    row["l"] = round(min(samples) if samples else spot, 2)
+    row["c"] = round(spot, 2)
+    # keep only the last two minutes of samples
+    cutoff = minute_start - dt.timedelta(minutes=1)
+    SAMPLES[root] = [(ts, px) for ts, px in SAMPLES.get(root, []) if ts >= cutoff]
+
     last = _last_row(path)
     if last and str(last.get("t", ""))[:16] == minute:
         # Already recorded this minute (restart / double loop) — keep one row.
@@ -129,6 +146,16 @@ def record_tick(root: str = "NQ", *, now: dt.datetime | None = None,
     _last_tick = row["t"]
     _last_error = None
     return row
+
+
+def sample_price(root: str = "NQ") -> float | None:
+    """Append one price sample for the live candle aggregator."""
+    px = us_chain.live_price(root)
+    if px:
+        SAMPLES.setdefault(root, []).append((now_et(), float(px)))
+        if len(SAMPLES[root]) > 240:
+            SAMPLES[root] = SAMPLES[root][-240:]
+    return px
 
 
 def tape_status() -> dict[str, Any]:
@@ -221,8 +248,31 @@ async def us_tape_loop(root: str = "NQ") -> None:
         await asyncio.sleep(max(1.0, INTERVAL_SEC - elapsed))
 
 
+async def us_price_loop(root: str = "NQ") -> None:
+    """Sample the futures price every 10 s to build 1-minute candles."""
+    while True:
+        started = now_et()
+        try:
+            await asyncio.to_thread(sample_price, root)
+        except Exception:  # noqa: BLE001
+            logger.debug("us tape %s: price sample failed", root, exc_info=True)
+        elapsed = (now_et() - started).total_seconds()
+        await asyncio.sleep(max(1.0, SAMPLE_INTERVAL_SEC - elapsed))
+
+
 def start_us_tape_task() -> asyncio.Task:
-    global _task
+    global _task, _price_task
     if _task is None or _task.done():
         _task = asyncio.create_task(us_tape_loop())
+    if _price_task is None or _price_task.done():
+        _price_task = asyncio.create_task(us_price_loop())
     return _task
+
+
+def stop_us_tasks() -> None:
+    global _task, _price_task
+    for t in (_task, _price_task):
+        if t is not None and not t.done():
+            t.cancel()
+    _task = None
+    _price_task = None

@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { fetchUsDates, fetchUsEod, fetchUsLive, fetchUsStatus, fetchUsTape } from "../../../api/usReport";
+import { fetchUsDates, fetchUsEod, fetchUsLive, fetchUsPrice, fetchUsStatus, fetchUsTape } from "../../../api/usReport";
 import type { UsEod, UsMode, UsRow, UsStatus } from "../../../types/usReport";
-
-const LIVE_POLL_MS = 15_000;
 
 export interface UsReportState {
   row: UsRow | null;
@@ -86,9 +84,9 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
   useEffect(() => {
     if (mode !== "live") return undefined;
     let timer: ReturnType<typeof setInterval> | null = null;
+    let priceTimer: ReturnType<typeof setInterval> | null = null;
+    let statusTimer: ReturnType<typeof setInterval> | null = null;
 
-    // Seed the chart with the session recorded so far; a 404 just means the
-    // recorder has not written its first row yet.
     const todayEt = new Date().toLocaleDateString("en-CA", { timeZone: "America/New_York" });
     fetchUsTape(root, todayEt)
       .then((tape) => {
@@ -96,23 +94,63 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
       })
       .catch(() => undefined);
 
-    const pushFrame = (next: UsRow) =>
+    // Merge a full chain row (30 s) into the current minute's candle.
+    const mergeChain = (r: UsRow) =>
       setLiveFrames((prev) => {
-        const minute = next.t.slice(0, 16);
-        const i = prev.findIndex((r) => r.t.slice(0, 16) === minute);
+        const minute = r.t.slice(0, 16);
+        const prevMinute = prev.filter((x) => x.t.slice(0, 16) !== minute);
+        const base = prevMinute[prevMinute.length - 1];
+        const o = r.o ?? base?.c ?? base?.spot ?? r.spot;
+        const merged: UsRow = {
+          ...r,
+          o,
+          h: r.h ?? Math.max(o, r.spot),
+          l: r.l ?? Math.min(o, r.spot),
+          c: r.c ?? r.spot,
+        };
+        prevMinute.push(merged);
+        prevMinute.sort((a, b) => a.t.localeCompare(b.t));
+        return prevMinute.slice(-390);
+      });
+
+    // 5 s price tick: update (or open) the current 1-minute candle.
+    const applyPrice = (px: number, t: string) =>
+      setLiveFrames((prev) => {
+        if (!prev.length) return prev;
+        const minute = t.slice(0, 16);
         const out = prev.slice();
-        if (i >= 0) out[i] = next;
-        else out.push(next);
+        const last = out[out.length - 1];
+        if (last.t.slice(0, 16) === minute) {
+          const o = last.o ?? last.spot;
+          out[out.length - 1] = {
+            ...last,
+            t,
+            spot: px,
+            o,
+            h: Math.max(last.h ?? o, px),
+            l: Math.min(last.l ?? o, px),
+            c: px,
+          };
+        } else {
+          out.push({
+            ...last,
+            t,
+            spot: px,
+            o: last.c ?? last.spot,
+            h: px,
+            l: px,
+            c: px,
+          });
+        }
         return out.slice(-390);
       });
 
-    const tick = async () => {
+    const chainTick = async () => {
       try {
-        const [live, st] = await Promise.all([fetchUsLive(root), fetchUsStatus()]);
+        const live = await fetchUsLive(root);
         if (!alive.current) return;
         setRow(live.row);
-        pushFrame(live.row);
-        setStatus(st);
+        mergeChain(live.row);
         setError(null);
       } catch (e) {
         if (alive.current) setError(e instanceof Error ? e.message : String(e));
@@ -121,10 +159,35 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
       }
     };
 
-    void tick();
-    timer = setInterval(() => void tick(), LIVE_POLL_MS);
+    const priceTick = async () => {
+      try {
+        const p = await fetchUsPrice(root);
+        if (!alive.current) return;
+        applyPrice(p.spot, p.t);
+      } catch {
+        /* a missed tick is harmless — the 30 s chain poll still lands */
+      }
+    };
+
+    const statusTick = async () => {
+      try {
+        const st = await fetchUsStatus();
+        if (alive.current) setStatus(st);
+      } catch {
+        /* status is cosmetic */
+      }
+    };
+
+    void chainTick();
+    void priceTick();
+    void statusTick();
+    timer = setInterval(() => void chainTick(), 30_000);
+    priceTimer = setInterval(() => void priceTick(), 5_000);
+    statusTimer = setInterval(() => void statusTick(), 30_000);
     return () => {
       if (timer) clearInterval(timer);
+      if (priceTimer) clearInterval(priceTimer);
+      if (statusTimer) clearInterval(statusTimer);
     };
   }, [root, mode, nonce]);
 
@@ -206,7 +269,8 @@ export function useUsReport(root: string, mode: UsMode): UsReportState {
     return () => clearInterval(id);
   }, [playing, mode, frames.length, speed]);
 
-  const frame = mode === "live" ? row : (frames[cursor] ?? (frames.length ? frames[frames.length - 1] : null));
+  const liveRow = liveFrames.length ? liveFrames[liveFrames.length - 1] : row;
+  const frame = mode === "live" ? liveRow : (frames[cursor] ?? (frames.length ? frames[frames.length - 1] : null));
   const shownFrames = mode === "live" ? liveFrames : frames;
   const shownCursor = mode === "live" ? Math.max(0, shownFrames.length - 1) : cursor;
 

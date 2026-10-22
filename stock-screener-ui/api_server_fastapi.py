@@ -731,6 +731,11 @@ async def lifespan(app: FastAPI):
         _nifty_tape_task.cancel()
     if _us_tape_task:
         _us_tape_task.cancel()
+    try:
+        from api.reports_api.us_tape import stop_us_tasks
+        stop_us_tasks()
+    except Exception:
+        pass
     if _nifty_stream_task:
         _nifty_stream_task.cancel()
     if _nifty_spot_task:
