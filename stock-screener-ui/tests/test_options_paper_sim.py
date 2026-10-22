@@ -383,3 +383,82 @@ def test_choose_week_reproducible_and_bounded():
     b = sim.choose_week(seed=1977)
     assert a == b and len(a) >= 4
     assert all(isinstance(d, date) for d in a)
+
+
+def test_correlated_cap_keeps_two_live_legs_per_side():
+    from types import SimpleNamespace as NS
+
+    from options_paper.live import cap_correlated
+
+    def leg(entry, exit_, opt="CE"):
+        return NS(entry_time=f"2026-10-21T{entry}", exit_time=f"2026-10-21T{exit_}",
+                  opt=opt, direction="LONG")
+
+    trades = [
+        leg("09:16:03", "10:16:03"),
+        leg("09:21:03", "09:36:03"),
+        leg("09:32:03", "10:06:03"),   # third live CE -> dropped
+        leg("09:33:03", "10:06:03"),   # fourth live CE -> dropped
+        leg("09:37:00", "09:53:00"),   # only one CE live now -> allowed
+        leg("09:40:00", "09:50:00", opt="PE"),   # other side -> allowed
+    ]
+    kept = cap_correlated(trades, max_per_side=2)
+    assert {x.entry_time[11:19] for x in kept} == {
+        "09:16:03", "09:21:03", "09:37:00", "09:40:00"}
+
+
+def test_correlated_cap_defaults_to_one_per_side():
+    """The default is ONE live position per side (was 2 -> four stacked legs)."""
+    from types import SimpleNamespace as NS
+
+    from options_paper.live import cap_correlated
+
+    def leg(entry, exit_, opt="CE", direction="LONG"):
+        return NS(entry_time=f"2026-10-21T{entry}", exit_time=f"2026-10-21T{exit_}",
+                  opt=opt, direction=direction, strategy="s", symbol="X")
+
+    trades = [
+        leg("09:16:03", "10:16:03"),
+        leg("09:21:03", "09:36:03"),      # blocked: CE already live
+        leg("09:40:00", "09:50:00", opt="PE"),   # other side -> allowed
+        leg("10:20:00", "10:40:00"),      # CE free again -> allowed
+    ]
+    kept = cap_correlated(trades)
+    assert [x.entry_time[11:19] for x in kept] == [
+        "09:16:03", "09:40:00", "10:20:00"]
+
+
+def test_correlated_cap_applies_to_shorts_straddles_and_open_positions():
+    """All positions are capped — not just long single legs — and an open
+    (``MTM``) leg competes with a closed one for the same side."""
+    from types import SimpleNamespace as NS
+
+    from options_paper.live import cap_correlated
+
+    def pos(entry, exit_, opt="CE", direction="SHORT"):
+        return NS(entry_time=f"2026-10-21T{entry}", exit_time=f"2026-10-21T{exit_}",
+                  opt=opt, direction=direction, strategy="s", symbol="X")
+
+    # a straddle occupies BOTH sides, so nothing else may live next to it
+    kept = cap_correlated([pos("09:16:00", "15:29:00", opt="STRADDLE"),
+                           pos("09:20:00", "10:00:00", opt="CE")])
+    assert [x.entry_time[11:19] for x in kept] == ["09:16:00"]
+
+    # an open MTM leg (exit = 'now') blocks a later closed trade on its side
+    kept = cap_correlated([pos("09:16:00", "15:29:00", opt="PE"),
+                           pos("09:20:00", "09:40:00", opt="PE")])
+    assert [x.entry_time[11:19] for x in kept] == ["09:16:00"]
+
+
+def test_correlated_cap_is_deterministic():
+    from types import SimpleNamespace as NS
+
+    from options_paper.live import cap_correlated
+
+    def pos(entry, exit_, opt="CE"):
+        return NS(entry_time=f"2026-10-21T{entry}", exit_time=f"2026-10-21T{exit_}",
+                  opt=opt, direction="LONG", strategy="s", symbol="X")
+
+    a = [pos("09:16:00", "10:00:00"), pos("09:16:00", "10:00:00", "PE"),
+         pos("09:20:00", "11:00:00")]
+    assert [id(x) for x in cap_correlated(a)] == [id(x) for x in cap_correlated(list(a))]
