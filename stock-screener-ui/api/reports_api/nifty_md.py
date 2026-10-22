@@ -51,6 +51,13 @@ logger = logging.getLogger(__name__)
 
 #: Freshness bar for :func:`is_live` (seconds since the last tick).
 LIVE_TTL_SEC = 15.0
+#: Freshness bar for the OPTION legs (seconds since the last leg update).
+#: The index ticks constantly, so a global "any tick" clock cannot tell a live
+#: feed from a dead option stream: on 2026-10-22 the legs froze for 90 minutes
+#: while the index kept ticking and the report served the old ladder prices.
+LEGS_TTL_SEC = 15.0
+#: Restart a session whose option legs have not moved for this long.
+LEGS_STALE_RESTART_SEC = 120.0
 #: Re-resolve instrument keys this often (handles the expiry roll).
 RESOLVE_EVERY_SEC = 900.0
 #: Async-loop poll cadence while a session is up.
@@ -71,7 +78,7 @@ STALE_RESTART_SEC = 120.0
 #: Index / cross-index keys subscribed in ``ltpc`` mode.
 VIX_KEY = "NSE_INDEX|India VIX"
 
-_LEG_FIELDS = ("oi", "iv", "ltp", "volume", "delta", "gamma")
+_LEG_FIELDS = ("oi", "iv", "ltp", "volume", "delta", "gamma", "ts")
 
 
 def _leg_key(strike: float, leg: str) -> str:
@@ -111,6 +118,9 @@ _state: dict[str, Any] = {
     "legs": {},
 }
 _last_tick_ts: Optional[float] = None
+#: Epoch of the last OPTION-LEG update. Kept apart from ``_last_tick_ts``
+#: (which the index refreshes constantly) so a frozen chain is detectable.
+_last_leg_ts: Optional[float] = None
 #: instrument_key -> (strike, leg); leg is "ce"/"pe" or "index"/"vix"/"sensex".
 _key_map: dict[str, tuple[float, str]] = {}
 
@@ -121,6 +131,7 @@ _session: dict[str, Any] = {
     "err": None,
     "thread": None,
     "streamer": None,
+    "started": None,
 }
 
 
@@ -178,7 +189,13 @@ def _set_sensex(value: Any) -> None:
 
 
 def _set_leg(strike: Any, leg: Any, **fields: Any) -> None:
-    """Store one option leg's latest tick. Unknown legs are ignored."""
+    """Store one option leg's latest tick, stamped with its own time.
+
+    Unknown legs are ignored. The per-leg ``ts`` is what lets a consumer
+    tell a live leg from a frozen one — the global tick clock is refreshed by
+    the index, so it cannot answer that.
+    """
+    global _last_leg_ts
     norm = _normalise_leg(leg)
     try:
         strike_f = float(strike)
@@ -186,6 +203,7 @@ def _set_leg(strike: Any, leg: Any, **fields: Any) -> None:
         return
     if norm is None:
         return
+    now = time.time()
     try:
         key = _leg_key(strike_f, norm)
         with _lock:
@@ -195,26 +213,57 @@ def _set_leg(strike: Any, leg: Any, **fields: Any) -> None:
                     row[name] = _safe_float_or_none(fields[name])
                 else:
                     row.setdefault(name, None)
+            row["ts"] = now
             _state["legs"][key] = row
     except Exception:
         return
-    _touch()
+    _last_leg_ts = now
+    _touch(now)
+
+
+def legs_age(now: Optional[float] = None) -> Optional[float]:
+    """Seconds since the last OPTION-LEG update (None when unknown).
+
+    Before the first leg arrives the age is measured from the session start,
+    so a session that never delivers a leg is still detectable as stale.
+    """
+    try:
+        current = float(now) if now is not None else time.time()
+        if _last_leg_ts is not None:
+            return max(0.0, current - float(_last_leg_ts))
+        started = _session.get("started")
+        if started:
+            return max(0.0, current - float(started))
+        return None
+    except Exception:
+        return None
+
+
+def legs_fresh(max_age: float = LEGS_TTL_SEC) -> bool:
+    """True when an option leg ticked within ``max_age`` seconds."""
+    age = legs_age()
+    return age is not None and age <= float(max_age)
 
 
 def _reset_state_for_tests() -> None:
     """Reset shared state (tests only)."""
-    global _last_tick_ts, _key_map
+    global _last_tick_ts, _last_leg_ts, _key_map
     with _lock:
         _state.update(
             {"ts": None, "connected": False, "spot": None,
              "vix": None, "sensex": None, "legs": {}}
         )
     _last_tick_ts = None
+    _last_leg_ts = None
     _key_map = {}
 
 
 def snapshot() -> dict:
-    """Current feed state (never raises, always JSON-safe)."""
+    """Current feed state (never raises, always JSON-safe).
+
+    ``legs_ts`` is the epoch of the last OPTION-LEG update — the freshness
+    proof a consumer needs. ``legs_age`` is the same thing in seconds.
+    """
     try:
         with _lock:
             legs = {
@@ -232,6 +281,8 @@ def snapshot() -> dict:
                 "vix": _state.get("vix"),
                 "sensex": _state.get("sensex"),
                 "legs": legs,
+                "legs_ts": _last_leg_ts,
+                "legs_age": legs_age(),
             }
             for name in ("spot", "vix", "sensex"):
                 val = out[name]
@@ -239,7 +290,8 @@ def snapshot() -> dict:
             return out
     except Exception:
         return {"ts": None, "connected": False, "spot": None,
-                "vix": None, "sensex": None, "legs": {}}
+                "vix": None, "sensex": None, "legs": {}, "legs_ts": None,
+                "legs_age": None}
 
 
 def is_live() -> bool:
@@ -449,6 +501,7 @@ def _run_ws_session(ltpc_keys: list, greeks_keys: list,
                     stop: threading.Event, err: threading.Event) -> None:
     """Own the single Upstox socket for this session (worker thread)."""
     streamer = None
+    decode_errors = {"n": 0}
     try:
         import upstox_client
         from upstox_client import MarketDataStreamerV3
@@ -490,8 +543,14 @@ def _run_ws_session(ltpc_keys: list, greeks_keys: list,
                 feeds = data.get("feeds", {}) if isinstance(data, dict) else {}
                 for ikey, feed in feeds.items():
                     _apply_feed(ikey, feed)
-            except Exception:
-                pass
+            except Exception as exc:
+                # A silent decode failure freezes the legs exactly like a
+                # dropped socket does — say so (rate-limited) instead.
+                decode_errors["n"] += 1
+                n = decode_errors["n"]
+                if n <= 3 or n % 50 == 0:
+                    logger.warning("nifty md: tick decode failed (%d times): %s",
+                                   n, exc)
 
         def on_error(exc: Any) -> None:
             logger.warning("nifty md WS error: %s", exc)
@@ -538,7 +597,8 @@ def _stop_session() -> None:
     finally:
         try:
             _session.update({"sig": None, "stop": None, "err": None,
-                             "thread": None, "streamer": None})
+                             "thread": None, "streamer": None,
+                             "started": None})
         except Exception:
             pass
 
@@ -595,7 +655,8 @@ async def nifty_md_task() -> None:
                             daemon=True,
                         )
                         _session.update({"sig": sig, "stop": stop,
-                                         "err": err, "thread": thread})
+                                         "err": err, "thread": thread,
+                                         "started": time.time()})
                         thread.start()
                         logger.info("nifty md: session started (%d ltpc + %d greeks keys)",
                                     len(ltpc_keys), len(greeks_keys))
@@ -619,6 +680,21 @@ async def nifty_md_task() -> None:
                         and _last_tick_ts is not None
                         and (time.time() - _last_tick_ts) > STALE_RESTART_SEC):
                     logger.warning("nifty md: ticks stale; restarting session")
+                    _stop_session()
+                    await asyncio.sleep(backoff)
+                    backoff = min(backoff * 2, RECONNECT_MAX_SEC)
+                    continue
+                # The option legs are the report's prices. A socket that keeps
+                # streaming the index while the option stream is dead looks
+                # perfectly alive to the tick clock, so the legs get their own
+                # staleness check — otherwise the frozen ladder is served
+                # until the process restarts (2026-10-22: 90 minutes).
+                leg_age = legs_age()
+                if (_session.get("sig") is not None and leg_age is not None
+                        and leg_age > LEGS_STALE_RESTART_SEC):
+                    logger.warning(
+                        "nifty md: option legs stale for %.0fs; restarting session",
+                        leg_age)
                     _stop_session()
                     await asyncio.sleep(backoff)
                     backoff = min(backoff * 2, RECONNECT_MAX_SEC)

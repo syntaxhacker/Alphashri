@@ -30,6 +30,9 @@ from api.reports_api.nifty import (
 def _tmp_tape(tmp_path, monkeypatch):
     monkeypatch.setattr(nifty, "TAPE_DIR", tmp_path)
     monkeypatch.setattr(nifty, "SNAPSHOT_LOG_DIR", tmp_path / "snapshots")
+    # The recorder also refreshes the day's snapshot file — it must NOT write
+    # to the real experiments/data/nifty_reports/ directory from a test.
+    monkeypatch.setattr(nifty, "SNAPSHOT_DIR", tmp_path / "day_snapshots")
     # The per-minute snapshot also pulls the Sensex context block; no network
     # in tests — it degrades to `sensex: null` on the snapshot line.
     monkeypatch.setattr(
@@ -85,7 +88,10 @@ class TestDeriveTapeRows:
         assert (r2["call_doi"], r2["put_doi"]) == (100, -100)
         assert r2["net"] == -200  # -100 - 100
         assert r2["net_pct"] == -100.0  # 100*-200/(|100|+|-100|): absolute-share stays sane
-        assert (r2["call_tick"], r2["put_tick"]) == (200, -200)
+        # The put volume counter went DOWN (6300 -> 6100): a cumulative
+        # counter that resets (a new expiry/day) must not publish a negative
+        # minute volume, so the tick is floored at zero.
+        assert (r2["call_tick"], r2["put_tick"]) == (200, 0)
         assert r2["pcr_doi"] == -0.27  # 1.73 - 2.0
         assert r2["spot_flip"] is None  # null flip
 
@@ -308,7 +314,12 @@ class TestRecorder:
             line = await nifty._append_minute_snapshot(
                 "2026-10-13", "2026-10-13T09:15:00+05:30")
         assert line is not None
-        assert set(line) == {"t", "fetched_at", "report", "sensex"}
+        # The line carries the frame's own stamp so a replay consumer can
+        # identify it without walking into the report.
+        assert set(line) == {"t", "fetched_at", "mode", "snapshot_at",
+                             "source", "report", "sensex"}
+        assert line["mode"] == "snapshot"
+        assert line["source"] == "upstox-option-chain"
         for key in ("strikes", "gex", "positioning", "control", "regime",
                     "vix", "strength", "pivots", "reference", "walls",
                     "intraday", "emas", "market"):
@@ -318,15 +329,25 @@ class TestRecorder:
         p = nifty.snapshot_log_path("2026-10-13")
         nifty.SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
         good = json.dumps({"t": "2026-10-13T09:15:00+05:30", "report": {}})
+        good2 = json.dumps({"t": "2026-10-13T09:16:00+05:30", "report": {}})
         # blank line, plain-JSON-bad text, a bare `null`, and a JSON array are
         # all skipped; JSON-object noise like {"x": 1} is an object but carry
         # it through — corrupt-SHAPE filtering is the caller's concern.
-        p.write_text("\n".join([good, "", "{not json", "null", "[1, 2]", good,
+        p.write_text("\n".join([good, "", "{not json", "null", "[1, 2]", good2,
                                 "\n"]))
         snaps = read_snapshots("2026-10-13")
         assert len(snaps) == 2
-        assert all(s["t"] == "2026-10-13T09:15:00+05:30" for s in snaps)
+        assert [s["t"] for s in snaps] == ["2026-10-13T09:15:00+05:30",
+                                          "2026-10-13T09:16:00+05:30"]
         assert read_snapshots("1999-01-01") == []  # missing file
+
+    async def test_read_snapshots_dedupes_the_same_minute(self, _tmp_tape):
+        """Two recorder loops can write the same minute twice — one frame."""
+        p = nifty.snapshot_log_path("2026-10-13")
+        nifty.SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+        good = json.dumps({"t": "2026-10-13T09:15:00+05:30", "report": {}})
+        p.write_text("\n".join([good, good, "\n"]))
+        assert len(read_snapshots("2026-10-13")) == 1
 
     async def test_append_minute_snapshot_refuses_empty_chain(self, _tmp_tape):
         """An empty-all-OI report never reaches the replay log."""

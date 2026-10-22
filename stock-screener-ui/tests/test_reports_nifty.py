@@ -8,6 +8,7 @@ Call endpoint functions directly, passing every Query param explicitly
 
 import asyncio
 import json
+import time
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -108,8 +109,10 @@ class TestPcr:
     def test_basic(self):
         assert compute_pcr(150.0, 100.0) == 1.5
 
-    def test_zero_call_base(self):
-        assert compute_pcr(150.0, 0.0) == 0.0
+    def test_zero_call_base_is_none(self):
+        # A zero call base is not a PCR of 0.00 — the ratio is unknown, and
+        # printing 0.00 made the tape look like a pure put book.
+        assert compute_pcr(150.0, 0.0) is None
 
     def test_rounding(self):
         assert compute_pcr(10.0, 3.0) == 3.33
@@ -199,11 +202,13 @@ class TestBuildReport:
         assert rep["mode"] == "live"
         assert rep["pcr_oi"] == compute_pcr(2000 + 3000 + 100, 1000 + 500 + 5000)
         assert rep["pcr_vol"] == compute_pcr(900 + 200 + 50, 500 + 100 + 300)
-        assert rep["walls"]["calls"][0] == {"strike": 22500.0, "oi": 5000}
-        assert rep["walls"]["puts"][0] == {"strike": 22300.0, "oi": 3000}
+        assert rep["walls"]["calls"][0]["strike"] == 22500.0
+        assert rep["walls"]["calls"][0]["oi"] == 5000
+        assert rep["walls"]["puts"][0]["strike"] == 22300.0
+        assert rep["walls"]["puts"][0]["oi"] == 3000
         assert len(rep["walls"]["calls"]) == 3
 
-    def test_max_pain_window_excludes_far_strikes(self):
+    def test_max_pain_uses_the_full_chain(self):
         rows = [
             {"strike": 20000.0, "ce": build_leg({}), "pe": build_leg({})},
             {"strike": 22300.0, "ce": build_leg({"ltp": 1, "close_price": 1, "oi": 10, "prev_oi": 0, "volume": 0}),
@@ -211,10 +216,15 @@ class TestBuildReport:
             {"strike": 22400.0, "ce": build_leg({}),
              "pe": build_leg({"ltp": 1, "close_price": 1, "oi": 10, "prev_oi": 0, "volume": 0})},
         ]
-        # Far 20000 strike carries huge OI that would drag max pain if included.
+        # Far 20000 strike carries huge OI. Max pain is a CHAIN-wide concept
+        # (the strike where the writers lose least), so the full chain decides
+        # it — truncating to a ±window around spot printed a level that was
+        # not the chain's pain point at all.
         rows[0]["ce"] = build_leg({"ltp": 1, "close_price": 1, "oi": 10**9, "prev_oi": 0, "volume": 0})
         rep = build_report("2026-10-13", 22363.35, rows, mode="live")
-        assert rep["max_pain"] in (22300.0, 22400.0)
+        assert rep["max_pain"] == 20000.0
+        # The scope that was covered is reported next to the level.
+        assert rep["max_pain_scope_pts"] == pytest.approx(2363.35)
 
     def test_top_walls_limit(self):
         rows = [{"strike": float(s), "ce": {"oi": s}, "pe": {"oi": 0}} for s in (1, 2, 3, 4, 5)]
@@ -318,8 +328,14 @@ class TestLiveEndpoint:
         p1, p2 = _mock_chain(_chain_payload())
         fake = [{"time": "2026-10-12T09:15:00+05:30", "open": 1.0,
                  "high": 2.0, "low": 0.5, "close": 1.5, "volume": 0}]
+        # /nifty/live starts the per-minute recorder, and while the market is
+        # open that recorder pulls its own candles (walkback_days=0). Silence
+        # it so the call count is deterministic.
         with p1, p2, patch.object(n_mod, "_fetch_nifty_candles",
-                                  return_value=fake) as fc:
+                                  return_value=fake) as fc, \
+             patch.object(n_mod, "record_nifty_tape_tick",
+                          AsyncMock(return_value=None)), \
+             patch("trading.utils.is_market_open", return_value=False):
             nifty._live_cache.clear()
             n_mod._candles_cache.clear()
             rep = await get_nifty_live(expiry="2026-10-13")
@@ -521,17 +537,31 @@ class TestSensexEndpoint:
 
 
 class TestSnapshotEndpoint:
-    async def test_snapshot_persists(self, _tmp_snapshots):
+    async def test_snapshot_persists(self, _tmp_snapshots, _tmp_replay):
+        from api.reports_api.nifty import NiftySnapshotRequest
+        # A snapshot is built from LIVE data, so it may only be stored under
+        # today (a past date needs force=true, which archives instead).
+        today = nifty._today_str()
+        p1, p2 = _mock_chain(_chain_payload())
+        with p1, p2:
+            snap = await create_nifty_snapshot(NiftySnapshotRequest(date=today, expiry="2026-10-13"))
+        assert snap["mode"] == "snapshot"
+        assert snap["date"] == today
+        assert snap["source"] == "upstox-option-chain"
+        assert "snapshot_at" in snap and isinstance(snap["timeline"], list)
+        on_disk = json.loads((nifty.SNAPSHOT_DIR / f"{today}.json").read_text())
+        assert on_disk["max_pain"] == snap["max_pain"]
+
+    async def test_snapshot_refuses_a_past_date_without_force(self, _tmp_snapshots):
         from api.reports_api.nifty import NiftySnapshotRequest
         p1, p2 = _mock_chain(_chain_payload())
         with p1, p2:
-            snap = await create_nifty_snapshot(NiftySnapshotRequest(date="2026-10-12", expiry="2026-10-13"))
-        assert snap["mode"] == "snapshot"
-        assert snap["date"] == "2026-10-12"
-        assert snap["source"] == "upstox-option-chain"
-        assert "snapshot_at" in snap and isinstance(snap["timeline"], list)
-        on_disk = json.loads((nifty.SNAPSHOT_DIR / "2026-10-12.json").read_text())
-        assert on_disk["max_pain"] == snap["max_pain"]
+            with pytest.raises(HTTPException) as exc:
+                await create_nifty_snapshot(
+                    NiftySnapshotRequest(date="2026-10-12", expiry="2026-10-13"))
+        assert exc.value.status_code == 400
+        # The past day's own record is untouched.
+        assert not (nifty.SNAPSHOT_DIR / "2026-10-12.json").exists()
 
 
 # ---------------- gamma / GEX ----------------
@@ -590,70 +620,80 @@ class TestGammaParsing:
 
 class TestComputeGex:
     def test_formula_hand_computed(self):
-        # spot=20000, lot=50 -> factor lot*spot/1e7 = 0.1
-        # A: call 0.01*1000*0.1=1.0; put -(0.005*1000*0.1)=-0.5; net 0.5
-        # B: call 0.002*500*0.1=0.1; put -(0.02*2000*0.1)=-4.0; net -3.9
-        rows = [_gex_row(19000, 0.01, 1000, 0.005, 1000),
-                _gex_row(20000, 0.002, 500, 0.02, 2000)]
-        out = compute_gex(rows, 20000.0, lot_size=50)
+        # Upstox OI is in units (shares) → factor = spot/1e7 = 0.002 at 20,000.
+        # A: call 0.01*1_000_000*0.002=20.0; put -(0.005*500_000*0.002)=-5.0; net 15.0
+        # B: call 0.002*250_000*0.002=1.0; put -(0.02*200_000*0.002)=-8.0; net -7.0
+        rows = [_gex_row(19000, 0.01, 1_000_000, 0.005, 500_000),
+                _gex_row(20000, 0.002, 250_000, 0.02, 200_000)]
+        out = compute_gex(rows, 20000.0)
         by_strike = {s["strike"]: s for s in out["strikes"]}
-        assert by_strike[19000.0] == {"strike": 19000.0, "call_gex": 1.0,
-                                      "put_gex": -0.5, "net_gex": 0.5}
-        assert by_strike[20000.0] == {"strike": 20000.0, "call_gex": 0.1,
-                                      "put_gex": -4.0, "net_gex": -3.9}
-        assert out["net_total"] == -3.4
-        assert out["regime"] == "short"
-        assert out["top_positive"][0] == {"strike": 19000.0, "net_gex": 0.5}
-        assert out["top_negative"][0] == {"strike": 20000.0, "net_gex": -3.9}
-        # cum 0.5 -> -3.4 flips sign at the second strike
-        assert out["zero_cross"] == 20000.0
+        assert by_strike[19000.0] == {"strike": 19000.0, "call_gex": 20.0,
+                                      "put_gex": -5.0, "net_gex": 15.0}
+        assert by_strike[20000.0] == {"strike": 20000.0, "call_gex": 1.0,
+                                      "put_gex": -8.0, "net_gex": -7.0}
+        assert out["net_total"] == 8.0
+        assert out["regime"] == "long"
+        assert out["top_positive"][0] == {"strike": 19000.0, "net_gex": 15.0}
+        assert out["top_negative"][0] == {"strike": 20000.0, "net_gex": -7.0}
 
-    def test_default_lot_size(self):
-        # gamma 0.01 * oi 1000 * 65 * 25000 / 1e7 = 1.625 -> 1.62
-        rows = [_gex_row(25000, 0.01, 1000, 0.0, 0)]
+    def test_lot_size_is_not_applied(self):
+        # gamma 0.01 × 1,000,000 units × 25,000 / 1e7 = 25.0 (not 1,625.0).
+        rows = [_gex_row(25000, 0.01, 1_000_000, 0.0, 0)]
         out = compute_gex(rows, 25000.0)
-        assert out["strikes"][0]["call_gex"] == 1.62
+        assert out["strikes"][0]["call_gex"] == 25.0
         assert out["strikes"][0]["put_gex"] == 0.0
-        assert out["strikes"][0]["net_gex"] == 1.62
+        assert out["strikes"][0]["net_gex"] == 25.0
+        # lot_size is still accepted (back-compat) but must not scale the figure.
+        out65 = compute_gex(rows, 25000.0, lot_size=65)
+        assert out65["strikes"][0]["call_gex"] == 25.0
+        assert out65["net_total"] == out["net_total"]
 
     def test_regime_thresholds(self):
-        # factor 0.1: gamma 0.01*oi 1000 -> 1.0; gamma 0.0099*oi 1000 -> 0.99
-        assert compute_gex([_gex_row(1, 0.01, 1000, 0, 0)],
-                           10000.0, lot_size=100)["regime"] == "long"
-        assert compute_gex([_gex_row(1, 0.0099, 1000, 0, 0)],
-                           10000.0, lot_size=100)["regime"] == "flat"
-        assert compute_gex([_gex_row(1, 0, 0, 0.01, 1000)],
-                           10000.0, lot_size=100)["regime"] == "short"
-        assert compute_gex([_gex_row(1, 0, 0, 0.0099, 1000)],
-                           10000.0, lot_size=100)["regime"] == "flat"
+        # factor 0.001 at 10,000: 0.01*100_000*0.001 -> 1.0; 0.0099 -> 0.99
+        assert compute_gex([_gex_row(1, 0.01, 100_000, 0, 0)],
+                           10000.0)["regime"] == "long"
+        assert compute_gex([_gex_row(1, 0.0099, 100_000, 0, 0)],
+                           10000.0)["regime"] == "flat"
+        assert compute_gex([_gex_row(1, 0, 0, 0.01, 100_000)],
+                           10000.0)["regime"] == "short"
+        assert compute_gex([_gex_row(1, 0, 0, 0.0099, 100_000)],
+                           10000.0)["regime"] == "flat"
         assert compute_gex([], 10000.0)["regime"] == "flat"
         assert compute_gex([], 10000.0)["net_total"] == 0.0
 
-    def test_zero_cross_exact_touch(self):
-        # cum +2.0 then 0.0 -> touch at the second strike
-        rows = [_gex_row(100, 0.02, 1000, 0, 0),
-                _gex_row(200, 0, 0, 0.02, 1000)]
-        out = compute_gex(rows, 10000.0, lot_size=100)
-        assert [s["net_gex"] for s in out["strikes"]] == [2.0, -2.0]
-        assert out["zero_cross"] == 200.0
+    def test_zero_cross_is_the_sustained_negative_to_positive_cross(self):
+        # -4.59 then +4.59 → flip at the second strike (50 pts above spot).
+        rows = [_gex_row(22900, 0, 0, 0.02, 100_000),
+                _gex_row(23000, 0.02, 100_000, 0, 0)]
+        out = compute_gex(rows, 22950.0)
+        assert [s["net_gex"] for s in out["strikes"]] == [-4.59, 4.59]
+        assert out["zero_cross"] == 23000.0
 
     def test_zero_cross_ignores_leading_dead_strikes(self):
         # far-OTM zeros must not fake a flip at the first strike
-        rows = [_gex_row(100, 0, 0, 0, 0),
-                _gex_row(200, 0, 0, 0, 0),
-                _gex_row(300, 0.02, 1000, 0, 0),
-                _gex_row(400, 0, 0, 0.02, 1000)]
-        out = compute_gex(rows, 10000.0, lot_size=100)
-        assert out["zero_cross"] == 400.0
+        rows = [_gex_row(22500, 0, 0, 0, 0),
+                _gex_row(22700, 0, 0, 0, 0),
+                _gex_row(22900, 0, 0, 0.02, 100_000),
+                _gex_row(23000, 0.02, 100_000, 0, 0)]
+        out = compute_gex(rows, 22950.0)
+        assert out["zero_cross"] == 23000.0
 
     def test_zero_cross_null_when_no_crossing(self):
-        pos = [_gex_row(100, 0.01, 1000, 0, 0),
-               _gex_row(200, 0.02, 1000, 0, 0)]
-        assert compute_gex(pos, 10000.0, lot_size=100)["zero_cross"] is None
-        neg = [_gex_row(100, 0, 0, 0.01, 1000),
-               _gex_row(200, 0, 0, 0.02, 1000)]
-        assert compute_gex(neg, 10000.0, lot_size=100)["zero_cross"] is None
+        pos = [_gex_row(100, 0.01, 100_000, 0, 0),
+               _gex_row(200, 0.02, 100_000, 0, 0)]
+        assert compute_gex(pos, 10000.0)["zero_cross"] is None
+        neg = [_gex_row(100, 0, 0, 0.01, 100_000),
+               _gex_row(200, 0, 0, 0.02, 100_000)]
+        assert compute_gex(neg, 10000.0)["zero_cross"] is None
         assert compute_gex([], 10000.0)["zero_cross"] is None
+
+    def test_positive_to_negative_cross_is_not_a_flip(self):
+        # +4.59 then -4.59 is a put wall, not the gamma flip (old code
+        # reported it as one).
+        rows = [_gex_row(22900, 0.02, 100_000, 0, 0),
+                _gex_row(23000, 0, 0, 0.02, 100_000)]
+        out = compute_gex(rows, 22950.0)
+        assert out["zero_cross"] is None
 
     def test_missing_greeks_never_report_flat(self):
         """A usable chain with no gamma must not claim net_total=0 / flat.
@@ -661,35 +701,183 @@ class TestComputeGex:
         Upstox omits greeks for far-OTM strikes and occasionally for a whole
         chain; a gamma-weighted sum is then identically zero, which used to
         make a perfectly good chain look like "flat / 0".
+
+        The fallback is the OI itself, scaled like the real thing
+        (``oi * spot / 1e7``) so the block stays on the Cr axis instead of
+        publishing raw unit counts next to Cr figures, and it is flagged
+        ``degraded`` because it is a proxy — not a gamma profile.
         """
-        rows = [{"strike": 100.0, "ce": {"oi": 1000, "gamma": 0},
-                 "pe": {"oi": 400, "gamma": 0}},
-                {"strike": 200.0, "ce": {"oi": 200, "gamma": 0},
-                 "pe": {"oi": 900, "gamma": 0}}]
-        out = compute_gex(rows, 10000.0, lot_size=100)
-        assert out["net_total"] == (1000 - 400) + (200 - 900)
-        assert out["regime"] == "short"  # 600 - 700 = -100
-        assert out["strikes"][0]["call_gex"] == 1000.0
-        assert out["strikes"][0]["put_gex"] == -400.0
+        rows = [{"strike": 100.0, "ce": {"oi": 10_000_000, "gamma": 0},
+                 "pe": {"oi": 4_000_000, "gamma": 0}},
+                {"strike": 200.0, "ce": {"oi": 2_000_000, "gamma": 0},
+                 "pe": {"oi": 9_000_000, "gamma": 0}}]
+        out = compute_gex(rows, 10000.0)
+        assert out["degraded"] is True
+        # factor = spot / 1e7 = 0.001 -> the proxy is in Cr, not raw OI.
+        assert out["strikes"][0]["call_gex"] == pytest.approx(10_000.0)
+        assert out["strikes"][0]["put_gex"] == pytest.approx(-4_000.0)
+        assert out["net_total"] == pytest.approx(
+            (10_000 - 4_000) + (2_000 - 9_000))
+        assert out["regime"] == "short"  # 6000 - 7000 = -1000
+        # A degraded block has no gamma flip: the crossing would be an OI
+        # artefact, so none is reported.
+        assert out["zero_cross"] is None
+
+    def test_chain_with_gamma_is_not_degraded(self):
+        rows = [_gex_row(100, 0.01, 1_000_000, 0, 0),
+                _gex_row(200, 0.03, 1_000_000, 0, 0)]
+        out = compute_gex(rows, 10000.0)
+        assert out["degraded"] is False
 
     def test_missing_spot_uses_strike_scale(self):
         """A zero spot must not zero out every gamma term."""
         # spot falls back to the median strike (200 of [100, 200]): each
-        # 0.01*100000*100*200/1e7 = 2.0, so net_total is 4.0 rather than 0.
-        rows = [_gex_row(100, 0.01, 100000, 0, 0),
-                _gex_row(200, 0.01, 100000, 0, 0)]
-        out = compute_gex(rows, 0.0, lot_size=100)
+        # 0.01*10_000_000*200/1e7 = 2.0, so net_total is 4.0 rather than 0.
+        rows = [_gex_row(100, 0.01, 10_000_000, 0, 0),
+                _gex_row(200, 0.01, 10_000_000, 0, 0)]
+        out = compute_gex(rows, 0.0)
         assert out["net_total"] == 4.0
         assert out["regime"] == "long"
 
     def test_top_two_selection(self):
-        rows = [_gex_row(100, 0.01, 1000, 0, 0),   # net +1.0
-                _gex_row(200, 0.03, 1000, 0, 0),   # net +3.0
-                _gex_row(300, 0, 0, 0.05, 1000),   # net -5.0
-                _gex_row(400, 0.02, 1000, 0, 0)]   # net +2.0
-        out = compute_gex(rows, 10000.0, lot_size=100)
+        rows = [_gex_row(100, 0.01, 1_000_000, 0, 0),   # net +10.0
+                _gex_row(200, 0.03, 1_000_000, 0, 0),   # net +30.0
+                _gex_row(300, 0, 0, 0.05, 1_000_000),   # net -50.0
+                _gex_row(400, 0.02, 1_000_000, 0, 0)]   # net +20.0
+        out = compute_gex(rows, 10000.0)
         assert [t["strike"] for t in out["top_positive"]] == [200.0, 400.0]
         assert [t["strike"] for t in out["top_negative"]] == [300.0, 100.0]
+
+
+class TestGexSpotLevels:
+    """Spot-relative support/resistance and the flip sanity band.
+
+    Pins the 2026-10-21 defect: the GEX block called 23,200 "support" (it is
+    above a 22,952 spot) and 22,700 "resistance" (it is below spot), because
+    the labels came from the global max/min net gamma instead of the side of
+    spot each strike sits on.
+    """
+
+    SPOT = 22950.0
+
+    def _rows(self):
+        # Clean synthetic chain: gamma/OI chosen so each level is unambiguous.
+        return [
+            _gex_row(22500, 0, 0, 0.002, 1_000_000),   # -4.59 fuel
+            _gex_row(22900, 0.0005, 500_000, 0, 0),    # +0.57  positive below
+            _gex_row(23000, 0, 0, 0.001, 300_000),     # -0.69  negative above
+            _gex_row(23200, 0.001, 1_000_000, 0, 0),   # +2.30 positive above
+        ]
+
+    def test_positive_gamma_is_support_below_and_resistance_above(self):
+        out = compute_gex(self._rows(), self.SPOT)
+        levels = out["levels"]
+        assert levels["support"]["strike"] == 22900.0
+        assert levels["support"]["side"] == "below"
+        assert levels["resistance"]["strike"] == 23200.0
+        assert levels["resistance"]["side"] == "above"
+        # Negative gamma is fuel, never support/resistance.
+        assert levels["fuel_down"]["strike"] == 22500.0
+        assert levels["fuel_down"]["side"] == "below"
+        assert levels["fuel_up"]["strike"] == 23000.0
+        assert levels["fuel_up"]["side"] == "above"
+
+    def test_every_level_sits_on_its_own_side_of_spot(self):
+        levels = compute_gex(self._rows(), self.SPOT)["levels"]
+        assert levels["support"]["strike"] <= self.SPOT
+        assert levels["fuel_down"]["strike"] <= self.SPOT
+        assert levels["resistance"]["strike"] >= self.SPOT
+        assert levels["fuel_up"]["strike"] >= self.SPOT
+
+    def test_no_positive_gamma_below_spot_means_no_support(self):
+        # 2026-10-21 shape: the whole near band below spot is negative gamma.
+        rows = [
+            _gex_row(22700, 0, 0, 0.0007, 7_642_505),
+            _gex_row(22900, 0.0009, 5_281_900, 0.0009, 7_035_535),
+            _gex_row(23200, 0.0008, 10_091_705, 0.0008, 2_929_225),
+        ]
+        levels = compute_gex(rows, self.SPOT)["levels"]
+        assert levels["support"] is None
+        assert levels["fuel_down"]["strike"] == 22700.0
+        assert levels["resistance"]["strike"] == 23200.0
+
+    def test_top_positive_top_negative_stay_global_for_back_compat(self):
+        out = compute_gex(self._rows(), self.SPOT)
+        assert out["top_positive"][0]["strike"] == 23200.0
+        assert out["top_negative"][0]["strike"] == 22500.0
+
+    def test_cr_magnitude_is_units_not_lots(self):
+        # 23,000 CE on 2026-10-21: gamma 0.001, OI 13,599,300 units, spot
+        # 22,946.85 -> 31.20 Cr/pt. The old lot×65 conversion printed 2,028.
+        rows = [_gex_row(23000, 0.001, 13_599_300, 0, 0)]
+        out = compute_gex(rows, 22_946.85)
+        assert out["strikes"][0]["net_gex"] == pytest.approx(31.21, abs=0.01)
+        assert out["strikes"][0]["net_gex"] < 100
+
+    def test_flip_null_when_the_cross_is_a_far_wing_artefact(self):
+        # Negative cumulative until 21,500, positive after. The cross is a real
+        # neg→pos one but 1,450 pts below a 22,950 spot, so it is not a level.
+        rows = [
+            _gex_row(20000, 0, 0, 0.002, 1_000_000),   # -45.90
+            _gex_row(21500, 0.002, 1_000_000, 0, 0),   # +45.90 -> cross
+            _gex_row(23000, 0.001, 1_000_000, 0, 0),   # keeps the book net long
+        ]
+        out = compute_gex(rows, self.SPOT)
+        assert out["net_total"] > 0
+        assert out["zero_cross"] is None
+
+    def test_degenerate_wing_is_not_a_level(self):
+        """The 2026-10-21 live defect: +0.07 Cr at 21,000 labelled "support".
+
+        All meaningful positive gamma is above spot (23,200 / 23,500); the only
+        positive below is a +0.07 wing and the only negative above is a -0.04
+        wing. Both are <10% of the 15.15 Cr peak, so both sides report None.
+        """
+        rows = [
+            _gex_row(22500, 0.0003, 101_600, 0, 0),        # +0.07
+            _gex_row(23200, 0.001, 6_597_700, 0, 0),       # +15.15
+            _gex_row(23500, 0.001, 5_221_600, 0, 0),       # +11.99
+            _gex_row(24700, 0, 0, 0.0002, 87_100),         # -0.04
+        ]
+        out = compute_gex(rows, 22_962.6)
+        assert out["levels"]["support"] is None
+        assert out["levels"]["fuel_up"] is None
+        # The real pin above spot survives.
+        assert out["levels"]["resistance"]["strike"] == 23200.0
+
+    def test_far_level_is_dropped_but_near_level_is_kept(self):
+        """A strong pin >5% below spot is a wing, not support."""
+        base = [
+            _gex_row(21000, 0.001, 2_177_400, 0, 0),       # +5.00, 1,963 pts away
+            _gex_row(23200, 0.001, 6_597_700, 0, 0),       # +15.15 above
+        ]
+        assert compute_gex(base, 22_962.6)["levels"]["support"] is None
+        # Same chain with a real pin inside the band -> support is reported.
+        near = base + [_gex_row(22700, 0.001, 870_960, 0, 0)]  # +2.00, 263 pts away
+        support = compute_gex(near, 22_962.6)["levels"]["support"]
+        assert support["strike"] == 22700.0
+        assert support["side"] == "below"
+
+    def test_regime_follows_the_cumulative_sign_at_spot_not_net_total(self):
+        """Spot below the flip must read short even when the book is net long.
+
+        Cumulative: -9.19 at 22,800, -13.78 at 23,000, then +9.18 at 23,400
+        (the flip). Spot 22,962.6 sits below the flip -> short gamma. The old
+        ``net_total`` rule saw +9.18 and printed "long", contradicting the flip.
+        """
+        rows = [
+            _gex_row(22800, 0, 0, 0.001, 4_000_000),       # -9.19
+            _gex_row(23000, 0, 0, 0.001, 2_000_000),       # -4.59
+            _gex_row(23400, 0.001, 10_000_000, 0, 0),      # +22.96 -> flip
+        ]
+        below_flip = compute_gex(rows, 22_962.6)
+        assert below_flip["net_total"] > 0
+        assert below_flip["zero_cross"] == 23400.0
+        assert below_flip["regime"] == "short"
+
+        above_flip = compute_gex(rows, 23_500.0)
+        assert above_flip["zero_cross"] == 23400.0
+        assert above_flip["regime"] == "long"
 
 
 def _intraday_candles(n=25, start=22000.0):
@@ -737,6 +925,37 @@ class TestAttachVerdictsEmas:
         assert report["intraday"] == []
         assert report["emas"] == []
 
+    async def test_control_reads_positioning_initiated_as_flow_bias(self, monkeypatch):
+        """The control verdict must reuse positioning.initiated — 2026-10-22 shape.
+
+        Calls +599,235 / puts +839,150 units with a -25,074 Cr initiated flow:
+        added put OI is put BUYING (bearish), so the label must not be
+        "put_writers" (which read bullish and contradicted positioning).
+        """
+        import api.reports_api.nifty_verdicts as nv
+
+        monkeypatch.setattr(nv, "get_baseline_range", AsyncMock(return_value=None))
+        monkeypatch.setattr(nv, "get_vix_block", AsyncMock(return_value=None))
+        monkeypatch.setattr(nv, "get_intraday_candles", AsyncMock(return_value=None))
+        monkeypatch.setattr(nifty, "read_tape", lambda date: [])
+        monkeypatch.setattr(nifty, "_today_str", lambda: "2026-10-13")
+
+        rows = [{
+            "strike": 22_600.0,
+            "ce": {"oi": 700_000, "prev_oi": 100_765, "iv": 12.0},
+            "pe": {"oi": 939_150, "prev_oi": 100_000, "iv": 13.0},
+        }]
+        report: dict = {
+            "candles": [], "gex": {"regime": "flat"},
+            "positioning": {"verdict": "bearish", "initiated": -25_074.0},
+        }
+        await nifty._attach_verdicts(report, rows, 22_600.0, "2026-10-13")
+
+        assert report["control"]["ce_doi"] == 599_235
+        assert report["control"]["pe_doi"] == 839_150
+        assert report["control"]["flow_bias"] == -25_074.0
+        assert report["control"]["verdict"] == "put_buyers"
+
 
 class TestBuildReportGex:
     def test_report_carries_gex_block(self):
@@ -745,7 +964,8 @@ class TestBuildReportGex:
         assert "gex" in rep
         gex = rep["gex"]
         assert set(gex) == {"strikes", "net_total", "regime",
-                            "top_positive", "top_negative", "zero_cross"}
+                            "top_positive", "top_negative", "levels",
+                            "zero_cross", "degraded"}
         assert len(gex["strikes"]) == 3
         assert gex["regime"] in ("long", "short", "flat")
         # existing keys untouched
@@ -756,8 +976,12 @@ class TestBuildReportGex:
 
 # ---------------- live WS snapshot path ----------------
 
-def _live_snapshot(n=25, spot=22700.0):
-    """Hand-built nifty_md-style snapshot: legs keyed '<strike>:ce|pe'."""
+def _live_snapshot(n=25, spot=22700.0, legs_ts=None):
+    """Hand-built nifty_md-style snapshot: legs keyed '<strike>:ce|pe'.
+
+    ``legs_ts`` is the freshness proof the report requires (the epoch of the
+    last option-leg tick); without it the snapshot is refused as stale.
+    """
     legs = {}
     base = spot - (n // 2) * 50.0
     for i in range(n):
@@ -771,7 +995,8 @@ def _live_snapshot(n=25, spot=22700.0):
             "ltp": max(5.0, 20.0 + i * 4.0),
             "volume": 150 + i * 5, "delta": -0.45, "gamma": 0.0004}
     return {"ts": "2026-10-16T10:00:00+05:30", "connected": True,
-            "spot": spot, "vix": 13.5, "sensex": 81400.0, "legs": legs}
+            "spot": spot, "vix": 13.5, "sensex": 81400.0, "legs": legs,
+            "legs_ts": time.time() if legs_ts is None else legs_ts}
 
 
 class TestBuildReportFromLive:
@@ -975,10 +1200,14 @@ class TestGetPivotsBlock:
                 return _daily_payload()
             return _chain_payload()
 
+        # The pivots block is resolved against TODAY, so the test pins "today"
+        # to the fixture's session — otherwise it silently starts reading a
+        # different previous session as soon as the calendar moves on.
         with patch("api.options.fetch_upstox",
                    AsyncMock(side_effect=fake_fetch)), \
              patch.object(n_mod, "_fetch_nifty_candles_cached",
-                          lambda *a, **k: []):
+                          lambda *a, **k: []), \
+             patch.object(n_mod, "_today_str", lambda: "2026-10-16"):
             nifty._live_cache.clear()
             rep = await get_nifty_live(expiry="2026-10-13")
         assert rep["pivots"] is not None
@@ -1145,3 +1374,34 @@ class TestReplayEndpoint:
         with pytest.raises(HTTPException) as exc:
             get_nifty_replay(date="1999-01-01", t="1999-01-01T09:15:00+05:30")
         assert exc.value.status_code == 404
+
+
+def test_top_walls_limits_the_ranking_to_strikes_near_spot():
+    """A far mega-wall is book structure, not an intraday level.
+
+    2026-10-22: the heaviest put OI in the chain (22,000, 11.06M) sat 629
+    points below a 22,629 spot, so the panel tagged "PW" on a strike the
+    market was not going to reach while the actionable support was
+    22,500/22,600. The near ranking fixes that; the distance is attached so
+    a wall is never shown as a bare strike.
+    """
+    from api.reports_api.nifty import top_walls, near_walls
+
+    rows = [
+        {"strike": 22_000, "pe": {"oi": 11_064_105}, "ce": {"oi": 918_580}},
+        {"strike": 22_500, "pe": {"oi": 10_586_745}, "ce": {"oi": 3_059_030}},
+        {"strike": 22_600, "pe": {"oi": 11_044_410}, "ce": {"oi": 4_738_760}},
+        {"strike": 23_000, "pe": {"oi": 5_123_105}, "ce": {"oi": 17_107_285}},
+    ]
+    spot = 22_629
+
+    unrestricted = top_walls(rows, "pe", spot=spot)
+    assert unrestricted[0]["strike"] == 22_000
+    assert unrestricted[0]["distance"] == pytest.approx(22_000 - spot)
+
+    near = near_walls(rows, "pe", spot=spot)
+    assert near[0]["strike"] == 22_600  # heaviest put OI within ±300 pts
+    assert all(abs(w["strike"] - spot) <= 300 for w in near)
+
+    # a thin book still reports something
+    assert near_walls([{"strike": 20_000, "pe": {"oi": 5}, "ce": {"oi": 0}}], "pe", spot=spot)

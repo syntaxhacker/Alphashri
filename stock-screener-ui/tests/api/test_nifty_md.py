@@ -39,6 +39,8 @@ def test_snapshot_defaults():
         "vix": None,
         "sensex": None,
         "legs": {},
+        "legs_ts": None,
+        "legs_age": None,
     }
 
 
@@ -55,10 +57,15 @@ def test_setters_update_snapshot():
     assert snap["vix"] == 13.25
     assert snap["sensex"] == 81400.0
     assert snap["ts"] is not None
-    assert snap["legs"]["22700.0:ce"] == {
+    leg = snap["legs"]["22700.0:ce"]
+    assert {k: v for k, v in leg.items() if k != "ts"} == {
         "oi": 1000.0, "iv": 12.5, "ltp": 150.0,
         "volume": 2000.0, "delta": 0.5, "gamma": 0.001,
     }
+    # per-leg freshness: a frozen leg must be distinguishable from a live one
+    assert isinstance(leg["ts"], float)
+    assert snap["legs_ts"] is not None
+    assert 0.0 <= snap["legs_age"] < 5.0
 
 
 def test_set_leg_normalises_case_and_put_alias():

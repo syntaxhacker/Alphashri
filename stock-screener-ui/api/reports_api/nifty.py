@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import time
 from datetime import datetime, timedelta
@@ -30,6 +31,9 @@ from pydantic import BaseModel
 
 import config
 from api.auth import get_current_user
+from api.reports_api.desk_trades import router as desk_trades_router
+from api.reports_api.nifty_intel import router as nifty_intel_router
+from api.reports_api.nifty_fuel import basis_text, fuel_state, structure_evidence
 from api.reports_api.nifty_bursts import (
     NEWS_WINDOW_MIN,
     OI_BURST_MIN_ABS,
@@ -47,6 +51,13 @@ from api.reports_api.nifty_bursts import (
 from api.reports_api.nifty_positioning import compute_positioning
 
 router = APIRouter(prefix="/api/reports", tags=["reports-nifty"])
+router.include_router(desk_trades_router)
+router.include_router(nifty_intel_router)
+
+#: The recorder's failures are logged, not swallowed: the API log is the only
+#: place a dead/half-dead tape shows up (2026-10-22: a 401 took the tape blind
+#: for ten minutes and nothing said why).
+logger = logging.getLogger(__name__)
 
 # stock-screener-ui/api/reports_api/nifty.py -> parents[2] == stock-screener-ui
 SNAPSHOT_DIR = Path(__file__).resolve().parent.parent.parent / "experiments" / "data" / "nifty_reports"
@@ -59,8 +70,10 @@ _sensex_cache: dict[str, dict] = {}
 _CANDLES_TTL = 60
 _candles_cache: dict[str, dict] = {}
 
-_MAX_PAIN_WINDOW = 1500.0
 _TOP_WALLS = 3
+#: An actionable wall is within this many points of spot; beyond it the strike
+#: is book structure, not an intraday level.
+WALL_NEAR_DIST_PTS = 300.0
 
 
 # ---------------------------------------------------------------------------
@@ -108,16 +121,44 @@ def has_usable_chain(rows: Optional[list[dict]]) -> bool:
     return False
 
 
+#: NSE Closing Auction Session (since 3 Aug 2026): continuous F&O-stock
+#: trading ends at 15:15 IST, the index print is frozen 15:15–15:30 (no
+#: continuous matching), and the official close is the CAS print (~15:30).
+CAS_START_MIN = 15 * 60 + 15
+CAS_END_MIN = 15 * 60 + 30  # exclusive
+
+
+def is_cas_window(now: Optional[datetime] = None) -> bool:
+    """True when ``now`` (IST) falls in the 15:15–15:30 CAS freeze window.
+
+    Naive datetimes are assumed IST; aware ones are converted. Never raises.
+    """
+    try:
+        ts = now or datetime.now(config.IST)
+        if ts.tzinfo is None:
+            ts = ts.replace(tzinfo=config.IST)
+        else:
+            ts = ts.astimezone(config.IST)
+        mins = ts.hour * 60 + ts.minute
+        return CAS_START_MIN <= mins < CAS_END_MIN
+    except Exception:
+        return False
+
+
 def get_sentiment(price_change: float, oi_change: int) -> dict:
     """Map price/OI changes to a buildup label (delegates to api.options)."""
     from api.options import get_option_sentiment
     return get_option_sentiment(price_change, oi_change)
 
 
-def compute_pcr(pe_total: float, ce_total: float) -> float:
-    """Put-call ratio, guarded against zero call base."""
+def compute_pcr(pe_total: float, ce_total: float) -> Optional[float]:
+    """Put-call ratio; ``None`` when there is no call base to divide by.
+
+    A zero call base is not a PCR of 0.00 — it is an unknown ratio, and
+    printing 0.00 made the tape look like a pure put book.
+    """
     if not ce_total:
-        return 0.0
+        return None
     return round(pe_total / ce_total, 2)
 
 
@@ -126,6 +167,11 @@ def compute_max_pain(strikes: list[dict]) -> float:
 
     Total writer payout if the underlying expired at each candidate strike;
     the minimum-payout strike wins. Ties resolve to the lowest strike.
+
+    The computation runs over the WHOLE chain passed in — the caller decides
+    the scope and reports it (``max_pain_scope_pts``). Truncating the chain
+    to a ±window around spot moved the level to a strike that is not the
+    chain's pain point, so the scope is now explicit instead of implied.
     """
     if not strikes:
         return 0.0
@@ -241,10 +287,37 @@ def parse_chain_payload(payload: dict) -> tuple[str, float, list[dict]]:
     return expiry, spot, rows
 
 
-def top_walls(rows: list[dict], side: str, n: int = _TOP_WALLS) -> list[dict]:
-    """Top-``n`` strikes by OI for side ``'ce'`` / ``'pe'``."""
-    ranked = sorted(rows, key=lambda r: r.get(side, {}).get("oi", 0), reverse=True)
-    return [{"strike": r["strike"], "oi": r[side]["oi"]} for r in ranked[:n]]
+def top_walls(rows: list[dict], side: str, n: int = _TOP_WALLS,
+              spot: Optional[float] = None,
+              max_dist: Optional[float] = None) -> list[dict]:
+    """Top-``n`` strikes by OI for side ``'ce'`` / ``'pe'``.
+
+    With ``spot``/``max_dist`` the ranking is limited to strikes within
+    ``max_dist`` points of spot — a far wall is book structure, not an
+    intraday level. Every entry carries its distance from spot.
+    """
+    pool = rows
+    if spot and max_dist:
+        pool = [r for r in rows if abs(float(r.get("strike", 0)) - float(spot)) <= float(max_dist)]
+    ranked = sorted(pool, key=lambda r: r.get(side, {}).get("oi", 0), reverse=True)
+    out = []
+    for r in ranked[:n]:
+        oi = r[side]["oi"]
+        entry = {"strike": r["strike"], "oi": oi}
+        if spot:
+            entry["distance"] = round(float(r["strike"]) - float(spot), 2)
+        out.append(entry)
+    return out
+
+
+def near_walls(rows: list[dict], side: str, n: int = _TOP_WALLS,
+               spot: Optional[float] = None,
+               max_dist: Optional[float] = WALL_NEAR_DIST_PTS) -> list[dict]:
+    """Heaviest OI near spot (falls back to the unrestricted ranking)."""
+    if not spot:
+        return top_walls(rows, side, n)
+    near = top_walls(rows, side, n, spot=spot, max_dist=max_dist)
+    return near or top_walls(rows, side, n, spot=spot)
 
 
 def _fetch_nifty_candles(date_str: str, walkback_days: int = 0) -> list[dict]:
@@ -308,25 +381,86 @@ def _fetch_nifty_candles_cached(date_str: str, walkback_days: int = 0) -> list[d
     return data
 
 
+#: Largest distance (as a share of spot) at which a cumulative-gamma zero
+#: crossing is accepted as the flip level. The cumulative sum starts at ~0 at
+#: the deepest listed strike, so the first strike cluster that carries any real
+#: exposure can "cross" without describing a tradeable pivot — on 2026-10-21
+#: that artefact sat at 21,550, 1,402 pts below a 22,952 spot. A crossing
+#: outside this band is not reported at all.
+GEX_FLIP_MAX_DIST_PCT = 0.05
+
+#: Minimum |net_gex| for a strike to be reported as a support/resistance/fuel
+#: level, as a share of the profile's largest |net_gex|. Far-OTM wings carry
+#: greeks that round to a few paise of Cr (e.g. +0.07 at 21,000 under a 22,962
+#: spot) — large enough to win "largest positive below spot" but meaningless as
+#: a level. Below this share the side reports ``None`` and the UI renders ``—``.
+GEX_LEVEL_MIN_SHARE = 0.10
+
+#: Largest distance (as a share of spot) at which a support/resistance/fuel
+#: level is accepted. A wing 5%+ away cannot be the level that pins or fuels
+#: the current move, even when its gamma is real.
+GEX_LEVEL_MAX_DIST_PCT = 0.05
+
+
+def _gex_level(entry: dict, side: str) -> dict:
+    """Spot-relative level row: strike, net gamma, and which side of spot."""
+    return {"strike": entry["strike"], "net_gex": entry["net_gex"], "side": side}
+
+
 def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
     """Simplified dealer gamma exposure (GEX) per strike, in Cr per point.
 
     Formula (per strike)::
 
-        call_gex = gamma_ce * oi_ce * lot_size * spot / 1e7   (positive)
-        put_gex  = -(gamma_pe * oi_pe * lot_size * spot / 1e7) (negative)
+        call_gex = gamma_ce * oi_ce * spot / 1e7   (positive)
+        put_gex  = -(gamma_pe * oi_pe * spot / 1e7) (negative)
         net_gex  = call_gex + put_gex
+
+    ``lot_size`` is accepted for backwards compatibility but **not applied**:
+    Upstox reports option OI in units (shares), so multiplying by the lot again
+    inflated every Cr figure 65×. Evidence: the same chain's ``walls`` block
+    carries OI of ~10-15M units at the ATM strikes (13,599,300 at 23,000 CE on
+    2026-10-21) — 209k contracts at lot 65, a plausible Nifty ATM OI. At 13.6M
+    *contracts* the single strike would represent 884M shares, larger than the
+    entire index's notional. The delta-positioning block next to it
+    (``nifty_positioning.py``) dropped the same multiplier.
 
     Convention: customer long puts leave dealers short gamma, so the put
     leg is expressed NEGATIVE and ``net_gex`` is the signed sum. ``net_total``
-    is the sum of ``net_gex`` across strikes. ``regime`` is ``"long"`` when
-    dealers are net long gamma (dampens moves / pins spot), ``"short"`` when
-    net short (amplifies moves), and ``"flat"`` when ``|net_total| < 1.0``.
-    ``top_positive`` (top-2 by net_gex) marks support magnets;
-    ``top_negative`` (bottom-2) marks resistance / volatility fuel.
-    ``zero_cross`` is the strike where cumulative net_gex (ascending) first
-    crosses or touches zero, else None. Pure function, no network.
-    All floats rounded to 2 decimals.
+    is the sum of ``net_gex`` across strikes (the whole book — *not* the
+    exposure at spot). ``regime`` is the sign of the cumulative net gamma **up
+    to spot**, i.e. the same side of the flip that spot trades on: ``"long"``
+    when that cumulative is positive (dampens moves / pins spot), ``"short"``
+    when negative (amplifies moves), and ``"flat"`` when ``|cum_at_spot| < 1.0``.
+    Deriving it from ``net_total`` used to label a spot *below* the flip as
+    "long gamma", contradicting the flip level shown beside it.
+
+    ``top_positive`` (top-2 by net_gex) / ``top_negative`` (bottom-2) are the
+    raw global extrema, kept for backwards compatibility. The actionable text
+    lives in ``levels``, which is **spot-relative**:
+
+    * ``support`` — largest positive net gamma **at/below** spot (pin magnet
+      that gets bought)
+    * ``resistance`` — largest positive net gamma **at/above** spot (pin magnet
+      that gets sold into)
+    * ``fuel_down`` — most negative net gamma **at/below** spot (below-spot
+      acceleration; never a support level)
+    * ``fuel_up`` — most negative net gamma **at/above** spot (upside squeeze
+      fuel; never a resistance level)
+
+    Each level is ``{strike, net_gex, side}`` with ``side`` ``"above"`` /
+    ``"below"``, or ``None`` when no strike on that side qualifies. A strike
+    must clear ``GEX_LEVEL_MIN_SHARE`` of the profile's peak |net_gex| and sit
+    within ``GEX_LEVEL_MAX_DIST_PCT`` of spot; otherwise it is a wing artefact
+    (the 2026-10-21 +0.07 at 21,000) and the level is ``None``.
+
+    ``zero_cross`` is the **sustained negative → positive** zero crossing of the
+    ascending cumulative net_gex, closest to spot and no further than
+    ``GEX_FLIP_MAX_DIST_PCT``; otherwise ``None``. A positive → negative cross
+    is a put wall, not a flip, and a leading-wing artefact outside the band is
+    discarded. A crossing that disagrees with the cumulative sign at spot is
+    also dropped, so the flip and ``regime`` can never contradict each other.
+    Pure function, no network. All floats rounded to 2 decimals.
 
     Degraded mode: when the chain is usable (non-empty, non-zero OI) but
     Upstox returned no gamma for any leg, a gamma-weighted sum is identically
@@ -334,6 +468,15 @@ def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
     perfectly good chain. In that case the per-strike OI itself is used as the
     signed exposure proxy (calls positive, puts negative), which preserves the
     sign convention and the shape while keeping the block meaningful.
+
+    The proxy is scaled like the real thing — ``OI × spot / 1e7``, i.e. the
+    same Cr conversion with the (missing) gamma factor dropped — so the two
+    live on one axis instead of the proxy being raw unit counts next to Cr
+    figures. Because it is still a proxy, the block is flagged
+    ``degraded: true`` and the callers must not present it as a gamma
+    profile: the tape row therefore records ``net_gex`` / ``flip`` as ``None``
+    for a degraded block instead of writing a fabricated flip into the day's
+    log.
     """
     spot_f = _safe_float(spot)
     # A zero spot makes every gamma term zero, which would report "flat" for a
@@ -356,50 +499,108 @@ def compute_gex(rows: list[dict], spot: float, lot_size: int = 65) -> dict:
         oi_ce = _safe_int(ce.get("oi"))
         oi_pe = _safe_int(pe.get("oi"))
         if has_gamma:
-            call_gex = round(g_ce * oi_ce * lot_size * spot_f / 1e7, 2)
-            put_gex = round(-g_pe * oi_pe * lot_size * spot_f / 1e7, 2)
+            call_gex = round(g_ce * oi_ce * spot_f / 1e7, 2)
+            put_gex = round(-g_pe * oi_pe * spot_f / 1e7, 2)
         else:
             # No greeks anywhere: OI is the only exposure signal available.
-            call_gex = round(float(oi_ce), 2)
-            put_gex = round(-float(oi_pe), 2)
+            # Scaled like the real GEX (gamma dropped, same Cr conversion).
+            call_gex = round(oi_ce * spot_f / 1e7, 2)
+            put_gex = round(-oi_pe * spot_f / 1e7, 2)
         net_gex = round(call_gex + put_gex, 2)
         per.append({"strike": r.get("strike", 0.0), "call_gex": call_gex,
                     "put_gex": put_gex, "net_gex": net_gex})
     per.sort(key=lambda e: e["strike"])
     net_total = round(sum(e["net_gex"] for e in per), 2)
-    if abs(net_total) < 1.0:
-        regime = "flat"
-    elif net_total > 0:
-        regime = "long"
-    else:
-        regime = "short"
     by_desc = sorted(per, key=lambda e: e["net_gex"], reverse=True)
     by_asc = sorted(per, key=lambda e: e["net_gex"])
     top_positive = [{"strike": e["strike"], "net_gex": e["net_gex"]} for e in by_desc[:2]]
     top_negative = [{"strike": e["strike"], "net_gex": e["net_gex"]} for e in by_asc[:2]]
-    zero_cross = None
+    # Spot-relative levels. A positive-gamma strike is a pin magnet on whichever
+    # side it sits; a negative-gamma strike is acceleration/fuel, never support
+    # or resistance. Naming a strike by its sign alone (old ``top_positive`` /
+    # ``top_negative``) put 23,200 "support" above a 22,952 spot on 2026-10-21.
+    #
+    # Significance + distance gates: the largest |net_gex| in the book sets the
+    # scale; a wing that carries <10% of it (or sits >5% from spot) is noise,
+    # not a level. Without the magnitude gate, a +0.07 Cr strike 1,963 pts below
+    # spot won "largest positive below spot" and rendered as "γ support 21,000".
+    peak_abs = max((abs(e["net_gex"]) for e in per), default=0.0)
+    min_abs = peak_abs * GEX_LEVEL_MIN_SHARE
+    max_dist = spot_f * GEX_LEVEL_MAX_DIST_PCT if spot_f > 0 else 0.0
+    near = [e for e in per if max_dist <= 0 or abs(e["strike"] - spot_f) <= max_dist]
+    below = [e for e in near if e["strike"] <= spot_f]
+    above = [e for e in near if e["strike"] >= spot_f]
+
+    def _pick(entries: list[dict], sign: int) -> Optional[dict]:
+        pool = [e for e in entries
+                if e["net_gex"] * sign > 0 and abs(e["net_gex"]) >= min_abs]
+        if not pool:
+            return None
+        if sign > 0:
+            return max(pool, key=lambda e: e["net_gex"])
+        return min(pool, key=lambda e: e["net_gex"])
+
+    support = _pick(below, 1)
+    resistance = _pick(above, 1)
+    fuel_down = _pick(below, -1)
+    fuel_up = _pick(above, -1)
+    levels = {
+        "support": _gex_level(support, "below") if support else None,
+        "resistance": _gex_level(resistance, "above") if resistance else None,
+        "fuel_down": _gex_level(fuel_down, "below") if fuel_down else None,
+        "fuel_up": _gex_level(fuel_up, "above") if fuel_up else None,
+    }
+
+    # Gamma flip: the sustained negative → positive crossing closest to spot.
+    # Only a negative → positive cross is a flip (below it the book is put
+    # heavy, above it calls dominate); a positive → negative cross is a put
+    # wall. A crossing further than GEX_FLIP_MAX_DIST_PCT from spot is a wing
+    # artefact, not a level, so it is dropped rather than reported.
+    # A DEGRADED block (no gamma anywhere) has no gamma flip at all: the
+    # crossing would be an OI artefact, so none is reported.
+    crossings: list[float] = []
     cum = 0.0
+    cum_at_spot = 0.0
     prev = None
     for e in per:
         cum = round(cum + e["net_gex"], 2)
-        if cum == 0:
-            # Exact touch counts only after real exposure — leading dead
-            # far-OTM strikes (0 + 0) must not fake a flip level.
-            if prev is not None:
-                zero_cross = e["strike"]
-                break
-            continue
-        if prev is not None and (prev < 0) != (cum < 0):
-            zero_cross = e["strike"]
-            break
+        if e["strike"] <= spot_f:
+            cum_at_spot = cum
+        if prev is not None and prev < 0 <= cum:
+            crossings.append(e["strike"])
         prev = cum
+    zero_cross = None
+    if crossings and cum >= 0 and has_gamma:
+        max_flip_dist = spot_f * GEX_FLIP_MAX_DIST_PCT
+        candidates = [s for s in crossings if abs(s - spot_f) <= max_flip_dist]
+        if candidates:
+            zero_cross = min(candidates, key=lambda s: abs(s - spot_f))
+
+    # Regime = cumulative sign at spot (the side of the flip spot trades on),
+    # never ``net_total``: a book can be net long overall while spot sits below
+    # the flip (short gamma there), which made the panel self-contradictory.
+    # Drop a flip that disagrees with that sign so the two can never conflict.
+    if zero_cross is not None:
+        if spot_f < zero_cross and cum_at_spot >= 0:
+            zero_cross = None
+        elif spot_f > zero_cross and cum_at_spot < 0:
+            zero_cross = None
+    if abs(cum_at_spot) < 1.0:
+        regime = "flat"
+    elif cum_at_spot > 0:
+        regime = "long"
+    else:
+        regime = "short"
     return {
         "strikes": per,
         "net_total": net_total,
         "regime": regime,
         "top_positive": top_positive,
         "top_negative": top_negative,
+        "levels": levels,
         "zero_cross": zero_cross,
+        # True when no leg carried gamma and the profile is an OI proxy.
+        "degraded": not has_gamma,
     }
 
 
@@ -584,11 +785,16 @@ def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
     total_pe_oi = sum(r["pe"]["oi"] for r in rows)
     total_ce_vol = sum(r["ce"]["volume"] for r in rows)
     total_pe_vol = sum(r["pe"]["volume"] for r in rows)
-    window = [r for r in rows if abs(r["strike"] - spot) <= _MAX_PAIN_WINDOW]
+    # Max pain is a CHAIN-wide concept: the strike where option writers lose
+    # least. It used to be computed on a ±1500 pt window around spot, which
+    # is not the chain's pain point at all — the level it printed was an
+    # artefact of the truncation. The full chain is used and the scope that
+    # was covered is reported next to it (``max_pain_scope_pts``).
     pain_rows = [
         {"strike": r["strike"], "ce_oi": r["ce"]["oi"], "pe_oi": r["pe"]["oi"]}
-        for r in (window or rows)
+        for r in rows
     ]
+    scope_pts = max((abs(r["strike"] - spot) for r in rows), default=0.0)
     return {
         "mode": mode,
         "expiry": expiry,
@@ -597,7 +803,10 @@ def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
         "pcr_oi": compute_pcr(total_pe_oi, total_ce_oi),
         "pcr_vol": compute_pcr(total_pe_vol, total_ce_vol),
         "max_pain": compute_max_pain(pain_rows),
-        "walls": {"calls": top_walls(rows, "ce"), "puts": top_walls(rows, "pe")},
+        "max_pain_scope_pts": round(scope_pts, 2),
+        "walls": {"calls": top_walls(rows, "ce", spot=spot), "puts": top_walls(rows, "pe", spot=spot)},
+        "walls_near": {"calls": near_walls(rows, "ce", spot=spot),
+                        "puts": near_walls(rows, "pe", spot=spot)},
         "gex": compute_gex(rows, spot),
         "positioning": compute_positioning(rows, spot),
         "strikes": rows,
@@ -607,11 +816,14 @@ def build_report(expiry: str, spot: float, rows: list[dict], mode: str,
 
 def build_timeline_skeleton(report: dict) -> list[dict]:
     """Minimal timeline derived from a freshly computed report."""
+    scope = report.get("max_pain_scope_pts")
+    scope_txt = f"over the full chain (±{scope:.0f} pts of spot)" if scope else \
+        "over the full chain"
     return [
         {"time": report.get("fetched_at", ""), "event": "snapshot",
          "detail": f"Nifty spot {report.get('spot')} (expiry {report.get('expiry')})"},
         {"time": report.get("fetched_at", ""), "event": "max_pain",
-         "detail": f"Max pain {report.get('max_pain')} over ±{_MAX_PAIN_WINDOW:.0f} window"},
+         "detail": f"Max pain {report.get('max_pain')} {scope_txt}"},
         {"time": report.get("fetched_at", ""), "event": "pcr",
          "detail": f"PCR-OI {report.get('pcr_oi')} / PCR-Vol {report.get('pcr_vol')}"},
     ]
@@ -712,10 +924,34 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
         report["reference"] = compute_reference(tape, rows)
     except Exception:
         report["reference"] = None
+    # Previous session's close: the realised vol needs it to become a full-day
+    # figure (overnight gap included), which is the only like-for-like
+    # comparison against a 24h implied vol. The pivots block already carries
+    # it; it is fetched here only when the caller did not resolve the block
+    # at all (the block is cached per process day, so this costs one fetch).
+    prev_close = _prev_close_from_pivots(report.get("pivots"))
+    if not prev_close and "pivots" not in report:
+        try:
+            pivots = await get_pivots_block(today)
+            prev_close = _prev_close_from_pivots(pivots)
+        except Exception:
+            prev_close = None
+    # Signed session premium flow (₹ Cr, positive = bullish) — the same number
+    # that drives positioning.initiated / flow_class. Threaded into the control
+    # block so a "writer" label needs flow evidence, not just the OI share.
+    positioning = report.get("positioning")
+    flow_bias = (positioning.get("initiated")
+                 if isinstance(positioning, dict) else None)
     try:
         report.update(nv.build_verdicts(
             rows=rows, spot=spot, gex=report.get("gex"), candles=candles,
-            tape_rows=tape, baseline=baseline, vix=vix))
+            tape_rows=tape, baseline=baseline, vix=vix,
+            # The pinned-strike reference is the like-for-like ATM straddle
+            # read (one contract against itself) - the tape's first/last rows
+            # compare two different contracts once the ATM strike rolls.
+            reference=report.get("reference"),
+            prev_close=prev_close,
+            flow_bias=flow_bias))
     except Exception:
         pass
     # Structural shifts (wall flips, wall migration, max-pain drift, PCR regime
@@ -758,6 +994,16 @@ async def _attach_verdicts(report: dict, rows: list[dict], spot: float,
 
 async def _async_none() -> None:
     return None
+
+
+def _prev_close_from_pivots(pivots: Any) -> Optional[float]:
+    """The previous session's close from a ``pivots`` block, or ``None``."""
+    if not isinstance(pivots, dict):
+        return None
+    prev = pivots.get("prev")
+    if not isinstance(prev, dict):
+        return None
+    return _safe_float(prev.get("close")) or None
 
 
 async def _fetch_chain_payload(expiry: Optional[str]) -> tuple[str, dict]:
@@ -932,7 +1178,9 @@ async def _compute_sensex_live() -> dict:
         "pcr_oi": compute_pcr(total_pe_oi, total_ce_oi),
         "pcr_vol": compute_pcr(total_pe_vol, total_ce_vol),
         "max_pain": max_pain,
-        "walls": {"calls": top_walls(rows, "ce"), "puts": top_walls(rows, "pe")},
+        "walls": {"calls": top_walls(rows, "ce", spot=spot), "puts": top_walls(rows, "pe", spot=spot)},
+        "walls_near": {"calls": near_walls(rows, "ce", spot=spot),
+                        "puts": near_walls(rows, "pe", spot=spot)},
         "market": market_block(),
     }
 
@@ -962,6 +1210,11 @@ async def get_cached_live(expiry: Optional[str] = None) -> dict:
     if hit and now - hit["ts"] < _LIVE_TTL:
         return hit["data"]
     report = await _compute_live(expiry)
+    try:
+        # Where the prices came from — the panel can flag a feed it doubts.
+        report["feed"] = {"source": "rest"}
+    except Exception:
+        pass
     _live_cache[key] = {"ts": now, "data": report}
     return report
 
@@ -975,6 +1228,11 @@ _MIN_LIVE_STRIKES = 20
 #: Live-built reports are fresh for ~1s so multiple WS clients share one build.
 _LIVE_WS_TTL = 1.0
 _live_ws_cache: dict[str, dict] = {}
+#: Maximum age (seconds) of a WS snapshot's option legs before the report
+#: refuses it. The index ticks constantly, so a socket whose option stream
+#: died still looks "live" — serving its frozen ladder is how the report
+#: showed 130.30 for 22 minutes while the chain traded 148.35 (2026-10-22).
+LIVE_LEG_MAX_AGE_SEC = 15.0
 
 
 def _nifty_md() -> Optional[Any]:
@@ -996,18 +1254,45 @@ def _nifty_md() -> Optional[Any]:
     return mod
 
 
+def _snapshot_leg_age(snapshot: Any) -> Optional[float]:
+    """Age (seconds) of a WS snapshot's option legs; None when unknown.
+
+    ``legs_ts`` is the epoch of the last option-leg tick. A snapshot without
+    it carries no freshness proof, so it is treated as unknown (``None``)
+    and the caller decides.
+    """
+    try:
+        legs_ts = (snapshot or {}).get("legs_ts")
+        if legs_ts is None:
+            return None
+        return max(0.0, time.time() - float(legs_ts))
+    except (TypeError, ValueError):
+        return None
+
+
 def build_report_from_live(snapshot: dict, expiry: Optional[str],
-                           candles: Optional[list[dict]] = None) -> Optional[dict]:
+                           candles: Optional[list[dict]] = None,
+                           max_leg_age_sec: float = LIVE_LEG_MAX_AGE_SEC) -> Optional[dict]:
     """Build the report envelope from a WS ``snapshot`` instead of REST rows.
 
     ``snapshot`` legs are keyed ``"<strike>:ce"`` / ``"<strike>:pe"`` with
     ``{oi, iv, ltp, volume, delta, gamma}``. Returns ``None`` when the legs
-    hold fewer than ~20 distinct strikes (not a real chain — the caller
-    falls back to REST). Never raises.
+    hold fewer than ~20 distinct strikes (not a real chain — the caller falls
+    back to REST) **or when the legs are older than ``max_leg_age_sec``**
+    (a frozen option stream is not a live chain either). Never raises.
     """
     try:
         legs = (snapshot or {}).get("legs") or {}
         if not isinstance(legs, dict):
+            return None
+        # Freshness gate: a snapshot whose option quotes stopped moving while
+        # the index kept ticking is stale — the REST chain is the only honest
+        # source then.
+        leg_age = _snapshot_leg_age(snapshot)
+        if leg_age is None or leg_age > float(max_leg_age_sec):
+            logger.warning(
+                "nifty report: WS snapshot legs are %s old — using the REST chain",
+                "unknown" if leg_age is None else f"{leg_age:.0f}s")
             return None
         grouped: dict[float, dict] = {}
         for key, leg in legs.items():
@@ -1052,6 +1337,10 @@ def build_report_from_live(snapshot: dict, expiry: Optional[str],
             report["market"] = market_block()
         except Exception:
             pass
+        try:
+            report["feed"] = {"source": "ws", "leg_age_sec": round(leg_age, 1)}
+        except Exception:
+            pass
         return report
     except Exception:
         return None
@@ -1060,10 +1349,11 @@ def build_report_from_live(snapshot: dict, expiry: Optional[str],
 async def get_live_report(expiry: Optional[str] = None) -> dict:
     """Live report, preferring the WS snapshot when it is live.
 
-    When ``nifty_md.is_live()`` and the snapshot converts to a full report,
-    it is built once per ~1s (shared across WS clients) with verdicts
-    attached; otherwise this degrades to :func:`get_cached_live` (REST).
-    Never raises anything the REST path wouldn't raise.
+    When ``nifty_md.is_live()`` and the snapshot converts to a full report
+    (its option legs are FRESH — see :func:`build_report_from_live`), it is
+    built once per ~1s (shared across WS clients) with verdicts attached;
+    otherwise this degrades to :func:`get_cached_live` (REST). Never raises
+    anything the REST path wouldn't raise.
     """
     key = expiry or "default"
     try:
@@ -1095,6 +1385,15 @@ async def get_live_report(expiry: Optional[str] = None) -> dict:
                     candles = []
                 report = build_report_from_live(snap, exp, candles)
                 if report is not None:
+                    # Previous-session pivot levels (classic), cached per
+                    # process day; None keeps the chart level-free. Resolved
+                    # BEFORE the verdicts: the pivots carry the previous
+                    # session's close, which the regime block needs to turn
+                    # the realised vol into a full-day (like-for-like) figure.
+                    try:
+                        report["pivots"] = await get_pivots_block(None)
+                    except Exception:
+                        report["pivots"] = None
                     try:
                         await _attach_verdicts(
                             report, report.get("strikes", []),
@@ -1118,12 +1417,6 @@ async def get_live_report(expiry: Optional[str] = None) -> dict:
                                 report["vix"] = ws_vix
                     except Exception:
                         pass
-                    # Previous-session pivot levels (classic), cached per
-                    # process day; None keeps the chart level-free.
-                    try:
-                        report["pivots"] = await get_pivots_block(None)
-                    except Exception:
-                        report["pivots"] = None
                     try:
                         _live_ws_cache[key] = {"ts": time.time(), "data": report}
                     except Exception:
@@ -1161,31 +1454,51 @@ async def get_sensex_live():
 
 
 def _with_delta_flip(report: dict) -> dict:
-    """Project ``delta_flip`` onto snapshots recorded before the level existed.
+    """Project the corrected blocks onto snapshots recorded before they existed.
 
-    Older snapshots still carry per-leg deltas in ``strikes``, so the block can
-    be derived on read by the same pure function that computes it live. Returns
-    the report untouched when there is nothing to derive (no positioning block,
-    empty chain, or the key is already present), so current payloads pay
-    nothing for this.
+    Older snapshots still carry per-leg deltas and greeks in ``strikes``, so
+    two blocks can be derived on read by the same pure functions that compute
+    them live:
+
+    * ``positioning`` — the delta-flip level (and the class-weighted
+      ``initiated`` / ``flow_class``) that did not exist when the snapshot
+      was written.
+    * ``gex`` — snapshots taken before the lot-size fix carry a GEX inflated
+      65× (the OI is already in units, so the lot must not be applied again).
+      Re-deriving the block from the same per-leg gamma/OI in ``strikes``
+      means a served report can never mix a 65× gex with a corrected
+      positioning block.
+
+    The report is returned untouched when there is nothing to derive (no
+    ``strikes``), and each block is replaced independently so one failure
+    never costs the other.
     """
     if not isinstance(report, dict):
-        return report
-    positioning = report.get("positioning")
-    if not isinstance(positioning, dict) or "delta_flip" in positioning:
         return report
     strikes = report.get("strikes")
     if not isinstance(strikes, list) or not strikes:
         return report
+    out = report
+    spot = _safe_float(report.get("spot"))
+    positioning = report.get("positioning")
+    # Recompute the positioning block when a piece of the CURRENT convention
+    # is missing: snapshots taken before the delta-flip existed have no
+    # ``delta_flip``, and snapshots taken before the class-weighted flow
+    # existed have no ``flow_class`` (their verdict was computed with the
+    # signed-delta flow, which disagrees with the class-weighted
+    # ``initiated`` on ~94% of the minutes of a session).
+    missing = not isinstance(positioning, dict) or (
+        "delta_flip" not in positioning or "flow_class" not in positioning)
+    if missing:
+        try:
+            out = {**out, "positioning": compute_positioning(strikes, spot)}
+        except Exception:
+            pass
     try:
-        return {
-            **report,
-            "positioning": compute_positioning(
-                strikes, _safe_float(report.get("spot"))
-            ),
-        }
+        out = {**out, "gex": compute_gex(strikes, spot)}
     except Exception:
-        return report
+        pass
+    return out
 
 
 @router.get("/nifty")
@@ -1205,14 +1518,43 @@ def get_nifty_report(date: Optional[str] = Query(default=None, description="Snap
 class NiftySnapshotRequest(BaseModel):
     date: Optional[str] = None
     expiry: Optional[str] = None
+    #: Archive a PAST day instead of overwriting the live record. A snapshot
+    #: is always built from LIVE data, so writing one under a past date
+    #: replaced that day's real report with today's tape. With ``force`` the
+    #: result is written to the archive path (``nifty_reports/archive/``) and
+    #: the day's own record and replay log are left untouched.
+    force: bool = False
 
 
-@router.post("/nifty/snapshot")
+#: Where a forced (past-day) snapshot is archived. Kept OUT of the served
+#: directory so ``GET /nifty?date=`` can never return an archived copy.
+SNAPSHOT_ARCHIVE_DIR = SNAPSHOT_DIR / "archive"
+
+
+@router.post("/nifty/snapshot", dependencies=[Depends(get_current_user)])
 async def create_nifty_snapshot(body: NiftySnapshotRequest):
-    """Build a snapshot from live data and persist it under ``date``."""
+    """Build a snapshot from live data and persist it under ``date``.
+
+    Requires authentication (it writes to the day's record). A snapshot is
+    always built from LIVE data, so it may only be stored under TODAY's date;
+    asking for a past date is rejected with 400 unless ``force`` is set, in
+    which case the result is archived (``nifty_reports/archive/<date>.json``)
+    and the past day's record and replay log are left alone. A past day's
+    replay log is never appended to with a ``now`` stamp.
+    """
     date_str = _validate_date(body.date or _today_str())
     if body.expiry:
         _validate_date(body.expiry)
+    today = _today_str()
+    is_today = date_str == today
+    if not is_today and not body.force:
+        raise HTTPException(status_code=400, detail={
+            "date": date_str,
+            "today": today,
+            "message": (
+                "a snapshot is built from live data and may only be stored "
+                f"under today ({today}); pass force=true to archive it"),
+        })
     report = await _compute_live(body.expiry, for_date=date_str, walkback_days=0)
     snapshot = {
         **report,
@@ -1222,19 +1564,33 @@ async def create_nifty_snapshot(body: NiftySnapshotRequest):
         "source": "upstox-option-chain",
         "timeline": build_timeline_skeleton(report),
     }
-    write_snapshot(date_str, snapshot)
+    if is_today:
+        write_snapshot(date_str, snapshot)
+    else:
+        # Archive only: the past day's own record must not be replaced by a
+        # frame that describes today's market.
+        SNAPSHOT_ARCHIVE_DIR.mkdir(parents=True, exist_ok=True)
+        archive = SNAPSHOT_ARCHIVE_DIR / f"{date_str}.json"
+        tmp = archive.with_suffix(".json.tmp")
+        with open(tmp, "w") as f:
+            json.dump({**snapshot, "archived_at": snapshot["snapshot_at"]},
+                      f, separators=(",", ":"))
+        os.replace(tmp, archive)
     # Also land it in the replay log (one line) so a manual/EOD snapshot is
-    # replayable even on a day the per-minute recorder never ran.
-    try:
-        sensex = None
+    # replayable even on a day the per-minute recorder never ran. ONLY for
+    # today: a past day's log must never receive a frame stamped with "now".
+    if is_today:
         try:
-            sensex = await _get_cached_sensex()
-        except Exception:
             sensex = None
-        _append_snapshot_line(date_str, snapshot.get("snapshot_at") or datetime.now(config.IST).isoformat(),
-                              report, sensex)
-    except Exception:
-        pass
+            try:
+                sensex = await _get_cached_sensex()
+            except Exception:
+                sensex = None
+            _append_snapshot_line(date_str,
+                                  snapshot.get("snapshot_at") or datetime.now(config.IST).isoformat(),
+                                  report, sensex)
+        except Exception:
+            pass
     return snapshot
 
 
@@ -1268,7 +1624,53 @@ def _tick_stamp(now: Optional[datetime] = None) -> tuple[str, str]:
     return t_iso, t_iso[:10]
 
 
-def _append_gap(date_str: str, t_iso: str, reason: str) -> None:
+def _err_detail(exc: BaseException) -> str:
+    """One-line detail of a failure (gap journal / log). Never raises."""
+    try:
+        return f"{type(exc).__name__}: {str(exc)[:180]}"
+    except Exception:
+        return type(exc).__name__
+
+
+#: Minutes already recorded in the day's gap journal (in-process cache), so a
+#: skipped minute is journalled ONCE even when two recorder loops (or a retry)
+#: hit the same minute. The journal counts MISSING MINUTES, not attempts.
+_GAP_MINUTES: dict[str, set[str]] = {}
+
+
+def _gap_minutes_seen(date_str: str) -> set[str]:
+    """Minutes already present in the day's gap journal (loaded once per day).
+
+    The cache is keyed by the journal PATH, not by the date: the journal
+    directory can be redirected (tests, archives) and a date-keyed cache would
+    then report minutes as "already journalled" that were never written to
+    the file in front of it.
+    """
+    path = gap_log_path(date_str)
+    key = str(path)
+    cached = _GAP_MINUTES.get(key)
+    if cached is not None:
+        return cached
+    seen: set[str] = set()
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    t = json.loads(line).get("t")
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                if isinstance(t, str) and t:
+                    seen.add(t[:16])
+    except OSError:
+        pass
+    _GAP_MINUTES[key] = seen
+    return seen
+
+
+def _append_gap(date_str: str, t_iso: str, reason: str, detail: str = "") -> None:
     """Best-effort append of one *skipped* minute to the day's gap journal.
 
     The recorder's skip reasons used to live only in memory
@@ -1276,17 +1678,37 @@ def _append_gap(date_str: str, t_iso: str, reason: str) -> None:
     start.sh) on every restart — so "why are there holes in yesterday?" was
     unanswerable. This is the durable, append-only record: one
     ``{"t", "reason"}`` line per skipped minute. Never raises.
+
+    ``detail`` carries the failure text (e.g. the 401) without changing the
+    ``reason`` key, so the reason COUNTS stay one-per-kind.
+
+    Deduped by MINUTE: the journal answers "which minutes are missing and
+    why", so a minute that was skipped twice (two recorder loops, a retry)
+    is journalled once — otherwise the coverage numbers claim more missing
+    minutes than the session actually had.
     """
     try:
+        minute = str(t_iso)[:16]
+        seen = _gap_minutes_seen(date_str)
+        if minute in seen:
+            return
         TAPE_DIR.mkdir(parents=True, exist_ok=True)
+        entry = {"t": t_iso, "reason": reason}
+        if detail:
+            entry["detail"] = str(detail)[:200]
         with open(gap_log_path(date_str), "a") as f:
-            f.write(json.dumps({"t": t_iso, "reason": reason}) + "\n")
+            f.write(json.dumps(entry) + "\n")
+        seen.add(minute)
     except Exception:
         pass
 
 
 def read_gap_reasons(date_str: str) -> dict:
-    """``{reason: count}`` from the day's gap journal (``{}`` when absent).
+    """``{reason: number of missing minutes}`` from the day's gap journal.
+
+    Counts DISTINCT minutes per reason (a journal written by an older build
+    can hold several entries for one minute), so the numbers describe
+    MISSING MINUTES rather than skip attempts. ``{}`` when absent.
 
     Days recorded before the journal existed simply have no file — the UI
     treats a missing journal as "reasons not recorded" and falls back to the
@@ -1296,6 +1718,7 @@ def read_gap_reasons(date_str: str) -> dict:
     if not path.exists():
         return {}
     counts: dict[str, int] = {}
+    seen: set[tuple[str, str]] = set()
     try:
         with open(path) as f:
             for line in f:
@@ -1303,11 +1726,18 @@ def read_gap_reasons(date_str: str) -> dict:
                 if not line:
                     continue
                 try:
-                    reason = json.loads(line).get("reason")
+                    entry = json.loads(line)
                 except (json.JSONDecodeError, ValueError):
                     continue
-                if isinstance(reason, str) and reason:
-                    counts[reason] = counts.get(reason, 0) + 1
+                reason = entry.get("reason")
+                if not isinstance(reason, str) or not reason:
+                    continue
+                t = entry.get("t")
+                key = (str(t)[:16] if isinstance(t, str) else "", reason)
+                if key in seen:
+                    continue
+                seen.add(key)
+                counts[reason] = counts.get(reason, 0) + 1
     except OSError:
         return {}
     return counts
@@ -1358,6 +1788,12 @@ def read_snapshots(date_str: str) -> list[dict]:
     Skips blank/corrupt/non-object lines; returns [] when the file is missing.
     Every line the recorder writes is a ``{"t", ..., "report": {...}}`` object,
     so anything else is corruption from an interrupted write.
+
+    The lines are returned in ASCENDING ``t`` order and de-duplicated by
+    MINUTE (``t[:16]``). A log written by two recorder loops can hold the
+    same minute twice (and out of order — a 10:01 frame appended after a
+    15:04 one), and the replay cursor ("the frame at or before ``t``") is
+    only meaningful on an ordered, unique list.
     """
     path = snapshot_log_path(date_str)
     if not path.exists():
@@ -1378,7 +1814,17 @@ def read_snapshots(date_str: str) -> list[dict]:
                 rows.append(value)
     except OSError:
         return []
-    return rows
+    rows.sort(key=lambda r: str(r.get("t") or ""))
+    out: list[dict] = []
+    seen: set[str] = set()
+    for row in rows:
+        minute = str(row.get("t") or "")[:16]
+        if minute and minute in seen:
+            continue
+        if minute:
+            seen.add(minute)
+        out.append(row)
+    return out
 
 
 def _tail_last_json_line(path: Path, chunk: int = 65536) -> Optional[dict]:
@@ -1411,6 +1857,46 @@ def _tail_last_json_line(path: Path, chunk: int = 65536) -> Optional[dict]:
         return None
 
 
+#: Minutes already written to the day's replay log (in-process cache). The
+#: log is de-duplicated by MINUTE, so a second frame for a minute that is
+#: already there is refused - including a frame that arrives out of order
+#: (the old "last line" check only saw the tail and let 10:01 in twice).
+_SNAPSHOT_MINUTES: dict[str, set[str]] = {}
+
+
+def _snapshot_minutes(date_str: str) -> set[str]:
+    """Minutes already present in the day's replay log (loaded once per day).
+
+    Cached by the log PATH, not by the date: the log directory can be
+    redirected (tests, archives) and a date-keyed cache would then report
+    minutes as "already written" that were never written to the file in front
+    of it — the snapshot was silently dropped for the rest of the session.
+    """
+    path = snapshot_log_path(date_str)
+    key = str(path)
+    cached = _SNAPSHOT_MINUTES.get(key)
+    if cached is not None:
+        return cached
+    seen: set[str] = set()
+    try:
+        with open(path) as f:
+            for line in f:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    value = json.loads(line)
+                except (json.JSONDecodeError, ValueError):
+                    continue
+                t = value.get("t") if isinstance(value, dict) else None
+                if isinstance(t, str) and t:
+                    seen.add(t[:16])
+    except OSError:
+        pass
+    _SNAPSHOT_MINUTES[key] = seen
+    return seen
+
+
 def _peek_last_snapshot_t(path: Path) -> Optional[str]:
     """The last snapshot line's ``t`` (minute dedupe anchor) — never raises."""
     last = _tail_last_json_line(path)
@@ -1435,17 +1921,30 @@ def _append_snapshot_line(date_str: str, t_iso: str,
             return None
         if not has_usable_chain(report.get("strikes")):
             return None
-        if _peek_last_snapshot_t(snapshot_log_path(date_str)) == t_iso:
+        # De-duplicate by MINUTE, not by the exact stamp: two recorder loops
+        # (or a manual snapshot) used to write the same minute twice with
+        # different sub-second stamps, and the out-of-order pair (10:01 after
+        # 15:04) broke the replay cursor.
+        minute = str(t_iso)[:16]
+        seen = _snapshot_minutes(date_str)
+        if minute and minute in seen:
             return None
         line = {
             "t": t_iso,
             "fetched_at": report.get("fetched_at"),
+            # Stamped on the LINE as well as inside the report so a replay
+            # consumer can tell what a frame is without walking into it.
+            "mode": report.get("mode", "snapshot"),
+            "snapshot_at": report.get("snapshot_at") or t_iso,
+            "source": report.get("source", "upstox-option-chain"),
             "report": report,
             "sensex": sensex,
         }
         SNAPSHOT_LOG_DIR.mkdir(parents=True, exist_ok=True)
         with open(snapshot_log_path(date_str), "a") as f:
             f.write(json.dumps(line) + "\n")
+        if minute:
+            seen.add(minute)
         return line
     except Exception:
         return None
@@ -1470,9 +1969,10 @@ async def _append_minute_snapshot(date_str: str, t_iso: str,
     row, which is written before this runs.
     """
     try:
-        last_t = await asyncio.to_thread(
-            _peek_last_snapshot_t, snapshot_log_path(date_str))
-        if last_t == t_iso:
+        # Minute de-duplication (the writer refuses a minute that is already
+        # in the log) replaces the old "last line == this stamp" check, which
+        # only ever saw the tail of the file.
+        if str(t_iso)[:16] in _snapshot_minutes(date_str):
             return None
         if not isinstance(report, dict) or not report:
             report = await _compute_live(None, walkback_days=0,
@@ -1575,8 +2075,15 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
       - ``pcr_doi  = pcr_oi - first.pcr_oi`` rounded 2dp
       - ``spot_flip = spot - flip`` rounded 2dp; None when ``flip`` is null
     Raw keys are preserved; derived keys are added.
+
+    The rows are SORTED by ``t`` before anything is differenced. The file is
+    append-only, but two recorder loops (or a late write) can land a row out
+    of order — and differencing an out-of-order pair produced a NEGATIVE
+    per-minute volume (10:01 on 2026-10-21: ``call_tick`` −2.56M) that then
+    read as a huge one-minute OI collapse.
     """
     raw_rows = drop_empty_chain_rows(drop_implausible_spots(raw_rows))
+    raw_rows = sorted(raw_rows, key=lambda r: str((r or {}).get("t") or ""))
     if not raw_rows:
         return []
     first = raw_rows[0]
@@ -1609,6 +2116,12 @@ def derive_tape_rows(raw_rows: list[dict]) -> list[dict]:
         else:
             call_tick = ce_vol - (prev_ce_vol if prev_ce_vol is not None else ce_vol)
             put_tick = pe_vol - (prev_pe_vol if prev_pe_vol is not None else pe_vol)
+            # A cumulative-volume counter that resets (or a row that arrives
+            # out of order) yields a negative minute volume. Traded volume is
+            # never negative, so the artefact is floored at zero instead of
+            # being published as a real sell-off.
+            call_tick = max(0, call_tick)
+            put_tick = max(0, put_tick)
         # PCR-OI drift vs the day's first row.
         pcr_doi = round(pcr_oi - f_pcr, 2)
         # Distance of spot above/below the GEX flip level.
@@ -1782,9 +2295,11 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
     the full replay snapshot. An empty/all-zero-OI chain is skipped, never
     persisted. Rows sharing the same IST minute bucket as the file's last row
     are skipped (returns None). ALL exceptions are swallowed — returns the row
-    on success, None otherwise.
+    on success, None otherwise — but a failure is LOGGED and journalled with
+    its reason (an Upstox 401 must be visible, not a silent hole).
     """
-    global _tape_last_skip
+    global _tape_last_skip, _tape_last_error
+    _tape_last_error = None
     # ONE computation per minute serves both the light tape row and the full
     # replay snapshot. This used to be two separate ``_compute_live`` passes
     # (one light, one full), i.e. two chain fetches + two Sensex builds every
@@ -1793,10 +2308,15 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
     try:
         report = await _compute_live(None, walkback_days=0, with_verdicts=True,
                                      with_candles=True)
-    except Exception:
+    except Exception as exc:
+        # A dead upstream (401 / network) is a bad MINUTE, not a dead
+        # recorder: log it, journal it, and let the next tick try again.
         _tape_last_skip = "chain-failed"
+        _tape_last_error = f"chain fetch failed: {type(exc).__name__}: {str(exc)[:160]}"
         stamp, gdate = _tick_stamp(now)
-        _append_gap(gdate, stamp, "chain-failed")
+        _append_gap(gdate, stamp, "chain-failed", _err_detail(exc))
+        logger.warning("nifty tape: chain fetch failed (%s) — retrying next tick: %s",
+                       type(exc).__name__, exc)
         return None
     try:
         ts = now or datetime.now(config.IST)
@@ -1806,6 +2326,29 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
         date_str = ts.strftime("%Y-%m-%d")
         path = tape_path(date_str)
         minute = t_iso[:16]
+        # Serialise the read-check + write per day: two ticks that both read
+        # "the last row is minute X" would both write minute X+1.
+        async with _tape_lock(date_str):
+            return await _write_tape_row(report, date_str, t_iso, ts, path, minute)
+    except Exception as exc:
+        _tape_last_skip = "chain-failed"
+        _tape_last_error = f"tape write failed: {type(exc).__name__}: {str(exc)[:160]}"
+        stamp, gdate = _tick_stamp(now)
+        _append_gap(gdate, stamp, "chain-failed", _err_detail(exc))
+        logger.warning("nifty tape: row write failed (%s) — retrying next tick: %s",
+                       type(exc).__name__, exc)
+        return None
+
+
+async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
+                          path: Path, minute: str) -> Optional[dict]:
+    """Write ONE tape row (and its replay frame). Caller holds the day lock."""
+    # The skip reason is published on the module (the status endpoint reads
+    # it), so it MUST be declared global here — without it every assignment
+    # below created a function-local variable and the status always reported
+    # "no skip" (e.g. "empty-chain" never reached the caller).
+    global _tape_last_skip
+    try:
         last_spot, same_minute = await asyncio.to_thread(
             _peek_last_tape_row, path, minute)
         if same_minute:
@@ -1864,9 +2407,19 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             "pcr_oi": _safe_float(report.get("pcr_oi")),
             "pcr_vol": _safe_float(report.get("pcr_vol")),
             "max_pain": _safe_float(report.get("max_pain")),
-            "flip": gex.get("zero_cross"),
-            "net_gex": gex.get("net_total"),
-            "walls": report.get("walls", {"calls": [], "puts": []}),
+            # A degraded GEX block (no gamma anywhere) is an OI proxy, not a
+            # gamma profile: its flip/net_gex are artefacts and are NOT written
+            # to the tape — a fabricated flip in the day's log is read back as
+            # a real gamma level by every consumer.
+            "flip": None if gex.get("degraded") else gex.get("zero_cross"),
+            "net_gex": None if gex.get("degraded") else gex.get("net_total"),
+            "gex_degraded": bool(gex.get("degraded")),
+            # The NEAR walls: the tape's wall consumers (the wall-migration
+            # detector, the squeeze detector) compare the wall strike
+            # minute-to-minute, so an unrestricted ranking makes the wall
+            # "migrate" whenever a far mega-wall outranks the near one —
+            # six spurious migrations in one afternoon (2026-10-22).
+            "walls": report.get("walls_near") or report.get("walls", {"calls": [], "puts": []}),
             "expiry": report.get("expiry", ""),
             "atm_strike": atm_strike,
             "atm_ce_ltp": atm_ce_ltp,
@@ -1881,6 +2434,11 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             # (the ATM drifts), and lets walls/PCR be rebuilt per strike later.
             "chain": _premium_chain_snapshot(strikes, spot),
         }
+        if is_cas_window(ts):
+            # NSE Closing Auction Session: the index print is frozen 15:15–
+            # 15:30 IST, so this row's spot is stale by construction. Flag it
+            # so EOD can prefer the official OHLC close. Additive only.
+            row["cas"] = True
         TAPE_DIR.mkdir(parents=True, exist_ok=True)
         # JSON encoding + append are blocking; off the event loop.
         await asyncio.to_thread(_append_tape_line, path, row)
@@ -1915,10 +2473,13 @@ async def record_nifty_tape_tick(now: Optional[datetime] = None) -> Optional[dic
             pass
         _tape_last_skip = None
         return row
-    except Exception:
+    except Exception as exc:
         _tape_last_skip = "chain-failed"
-        stamp, gdate = _tick_stamp(now)
-        _append_gap(gdate, stamp, "chain-failed")
+        _tape_last_error = f"tape row failed: {type(exc).__name__}: {str(exc)[:160]}"
+        stamp, gdate = _tick_stamp(ts)
+        _append_gap(gdate, stamp, "chain-failed", _err_detail(exc))
+        logger.warning("nifty tape: row write failed (%s): %s",
+                       type(exc).__name__, exc)
         return None
 
 
@@ -1931,23 +2492,181 @@ _tape_spot_rejections: int = 0
 _tape_last_skip: Optional[str] = None
 _tape_last_error: Optional[str] = None
 _tape_iterations: int = 0
+#: Consecutive failed ticks — a streak means the upstream is down (401, DNS),
+#: not that one minute was unlucky. Drives the log's "still down" line.
+_tape_failure_streak: int = 0
+#: The ONE recorder loop. The FastAPI lifespan starts it directly (it keeps
+#: its own handle) while the HTTP handlers start it through
+#: ``_ensure_tape_task`` (which keeps THIS handle). The two were never the
+#: same object, so a second loop always started: the pair wrote duplicate
+#: tape rows 26 ms apart and journalled the same gap twice.
 _tape_task = None
+#: The loop the recorder runs on. Published so a request handler (the bursts
+#: feed is a sync def, so FastAPI runs it in a threadpool) can still schedule
+#: a restart on the right loop.
+_tape_loop: Optional[asyncio.AbstractEventLoop] = None
+#: Delay before a dead recorder is restarted.
+TAPE_RESTART_DELAY_SEC = 5.0
+#: Per-day writer locks. Two ticks (two loops, or a manual tick racing the
+#: loop) could both read "the last row is from minute X" and then both write
+#: a row for minute X+1. The write section of a tick is serialised per
+#: calendar day so a minute is written exactly once.
+_TAPE_LOCKS: dict[str, asyncio.Lock] = {}
+
+
+def _tape_lock(date_str: str) -> asyncio.Lock:
+    """The writer lock for ``date_str`` (created on first use)."""
+    lock = _TAPE_LOCKS.get(date_str)
+    if lock is None:
+        lock = asyncio.Lock()
+        _TAPE_LOCKS[date_str] = lock
+    return lock
+
+
+def _start_tape_task(loop) -> None:
+    """Create the recorder task on ``loop`` (one instance only)."""
+    global _tape_task
+    if _tape_task is not None and not _tape_task.done():
+        return
+    try:
+        _tape_task = loop.create_task(start_nifty_tape_task())
+        logger.warning("nifty tape: recorder (re)started — the tape was blind")
+    except Exception:
+        pass
 
 
 def _ensure_tape_task() -> None:
-    """Start the recorder loop if it isn't running (request-driven backup
-    for the lifespan hook — survives reloaders that skip lifespan)."""
+    """Start the recorder loop if it isn't running (watchdog).
+
+    Called from the handlers the desk already polls, so a recorder that died
+    (an Upstox 401, an unhandled error) is back within seconds instead of
+    staying blind for the rest of the session. Safe to call from a worker
+    thread: the start is scheduled onto the recorder's own loop.
+    """
     global _tape_task
     try:
-        import asyncio
-        loop = asyncio.get_running_loop()
+        running = asyncio.get_running_loop()
     except RuntimeError:
+        running = None
+    loop = running or _tape_loop
+    if loop is None or loop.is_closed():
         return
     try:
-        if _tape_task is None or _tape_task.done():
-            _tape_task = loop.create_task(start_nifty_tape_task())
+        if _tape_task is not None and not _tape_task.done():
+            return
     except Exception:
+        return
+    if running is loop:
+        _start_tape_task(loop)
+        return
+    try:
+        loop.call_soon_threadsafe(_start_tape_task, loop)
+    except RuntimeError:
         pass
+
+
+def _schedule_tape_restart(delay: float = TAPE_RESTART_DELAY_SEC) -> None:
+    """Re-arm the recorder after it died. Never raises."""
+    loop = _tape_loop
+    if loop is None or loop.is_closed():
+        return
+    try:
+        loop.call_later(delay, _ensure_tape_task)
+    except RuntimeError:
+        pass
+
+
+def _market_open() -> bool:
+    """Is the market open? Falls back to an hour window on import failure."""
+    try:
+        from trading.utils import is_market_open
+
+        return bool(is_market_open())
+    except Exception:
+        return 8 <= datetime.now(config.IST).hour <= 16
+
+
+async def _tape_tick(poll_sec: int) -> None:
+    """One recorder tick. Never raises — a failure is a missing minute."""
+    global _tape_iterations, _tape_last_tick, _tape_last_error
+    timeout_sec = max(1.0, min(float(poll_sec), TAPE_TICK_TIMEOUT_SEC))
+    try:
+        row = await asyncio.wait_for(record_nifty_tape_tick(), timeout=timeout_sec)
+    except asyncio.TimeoutError:
+        _tape_iterations += 1
+        _tape_last_error = f"tick timed out after {timeout_sec:.0f}s"
+        stamp, gdate = _tick_stamp()
+        _append_gap(gdate, stamp, "timeout")
+        logger.warning("nifty tape: tick timed out after %.0fs", timeout_sec)
+        return
+    except asyncio.CancelledError:
+        raise
+    except Exception as exc:
+        _tape_iterations += 1
+        _tape_last_error = f"{type(exc).__name__}: {str(exc)[:200]}"
+        stamp, gdate = _tick_stamp()
+        _append_gap(gdate, stamp, "loop-error", _err_detail(exc))
+        logger.warning("nifty tape: tick raised %s: %s", type(exc).__name__, exc)
+        return
+    _tape_iterations += 1
+    if row is not None:
+        _tape_last_tick = row.get("t")
+        _tape_last_error = None
+    elif _tape_last_skip == "chain-failed":
+        # The tick already recorded WHY (401, network) — keep that detail.
+        if not _tape_last_error:
+            _tape_last_error = "tick returned None (chain fetch failed?)"
+    else:
+        # A deliberate skip (same minute, or a rejected spot) is not a
+        # failure — don't leave a stale error behind.
+        _tape_last_error = None
+
+
+async def _tape_recorder_loop(poll_sec: int) -> None:
+    """The recorder heartbeat: one tick per ``poll_sec`` seconds.
+
+    A tick that fails (Upstox 401, network, timeout) must NOT end the loop —
+    on 2026-10-22 a 401 took the tape, the burst feed and the desk watchers
+    blind for ten minutes because the failure was swallowed with no retry and
+    no log. Every failure is logged, journalled and retried on the next tick.
+    """
+    global _tape_task, _tape_loop, _tape_failure_streak, _tape_last_error
+    current = asyncio.current_task()
+    if (_tape_task is not None and _tape_task is not current
+            and not _tape_task.done()):
+        # Another recorder already owns the tape - this is a duplicate.
+        return
+    _tape_task = current
+    _tape_loop = asyncio.get_running_loop()
+    loop = _tape_loop
+    next_tick = loop.time()
+    while True:
+        try:
+            if _market_open():
+                await _tape_tick(poll_sec)
+                if _tape_last_error:
+                    _tape_failure_streak += 1
+                    if _tape_failure_streak == 1 or _tape_failure_streak % 5 == 0:
+                        logger.warning(
+                            "nifty tape: %d consecutive failed ticks (last: %s)",
+                            _tape_failure_streak, _tape_last_error)
+                else:
+                    if _tape_failure_streak:
+                        logger.warning("nifty tape: recovered after %d failed ticks",
+                                       _tape_failure_streak)
+                    _tape_failure_streak = 0
+            next_tick += poll_sec
+            await asyncio.sleep(max(0.0, next_tick - loop.time()))
+        except asyncio.CancelledError:
+            raise
+        except Exception as exc:
+            # A bug in the tick path must not end the recorder.
+            logger.exception("nifty tape: recorder loop error (%s) — retrying",
+                             type(exc).__name__)
+            if not _tape_last_error:
+                _tape_last_error = f"{type(exc).__name__}: {str(exc)[:200]}"
+            next_tick = loop.time() + poll_sec
+            await asyncio.sleep(poll_sec)
 
 
 async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
@@ -1955,58 +2674,27 @@ async def start_nifty_tape_task(poll_sec: int = TAPE_INTERVAL_SEC) -> None:
 
     Market gate delegates to ``trading.utils.is_market_open`` (hour-window
     fallback on import failure, mirroring the server's ``_is_market_hours``).
-    Never raises — per-tick errors are swallowed so the loop survives.
+    A tick failure is logged and retried on the next tick; the loop itself
+    only ends on cancellation or a fatal error, and a fatal error is LOUD
+    (logged) and restarts the recorder instead of leaving the tape blind.
     Heartbeat (for /nifty/tape/status): ``_tape_last_tick/_tape_last_error``.
+
+    Only ONE instance may run. The lifespan starts this coroutine directly
+    while the HTTP handlers start it through ``_ensure_tape_task``; whichever
+    starts first owns the recorder and the other returns immediately. Without
+    that guard two loops wrote the same minute twice (26 ms apart) and
+    journalled the same gap twice.
     """
-    global _tape_last_tick, _tape_last_error, _tape_iterations
-    import asyncio
-    loop = asyncio.get_running_loop()
-    next_tick = loop.time()
-    while True:
-        try:
-            try:
-                from trading.utils import is_market_open
-                market_open = is_market_open()
-            except Exception:
-                market_open = 8 <= datetime.now(config.IST).hour <= 16
-            if market_open:
-                try:
-                    timeout_sec = max(1.0, min(float(poll_sec), TAPE_TICK_TIMEOUT_SEC))
-                    row = await asyncio.wait_for(
-                        record_nifty_tape_tick(), timeout=timeout_sec
-                    )
-                    _tape_iterations += 1
-                    if row is not None:
-                        _tape_last_tick = row.get("t")
-                        _tape_last_error = None
-                    elif _tape_last_skip == "chain-failed":
-                        _tape_last_error = "tick returned None (chain fetch failed?)"
-                    else:
-                        # A deliberate skip (same minute, or a rejected spot) is
-                        # not a failure — don't leave a stale error behind.
-                        _tape_last_error = None
-                except asyncio.TimeoutError:
-                    _tape_iterations += 1
-                    _tape_last_error = (
-                        f"tick timed out after {timeout_sec:.0f}s"
-                    )
-                    stamp, gdate = _tick_stamp()
-                    _append_gap(gdate, stamp, "timeout")
-                except Exception as e:
-                    _tape_iterations += 1
-                    _tape_last_error = f"{type(e).__name__}: {str(e)[:200]}"
-                    stamp, gdate = _tick_stamp()
-                    _append_gap(gdate, stamp, "loop-error")
-            next_tick += poll_sec
-            await asyncio.sleep(max(0.0, next_tick - loop.time()))
-        except asyncio.CancelledError:
-            break
-        except Exception:
-            next_tick = loop.time() + poll_sec
-            try:
-                await asyncio.sleep(poll_sec)
-            except asyncio.CancelledError:
-                break
+    try:
+        await _tape_recorder_loop(poll_sec)
+    except asyncio.CancelledError:
+        logger.info("nifty tape: recorder cancelled — stopping")
+        raise
+    except BaseException:
+        logger.exception("nifty tape: recorder died — restarting in %.0fs",
+                         TAPE_RESTART_DELAY_SEC)
+        _schedule_tape_restart()
+        raise
 
 
 @router.get("/nifty/bursts/stream", dependencies=[Depends(get_current_user)])
@@ -2139,15 +2827,18 @@ def get_nifty_replay(
         for s in snaps
     ]
     if t and isinstance(t, str):
-        # Same-tz ISO strings: the minute bucket (YYYY-MM-DDTHH:MM) compares
-        # correctly as text, so a sub-minute stamp picks its own minute. The
-        # isinstance guard also keeps the direct (non-HTTP) call sentinel
-        # Query object out of the path.
-        target = t.strip()
+        # FULL timestamps are compared, not minute buckets: truncating both
+        # sides to [:16] made "10:01:30" select the 10:01:59 frame as well.
+        # Same-tz ISO strings compare correctly as text; a " " separator is
+        # normalised to "T" so a space-separated stamp does not sort before
+        # every "T"-stamped frame of the same minute. The isinstance guard
+        # also keeps the direct (non-HTTP) call sentinel Query object out of
+        # the path.
+        target = t.strip().replace(" ", "T")
         chosen: Optional[dict] = None
         for snap in snaps:
             snap_t = str(snap.get("t") or "")
-            if snap_t and snap_t[:16] <= target[:16]:
+            if snap_t and snap_t <= target:
                 chosen = snap
         return {"date": date_str, "snapshot": chosen}
     return {"date": date_str, "count": len(snaps),
@@ -2232,6 +2923,9 @@ def get_nifty_bursts(
     404. ``signal`` is attached from the day's saved snapshot when available;
     otherwise it is ``null``. No network/Upstox calls are made here.
     """
+    # The desk polls this feed, so it doubles as the recorder's watchdog: a
+    # recorder that died is restarted here instead of staying blind.
+    _ensure_tape_task()
     date_str = _validate_date(date or _today_str())
     raw = read_tape(date_str)
     if not raw:
@@ -2266,11 +2960,41 @@ def get_nifty_bursts(
         trend = session_trend(rows)
     except Exception:
         trend = None
+    # Named levels the desk trades against — a close beyond one is structure.
+    levels: dict[str, float] = {}
+    try:
+        snap = read_snapshot(date_str) or {}
+        for kind, key in (("max_pain", "max_pain"),):
+            v = _safe_float(snap.get(key))
+            if v:
+                levels[kind] = v
+        walls = (snap.get("walls_near") or snap.get("walls") or {})
+        for side_key, kind in (("calls", "wall"), ("puts", "wall")):
+            entries = walls.get(side_key) or []
+            if entries and _safe_float((entries[0] or {}).get("strike")):
+                levels[f"{kind}_{side_key}"] = _safe_float(entries[0]["strike"])
+    except Exception:
+        levels = {}
     for b in bursts:
         try:
             # Trend at the burst's own minute, not at the close.
             b_trend = session_trend(rows, at_time=b.get("t")) or trend
+            prem = b.get("premChg")
+            building = _safe_float(b.get("delta")) > 0
+            b["fuel_state"] = fuel_state(building, None if prem is None else float(prem))
+            b["structure"] = structure_evidence(rows, str(b.get("t") or ""), levels)
+            if b["structure"]:
+                b["invalidation"] = b["structure"].get("level")
             b["signal"] = derive_oi_signal(b, strikes, spot, trend=b_trend)
+            if (b.get("signal") is None and strikes and spot
+                    and b.get("type") not in ("coil", "squeeze", "premium")):
+                b["plan_suppressed"] = True
+                b["signal"] = {
+                    "leg": None, "strike": None, "entry": None, "sl": None,
+                    "target": None, "qty": 0, "lots": 0,
+                    "basis": basis_text(b.get("fuel_state"), b.get("side") or "call",
+                                        b.get("structure"), _safe_float(b.get("spot"))),
+                }
         except Exception:
             b["signal"] = None
     if trend:
