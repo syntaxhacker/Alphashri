@@ -1,5 +1,153 @@
 # Code Deletion Log
 
+## 2026-10-22 Refactor Session — Nifty report + Deep Value (React/TS)
+
+Scope: `src/pages/report/**`, `src/components/value/**`, `src/utils/**`.
+Excluded by policy (another agent editing them concurrently):
+`src/pages/report/NiftyReportPanel.tsx`, `niftyOiBursts.ts`,
+`useNiftyOiAlerts.ts`, `NiftyVerdictStrip.tsx`, `src/api/reportNifty.ts`,
+`src/types/niftyReport.ts`.
+
+### Unused files deleted
+
+- `src/pages/report/chartOverlays.ts` (355 lines) + `chartOverlays.test.ts`
+  (300) — the whole module was orphaned: the only reference in the repo was
+  its own test. Its types (`ChartLevel`, `OpeningRange`, `TradeMarker`,
+  `WallZone`, `LevelSplit`, `VwapPoint`) had no consumer, and the live
+  equivalents live in `src/utils/chart/*` and `src/patterns/builder/`.
+- `src/utils/ui_schema.ts` (252) + `ui_schema.test.ts` (38) — the screener
+  column ladder was superseded by `src/components/screener/columns/`; the
+  module was referenced by nothing outside its own test.
+
+### Dead code removed
+
+- `src/pages/report/niftyOiHeatmap.ts` — `buildHeatmapTimeAxis()` and
+  `heatmapBucketOf()` (superseded by the live bucketing in the same file),
+  plus the `HeatmapTimeAxis` type.
+- `src/utils/color.ts` — `themeAlpha()` (no callers) and the `muiAlpha`
+  re-export (internal only).
+- **146 dead exports** un-exported across the scope (props interfaces,
+  file-local types and constants that nothing imported). Every one was
+  re-checked repo-wide (`src`, `tests`, `docs`, `scripts`, `api`) before the
+  `export` keyword was dropped; none was deleted outright, so no consumer
+  breaks.
+
+### Shared modules created
+
+| Module | Lines | Home for |
+|---|---|---|
+| `src/pages/report/reportFormat.ts` | 296 | the report's numeric vocabulary — `formatReportNum`, `formatReportPct`, `formatReportRatio`, `formatReportCompact`, `formatReportOiCr`, `formatReportClock`, `formatReportPoints`, `REPORT_DASH`, `REPORT_MINUS` |
+| `src/pages/report/reportFormat.test.ts` | 128 | parity tests pinning every formatter to the legacy per-panel output |
+| `src/components/value/valueFormat.ts` | 76 | the Deep Value panel's percent / number / price / mcap formatters |
+| `src/pages/report/tapeFormat.ts` | 295 | the tape's formatters, heat scale, session roll-up and change-flash diff |
+| `src/pages/report/NiftyTapeColumns.tsx` | 376 | the tape's 12-column model |
+| `src/pages/report/deskPlanTypes.ts` | 91 | the desk plan's data contract |
+| `src/pages/report/deskPlanLevels.ts` | 195 | structural levels + the plan's thresholds |
+| `src/pages/report/deskPlanReasons.ts` | 332 | one numeric sentence per reason bucket |
+| `src/pages/report/niftyChartMath.ts` | 413 | the chart's pure maths — scale guard, mark lines, resampling, EMA |
+| `src/pages/report/ReportLeaderStrip.tsx` | 147 | the daily report's breadth readout + leadership board |
+
+### Number / percent formatting — 14 copies → 1 vocabulary
+
+Each panel used to carry its own formatter and they had drifted: one printed
+the Unicode minus `−` where another printed `-`, the compact K tier used 2
+decimals in one panel and 1 in another, and the "no value" glyph was spelled
+three different ways (`—`, `–`, `n/a`).
+
+| Old helper | Panel | New home |
+|---|---|---|
+| `formatTapeCompact` / `formatTapePrice` / `formatTapeSigned` / `formatTapePct` / `formatTapeRatio` | tape | `reportFormat` (via `tapeFormat`) |
+| `formatUnusualCompact` / `formatUnusualShare` | unusual volume | `reportFormat` |
+| `formatProfileCompact` | volume profile | `reportFormat` |
+| `compactOi` | OI heatmap | `reportFormat` |
+| `fmtIntelSigned` / `fmtIntelInt` / `fmtIntelOi` / `fmtIntelPcr` | intel strip | `reportFormat` |
+| `fmtCr` / `fmtFlipStrike` / `flipDistanceLabel` | delta positioning | `reportFormat` |
+| `fmtDeskNum` / `fmtDeskOi` | desk plan | `reportFormat` |
+| `fmtStrike` | depth map / heatmap | `reportReportNum` |
+| `formatOiCompact` | depth map | `reportFormat.formatReportOiCr` |
+| `fmtPct` / `fmtNum` | value columns + detail drawer | `valueFormat` |
+| `fmtMedian` | value score cell | `valueFormat` |
+
+Every migration is pinned by `reportFormat.test.ts`, which asserts the **exact
+legacy string** for each replaced helper (including the Unicode minus, the
+`"–"` vs `"n/a"` dash and the per-tier decimal counts).
+
+### `hexToRgba` — 4 copies → 1
+
+`src/utils/color.ts::hexToRgba` already existed but was unused; the report
+panels each had a byte-identical private copy. MUI's `alpha()` was verified to
+produce the identical `rgba(r, g, b, a)` string for every hex token in the
+report palette, so the panel copies now call the shared helper. Removed the
+copies in `NiftyTapeTable.tsx`, `NiftyUnusualVolume.tsx` and
+`NiftyChartPanel.tsx`.
+
+### IST clock — 2 copies → 1
+
+`NiftyTapeTable.formatIstClock` and `NiftyUnusualVolume.clock` were the same
+function; both now call `reportFormat.formatReportClock`.
+
+### Sorting — 5 local sorts → the shared `ui-helpers.sortByField`
+
+`sortByField` existed in `src/utils/ui-helpers.ts` but had no callers. It now
+backs the strike/level sorts in `NiftyDepthMap.buildDepthRows`,
+`niftyGex.buildGexProfile`, `niftyVolumeProfile.buildVolumeProfile`,
+`DeltaProfileChart.buildDeltaProfile` and the wall ranking in
+`NiftyChartPanel.buildMarkLines`.
+
+### File splits (>800 lines → 200–400)
+
+| File | Before | After | Extracted into |
+|---|---|---|---|
+| `src/pages/report/NiftyTapeTable.tsx` | 1,105 | 528 | `tapeFormat.ts` (295) + `NiftyTapeColumns.tsx` (376) |
+| `src/pages/report/deskPlan.ts` | 944 | 401 | `deskPlanTypes.ts` (91) + `deskPlanLevels.ts` (195) + `deskPlanReasons.ts` (332) |
+| `src/pages/report/NiftyChartPanel.tsx` | 791 | 412 | `niftyChartMath.ts` (413) |
+| `src/pages/report/DailyReportPage.tsx` | 787 | 652 | `ReportLeaderStrip.tsx` (147) |
+
+Every extracted module keeps the original export path working: the old
+import sites (`from "./NiftyTapeTable"`, `from "./deskPlan"`,
+`from "./NiftyChartPanel"`) still resolve, so no call site had to change.
+
+### Impact
+
+- Files deleted: **4** (655 + 290 lines of orphaned code).
+- Files created: **10** (2,349 lines), of which 128 are parity tests.
+- Dead exports un-exported: **146**; dead functions deleted: **4**.
+- Duplicated formatter implementations removed: **24** across 11 panels.
+- Largest in-scope file: 1,105 → **691 lines** (`NiftyDepthMap.tsx`); every
+  file that was over the 800-line hard max is now under 530.
+
+### Testing
+
+- `npx vitest run src/pages/report/ src/components/value/ src/utils/` →
+  **71 files, 1,501 tests passed**.
+- `npx vitest run src/test/ui-guard.test.ts src/ui/inputs/inputs.w-h.test.tsx`
+  → **2 files, 11 tests passed**.
+- `npx vitest run --dir src --testTimeout=20000` → **420 files passed, 1
+  failed**: `src/config/colors.test.ts` (2 assertions). **Pre-existing and
+  not ours** — another agent changed `src/ui/palette.ts` (`CHART_BG`
+  `#0D1117`→`#000000`, `TOOLTIP_BG` `#161B22`→`#111111`) without updating the
+  test; both files are outside this session's scope.
+- `bun run build` → **✓ built in 28.61s**, no errors.
+- `bun run lint` → **140 warnings, 0 errors** (the only warnings inside the
+  scope are two pre-existing ones in `src/utils/surgeNotifications.ts`).
+- `tsc --noEmit` → **1,169 errors, down from the 1,184 baseline**; every
+  remaining error in a touched file is the repo's pre-existing
+  `UITextProps`/`UITooltipProps`/`CompactPanelProps` pattern, unchanged in
+  count by this session.
+
+### Left in place (reported, not removed)
+
+- `src/pages/report/NiftyGexProfile.tsx::GEX_LEVEL_MAX_DIST_PCT` and
+  `GEX_LEVEL_MIN_SHARE` have no importers inside `src`, but they are asserted
+  by the co-located test — kept exported.
+- `NiftyReportPanel.tsx` (3,474 lines) and `niftyOiBursts.ts` (965) are still
+  over the 800-line hard max. Both are excluded from this session because
+  another agent is editing them concurrently.
+- `src/pages/report/niftyOiBursts.ts` and `useNiftyOiAlerts.ts` keep their
+  own copy of the terminal palette constants; consolidating them with the
+  tape's would need a shared terminal-palette module, and the panel they
+  live in is not ours to edit.
+
 ## 2026-10-22 Refactor Session — desk/tooling layer (Python)
 
 Scope: `scripts/**` and `options_paper/**`. Excluded by policy:
