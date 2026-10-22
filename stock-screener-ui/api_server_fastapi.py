@@ -1154,6 +1154,13 @@ except Exception as e:
     print(f"⚠️ Could not load sector API: {e}")
 
 try:
+    from api.value_scan import router as value_scan_router
+    app.include_router(value_scan_router)
+    print("✅ Value scan API loaded at /api/value")
+except Exception as e:
+    print(f"⚠️ Could not load value scan API: {e}")
+
+try:
     from api.options import router as options_router
     app.include_router(options_router)
     print("✅ Options API loaded at /api/options")
