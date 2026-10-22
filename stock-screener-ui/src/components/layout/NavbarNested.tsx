@@ -47,6 +47,7 @@ const navItems = [
   { label: "Bots", icon: IconRobot, link: "/bots" },
   { label: "Options", icon: IconChartArea, link: "/options" },
   { label: "Nifty Report", icon: IconChartArea, link: "/report/nifty" },
+  { label: "US Report", icon: IconChartLine, link: "/report/us" },
   { label: "Settings", icon: IconSettings, link: "/settings" },
   { label: "Admin", icon: IconShield, link: "/admin" },
 ];
