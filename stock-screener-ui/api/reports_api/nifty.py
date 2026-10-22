@@ -2407,6 +2407,17 @@ async def _write_tape_row(report: dict, date_str: str, t_iso: str, ts: datetime,
             "pcr_oi": _safe_float(report.get("pcr_oi")),
             "pcr_vol": _safe_float(report.get("pcr_vol")),
             "max_pain": _safe_float(report.get("max_pain")),
+            # The live report prefers Upstox's OFFICIAL max pain (sourced from a
+            # 30-min bucket) and only falls back to the computed value, but the
+            # row did not record which. The two disagree by a strike on 21 of 338
+            # rows (2026-10-22), so every "did price pin to max pain" study mixed
+            # two definitions. Store the computed value alongside the printed one.
+            "max_pain_computed": compute_max_pain([
+                {"strike": _safe_float(r.get("strike")) or 0.0,
+                 "ce_oi": _safe_int((r.get("ce") or {}).get("oi")),
+                 "pe_oi": _safe_int((r.get("pe") or {}).get("oi"))}
+                for r in strikes
+            ]) if strikes else None,
             # A degraded GEX block (no gamma anywhere) is an OI proxy, not a
             # gamma profile: its flip/net_gex are artefacts and are NOT written
             # to the tape — a fabricated flip in the day's log is read back as
