@@ -361,7 +361,11 @@ bun test -- --run src/state/correlation.test.ts         # state tests only
 bun test -- --run src/components/screener/CorrelationMatrix.test.tsx  # single file
 source .venv/bin/activate && python -m pytest tests/test_correlation.py -v  # backend
 ```
-Always run the full suite (`bun run test`) before committing.
+**Do NOT run the full suite locally** (6,211 backend / ~6,500 frontend cases, 8 cores, >15 min
+backend). It starves the API/tape writer during market hours and the feedback is too slow to
+be useful — which is how tests stop being run at all. Local = the touched files only (or
+`npx vitest run --changed`). The full pass belongs to CI (20 shards × 4 workers). Run it
+locally only for a `develop → main` release check.
 
 **Note**: Use `npx vitest run <file>` for tests using `vi.mock` — `bun test` does not support `vi.mock`.
 ```bash
