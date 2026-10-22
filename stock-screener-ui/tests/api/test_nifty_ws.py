@@ -188,6 +188,9 @@ def _reset_spot_state():
     saved_day_open = nifty_ws_module._day_open
     saved_task = nifty_ws_module._spot_tick_task
     nifty_ws_module._spot_tick_task = None
+    # A leaked poller (the conftest client boots the real app) can leave a
+    # live spot behind, so tests would assert against market data.
+    nifty_ws_module._reset_spot_state_for_tests()
     yield
     nifty_ws_module._reset_spot_state_for_tests()
     with nifty_ws_module._spot_lock:

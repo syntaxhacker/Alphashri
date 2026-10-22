@@ -21,7 +21,7 @@ import asyncio
 import json
 import logging
 from collections import deque
-from typing import Any, Optional
+from typing import Any
 
 import config
 

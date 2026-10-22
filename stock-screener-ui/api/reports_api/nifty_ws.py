@@ -76,6 +76,12 @@ _last_spot: dict = {"spot": None, "ts": None, "change_pct": None}
 #: First spot observed by the poller; baseline for ``change_pct``.
 _day_open: Optional[float] = None
 
+#: IST date the ``_day_open`` baseline belongs to. The poller runs for the
+#: life of the process, so without this the baseline survived the overnight
+#: gap: on the second trading day ``change_pct`` silently became the change
+#: since YESTERDAY's open while the UI labelled it "today".
+_day_open_date: Optional[str] = None
+
 #: Handle of the running poller (for idempotent startup); never awaited here.
 _spot_tick_task: Optional[asyncio.Task] = None
 
@@ -102,7 +108,7 @@ def _set_spot(spot: float, ts: Optional[str], change_pct: Optional[float]) -> No
 
 def _reset_spot_state_for_tests() -> None:
     """Reset shared SPOT state (tests only)."""
-    global _day_open
+    global _day_open, _day_open_date
     try:
         with _spot_lock:
             _last_spot["spot"] = None
@@ -111,6 +117,7 @@ def _reset_spot_state_for_tests() -> None:
     except Exception:
         pass
     _day_open = None
+    _day_open_date = None
 
 
 async def nifty_spot_tick_task(interval_sec: float = SPOT_POLL_INTERVAL_SEC) -> None:
@@ -152,7 +159,15 @@ async def nifty_spot_tick_task(interval_sec: float = SPOT_POLL_INTERVAL_SEC) -> 
                 if isinstance(data, dict):
                     spot = float(data.get("spot") or 0)
                     if spot > 0:
-                        global _day_open
+                        global _day_open, _day_open_date
+                        today = _ist_today()
+                        if _day_open_date != today:
+                            # New IST day: yesterday's baseline is stale, so
+                            # the first reading of today becomes the new
+                            # baseline (otherwise change_pct would be a
+                            # two-day change dressed up as today's).
+                            _day_open = None
+                            _day_open_date = today
                         if _day_open is None:
                             _day_open = spot
                         try:
@@ -218,7 +233,17 @@ def _ist_now_iso() -> str:
     try:
         return datetime.now(config.IST).isoformat()
     except Exception:
-        return datetime.now().isoformat()
+        # A tz-AWARE stamp even on the fallback path: a naive one is read as
+        # local time by every consumer and silently shifts the tape by hours.
+        return datetime.now().astimezone().isoformat()
+
+
+def _ist_today() -> str:
+    """IST session date (``YYYY-MM-DD``) of the SPOT poller's baseline."""
+    try:
+        return datetime.now(config.IST).strftime("%Y-%m-%d")
+    except Exception:
+        return datetime.now().astimezone().strftime("%Y-%m-%d")
 
 
 def _build_tape_payload() -> Optional[dict]:

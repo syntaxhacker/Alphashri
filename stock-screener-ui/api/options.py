@@ -14,7 +14,7 @@ import os
 import json
 import math
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 from db.models import get_shared_broker_token
@@ -89,8 +89,12 @@ def get_option_sentiment(price_change: float, oi_change: int) -> Dict[str, str]:
     return {"type": "Neutral", "color": "gray", "label": "Neutral"}
 
 
-def calculate_expected_move(spot: float, iv: float, dte: int) -> Dict[str, float]:
-    """Calculate 1-Standard Deviation expected move based on IV."""
+def calculate_expected_move(spot: float, iv: float, dte: int) -> Optional[Dict[str, float]]:
+    """Calculate 1-Standard Deviation expected move based on IV.
+
+    ``None`` when there is no spot or no IV - the caller must not read a
+    0.0 expected move out of "unknown".
+    """
     if spot <= 0 or iv <= 0:
         return None
     
@@ -365,21 +369,41 @@ async def get_fyers_symbol(
     return result
 
 
-def transform_option_contract(option_data: dict, strike: float, option_type: str) -> dict:
+def _num(value: Any, default: float = 0.0) -> float:
+    """``float(value)`` or ``default`` — upstream may send ``None``/garbage."""
+    if value is None or isinstance(value, bool):
+        return default
+    try:
+        out = float(value)
+    except (TypeError, ValueError):
+        return default
+    return out if math.isfinite(out) else default
+
+
+def transform_option_contract(option_data: dict, strike: float, option_type: str) -> Optional[dict]:
     """Transform Upstox option data to flat contract structure with sentiment."""
     if not option_data:
         return None
 
-    market_data = option_data.get("market_data", {})
-    greeks = option_data.get("option_greeks", {})
-    
-    ltp = market_data.get("ltp", 0)
-    oi = market_data.get("oi", 0)
-    prev_oi = market_data.get("prev_oi", 0)
-    bid = market_data.get("bid_price", 0)
+    market_data = option_data.get("market_data") or {}
+    greeks = option_data.get("option_greeks") or {}
 
-    oi_change = oi - prev_oi
-    price_change = ltp - bid
+    ltp = _num(market_data.get("ltp"))
+    oi = _num(market_data.get("oi"))
+    prev_oi = _num(market_data.get("prev_oi"))
+    bid = _num(market_data.get("bid_price"))
+    close_price = _num(market_data.get("close_price"))
+
+    oi_change = int(oi - prev_oi)
+    # Price change is measured against the PREVIOUS CLOSE, not the bid.
+    # ``ltp - bid`` is the bid-ask spread (>= 0 almost always), so the Short
+    # Buildup / Long Unwinding quadrants could never fire and every leg read
+    # as Long Buildup or Short Covering. The Nifty report
+    # (``reports_api/nifty.build_leg``) has always used ``ltp - close_price``;
+    # this keeps both paths on ONE convention. With no previous close the
+    # direction is unknown, so the old bid-relative read is kept rather than
+    # inventing one.
+    price_change = (ltp - close_price) if close_price else (ltp - bid)
 
     sentiment = get_option_sentiment(price_change, oi_change)
 
@@ -390,12 +414,12 @@ def transform_option_contract(option_data: dict, strike: float, option_type: str
         "expiry": option_data.get("expiry", ""),
         "instrument_type": option_type,
         "market_data": {
-            "ltp": ltp,
+            "ltp": market_data.get("ltp", 0),
             "volume": market_data.get("volume", 0),
-            "oi": oi,
-            "bid_price": bid,
+            "oi": market_data.get("oi", 0),
+            "bid_price": market_data.get("bid_price", 0),
             "ask_price": market_data.get("ask_price", 0),
-            "prev_oi": prev_oi,
+            "prev_oi": market_data.get("prev_oi", 0),
             "close_price": market_data.get("close_price", 0),
             "bid_qty": market_data.get("bid_qty", 0),
             "ask_qty": market_data.get("ask_qty", 0),
@@ -468,12 +492,28 @@ async def _fetch_chain_rows(underlying: str, expiry: str):
     return chain, spot_price
 
 
+def _validate_expiry(expiry: str) -> str:
+    """``YYYY-MM-DD`` or a 400 — a malformed expiry must not reach Upstox
+    (it used to come back as a 500 from ``strptime`` deep inside the route)."""
+    text = str(expiry or "").strip()
+    try:
+        parsed = datetime.strptime(text, "%Y-%m-%d")
+    except (TypeError, ValueError):
+        raise HTTPException(
+            status_code=400,
+            detail=f"bad expiry: {expiry!r}, want YYYY-MM-DD",
+        )
+    # Canonical ISO: Upstox is given "2026-03-07", never "2026-3-7".
+    return parsed.strftime("%Y-%m-%d")
+
+
 @router.get("/chain/{underlying}")
 async def get_option_chain(
     underlying: str,
     expiry: str = Query(..., description="Expiry date in YYYY-MM-DD format"),
 ):
     """Get complete option chain with server-side analysis."""
+    expiry = _validate_expiry(expiry)
     try:
         chain, spot_price = await _fetch_chain_rows(underlying, expiry)
 
@@ -551,6 +591,7 @@ async def get_positioning(
     Upstox ``prev_oi`` is the prior-session close OI, so "since open"
     ≈ "vs prev close". A second baseline mode may arrive in v2.
     """
+    expiry = _validate_expiry(expiry)
     try:
         chain, spot_price = await _fetch_chain_rows(underlying, expiry)
         lot_size = next(

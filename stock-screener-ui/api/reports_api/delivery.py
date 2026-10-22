@@ -88,6 +88,18 @@ _NSE_HEADERS = {
 _delivery_mem: dict[str, tuple[float, dict]] = {}
 _events_mem: dict[str, tuple[float, dict]] = {}
 
+#: In-memory cache entries kept per store. The keys embed the requested
+#: window / symbol list / limit, so every distinct request added an entry that
+#: was never evicted - an unbounded dict on a long-lived server.
+_MEM_CACHE_MAX = 64
+
+
+def _mem_put(store: dict, key: str, value: tuple[float, dict]) -> None:
+    """Store a cache entry, evicting the oldest ones past the cap."""
+    store[key] = value
+    while len(store) > _MEM_CACHE_MAX:
+        store.pop(next(iter(store)), None)
+
 
 def _now_iso() -> str:
     try:
@@ -300,7 +312,7 @@ def serve_delivery(day: str, universe: str, limit: int) -> dict:
         }
         clean = _sanitize_for_json(payload)
         try:
-            _delivery_mem[mem_key] = (time.time(), clean)
+            _mem_put(_delivery_mem, mem_key, (time.time(), clean))
         except Exception:
             pass
         return clean
@@ -558,7 +570,7 @@ def serve_events(
         }
         clean = _sanitize_for_json(payload)
         try:
-            _events_mem[mem_key] = (time.time(), clean)
+            _mem_put(_events_mem, mem_key, (time.time(), clean))
         except Exception:
             pass
         return clean

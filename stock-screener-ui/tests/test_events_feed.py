@@ -1,5 +1,7 @@
 """Tests for GET /api/reports/events/upcoming + /recent (fully mocked I/O)."""
 
+from datetime import date, timedelta
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -38,7 +40,10 @@ def client(monkeypatch):
     monkeypatch.setattr(ef, "resolve_symbol", lambda s: _aliases.get(str(s or "").upper(), str(s or "").upper() or None))
     monkeypatch.setattr(
         ef, "_fetch_symbol_events",
-        lambda sym: {"symbol": sym, "earnings": [{"date": "2026-10-20"}],
+        # Relative, because the endpoint applies a rolling N-day window:
+        # a hardcoded date silently falls out of it as the calendar moves.
+        lambda sym: {"symbol": sym,
+                     "earnings": [{"date": (date.today() - timedelta(days=2)).isoformat()}],
                      "ex_div": None, "dividends": [], "splits": []},
     )
     monkeypatch.setattr(ef, "_query_news_rows", lambda s, e: [])
@@ -101,8 +106,10 @@ def test_upcoming_shape_and_sort(client, monkeypatch):
     monkeypatch.setattr(
         ef, "_query_news_rows",
         lambda s, e: _rows(
-            ("2026-10-09", "TCS", "TCS keeps lower outlay for quarterly variable pay in Q2", "moneycontrol", "TATA CONSULTANCY SERV LT"),
-            ("2026-10-07", "PTC", "PTC Industries shares rise after company launches QIP", "moneycontrol", "PTC INDIA LIMITED"),
+            ((date.today() - timedelta(days=1)).isoformat(), "TCS",
+             "TCS keeps lower outlay for quarterly variable pay in Q2", "moneycontrol", "TATA CONSULTANCY SERV LT"),
+            ((date.today() - timedelta(days=3)).isoformat(), "PTC",
+             "PTC Industries shares rise after company launches QIP", "moneycontrol", "PTC INDIA LIMITED"),
         ),
     )
     monkeypatch.setattr(ef, "_resolve_symbols", lambda csv, uid, cap: ["TCS", "RELIANCE", "PTCIL"])
@@ -119,7 +126,7 @@ def test_upcoming_shape_and_sort(client, monkeypatch):
     dates = [e["date"] for e in body["events"]]
     assert dates == sorted(dates)
     kinds = {(e["symbol"], e["kind"]) for e in body["events"]}
-    assert ("TCS", "results") in kinds  # yfinance 2026-10-20 in window
+    assert ("TCS", "results") in kinds  # earnings date lands inside the window
     assert ("PTCIL", "qip") in kinds  # news PTC resolved via symbol alias
 
 

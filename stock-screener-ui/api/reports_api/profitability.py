@@ -161,6 +161,23 @@ def _trade_cost(entry: float, exit_: float, qty: int) -> float:
             return 0.0
 
 
+def _ema_cross_series(closes: list[float]) -> tuple[list[float], list[float]]:
+    """``(ema12, ema26)`` over the WHOLE close series - one pass.
+
+    The EWM recursion only looks backwards, so the value at bar ``i`` is the
+    same whether it is computed from ``closes[:i + 1]`` or from the full
+    series. Rebuilding both EMAs per bar made the scan quadratic (and paid
+    pandas' per-call overhead on every bar of every symbol).
+    """
+    import pandas as pd
+
+    s = pd.Series(list(closes or []), dtype=float)
+    return (
+        s.ewm(span=12, adjust=False).mean().tolist(),
+        s.ewm(span=26, adjust=False).mean().tolist(),
+    )
+
+
 def _signal_at(
     strategy_id: str,
     opens: list[float],
@@ -169,6 +186,7 @@ def _signal_at(
     closes: list[float],
     vols: list[float],
     i: int,
+    ema: Optional[tuple[list[float], list[float]]] = None,
 ) -> bool:
     """True when bar ``i`` fires ``strategy_id`` (needs ``i >= 26``)."""
     try:
@@ -187,11 +205,12 @@ def _signal_at(
             rng = (h - lo) / c
             return body >= 0.01 and rng >= 0.02 and c > prev
         if strategy_id == "ema_cross":
-            import pandas as pd
-
-            s = pd.Series(closes[: i + 1], dtype=float)
-            e12 = s.ewm(span=12, adjust=False).mean().tolist()
-            e26 = s.ewm(span=26, adjust=False).mean().tolist()
+            if not ema:
+                e12, e26 = _ema_cross_series(closes[: i + 1])
+            else:
+                e12, e26 = ema
+            if i >= len(e12) or i < 1 or i >= len(e26):
+                return False
             return e12[i] > e26[i] and e12[i - 1] <= e26[i - 1]
         if strategy_id == "week52_chaser":
             start = max(0, i - 252)
@@ -251,12 +270,13 @@ def _extract_trades(
         closes = lists["close"]
         n = len(closes)
         start = max(26, n - window_bars)
+        ema = lists.get("ema")
         for i in range(start, n - hold_days):
             try:
                 if not _signal_at(
                     strategy_id,
                     lists["open"], lists["high"], lists["low"],
-                    closes, lists["volume"], i,
+                    closes, lists["volume"], i, ema=ema,
                 ):
                     continue
                 entry = closes[i]
@@ -354,6 +374,8 @@ def _scan_symbol(symbol: str, window_bars: int) -> list[dict]:
         lists = _frame_to_lists(df)
         if lists is None:
             return []
+        # One EMA pass per symbol, reused by the ema_cross strategy.
+        lists["ema"] = _ema_cross_series(lists["close"])
         trades: list[dict] = []
         for sid, spec in STRATEGIES.items():
             trades.extend(
