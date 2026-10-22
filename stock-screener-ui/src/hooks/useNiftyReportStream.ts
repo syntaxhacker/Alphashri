@@ -103,6 +103,9 @@ export function useNiftyReportStream({
   useEffect(() => {
     if (!enabled) {
       setConnected(false);
+      // Drop the last live tick so switching to EOD cannot show a stale
+      // spot from the previous live session.
+      setTick(null);
       return;
     }
     if (typeof WebSocket === "undefined") return;

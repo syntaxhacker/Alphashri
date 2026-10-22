@@ -82,7 +82,7 @@ export function formatPct(v: number | null | undefined, digits = 1): string {
   return `${sign}${Math.abs(v).toFixed(digits)}%`;
 }
 
-export interface VerdictMeta {
+interface VerdictMeta {
   icon: "▼" | "▲" | "■";
   colorToken: string;
   tintToken: string;

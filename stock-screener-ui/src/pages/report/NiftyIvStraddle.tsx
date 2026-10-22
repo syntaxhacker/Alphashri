@@ -24,12 +24,12 @@ function mean(values: number[]): number {
   return values.reduce((a, b) => a + b, 0) / values.length;
 }
 
-export interface StraddlePoint {
+interface StraddlePoint {
   t: string;
   straddle: number;
 }
 
-export interface IvPoint {
+interface IvPoint {
   t: string;
   iv: number;
 }
@@ -71,13 +71,13 @@ export function buildIvSeries(rows: NiftyTapeRow[]): IvPoint[] {
 }
 
 /** Last row's non-null average ATM IV, or `null` when the tape had none. */
-export function lastAtmIv(rows: NiftyTapeRow[]): number | null {
+function lastAtmIv(rows: NiftyTapeRow[]): number | null {
   const series = buildIvSeries(rows);
   return series.length ? series[series.length - 1].iv : null;
 }
 
 /** Last row's usable straddle premium (`ce + pe`), or `null`. */
-export function lastStraddle(rows: NiftyTapeRow[]): number | null {
+function lastStraddle(rows: NiftyTapeRow[]): number | null {
   const series = buildStraddleSeries(rows);
   return series.length ? series[series.length - 1].straddle : null;
 }
@@ -126,7 +126,7 @@ function parseCandleMs(t: string | null | undefined): number | null {
  * Mirrors the backend `_infer_bar_minutes`: needs at least three usable
  * timestamps, otherwise the caller's default (1 minute) is returned.
  */
-export function inferBarMinutes(candles?: ReplayCandle[], defaultMin = 1): number {
+function inferBarMinutes(candles?: ReplayCandle[], defaultMin = 1): number {
   const times: number[] = [];
   for (const c of candles ?? []) {
     const ms = parseCandleMs(c?.time);
@@ -184,7 +184,7 @@ function formatIvChartValue(v: number): string {
 }
 
 /** Prefer the regime's IV, else the last usable tape IV. */
-export function atmIvNow(
+function atmIvNow(
   regime: NiftyRegimeBlock | undefined,
   rows: NiftyTapeRow[],
 ): number | null {
@@ -208,7 +208,7 @@ export function straddleNow(
  * Intraday straddle premium change %. Prefers the backend's regime value,
  * then derives it from the regime's open/now, then from the tape series.
  */
-export function straddleChangePct(
+function straddleChangePct(
   regime: NiftyRegimeBlock | undefined,
   series: StraddlePoint[],
 ): number | null {
@@ -238,7 +238,7 @@ export function straddleChangePct(
 }
 
 /** Prefer the regime's realised vol, else compute it from the candles. */
-export function rvNow(
+function rvNow(
   regime: NiftyRegimeBlock | undefined,
   candles?: ReplayCandle[],
 ): number | null {
@@ -248,13 +248,13 @@ export function rvNow(
 }
 
 /** Percent to 2 dp with a `%` suffix, or a dash when absent. */
-export function fmtIvPct(v: number | null | undefined): string {
+function fmtIvPct(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return IV_DASH;
   return `${v.toFixed(2)}%`;
 }
 
 /** Price/premium to 2 dp with Indian grouping, or a dash when absent. */
-export function fmtIvValue(v: number | null | undefined): string {
+function fmtIvValue(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return IV_DASH;
   return v.toLocaleString("en-IN", {
     minimumFractionDigits: 2,
@@ -263,21 +263,21 @@ export function fmtIvValue(v: number | null | undefined): string {
 }
 
 /** Signed percent (always shows +/-) to 2 dp, or a dash when absent. */
-export function fmtIvSignedPct(v: number | null | undefined): string {
+function fmtIvSignedPct(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return IV_DASH;
   const sign = v > 0 ? "+" : v < 0 ? "-" : "";
   return `${sign}${Math.abs(v).toFixed(2)}%`;
 }
 
 /** Signed points (always shows +/-) to 1 dp, or a dash when absent. */
-export function fmtIvSigned(v: number | null | undefined): string {
+function fmtIvSigned(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v)) return IV_DASH;
   const sign = v > 0 ? "+" : v < 0 ? "-" : "";
   return `${sign}${Math.abs(v).toFixed(1)}`;
 }
 
 /** Up = premium expanding (positive), down = bleeding (negative). */
-export function straddlePctTone(v: number | null | undefined): string {
+function straddlePctTone(v: number | null | undefined): string {
   if (v === null || v === undefined || !Number.isFinite(v) || v === 0) {
     return palette.TEXT_MUTED;
   }
@@ -335,8 +335,14 @@ export function buildIvStraddleChart(
   };
 }
 
-export interface NiftyIvStraddleProps {
-  /** Per-minute option tape; absent/empty renders the empty state. */
+interface NiftyIvStraddleProps {
+  /**
+   * The tape rows to chart. In EOD replay the caller passes the rows up to
+   * the playhead, so the straddle/IV line stops at the frame on screen
+   * instead of running into minutes the desk has not reached.
+   */
+  rows?: NiftyTapeRow[];
+  /** Whole-tape source — used only when `rows` is absent. */
   tape?: NiftyTape | null;
   /** Spot candles used for the realised-vol fallback. */
   candles?: ReplayCandle[];
@@ -355,10 +361,21 @@ export interface NiftyIvStraddleProps {
  * tracks the rolling straddle premium against ATM IV. Absent/empty tape
  * degrades to a friendly empty state without crashing.
  */
-function NiftyIvStraddleInner({ tape, candles, regime, reference }: NiftyIvStraddleProps) {
+function NiftyIvStraddleInner({
+  rows: rowsProp,
+  tape,
+  candles,
+  regime,
+  reference,
+}: NiftyIvStraddleProps) {
   const rows = useMemo(
-    () => (Array.isArray(tape?.rows) ? tape!.rows : []),
-    [tape],
+    () =>
+      Array.isArray(rowsProp)
+        ? rowsProp
+        : Array.isArray(tape?.rows)
+          ? tape.rows
+          : [],
+    [rowsProp, tape],
   );
 
   const straddleSeries = useMemo(() => buildStraddleSeries(rows), [rows]);

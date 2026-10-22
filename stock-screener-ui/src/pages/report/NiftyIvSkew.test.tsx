@@ -72,14 +72,15 @@ describe("buildIvSkewPoints", () => {
       25750,
     );
     expect(points.map((p) => p.strike)).toEqual([
-      25000, 25300, 25450, 25750, 26050, 26200,
+      25300, 25450, 25750, 26050, 26200,
     ]);
   });
 
-  test("windows to ±750 around spot", () => {
+  test("windows to ±500 around spot", () => {
     const points = buildIvSkewPoints(CHAIN, 25750);
     expect(points.some((p) => p.strike === 27000)).toBe(false);
-    expect(points[0].strike).toBe(25000);
+    expect(points.some((p) => p.strike === 25000)).toBe(false);
+    expect(points[0].strike).toBe(25300);
     expect(points[points.length - 1].strike).toBe(26200);
   });
 
@@ -208,7 +209,7 @@ describe("buildIvSkewChart", () => {
   const chart = buildIvSkewChart(points, stats);
 
   test("labels are grouped strikes and series keep the leg hues", () => {
-    expect(chart.labels[0]).toBe("25,000");
+    expect(chart.labels[0]).toBe("25,300");
     expect(chart.series.map((s) => s.name)).toEqual(["CE IV", "PE IV"]);
     expect(chart.series[0].color).toBe(palette.TERM_CE);
     expect(chart.series[1].color).toBe(palette.TERM_PE);
@@ -216,10 +217,10 @@ describe("buildIvSkewChart", () => {
 
   test("plots the OTM smile: calls at/above ATM, puts at/below it", () => {
     const atmIdx = chart.band.findIndex((p) => p.strike === 25750);
-    expect(atmIdx).toBe(3);
+    expect(atmIdx).toBe(2);
     // Below ATM: CE is masked (ITM), PE is kept.
-    expect(chart.series[0].points.slice(0, atmIdx)).toEqual([null, null, null]);
-    expect(chart.series[1].points.slice(0, atmIdx)).toEqual([30, 24, 21]);
+    expect(chart.series[0].points.slice(0, atmIdx)).toEqual([null, null]);
+    expect(chart.series[1].points.slice(0, atmIdx)).toEqual([24, 21]);
     // Above ATM: CE is kept, PE is masked.
     expect(chart.series[0].points.slice(atmIdx + 1)).toEqual([17, 18.2]);
     expect(chart.series[1].points.slice(atmIdx + 1)).toEqual([null, null]);
@@ -273,7 +274,7 @@ describe("NiftyIvSkew render", () => {
       "25Δ puts 4.0 vp over calls",
     );
     expect(screen.getByTestId("nifty-iv-skew-coverage")).toHaveTextContent(
-      "25,000–26,200",
+      "25,300–26,200",
     );
     expect(screen.getByTestId("nifty-iv-skew-chart")).toBeInTheDocument();
   });

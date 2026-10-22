@@ -13,6 +13,7 @@ import {
   fmtFlipStrike,
   nearestPositioningStrike,
   positioningAccent,
+  positioningSplit,
   positioningSplitLabel,
   positioningVerdictLabel,
   signedPositioningAccent,
@@ -123,14 +124,36 @@ describe("verdict + signed tone + split helpers", () => {
     expect(signedPositioningAccent(null)).toBe(palette.TEXT_MUTED);
   });
 
-  test("split uses the dominant magnitude and rounded share", () => {
-    expect(positioningSplitLabel(53185, 10814, 83.1)).toBe("53,185 Cr · 83%");
-    // share < 50 flips to the bear side
-    expect(positioningSplitLabel(10000, 40000, 20)).toBe("40,000 Cr · 20%");
-    // share absent -> larger magnitude wins
-    expect(positioningSplitLabel(10000, 40000, null)).toBe("40,000 Cr · —");
+  test("split uses the dominant magnitude and its share of gross initiated", () => {
+    expect(positioningSplitLabel(53185, 10814, 83.1)).toBe(
+      "53,185 Cr · bullish 83.1%",
+    );
+    // share < 50 is not the dominant share: derive it from the two sides.
+    expect(positioningSplitLabel(10000, 40000, 20)).toBe("40,000 Cr · bearish 80%");
+    // share absent -> the two sides still derive the dominant share
+    expect(positioningSplitLabel(10000, 40000, null)).toBe("40,000 Cr · bearish 80%");
     // everything absent -> single dash
     expect(positioningSplitLabel(null, null, null)).toBe(POSITIONING_DASH);
+  });
+
+  test("the 14:59 bear-led tape reads bearish, never 96% bullish", () => {
+    // Live payload: bull 2,922 Cr / bear 62,631 Cr with split_pct = 96.
+    expect(positioningSplitLabel(2922, 62631, 96)).toBe(
+      "62,631 Cr · bearish 96%",
+    );
+    const split = positioningSplit(2922, 62631, 96);
+    expect(split.bullShare).toBe(4);
+    expect(split.bearShare).toBe(96);
+    expect(split.bullShare + split.bearShare).toBe(100);
+    expect(split.dominant).toBe("bear");
+    expect(split.magnitude).toBe(62631);
+  });
+
+  test("shares are exact complements, so rounding can never show 101%", () => {
+    const split = positioningSplit(5100, 4900, null);
+    expect(split.bullShare + split.bearShare).toBe(100);
+    expect(split.bullShare).toBe(51);
+    expect(split.bearShare).toBe(49);
   });
 });
 
@@ -179,7 +202,7 @@ describe("NiftyDeltaPositioning render", () => {
     );
 
     expect(screen.getByTestId("nifty-positioning-split")).toHaveTextContent(
-      "53,185 Cr · 83%",
+      "53,185 Cr · bullish 83.1%",
     );
 
     const flip = screen.getByTestId("nifty-positioning-flip");

@@ -108,12 +108,14 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
         top_positive: [{ strike: 25700, net_gex: 5.2 }],
         top_negative: [{ strike: 25800, net_gex: -5.3 }],
         zero_cross: 25750,
+        degraded: true,
       },
     });
     expect(rep.gex).toBeDefined();
     expect(rep.gex!.netTotal).toBe(12.4);
     expect(rep.gex!.regime).toBe("long");
     expect(rep.gex!.zeroCross).toBe(25750);
+    expect(rep.gex!.degraded).toBe(true);
     expect(rep.gex!.strikes[0]).toEqual({
       strike: 25700,
       callGex: -3.1,
@@ -122,6 +124,41 @@ describe("normalizeReport (snake_case backend -> camelCase panel)", () => {
     });
     expect(rep.gex!.topPositive).toEqual([{ strike: 25700, netGex: 5.2 }]);
     expect(rep.gex!.topNegative).toEqual([{ strike: 25800, netGex: -5.3 }]);
+  });
+
+  test("maps the spot-relative levels block (snake_case + nullable legs)", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      gex: {
+        net_total: 38.2,
+        regime: "long",
+        zero_cross: 23400,
+        levels: {
+          support: null,
+          resistance: { strike: 23200, net_gex: 13.15, side: "above" },
+          fuel_down: { strike: 22700, net_gex: -9.44, side: "below" },
+          fuel_up: null,
+        },
+      },
+    });
+    expect(rep.gex!.levels).toEqual({
+      support: null,
+      resistance: { strike: 23200, netGex: 13.15, side: "above" },
+      fuelDown: { strike: 22700, netGex: -9.44, side: "below" },
+      fuelUp: null,
+    });
+  });
+
+  test("an all-null levels block collapses to undefined", () => {
+    const rep = normalizeReport({
+      ...snakeReport,
+      gex: {
+        net_total: 0,
+        regime: "flat",
+        levels: { support: null, resistance: null, fuel_down: null, fuel_up: null },
+      },
+    });
+    expect(rep.gex!.levels).toBeUndefined();
   });
 
   test("gex null flip maps to null with safe defaults", () => {
@@ -226,6 +263,12 @@ describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
     expect(row.walls).toEqual({ call: 25900, put: 25600 });
   });
 
+  test("carries the per-minute degraded GEX flag", () => {
+    expect(normalizeTapeRow({ t: "09:16", gex_degraded: true }).gex_degraded).toBe(true);
+    expect(normalizeTapeRow({ t: "09:16", gex_degraded: false }).gex_degraded).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16" }).gex_degraded).toBeUndefined();
+  });
+
   test("accepts time/ticks aliases, defaults numbers to 0, spot_flip null-safe", () => {
     const row = normalizeTapeRow({ time: "09:19", ticks: 42 } as never);
     expect(row.t).toBe("09:19");
@@ -242,6 +285,58 @@ describe("normalizeTapeRow (sparse payloads -> safe defaults)", () => {
     expect(row.t).toBe("");
     expect(row.spot_flip).toBeNull();
     expect(row.max_pain).toBe(0);
+  });
+});
+
+describe("normalizeTapeRow chain (per-strike snapshots)", () => {
+  test("keeps a valid chain with null legs intact", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      chain: {
+        "25700": [120.5, 100.2, 2000, 2500, 150, 130],
+        "25800": [null, 95.0, null, 3000, null, 200],
+      },
+    });
+    expect(row.chain?.["25700"]).toEqual([120.5, 100.2, 2000, 2500, 150, 130]);
+    expect(row.chain?.["25800"]).toEqual([null, 95.0, null, 3000, null, 200]);
+  });
+
+  test("non-finite slots become null, short rows pad to 6", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      chain: {
+        "25700": [120.5, "bad", Infinity, 2500, NaN, 130],
+        "26000": [10, 12],
+      },
+    });
+    expect(row.chain?.["25700"]).toEqual([120.5, null, null, 2500, null, 130]);
+    expect(row.chain?.["26000"]).toEqual([10, 12, null, null, null, null]);
+  });
+
+  test("drops malformed entries but keeps the valid ones", () => {
+    const row = normalizeTapeRow({
+      t: "09:16",
+      chain: {
+        "25700": [120.5, 100.2, 2000, 2500, 150, 130],
+        junk: [1, 2, 3, 4, 5, 6],
+        "-50": [1, 2, 3, 4, 5, 6],
+        "0": [1, 2, 3, 4, 5, 6],
+        "25800": "not-an-array",
+        "25900": [],
+        "26000": null,
+      },
+    });
+    expect(Object.keys(row.chain ?? {}).sort()).toEqual(["25700"]);
+  });
+
+  test("row without a chain stays undefined", () => {
+    expect(normalizeTapeRow({ t: "09:16" }).chain).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16", chain: null }).chain).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16", chain: {} }).chain).toBeUndefined();
+    expect(normalizeTapeRow({ t: "09:16", chain: [] }).chain).toBeUndefined();
+    expect(
+      normalizeTapeRow({ t: "09:16", chain: { junk: [1, 2, 3, 4, 5, 6] } }).chain,
+    ).toBeUndefined();
   });
 });
 
@@ -418,6 +513,35 @@ describe("normalizeBurst (snake_case backend -> camelCase panel)", () => {
     expect(normalizeBurst({ side: "call" }).news).toEqual([]);
     expect(normalizeBurst({ side: "call", news: "nope" }).news).toEqual([]);
     expect(normalizeBurst({ side: "call", news: [null, 1] }).news).toEqual([]);
+  });
+
+  test("carries the fuel, structure and suppression fields through", () => {
+    const b = normalizeBurst({
+      id: "b2", side: "put", t: "11:44", delta: -94900,
+      premChg: 6.85,
+      fuel_state: "writers_covering",
+      structure: { level: 22697, direction: "down", kind: "pivot", close: 22687.95 },
+      invalidation: 22697,
+      plan_suppressed: true,
+    });
+    expect(b.premChg).toBe(6.85);
+    expect(b.fuel_state).toBe("writers_covering");
+    expect(b.structure?.level).toBe(22697);
+    expect(b.structure?.direction).toBe("down");
+    expect(b.structure?.kind).toBe("pivot");
+    expect(b.invalidation).toBe(22697);
+    expect(b.plan_suppressed).toBe(true);
+  });
+
+  test("an unknown fuel state and a broken structure are dropped, not faked", () => {
+    const b = normalizeBurst({
+      id: "b3", side: "call", t: "11:13",
+      fuel_state: "something_new",
+      structure: { level: 0, direction: "down" },
+    });
+    expect(b.fuel_state).toBeUndefined();
+    expect(b.structure).toBeNull();
+    expect(b.plan_suppressed).toBeUndefined();
   });
 
   test("maps full camelCase burst with nested signal", () => {

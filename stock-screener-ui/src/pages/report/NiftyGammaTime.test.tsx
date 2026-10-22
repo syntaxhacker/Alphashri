@@ -117,24 +117,47 @@ describe("gammaStats fallbacks", () => {
     });
   });
 
-  test("gex-only: falls back to the GEX snapshot when the tape is empty", () => {
+  test("gex-only: uses the GEX snapshot and leaves walls absent", () => {
     expect(gammaStats([], gex(), 25750)).toEqual({
       now: 42.123,
       flip: 25680,
-      callWall: 26100,
-      putWall: 25400,
+      callWall: null,
+      putWall: null,
     });
   });
 
-  test("tape gamma / gex flip take precedence when both exist", () => {
+  test("frame gex.netTotal wins; walls come from the chain's wall list", () => {
+    const rows = [
+      row({ net_gex: 3.5, flip: 999, walls: { call: 1, put: 2 } }),
+    ];
+    const stats = gammaStats(rows, gex(), 25750, {
+      calls: [{ strike: 26100, oi: 5000 }],
+      puts: [{ strike: 25400, oi: 6000 }],
+    });
+    expect(stats.now).toBe(42.123); // frame gex.netTotal wins over the minute tape
+    expect(stats.flip).toBe(25680); // spot-aware gex flip wins over tape flip
+    expect(stats.callWall).toBe(26100); // report.walls.calls[0], not a GEX extremum
+    expect(stats.putWall).toBe(25400);
+  });
+
+  test("tape walls are the fallback when the chain list is absent", () => {
     const rows = [
       row({ net_gex: 3.5, flip: 999, walls: { call: 1, put: 2 } }),
     ];
     const stats = gammaStats(rows, gex(), 25750);
-    expect(stats.now).toBe(3.5); // tape gamma wins over gex.netTotal
-    expect(stats.flip).toBe(25680); // gex.zeroCross wins over tape flip
-    expect(stats.callWall).toBe(26100); // gex wall wins over tape wall
-    expect(stats.putWall).toBe(25400);
+    expect(stats.callWall).toBe(1);
+    expect(stats.putWall).toBe(2);
+  });
+
+  test("degraded (no greeks) blanks now/flip but keeps the OI walls", () => {
+    expect(
+      gammaStats([], gex(), 25750, { calls: [{ strike: 26100, oi: 1 }], puts: [] }, true),
+    ).toEqual({
+      now: null,
+      flip: null,
+      callWall: 26100,
+      putWall: null,
+    });
   });
 
   test("neither source: every stat is null (never NaN)", () => {
@@ -213,15 +236,48 @@ describe("NiftyGammaTime render", () => {
     );
 
     expect(screen.getByTestId("nifty-gamma-time-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-gamma-now")).toHaveTextContent("+5.50 Cr");
+    // The frame's book total (gex.netTotal) wins over the last minute's tape row.
+    expect(screen.getByTestId("nifty-gamma-now")).toHaveTextContent("+42.12 Cr");
     expect(screen.getByTestId("nifty-gamma-flip")).toHaveTextContent("25,680");
-    expect(screen.getByTestId("nifty-gamma-callwall")).toHaveTextContent("26,100");
-    expect(screen.getByTestId("nifty-gamma-putwall")).toHaveTextContent("25,400");
+    // No chain wall list passed → the tape's own walls are the fallback.
+    expect(screen.getByTestId("nifty-gamma-callwall")).toHaveTextContent("26,000");
+    expect(screen.getByTestId("nifty-gamma-putwall")).toHaveTextContent("25,500");
 
     expect(screen.getByTestId("nifty-gamma-time-chart")).toBeInTheDocument();
     const chart = screen.getByTestId("nifty-gamma-time-chart");
     expect(chart.querySelector("svg")).toBeInTheDocument();
     expect(screen.queryByTestId("nifty-gamma-time-empty")).not.toBeInTheDocument();
+  });
+
+  test("uses the report's wall list for call/put walls", () => {
+    render(
+      <NiftyGammaTime
+        rows={[row({ net_gex: 2, walls: { call: 9999, put: 8888 } })]}
+        walls={{
+          calls: [{ strike: 26100, oi: 5000 }],
+          puts: [{ strike: 25400, oi: 6000 }],
+        }}
+        spot={25750}
+      />,
+      { wrapper: TestWrapper },
+    );
+    expect(screen.getByTestId("nifty-gamma-callwall")).toHaveTextContent("26,100");
+    expect(screen.getByTestId("nifty-gamma-putwall")).toHaveTextContent("25,400");
+  });
+
+  test("degraded gamma renders n/a instead of a contract count", () => {
+    render(
+      <NiftyGammaTime
+        rows={[row({ net_gex: 17_435_535 })]}
+        gex={gex({ netTotal: 17_435_535 })}
+        spot={25750}
+        degraded
+      />,
+      { wrapper: TestWrapper },
+    );
+    expect(screen.getByTestId("nifty-gamma-now")).toHaveTextContent("n/a");
+    expect(screen.getByTestId("nifty-gamma-now")).not.toHaveTextContent("17");
+    expect(screen.getByTestId("nifty-gamma-flip")).toHaveTextContent("n/a");
   });
 
   test("tape-only (no gex) still resolves stats from the last row", () => {

@@ -62,17 +62,24 @@ function renderBar(overrides?: Partial<Parameters<typeof NiftyReplayBar>[0]>) {
 }
 
 describe("NiftyReplayBar", () => {
-  test("renders play button, slider, time, count, coverage strip and coverage badge", () => {
+  test("renders play button, slider, time · % meta, count, coverage strip and coverage badge", () => {
     const { bar } = renderBar();
     expect(within(bar).getByTestId("nifty-replay-play")).toHaveTextContent("Play");
     expect(within(bar).getByTestId("nifty-replay-slider")).toBeInTheDocument();
     expect(within(bar).getByTestId("nifty-replay-time")).toHaveTextContent("09:15");
     expect(within(bar).getByTestId("nifty-replay-count")).toHaveTextContent("1/3");
     expect(within(bar).getByTestId("nifty-replay-coverage-strip")).toBeInTheDocument();
-    // 3 recorded minutes out of the 375-minute session → 0.8%.
-    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveTextContent("Data 0.8%");
+    // 3 recorded minutes out of the 375-minute session → 0.8%, shown as 3/375.
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveTextContent("0.8%");
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveTextContent("3/375");
     // Frame 0 is 09:15 and frame 1 is 10:30 → 74 minutes are skipped.
-    expect(within(bar).getByTestId("nifty-replay-gap")).toHaveTextContent("+74m gap");
+    expect(within(bar).getByTestId("nifty-replay-gap")).toHaveTextContent("+74m");
+    // The missing-minute count lives in the tooltip, not in the 24px bar.
+    expect(within(bar).getByTestId("nifty-replay-coverage")).toHaveAttribute(
+      "title",
+      expect.stringContaining("372"),
+    );
+    expect(bar).toHaveStyle({ height: "24px" });
   });
 
   test("play button label follows `playing` and fires onTogglePlay", async () => {
@@ -130,15 +137,17 @@ describe("NiftyReplayBar", () => {
       />,
     );
     const el = screen.getByTestId("nifty-replay-reasons");
-    expect(el).toHaveTextContent("chain fetch failed ×41");
-    expect(el).toHaveTextContent("tick timed out ×12");
+    // Counts are tooltip-only (the 24px bar shows `time · %`).
+    expect(el).toHaveAttribute("title", expect.stringContaining("chain fetch failed ×41"));
+    expect(el).toHaveAttribute("title", expect.stringContaining("tick timed out ×12"));
   });
 
   test("falls back to a hole count when the day has no gap journal", () => {
     const { bar } = renderBar();
     // Frames 09:15, 10:30, 15:29 → two in-session holes (74m and 298m).
-    expect(within(bar).getByTestId("nifty-replay-reasons")).toHaveTextContent("2 in-session holes");
-    expect(within(bar).getByTestId("nifty-replay-reasons")).toHaveTextContent("reason not logged");
+    const el = within(bar).getByTestId("nifty-replay-reasons");
+    expect(el).toHaveAttribute("title", expect.stringContaining("2 in-session holes"));
+    expect(el).toHaveAttribute("title", expect.stringContaining("reason not logged"));
   });
 
   test("memo: identical props keep the segment DOM nodes across re-renders", () => {

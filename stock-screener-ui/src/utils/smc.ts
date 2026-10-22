@@ -13,7 +13,7 @@ export type Bar = {
   volume?: number;
 };
 
-export type FvgZone = {
+type FvgZone = {
   type: "bull" | "bear";
   top: number;
   bottom: number;
@@ -25,7 +25,7 @@ export type FvgZone = {
   mitigated: boolean;
 };
 
-export type IfvgZone = {
+type IfvgZone = {
   type: "bull" | "bear"; // inverted direction
   top: number;
   bottom: number;

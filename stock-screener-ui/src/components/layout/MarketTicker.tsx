@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from "react";
-import { Box, Group, Text, Badge, Skeleton } from "@/ui";
-import { IconTrendingUp, IconTrendingDown } from "@tabler/icons-react";
+import { Box, Text, Skeleton } from "@/ui";
+import * as palette from "@/ui/palette";
 import { useMarketTickerEnabled } from "../../hooks/useMarketTickerEnabled";
 import { useStoreSubscription } from "../../hooks/useStoreSubscription";
 import { subscribeToHolidays, isMarketClosedToday, getHolidayState } from "../../state/holidays";
@@ -59,6 +59,18 @@ function formatLastUpdated(lastUpdated: string | null): string {
   return lastUpdated ? new Date(lastUpdated).toLocaleTimeString() : "--";
 }
 
+/** Every item is the same three-track grid, so label / price / change share a
+ *  baseline and a column across the whole tape. The change track is a fixed
+ *  82px even though the text is plain (no pill): `+9.30 (0.22%)` and
+ *  `−511.20 (−0.92%)` then line up from item to item. */
+const TICKER_GRID = {
+  display: "grid",
+  gridTemplateColumns: "minmax(56px, auto) minmax(64px, 1fr) 82px",
+  alignItems: "center",
+  columnGap: "6px",
+  flexShrink: 0,
+} as const;
+
 function createErrorState(error: unknown): MarketTickerData {
   return {
     tickers: {},
@@ -79,58 +91,112 @@ function TickerItem({ symbol, item }: TickerItemProps) {
   const change = Number(item.change ?? 0);
   const changePercent = Number(item.change_percent ?? 0);
   const isPositive = change >= 0;
+  const tone = isPositive ? palette.POSITIVE : palette.NEGATIVE;
+  const testId = symbol.replace(/[\^=]/g, "").toLowerCase();
 
   return (
-    <Group
+    <Box
       key={symbol}
-      gap="xs"
-      wrap="nowrap"
+      style={TICKER_GRID}
       className="market-ticker-item"
-      data-testid={`ticker-${symbol.replace(/[\\^\\=]/g, "").toLowerCase()}`}
+      data-testid={`ticker-${testId}`}
     >
-      <Text size="sm" fw={600} c="dimmed">
+      <Text
+        size="sm"
+        fw={600}
+        c="dimmed"
+        style={{ fontSize: 9.5, lineHeight: 1.1, whiteSpace: "nowrap" }}
+      >
         {label}
       </Text>
-      <Text size="sm" fw={700}>
+      <Text
+        size="sm"
+        fw={700}
+        data-testid={`ticker-price-${testId}`}
+        style={{
+          fontSize: 11,
+          lineHeight: 1.1,
+          fontFamily: palette.MONO,
+          fontVariantNumeric: "tabular-nums",
+          textAlign: "right",
+          whiteSpace: "nowrap",
+        }}
+      >
         {price.toLocaleString("en-IN", {
           minimumFractionDigits: 2,
           maximumFractionDigits: 2,
         })}
       </Text>
-      <Badge
-        size="sm"
-        color={isPositive ? "success" : "error"}
-        variant="light"
-        leftSection={isPositive ? <IconTrendingUp size={10} /> : <IconTrendingDown size={10} />}
+      {/* Plain coloured change — no pill, no icon box. The 9px arrow is an
+          inline glyph inside the fixed 82px track so the sign never shifts
+          the numerals. */}
+      <Box
+        component="span"
+        data-testid={`ticker-change-${testId}`}
+        title={`${change >= 0 ? "+" : ""}${change.toFixed(2)} (${changePercent.toFixed(2)}%)`}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "flex-end",
+          gap: "2px",
+          minWidth: 0,
+          overflow: "hidden",
+          whiteSpace: "nowrap",
+          color: tone,
+          fontFamily: palette.MONO,
+          fontVariantNumeric: "tabular-nums",
+        }}
       >
-        {isPositive ? "+" : ""}
-        {change.toFixed(2)} ({changePercent.toFixed(2)}%)
-      </Badge>
-    </Group>
+        <Box component="span" aria-hidden sx={{ fontSize: 9, lineHeight: 1 }}>
+          {isPositive ? "▲" : "▼"}
+        </Box>
+        <Text
+          size="sm"
+          span
+          fw={700}
+          style={{
+            fontSize: 9.5,
+            lineHeight: 1.1,
+            color: tone,
+            fontVariantNumeric: "tabular-nums",
+            whiteSpace: "nowrap",
+          }}
+        >
+          {isPositive ? "+" : ""}
+          {change.toFixed(2)} ({changePercent.toFixed(2)}%)
+        </Text>
+      </Box>
+    </Box>
   );
 }
 
 interface TickerContainerProps {
   children: React.ReactNode;
   background: string;
+  title?: string;
 }
 
-function TickerContainer({ children, background }: TickerContainerProps) {
+function TickerContainer({ children, background, title }: TickerContainerProps) {
   return (
     <Box
       bg={background}
       data-testid="market-ticker"
       id="market-ticker"
       className="market-ticker"
+      title={title}
       px="sm"
-      py="xs"
       style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 22,
         overflowX: "auto",
+        overflowY: "hidden",
+        flexWrap: "nowrap",
+        minWidth: 0,
       }}
     >
-      <Group gap="sm" wrap="nowrap" className="market-ticker-items">
-        {children}
-      </Group>
+      {children}
     </Box>
   );
 }
@@ -143,13 +209,17 @@ function TickerLoadingState({ background }: { background: string }) {
       id="market-ticker"
       className="market-ticker market-ticker-loading"
       px="sm"
-      py="xs"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        height: 22,
+        overflow: "hidden",
+      }}
     >
-      <Group gap="sm">
-        {[1, 2, 3, 4, 5, 6].map((i) => (
-          <Skeleton key={i} width={120} height={30} />
-        ))}
-      </Group>
+      {[1, 2, 3, 4, 5, 6].map((i) => (
+        <Skeleton key={i} width={88} height={14} />
+      ))}
     </Box>
   );
 }
@@ -162,9 +232,9 @@ function TickerErrorState({ background }: { background: string }) {
       id="market-ticker"
       className="market-ticker market-ticker-error"
       px="sm"
-      py="xs"
+      style={{ display: "flex", alignItems: "center", height: 22 }}
     >
-      <Text size="sm" c="dimmed">
+      <Text size="sm" c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>
         Market data unavailable
       </Text>
     </Box>
@@ -181,11 +251,12 @@ function TickerStatus({ label, detail }: { label: string; detail?: string | null
         aria-hidden
         sx={{ width: 6, height: 6, borderRadius: "50%", bgcolor: "text.disabled", flexShrink: 0 }}
       />
-      <Text size="sm" fw={600} c="dimmed">{label}</Text>
+      <Text size="sm" fw={600} c="dimmed" style={{ fontSize: 9.5, lineHeight: 1.2 }}>{label}</Text>
       {detail ? (
         <Text
           size="sm"
           c="dimmed"
+          style={{ fontSize: 9.5, lineHeight: 1.2 }}
           sx={{ opacity: 0.75, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
         >
           · {detail}
@@ -252,13 +323,10 @@ export function MarketTicker() {
   const lastUpdated = formatLastUpdated(data.last_updated);
 
   return (
-    <TickerContainer background="background.paper">
+    <TickerContainer background="background.paper" title={`Updated: ${lastUpdated}`}>
       {sortedSymbols.map((symbol) => (
         <TickerItem key={symbol} symbol={symbol} item={tickers[symbol]} />
       ))}
-      <Text size="sm" c="dimmed" ml="auto" data-testid="market-ticker-updated">
-        Updated: {lastUpdated}
-      </Text>
     </TickerContainer>
   );
 }

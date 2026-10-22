@@ -28,8 +28,9 @@ import type { NiftyStrike } from "@/types/niftyReport";
  * GEX profile: these are static monitoring visuals, not interactive charts.
  */
 
-/** Ladder band (`±750`) shared with the chain and delta ladder. */
-export const IV_WINDOW_PTS = 750;
+/** IV window (±500) — narrower than the chain/delta ±750 ladder so the wings
+ *  stay readable inside the 3fr cell of the vol-surface row. */
+const IV_WINDOW_PTS = 500;
 
 /**
  * Sanity cut for a quoted IV. On expiry day, a leg with a few rupees of time
@@ -50,7 +51,7 @@ function ivOrNull(v: unknown): number | null {
 }
 
 /** One strike of the smile: CE IV and PE IV are independently optional. */
-export interface IvSkewPoint {
+interface IvSkewPoint {
   strike: number;
   ceIv: number | null;
   peIv: number | null;
@@ -139,7 +140,7 @@ export function legIvAtDelta(
 }
 
 /** Derived headline numbers for the stat row. */
-export interface IvSkewStats {
+interface IvSkewStats {
   atmStrike: number | null;
   atmIv: number | null;
   atmCe: number | null;
@@ -212,7 +213,7 @@ export function ivSkewRead(stats: IvSkewStats): string | null {
 }
 
 /** MiniLineChart-ready props for the smile. */
-export interface IvSkewChartProps {
+interface IvSkewChartProps {
   labels: string[];
   series: MiniSeries[];
   markers: MiniMarker[];
@@ -283,7 +284,7 @@ export function buildIvSkewChart(
   return { labels, series, markers, band: masked, clipped };
 }
 
-export interface NiftyIvSkewProps {
+interface NiftyIvSkewProps {
   strikes?: NiftyStrike[];
   spot?: number | null;
 }

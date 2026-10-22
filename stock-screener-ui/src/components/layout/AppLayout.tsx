@@ -46,14 +46,14 @@ export function AppLayout({ children }: AppLayoutProps) {
   return (
     <Box sx={{ display: "flex", height: "100vh", overflow: "hidden", bgcolor: "background.default" }} id="app-shell" data-testid="app-shell">
       <MuiAppBar position="fixed" sx={{ zIndex: (t) => t.zIndex.drawer + 1 }} id="app-header" data-testid="app-header">
-        <Toolbar sx={{ px: 2, gap: 1 }}>
-          <IconButton color="inherit" size="small" edge="start" onClick={toggleMobile} sx={{ display: { md: "none" }, mr: 1 }} aria-label="Toggle navigation">
-            <MenuIcon />
+        <Toolbar sx={{ px: 1.5, gap: 0.75, minHeight: { xs: 48, sm: 56 } }}>
+          <IconButton color="inherit" size="small" edge="start" onClick={toggleMobile} sx={{ display: { md: "none" }, mr: 0.5 }} aria-label="Toggle navigation">
+            <MenuIcon fontSize="small" />
           </IconButton>
-          <IconButton color="inherit" size="small" edge="start" onClick={toggleDesktop} sx={{ display: { xs: "none", md: "inline-flex" }, mr: 1 }} aria-label="Toggle sidebar">
-            <MenuIcon />
+          <IconButton color="inherit" size="small" edge="start" onClick={toggleDesktop} sx={{ display: { xs: "none", md: "inline-flex" }, mr: 0.5 }} aria-label="Toggle sidebar">
+            <MenuIcon fontSize="small" />
           </IconButton>
-          <Typography variant="h6" noWrap component="div" sx={{ fontWeight: 700, letterSpacing: "-0.01em", mr: 0.5 }} id="app-logo" data-testid="app-logo">
+          <Typography variant="h6" noWrap component="div" sx={{ fontSize: 14, lineHeight: 1, fontWeight: 700, letterSpacing: "-0.01em", mr: 0.25 }} id="app-logo" data-testid="app-logo">
             Alphashri
           </Typography>
           {/* Centre zone: market tape when live, explicit status when the
@@ -89,10 +89,11 @@ export function AppLayout({ children }: AppLayoutProps) {
                 onClick={handleNotifOpen}
                 data-testid="notif-bell"
                 aria-label={surgeTotal > 0 ? `Notifications, ${surgeTotal} surge alerts` : "Notifications"}
+                sx={{ "& .MuiBadge-badge": { fontSize: 9, height: 13, minWidth: 13, px: 0.4 } }}
               >
                 <Badge
                   color="error"
-                  badgeContent={surgeTotal > 99 ? "99+" : surgeTotal}
+                  badgeContent={surgeTotal > 9 ? "9+" : surgeTotal}
                   invisible={surgeTotal === 0}
                   data-testid="notif-badge"
                 >

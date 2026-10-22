@@ -6,7 +6,7 @@ import { CompactPanel } from "@/components/common/compact";
 import type { NiftyStructureShift } from "@/types/niftyReport";
 
 /** Short uppercase labels for the known structural-shift kinds. */
-export const STRUCTURE_KIND_LABELS: Record<string, string> = {
+const STRUCTURE_KIND_LABELS: Record<string, string> = {
   wall_flip: "WALL FLIP",
   wall_move: "WALL MOVE",
   max_pain_drift: "MAX PAIN",
@@ -68,7 +68,7 @@ export function structureSummary(shifts: NiftyStructureShift[]): string {
   return `${total} ${total === 1 ? "shift" : "shifts"} · ${critical} critical`;
 }
 
-export interface NiftyStructureShiftsProps {
+interface NiftyStructureShiftsProps {
   structure?: NiftyStructureShift[];
 }
 

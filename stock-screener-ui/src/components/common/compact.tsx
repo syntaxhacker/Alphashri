@@ -88,8 +88,8 @@ export function CompactPanel({
   flush = false,
   ...paperProps
 }: CompactPanelProps) {
-  const { tokens: densityTokens } = useDensity();
-  const pad = padded ? densityTokens.panelPad : 0;
+  /** Fin-app body inset: 6px (was the density token's 8px). */
+  const pad = padded ? 0.75 : 0;
   const panelStyle: CSSProperties = scrollable ? { ...SCROLLABLE_PANEL_STYLE, ...style } : style;
   const bodyStyle: CSSProperties = flush ? { padding: pad } : {};
 
@@ -97,7 +97,7 @@ export function CompactPanel({
       <MuiPaper elevation={0} data-compact="" sx={{ bgcolor: palette.SURFACE, borderRadius: 1, border: `1px solid ${palette.BORDER}` }} style={panelStyle} data-testid={testId} {...(paperProps as any)}>
         <MuiCardContent sx={{ p: flush ? 0 : pad, "&:last-child": { pb: flush ? 0 : pad }, ...(scrollable && { flex: 1, minHeight: 0, display: "flex", flexDirection: "column", overflow: "hidden" }) }}>
         {(title || description || action) && (
-          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 1, px: flush ? 1.5 : 1, py: flush ? 0.75 : 1, mb: flush ? 0 : 1, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
+          <Box data-compact-header="" sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 0.5, px: 1, py: 0.5, mb: 0, width: "100%", borderBottom: `1px solid ${palette.BORDER}` }}>
             <Stack spacing={1} sx={{ display: "flex", alignItems: "flex-start", justifyContent: "flex-start", gap: 1, minWidth: 0 }}>
               {title ? (typeof title === "string" ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Title order={4} size="h5">{title}</Title></Box> : <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}>{title}</Box>) : null}
               {description ? <Box sx={{ display: "flex", alignItems: "center", justifyContent: "flex-start" }}><Text size="sm" c="dimmed" data-testid="status">{description}</Text></Box> : null}

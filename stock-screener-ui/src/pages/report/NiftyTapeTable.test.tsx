@@ -140,8 +140,8 @@ describe("buildTapeHead math", () => {
     expect(head.pcrOi).toBe(1.15);
     expect(head.pcrDoiDelta).toBeCloseTo(0.03, 10);
     expect(head.maxPain).toBe(25700);
-    // flip 25762 - spot 25750.5
-    expect(head.flipDeltaPts).toBeCloseTo(11.5, 10);
+    // spot 25750.5 − flip 25762 = −11.5 (the same sign as the "Spot−flip" column)
+    expect(head.flipDeltaPts).toBeCloseTo(-11.5, 10);
     expect(head.wallCall).toBe(25900);
     expect(head.wallPut).toBe(25600);
   });
@@ -235,7 +235,7 @@ describe("spot deltas + session roll-up", () => {
     expect(d.get("09:17")).toBeCloseTo(-15, 5);
   });
 
-  test("computeTapeSession reports spot range, biggest prints and net sum", () => {
+  test("computeTapeSession reports spot range, biggest prints and the last net", () => {
     const s = computeTapeSession([
       tapeRow({ spot: 22500, call_doi: 100, put_doi: -500, net: 20 }),
       tapeRow({ spot: 22600, call_doi: -250, put_doi: 300, net: -80 }),
@@ -244,12 +244,13 @@ describe("spot deltas + session roll-up", () => {
     expect(s.spotHi).toBe(22600);
     expect(s.maxCallDoi).toBe(250);
     expect(s.maxPutDoi).toBe(500);
-    expect(s.netSum).toBeCloseTo(-60, 5);
+    // `net` is already cumulative: the roll-up reports the last row, not a sum.
+    expect(s.netLast).toBeCloseTo(-80, 5);
   });
 
   test("computeTapeSession on empty rows is all zeros", () => {
     const s = computeTapeSession([]);
-    expect(s).toEqual({ spotHi: 0, spotLo: 0, maxCallDoi: 0, maxPutDoi: 0, netSum: 0 });
+    expect(s).toEqual({ spotHi: 0, spotLo: 0, maxCallDoi: 0, maxPutDoi: 0, netLast: 0 });
   });
 
   test("Spot cell shows a tick arrow when a prior minute exists", () => {
@@ -271,7 +272,7 @@ describe("spot deltas + session roll-up", () => {
     const head = screen.getByTestId("nifty-tape-head");
     expect(within(head).getByText(/SPOT [\d.,]+–[\d.,]+/)).toBeInTheDocument();
     expect(within(head).getByText(/MAX ΔOI/)).toBeInTheDocument();
-    expect(within(head).getByText(/NET Σ/)).toBeInTheDocument();
+    expect(within(head).getByText("NET")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-tape-heat-legend")).toHaveTextContent("brighter = bigger print");
   });
 
@@ -445,6 +446,20 @@ describe("NiftyTapeTable", () => {
     expect(pos?.style.background).toMatch(/rgba\(31, 127, 255/);
     const neg = within(table).getByText("-8").parentElement;
     expect(neg?.style.background).toMatch(/rgba\(219, 109, 40/);
+  });
+
+  test("Net header states put−call, matching the column's sign convention", () => {
+    r(
+      <NiftyTapeTable
+        rows={[tapeRow({ t: "09:15", net: 10 }), tapeRow({ t: "09:16", net: -20 })]}
+      />,
+    );
+    const table = screen.getByTestId("nifty-tape-table");
+    expect(within(table).getByText("put−call")).toBeInTheDocument();
+    expect(within(table).getByText(/spot−flip/i)).toBeInTheDocument();
+    // The footer is the LAST row's cumulative net, never a sum of the column.
+    const head = screen.getByTestId("nifty-tape-head");
+    expect(within(head).getByText("-20")).toBeInTheDocument();
   });
 
   test("header strip shows PCR OI, ΔOI since baseline, max pain, flip, walls + caption", () => {

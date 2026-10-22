@@ -3,6 +3,10 @@ import "@testing-library/jest-dom/vitest";
 import { describe, expect, test, vi, beforeEach, afterEach } from "vitest";
 import { render, screen, within, cleanup, waitFor, fireEvent, act } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+
+// The panel renders several dense tables; under parallel load a single case
+// exceeds the 5 s default and fails as a timeout rather than a real defect.
+vi.setConfig({ testTimeout: 20_000 });
 import { UIProvider } from "@/ui";
 import {
   NiftyReportPanel,
@@ -14,9 +18,10 @@ import {
   oiBurstLogHeight,
   fetchSensexWithTimeout,
   SensexTimeoutError,
+  LevelLegend,
 } from "./NiftyReportPanel";
 import * as palette from "@/ui/palette";
-import type { NiftyReport } from "@/types/niftyReport";
+import type { NiftyReport, NiftyStrike } from "@/types/niftyReport";
 
 vi.mock("@/api/reportNifty", () => ({
   fetchLiveNifty: vi.fn(),
@@ -60,6 +65,17 @@ vi.mock("echarts-for-react", () => ({
   default: () => <div data-testid="nifty-depth-echarts" />,
 }));
 
+vi.mock("@/api/paperTrading", () => ({
+  fetchPositions: vi.fn().mockResolvedValue([]),
+}));
+
+// The intel strip owns its own fetch; keep this suite network-free and on the
+// graceful unavailable path (the strip itself is covered by NiftyIntelStrip.test).
+vi.mock("./niftyIntel", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./niftyIntel")>();
+  return { ...actual, fetchNiftyIntel: vi.fn().mockRejectedValue(new Error("intel offline")) };
+});
+
 import {
   fetchLiveNifty,
   fetchLiveSensex,
@@ -70,7 +86,10 @@ import {
   fetchNiftyBursts,
   snapshotNifty,
 } from "@/api/reportNifty";
+import { fetchPositions } from "@/api/paperTrading";
+import { fetchNiftyIntel } from "./niftyIntel";
 import type { NiftyReplay } from "@/types/niftyReport";
+import type { PaperPosition } from "@/types/paperTrading";
 
 function TestWrapper({ children }: { children: React.ReactNode }) {
   return <UIProvider>{children}</UIProvider>;
@@ -193,6 +212,10 @@ const REAL_WS = (globalThis as Record<string, unknown>).WebSocket;
 
 beforeEach(() => {
   marketOpenMock.mockReturnValue(true);
+  // Legacy full-surface assertions: seed RESEARCH so every panel mounts the
+  // way it did before the desk-mode shell landed (default is DESK). The
+  // desk-mode describe block below overrides this per test.
+  window.localStorage.setItem("nifty.deskMode", "research");
   vi.mocked(fetchNiftyReplayDates).mockResolvedValue([]);
   vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport());
   vi.mocked(fetchLiveSensex).mockResolvedValue(null as never);
@@ -202,6 +225,7 @@ beforeEach(() => {
   vi.mocked(fetchNiftyTape).mockResolvedValue(mockTape());
   vi.mocked(fetchNiftyBursts).mockResolvedValue([] as never);
   vi.mocked(snapshotNifty).mockResolvedValue(mockReport());
+  vi.mocked(fetchPositions).mockResolvedValue([]);
   // No live sockets in these tests: with happy-dom's real WebSocket a
   // running dev backend on :8765 would push real frames mid-test and flip
   // the panel into WS mode (racy assertions). Absent WS keeps both stream
@@ -332,6 +356,19 @@ describe("NiftyReportPanel toolbar", () => {
       expect(vi.mocked(snapshotNifty)).toHaveBeenCalledWith(undefined, undefined);
     });
   });
+
+  test("help button sits in the toolbar and opens the desk guide", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    const help = screen.getByTestId("nifty-help-button");
+    expect(screen.getByTestId("nifty-toolbar")).toContainElement(help);
+
+    await user.click(help);
+    expect(await screen.findByTestId("nifty-help-modal")).toBeInTheDocument();
+    expect(screen.getByTestId("panel-modal-title")).toHaveTextContent(
+      "Desk guide — read this once",
+    );
+  });
 });
 
 describe("NiftyReportPanel EOD mode", () => {
@@ -373,6 +410,11 @@ describe("NiftyReportPanel EOD mode", () => {
     expect(screen.getByTestId("nifty-oi-bursts-panel")).toHaveTextContent(/OI bursts \(1\)/);
     expect(screen.queryByTestId("nifty-oi-toasts")).not.toBeInTheDocument();
     expect(screen.getByTestId("nifty-oi-replay-button")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-oi-replay-button")).toHaveTextContent("Test alerts");
+    expect(screen.getByTestId("nifty-oi-replay-button")).toHaveAttribute(
+      "title",
+      "Replay the day's alerts as toasts (verification only)",
+    );
   });
 
   test("shows date picker and loads by date", async () => {
@@ -436,6 +478,49 @@ describe("NiftyReportPanel EOD mode", () => {
     await user.click(screen.getByRole("button", { name: "EOD" }));
     expect(await screen.findByTestId("nifty-empty")).toBeInTheDocument();
     expect(screen.getByText("Pick a date to load the EOD report.")).toBeInTheDocument();
+  });
+
+  test("Snapshot is disabled in EOD and never POSTs a past date", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+    await waitFor(() => {
+      expect(vi.mocked(fetchNiftyByDate)).toHaveBeenCalledWith(
+        "2026-10-10",
+        expect.any(AbortSignal),
+      );
+    });
+    const snapshot = screen.getByTestId("nifty-snapshot-button");
+    expect(snapshot).toBeDisabled();
+    // Even a forced click must not capture "now" over a historical date.
+    fireEvent.click(snapshot);
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(vi.mocked(snapshotNifty)).not.toHaveBeenCalled();
+  });
+
+  test("EOD hides the live-book P&L attribution", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-pnl-panel")).toBeInTheDocument();
+    });
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+    await waitFor(() => {
+      expect(vi.mocked(fetchNiftyByDate)).toHaveBeenCalled();
+      expect(screen.getByTestId("nifty-stat-strip")).toHaveTextContent("25,750.5");
+    });
+    expect(screen.queryByTestId("nifty-pnl-panel")).not.toBeInTheDocument();
   });
 });
 
@@ -507,30 +592,72 @@ describe("NiftyReportPanel EOD minute replay", () => {
     );
   });
 
-  test("shows coverage and the size of the next hole", async () => {
+  test("a replay frame hides bursts and criticals from later minutes", async () => {
+    const burstAt = (t: string) => ({
+      id: `${t}-call`,
+      side: "call" as const,
+      t,
+      delta: 60_000,
+      baseline: 1_000,
+      score: 12.5,
+      severity: "critical" as const,
+      cumDoi: 90_000,
+      spot: 25_150,
+      tickVol: 900,
+      signal: null,
+    });
+    vi.mocked(fetchNiftyBursts).mockResolvedValue([
+      burstAt("2026-10-10T09:20:00+05:30"),
+      burstAt("2026-10-10T10:00:00+05:30"),
+      burstAt("2026-10-10T15:04:00+05:30"),
+    ] as never);
+    const bar = await engageEodWithReplay();
+    const input = within(bar).getByTestId("nifty-replay-slider");
+
+    // Frame 0 is 09:15 — a 09:20 burst has not happened yet.
+    expect(screen.queryByTestId("nifty-oi-bursts-panel")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-critical-banner")).not.toBeInTheDocument();
+
+    // Frame 1 is 10:30 — 09:20 and 10:00 exist, 15:04 does not.
+    fireEvent.change(input, { target: { value: "1" } });
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-oi-bursts-panel")).toHaveTextContent(
+        "OI bursts (2)",
+      );
+    });
+    expect(screen.getByTestId("nifty-oi-bursts-panel")).not.toHaveTextContent("15:04");
+    expect(screen.queryAllByTestId("nifty-critical-banner")).toHaveLength(2);
+  });
+
+  test("shows coverage and the size of the next hole in the compact meta", async () => {
     const bar = await engageEodWithReplay();
     const coverage = within(bar).getByTestId("nifty-replay-coverage");
     // 3 recorded minutes out of the 375-minute session → 0.8%.
-    expect(coverage).toHaveTextContent("Data 0.8%");
-    expect(coverage).toHaveTextContent("372m missing");
+    expect(coverage).toHaveTextContent("0.8%");
+    // Cumulative "372m missing" moved into the tooltip.
+    expect(coverage).toHaveAttribute("title", expect.stringContaining("372"));
+    expect(coverage).not.toHaveTextContent("missing");
     // Frame 0 is 09:15 and frame 1 is 10:30 → 74 minutes are skipped.
-    expect(within(bar).getByTestId("nifty-replay-gap")).toHaveTextContent("+74m gap");
+    expect(within(bar).getByTestId("nifty-replay-gap")).toHaveTextContent("+74m");
     expect(within(bar).getByTestId("nifty-replay-coverage-strip")).toBeInTheDocument();
   });
 
-  test("names the recorder's skip reasons when the gap journal exists", async () => {
+  test("names the recorder's skip reasons in the tooltip, not in the bar", async () => {
     const bar = await engageEodWithReplay({ "chain-failed": 41, timeout: 12 });
     const reasons = within(bar).getByTestId("nifty-replay-reasons");
-    expect(reasons).toHaveTextContent("chain fetch failed ×41");
-    expect(reasons).toHaveTextContent("tick timed out ×12");
+    expect(reasons).toHaveAttribute("title", expect.stringContaining("chain fetch failed ×41"));
+    expect(reasons).toHaveAttribute("title", expect.stringContaining("tick timed out ×12"));
+    expect(reasons).not.toHaveTextContent("chain fetch failed");
+    // The bar itself only carries `time · %`.
+    expect(bar).not.toHaveTextContent("chain fetch failed");
   });
 
-  test("falls back to a hole count when the day has no gap journal", async () => {
+  test("falls back to a hole count in the tooltip when the day has no gap journal", async () => {
     const bar = await engageEodWithReplay();
     const reasons = within(bar).getByTestId("nifty-replay-reasons");
     // Frames 09:15, 10:30, 15:29 → two in-session holes (74m and 298m).
-    expect(reasons).toHaveTextContent("2 in-session holes");
-    expect(reasons).toHaveTextContent("reason not logged");
+    expect(reasons).toHaveAttribute("title", expect.stringContaining("2 in-session holes"));
+    expect(reasons).toHaveAttribute("title", expect.stringContaining("reason not logged"));
   });
 
   test("scrubbing the slider repaints the panels for that minute", async () => {
@@ -819,7 +946,7 @@ describe("NiftyReportPanel Chart|Depth view toggle", () => {
     await user.click(screen.getByRole("button", { name: "Chart" }));
     expect(await screen.findByTestId("tradingview-chart")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-depthmap")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-chart-view").style.display).toBe("block");
+    expect(screen.getByTestId("nifty-chart-view").style.display).toBe("flex");
     expect(screen.getByTestId("nifty-depth-view").style.display).toBe("none");
   });
 
@@ -912,6 +1039,88 @@ describe("niftyOiColumns alignment meta", () => {
     expect(byKey.get("strike")?.align).toBe("right");
     expect(byKey.get("ce.sentiment")?.align).toBe("center");
     expect(byKey.get("pe.sentiment")?.align).toBe("center");
+  });
+
+  test("DESK drops the two points/% change columns; RESEARCH keeps all seven", () => {
+    const research = getNiftyOiColumns(null);
+    const desk = getNiftyOiColumns(null, { showLegChange: false });
+    expect(research).toHaveLength(7);
+    expect(desk).toHaveLength(5);
+    expect(desk.map((c) => c.accessorKey)).toEqual([
+      "ce.oiChange",
+      "ce.sentiment",
+      "strike",
+      "pe.sentiment",
+      "pe.oiChange",
+    ]);
+    // The five DESK tracks fit the 420px rail with no horizontal scrollbar.
+    const deskWidth = desk.reduce(
+      (sum, c) => sum + ((c as { size?: number }).size ?? 0),
+      0,
+    );
+    expect(deskWidth).toBeLessThanOrEqual(420);
+  });
+});
+
+describe("NiftyReportPanel option-chain change columns (points, not %)", () => {
+  test("Chg headers carry a points tooltip and no % sign", () => {
+    const cols = getNiftyOiColumns(null);
+    const chg = cols.filter(
+      (c) => c.accessorKey === "ce.priceChange" || c.accessorKey === "pe.priceChange",
+    );
+    expect(chg).toHaveLength(2);
+    for (const col of chg) {
+      const header = col.header as unknown as {
+        props?: { title?: string; children?: unknown };
+      };
+      expect(header?.props?.title).toBe("points (LTP − prev close)");
+      expect(String(header?.props?.children ?? "")).not.toContain("%");
+    }
+    // No other header smuggles a % either.
+    for (const col of cols) {
+      const header = col.header as unknown as {
+        props?: { children?: unknown };
+      };
+      const text =
+        typeof col.header === "string"
+          ? col.header
+          : String(header?.props?.children ?? "");
+      expect(text).not.toContain("%");
+    }
+  });
+
+  test("Chg cells show points plus the pct from one helper label", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        spot: 25760,
+        strikes: [
+          {
+            strike: 25700,
+            ce: { ltp: 150, close: 200, oi: 2000, prevOi: 1800, oiChange: 200, priceChange: -50, sentiment: "Bearish" },
+            pe: { ltp: 260, close: 200, oi: 2500, prevOi: 2600, oiChange: -100, priceChange: 60, sentiment: "Bullish" },
+          },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const table = await screen.findByTestId("nifty-oi-table");
+    expect(within(table).queryByText(/Chg%/)).not.toBeInTheDocument();
+    expect(within(table).getByText("CE Chg")).toHaveAttribute(
+      "title",
+      "points (LTP − prev close)",
+    );
+    expect(within(table).getByText("PE Chg")).toHaveAttribute(
+      "title",
+      "points (LTP − prev close)",
+    );
+    // Points in their own span (U+2212 minus), pct dimmer beside it, the full
+    // helper label on the cell tooltip.
+    expect(within(table).getAllByText("−50.00", { exact: true })).toHaveLength(1);
+    expect(within(table).getAllByText("+60.00", { exact: true })).toHaveLength(1);
+    expect(table.textContent).toContain("(−25.0%)");
+    expect(table.textContent).toContain("(+30.0%)");
+    expect(within(table).getByTitle("−50.00 (−25.0%)")).toBeInTheDocument();
+    expect(within(table).getByTitle("+60.00 (+30.0%)")).toBeInTheDocument();
   });
 });
 
@@ -1007,7 +1216,8 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(chart).toHaveAttribute("data-priceareas", "0");
   });
 
-  test("shows live Sensex levels beside the Nifty report", async () => {
+  test("NIFTY mode hides the Sensex row; the SENSEX tab shows Sensex levels", async () => {
+    const user = userEvent.setup();
     vi.mocked(fetchLiveSensex).mockResolvedValueOnce({
       symbol: "SENSEX",
       spot: 74268.85,
@@ -1022,18 +1232,28 @@ describe("NiftyReportPanel fit-to-screen", () => {
       ohlc: { open: 72965.8, high: 74330.29, low: 72896.38, close: 74268.85 },
     });
     r(<NiftyReportPanel />);
-    const panel = await screen.findByTestId("nifty-sensex-panel");
-    expect(within(panel).getByTestId("sensex-stat-support")).toHaveTextContent("74,000");
-    expect(within(panel).getByTestId("sensex-stat-resistance")).toHaveTextContent("74,500");
-    expect(within(panel).getByTestId("sensex-stat-max-pain")).toHaveTextContent("74,200");
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    // NIFTY mode: no inline Sensex row above the chart.
+    expect(screen.queryByTestId("nifty-sensex-panel")).not.toBeInTheDocument();
+    // SENSEX tab: the dedicated focus panel carries the levels.
+    await user.click(
+      screen.getByTestId("nifty-index-toggle").querySelector('[data-value="sensex"]') ??
+        screen.getByText("SENSEX"),
+    );
+    expect(await screen.findByTestId("sensex-focus-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("sensex-focus-max-pain")).toHaveTextContent("74,200");
   });
 
-  test("live GEX overlay adds flip/support/resistance lines with dedupe", async () => {
+  test("live GEX overlay draws spot-relative sides, never inverted labels", async () => {
     const { buildMarkLines } = await import("./NiftyReportPanel");
     const gex = {
       strikes: [],
       netTotal: 10,
       regime: "long",
+      // Legacy tops are deliberately inverted relative to spot (25,750.5):
+      // they must not drive the chart labels any more.
       topPositive: [
         { strike: 25800, netGex: 5 },
         { strike: 26100, netGex: 4 },
@@ -1042,20 +1262,61 @@ describe("NiftyReportPanel fit-to-screen", () => {
         { strike: 25700, netGex: -6 },
         { strike: 25300, netGex: -5 },
       ],
+      // 25,200 sits below spot (pin magnet) and 26,100 above (pin magnet);
+      // 25,100 / 26,050 are negative gamma and therefore fuel, not S/R.
+      levels: {
+        support: { strike: 25200, netGex: 5 },
+        resistance: { strike: 26100, netGex: 4 },
+        fuelDown: { strike: 25100, netGex: -6 },
+        fuelUp: { strike: 26050, netGex: -5 },
+      },
       zeroCross: 25650,
     };
     const rep = mockReport({ gex });
-    // walls 25800/25900/26000 calls, 25600/25500/25400 puts, pain 25700:
-    // 25800 dupes a resistance zone, 26100 is fresh GSUP;
-    // 25700 is max pain and therefore not duplicated by GEX.
-    const lines = buildMarkLines(rep, true);
-    const labels = lines.map((l) => l.label.formatter);
+    const labels = buildMarkLines(rep, true).map((l) => l.label.formatter);
     expect(labels).toContain("FLIP 25650");
-    expect(labels).toContain("GSUP 26100");
-    expect(labels).toContain("GRES 25300");
-    // 25800 dupes the CW line, 25700 dupes MP — skipped, never doubled
-    expect(labels.filter((x) => x === "GSUP 25800")).toHaveLength(0);
+    // below spot → support; above spot → resistance
+    expect(labels).toContain("GSUP 25200");
+    expect(labels).toContain("GRES 26100");
+    // the legacy (inverted) tops never leak into the chart
+    expect(labels.filter((x) => x === "GSUP 26100")).toHaveLength(0);
     expect(labels.filter((x) => x === "GRES 25700")).toHaveLength(0);
+
+    // Negative gamma on either side is fuel, never support/resistance.
+    const fuelOnly = mockReport({
+      gex: {
+        ...gex,
+        levels: {
+          support: null,
+          resistance: null,
+          fuelDown: { strike: 25200, netGex: -6 },
+          fuelUp: { strike: 26100, netGex: -5 },
+        },
+      },
+    });
+    const fuelLabels = buildMarkLines(fuelOnly, true).map((l) => l.label.formatter);
+    expect(fuelLabels).toContain("GFUEL↓ 25200");
+    expect(fuelLabels).toContain("GFUEL↑ 26100");
+    expect(fuelLabels.some((x) => x.startsWith("GSUP") || x.startsWith("GRES"))).toBe(false);
+
+    // walls 25800/25900/26000 calls, 25600/25500/25400 puts, pain 25700:
+    // GEX levels landing on those strikes still render — the tags merge into
+    // the existing line instead of the GEX reading disappearing.
+    const duped = mockReport({
+      gex: {
+        ...gex,
+        levels: {
+          support: { strike: 25700, netGex: 5 },
+          resistance: { strike: 25800, netGex: 4 },
+          fuelDown: null,
+          fuelUp: null,
+        },
+      },
+    });
+    const dupeLabels = buildMarkLines(duped, true).map((l) => l.label.formatter);
+    expect(dupeLabels).toContain("MP 25700 · GSUP");
+    expect(dupeLabels).toContain("CW 25800 · GRES");
+
     // off without the flag: only walls/max-pain + pivots remain (no GEX)
     expect(buildMarkLines(rep, false).map((l) => l.label.formatter)).not.toContain("FLIP 25650");
     expect(buildMarkLines({ ...rep, gex: undefined }, true)).toHaveLength(10);
@@ -1079,11 +1340,9 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(within(table).getByText("Bearish")).toBeInTheDocument();
   });
 
-  test("timeline items and tomorrow's levels render from chain data", async () => {
+  test("tomorrow's levels render from chain data", async () => {
     r(<NiftyReportPanel />);
-    expect(await screen.findByTestId("nifty-timeline-item-0")).toBeInTheDocument();
-    expect(screen.getByText("Nifty opened flat")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-tomorrow-panel")).toBeInTheDocument();
+    await screen.findByTestId("nifty-tomorrow-panel");
     const row = screen.getByTestId("nifty-levels-row");
     expect(within(row).getByTestId("nifty-level-r1")).toHaveTextContent("25,800 (+0.19%)");
     expect(within(row).getByTestId("nifty-level-r2")).toHaveTextContent("25,900 (+0.58%)");
@@ -1119,7 +1378,7 @@ describe("NiftyReportPanel fit-to-screen", () => {
     expect(buildOvernightLevels({ ...base, pcrOi: 0.5 }).pcrVerdict).toMatch(/^Bearish/);
   });
 
-  test("signal pills show full names with per-side tone", async () => {
+  test("signal badges show compact codes with the full label on tooltip", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({
         strikes: [
@@ -1133,7 +1392,105 @@ describe("NiftyReportPanel fit-to-screen", () => {
     );
     r(<NiftyReportPanel />);
     const table = await screen.findByTestId("nifty-oi-table");
-    expect(within(table).getAllByText("Long Buildup")).toHaveLength(2);
+    // Compact codes in the cells, full names on the tooltip.
+    expect(within(table).getAllByText("LB")).toHaveLength(2);
+    expect(within(table).getAllByTitle("Long Buildup")).toHaveLength(2);
+    expect(within(table).queryByText("Long Buildup")).not.toBeInTheDocument();
+  });
+
+  test("OI-change bars scale to the visible max and carry the sign tone", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        spot: 25750,
+        strikes: [
+          {
+            strike: 25700,
+            ce: { ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange: 200, priceChange: 1, sentiment: "LB" },
+            pe: { ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange: -100, priceChange: 1, sentiment: "SB" },
+          },
+          {
+            strike: 25800,
+            ce: { ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange: 100, priceChange: 1, sentiment: "SB" },
+            pe: { ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange: -400, priceChange: 1, sentiment: "LB" },
+          },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const table = await screen.findByTestId("nifty-oi-table");
+    // CE max is 200 → 100% and 50%; PE max is 400 → 25% and 100%.
+    const ceBars = within(table).getAllByTestId("nifty-oi-bar-ce");
+    expect(ceBars.map((b) => b.getAttribute("data-pct")).sort()).toEqual(["100", "50"]);
+    const peBars = within(table).getAllByTestId("nifty-oi-bar-pe");
+    expect(peBars.map((b) => b.getAttribute("data-pct")).sort()).toEqual(["100", "25"]);
+    // Numerals stay readable beside the bars.
+    expect(within(table).getByText("200")).toBeInTheDocument();
+    expect(within(table).getByText("100")).toBeInTheDocument();
+  });
+
+  test("top call/put walls get CW/PW tags on their strike rows", async () => {
+    const leg = (oiChange: number) => ({
+      ltp: 1, close: 1, oi: 1, prevOi: 0, oiChange, priceChange: 1, sentiment: "LB",
+    });
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        spot: 25750,
+        walls: {
+          calls: [{ strike: 25800, oi: 5000 }],
+          puts: [{ strike: 25600, oi: 6000 }],
+        },
+        strikes: [
+          { strike: 25600, ce: leg(10), pe: leg(20) },
+          { strike: 25700, ce: leg(30), pe: leg(40) },
+          { strike: 25800, ce: leg(50), pe: leg(60) },
+        ],
+      }),
+    );
+    r(<NiftyReportPanel />);
+    const table = await screen.findByTestId("nifty-oi-table");
+    const cw = within(table).getByTestId("nifty-wall-cw");
+    expect(cw).toHaveTextContent("CW");
+    expect(cw).toHaveAttribute("title", "Call wall (top CE OI)");
+    const pw = within(table).getByTestId("nifty-wall-pw");
+    expect(pw).toHaveTextContent("PW");
+    expect(pw).toHaveAttribute("title", "Put wall (top PE OI)");
+    // One tag each: the middle strike row carries neither.
+    expect(within(table).getAllByTestId("nifty-wall-cw")).toHaveLength(1);
+    expect(within(table).getAllByTestId("nifty-wall-pw")).toHaveLength(1);
+  });
+
+  test("column opts keep accessors, alignment and widths; signals stay narrow", () => {
+    const row = {
+      strike: 25700,
+      ce: { ltp: 150, close: 200, oi: 2000, prevOi: 1800, oiChange: 200, priceChange: -50, sentiment: "LB" },
+      pe: { ltp: 260, close: 200, oi: 2500, prevOi: 2600, oiChange: -100, priceChange: 60, sentiment: "SB" },
+    } as NiftyStrike;
+    const plain = getNiftyOiColumns(null);
+    const scaled = getNiftyOiColumns(25700, {
+      maxCeOiChange: 200,
+      maxPeOiChange: 100,
+      spot: 25750,
+      walls: { calls: [{ strike: 25800 }], puts: [{ strike: 25600 }] },
+    });
+    expect(scaled.length).toBe(plain.length);
+    for (let i = 0; i < plain.length; i++) {
+      const a = plain[i] as { size?: number; meta?: { align?: string }; accessorKey?: string };
+      const b = scaled[i] as { size?: number; meta?: { align?: string }; accessorKey?: string };
+      // Same columns, same widths, same alignment — opts only feed cells.
+      expect(b.accessorKey).toBe(a.accessorKey);
+      expect(b.size).toBe(a.size);
+      expect(b.meta?.align).toBe(a.meta?.align);
+      // Sort accessors untouched by the visualisation opts.
+      const av = (plain[i] as unknown as { accessorFn?: (r: typeof row) => unknown }).accessorFn?.(row);
+      const bv = (scaled[i] as unknown as { accessorFn?: (r: typeof row) => unknown }).accessorFn?.(row);
+      expect(bv).toEqual(av);
+    }
+    const byKey = new Map(
+      scaled.map((c) => [c.accessorKey as string, c as unknown as { size?: number }]),
+    );
+    // Signal columns stay narrow (compact codes, not full labels).
+    expect(byKey.get("ce.sentiment")?.size).toBeLessThanOrEqual(72);
+    expect(byKey.get("pe.sentiment")?.size).toBeLessThanOrEqual(72);
   });
 });
 
@@ -1152,8 +1509,22 @@ describe("NiftyReportPanel GEX levels (live mode)", () => {
     };
   }
 
+  /** Chain legs carrying greeks = a real (non-degraded) GEX block. */
+  function withGreeks(report: NiftyReport): NiftyReport {
+    return {
+      ...report,
+      strikes: report.strikes.map((s) => ({
+        ...s,
+        ce: { ...s.ce, gamma: 0.0018 },
+        pe: { ...s.pe, gamma: 0.0017 },
+      })),
+    };
+  }
+
   test("live WITH gex shows GEX panel and hides Tomorrow's panel", async () => {
-    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(mockReport({ gex: gexBlock() }));
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      withGreeks(mockReport({ gex: gexBlock() })),
+    );
     r(<NiftyReportPanel />);
     expect(await screen.findByTestId("nifty-gex-panel")).toBeInTheDocument();
     expect(screen.getByTestId("nifty-gex-net")).toHaveTextContent("+12.40 Cr/pt");
@@ -1161,22 +1532,90 @@ describe("NiftyReportPanel GEX levels (live mode)", () => {
       "Dealers LONG gamma — moves dampened",
     );
     expect(screen.getByTestId("nifty-gex-flip")).toHaveTextContent("25,750");
+    // spot 25,750.5: the positive strike below spot is support; the negative
+    // strike above spot is fuel — it must not be labelled resistance.
+    expect(screen.getByTestId("nifty-gex-sup")).toHaveTextContent("γ support");
     expect(screen.getByTestId("nifty-gex-sup")).toHaveTextContent("25,700");
+    expect(screen.getByTestId("nifty-gex-res")).toHaveTextContent("γ fuel ↑");
     expect(screen.getByTestId("nifty-gex-res")).toHaveTextContent("25,800");
     // verdict combines regime + max-pain pull + PCR verdict
     expect(screen.getByTestId("nifty-gex-verdict")).toHaveTextContent("Dealers LONG gamma");
     expect(screen.getByTestId("nifty-gex-verdict")).toHaveTextContent("max-pain pull");
     expect(screen.getByTestId("nifty-gex-verdict")).toHaveTextContent("PCR-OI 1.12");
+    expect(screen.getByTestId("nifty-gex-verdict")).toHaveTextContent(
+      "Gap above 25,800 squeezes call writers; acceptance below 25,600 opens the next put wall.",
+    );
     expect(screen.queryByTestId("nifty-tomorrow-panel")).not.toBeInTheDocument();
   });
 
-  test("live WITHOUT gex falls back to Tomorrow's panel", async () => {
+  test("live WITHOUT gex falls back to the next-session panel", async () => {
     r(<NiftyReportPanel />);
     expect(await screen.findByTestId("nifty-tomorrow-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-tomorrow-panel")).toHaveTextContent(
+      "Next-session levels",
+    );
     expect(screen.queryByTestId("nifty-gex-panel")).not.toBeInTheDocument();
+    expect(screen.getByTestId("nifty-levels-verdict")).toHaveTextContent(
+      "Gap above 25,800 squeezes call writers; acceptance below 25,600 opens the next put wall.",
+    );
   });
 
-  test("EOD always shows Tomorrow's panel even when gex present", async () => {
+  test("the INTEL strip reads the frame's own session, not today's", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchNiftyByDate).mockResolvedValueOnce(
+      mockReport({ mode: "eod" }),
+    );
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-intel-strip");
+    // Live mode: no session override — the backend picks today.
+    let call = vi.mocked(fetchNiftyIntel).mock.calls.at(-1);
+    expect(call?.[1]).toEqual({ date: null, expiry: null });
+
+    await user.click(screen.getByRole("button", { name: "EOD" }));
+    const dateInput = screen.getByTestId("nifty-date-input");
+    await user.clear(dateInput);
+    await user.type(dateInput, "2026-10-10");
+    await waitFor(() => {
+      call = vi.mocked(fetchNiftyIntel).mock.calls.at(-1);
+      expect(call?.[1]?.date).toBe("2026-10-10");
+    });
+  });
+
+  test("degraded GEX renders γ n/a, never the contract-count total", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        gex: {
+          ...gexBlock(),
+          netTotal: 17_435_535,
+          degraded: true,
+          zeroCross: null,
+        },
+      }),
+    );
+    r(<NiftyReportPanel />);
+    expect(await screen.findByTestId("nifty-gex-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-gex-net")).toHaveTextContent("γ n/a");
+    expect(screen.getByTestId("nifty-gex-net")).not.toHaveTextContent("17");
+    expect(screen.getByTestId("nifty-stat-flip-value")).toHaveTextContent("n/a");
+  });
+
+  test("γ flip is spot-aware — a contradictory zeroCross is dropped", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      withGreeks(
+        mockReport({
+          spot: 25_740,
+          // Cumulative gamma up to 25,740 is positive (25,700 = +5.2), so a
+          // flip at 25,750 (above spot) contradicts the sign → no flip.
+          gex: { ...gexBlock(), zeroCross: 25_750 },
+        }),
+      ),
+    );
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.getByTestId("nifty-stat-flip-value")).toHaveTextContent("—");
+  });
+
+  test("EOD with gex hides the next-session panel (GEX wins in every mode)", async () => {
     const user = userEvent.setup();
     vi.mocked(fetchNiftyByDate).mockResolvedValueOnce(
       mockReport({ mode: "eod", gex: gexBlock() }),
@@ -1189,8 +1628,12 @@ describe("NiftyReportPanel GEX levels (live mode)", () => {
     const dateInput = screen.getByTestId("nifty-date-input");
     await user.clear(dateInput);
     await user.type(dateInput, "2026-10-10");
-    expect(await screen.findByTestId("nifty-tomorrow-panel")).toBeInTheDocument();
-    expect(screen.queryByTestId("nifty-gex-panel")).not.toBeInTheDocument();
+    expect(await screen.findByTestId("nifty-gex-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-tomorrow-panel")).not.toBeInTheDocument();
+    // The Tomorrow sentence survives as the GEX footer so nothing is lost.
+    expect(screen.getByTestId("nifty-gex-verdict")).toHaveTextContent(
+      "Gap above 25,800 squeezes call writers; acceptance below 25,600 opens the next put wall.",
+    );
   });
 
   test("short regime copy amplifies moves; null flip renders em dash", async () => {
@@ -1494,25 +1937,59 @@ describe("NiftyReportPanel level legend", () => {
     strikes: [],
     netTotal: 10,
     regime: "long",
-    topPositive: [{ strike: 22600, netGex: 5 }],
-    topNegative: [{ strike: 22400, netGex: -5 }],
-    zeroCross: 22500,
+    topPositive: [{ strike: 25600, netGex: 5 }],
+    topNegative: [{ strike: 25500, netGex: -5 }],
+    levels: {
+      support: { strike: 25600, netGex: 5 },
+      resistance: { strike: 25900, netGex: 4 },
+      fuelDown: null,
+      fuelUp: null,
+    },
+    zeroCross: 25750,
   };
 
-  test("live with gex shows all six codes with meanings", async () => {
+  test("live with gex lists only the codes the chart can draw", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(mockReport({ gex: gexBlock }));
     r(<NiftyReportPanel />);
-    const legend = await screen.findByTestId("nifty-level-legend");
+    // Dense layout: the panel no longer spends a row on the legend.
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.queryByTestId("nifty-level-legend")).not.toBeInTheDocument();
+    r(<LevelLegend live gex={gexBlock as never} spot={25750.5} />);
+    const legend = screen.getByTestId("nifty-level-legend");
     for (const code of ["CW", "PW", "MP", "FLIP", "GSUP", "GRES"]) {
       expect(within(legend).getByText(code, { exact: true })).toBeInTheDocument();
     }
+    // No negative-gamma side resolved, so there is no fuel line to explain.
+    expect(within(legend).queryByText("GFUEL", { exact: true })).not.toBeInTheDocument();
     expect(within(legend).getByText(/dealers switch sides/)).toBeInTheDocument();
     expect(within(legend).getByText(/expiry magnet/)).toBeInTheDocument();
   });
 
+  test("fuel-only sides advertise GFUEL, not GSUP/GRES", async () => {
+    const fuelOnly = {
+      ...gexBlock,
+      levels: {
+        support: null,
+        resistance: null,
+        fuelDown: { strike: 25500, netGex: -5 },
+        fuelUp: { strike: 26000, netGex: -4 },
+      },
+    };
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(mockReport({ gex: fuelOnly }));
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    r(<LevelLegend live gex={fuelOnly as never} spot={25750.5} />);
+    const legend = screen.getByTestId("nifty-level-legend");
+    expect(within(legend).getByText("GFUEL", { exact: true })).toBeInTheDocument();
+    expect(within(legend).queryByText("GSUP", { exact: true })).not.toBeInTheDocument();
+    expect(within(legend).queryByText("GRES", { exact: true })).not.toBeInTheDocument();
+  });
+
   test("live without gex shows only wall codes", async () => {
     r(<NiftyReportPanel />);
-    const legend = await screen.findByTestId("nifty-level-legend");
+    await screen.findByTestId("nifty-stat-strip");
+    r(<LevelLegend live={false} />);
+    const legend = screen.getByTestId("nifty-level-legend");
     for (const code of ["CW", "PW", "MP"]) {
       expect(within(legend).getByText(code, { exact: true })).toBeInTheDocument();
     }
@@ -1579,7 +2056,15 @@ describe("NiftyReportPanel session verdict strip", () => {
     // Regime is a headline decision, not a fourth cell in the context row.
     const regime = screen.getByTestId("nifty-stat-regime");
     expect(regime).toHaveTextContent("SELL PREMIUM");
-    expect(regime).toHaveTextContent("180 vs ~210 pts · straddle -20.00%");
+    // The range/straddle detail moved into the tooltip to keep one row.
+    expect(regime).toHaveAttribute(
+      "title",
+      expect.stringContaining("180 vs ~210 pts"),
+    );
+    expect(regime).toHaveAttribute(
+      "title",
+      expect.stringContaining("straddle -20.00%"),
+    );
     expect(screen.queryByTestId("nifty-verdict-regime")).not.toBeInTheDocument();
 
     const vix = screen.getByTestId("nifty-verdict-vix");
@@ -1589,6 +2074,20 @@ describe("NiftyReportPanel session verdict strip", () => {
     const strength = screen.getByTestId("nifty-verdict-strength");
     expect(strength).toHaveTextContent("STRONG");
     expect(strength).toHaveTextContent("score 72.5 · RSI 61.3");
+  });
+
+  test("renders the coil gauge in the same verdict row", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(withVerdicts());
+    r(<NiftyReportPanel />);
+    const strip = await screen.findByTestId("nifty-verdict-strip");
+    const gauge = screen.getByTestId("nifty-coil-gauge");
+    expect(strip).toContainElement(gauge);
+    // 180 / 210 = 86% of baseline -> NORMAL.
+    expect(gauge).toHaveTextContent("NORMAL");
+    expect(gauge).toHaveTextContent("0.9x");
+    expect(screen.getByTestId("nifty-coil-rv-iv")).toHaveTextContent(
+      "RV 11.2 / IV 12.4",
+    );
   });
 
   test("renders the other verdict variants", async () => {
@@ -1608,8 +2107,9 @@ describe("NiftyReportPanel session verdict strip", () => {
           range_pts: null,
           range_baseline_pts: null,
           range_pct: null,
-          rv: null,
-          iv: null,
+          // Premium-rich tape: the label must follow the vote, not the verdict.
+          rv: 12.5,
+          iv: 15.0,
           straddle_open: null,
           straddle_now: null,
           straddle_pct: null,
@@ -1637,7 +2137,7 @@ describe("NiftyReportPanel session verdict strip", () => {
       "PUT WRITERS IN CONTROL",
     );
     expect(screen.getByTestId("nifty-stat-regime")).toHaveTextContent(
-      "BUY PREMIUM · RV > IV",
+      "SELL PREMIUM · IV > RV",
     );
     expect(screen.getByTestId("nifty-verdict-vix")).toHaveTextContent(
       "VIX 14.00 (+7.69%)",
@@ -1658,9 +2158,11 @@ describe("NiftyReportPanel session verdict strip", () => {
     expect(screen.getByTestId("nifty-stat-regime-value")).toHaveTextContent(
       /^—$/,
     );
-    expect(
-      screen.getByTestId("nifty-stat-regime-hint"),
-    ).toHaveTextContent("— vs ~— pts · straddle —%");
+    // The empty-regime detail lives in the tooltip, not a third text line.
+    expect(screen.getByTestId("nifty-stat-regime")).toHaveAttribute(
+      "title",
+      expect.stringContaining("— vs ~— pts · straddle —%"),
+    );
     expect(screen.getByTestId("nifty-verdict-vix-primary")).toHaveTextContent(
       "VIX — (—%)",
     );
@@ -1710,6 +2212,47 @@ describe("NiftyReportPanel session verdict strip", () => {
     expect(screen.getByTestId("nifty-verdict-vix-secondary")).toHaveTextContent(
       "day —–—",
     );
+  });
+});
+
+describe("NiftyReportPanel compact desk top", () => {
+  test("top strip renders each headline value once at compact sizes", async () => {
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    const strip = screen.getByTestId("nifty-stat-strip");
+    // every headline number exactly once — the old detail lines that
+    // repeated them (day range, wall OI, flip delta) now live in tooltips
+    for (const text of ["25,750.5", "1.12", "0.95", "25,700"]) {
+      expect(within(strip).getAllByText(text)).toHaveLength(1);
+    }
+    expect(screen.getByTestId("nifty-stat-flip")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-stat-call-wall")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-stat-put-wall")).toBeInTheDocument();
+    // spot anchors the row larger, the rest compact
+    expect(screen.getByTestId("nifty-stat-spot-value")).toHaveStyle({
+      fontSize: "15px",
+    });
+    expect(screen.getByTestId("nifty-stat-regime-value")).toHaveStyle({
+      fontSize: "12px",
+    });
+  });
+
+  test("second strip renders control, coil, VIX and strength in one row", async () => {
+    r(<NiftyReportPanel />);
+    const strip = await screen.findByTestId("nifty-verdict-strip");
+    for (const id of [
+      "nifty-verdict-control",
+      "nifty-coil-gauge",
+      "nifty-verdict-vix",
+      "nifty-verdict-strength",
+    ]) {
+      expect(within(strip).getByTestId(id)).toBeInTheDocument();
+    }
+    expect(screen.getByTestId("nifty-verdict-control-primary")).toHaveStyle({
+      fontSize: "11px",
+    });
+    // regime stays a top-row headline, never a second-strip cell
+    expect(screen.queryByTestId("nifty-verdict-regime")).not.toBeInTheDocument();
   });
 });
 
@@ -1814,22 +2357,17 @@ describe("NiftyReportPanel ultra-compact layout", () => {
     ];
   }
 
-  test("chart body uses a fixed pixel height and the OI body fills its column", async () => {
+  test("chart body fills its row by default and the OI body fills its column", async () => {
     vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
       mockReport({ candles: candles() }),
     );
     r(<NiftyReportPanel />);
     const chartWrap = await screen.findByTestId("nifty-chart-wrap");
-    expect(chartWrap).toHaveStyle({ height: "180px" });
+    // Default = fill (autoSize), no fixed 180px preset.
+    expect(chartWrap).toHaveAttribute("data-fill", "1");
+    expect(chartWrap).not.toHaveStyle({ height: "180px" });
     const oiWrap = screen.getByTestId("nifty-oi-wrap");
     expect(oiWrap).toHaveStyle({ height: "100%" });
-  });
-
-  test("timeline scrolls inside a capped inner box", async () => {
-    r(<NiftyReportPanel />);
-    const scroller = await screen.findByTestId("nifty-timeline-scroll");
-    expect(scroller).toHaveStyle({ maxHeight: "150px" });
-    expect(screen.getByTestId("nifty-timeline-item-0")).toBeInTheDocument();
   });
 
   test("signals-row wrapper does not mount when empty (no dead wrapper)", async () => {
@@ -2058,5 +2596,693 @@ describe("emaSeries (pure EMA recomputation)", () => {
 
   test("empty input → empty series", () => {
     expect(emaSeries([], 9)).toEqual([]);
+  });
+});
+
+describe("NiftyReportPanel critical OI-unwind prominence", () => {
+  // Mirrors the 2026-10-21 15:04 event: put OI unwind −1.48M, backend flow
+  // covering (bullish) → BUY CE.
+  function backendBurst(overrides: Record<string, unknown> = {}) {
+    return {
+      id: "2026-10-12T15:04:00+05:30-put",
+      side: "put",
+      t: "2026-10-12T15:04:00+05:30",
+      delta: -1_480_000,
+      baseline: 100_000,
+      score: 14.8,
+      severity: "critical",
+      cumDoi: -5_000_000,
+      spot: 25701,
+      tickVol: 5000,
+      signal: null,
+      flow: "covering",
+      bearish: false,
+      ...overrides,
+    };
+  }
+
+  async function renderWithBursts(bursts: unknown[]) {
+    vi.mocked(fetchNiftyBursts).mockResolvedValue(bursts as never);
+    r(<NiftyReportPanel />);
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-stat-strip")).toBeInTheDocument();
+    });
+    await waitFor(() => {
+      expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    });
+  }
+
+  function trailSeverities(): (string | null)[] {
+    return within(screen.getByTestId("nifty-oi-bursts-panel"))
+      .getAllByTestId("market-alert-oi_burst")
+      .map((el) => el.getAttribute("data-severity"));
+  }
+
+  test("critical burst raises a sticky banner above the verdict strip with the action", async () => {
+    await renderWithBursts([backendBurst()]);
+    const banner = screen.getByTestId("nifty-critical-banner");
+    const strip = screen.getByTestId("nifty-stat-strip");
+    // above the verdict strip: the strip follows the banner in document order
+    expect(banner.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+    expect(strip.contains(banner)).toBe(false);
+    // put unwind + covering → CE plan (25,700 is the only chain strike): action + levels
+    const text = within(banner).getByTestId("nifty-critical-banner-text");
+    expect(text).toHaveTextContent("CRITICAL PUT UNWIND");
+    expect(text).toHaveTextContent("BUY CE 25,700");
+    expect(text).toHaveTextContent("entry 120");
+    expect(text).toHaveTextContent("SL 90");
+    expect(text).toHaveTextContent("TGT 180");
+    // the card header carries the red CRITICAL badge
+    expect(screen.getByTestId("nifty-oi-critical-badge")).toHaveTextContent("CRITICAL 1");
+  });
+
+  test("liquidation against the up-trend stays bannered but action-less", async () => {
+    // Same unwind, opposite flow: liquidation → PE, but the tape trend is up
+    // so the gate suppresses the plan — the banner must still fire, without
+    // inventing an action.
+    await renderWithBursts([backendBurst({ flow: "liquidation", bearish: true })]);
+    const text = within(screen.getByTestId("nifty-critical-banner")).getByTestId(
+      "nifty-critical-banner-text",
+    );
+    expect(text).toHaveTextContent("CRITICAL PUT UNWIND");
+    expect(text).not.toHaveTextContent("BUY");
+  });
+
+  test("non-critical bursts raise no banner, badge, or filter", async () => {
+    await renderWithBursts([backendBurst({ severity: "watch", score: 3.1 })]);
+    expect(screen.getByTestId("nifty-oi-bursts-panel")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-critical-banner")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-oi-critical-badge")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-oi-critical-filter")).not.toBeInTheDocument();
+    // the trail itself is unchanged: the watch row is still listed
+    expect(trailSeverities()).toEqual(["watch"]);
+  });
+
+  test("badge counts criticals and the trail sorts critical-first", async () => {
+    await renderWithBursts([
+      backendBurst(),
+      backendBurst({
+        id: "2026-10-12T15:06:00+05:30-put",
+        side: "put",
+        t: "2026-10-12T15:06:00+05:30",
+        delta: 50_000,
+        severity: "watch",
+        score: 3.2,
+        signal: null,
+      }),
+    ]);
+    expect(screen.getByTestId("nifty-oi-critical-badge")).toHaveTextContent("CRITICAL 1");
+    // trail seeds newest-first (watch, critical) but displays critical-first
+    expect(trailSeverities()).toEqual(["critical", "watch"]);
+    // critical rows carry the derived action inline
+    const rows = within(screen.getByTestId("nifty-oi-bursts-panel")).getAllByTestId(
+      "market-alert-oi_burst",
+    );
+    expect(rows[0]).toHaveTextContent("BUY CE 25,700");
+    expect(rows[0]).toHaveTextContent("ENTRY");
+  });
+
+  test("critical filter toggle narrows the trail and back", async () => {
+    const user = userEvent.setup();
+    await renderWithBursts([
+      backendBurst(),
+      backendBurst({
+        id: "2026-10-12T15:06:00+05:30-put",
+        side: "put",
+        t: "2026-10-12T15:06:00+05:30",
+        delta: 50_000,
+        severity: "watch",
+        score: 3.2,
+        signal: null,
+      }),
+    ]);
+    expect(trailSeverities()).toEqual(["critical", "watch"]);
+
+    const filter = screen.getByTestId("nifty-oi-critical-filter");
+    expect(filter).toHaveAttribute("aria-pressed", "false");
+    await user.click(filter);
+    expect(filter).toHaveAttribute("aria-pressed", "true");
+    expect(trailSeverities()).toEqual(["critical"]);
+
+    await user.click(filter);
+    expect(filter).toHaveAttribute("aria-pressed", "false");
+    expect(trailSeverities()).toEqual(["critical", "watch"]);
+  });
+
+  test("dismissing the banner removes it but keeps the trail", async () => {
+    const user = userEvent.setup();
+    await renderWithBursts([backendBurst()]);
+    expect(screen.getByTestId("nifty-critical-banner")).toBeInTheDocument();
+    await user.click(screen.getByTestId("nifty-critical-banner-dismiss"));
+    expect(screen.queryByTestId("nifty-critical-banner")).not.toBeInTheDocument();
+    // the burst stays reviewable in the trail
+    expect(trailSeverities()).toEqual(["critical"]);
+  });
+});
+
+describe("NiftyReportPanel desk mode", () => {
+  function renderDesk() {
+    window.localStorage.setItem("nifty.deskMode", "desk");
+    return r(<NiftyReportPanel />);
+  }
+
+  function deskToggle() {
+    return screen.getByTestId("nifty-desk-toggle");
+  }
+
+  function pressed(name: string) {
+    return within(deskToggle()).getByRole("button", { name });
+  }
+
+  test("toggle hydrates synchronously from storage — no first-paint flash", async () => {
+    window.localStorage.setItem("nifty.deskMode", "desk");
+    r(<NiftyReportPanel />);
+    // Synchronous: the very first render already selects DESK, before any
+    // data loads or effect runs, so research panels never mount for a frame.
+    expect(pressed("DESK")).toHaveAttribute("aria-pressed", "true");
+    expect(pressed("RESEARCH")).toHaveAttribute("aria-pressed", "false");
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.queryByTestId("nifty-analytics-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-iv-skew-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-detail")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-desk-plan")).not.toBeInTheDocument();
+    // Desk surface stays: header, PLAN one-liner, chart, OI chain.
+    expect(screen.getByTestId("nifty-plan-oneliner")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-oi-panel")).toBeInTheDocument();
+  });
+
+  test("desk is the default when nothing is stored", async () => {
+    window.localStorage.removeItem("nifty.deskMode");
+    r(<NiftyReportPanel />);
+    expect(pressed("DESK")).toHaveAttribute("aria-pressed", "true");
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.queryByTestId("nifty-analytics-row")).not.toBeInTheDocument();
+  });
+
+  test("DESK chain renders five columns (no points/% change tracks)", async () => {
+    renderDesk();
+    const table = await screen.findByTestId("nifty-oi-table");
+    expect(within(table).queryByText("CE Chg")).not.toBeInTheDocument();
+    expect(within(table).queryByText("PE Chg")).not.toBeInTheDocument();
+    for (const header of ["CE OI Chg", "CE Signal", "Strike", "PE Signal", "PE OI Chg"]) {
+      expect(within(table).getByText(header)).toBeInTheDocument();
+    }
+  });
+
+  test("RESEARCH chain keeps all seven columns", async () => {
+    window.localStorage.setItem("nifty.deskMode", "research");
+    r(<NiftyReportPanel />);
+    const table = await screen.findByTestId("nifty-oi-table");
+    for (const header of [
+      "CE Chg",
+      "CE OI Chg",
+      "CE Signal",
+      "Strike",
+      "PE Signal",
+      "PE OI Chg",
+      "PE Chg",
+    ]) {
+      expect(within(table).getByText(header)).toBeInTheDocument();
+    }
+  });
+
+  test("toggle persists the mode and hides/shows research panels", async () => {
+    const user = userEvent.setup();
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    await user.click(pressed("RESEARCH"));
+    expect(await screen.findByTestId("nifty-analytics-row")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-iv-skew-row")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-detail")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-desk-plan")).toBeInTheDocument();
+    expect(window.localStorage.getItem("nifty.deskMode")).toBe("research");
+    await user.click(pressed("DESK"));
+    expect(screen.queryByTestId("nifty-analytics-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-iv-skew-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-detail")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-desk-plan")).not.toBeInTheDocument();
+    expect(window.localStorage.getItem("nifty.deskMode")).toBe("desk");
+  });
+
+  test("PLAN one-liner renders and the reasons button opens the modal", async () => {
+    const user = userEvent.setup();
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    const line = screen.getByTestId("nifty-plan-oneliner");
+    expect(within(line).getByTestId("nifty-plan-headline")).not.toBeEmptyDOMElement();
+    expect(screen.queryByTestId("nifty-plan-modal")).not.toBeInTheDocument();
+    await user.click(screen.getByTestId("nifty-plan-reasons-button"));
+    expect(await screen.findByTestId("nifty-plan-modal")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-plan-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  test("chart expand button and F hotkey open/close the fullscreen modal", async () => {
+    const user = userEvent.setup();
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    await user.click(screen.getByTestId("nifty-chart-expand"));
+    expect(await screen.findByTestId("nifty-chart-fullscreen-body")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-chart-fullscreen-oi-table")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-chart-fullscreen-body")).not.toBeInTheDocument();
+    });
+    await user.keyboard("f");
+    expect(await screen.findByTestId("nifty-chart-fullscreen-body")).toBeInTheDocument();
+    await user.click(screen.getByTestId("panel-modal-close"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-chart-fullscreen-body")).not.toBeInTheDocument();
+    });
+  });
+
+  test("D toggles desk/research, E opens plan reasons, V opens the visuals stub", async () => {
+    const user = userEvent.setup();
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    await user.keyboard("d");
+    expect(await screen.findByTestId("nifty-analytics-row")).toBeInTheDocument();
+    await user.keyboard("d");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-analytics-row")).not.toBeInTheDocument();
+    });
+    await user.keyboard("e");
+    expect(await screen.findByTestId("nifty-plan-modal")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-plan-modal")).not.toBeInTheDocument();
+    });
+    await user.keyboard("v");
+    expect(await screen.findByTestId("nifty-visuals-stub")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-visuals-stub")).not.toBeInTheDocument();
+    });
+  });
+
+  test("1/5/15 hotkeys move the chart timeframe", async () => {
+    const user = userEvent.setup();
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    const tfToggle = screen.getByTestId("nifty-tf-toggle");
+    const isPressed = (name: string) =>
+      within(tfToggle).getByRole("button", { name }).getAttribute("aria-pressed");
+    expect(isPressed("1m")).toBe("true");
+    await user.keyboard("5");
+    await waitFor(() => {
+      expect(isPressed("5m")).toBe("true");
+    });
+    await user.keyboard("15");
+    await waitFor(() => {
+      expect(isPressed("15m")).toBe("true");
+    });
+    await user.keyboard("1");
+    await waitFor(() => {
+      expect(isPressed("1m")).toBe("true");
+    });
+  });
+
+  test("IV skew and GEX expand buttons open their modals in research mode", async () => {
+    const user = userEvent.setup();
+    r(<NiftyReportPanel />);
+    await screen.findByTestId("nifty-stat-strip");
+    await user.click(screen.getByTestId("nifty-ivskew-expand"));
+    expect(await screen.findByTestId("nifty-ivskew-modal")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-ivskew-modal")).not.toBeInTheDocument();
+    });
+    await user.click(screen.getByTestId("nifty-gex-expand"));
+    expect(await screen.findByTestId("nifty-gex-modal")).toBeInTheDocument();
+    await user.keyboard("{Escape}");
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-gex-modal")).not.toBeInTheDocument();
+    });
+  });
+});
+
+describe("NiftyReportPanel flow/research visuals", () => {
+  function renderDesk() {
+    window.localStorage.setItem("nifty.deskMode", "desk");
+    return r(<NiftyReportPanel />);
+  }
+
+  function renderResearch() {
+    window.localStorage.setItem("nifty.deskMode", "research");
+    return r(<NiftyReportPanel />);
+  }
+
+  test("DESK shows the FLOW band (heatmap + strip) on a single tape fetch", async () => {
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.getByTestId("nifty-flow-band")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-flow-band-panel")).toBeInTheDocument();
+    // The mock tape carries no per-strike chain: the heatmap shows its empty
+    // state while the two mock rows still produce a flow-event lane.
+    expect(screen.getByTestId("nifty-heatmap-empty")).toBeInTheDocument();
+    const strip =
+      screen.queryByTestId("nifty-flowstrip") ??
+      screen.getByTestId("nifty-flowstrip-empty");
+    expect(strip).toBeInTheDocument();
+    // The band reuses the page's tape fetch — no second request.
+    expect(vi.mocked(fetchNiftyTape)).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(fetchPositions)).toHaveBeenCalled();
+    // Research sections stay unmounted in desk mode.
+    expect(screen.queryByTestId("nifty-flow-row")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-vol-row")).not.toBeInTheDocument();
+  });
+
+  test("DESK caps the chart row at 300px and hands the slack to the FLOW band", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValueOnce(
+      mockReport({
+        candles: [
+          { time: "2026-10-12T09:15:00", open: 25600, high: 25650, low: 25580, close: 25620, volume: 1000 },
+          { time: "2026-10-12T09:16:00", open: 25620, high: 25680, low: 25600, close: 25750.5, volume: 1200 },
+        ],
+      }),
+    );
+    renderDesk();
+    const wrap = await screen.findByTestId("nifty-chart-wrap");
+    // Fill mode: hard cap 300, never below 260.
+    expect(wrap).toHaveAttribute("data-fill", "1");
+    expect(wrap).toHaveStyle({ maxHeight: "300px", minHeight: "260px" });
+    // Row = chart body + its 48px chrome (no black void under the card).
+    expect(screen.getByTestId("nifty-main-row")).toHaveStyle({ maxHeight: "348px" });
+    // The FLOW band is the flexible remainder.
+    expect(screen.getByTestId("nifty-flow-band")).toHaveStyle({ flexGrow: "1" });
+  });
+
+  test("DESK keeps the OI bursts reachable below the FLOW band", async () => {
+    vi.mocked(fetchNiftyBursts).mockResolvedValue([
+      {
+        id: "2026-10-12T10:20:00+05:30-call",
+        side: "call",
+        t: "2026-10-12T10:20:00+05:30",
+        delta: -16_461_965,
+        baseline: 1_000_000,
+        score: 16.4,
+        severity: "critical",
+        cumDoi: -36_657_985,
+        spot: 22_597.3,
+        tickVol: 1_000,
+        signal: null,
+      },
+    ] as never);
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    const band = await screen.findByTestId("nifty-flow-band");
+    const bursts = await screen.findByTestId("nifty-oi-bursts-panel");
+    expect(bursts).toHaveTextContent(/OI bursts \(1\)/);
+    expect(
+      Boolean(band.compareDocumentPosition(bursts) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
+  });
+
+  test("empty tape renders empty FLOW states without crashing", async () => {
+    vi.mocked(fetchNiftyTape).mockResolvedValue({
+      date: "2026-10-12",
+      interval_sec: 60,
+      rows: [],
+    });
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    expect(screen.getByTestId("nifty-flow-band")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-heatmap-empty")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-flowstrip-empty")).toBeInTheDocument();
+  });
+
+  test("RESEARCH shows wall/participant/volume/PnL panels; desk band stays out", async () => {
+    renderResearch();
+    await screen.findByTestId("nifty-stat-strip");
+    expect(await screen.findByTestId("nifty-flow-row")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-vol-row")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-wall-migration")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-participant-flow")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-volume-profile-panel")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-pnl-panel")).toBeInTheDocument();
+    // No mappable option legs in the mocked positions → empty state.
+    expect(screen.getByTestId("nifty-pnl-empty")).toBeInTheDocument();
+    // Existing research panels are untouched, not duplicated.
+    expect(screen.getByTestId("nifty-iv-skew-row")).toBeInTheDocument();
+    expect(screen.getByTestId("nifty-analytics-row")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-flow-band")).not.toBeInTheDocument();
+  });
+});
+
+describe("NiftyReportPanel DESK compact alerts", () => {
+  function renderDesk() {
+    window.localStorage.setItem("nifty.deskMode", "desk");
+    return r(<NiftyReportPanel />);
+  }
+
+  function renderResearch() {
+    window.localStorage.setItem("nifty.deskMode", "research");
+    return r(<NiftyReportPanel />);
+  }
+
+  function deskBurst(id: string, t: string, severity = "critical") {
+    return {
+      id,
+      side: "call",
+      t,
+      delta: -16_461_965,
+      baseline: 1_000_000,
+      score: 16.4,
+      severity,
+      cumDoi: -36_657_985,
+      spot: 22_597.3,
+      tickVol: 1_000,
+      signal: null,
+    };
+  }
+
+  function threeCritical() {
+    return [
+      deskBurst("c-1", "2026-10-12T10:20:00+05:30"),
+      deskBurst("c-2", "2026-10-12T10:21:00+05:30"),
+      deskBurst("c-3", "2026-10-12T10:22:00+05:30"),
+    ] as never;
+  }
+
+  test("DESK compacts the bursts log to the newest 2 rows with an Open action", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchNiftyBursts).mockResolvedValue(threeCritical());
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    const panel = await screen.findByTestId("nifty-oi-bursts-panel");
+    expect(panel).toHaveTextContent("OI bursts (3)");
+    // Compact: only the newest 2 rows inline…
+    expect(within(panel).getAllByTestId("market-alert-oi_burst")).toHaveLength(2);
+    expect(screen.getByTestId("nifty-oi-bursts-open")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-alerts-modal")).not.toBeInTheDocument();
+    // …Open shows the full log in a modal.
+    await user.click(screen.getByTestId("nifty-oi-bursts-open"));
+    const modal = await screen.findByTestId("nifty-alerts-modal");
+    expect(within(modal).getAllByTestId("market-alert-oi_burst")).toHaveLength(3);
+    await user.click(screen.getByTestId("panel-modal-close"));
+    await waitFor(() => {
+      expect(screen.queryByTestId("nifty-alerts-modal")).not.toBeInTheDocument();
+    });
+  });
+
+  test("DESK caps critical banners at 1 with +N more opening the alerts modal", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchNiftyBursts).mockResolvedValue(threeCritical());
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    const banners = await screen.findByTestId("nifty-critical-banners");
+    // The hook caps at 2; DESK shows the newest 1 with a +1 more tail.
+    expect(within(banners).getAllByTestId("nifty-critical-banner")).toHaveLength(1);
+    expect(banners).toHaveTextContent("+1 more");
+    await user.click(within(banners).getByTestId("nifty-critical-banner"));
+    expect(await screen.findByTestId("nifty-alerts-modal")).toBeInTheDocument();
+  });
+
+  test("RESEARCH keeps the full inline log and up to 2 banners", async () => {
+    vi.mocked(fetchNiftyBursts).mockResolvedValue(threeCritical());
+    renderResearch();
+    await screen.findByTestId("nifty-stat-strip");
+    const panel = await screen.findByTestId("nifty-oi-bursts-panel");
+    // Full inline log: all 3 rows, no Open action, no modal.
+    expect(within(panel).getAllByTestId("market-alert-oi_burst")).toHaveLength(3);
+    expect(screen.queryByTestId("nifty-oi-bursts-open")).not.toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-alerts-modal")).not.toBeInTheDocument();
+    const banners = screen.getByTestId("nifty-critical-banners");
+    expect(within(banners).getAllByTestId("nifty-critical-banner")).toHaveLength(2);
+    expect(banners).not.toHaveTextContent("+1 more");
+  });
+
+  test("DESK heatmap renders cells when tape rows carry a chain", async () => {
+    const chainFor = (
+      ceOi: number,
+      peOi: number,
+    ): Record<
+      string,
+      [number | null, number | null, number | null, number | null, number | null, number | null]
+    > => {
+      const c: Record<
+        string,
+        [number | null, number | null, number | null, number | null, number | null, number | null]
+      > = {};
+      for (let s = 25250; s <= 26250; s += 50) c[String(s)] = [10, 12, ceOi, peOi, 100, 100];
+      return c;
+    };
+    vi.mocked(fetchNiftyTape).mockResolvedValue({
+      date: "2026-10-12",
+      interval_sec: 60,
+      rows: [
+        { ...mockTape().rows[0], t: "2026-10-12T09:15:00+05:30", chain: chainFor(1000, 1000) },
+        { ...mockTape().rows[1], t: "2026-10-12T09:21:00+05:30", chain: chainFor(4000, 1200) },
+      ],
+    });
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+    expect(await screen.findByTestId("nifty-heatmap")).toBeInTheDocument();
+    expect(screen.queryByTestId("nifty-heatmap-empty")).not.toBeInTheDocument();
+    expect(screen.getAllByTestId("nifty-heatmap-cell").length).toBeGreaterThan(0);
+    expect(screen.getAllByTestId("nifty-heatmap-strike-label").length).toBeGreaterThan(0);
+  });
+});
+
+describe("NiftyReportPanel gamma strip + positions drawer", () => {
+  function renderDesk() {
+    window.localStorage.setItem("nifty.deskMode", "desk");
+    return r(<NiftyReportPanel />);
+  }
+
+  function renderResearch() {
+    window.localStorage.setItem("nifty.deskMode", "research");
+    return r(<NiftyReportPanel />);
+  }
+
+  const GEX = {
+    strikes: [
+      { strike: 25_100, callGex: -18, putGex: -2, netGex: -20 },
+      { strike: 25_600, callGex: -4, putGex: -1, netGex: -5 },
+      { strike: 25_700, callGex: 1, putGex: 0, netGex: 1 },
+      { strike: 25_760, callGex: 2, putGex: 0, netGex: 2 },
+      { strike: 25_900, callGex: 6, putGex: 0, netGex: 6 },
+    ],
+    netTotal: -12.4,
+    regime: "short" as const,
+    topPositive: [],
+    topNegative: [],
+    zeroCross: 25_760,
+    levels: {
+      support: null,
+      resistance: { strike: 25_900, netGex: 6 },
+      fuelDown: { strike: 25_100, netGex: -20 },
+      fuelUp: null,
+    },
+  };
+
+  function chainSide(overrides: Partial<NiftyStrike["ce"]> = {}): NiftyStrike["ce"] {
+    return {
+      ltp: 100,
+      close: 98,
+      oi: 1_000,
+      prevOi: 900,
+      oiChange: 100,
+      priceChange: 2,
+      sentiment: "Neutral",
+      delta: null,
+      gamma: null,
+      theta: null,
+      vega: null,
+      iv: 12,
+      ...overrides,
+    };
+  }
+
+  const CHAIN: NiftyStrike[] = [
+    {
+      strike: 25_700,
+      ce: chainSide({ ltp: 130, delta: 0.52, gamma: 0.0018, theta: -12.5, vega: 8.2 }),
+      pe: chainSide({ delta: -0.48, gamma: 0.0017, theta: -11.2, vega: 7.6 }),
+    },
+  ];
+
+  const OPEN_POSITION: PaperPosition = {
+    symbol: "NIFTY25700CE",
+    side: "BUY",
+    quantity: 50,
+    entry_price: 120,
+    current_price: 130,
+    entry_time: "2026-10-21T09:20:00+05:30",
+    stop_loss: 110,
+    take_profit: 150,
+    pnl: 500,
+    pnl_pct: 8.33,
+    margin_used: 0,
+    order_id: "o-1",
+    strategy_id: 1,
+    strategy_name: "EOD short premium",
+  };
+
+  test("DESK renders the gamma strip directly under INTEL and opens the drawer", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport({ gex: GEX, strikes: CHAIN }));
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+
+    const strip = await screen.findByTestId("nifty-gamma-strip");
+    expect(strip).toHaveStyle({ height: "24px" });
+    expect(strip).toHaveTextContent("Γ -12.40 Cr");
+    expect(strip).toHaveTextContent("SHORT Γ");
+    expect(strip).toHaveTextContent("flip");
+    expect(strip).toHaveTextContent("25,760");
+    expect(strip).toHaveTextContent("fuel↓");
+    expect(strip).toHaveTextContent("25,100");
+    expect(strip).toHaveTextContent("resist");
+    expect(strip).toHaveTextContent("25,900");
+
+    // It sits immediately after the INTEL rail, before the plan/chart.
+    const intel = screen.getByTestId("nifty-intel-strip");
+    expect(
+      Boolean(
+        intel.compareDocumentPosition(strip) & Node.DOCUMENT_POSITION_FOLLOWING,
+      ),
+    ).toBe(true);
+
+    await user.click(strip);
+    const modal = await screen.findByTestId("nifty-gamma-modal");
+    expect(screen.getByTestId("panel-modal")).toHaveAttribute("data-variant", "drawer");
+    expect(within(modal).getByTestId("nifty-gex-profile-panel")).toBeInTheDocument();
+    expect(within(modal).getByTestId("nifty-positioning-panel")).toBeInTheDocument();
+  });
+
+  test("RESEARCH also keeps the gamma strip", async () => {
+    vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport({ gex: GEX, strikes: CHAIN }));
+    renderResearch();
+    await screen.findByTestId("nifty-stat-strip");
+    expect(await screen.findByTestId("nifty-gamma-strip")).toHaveTextContent("SHORT Γ");
+  });
+
+  test("positions button shows the count + net P&L and opens PAPER POSITIONS", async () => {
+    const user = userEvent.setup();
+    vi.mocked(fetchLiveNifty).mockResolvedValue(mockReport({ gex: GEX, strikes: CHAIN }));
+    vi.mocked(fetchPositions).mockResolvedValue([OPEN_POSITION]);
+    renderDesk();
+    await screen.findByTestId("nifty-stat-strip");
+
+    const button = await screen.findByTestId("nifty-positions-button");
+    await waitFor(() => expect(button).toHaveTextContent("POS 1"));
+    expect(button).toHaveTextContent("+₹500");
+    expect(screen.getByTestId("nifty-positions-dot")).toBeInTheDocument();
+
+    await user.click(button);
+    const drawer = await screen.findByTestId("nifty-positions-drawer");
+    expect(within(drawer).getByTestId("nifty-positions-drawer-label")).toHaveTextContent(
+      "PAPER POSITIONS",
+    );
+    expect(within(drawer).getByTestId("nifty-positions-table")).toHaveTextContent(
+      "NIFTY25700CE",
+    );
+    expect(within(drawer).getByTestId("nifty-book-delta")).toHaveTextContent("+26.0");
+    // Opening refreshes the book from the one panel-owned fetch path.
+    expect(vi.mocked(fetchPositions).mock.calls.length).toBeGreaterThanOrEqual(2);
   });
 });

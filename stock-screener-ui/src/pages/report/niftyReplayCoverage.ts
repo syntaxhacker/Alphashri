@@ -16,7 +16,7 @@ export const SESSION_END_MIN = 15 * 60 + 29;
 /** 09:15 → 15:29 inclusive = 375 one-minute bars. */
 export const SESSION_MINUTES = SESSION_END_MIN - SESSION_START_MIN + 1;
 
-export interface ReplayGap {
+interface ReplayGap {
   /** Minute of day of the first missing minute. */
   start: number;
   /** Minute of day of the last missing minute. */

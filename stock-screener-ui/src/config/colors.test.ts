@@ -280,7 +280,7 @@ describe("Color Constants", () => {
 
   describe("ECharts Tooltip", () => {
     it("TOOLTIP_DARK_BG is dark", () => {
-      expect(TOOLTIP_DARK_BG).toBe("#161B22");
+      expect(TOOLTIP_DARK_BG).toBe("#111111");
     });
 
     it("TOOLTIP_LIGHT_BG is light", () => {
@@ -309,7 +309,7 @@ describe("Color Constants", () => {
 
   describe("Chart Surfaces", () => {
     it("CHART_DARK_BG is very dark", () => {
-      expect(CHART_DARK_BG).toBe("#0D1117");
+      expect(CHART_DARK_BG).toBe("#000000");
     });
 
     it("CHART_LIGHT_BG is light cream", () => {
@@ -317,9 +317,9 @@ describe("Color Constants", () => {
     });
 
     it("overlay and dropdown variants are rgba", () => {
-      expect(CHART_DARK_OVERLAY).toMatch(/^rgba\(13, 17, 23, /);
+      expect(CHART_DARK_OVERLAY).toMatch(/^rgba\(0, 0, 0, /);
       expect(CHART_LIGHT_OVERLAY).toMatch(/^rgba\(255, 255, 255, /);
-      expect(CHART_DARK_DROPDOWN).toMatch(/^rgba\(13, 17, 23, /);
+      expect(CHART_DARK_DROPDOWN).toMatch(/^rgba\(0, 0, 0, /);
       expect(CHART_LIGHT_DROPDOWN).toMatch(/^rgba\(255, 255, 255, /);
     });
   });

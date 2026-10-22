@@ -10,14 +10,35 @@ import type {
   MiniSeries,
 } from "@/components/common/charts/MiniLineChart";
 import type { NiftyGex } from "@/types/niftyReport";
+import {
+  buildGexProfile,
+  gexFlipAtSpot,
+  gexRegimeAtSpot,
+  type GexProfilePoint,
+} from "./niftyGex";
+
+/* The spot-relative regime/flip math lives in the pure `niftyGex` module so
+   the desk plan, the tape and the heatmap can read the same numbers without
+   importing this component. Re-exported here because the report panel (and
+   the tests) import them from this file. */
+export {
+  buildGexProfile,
+  gexCumAtSpot,
+  gexFlipAtSpot,
+  gexRegimeAtSpot,
+  gexSpotRelative,
+} from "./niftyGex";
+export type { GexProfilePoint } from "./niftyGex";
 
 /**
  * "Price × gamma" panel for the Nifty report.
  *
  * Honest mapping — the report supplies a per-strike net-GEX profile in
  * ₹ Cr per point (`report.gex`):
- *   - positive netGex  → dealers long gamma → price is a support magnet
- *   - negative netGex  → dealers short gamma → moves become volatility fuel
+ *   - positive netGex  → dealers long gamma → that strike pins price (support
+ *     when it sits below spot, resistance when it sits above)
+ *   - negative netGex  → dealers short gamma → moves become volatility fuel on
+ *     that side; it is never a support/resistance level
  *
  * Rendered with the dependency-free inline-SVG `MiniLineChart` (not ECharts):
  * these are static monitoring visuals, so a full canvas charting instance per
@@ -34,14 +55,8 @@ import type { NiftyGex } from "@/types/niftyReport";
  * ZERO-gamma flip. Absent/empty data degrades to a friendly empty state.
  */
 
-/** A single point of the per-strike net-GEX profile (sorted ascending). */
-export interface GexProfilePoint {
-  strike: number;
-  netGex: number;
-}
-
 /** Derived headline numbers for the panel's stat row. */
-export interface GexProfileStats {
+interface GexProfileStats {
   netTotal: number | null;
   zeroCross: number | null;
   regime: string;
@@ -50,7 +65,7 @@ export interface GexProfileStats {
 }
 
 /** MiniLineChart-ready props for the profile chart. */
-export interface GexChartProps {
+interface GexChartProps {
   labels: string[];
   series: MiniSeries[];
   markers: MiniMarker[];
@@ -62,7 +77,7 @@ export interface GexChartProps {
 }
 
 /** Rendered for any absent numeric field so a cell never shows blank. */
-export const GEX_DASH = "—";
+const GEX_DASH = "—";
 
 function num(v: unknown): number {
   // `Number(null)` and `Number("")` are 0 — treat those as absent so a null
@@ -70,19 +85,6 @@ function num(v: unknown): number {
   if (v === null || v === undefined || v === "") return NaN;
   const n = Number(v);
   return Number.isFinite(n) ? n : NaN;
-}
-
-/**
- * Per-strike profile, always ascending by strike. Drops rows whose strike or
- * netGex is missing / non-finite so a malformed payload can never crash the
- * chart or shift a label. Undefined / empty input yields `[]`.
- */
-export function buildGexProfile(gex?: NiftyGex): GexProfilePoint[] {
-  const strikes = Array.isArray(gex?.strikes) ? gex.strikes : [];
-  return strikes
-    .map((s) => ({ strike: num(s?.strike), netGex: num(s?.netGex) }))
-    .filter((p) => Number.isFinite(p.strike) && Number.isFinite(p.netGex))
-    .sort((a, b) => a.strike - b.strike);
 }
 
 /**
@@ -95,10 +97,10 @@ export function buildGexProfile(gex?: NiftyGex): GexProfilePoint[] {
  * 1% of the peak keeps every wall that can actually move the tape while
  * dropping the off-strike dust.
  */
-export const GEX_SIGNIFICANCE_SHARE = 0.01;
+const GEX_SIGNIFICANCE_SHARE = 0.01;
 
 /** Result of picking the strike window worth plotting. */
-export interface GexBand {
+interface GexBand {
   /** Contiguous slice of the profile (the plotted band). */
   points: GexProfilePoint[];
   /** Significance cut in Cr/pt (`peak * share`). */
@@ -187,10 +189,13 @@ export function nearestStrikeIndex(profile: GexProfilePoint[], value: number): n
 }
 
 /**
- * Headline stats. `netTotal` and `zeroCross` are straightforward passthroughs
- * (null when absent / non-finite). `peakStrike` / `troughStrike` are the
- * strikes holding the max / min netGex; ties break toward the strike nearest
- * `spot`, which keeps the marker deterministic on flat profiles.
+ * Headline stats. `netTotal` is the book total (null when absent / non-finite);
+ * `zeroCross` is the payload's flip, dropped when it disagrees with the
+ * cumulative sign at spot. `regime` is re-derived from that cumulative sign
+ * (`gexRegimeAtSpot`), falling back to the payload's own value.
+ * `peakStrike` / `troughStrike` are the strikes holding the max / min netGex;
+ * ties break toward the strike nearest `spot`, which keeps the marker
+ * deterministic on flat profiles.
  */
 export function gexProfileStats(gex: NiftyGex | undefined, spot: number): GexProfileStats {
   const profile = buildGexProfile(gex);
@@ -218,9 +223,11 @@ export function gexProfileStats(gex: NiftyGex | undefined, spot: number): GexPro
   }
 
   const netTotal = num(gex?.netTotal);
-  const rawZero = gex?.zeroCross;
-  const zeroCross = rawZero != null && Number.isFinite(Number(rawZero)) ? Number(rawZero) : null;
-  const regime = gex?.regime ? String(gex.regime).trim().toUpperCase() : "";
+  const zeroCross = gexFlipAtSpot(gex, spot);
+  const backendRegime = gex?.regime ? String(gex.regime).trim() : "";
+  const regime = gex
+    ? gexRegimeAtSpot(gex, spot, backendRegime).toUpperCase()
+    : "";
 
   return {
     netTotal: Number.isFinite(netTotal) ? netTotal : null,
@@ -231,10 +238,167 @@ export function gexProfileStats(gex: NiftyGex | undefined, spot: number): GexPro
   };
 }
 
-/** Signed ₹ Cr label with 2 dp, e.g. `+12.34 Cr` / `-8.00 Cr` / `—`. */
+/**
+ * Signed ₹ Cr **per point** label with 2 dp, e.g. `+12.34 Cr/pt` /
+ * `-8.00 Cr/pt` / `—`. The unit belongs to the value: a stat row that also
+ * carries a "Cr / pt" hint used to read "Cr Cr/pt".
+ */
 export function formatGexCr(v: number | null): string {
   if (v == null || !Number.isFinite(v)) return GEX_DASH;
-  return `${v > 0 ? "+" : ""}${v.toFixed(2)} Cr`;
+  return `${v > 0 ? "+" : ""}${v.toFixed(2)} Cr/pt`;
+}
+
+/** One side-relative level for the stat row. */
+export interface GexSideLevel {
+  strike: number;
+  netGex: number;
+  kind: "support" | "resistance" | "fuel";
+  side: "below" | "above";
+}
+
+/** Support/fuel below spot and resistance/fuel above spot. */
+interface GexSideLevels {
+  below: GexSideLevel | null;
+  above: GexSideLevel | null;
+}
+
+/** A level must carry at least this share of the profile's peak |netGex|. */
+export const GEX_LEVEL_MIN_SHARE = 0.1;
+
+/** A level farther than this share of spot is a wing, not an actionable level. */
+export const GEX_LEVEL_MAX_DIST_PCT = 0.05;
+
+/**
+ * Largest positive (pin) if any, else most negative (fuel), on one side.
+ * Entries below `minAbs` are noise: a +0.07 Cr wing is not a pin magnet just
+ * because it is the only positive strike on that side.
+ */
+function sideLevel(
+  points: GexProfilePoint[],
+  side: "below" | "above",
+  minAbs: number,
+): GexSideLevel | null {
+  const positive = points.filter((p) => p.netGex > 0 && p.netGex >= minAbs);
+  if (positive.length > 0) {
+    const best = positive.reduce((a, b) => (b.netGex > a.netGex ? b : a));
+    return {
+      ...best,
+      kind: side === "below" ? "support" : "resistance",
+      side,
+    };
+  }
+  const negative = points.filter((p) => p.netGex < 0 && -p.netGex >= minAbs);
+  if (negative.length > 0) {
+    const worst = negative.reduce((a, b) => (b.netGex < a.netGex ? b : a));
+    return { ...worst, kind: "fuel", side };
+  }
+  return null;
+}
+
+/**
+ * Spot-relative support / resistance for the stat row.
+ *
+ * A positive-gamma strike is a pin magnet, but which level it is depends on
+ * where it sits: above spot it caps rallies (resistance), below spot it is
+ * bought (support). A negative-gamma strike accelerates moves on its side and
+ * is **fuel, never support/resistance** — the old code called the global
+ * minimum "resistance" even when it sat below spot (22,700 under a 22,952
+ * spot on 2026-10-21).
+ *
+ * Uses the backend `levels` block when it passes the gates below, otherwise
+ * derives the levels from the strike profile. Older snapshots (recorded before
+ * `levels` existed, or by a build without the gates) therefore replay with the
+ * corrected labels too. A strike must carry ≥10% of the profile's peak
+ * |netGex| and sit within 5% of spot, otherwise the side is null (rendered as
+ * `—`) rather than promoting a near-zero wing.
+ */
+export function gexSideLevels(
+  gex: NiftyGex | undefined,
+  spot: number,
+): GexSideLevels {
+  const spotF = Number(spot);
+  const finiteSpot = Number.isFinite(spotF);
+  const profile = buildGexProfile(gex);
+  const peakAbs = profile.reduce((m, p) => Math.max(m, Math.abs(p.netGex)), 0);
+  const minAbs = peakAbs * GEX_LEVEL_MIN_SHARE;
+  const maxDist = finiteSpot ? Math.abs(spotF) * GEX_LEVEL_MAX_DIST_PCT : Infinity;
+
+  /** Same gates as the backend: right side, near enough, big enough. */
+  const qualifies = (
+    raw: { strike: number; netGex: number } | null | undefined,
+    side: "below" | "above",
+  ): { strike: number; netGex: number } | null => {
+    if (!raw) return null;
+    if (finiteSpot) {
+      if (side === "below" ? raw.strike > spotF : raw.strike < spotF) return null;
+      if (Math.abs(raw.strike - spotF) > maxDist) return null;
+    }
+    if (peakAbs > 0 && Math.abs(raw.netGex) < minAbs) return null;
+    return raw;
+  };
+
+  const asLevel = (
+    raw: { strike: number; netGex: number } | null,
+    positiveKind: "support" | "resistance",
+    side: "below" | "above",
+  ): GexSideLevel | null =>
+    raw
+      ? {
+          strike: raw.strike,
+          netGex: raw.netGex,
+          kind: raw.netGex > 0 ? positiveKind : "fuel",
+          side,
+        }
+      : null;
+
+  const near = finiteSpot
+    ? profile.filter((p) => Math.abs(p.strike - spotF) <= maxDist)
+    : profile;
+  const derive = (side: "below" | "above"): GexSideLevel | null =>
+    finiteSpot
+      ? sideLevel(
+          near.filter((p) =>
+            side === "below" ? p.strike <= spotF : p.strike >= spotF,
+          ),
+          side,
+          minAbs,
+        )
+      : null;
+
+  // Stored payloads may carry a `levels` block written by an older build that
+  // lacked the significance/distance gates (e.g. the +0.07 support). Re-check
+  // every backend level here and fall back to the gated derivation when it
+  // fails, so replaying those frames cannot resurrect the degenerate label.
+  const levels = gex?.levels;
+  if (levels) {
+    return {
+      below:
+        asLevel(qualifies(levels.support, "below"), "support", "below") ??
+        asLevel(qualifies(levels.fuelDown, "below"), "support", "below") ??
+        derive("below"),
+      above:
+        asLevel(qualifies(levels.resistance, "above"), "resistance", "above") ??
+        asLevel(qualifies(levels.fuelUp, "above"), "resistance", "above") ??
+        derive("above"),
+    };
+  }
+
+  return { below: derive("below"), above: derive("above") };
+}
+
+/** Label / hint for one side cell: a pin magnet or move fuel. */
+export function gexSideCopy(
+  level: GexSideLevel | null,
+  side: "below" | "above",
+): { label: string; hint: string } {
+  if (level?.kind === "fuel") {
+    return side === "below"
+      ? { label: "γ fuel ↓", hint: "breakdown fuel · below" }
+      : { label: "γ fuel ↑", hint: "squeeze fuel · above" };
+  }
+  return side === "below"
+    ? { label: "γ support", hint: "pin magnet · below" }
+    : { label: "γ resistance", hint: "pin magnet · above" };
 }
 
 /** Integer Indian-grouped strike, e.g. `22,600` / `—`. */
@@ -298,9 +462,35 @@ export function buildGexChart(
   return { labels, series, markers, zeroLine: true, band, significant };
 }
 
-export interface NiftyGexProfileProps {
+interface NiftyGexProfileProps {
   gex?: NiftyGex;
   spot: number;
+}
+
+/**
+ * Stat value for one γ level: the strike plus the net gamma it carries, e.g.
+ * `22,600 (+142.30 Cr/pt)`. The magnitude is what separates a real wall from
+ * a +0.07 Cr wing that only looked like one.
+ */
+function GexLevelValue(level: GexSideLevel | null) {
+  if (!level) return GEX_DASH;
+  return (
+    <>
+      {formatGexStrike(level.strike)}
+      <Box
+        component="span"
+        sx={{
+          fontSize: 9,
+          fontWeight: 400,
+          ml: 0.5,
+          color: "text.secondary",
+          whiteSpace: "nowrap",
+        }}
+      >
+        ({formatGexCr(level.netGex)})
+      </Box>
+    </>
+  );
 }
 
 function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
@@ -320,6 +510,11 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
     () => spotVsFlip(spot, stats.zeroCross),
     [spot, stats.zeroCross],
   );
+  const sides = useMemo(() => gexSideLevels(gex, spot), [gex, spot]);
+  const below = sides.below;
+  const above = sides.above;
+  const belowCopy = gexSideCopy(below, "below");
+  const aboveCopy = gexSideCopy(above, "above");
   const regimeSentence =
     stats.regime === "LONG"
       ? "Dealers hold long gamma — the big peak is a magnet: dips there get bought, rallies get sold into."
@@ -353,11 +548,11 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
         >
           <CompactStat
             data-testid="nifty-gex-profile-net"
-            label="Net γ @ spot"
+            label="Net γ (book)"
             tone={gexTone(stats.netTotal)}
             valueSize="md"
             value={formatGexCr(stats.netTotal)}
-            hint="Cr / pt · + = long γ"
+            hint="Σ all strikes"
           />
           <CompactStat
             data-testid="nifty-gex-profile-zero"
@@ -368,17 +563,19 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
           />
           <CompactStat
             data-testid="nifty-gex-profile-support"
-            label="γ support"
+            label={belowCopy.label}
+            tone={gexTone(below?.netGex ?? null)}
             valueSize="md"
-            value={formatGexStrike(stats.peakStrike)}
-            hint="pin magnet"
+            value={GexLevelValue(below)}
+            hint={belowCopy.hint}
           />
           <CompactStat
             data-testid="nifty-gex-profile-resist"
-            label="γ resistance"
+            label={aboveCopy.label}
+            tone={gexTone(above?.netGex ?? null)}
             valueSize="md"
-            value={formatGexStrike(stats.troughStrike)}
-            hint="breakout fuel"
+            value={GexLevelValue(above)}
+            hint={aboveCopy.hint}
           />
         </Box>
 
@@ -398,6 +595,7 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
             size="xs"
             span
             fw={700}
+            title="Regime = cumulative γ up to spot (the side of the flip spot trades on)"
             sx={{
               color: regimeTone,
               border: `1px solid ${regimeTone}`,
@@ -441,7 +639,9 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
           <Text data-testid="nifty-gex-profile-coverage" size="xs" span c="dimmed">
             {`band ${formatGexStrike(band[0].strike)}–${formatGexStrike(
               band[band.length - 1].strike,
-            )} · ${chart.significant} of ${profile.length} strikes carry ≥1% of peak γ`}
+            )} · ${chart.significant} of ${profile.length} strikes carry ≥${
+              GEX_SIGNIFICANCE_SHARE * 100
+            }% of peak γ`}
           </Text>
         )}
 
@@ -467,7 +667,7 @@ function NiftyGexProfileInner({ gex, spot }: NiftyGexProfileProps) {
             size="xs"
             span
             c="dimmed"
-            title="x: strike · y: net dealer gamma in ₹ Cr/pt on a sqrt scale (so the big walls don't flatten every other strike). Above the 0 line dealers dampen moves at that strike (magnet); below it they amplify them (fuel). SPOT / ZERO mark today's spot and the gamma flip. The tallest peak is the gamma-support strike, the deepest trough the gamma-resistance strike."
+            title="x: strike · y: net dealer gamma in ₹ Cr/pt on a sqrt scale (so the big walls don't flatten every other strike). Above the 0 line dealers dampen moves at that strike (magnet); below it they amplify them (fuel). SPOT / ZERO mark today's spot and the gamma flip. Support/resistance are positive-gamma pin magnets below/above spot; a negative-gamma strike is fuel on its own side, never support or resistance."
             sx={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}
           >
             x: strike · y: net γ (₹ Cr/pt, √ scale) · above 0 = dampening, below 0 = amplifying

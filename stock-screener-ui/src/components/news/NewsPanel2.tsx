@@ -204,22 +204,25 @@ function NewsPanelToggle({
     <Indicator
       color={hasNewArticles ? "success" : "error"}
       size={16}
-      label={unreadCount > 99 ? "99+" : unreadCount}
+      label={unreadCount > 9 ? "9+" : unreadCount}
       disabled={unreadCount === 0 || isOpen}
       offset={4}
       className={hasNewArticles ? "news-badge-pulse" : undefined}
     >
+      {/* Icon-only in the header: the word "NEWS" cost ~54px of tape width.
+          The count is capped at "9+" and the tooltip/aria-label carry the
+          meaning. */}
       <Button
-        variant="filled"
+        variant="subtle"
         color="primary"
         size="sm"
         onClick={onToggle}
         data-testid="news-toggle-btn"
-        title="Open news panel"
-        leftSection={<IconNews size={16} />}
-      >
-        NEWS
-      </Button>
+        aria-label="News"
+        title={`Open news panel${unreadCount > 0 ? ` — ${unreadCount} unread` : ""}`}
+        leftSection={<IconNews size={18} />}
+        style={{ minWidth: 32, width: 32, height: 32, padding: 0 }}
+      />
     </Indicator>
   );
 }

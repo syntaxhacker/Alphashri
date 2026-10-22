@@ -229,6 +229,29 @@ describe("useNiftyReportStream", () => {
     expect(result.current.report).toBeNull();
   });
 
+  test("disabling the stream clears the last live tick", async () => {
+    const { result, rerender } = renderHook(
+      ({ enabled }: { enabled: boolean }) =>
+        useNiftyReportStream({ expiry: undefined, enabled }),
+      { initialProps: { enabled: true } },
+    );
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.open();
+      ws.receive({
+        type: "tick",
+        spot: 23123.5,
+        ts: "2026-10-12T10:00:01+05:30",
+        change_pct: 0.12,
+      });
+    });
+    await waitFor(() => expect(result.current.tick?.spot).toBe(23123.5));
+
+    rerender({ enabled: false });
+    await waitFor(() => expect(result.current.tick).toBeNull());
+    expect(result.current.connected).toBe(false);
+  });
+
   test("a tick frame with a non-finite spot is ignored", async () => {
     const { result } = renderHook(() =>
       useNiftyReportStream({ expiry: undefined, enabled: true }),

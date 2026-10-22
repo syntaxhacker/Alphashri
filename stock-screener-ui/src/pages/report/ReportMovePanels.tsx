@@ -5,7 +5,7 @@ import { Sparkline } from "../../components/screener/Sparkline";
 import type { DailyMoveRow, DailyMovesPanelId } from "../../types/report";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 
-export const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
+const MOVE_PANELS: Array<{ id: DailyMovesPanelId; title: string }> = [
   { id: "gainers", title: "Top gainers" },
   { id: "losers", title: "Top losers" },
   { id: "volume_surge", title: "Volume surge" },

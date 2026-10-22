@@ -15,7 +15,7 @@ import type { DailyMoveRow, DailyReportResponse } from "../../types/report";
 import { copyToClipboard } from "../../utils/copyCsv";
 import { formatCurrency, formatPercentage, getPnLTextColor } from "../../utils/ui-helpers";
 
-export interface EventWatchProps {
+interface EventWatchProps {
   universe?: string;
   days?: number;
   /** Daily report payload reused client-side for the technical snapshot. */

@@ -5,13 +5,16 @@
 import { fetchWithAuth } from "../state/auth";
 import type {
   NiftyBurst,
+  NiftyBurstFuelState,
   NiftyBurstNews,
   NiftyBurstSignal,
+  NiftyBurstStructure,
   NiftyControlBlock,
   NiftyControlVerdict,
   NiftyEmaSeries,
   NiftyGex,
   NiftyGexLevel,
+  NiftyGexLevels,
   NiftyGexStrike,
   NiftyIntradayCandle,
   NiftyMarketBlock,
@@ -34,6 +37,7 @@ import type {
   NiftyStrengthVerdict,
   NiftyStructureShift,
   NiftyTape,
+  NiftyTapeChainTuple,
   NiftyTapeRow,
   NiftyTimelineEvent,
   NiftyVixBlock,
@@ -58,6 +62,9 @@ function normalizeSide(raw: Record<string, unknown> = {}): NiftyOptionSide {
     priceChange: num(raw.priceChange ?? raw.price_change),
     volume: num(raw.volume),
     delta: nullNum(raw.delta),
+    gamma: nullNum(raw.gamma),
+    theta: nullNum(raw.theta),
+    vega: nullNum(raw.vega),
     iv: nullNum(raw.iv),
     sentiment:
       typeof raw.sentiment === "string"
@@ -80,10 +87,35 @@ function normalizeTimeline(raw: unknown): NiftyTimelineEvent[] {
 /** Backend speaks snake_case for GEX; absent block stays undefined so old snapshots render. */
 function normalizeGexLevel(raw: unknown): NiftyGexLevel {
   const row = (raw ?? {}) as Record<string, unknown>;
+  const sideRaw = String(row.side ?? "").toLowerCase();
   return {
     strike: num(row.strike),
     netGex: num(row.netGex ?? row.net_gex),
+    ...(sideRaw === "above" || sideRaw === "below"
+      ? { side: sideRaw as "above" | "below" }
+      : {}),
   };
+}
+
+/** One nullable spot-relative level (`null` when the backend has no strike). */
+function nullableGexLevel(raw: unknown): NiftyGexLevel | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const level = normalizeGexLevel(raw);
+  return Number.isFinite(level.strike) && level.strike > 0 ? level : null;
+}
+
+/** `levels` block — absent/empty → undefined so legacy payloads fall back. */
+function normalizeGexLevels(raw: unknown): NiftyGexLevels | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object") return undefined;
+  const l = raw as Record<string, unknown>;
+  const levels: NiftyGexLevels = {
+    support: nullableGexLevel(l.support),
+    resistance: nullableGexLevel(l.resistance),
+    fuelDown: nullableGexLevel(l.fuel_down ?? l.fuelDown),
+    fuelUp: nullableGexLevel(l.fuel_up ?? l.fuelUp),
+  };
+  const present = Object.values(levels).some((v) => v !== null);
+  return present ? levels : undefined;
 }
 
 function normalizeGex(raw: unknown): NiftyGex | undefined {
@@ -118,6 +150,8 @@ function normalizeGex(raw: unknown): NiftyGex | undefined {
       ? ((g.topNegative ?? g.top_negative) as unknown[])
       : []
     ).map(normalizeGexLevel),
+    levels: normalizeGexLevels(g.levels),
+    ...(g.degraded === true ? { degraded: true } : {}),
     zeroCross:
       zeroRaw === null || zeroRaw === undefined || zeroRaw === ""
         ? null
@@ -155,12 +189,17 @@ function coerceVerdict(raw: unknown, allowed: readonly string[]): string | null 
 const CONTROL_VERDICTS = [
   "call_writers",
   "put_writers",
+  "call_buyers",
+  "put_buyers",
+  "net_call_build",
+  "net_put_build",
   "balanced",
 ] as const satisfies readonly NiftyControlVerdict[];
 
 const REGIME_VERDICTS = [
   "range_sell_premium",
   "trend_buy",
+  "trend",
   "neutral",
 ] as const satisfies readonly NiftyRegimeVerdict[];
 
@@ -421,6 +460,10 @@ export function normalizePivots(raw: unknown): NiftyPivots | null {
 /** Backend speaks snake_case; the panel speaks camelCase. Normalize once here. */
 export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
   const walls = (raw.walls ?? {}) as Record<string, { strike: number; oi: number }[]>;
+  const wallsNear = (raw.walls_near ?? raw.wallsNear ?? {}) as Record<
+    string,
+    { strike: number; oi: number }[]
+  >;
   const ohlc = (raw.ohlc ?? {}) as Record<string, unknown>;
   return {
     mode: raw.mode === "eod" ? "eod" : "live",
@@ -437,6 +480,10 @@ export function normalizeReport(raw: Record<string, unknown>): NiftyReport {
     pcrVol: num(raw.pcrVol ?? raw.pcr_vol),
     maxPain: num(raw.maxPain ?? raw.max_pain),
     walls: { calls: walls.calls ?? [], puts: walls.puts ?? [] },
+    wallsNear: {
+      calls: wallsNear.calls ?? walls.calls ?? [],
+      puts: wallsNear.puts ?? walls.puts ?? [],
+    },
     strikes: (Array.isArray(raw.strikes) ? raw.strikes : []).map(
       (s): NiftyStrike => {
         const row = s as Record<string, Record<string, unknown>>;
@@ -697,6 +744,7 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
   const spotFlipRaw = raw.spot_flip ?? raw.spotFlip;
   const ceLtp = raw.atm_ce_ltp ?? raw.atmCeLtp;
   const peLtp = raw.atm_pe_ltp ?? raw.atmPeLtp;
+  const chain = normalizeChain(raw.chain ?? raw.chain_snapshot ?? raw.chainSnapshot);
   return {
     t: String(raw.t ?? raw.time ?? ""),
     spot: num(raw.spot),
@@ -708,6 +756,7 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
     ...(raw.net_gex !== undefined && raw.net_gex !== null
       ? { net_gex: nullNum(raw.net_gex) }
       : {}),
+    ...(raw.gex_degraded === true ? { gex_degraded: true } : {}),
     ...(raw.atm_ce_iv !== undefined && raw.atm_ce_iv !== null
       ? { atm_ce_iv: nullNum(raw.atm_ce_iv) }
       : {}),
@@ -745,7 +794,36 @@ export function normalizeTapeRow(raw: Record<string, unknown>): NiftyTapeRow {
           ? wallsRaw.put
           : topStrike(wallsRaw.put ?? wallsRaw.puts),
     },
+    ...(chain ? { chain } : {}),
   };
+}
+
+/**
+ * Per-strike chain snapshot — `chain[strike] = [ce_ltp, pe_ltp, ce_oi, pe_oi,
+ * ce_vol, pe_vol]` with dead legs as `null`. Keeps only entries whose key is
+ * a positive finite strike and whose value is an array; each of the first 6
+ * slots normalizes to a finite number or `null` (padded to 6). Empty or
+ * malformed entries are dropped, and a missing/empty chain stays `undefined`
+ * so the visuals keep their "no tape chain" empty state.
+ */
+export function normalizeChain(
+  raw: unknown,
+): Record<string, NiftyTapeChainTuple> | undefined {
+  if (raw === null || raw === undefined || typeof raw !== "object") return undefined;
+  if (Array.isArray(raw)) return undefined;
+  const out: Record<string, NiftyTapeChainTuple> = {};
+  for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
+    const strike = Number(key);
+    if (!Number.isFinite(strike) || strike <= 0) continue;
+    if (!Array.isArray(value) || value.length === 0) continue;
+    const slots = (value as unknown[]).slice(0, 6).map((slot) => {
+      const n = typeof slot === "string" ? Number(slot) : (slot as number);
+      return typeof n === "number" && Number.isFinite(n) ? n : null;
+    });
+    while (slots.length < 6) slots.push(null);
+    out[String(strike)] = slots as NiftyTapeChainTuple;
+  }
+  return Object.keys(out).length > 0 ? out : undefined;
 }
 
 /** Top-level walls may be `{call, put}` scalars or `{calls, puts}` strike arrays. */
@@ -811,6 +889,14 @@ export async function fetchNiftyTape(
 
 const BURST_SEVERITIES = ["info", "watch", "alert", "critical"] as const;
 
+/** The backend's fuel 2×2 cells (api/reports_api/nifty_fuel.py). */
+const BURST_FUEL_STATES = [
+  "fresh_buyers",
+  "fresh_sellers",
+  "writers_covering",
+  "longs_liquidating",
+] as const;
+
 /** True when a value is actually present (not undefined/null/empty string). */
 function present(value: unknown): boolean {
   return value !== undefined && value !== null && value !== "";
@@ -866,12 +952,32 @@ function normalizeBurstNews(raw: unknown): NiftyBurstNews[] {
     .filter((x): x is NiftyBurstNews => x !== null);
 }
 
+/** One burst's structure evidence (the level the underlying closed beyond). */
+function normalizeBurstStructure(raw: unknown): NiftyBurstStructure | null {
+  if (raw === null || raw === undefined || typeof raw !== "object") return null;
+  const r = raw as Record<string, unknown>;
+  const level = asFinite(r.level);
+  if (level === null || level <= 0) return null;
+  const dir = String(r.direction ?? "").toLowerCase();
+  return {
+    level,
+    direction: dir === "down" ? "down" : "up",
+    ...(typeof r.kind === "string" ? { kind: r.kind } : {}),
+    ...(asFinite(r.close) !== null ? { close: asFinite(r.close)! } : {}),
+    ...(typeof r.confirmed_at === "string" ? { confirmed_at: r.confirmed_at } : {}),
+  };
+}
+
 export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
   const side: NiftyBurst["side"] = raw.side === "put" ? "put" : "call";
   const sevRaw = String(raw.severity ?? "").toLowerCase();
   const severity = (BURST_SEVERITIES as readonly string[]).includes(sevRaw)
     ? (sevRaw as NiftyBurst["severity"])
     : "watch";
+  const fuelRaw = String(raw.fuel_state ?? "").toLowerCase();
+  const fuel = (BURST_FUEL_STATES as readonly string[]).includes(fuelRaw)
+    ? (fuelRaw as NiftyBurstFuelState)
+    : null;
   return {
     id: String(raw.id ?? ""),
     side,
@@ -885,6 +991,24 @@ export function normalizeBurst(raw: Record<string, unknown>): NiftyBurst {
     tickVol: num(raw.tickVol ?? raw.tick_vol),
     signal: normalizeBurstSignal(raw.signal),
     news: normalizeBurstNews(raw.news),
+    // Buyer/writer flow verdict — passed through verbatim when present so the
+    // client direction mapping can use it (absent on pre-restart bursts).
+    ...(typeof raw.flow === "string" && raw.flow.length > 0 ? { flow: raw.flow } : {}),
+    ...(typeof raw.bearish === "boolean" ? { bearish: raw.bearish } : {}),
+    // The premium half of the fuel 2×2 (same-side ATM premium change, ₹).
+    ...(raw.premChg !== undefined && raw.premChg !== null
+      ? { premChg: num(raw.premChg) }
+      : {}),
+    // The backend's fuel reading is authoritative — it has the same-strike
+    // premium change, the client only has a guess.
+    ...(fuel ? { fuel_state: fuel } : {}),
+    ...(raw.structure !== undefined && raw.structure !== null
+      ? { structure: normalizeBurstStructure(raw.structure) }
+      : {}),
+    ...(raw.invalidation !== undefined && raw.invalidation !== null
+      ? { invalidation: num(raw.invalidation) }
+      : {}),
+    ...(raw.plan_suppressed === true ? { plan_suppressed: true } : {}),
     ...(raw.type === "squeeze" || raw.type === "strike" || raw.type === "premium" || raw.type === "coil"
       ? { type: raw.type as "squeeze" | "strike" | "premium" | "coil" }
       : {}),

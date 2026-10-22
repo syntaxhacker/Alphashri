@@ -2085,3 +2085,97 @@ export async function setupNiftyTapeMocks(page: import("@playwright/test").Page)
     });
   });
 }
+
+// ---------------------------------------------------------------------------
+// Deep Value scan (GET /api/value/scan)
+// ---------------------------------------------------------------------------
+
+const mockValueRow = {
+  symbol: "SBILIFE",
+  name: "SBI Life Insurance",
+  exchange: "NSE",
+  currency: "INR",
+  price: 940.1,
+  change: 1.2,
+  mcap_bn: 1420.5,
+  rev_bn: 410.2,
+  pe: 9.1,
+  ps: 1.4,
+  pb: 1.1,
+  fcf_yield: 6.8,
+  div_yield: 1.9,
+  roe: 21.3,
+  gross_margin: 55.0,
+  op_margin: 18.0,
+  rev_yoy: 12.0,
+  eps_yoy: 14.2,
+  debt_to_equity: 0.3,
+  current_ratio: 1.4,
+  rsi: 58.0,
+  vs_200dma: 6.4,
+  off_52w_high: -14.2,
+  score: 87,
+  subscores: { value: 24, quality: 23, growth: 19, health: 21 },
+  peer: { bucket: "Banks", pe_median: 11.2, roe_median: 15.4, fcf_yield_median: 4.1 },
+  flags: ["above-200dma", "paying-dividend"],
+  derived: {
+    fcf_yield: 6.8,
+    earnings_yield: 11.0,
+    vs_200dma: 6.4,
+    off_52w_high: -14.2,
+    distorted_pe: false,
+  },
+};
+
+export const mockValueScanResponse = {
+  market: "india",
+  currency: "INR",
+  as_of: "2026-10-21T15:35:00+05:30",
+  scanned: 1486,
+  matched: 2,
+  fields_complete: true,
+  filters_applied: { max_pe: 12, min_roe: 12 },
+  warnings: [],
+  rows: [
+    mockValueRow,
+    {
+      ...mockValueRow,
+      symbol: "TATACONSUM",
+      name: "Tata Consumer Products",
+      exchange: "NSE",
+      price: 970.0,
+      change: 0.4,
+      mcap_bn: 956.0,
+      pe: 31.2,
+      ps: 4.1,
+      pb: 8.4,
+      fcf_yield: 2.9,
+      roe: 35.5,
+      rev_yoy: 7.2,
+      eps_yoy: 9.1,
+      score: 61,
+      subscores: { value: 12, quality: 22, growth: 15, health: 12 },
+      flags: ["above-200dma"],
+    },
+  ],
+  sectors: [
+    { name: "Banks", count: 1, avg_score: 87 },
+    { name: "Consumer", count: 1, avg_score: 61 },
+  ],
+};
+
+export async function setupValueScanMocks(page: import("@playwright/test").Page) {
+  await page.route(apiRoute("value/scan"), async (route) => {
+    const url = new URL(route.request().url());
+    const market = url.searchParams.get("market") || "india";
+    const body =
+      market === "usa"
+        ? { ...mockValueScanResponse, market: "usa", currency: "USD" }
+        : mockValueScanResponse;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify(body),
+    });
+  });
+}

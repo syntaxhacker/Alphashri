@@ -45,6 +45,8 @@ export interface MarketAlert {
   ts: number;
   source?: string;
   href?: string;
+  /** false = heads-up, not an instruction (must not take the sticky banner). */
+  actionable?: boolean;
 }
 
 const MONO =

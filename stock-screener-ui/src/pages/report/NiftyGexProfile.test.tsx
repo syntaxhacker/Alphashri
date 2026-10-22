@@ -12,6 +12,8 @@ import {
   formatGexCr,
   formatGexStrike,
   gexProfileStats,
+  gexSideCopy,
+  gexSideLevels,
   gexTone,
   nearestStrikeIndex,
   selectGexBand,
@@ -164,9 +166,41 @@ describe("gexProfileStats", () => {
   });
 
   test("null zeroCross stays null; regime is normalised to uppercase", () => {
-    const s = gexProfileStats(gex({ zeroCross: null, regime: "short" }), 22700);
+    // No profile to re-derive from -> the payload's own regime is used.
+    const s = gexProfileStats(gex({ strikes: [], zeroCross: null, regime: "short" }), 22700);
     expect(s.zeroCross).toBeNull();
     expect(s.regime).toBe("SHORT");
+  });
+
+  test("drops a stale flip that disagrees with the sign at spot", () => {
+    const stale = gex({
+      strikes: [
+        { strike: 22600, callGex: 0, putGex: 0, netGex: -6 },
+        { strike: 22700, callGex: 0, putGex: 0, netGex: -4 },
+        { strike: 22800, callGex: 0, putGex: 0, netGex: 20 },
+      ],
+      zeroCross: 22600, // below a 22,700 spot, but cum there is -10 -> stale
+    });
+    expect(gexProfileStats(stale, 22700).zeroCross).toBeNull();
+    // Above the flip with cum positive -> the flip is consistent, keep it.
+    expect(gexProfileStats(stale, 22800).zeroCross).toBe(22600);
+  });
+
+  test("regime is re-derived from the cumulative sign at spot", () => {
+    // Stale payload says "long" (netTotal > 0) but spot sits below the flip:
+    // cumulative through 22,700 is +12 - 2 = +10 there, so this fixture needs
+    // a genuinely short book at spot to prove the re-derivation.
+    const stale = gex({
+      strikes: [
+        { strike: 22600, callGex: 0, putGex: 0, netGex: -6 },
+        { strike: 22700, callGex: 0, putGex: 0, netGex: -4 },
+        { strike: 22800, callGex: 0, putGex: 0, netGex: 20 },
+      ],
+      regime: "long",
+      zeroCross: 22800,
+    });
+    expect(gexProfileStats(stale, 22700).regime).toBe("SHORT");
+    expect(gexProfileStats(stale, 22800).regime).toBe("LONG");
   });
 
   test("ties on peak/trough break toward the strike nearest spot", () => {
@@ -247,7 +281,16 @@ describe("buildGexChart", () => {
   });
 
   test("ZERO marker exists when zeroCross matches a profile strike", () => {
-    const withZero = gex({ zeroCross: 22800 });
+    // Consistent book: cum is -10 at spot and crosses to +10 at 22,800, so
+    // the flip sits above spot (spot below flip = short gamma).
+    const withZero = gex({
+      strikes: [
+        { strike: 22600, callGex: 0, putGex: 0, netGex: -6 },
+        { strike: 22700, callGex: 0, putGex: 0, netGex: -4 },
+        { strike: 22800, callGex: 0, putGex: 0, netGex: 20 },
+      ],
+      zeroCross: 22800,
+    });
     const profile = buildGexProfile(withZero);
     const chart = buildGexChart(profile, gexProfileStats(withZero, 22700), 22700);
     const zero = chart.markers.find((m) => m.label === "ZERO");
@@ -277,10 +320,10 @@ describe("buildGexChart", () => {
 });
 
 describe("format helpers", () => {
-  test("formatGexCr signs and fixes to 2 dp, dashes absent values", () => {
-    expect(formatGexCr(7.5)).toBe("+7.50 Cr");
-    expect(formatGexCr(-8)).toBe("-8.00 Cr");
-    expect(formatGexCr(0)).toBe("0.00 Cr");
+  test("formatGexCr signs and fixes to 2 dp with the Cr/pt unit, dashes absent values", () => {
+    expect(formatGexCr(7.5)).toBe("+7.50 Cr/pt");
+    expect(formatGexCr(-8)).toBe("-8.00 Cr/pt");
+    expect(formatGexCr(0)).toBe("0.00 Cr/pt");
     expect(formatGexCr(null)).toBe("—");
   });
 
@@ -297,12 +340,177 @@ describe("format helpers", () => {
   });
 });
 
+describe("gexSideLevels (spot-relative)", () => {
+  // 2026-10-21 repro: spot 22,952; the biggest positive gamma sits at 23,200
+  // (ABOVE spot) and the deepest negative at 22,700 (BELOW spot). The old
+  // labels called the former "support" and the latter "resistance".
+  const repro = gex({
+    strikes: [
+      { strike: 22500, callGex: 0, putGex: -20, netGex: -20 },
+      { strike: 22700, callGex: 0, putGex: -10, netGex: -10 },
+      { strike: 23000, callGex: 8, putGex: -1, netGex: 7 },
+      { strike: 23200, callGex: 13, putGex: -2, netGex: 11 },
+    ],
+    zeroCross: 23400,
+  });
+
+  test("derives sides from the profile on legacy payloads", () => {
+    const sides = gexSideLevels(repro, 22952);
+    // No positive gamma below spot -> support is null; the deepest negative
+    // below spot (22,500, -20) is the fuel level.
+    expect(sides.below).toEqual({
+      strike: 22500,
+      netGex: -20,
+      kind: "fuel",
+      side: "below",
+    });
+    // 23,200 positive gamma above spot -> resistance.
+    expect(sides.above).toEqual({
+      strike: 23200,
+      netGex: 11,
+      kind: "resistance",
+      side: "above",
+    });
+  });
+
+  test("never calls a below-spot strike resistance or an above-spot one support", () => {
+    const sides = gexSideLevels(repro, 22952);
+    for (const level of [sides.below, sides.above]) {
+      if (!level) continue;
+      if (level.side === "below") {
+        expect(level.strike).toBeLessThanOrEqual(22952);
+        expect(level.kind).not.toBe("resistance");
+      } else {
+        expect(level.strike).toBeGreaterThanOrEqual(22952);
+        expect(level.kind).not.toBe("support");
+      }
+    }
+  });
+
+  test("prefers the backend levels block when present", () => {
+    const payload = gex({
+      strikes: repro.strikes,
+      levels: {
+        support: { strike: 22900, netGex: 4, side: "below" },
+        resistance: { strike: 23200, netGex: 11, side: "above" },
+        fuelDown: { strike: 22500, netGex: -20, side: "below" },
+        fuelUp: { strike: 23000, netGex: -7, side: "above" },
+      },
+    });
+    const sides = gexSideLevels(payload, 22952);
+    expect(sides.below?.strike).toBe(22900);
+    expect(sides.below?.kind).toBe("support");
+    expect(sides.above?.strike).toBe(23200);
+    expect(sides.above?.kind).toBe("resistance");
+  });
+
+  test("falls back to fuel on a side with no pin magnet", () => {
+    const payload = gex({
+      strikes: repro.strikes,
+      levels: {
+        support: null,
+        resistance: null,
+        fuelDown: { strike: 22500, netGex: -20, side: "below" },
+        fuelUp: { strike: 23000, netGex: -7, side: "above" },
+      },
+    });
+    const sides = gexSideLevels(payload, 22952);
+    expect(sides.below?.kind).toBe("fuel");
+    expect(sides.above?.kind).toBe("fuel");
+    expect(sides.above?.strike).toBe(23000);
+  });
+
+  test("labels pin magnets and fuel without inverting a side", () => {
+    expect(gexSideCopy(null, "below")).toEqual({
+      label: "γ support",
+      hint: "pin magnet · below",
+    });
+    expect(gexSideCopy(null, "above")).toEqual({
+      label: "γ resistance",
+      hint: "pin magnet · above",
+    });
+    expect(
+      gexSideCopy({ strike: 22700, netGex: -10, kind: "fuel", side: "below" }, "below"),
+    ).toEqual({ label: "γ fuel ↓", hint: "breakdown fuel · below" });
+    expect(
+      gexSideCopy({ strike: 23000, netGex: -7, kind: "fuel", side: "above" }, "above"),
+    ).toEqual({ label: "γ fuel ↑", hint: "squeeze fuel · above" });
+  });
+
+  test("undefined gex yields no levels", () => {
+    expect(gexSideLevels(undefined, 22952)).toEqual({ below: null, above: null });
+  });
+
+  test("ignores a near-zero wing instead of calling it support", () => {
+    // 2026-10-21 live shape: +0.07 at 22,500 is the only positive below spot,
+    // while the real pins sit above it. 0.07 is <10% of the 15.15 peak.
+    const wing = gex({
+      strikes: [
+        { strike: 22500, callGex: 0, putGex: 0, netGex: 0.07 },
+        { strike: 23200, callGex: 0, putGex: 0, netGex: 15.15 },
+        { strike: 23500, callGex: 0, putGex: 0, netGex: 11.99 },
+        { strike: 24700, callGex: 0, putGex: 0, netGex: -0.04 },
+      ],
+    });
+    const sides = gexSideLevels(wing, 22962.6);
+    expect(sides.below).toBeNull();
+    expect(sides.above).toEqual({
+      strike: 23200,
+      netGex: 15.15,
+      kind: "resistance",
+      side: "above",
+    });
+  });
+
+  test("re-validates a stale backend levels block", () => {
+    // Snapshots written by the previous build still carry the +0.07 support
+    // and the -0.04 fuel; the UI must gate them again, not trust them.
+    const stale = gex({
+      strikes: [
+        { strike: 22500, callGex: 0, putGex: 0, netGex: 0.07 },
+        { strike: 23200, callGex: 0, putGex: 0, netGex: 15.15 },
+        { strike: 24700, callGex: 0, putGex: 0, netGex: -0.04 },
+      ],
+      levels: {
+        support: { strike: 22500, netGex: 0.07, side: "below" },
+        resistance: { strike: 23200, netGex: 15.15, side: "above" },
+        fuelDown: null,
+        fuelUp: { strike: 24700, netGex: -0.04, side: "above" },
+      },
+    });
+    const sides = gexSideLevels(stale, 22962.6);
+    expect(sides.below).toBeNull();
+    expect(sides.above).toEqual({
+      strike: 23200,
+      netGex: 15.15,
+      kind: "resistance",
+      side: "above",
+    });
+  });
+
+  test("keeps a real pin below spot inside the band", () => {
+    const real = gex({
+      strikes: [
+        { strike: 22500, callGex: 0, putGex: 0, netGex: 0.07 },
+        { strike: 22700, callGex: 0, putGex: 0, netGex: 2 },
+        { strike: 23200, callGex: 0, putGex: 0, netGex: 15.15 },
+      ],
+    });
+    expect(gexSideLevels(real, 22962.6).below).toEqual({
+      strike: 22700,
+      netGex: 2,
+      kind: "support",
+      side: "below",
+    });
+  });
+});
+
 describe("NiftyGexProfile render", () => {
   test("renders the panel, stat row and SVG chart", () => {
     render(<NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
 
     expect(screen.getByTestId("nifty-gex-profile-panel")).toBeInTheDocument();
-    expect(screen.getByTestId("nifty-gex-profile-net")).toHaveTextContent("+7.50 Cr");
+    expect(screen.getByTestId("nifty-gex-profile-net")).toHaveTextContent("+7.50 Cr/pt");
     expect(screen.getByTestId("nifty-gex-profile-zero")).toHaveTextContent("22,650");
     expect(screen.getByTestId("nifty-gex-profile-regime")).toHaveTextContent("LONG GAMMA");
 
@@ -326,7 +534,47 @@ describe("NiftyGexProfile render", () => {
     expect(caption).toHaveTextContent("above 0 = dampening");
     const explain = caption.getAttribute("title") ?? "";
     expect(explain).toContain("SPOT / ZERO mark today's spot");
-    expect(explain).toContain("gamma-support strike");
+    expect(explain).toContain("pin magnets below/above spot");
+  });
+
+  test("a negative-gamma strike above spot is fuel, never resistance", () => {
+    const inverted = gex({
+      strikes: [
+        { strike: 22600, callGex: 0, putGex: -6, netGex: -6 },
+        { strike: 22700, callGex: 0, putGex: -10, netGex: -10 },
+        { strike: 22800, callGex: 0, putGex: -8, netGex: -8 },
+      ],
+      zeroCross: null,
+    });
+    render(<NiftyGexProfile gex={inverted} spot={22650} />, { wrapper: TestWrapper });
+    const resist = screen.getByTestId("nifty-gex-profile-resist");
+    expect(resist).toHaveTextContent("γ fuel ↑");
+    // deepest negative above spot (22,700, −10) — the stronger accelerator
+    expect(resist).toHaveTextContent("22,700");
+    const support = screen.getByTestId("nifty-gex-profile-support");
+    expect(support).toHaveTextContent("γ fuel ↓");
+    expect(support).toHaveTextContent("22,600");
+  });
+
+  test("a near-zero fuel wing renders an em dash, not a fake level", () => {
+    const wing = gex({
+      strikes: [
+        { strike: 22700, callGex: 0, putGex: 0, netGex: 2 },
+        { strike: 24700, callGex: 0, putGex: 0, netGex: -0.04 },
+      ],
+      zeroCross: null,
+    });
+    render(<NiftyGexProfile gex={wing} spot={22962.6} />, { wrapper: TestWrapper });
+    expect(screen.getByTestId("nifty-gex-profile-support")).toHaveTextContent("22,700");
+    expect(screen.getByTestId("nifty-gex-profile-resist")).toHaveTextContent("—");
+  });
+
+  test("positive gamma below/above spot keeps the support/resistance labels", () => {
+    render(<NiftyGexProfile gex={gex()} spot={22700} />, { wrapper: TestWrapper });
+    // 22,600 (+12) sits below spot -> support; no positive strike above spot,
+    // so the right cell is the above-spot fuel level (22,800, -8).
+    expect(screen.getByTestId("nifty-gex-profile-support")).toHaveTextContent("γ support");
+    expect(screen.getByTestId("nifty-gex-profile-resist")).toHaveTextContent("γ fuel ↑");
   });
 
   test("states how many strikes actually carry gamma and the plotted band", () => {

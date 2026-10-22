@@ -2,7 +2,7 @@ import { memo, useEffect, useState } from "react";
 import { Text } from "@/ui";
 import type { NiftySpotTick } from "@/hooks/useNiftyReportStream";
 
-export interface NiftyUpdatedLabelProps {
+interface NiftyUpdatedLabelProps {
   /** Live spot tick pushed ~1/second. Consumed here only. */
   tick: NiftySpotTick | null;
   marketClosed: boolean;

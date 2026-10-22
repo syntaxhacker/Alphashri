@@ -7,6 +7,8 @@ import * as palette from "@/ui/palette";
 import { CompactStat, CompactStatGrid } from "@/components/common/compact";
 import { EmptyCompact } from "@/components/common/states";
 import type { NiftyReport } from "@/types/niftyReport";
+import { sortByField } from "@/utils/ui-helpers";
+import { formatReportNum, formatReportOiCr } from "./reportFormat";
 
 /**
  * Depth-map view for the Nifty report (futures footprint + GEX layout reference).
@@ -44,18 +46,18 @@ export const DEPTH_WINDOW = 750;
 export const DEPTH_MAX_ROWS = 31;
 
 /** Level-tag dedupe radius in points (same rule as the report panel). */
-export const LEVEL_DEDUPE_PTS = 25;
+const LEVEL_DEDUPE_PTS = 25;
 
 /** Candle-only y-range padding on each side. */
-export const CANDLE_PAD_PCT = 0.0015;
+const CANDLE_PAD_PCT = 0.0015;
 
-export interface DepthRow {
+interface DepthRow {
   strike: number;
   ceOi: number;
   peOi: number;
 }
 
-export interface DayStats {
+interface DayStats {
   hi: number | null;
   lo: number | null;
   changePct: number | null;
@@ -76,32 +78,34 @@ function num(v: unknown): number {
 }
 
 function fmtStrike(s: number): string {
-  return num(s).toLocaleString("en-IN");
+  return formatReportNum(num(s));
 }
 
 /** Compact Indian OI labels: 2.50 Cr / 25.0L / 5.0k. */
 export function formatOiCompact(v: number): string {
-  if (!Number.isFinite(v)) return "—";
-  const abs = Math.abs(v);
-  const sign = v < 0 ? "-" : "";
-  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(2)} Cr`;
-  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(1)}L`;
-  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}k`;
-  return `${sign}${Math.round(abs)}`;
+  return formatReportOiCr(v, {
+    lakh: 1,
+    space: false,
+    thousands: true,
+    grouped: false,
+  });
 }
 
 /** Per-strike OI rows within ATM ±750, sorted ascending, capped at 31 rows. */
 export function buildDepthRows(report: NiftyReport): DepthRow[] {
   const strikes = Array.isArray(report?.strikes) ? report.strikes : [];
   const spot = num(report?.spot);
-  const inWindow = strikes
-    .filter((s) => s && Number.isFinite(Number(s.strike)) && Math.abs(Number(s.strike) - spot) <= DEPTH_WINDOW)
-    .map((s) => ({
-      strike: Number(s.strike),
-      ceOi: num(s?.ce?.oi),
-      peOi: num(s?.pe?.oi),
-    }))
-    .sort((a, b) => a.strike - b.strike);
+  const inWindow = sortByField(
+    strikes
+      .filter((s) => s && Number.isFinite(Number(s.strike)) && Math.abs(Number(s.strike) - spot) <= DEPTH_WINDOW)
+      .map((s) => ({
+        strike: Number(s.strike),
+        ceOi: num(s?.ce?.oi),
+        peOi: num(s?.pe?.oi),
+      })),
+    "strike",
+    "asc",
+  );
   if (inWindow.length <= DEPTH_MAX_ROWS) return inWindow;
   // Irregular/dense chains: keep the rows closest to spot, restore ordering.
   return inWindow
@@ -537,7 +541,7 @@ interface DepthChartHandle {
   setOption: (option: object) => void;
 }
 
-export interface NiftyDepthMapProps {
+interface NiftyDepthMapProps {
   report: NiftyReport;
   /**
    * Visibility gate (default true). When false the component renders only

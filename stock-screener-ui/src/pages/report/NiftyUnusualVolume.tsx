@@ -6,11 +6,13 @@ import * as palette from "@/ui/palette";
 import { TanStackTable } from "@/components/common/TanStackTable";
 import type { ColumnDef } from "@tanstack/react-table";
 import type { NiftyStrike } from "@/types/niftyReport";
+import { hexToRgba } from "@/utils/color";
+import { formatReportClock, formatReportCompact, formatReportPct } from "./reportFormat";
 
 /** Cap on ranked legs — one CE row + one PE row per strike compete for slots. */
-export const UNUSUAL_TOP_N = 30;
+const UNUSUAL_TOP_N = 30;
 
-export interface UnusualLegRow {
+interface UnusualLegRow {
   key: string;
   strike: number;
   leg: "CE" | "PE";
@@ -70,17 +72,12 @@ export function buildUnusualRows(strikes: NiftyStrike[]): UnusualLegRow[] {
 
 /** Unsigned compact volume: 1.25M / 850.00K / 912. */
 export function formatUnusualCompact(v: number): string {
-  if (v === null || v === undefined || !Number.isFinite(v)) return "—";
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return `${(abs / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `${(abs / 1_000).toFixed(2)}K`;
-  return Math.round(abs).toLocaleString("en-IN");
+  return formatReportCompact(v, { round: true });
 }
 
 /** Share of leg volume, 1 decimal. */
 export function formatUnusualShare(p: number): string {
-  if (!Number.isFinite(p)) return "—";
-  return `${p.toFixed(1)}%`;
+  return formatReportPct(p, { digits: 1 });
 }
 
 // Mirrors NiftyReportPanel's sentimentBadge label + per-side tone convention
@@ -109,12 +106,12 @@ export function getUnusualSentimentTone(sentiment: string, side: "CE" | "PE"): s
  */
 export const UNUSUAL_TERM_BG = "#000000";
 export const UNUSUAL_TERM_BORDER = "#1A1A1A";
-export const UNUSUAL_CE = "#5B9CF6";
-export const UNUSUAL_PE = "#F2A65A";
-export const UNUSUAL_CALL_VOL = "#5B9CF6";
-export const UNUSUAL_PUT_VOL = "#F2A65A";
+const UNUSUAL_CE = "#5B9CF6";
+const UNUSUAL_PE = "#F2A65A";
+const UNUSUAL_CALL_VOL = "#5B9CF6";
+const UNUSUAL_PUT_VOL = "#F2A65A";
 
-export type UnusualLegFilter = "all" | "CE" | "PE";
+type UnusualLegFilter = "all" | "CE" | "PE";
 
 function positioningText(sentiment: string, side: "CE" | "PE") {
   const code = sentiment.trim().toUpperCase();
@@ -165,15 +162,6 @@ function unusualCell(value: string) {
 export function isItmLeg(strike: number, leg: "CE" | "PE", spot: number): boolean {
   if (!Number.isFinite(spot) || spot <= 0) return false;
   return leg === "CE" ? strike < spot : strike > spot;
-}
-
-/** Build an rgba() string from a palette hex token — never hardcode the channels. */
-function hexToRgba(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 }
 
 export function getNiftyUnusualColumns(maxVol: number): ColumnDef<UnusualLegRow>[] {
@@ -309,8 +297,7 @@ export function formatUnusualFocus(row: UnusualLegRow, spot: number): string {
 
 /** IST HH:MM:SS for an epoch-ms value — host-TZ independent. */
 function clock(ms: number): string {
-  if (!Number.isFinite(ms)) return "—";
-  return new Date(ms).toLocaleTimeString("en-IN", { hour12: false, timeZone: "Asia/Kolkata" });
+  return formatReportClock(ms);
 }
 
 /** Stable row test-id getter — hoisted so the table never gets a new fn. */

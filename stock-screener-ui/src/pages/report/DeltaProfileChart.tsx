@@ -3,13 +3,14 @@ import Box from "@mui/material/Box";
 import { Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import type { NiftyPositioningStrike } from "@/types/niftyReport";
+import { sortByField } from "@/utils/ui-helpers";
 
 /** Strike half-width kept around spot — same band as the option-chain OI. */
-export const DELTA_PROFILE_WINDOW_PTS = 750;
+const DELTA_PROFILE_WINDOW_PTS = 750;
 
 /** One plotted strike: its OI delta exposure, today's initiated flow, and the
  * running exposure total used to locate the Δ pivot. */
-export interface DeltaProfilePoint {
+interface DeltaProfilePoint {
   strike: number;
   /** OI × |delta| (Cr), calls + / puts −. */
   netState: number;
@@ -34,9 +35,11 @@ export function buildDeltaProfile(
   spot?: number | null,
   width: number = DELTA_PROFILE_WINDOW_PTS,
 ): DeltaProfilePoint[] {
-  const rows = (Array.isArray(strikes) ? strikes : [])
-    .filter((s) => s && Number.isFinite(s.strike))
-    .sort((a, b) => a.strike - b.strike);
+  const rows = sortByField(
+    (Array.isArray(strikes) ? strikes : []).filter((s) => s && Number.isFinite(s.strike)),
+    "strike",
+    "asc",
+  );
   if (rows.length === 0) return [];
   if (!rows.some((s) => Number.isFinite(s.netState as number))) return [];
 
@@ -101,7 +104,7 @@ function barHeight(value: number, maxAbs: number): number {
   return Math.max(0.6, Math.sqrt(v / maxAbs) * (BAR_H / 2));
 }
 
-export interface DeltaProfileChartProps {
+interface DeltaProfileChartProps {
   points: DeltaProfilePoint[];
   spot?: number | null;
   flip?: number | null;

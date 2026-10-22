@@ -15,7 +15,7 @@ import {
   getPnLTextColor,
 } from "../../utils/ui-helpers";
 
-export interface ProfitabilityPageProps {
+interface ProfitabilityPageProps {
   universe?: string;
   onOpenSymbol?: (symbol: string) => void;
 }

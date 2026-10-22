@@ -1,22 +1,60 @@
 import { memo, useMemo, useState } from "react";
 import Box from "@mui/material/Box";
+import IconButton from "@mui/material/IconButton";
 import { SegmentedControl, Text } from "@/ui";
 import * as palette from "@/ui/palette";
 import { TradingViewChart } from "@/components/chart/TradingViewChart";
 import { CompactPanel } from "@/components/common/compact";
 import { EmptyCompact } from "@/components/common/states";
 import { NiftyDepthMap } from "./NiftyDepthMap";
-import type { MarkLineData } from "@/utils/chart/types";
+import { gexSideLevels } from "./NiftyGexProfile";
+import { maxPainTouches, MAX_PAIN_TOUCH_TOL } from "./maxPainTouches";
+import { hexToRgba } from "@/utils/color";
+import {
+  buildMarkLines,
+  candlePriceRange,
+  emaSeries,
+  labelGapPctFor,
+  levelBelongsToScale,
+  levelsWithinScale,
+  mergeCollidingLabels,
+  resampleCandles,
+} from "./niftyChartMath";
 import type {
-  NiftyIntradayCandle,
+  NiftyGex,
   NiftyReport,
   NiftyReportMode,
 } from "@/types/niftyReport";
-import type { ReplayCandle } from "@/types/replay";
+
+/**
+ * The panel's public surface. The pure chart maths lives in
+ * `./niftyChartMath`; it is re-exported here so the report panel (and the
+ * test) have one import path.
+ */
+export {
+  buildMarkLines,
+  candlePriceRange,
+  emaSeries,
+  labelGapPctFor,
+  levelBelongsToScale,
+  levelsWithinScale,
+  mergeCollidingLabels,
+  resampleCandles,
+} from "./niftyChartMath";
 
 /** Chart height presets (px) for the "Nifty chart" panel size control. */
 export const CHART_HEIGHTS = { s: 180, m: 320, l: 520, xl: 760 } as const;
-export type ChartSize = keyof typeof CHART_HEIGHTS;
+/** `fill` (default) grows with the report row; S/M/L/XL pin a fixed height. */
+export type ChartSize = keyof typeof CHART_HEIGHTS | "fill";
+/** DESK fill cap: the chart body stops at 300px (min 260px on short screens). */
+export const FILL_MAX_HEIGHT = 300;
+const FILL_MIN_HEIGHT = 260;
+/** Panel chrome above the chart body (22px header + card padding/border). A
+ *  DESK row sizes itself to `chart body + CHART_ROW_CHROME` so the card never
+ *  leaves a black void under a capped fill chart. */
+export const CHART_ROW_CHROME = 48;
+/** Collision estimate used by the fill layout (no fixed pixel height). */
+const FILL_LABEL_HEIGHT = 480;
 
 /** Chart timeframe presets and their bar size in minutes. The `intraday`
     feed is 1-minute; 5m/15m are resampled client-side (see `resampleCandles`). */
@@ -28,239 +66,68 @@ export const CHART_TF_MINUTES: Record<ChartTimeframe, number> = {
 };
 
 /** Module-level toggle data so memoized parents never see a new array. */
-export const CHART_TF_OPTIONS: { value: string; label: string }[] = [
+const CHART_TF_OPTIONS: { value: string; label: string }[] = [
   { value: "1m", label: "1m" },
   { value: "5m", label: "5m" },
   { value: "15m", label: "15m" },
 ];
 
-export const CHART_SIZE_OPTIONS: { value: string; label: string }[] = [
+const CHART_SIZE_OPTIONS: { value: string; label: string }[] = [
   { value: "s", label: "S" },
   { value: "m", label: "M" },
   { value: "l", label: "L" },
   { value: "xl", label: "XL" },
 ];
 
-export function buildMarkLines(report: NiftyReport, withGex = false): MarkLineData[] {
-  const lines: MarkLineData[] = [];
-  const used: number[] = [];
-  const fresh = (s: number) => !used.some((u) => Math.abs(u - s) <= 25);
-
-  // Call/put walls and max pain as horizontal price LINES. These were shaded
-  // price zones previously; the bands were too heavy, so they are lines now.
-  const topCalls = [...report.walls.calls].sort((a, b) => b.oi - a.oi).slice(0, 2);
-  const topPuts = [...report.walls.puts].sort((a, b) => b.oi - a.oi).slice(0, 2);
-  for (const w of topCalls) {
-    lines.push({
-      yAxis: w.strike,
-      lineStyle: { color: palette.NEGATIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `CW ${w.strike}` },
-    });
-    used.push(w.strike);
-  }
-  for (const w of topPuts) {
-    lines.push({
-      yAxis: w.strike,
-      lineStyle: { color: palette.POSITIVE, type: "dashed", width: 1 },
-      label: { position: "insideEndTop", formatter: `PW ${w.strike}` },
-    });
-    used.push(w.strike);
-  }
-  if (Number.isFinite(report.maxPain) && report.maxPain > 0) {
-    lines.push({
-      yAxis: report.maxPain,
-      lineStyle: { color: palette.PRIMARY, type: "solid", width: 2 },
-      label: { position: "insideEndTop", formatter: `MP ${report.maxPain}` },
-    });
-    used.push(report.maxPain);
-  }
-
-  // Prior-session pivots: PP anchors the day (solid muted); resistance above
-  // (dashed red) and support below (dashed green). Levels are computed by the
-  // backend (`pivots` block, null-safe); nulls are skipped and anything that
-  // lands within 25 pts of an already-drawn line is de-duped like GEX tags.
-  const pivot = report.pivots;
-  if (pivot) {
-    const levels: [string, number | null, string, string][] = [
-      ["PP", pivot.pp, palette.TEXT_MUTED, "solid"],
-      ["R1", pivot.r1, palette.NEGATIVE, "dashed"],
-      ["R2", pivot.r2, palette.NEGATIVE, "dashed"],
-      ["S1", pivot.s1, palette.POSITIVE, "dashed"],
-      ["S2", pivot.s2, palette.POSITIVE, "dashed"],
-    ];
-    for (const [code, value, color, lineType] of levels) {
-      if (value === null || !Number.isFinite(value) || !fresh(value)) continue;
-      lines.push({
-        yAxis: value,
-        lineStyle: { color, type: lineType, width: 1 },
-        label: {
-          position: "insideEndTop",
-          formatter: `${code} ${Math.round(value).toLocaleString("en-IN")}`,
-        },
-      });
-      used.push(value);
-    }
-  }
-
-  // Optional live GEX overlay: flip + gamma support/resistance, skipping
-  // strikes already drawn so the gutter never doubles up.
-  if (!withGex || !report.gex) return lines;
-
-  const g = report.gex;
-  if (g) {
-    if (g.zeroCross != null && fresh(g.zeroCross)) {
-      lines.push({
-        yAxis: g.zeroCross,
-        lineStyle: { color: palette.WARNING, type: "dotted", width: 1 },
-        label: { position: "insideEndTop", formatter: `FLIP ${g.zeroCross}` },
-      });
-      used.push(g.zeroCross);
-    }
-    for (const s of g.topPositive) {
-      if (!fresh(s.strike)) continue;
-      lines.push({
-        yAxis: s.strike,
-        lineStyle: { color: palette.POSITIVE, type: "solid", width: 1 },
-        label: { position: "insideEndTop", formatter: `GSUP ${s.strike}` },
-      });
-      used.push(s.strike);
-    }
-    for (const s of g.topNegative) {
-      if (!fresh(s.strike)) continue;
-      lines.push({
-        yAxis: s.strike,
-        lineStyle: { color: palette.NEGATIVE, type: "solid", width: 1 },
-        label: { position: "insideEndTop", formatter: `GRES ${s.strike}` },
-      });
-      used.push(s.strike);
-    }
-  }
-  return lines;
-}
-
-/** One candle timestamp split into wall-clock parts. `offset` keeps the
- *  source's timezone suffix (e.g. "+05:30") so bucket timestamps stay on the
- *  same timezone semantics as the candles they were built from. */
-interface CandleClock {
-  day: string;
-  hh: number;
-  mm: number;
-  offset: string;
-}
-
-function parseCandleClock(time: string): CandleClock | null {
-  const m =
-    /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?(Z|[+-]\d{2}:?\d{2})?/.exec(
-      time,
-    );
-  if (!m) return null;
-  return {
-    day: m[1],
-    hh: Number(m[2]),
-    mm: Number(m[3]),
-    offset: m[4] ?? "",
-  };
-}
-
-/**
- * Resample candles into `minutes` bars for the Nifty chart timeframe toggle.
- * Buckets key on `floor(minutesSinceMidnight / minutes)` per calendar day —
- * the candle's own wall clock, never UTC math — so NSE's 09:15 open stays
- * bucket-aligned for both 5m and 15m. OHLCV folds first-open / max-high /
- * min-low / last-close / summed-volume per bucket. 1m returns the input
- * element-for-element (intraday candles may lack `volume`, which the chart
- * treats as 0; resampled buckets always carry a summed volume). Candles whose
- * timestamp cannot be parsed are skipped — they have no bucket to join.
- */
-export function resampleCandles(
-  candles: (NiftyIntradayCandle | ReplayCandle)[],
-  minutes: number,
-): ReplayCandle[] {
-  // Normalize once: intraday candles may lack `volume` (the chart treats it
-  // as 0); resampled buckets always carry a summed volume.
-  const src: ReplayCandle[] = candles.map((c): ReplayCandle =>
-    "volume" in c ? c : { ...c, volume: 0 },
-  );
-  if (minutes <= 1) return src;
-  const out: ReplayCandle[] = [];
-  let curDay = "";
-  let curBucket = -1;
-  let cur: ReplayCandle | null = null;
-  const flush = () => {
-    if (cur) out.push(cur);
-    cur = null;
-  };
-  for (const c of src) {
-    const clock = parseCandleClock(c.time);
-    if (!clock) continue;
-    const bucket = Math.floor((clock.hh * 60 + clock.mm) / minutes);
-    if (cur && curDay === clock.day && curBucket === bucket) {
-      cur.high = Math.max(cur.high, c.high);
-      cur.low = Math.min(cur.low, c.low);
-      cur.close = c.close;
-      cur.volume += c.volume;
-    } else {
-      flush();
-      const start = bucket * minutes;
-      const hh = String(Math.floor(start / 60)).padStart(2, "0");
-      const mm = String(start % 60).padStart(2, "0");
-      curDay = clock.day;
-      curBucket = bucket;
-      cur = {
-        time: `${clock.day}T${hh}:${mm}:00${clock.offset}`,
-        open: c.open,
-        high: c.high,
-        low: c.low,
-        close: c.close,
-        volume: c.volume,
-      };
-    }
-  }
-  flush();
-  return out;
-}
-
-/**
- * EMA(period) over `closes`, aligned index-wise. Seeded with the mean of the
- * first `period` closes, then recursive; points before the seed are `null`.
- * Pure, so the panel recomputes it on the displayed (resampled) candles and
- * the overlays always match the charted timeframe.
- */
-export function emaSeries(closes: number[], period: number): (number | null)[] {
-  const out: (number | null)[] = closes.map(() => null);
-  if (period < 1 || closes.length < period) return out;
-  const k = 2 / (period + 1);
-  let ema = closes.slice(0, period).reduce((a, b) => a + b, 0) / period;
-  out[period - 1] = ema;
-  for (let i = period; i < closes.length; i++) {
-    ema = closes[i] * k + ema * (1 - k);
-    out[i] = ema;
-  }
-  return out;
-}
-
-/** Build an rgba() string from a palette hex token — never hardcode the channels. */
-function hexToRgba(hex: string, alpha: number): string {
-  const h = hex.replace("#", "");
-  const r = parseInt(h.slice(0, 2), 16);
-  const g = parseInt(h.slice(2, 4), 16);
-  const b = parseInt(h.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
-}
-
 /** What the chart level tags mean. GEX tags exist in live mode only. */
-export function LevelLegend({ live }: { live: boolean }) {
+interface LevelLegendProps {
+  live: boolean;
+  /** Live GEX block. When supplied, only levels the chart can actually draw
+   *  keep a legend row — a null/side-gated level is hidden instead of being
+   *  advertised over a line that does not exist. */
+  gex?: NiftyGex;
+  spot?: number;
+}
+
+export function LevelLegend({ live, gex, spot }: LevelLegendProps) {
+  const sides = gex ? gexSideLevels(gex, spot ?? NaN) : null;
+  // A present block filters to drawable levels; callers that only pass `live`
+  // keep the legacy "show every code" behaviour.
+  const show = {
+    flip: !gex || gex.zeroCross != null,
+    support: !gex || sides?.below?.kind === "support",
+    resistance: !gex || sides?.above?.kind === "resistance",
+    fuel:
+      !gex ||
+      sides?.below?.kind === "fuel" ||
+      sides?.above?.kind === "fuel",
+  };
   const items: { code: string; color: string; meaning: string; zone?: boolean }[] = [
     { code: "CW", color: palette.NEGATIVE, meaning: "top call-OI wall · resistance", zone: true },
     { code: "PW", color: palette.POSITIVE, meaning: "top put-OI wall · support", zone: true },
     { code: "MP", color: palette.PRIMARY, meaning: "max pain · expiry magnet", zone: true },
   ];
   if (live) {
-    items.push(
-      { code: "FLIP", color: palette.WARNING, meaning: "gamma flip · dealers switch sides here" },
-      { code: "GSUP", color: palette.POSITIVE, meaning: "gamma support · pin magnet" },
-      { code: "GRES", color: palette.NEGATIVE, meaning: "gamma resistance · breakout fuel" },
-    );
+    if (show.flip) {
+      items.push(
+        { code: "FLIP", color: palette.WARNING, meaning: "gamma flip · dealers switch sides here" },
+      );
+    }
+    if (show.support) {
+      items.push(
+        { code: "GSUP", color: palette.POSITIVE, meaning: "gamma support · pin magnet below spot" },
+      );
+    }
+    if (show.resistance) {
+      items.push(
+        { code: "GRES", color: palette.NEGATIVE, meaning: "gamma resistance · pin magnet above spot" },
+      );
+    }
+    if (show.fuel) {
+      items.push(
+        { code: "GFUEL", color: palette.WARNING, meaning: "gamma fuel · moves accelerate on that side" },
+      );
+    }
   }
   return (
     // Single dense wrapped row: tight gaps + minimal top pad so the legend
@@ -296,10 +163,19 @@ export function LevelLegend({ live }: { live: boolean }) {
   );
 }
 
-export interface NiftyChartPanelProps {
+interface NiftyChartPanelProps {
   report: NiftyReport;
   mode: NiftyReportMode;
   view: "chart" | "depth";
+  /** Desk-mode fullscreen: renders a ⤢ button in the header action row. */
+  onExpand?: () => void;
+  /** Controlled bar timeframe (uncontrolled 1m default when absent). */
+  timeframe?: ChartTimeframe;
+  onTimeframeChange?: (tf: ChartTimeframe) => void;
+  /** Initial panel size (uncontrolled, defaults to fill). */
+  initialSize?: ChartSize;
+  /** Notifies the parent when S/M/L/XL changes, so a DESK row can size to it. */
+  onSizeChange?: (size: ChartSize) => void;
 }
 
 /**
@@ -312,10 +188,33 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   report,
   mode,
   view,
+  onExpand,
+  timeframe,
+  onTimeframeChange,
+  initialSize = "fill",
+  onSizeChange,
 }: NiftyChartPanelProps) {
-  const [chartSize, setChartSize] = useState<ChartSize>("s");
+  const [chartSize, setChartSize] = useState<ChartSize>(initialSize);
+  /** `null` = fill the panel (autoSize); a number = fixed preset. */
+  const chartHeight =
+    chartSize === "fill" ? null : CHART_HEIGHTS[chartSize];
+  /** DESK fill cap: the chart body never takes more than 300px of the row,
+   *  so the FLOW band below (heatmap + strip) gets the remaining height.
+   *  Explicit presets (S/M/L/XL) keep their requested height. */
+  const fillCap = chartHeight == null ? { maxHeight: FILL_MAX_HEIGHT, minHeight: FILL_MIN_HEIGHT } : {};
+  const handleSizeChange = (v: string) => {
+    const next = v as ChartSize;
+    setChartSize(next);
+    onSizeChange?.(next);
+  };
   /** Chart bar timeframe: 1m native; 5m/15m resampled client-side. */
-  const [chartTf, setChartTf] = useState<ChartTimeframe>("1m");
+  const [internalTf, setInternalTf] = useState<ChartTimeframe>("1m");
+  const chartTf = timeframe ?? internalTf;
+  const handleTfChange = (v: string) => {
+    const next = v as ChartTimeframe;
+    if (onTimeframeChange) onTimeframeChange(next);
+    else setInternalTf(next);
+  };
 
   // Lazy depth mount: switching views used to cold-mount ECharts (~380ms),
   // so the depth subtree is not created until first selected. Afterwards
@@ -328,8 +227,13 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
   }
 
   const markLines = useMemo(
-    () => buildMarkLines(report, mode === "live" && !!report.gex),
-    [report, mode],
+    () =>
+      buildMarkLines(
+        report,
+        mode === "live" && !!report.gex,
+        labelGapPctFor(report, chartHeight ?? FILL_LABEL_HEIGHT),
+      ),
+    [report, mode, chartSize],
   );
 
   /** 1-minute intraday candles when present, else the 15-min EOD candles —
@@ -356,28 +260,88 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
     ];
   }, [chartCandles]);
 
+  /** Bars whose close sits on the report's max pain (within 10 pts). */
+  const mpTouches = useMemo(
+    () =>
+      maxPainTouches(
+        chartCandles.map((c) => ({ value: c.close, maxPain: report.maxPain, time: c.time })),
+        MAX_PAIN_TOUCH_TOL,
+      ),
+    [chartCandles, report.maxPain],
+  );
+  const touchMarkers = useMemo(
+    () => mpTouches.map((t) => ({ time: t.point.time, value: t.value })),
+    [mpTouches],
+  );
+
   return (
     <CompactPanel
       title={view === "depth" ? "Nifty depth map" : "Nifty chart"}
       testId="nifty-chart-panel"
-      sx={{ minWidth: 0, flexShrink: 0 }}
+      sx={{
+        minWidth: 0,
+        minHeight: 0,
+        height: "100%",
+        overflow: "hidden",
+        display: "flex",
+        flexDirection: "column",
+        // Let the chart body (not the card padding) own the remaining height.
+        "& .MuiCardContent-root": {
+          flex: 1,
+          minHeight: 0,
+          display: "flex",
+          flexDirection: "column",
+        },
+      }}
       action={
         view === "chart" ? (
-          <Box sx={{ display: "flex", gap: 1, alignItems: "center" }}>
+          <Box
+            sx={{
+              display: "flex",
+              gap: 0.5,
+              alignItems: "center",
+              "& .MuiToggleButton-root": {
+                px: 0.75,
+                py: 0,
+                minWidth: 0,
+                minHeight: 20,
+                height: 20,
+                boxSizing: "border-box",
+                fontSize: 10,
+                lineHeight: 1.1,
+                fontWeight: 700,
+                letterSpacing: "0.04em",
+              },
+            }}
+          >
             <SegmentedControl
               data-testid="nifty-tf-toggle"
               value={chartTf}
-              onChange={(v) => setChartTf(v as ChartTimeframe)}
+              onChange={handleTfChange}
               data={CHART_TF_OPTIONS}
-              size="sm"
+              size="xs"
             />
             <SegmentedControl
               data-testid="nifty-chart-size"
               value={chartSize}
-              onChange={(v) => setChartSize(v as ChartSize)}
+              onChange={handleSizeChange}
               data={CHART_SIZE_OPTIONS}
-              size="sm"
+              size="xs"
             />
+            {onExpand ? (
+              <IconButton
+                data-testid="nifty-chart-expand"
+                aria-label="Expand chart fullscreen"
+                title="Fullscreen (F)"
+                size="small"
+                onClick={onExpand}
+                sx={{ p: "1px", height: 20, color: palette.TEXT_MUTED, "&:hover": { color: palette.TEXT } }}
+              >
+                <Text span size="xs" fw={700} style={{ fontSize: 13, lineHeight: 1 }}>
+                  ⤢
+                </Text>
+              </IconButton>
+            ) : null}
           </Box>
         ) : undefined
       }
@@ -390,26 +354,38 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
         */}
       <Box
         data-testid="nifty-chart-view"
-        style={{ display: view === "chart" ? "block" : "none" }}
+        style={{ display: view === "chart" ? "flex" : "none" }}
+        sx={{
+          flexDirection: "column",
+          flex: view === "chart" ? 1 : undefined,
+          minHeight: 0,
+        }}
       >
         {chartCandles && chartCandles.length > 0 ? (
           <Box
             data-testid="nifty-chart-wrap"
-            style={{ height: CHART_HEIGHTS[chartSize] }}
+            data-fill={chartHeight == null ? "1" : undefined}
+            data-mp-touches={mpTouches.length}
+            style={chartHeight == null ? undefined : { height: chartHeight }}
             sx={{
               display: "flex",
+              flex: chartHeight == null ? 1 : undefined,
               width: "100%",
               maxWidth: "100%",
               minWidth: 0,
+              minHeight: 0,
               flexShrink: 0,
               overflow: "hidden",
+              ...fillCap,
             }}
           >
             <TradingViewChart
               candles={chartCandles}
               markLines={markLines}
               emaData={emaData}
-              height={CHART_HEIGHTS[chartSize]}
+              touchMarkers={touchMarkers}
+              {...(chartHeight != null ? { height: chartHeight } : {})}
+              fitMarkLines
             />
           </Box>
         ) : (
@@ -428,7 +404,9 @@ export const NiftyChartPanel = memo(function NiftyChartPanel({
           <NiftyDepthMap report={report} active={view === "depth"} />
         </Box>
       ) : null}
-      <LevelLegend live={mode === "live" && !!report.gex} />
+      {/* The level legend lives on the chart gutter now (dense layout):
+          rendering it here cost a full row above the fold. `LevelLegend`
+          stays exported for callers/tests that need the decoded key. */}
     </CompactPanel>
   );
 });
