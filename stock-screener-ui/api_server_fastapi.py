@@ -491,6 +491,7 @@ async def lifespan(app: FastAPI):
     _digest_task = None
     _touch_task = None
     _nifty_tape_task = None
+    _us_tape_task = None
     _nifty_stream_task = None
     _nifty_oi_task = None
     _nifty_spot_task = None
@@ -625,6 +626,13 @@ async def lifespan(app: FastAPI):
                 print(f"⚠️ Nifty tape task failed: {e}")
                 _nifty_tape_task = None
             try:
+                from api.reports_api.us_tape import start_us_tape_task
+                _us_tape_task = start_us_tape_task()
+                print("📼 US futures tape task started (NQ)")
+            except Exception as e:
+                print(f"⚠️ US tape task failed: {e}")
+                _us_tape_task = None
+            try:
                 from api.reports_api.nifty_stream import nifty_burst_watch_task
                 _nifty_stream_task = asyncio.create_task(nifty_burst_watch_task())
                 print("📡 Nifty burst stream watcher started")
@@ -721,6 +729,8 @@ async def lifespan(app: FastAPI):
         _touch_task.cancel()
     if _nifty_tape_task:
         _nifty_tape_task.cancel()
+    if _us_tape_task:
+        _us_tape_task.cancel()
     if _nifty_stream_task:
         _nifty_stream_task.cancel()
     if _nifty_spot_task:
@@ -1369,6 +1379,13 @@ try:
     print("✅ Nifty Report API loaded at /api/reports/nifty")
 except Exception as e:
     print(f"⚠️ Could not load Nifty Report API: {e}")
+
+try:
+    from api.reports_api.us import router as us_report_router
+    app.include_router(us_report_router)
+    print("✅ US Report API loaded at /api/reports/us")
+except Exception as e:
+    print(f"⚠️ Could not load US Report API: {e}")
 
 try:
     from api.reports_api.nifty_ws import router as nifty_ws_router

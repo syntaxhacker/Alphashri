@@ -8,4 +8,5 @@ us_scorecard     business quality + earnings quality + peer-relative value score
 ai_value         value screen over the AI complex
 india_session    next-session setup for NSE (pivots, breadth, watchlists)
 futures_cue      global cue snapshot (futures, crude, GIFT Nifty, NDX contribution)
+nq_walls         NQ call/put walls + max pain from Barchart's futures-options JSON API
 """
