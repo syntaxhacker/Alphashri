@@ -43,11 +43,8 @@ DAYS_PER_YEAR = 365.0
 # --------------------------------------------------------------------------
 # Normal distribution helpers (no scipy)
 # --------------------------------------------------------------------------
-def _npdf(x: float) -> float:
-    return math.exp(-0.5 * x * x) / math.sqrt(2.0 * math.pi)
-
-
-def _ncdf(x: float) -> float:
+def norm_cdf(x: float) -> float:
+    """Standard normal CDF (no scipy)."""
     return 0.5 * (1.0 + math.erf(x / math.sqrt(2.0)))
 
 
@@ -65,8 +62,31 @@ def black76(f: float, k: float, t: float, sigma: float, opt: str,
     d1, d2 = _d1_d2(f, k, sigma, t)
     disc = math.exp(-r * t)
     if opt.upper() == "CE":
-        return disc * (f * _ncdf(d1) - k * _ncdf(d2))
-    return disc * (k * _ncdf(-d2) - f * _ncdf(-d1))
+        return disc * (f * norm_cdf(d1) - k * norm_cdf(d2))
+    return disc * (k * norm_cdf(-d2) - f * norm_cdf(-d1))
+
+
+def bs_price(side: str, spot: float, strike: float, t_years: float, iv: float,
+             r: float) -> float:
+    """Black-Scholes premium on the SPOT (not the forward), floored at intrinsic.
+
+    The SENSEX backtests price premiums this way while this module's
+    :func:`black76` prices off the forward. Both models are kept explicit:
+    mixing them silently changes every premium by the forward adjustment.
+
+    ``r`` has no default on purpose — the backtests that use this priced with
+    5%, while this module's :data:`RISK_FREE` is 6.5%, and a shared default
+    would quietly re-price historical results.
+    """
+    t = max(t_years, 1e-6)
+    intrinsic = max(spot - strike, 0) if side.upper() == "CE" else max(strike - spot, 0)
+    d1 = (math.log(spot / strike) + (r + iv * iv / 2) * t) / (iv * math.sqrt(t))
+    d2 = d1 - iv * math.sqrt(t)
+    if side.upper() == "CE":
+        value = spot * norm_cdf(d1) - strike * math.exp(-r * t) * norm_cdf(d2)
+    else:
+        value = strike * math.exp(-r * t) * norm_cdf(-d2) - spot * norm_cdf(-d1)
+    return max(value, intrinsic)
 
 
 def implied_forward(k: float, ce: float, pe: float, t: float,

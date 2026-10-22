@@ -7,7 +7,16 @@ Honesty contract (mirrors the programme's research rules)
 * **No profit exit on the fill bar.** A stop is allowed on the fill bar; a
   target is not.
 * **Stop is checked before target** on every bar.
-* No overnight carry: every position is flattened at ``eod_exit``.
+* **A crossed target fills at the target**, never at the bar close (the close
+  can overshoot the level and booking the overshoot flatters every target).
+  Stops fill at the close — the conservative side.
+* A position is marked at **the contract it holds** (the chain price of its
+  entry strike), never at the current ATM: the ATM drifts, so an ATM mark
+  silently prices a different contract. A dead or absent leg carries the last
+  known price *for that strike*; a strike that was never priced leaves the
+  trade **unpriced** and it is never booked.
+* No overnight carry: every position is flattened at ``eod_exit``, and no
+  position is opened at/after it.
 
 The engine trades **ATM** contracts, priced from the tape's real
 ``atm_ce_ltp`` / ``atm_pe_ltp``. OTM strike selection needs the 1-minute
@@ -18,23 +27,38 @@ documented limitation, not a hidden one).
 from __future__ import annotations
 
 import math
+from collections import Counter
 from dataclasses import dataclass, field
 from datetime import date as _date, datetime as _dt, time as _time
 
 from . import greeks as _gr
 from . import spec
-from .costs import option_round_trip_cost
+from .costs import (COSTS_VERSION, break_even_move_points,
+                    break_even_move_points_multi, option_round_trip_cost)
 from .tape import Tick
 
 
 def chain_px(tk: Tick, strike: float, opt: str) -> float:
-    """Premium of ``strike``/``opt`` at ``tk`` (chain-aware, ATM fallback)."""
-    row = tk.chain.get(int(strike)) if tk.chain else None
-    if row:
+    """Premium of ``strike``/``opt`` at ``tk`` — 0.0 when it is not priced.
+
+    **Never** substitutes the current ATM for a *different* contract: the ATM
+    drifts as spot moves (23,400 -> 23,350), so marking a held 23,400 leg at
+    the ATM silently prices a different instrument. The only exception is the
+    ATM contract itself: a tape without a chain records just the ATM premium,
+    and that *is* this contract's price.
+
+    A row that exists but whose leg is 0/None is a **dead** leg -> 0.0 (the
+    caller decides whether to carry the last known price or to treat the
+    position as unpriced).
+    """
+    row = (tk.chain or {}).get(int(strike))
+    if row is not None:
         v = row[0] if opt.upper() == "CE" else row[1]
-        if v and v > 0:
-            return float(v)
-    return tk.premium(opt)
+        return float(v) if v and v > 0 else 0.0
+    if int(strike) == int(tk.atm_strike):
+        p = tk.premium(opt)
+        return float(p) if p and p > 0 else 0.0
+    return 0.0
 
 
 # --------------------------------------------------------------------------
@@ -69,23 +93,52 @@ class Position:
     leg_orders: int = 1          # 1 for single leg, 2 for a straddle/strangle
     peak_premium: float = 0.0
     trough_premium: float = 0.0
+    stop_premium: float = 0.0    # ratcheted stop (SL -> breakeven -> trail)
     strike: float = 0.0          # ATM strike at entry (real, from the fill tick)
     entry_iv: float = 0.0        # IV of the chosen leg at entry (for vol exits)
+    #: leg -> the last price seen for **this** strike ("CE"/"PE"). Carried
+    #: forward when the chain drops the strike or the leg goes dead.
+    last_leg_px: dict = field(default_factory=dict)
 
     def premium_at(self, tk: Tick) -> float:
-        """Mark at the **entry strike**, not the current ATM.
+        """Mark at the **entry strike**, never at the current ATM.
 
         The ATM drifts as spot moves (e.g. 23400 -> 23350), so pricing at
-        ``tk.atm_strike`` silently switches contracts mid-trade. When the tick
-        carries a strike chain we use the exact contract; the live tape is
-        ATM-only, so it falls back to the recorded ATM premium there.
+        ``tk.atm_strike`` silently switches contracts mid-trade. The chain
+        price of the held strike is used; when that leg is dead or the strike
+        is missing from the chain, the **last known price for this strike** is
+        carried forward. A strike that was never priced leaves the position
+        *unpriced* (:attr:`priced` is False) — never a fabricated mark.
         """
         if self.opt == "STRADDLE":
             return self._leg_px(tk, "CE") + self._leg_px(tk, "PE")
         return self._leg_px(tk, self.opt)
 
     def _leg_px(self, tk: Tick, opt: str) -> float:
-        return chain_px(tk, self.strike, opt)
+        """Price one leg at the held strike, carrying the last known price."""
+        px = chain_px(tk, self.strike, opt)
+        if px > 0:
+            self.last_leg_px[opt] = px
+            return px
+        # dead leg / strike absent from the chain -> the last price we saw
+        # for THIS strike (never the current ATM: a different contract).
+        return float(self.last_leg_px.get(opt, 0.0))
+
+    @property
+    def legs(self) -> tuple:
+        """The option legs this position holds."""
+        return ("CE", "PE") if self.opt == "STRADDLE" else (self.opt,)
+
+    @property
+    def priced(self) -> bool:
+        """True when every held leg has a known price (nothing fabricated)."""
+        return all(float(self.last_leg_px.get(l, 0.0)) > 0 for l in self.legs)
+
+    def leg_premiums(self) -> list[float]:
+        """Entry premium of each held leg (used for the straddle break-even)."""
+        if self.opt == "STRADDLE":
+            return [p for p in (self.entry_ce, self.entry_pe) if p > 0]
+        return [self.entry_premium] if self.entry_premium > 0 else []
 
 
 @dataclass
@@ -115,9 +168,30 @@ class Trade:
     strike: float = 0.0
     sl_pct: float = 0.0
     tp_pct: float = 0.0
+    #: False when the exit could not be priced (a dead/absent leg) — such a
+    #: trade is never booked, because its P&L would be fabricated.
+    priced: bool = True
+    #: The charge schedule this trade was priced with.
+    costs_version: str = COSTS_VERSION
+    #: Per-leg entry/exit premiums (a straddle is two legs, four orders).
+    entry_ce: float = 0.0
+    entry_pe: float = 0.0
+    exit_ce: float = 0.0
+    exit_pe: float = 0.0
+    leg_orders: int = 1
 
     def as_row(self) -> dict:
         return self.__dict__.copy()
+
+    def trade_id(self) -> str:
+        """Stable identity: ``strategy|symbol|entry_bar``.
+
+        The entry bar (the fill bar's timestamp) plus the strategy is what
+        makes a trade unique — two strategies may hold the same contract in
+        the same minute, and one strategy may re-enter the same contract
+        later. Used to make the live runner's booking idempotent.
+        """
+        return f"{self.strategy}|{self.symbol}|{self.entry_time}"
 
 
 # --------------------------------------------------------------------------
@@ -132,7 +206,8 @@ class Strategy:
                  sl_pct: float = 0.30, tp_pct: float = 0.60,
                  max_hold_min: int = 60,
                  eod_exit: _time = spec.DEFAULT_EOD_EXIT,
-                 trail_pct: float = 0.0, **params):
+                 trail_pct: float = 0.0, be_trigger_pct: float = 0.08,
+                 open_veto_min: float = 0.0, **params):
         self.lots = lots
         self.lot = lot or spec.get_lot(self.underlying)
         self.sl_pct = sl_pct
@@ -140,6 +215,13 @@ class Strategy:
         self.max_hold_min = max_hold_min
         self.eod_exit = eod_exit
         self.trail_pct = trail_pct      # 0 = off; else trail this far off the peak
+        # Once the trade has run this far in our favour, ratchet the stop to
+        # breakeven-after-costs (never leave a winner able to round-trip).
+        self.be_trigger_pct = be_trigger_pct
+        # No entries for this many minutes after the first tape bar. The
+        # opening drive is the most whipsaw-prone window (2026-10-21: two
+        # 25%-SL losses at 09:32/09:33 were both opening-drive longs).
+        self.open_veto_min = open_veto_min
         self.params = params
 
     # --- hooks ---------------------------------------------------------
@@ -155,9 +237,23 @@ class Strategy:
         """Strategy-specific discretionary exit (returns a reason or None)."""
         return None
 
+    def _opening_drive_veto(self, tk: Tick, ticks: list[Tick]) -> bool:
+        """True while the opening drive is still unresolved (no entries)."""
+        if not self.open_veto_min or not ticks:
+            return False
+        mins = (tk.t - ticks[0].t).total_seconds() / 60.0
+        return mins < self.open_veto_min
+
     # --- engine --------------------------------------------------------
     def run(self, ticks: list[Tick], ctx: dict) -> list[Trade]:
-        ticks = [t for t in ticks if t.expiry == ticks[0].expiry] if ticks else []
+        ticks = list(ticks or [])
+        if not ticks:
+            return []
+        # One tape day carries one chain and therefore one expiry. If a stray
+        # row names a different expiry, keep the dominant one: a position must
+        # never be marked against a chain that does not contain its contract.
+        expiry = Counter(t.expiry for t in ticks).most_common(1)[0][0]
+        ticks = [t for t in ticks if t.expiry == expiry]
         if len(ticks) < 3:
             return []
         self.prepare(ticks, ctx)
@@ -170,18 +266,35 @@ class Strategy:
             tk = ticks[i]
             # new session guard (tape files are per-day, but be safe)
             if tk.t.date() != current_day:
-                if pos is not None:
+                if pos is not None and pos.priced:
                     trades.append(self._close(pos, ticks[i - 1], "EOD"))
-                    pos = None
+                pos = None
                 self.prepare(ticks[i:], ctx)
                 current_day = tk.t.date()
+
+            # Expiry guard: a held contract is never marked on another
+            # expiry's chain. Settle it on the last bar that carried the held
+            # expiry (unpriced -> excluded entirely, never fabricated).
+            if pos is not None and tk.expiry != pos.expiry:
+                prev = next((t for t in reversed(ticks[:i])
+                             if t.expiry == pos.expiry), None)
+                if prev is not None and pos.priced:
+                    trades.append(self._close(pos, prev, "EXPIRY"))
+                pos = None
 
             if pos is None:
                 if tk.t.time() < self._entry_after:
                     i += 1
                     continue
                 sig = self.entry_signal(i, tk, ticks, ctx)
-                if sig and i + 1 < n:
+                # Two hard entry guards:
+                #  * never fill on the last bar — there is no bar after it to
+                #    observe the exit, so the round-trip cannot be settled;
+                #  * never fill at/after the EOD cut — a 15:22 entry could
+                #    only ever be closed at 15:22 (a -₹65 round trip for
+                #    nothing). The fill bar must be strictly before it.
+                if (sig and i + 2 < n
+                        and ticks[i + 1].t.time() < self.eod_exit):
                     fill = ticks[i + 1]
                     if self._fillable(sig, fill):
                         pos = self._open(sig, fill, fill_index=i + 1, entry_index=i)
@@ -202,7 +315,10 @@ class Strategy:
             # A partial (intraday preview) run marks the position "MTM" so it is
             # never mistaken for a settled trade.
             final = "EOD" if last.t.time() >= self.eod_exit else "MTM"
-            trades.append(self._close(pos, last, final))
+            # An unpriced position has no honest exit premium: it is excluded
+            # rather than booked at 0 (a fabricated -100% loss).
+            if pos.priced:
+                trades.append(self._close(pos, last, final))
         return trades
 
     _entry_after = _time(9, 15)
@@ -211,11 +327,15 @@ class Strategy:
               entry_index: int) -> Position:
         strike = float(sig.strike) if sig.strike else float(fill.atm_strike)
         if sig.opt == "STRADDLE":
-            entry_premium = chain_px(fill, strike, "CE") + chain_px(fill, strike, "PE")
+            entry_ce = chain_px(fill, strike, "CE")
+            entry_pe = chain_px(fill, strike, "PE")
+            entry_premium = entry_ce + entry_pe
             leg_orders = 2
+            last_leg_px = {"CE": entry_ce, "PE": entry_pe}
         else:
             entry_premium = chain_px(fill, strike, sig.opt)
             leg_orders = 1
+            last_leg_px = {sig.opt: entry_premium}
         if sig.opt == "STRADDLE":
             entry_iv = (fill.ce_iv + fill.pe_iv) / 2.0
         else:
@@ -229,7 +349,10 @@ class Strategy:
             entry_pe=chain_px(fill, strike, "PE"),
             reason=sig.reason, leg_orders=leg_orders,
             peak_premium=entry_premium, trough_premium=entry_premium,
-            strike=strike, entry_iv=entry_iv,
+            stop_premium=(entry_premium * (1 + self.sl_pct)
+                          if sig.direction == "SHORT"
+                          else entry_premium * (1 - self.sl_pct)),
+            strike=strike, entry_iv=entry_iv, last_leg_px=last_leg_px,
         )
 
     def _fillable(self, sig: Signal, fill: Tick) -> bool:
@@ -243,54 +366,130 @@ class Strategy:
     def _exit_reason(self, pos: Position, tk: Tick, ticks: list[Tick],
                      ctx: dict) -> str | None:
         prem = pos.premium_at(tk)
+        if not pos.priced:
+            # The held leg has no price at all — never fabricate a mark and
+            # never invent a -100% "stop". Keep the position open.
+            return None
         pos.peak_premium = max(pos.peak_premium, prem)
         pos.trough_premium = min(pos.trough_premium, prem)
-        moved = (prem - pos.entry_premium) / pos.entry_premium if pos.entry_premium else 0.0
-        favorable = moved if pos.direction == "LONG" else -moved
+        entry = pos.entry_premium
+        moved = (prem - entry) / entry if entry else 0.0
+        long = pos.direction == "LONG"
+        favorable = moved if long else -moved
+
+        # Best favourable excursion so far, in % of the entry premium.
+        best = pos.peak_premium if long else pos.trough_premium
+        best_fav = ((best - entry) / entry) if long else ((entry - best) / entry)
 
         is_fill_bar = tk.t == ticks[pos.fill_index].t
-        # stop first (allowed even on the fill bar)
+        # hard stop first (allowed even on the fill bar)
         if favorable <= -self.sl_pct:
             return "SL"
         if is_fill_bar:
             return None          # only a stop may fire on the fill bar
+
+        # --- ratchet: breakeven after costs, then trail the best print -----
+        # The trail gives back a fraction of the **profit**, not a fraction of
+        # the premium:  stop = entry + (1 - trail) * (best - entry)  for a
+        # long (mirrored for a short). The old formula (best * (1 - trail))
+        # gave back a slice of the premium — at arming it gave back 100% of
+        # the profit, and higher up it gave back a *smaller* share, i.e. the
+        # trail loosened exactly when it should have tightened.
+        # The breakeven-after-costs level is the floor (long) / ceiling
+        # (short): the stop can never sit on the wrong side of it.
+        # Monotonic — the stop can only improve, never worsen.
+        ratchet: float | None = None
+        if self.be_trigger_pct > 0 and best_fav >= self.be_trigger_pct:
+            legs = pos.leg_premiums()
+            if len(legs) > 1:
+                # A straddle is two legs / four orders: its break-even is the
+                # sum of the legs' break-evens, not one round trip on the
+                # combined premium.
+                be = break_even_move_points_multi(legs, pos.qty,
+                                                  is_short=(not long))
+            else:
+                be = break_even_move_points(entry, pos.qty, is_short=(not long))
+            # No root inside the legal exit range: there is no honest
+            # breakeven, so leave the original stop alone instead of using the
+            # search bound (which used to push a short's stop to/below 0).
+            if getattr(be, "found", True):
+                ratchet = (entry + float(be)) if long else (entry - float(be))
+        # The trail is armed by the same trigger as the break-even — unless
+        # the trigger is switched off (be_trigger_pct == 0), in which case the
+        # trail must still work (it is the only protection left) and it arms
+        # on the first profitable print.
+        trail_armed = (best_fav >= self.be_trigger_pct if self.be_trigger_pct > 0
+                       else best_fav > 0)
+        if self.trail_pct > 0 and trail_armed:
+            trail_stop = (entry + (1 - self.trail_pct) * (best - entry) if long
+                          else entry - (1 - self.trail_pct) * (entry - best))
+            if ratchet is None:
+                ratchet = trail_stop
+            else:
+                ratchet = (max(ratchet, trail_stop) if long
+                           else min(ratchet, trail_stop))
+        if ratchet is not None:
+            pos.stop_premium = (max(pos.stop_premium, ratchet) if long
+                                else min(pos.stop_premium, ratchet))
+
+        # Stop before target: the ratcheted stop can never sit the wrong side
+        # of breakeven once it has been armed.
+        if long and prem <= pos.stop_premium:
+            return "TRAIL"
+        if (not long) and prem >= pos.stop_premium:
+            return "TRAIL"
+
         if favorable >= self.tp_pct:
             return "TP"
-        # Trailing stop: once in profit, give back no more than trail_pct of the
-        # best premium seen. This is the "active management" for a runner that
-        # would otherwise sit until the fixed target or EOD.
-        if self.trail_pct > 0 and favorable > 0:
-            if pos.direction == "LONG":
-                peak = pos.peak_premium
-                if peak > 0 and (peak - prem) / peak >= self.trail_pct:
-                    return "TRAIL"
-            else:
-                trough = pos.trough_premium
-                if trough > 0 and (prem - trough) / trough >= self.trail_pct:
-                    return "TRAIL"
         held = (tk.t - pos.entry_time).total_seconds() / 60.0
-        if held >= self.max_hold_min:
+        # The clock only closes trades that never got going. Once the stop has
+        # been lifted past the entry the position is protected and the clock
+        # is disarmed; cutting a runner at 15 minutes was the single biggest
+        # leak in the 2026-10-21 coded book (+₹2,013 and +₹1,753 were both
+        # TIME exits below their peaks).
+        protected = (pos.stop_premium > entry) if long else (pos.stop_premium < entry)
+        if held >= self.max_hold_min and not protected:
             return "TIME"
         if tk.t.time() >= self.eod_exit:
             return "EOD"
         return self.exit_hook(pos, tk, ticks, ctx)
 
     def _close(self, pos: Position, tk: Tick, reason: str) -> Trade:
+        long = pos.direction == "LONG"
+        entry = pos.entry_premium
         exit_premium = pos.premium_at(tk)
-        # Straddle = 2 orders per side; model each leg's costs at its own premium.
+        target = ((entry * (1 + self.tp_pct) if long
+                   else entry * (1 - self.tp_pct)) if entry > 0 else 0.0)
+        # A target that was crossed fills **at the target**, not at the bar
+        # close: the close can overshoot the level, and booking the overshoot
+        # flatters every target. Stops keep the close (conservative).
+        if reason == "TP" and target > 0:
+            exit_premium = (min(exit_premium, target) if long
+                            else max(exit_premium, target))
+        # Straddle = 2 legs / 4 orders; model each leg's costs at its own
+        # premium.
         if pos.opt == "STRADDLE":
             ce_x, pe_x = pos._leg_px(tk, "CE"), pos._leg_px(tk, "PE")
+            combined = ce_x + pe_x
+            if reason == "TP" and target > 0 and combined > 0 and combined != target:
+                # The target was hit on the combined premium — split it back
+                # across the legs so both round trips stay consistent with
+                # the booked exit premium.
+                scale = target / combined
+                ce_x, pe_x = ce_x * scale, pe_x * scale
             leg1 = option_round_trip_cost(pos.entry_ce, ce_x, pos.qty,
-                                          pos.direction == "SHORT")
+                                          not long)
             leg2 = option_round_trip_cost(pos.entry_pe, pe_x, pos.qty,
-                                          pos.direction == "SHORT")
+                                          not long)
             gross = leg1["gross_pnl"] + leg2["gross_pnl"]
             costs = leg1["costs"] + leg2["costs"]
             net = leg1["net_pnl"] + leg2["net_pnl"]
+            exit_ce, exit_pe = ce_x, pe_x
         else:
-            rc = option_round_trip_cost(pos.entry_premium, exit_premium, pos.qty,
-                                        pos.direction == "SHORT")
+            rc = option_round_trip_cost(entry, exit_premium, pos.qty, not long)
             gross, costs, net = rc["gross_pnl"], rc["costs"], rc["net_pnl"]
+            exit_ce = pos._leg_px(tk, "CE")
+            exit_pe = pos._leg_px(tk, "PE")
         pts = net / pos.qty
         return Trade(
             strategy=pos.strategy, underlying=pos.underlying,
@@ -299,7 +498,7 @@ class Strategy:
             if pos.opt in ("CE", "PE") else f"{pos.underlying} {pos.expiry} STRADDLE",
             opt=pos.opt, direction=pos.direction, lots=pos.lots, lot=pos.lot,
             qty=pos.qty, expiry=pos.expiry,
-            entry_time=pos.entry_time.isoformat(), entry_premium=round(pos.entry_premium, 2),
+            entry_time=pos.entry_time.isoformat(), entry_premium=round(entry, 2),
             entry_spot=round(pos.entry_spot, 2),
             exit_time=tk.t.isoformat(), exit_premium=round(exit_premium, 2),
             exit_spot=round(tk.spot, 2), exit_reason=reason,
@@ -307,6 +506,10 @@ class Strategy:
             gross_pnl=round(gross, 2), costs=round(costs, 2),
             net_pnl=round(net, 2), points=round(pts, 3), reason=pos.reason,
             strike=round(pos.strike, 2), sl_pct=self.sl_pct, tp_pct=self.tp_pct,
+            priced=pos.priced, costs_version=COSTS_VERSION,
+            entry_ce=round(pos.entry_ce, 2), entry_pe=round(pos.entry_pe, 2),
+            exit_ce=round(exit_ce, 2), exit_pe=round(exit_pe, 2),
+            leg_orders=pos.leg_orders,
         )
 
 
@@ -670,9 +873,12 @@ class NiftySpotScalp(Strategy):
     def __init__(self, lookback: int = 5, threshold_pct: float = 0.08,
                  cooldown_min: int = 10, max_hold_min: int = 15,
                  sl_pct: float = 0.25, tp_pct: float = 0.50,
-                 trail_pct: float = 0.20, **kw):
+                 trail_pct: float = 0.20, open_veto_min: float = 20,
+                 twap_window: int = 30, **kw):
         super().__init__(sl_pct=sl_pct, tp_pct=tp_pct,
-                         max_hold_min=max_hold_min, trail_pct=trail_pct, **kw)
+                         max_hold_min=max_hold_min, trail_pct=trail_pct,
+                         open_veto_min=open_veto_min, **kw)
+        self.twap_window = twap_window
         self.lookback = lookback
         self.threshold_pct = threshold_pct
         self.cooldown_min = cooldown_min
@@ -687,6 +893,8 @@ class NiftySpotScalp(Strategy):
     def entry_signal(self, i, tk, ticks, ctx):
         if i < self.lookback:
             return None
+        if self._opening_drive_veto(tk, ticks):
+            return None
         if self.last_entry is not None:
             if (tk.t - self.last_entry).total_seconds() / 60.0 < self.cooldown_min:
                 return None
@@ -696,9 +904,106 @@ class NiftySpotScalp(Strategy):
         ret = (tk.spot - prev) / prev * 100.0
         if abs(ret) < self.threshold_pct:
             return None
-        self.last_entry = tk.t
         opt = "CE" if ret > 0 else "PE"
+        # Don't fight the 30-minute trend: a 5-minute bounce below the mean is
+        # how the 11:05 CE long lost ₹2,455 on 2026-10-21.
+        if self.twap_window and i >= self.twap_window:
+            mean = sum(self.spots[i - self.twap_window:i]) / self.twap_window
+            if opt == "CE" and tk.spot < mean:
+                return None
+            if opt == "PE" and tk.spot > mean:
+                return None
+        self.last_entry = tk.t
         return Signal(opt, f"spot {ret:+.2f}%/{self.lookback}m", "LONG")
+
+
+# --------------------------------------------------------------------------
+# 9. NIFTY pin reversal (failed break at a repeatedly-tested level)
+# --------------------------------------------------------------------------
+class NiftyPinReversal(Strategy):
+    """Buy the reclaim after a failed break of a repeatedly-tested level.
+
+    Origin: 2026-10-21 — the session low (22,663) was tested ~8x; each dip
+    below was swept and reclaimed, then the reversal squeezed to 22,712.
+    This strategy enters the OTHER side: a low sweep that reclaims -> long CE,
+    a high spike that fails back below -> long PE.
+
+    No lookahead: the level and its touch count come from bars strictly
+    before the sweep candidate (``ticks[:i-1]``), the sweep is the previous
+    bar's close, and the reclaim is the current completed bar ``tk``.
+    The engine fills on the next bar (existing contract).
+    """
+
+    name = "nifty_pin_reversal"
+    underlying = "NIFTY"
+
+    def __init__(self, touch_tol_pts: float = 6.0, min_touches: int = 3,
+                 sweep_max_pts: float = 15.0, cooldown_min: int = 15,
+                 sl_pct: float = 0.22, tp_pct: float = 0.45,
+                 max_hold_min: int = 45, **kw):
+        super().__init__(sl_pct=sl_pct, tp_pct=tp_pct,
+                         max_hold_min=max_hold_min, **kw)
+        self.touch_tol_pts = touch_tol_pts
+        self.min_touches = min_touches
+        self.sweep_max_pts = sweep_max_pts
+        self.cooldown_min = cooldown_min
+        self.last_entry = None
+
+    def prepare(self, ticks, ctx):
+        self.last_entry = None
+        if ticks:
+            self._entry_after = ticks[0].t.time()
+
+    @staticmethod
+    def _count_touches(spots: list[float], level: float, tol: float) -> int:
+        """Bars entering the |spot - level| <= tol zone; runs collapse to one."""
+        n = 0
+        in_zone = False
+        for s in spots:
+            zone = abs(s - level) <= tol
+            if zone and not in_zone:
+                n += 1
+            in_zone = zone
+        return n
+
+    def entry_signal(self, i, tk, ticks, ctx):
+        if i < 3:
+            return None
+        if self.last_entry is not None:
+            if (tk.t - self.last_entry).total_seconds() / 60.0 < self.cooldown_min:
+                return None
+        # Strictly before the sweep candidate: the sweep bar itself must not
+        # define the level it is breaking.
+        window = ticks[:i - 1]
+        if len(window) < self.min_touches:
+            return None
+        spots = [t.spot for t in window]
+        prev = ticks[i - 1]
+
+        lo = min(spots)
+        lo_edge = lo - self.touch_tol_pts
+        if (prev.spot < lo_edge and (lo - prev.spot) <= self.sweep_max_pts
+                and tk.spot >= lo_edge):
+            touches = self._count_touches(spots, lo, self.touch_tol_pts)
+            if touches >= self.min_touches:
+                self.last_entry = tk.t
+                return Signal("CE",
+                              f"pin sweep reclaimed {lo:.0f} "
+                              f"({touches}x touches, sweep {lo - prev.spot:.0f}pt)",
+                              "LONG")
+
+        hi = max(spots)
+        hi_edge = hi + self.touch_tol_pts
+        if (prev.spot > hi_edge and (prev.spot - hi) <= self.sweep_max_pts
+                and tk.spot <= hi_edge):
+            touches = self._count_touches(spots, hi, self.touch_tol_pts)
+            if touches >= self.min_touches:
+                self.last_entry = tk.t
+                return Signal("PE",
+                              f"pin spike rejected {hi:.0f} "
+                              f"({touches}x touches, spike {prev.spot - hi:.0f}pt)",
+                              "LONG")
+        return None
 
 
 # --------------------------------------------------------------------------
@@ -713,6 +1018,7 @@ REGISTRY: dict[str, type[Strategy]] = {
     NiftyIVDelta.name: NiftyIVDelta,
     NiftyOpenStraddle.name: NiftyOpenStraddle,
     NiftySpotScalp.name: NiftySpotScalp,
+    NiftyPinReversal.name: NiftyPinReversal,
 }
 
 STRATEGY_LABELS = {
@@ -724,6 +1030,7 @@ STRATEGY_LABELS = {
     "nifty_iv_delta": "NIFTY IV + greeks, delta-selected moneyness",
     "nifty_open_straddle": "NIFTY ATM straddle at open (naked long vol)",
     "nifty_spot_scalp": "NIFTY spot momentum scalp (continuous)",
+    "nifty_pin_reversal": "NIFTY pin reversal (failed break at tested level)",
 }
 
 

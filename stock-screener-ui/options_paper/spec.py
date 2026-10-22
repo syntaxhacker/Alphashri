@@ -109,7 +109,7 @@ TICK_SIZES: dict[str, float] = {
 @dataclass(frozen=True)
 class Charges:
     """Per-order option charges. All rates are fractions of *premium* value."""
-    brokerage_per_order: float = 20.0      # flat ₹20 / executed order
+    brokerage_per_order: float = 30.0      # flat ₹30 / executed order (verified vs Upstox /charges/brokerage 2026-10-21)
     stt_sell_pct: float = 0.0015           # 0.15% of sell premium (from 1 Apr 2026)
     stt_exercise_pct: float = 0.0015       # 0.15% of intrinsic if exercised/assigned
     exch_txn_pct: float = 0.0003553        # NSE 0.03553% of premium, both sides (from 1 Mar 2026)

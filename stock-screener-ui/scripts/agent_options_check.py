@@ -190,9 +190,14 @@ def main() -> int:
         ks = sorted(int(x) for x in ch)
         ce_oi = {x: (ch[str(x)][2] or 0) for x in ks}
         pe_oi = {x: (ch[str(x)][3] or 0) for x in ks}
-        sup = max((x for x in ks if x <= spot), key=lambda x: pe_oi[x], default=0)
-        res = min((x for x in ks if x >= spot), key=lambda x: -ce_oi[x], default=0)
-        print(f"   OI walls: support {sup} ({pe_oi.get(sup, 0)/1e6:.1f}M, {spot-sup:+.0f}) | "
+        # Near walls only: the heaviest OI in the whole chain can be 600+ pts
+        # away, which is book structure, not an intraday level (2026-10-22:
+        # put OI 11.06M at 22,000 with spot at 22,629 — 629 pts below, while
+        # the actionable put support was 22,500/22,600).
+        near = [x for x in ks if abs(x - spot) <= 300] or ks
+        sup = max((x for x in near if x <= spot), key=lambda x: pe_oi[x], default=0)
+        res = max((x for x in near if x >= spot), key=lambda x: ce_oi[x], default=0)
+        print(f"   OI walls (±300): support {sup} ({pe_oi.get(sup, 0)/1e6:.1f}M, {spot-sup:+.0f}) | "
               f"resistance {res} ({ce_oi.get(res, 0)/1e6:.1f}M, {res-spot:+.0f}) | "
               f"max_pain={rep.get('max_pain')}")
 

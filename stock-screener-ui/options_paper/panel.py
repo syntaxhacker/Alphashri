@@ -130,16 +130,6 @@ def _vix_all() -> pd.DataFrame:
 
 
 @lru_cache(maxsize=1)
-def _manifest_expiry_map() -> dict:
-    """``{(strike, opt): [(expiry, path), ...]}`` for fast strike lookup."""
-    out: dict = {}
-    for (exp, strike, opt), path in contract_index().items():
-        out.setdefault((strike, opt), []).append((exp, path))
-    for k in out:
-        out[k].sort()
-    return out
-
-
 @lru_cache(maxsize=4096)
 def _load_contract(exp: _date, strike: int, opt: str) -> pd.DataFrame:
     path = contract_index().get((exp, strike, opt))
@@ -278,14 +268,6 @@ def index_day(day) -> pd.DataFrame:
     d = _day_of(day)
     idx = _index_all()
     return idx[idx.index.date == d]
-
-
-def index_candles(day) -> list[dict]:
-    """The day's 1-minute NIFTY candles as plain dicts (real prints)."""
-    return [{"t": ts.isoformat(), "o": round(float(r["open"]), 2),
-             "h": round(float(r["high"]), 2), "l": round(float(r["low"]), 2),
-             "c": round(float(r["close"]), 2)}
-            for ts, r in index_day(day).iterrows()]
 
 
 def contract_close(expiry, strike: int, opt: str) -> pd.Series:

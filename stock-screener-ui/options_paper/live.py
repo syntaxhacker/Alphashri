@@ -136,29 +136,95 @@ def analyse_chain(tk) -> dict:
     }
 
 
+def _cap_sides(t) -> tuple:
+    """The option sides a position occupies (a straddle occupies both)."""
+    opt = str(getattr(t, "opt", "") or "").upper()
+    return ("CE", "PE") if opt == "STRADDLE" else (opt,)
+
+
+def _cap_key(t) -> tuple:
+    """Deterministic ordering: entry, exit, then identity as the tie-break."""
+    return (str(getattr(t, "entry_time", "")), str(getattr(t, "exit_time", "")),
+            str(getattr(t, "strategy", "")), str(getattr(t, "symbol", "")),
+            str(getattr(t, "direction", "")), str(getattr(t, "opt", "")))
+
+
+def _cap_overlap(a, b) -> bool:
+    """Half-open window overlap ``[entry, exit)`` (an MTM trade ends at 'now')."""
+    a0, a1 = str(a.entry_time), str(a.exit_time)
+    b0, b1 = str(b.entry_time), str(b.exit_time)
+    return a0 < b1 and b0 < a1
+
+
+def cap_correlated(trades, max_per_side: int = 1):
+    """At most ``max_per_side`` concurrent positions per option side (CE/PE).
+
+    The 2026-10-21 coded book stacked four overlapping long-CE legs; when the
+    index faded they lost together (two 25% stops, -₹6,072). Strategies run
+    independently and cannot see each other's positions, so the cap is applied
+    once, at portfolio level.
+
+    It applies to **every** position — long or short, single leg or straddle
+    (which occupies both sides), open (still ``MTM``) or closed — and the
+    ordering is deterministic, so replaying the same tape yields the same
+    portfolio. The default is **1**: one live position per side.
+    """
+    if max_per_side is None or max_per_side <= 0:
+        return list(trades)
+    accepted = []
+    for t in sorted(trades, key=_cap_key):
+        blocked = False
+        for side in _cap_sides(t):
+            live = [a for a in accepted
+                    if side in _cap_sides(a) and _cap_overlap(a, t)]
+            if len(live) >= max_per_side:
+                blocked = True
+                break
+        if not blocked:
+            accepted.append(t)
+    return accepted
+
+
 def run_once(date_str: str, strategies: tuple | list, lots: int = 1,
-             dry_run: bool = False) -> dict:
-    """One pass: replay the tape so far, book newly closed agent trades."""
+             dry_run: bool = False, max_per_side: int = 1) -> dict:
+    """One pass: replay the tape so far, book newly closed agent trades.
+
+    The journal for the replayed strategies is a **snapshot of this pass**, not
+    an append of every pass: a re-run replaces the day's rows for those books
+    (manual trades are preserved), so the file can never hold two alternative
+    histories of the same session. The DB insert stays idempotent on
+    ``strategy|symbol|entry bar``.
+    """
     ticks = tape.load_tape(date_str)
     if len(ticks) < 3:
         return {"ticks": len(ticks), "completed": 0, "inserted": 0,
                 "skipped": 0, "open": [], "last": None}
     ctx = {"prev_close": tape.prev_session_close(date_str)}
     trades, open_pos = [], []
+    replayed: set[str] = set()
     for name in strategies:
         try:
             strat = build(name, lots=lots)
         except KeyError:
             continue
+        replayed.add(strat.name)
         for t in strat.run(list(ticks), dict(ctx)):
             if t.exit_reason == "MTM":
                 open_pos.append(t)          # still open — never booked
             else:
                 trades.append(t)
-    trades.sort(key=lambda t: t.exit_time)
+    # The cap sees open AND closed positions, so a leg that would have been
+    # blocked at entry cannot reappear as an "open" position in the UI.
+    kept = cap_correlated(trades + open_pos, max_per_side=max_per_side)
+    trades = sorted((t for t in kept if t.exit_reason != "MTM"),
+                    key=lambda t: t.exit_time)
+    open_pos = [t for t in kept if t.exit_reason == "MTM"]
     res = {"completed": len(trades), "inserted": 0, "skipped": 0}
-    if not dry_run and trades:
-        r = book.record_trades(trades, journal_date=date_str, run_as="agent")
+    if not dry_run:
+        # Book even an empty pass: ``journal_replace`` clears the replayed
+        # books, so the journal always mirrors this coherent run.
+        r = book.record_trades(trades, journal_date=date_str, run_as="agent",
+                               journal_replace=replayed)
         res.update(inserted=r["inserted"], skipped=r["skipped"])
     an = analyse_chain(ticks[-1])
     if len(ticks) >= 6:
@@ -167,12 +233,15 @@ def run_once(date_str: str, strategies: tuple | list, lots: int = 1,
             an["ce_oi_chg"] = an.get("ce_oi", 0) - prev_an.get("ce_oi", 0)
             an["pe_oi_chg"] = an.get("pe_oi", 0) - prev_an.get("pe_oi", 0)
     # Manage the agent's discretionary positions every minute (stop/target).
+    # A dry run must be side-effect free: ``auto_manage`` fires triggers and
+    # books exits, so it is skipped entirely.
     manual_closed = []
     manual_fired = []
-    try:
-        manual_fired, manual_closed = manual.auto_manage(ticks[-1])
-    except Exception as e:
-        print(f"manual manage failed: {type(e).__name__}: {e}", flush=True)
+    if not dry_run:
+        try:
+            manual_fired, manual_closed = manual.auto_manage(ticks[-1])
+        except Exception as e:
+            print(f"manual manage failed: {type(e).__name__}: {e}", flush=True)
     return {"ticks": len(ticks), **res, "open": open_pos,
             "analysis": an, "last": snapshot(ticks[-1]),
             "manual": manual.describe(ticks[-1]),
@@ -187,6 +256,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--interval", type=int, default=60, help="seconds between passes")
     p.add_argument("--lots", type=int, default=1)
     p.add_argument("--strategies", default=",".join(AGENT_STRATEGIES))
+    p.add_argument("--max-per-side", type=int, default=1,
+                   help="max concurrent positions per option side (default 1)")
     p.add_argument("--dry-run", action="store_true", help="print only, never book")
     p.add_argument("--once", action="store_true", help="one pass, then exit")
     args = p.parse_args(argv)
@@ -204,7 +275,8 @@ def main(argv: list[str] | None = None) -> int:
     close_min = 15 * 60 + 30          # 15:30 IST — run until the close
     while True:
         try:
-            r = run_once(date_str, names, args.lots, args.dry_run)
+            r = run_once(date_str, names, args.lots, args.dry_run,
+                         max_per_side=args.max_per_side)
         except Exception as e:
             # A transient tape/DB/API error must never end the session.
             print(f"[{datetime.now():%H:%M:%S}] pass failed "
