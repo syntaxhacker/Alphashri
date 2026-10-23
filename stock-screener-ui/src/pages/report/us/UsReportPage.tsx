@@ -5,7 +5,7 @@ import { INFO, MONO, NEGATIVE, POSITIVE, WARNING } from "@/ui/palette";
 import type { UsMode, UsRoot } from "../../../types/usReport";
 import { UsChart } from "./UsChart";
 import { UsLadder } from "./UsLadder";
-import { fmtInt, fmtNum, fmtPct, fmtTime } from "./usReportMath";
+import { fmtCompact, fmtInt, fmtNum, fmtPct, fmtTime } from "./usReportMath";
 import { useUsReport } from "./useUsReport";
 
 const ROOTS: { id: UsRoot; enabled: boolean }[] = [
@@ -156,6 +156,7 @@ export function UsReportPage() {
         <Stat label="CALL WALL" value={row ? fmtInt(row.call_wall) : "—"} color={POSITIVE} testId="us-call-wall" />
         <Stat label="EXP MOVE" value={row?.exp_move_pct != null ? `±${fmtNum(row.exp_move_pct)}%` : "—"} testId="us-exp-move" />
         <Stat label="GEX" value={row ? `${row.net_gex >= 0 ? "+" : ""}${fmtNum(row.net_gex, 0)}m` : "—"} />
+        <Stat label="VOL" value={fmtCompact(row?.volume)} testId="us-vol" />
         <Stat label="MIN" value={mode === "eod" ? `${us.cursor + 1}/${us.frames.length}` : String(us.status?.iterations ?? "—")} />
         {us.error && (
           <Text size="xs" span sx={{ color: NEGATIVE, fontSize: 9 }}>

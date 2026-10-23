@@ -218,6 +218,7 @@ def eod_summary(root: str, date_str: str) -> dict[str, Any] | None:
         "change_pct": last.get("change_pct"),
         "call_oi": last.get("call_oi"),
         "put_oi": last.get("put_oi"),
+        "volume": max((r.get("volume") or 0) for r in rows),
         "pcr_oi": last.get("pcr_oi"),
         "pcr_vol": last.get("pcr_vol"),
         "max_pain": last.get("max_pain"),
@@ -227,8 +228,10 @@ def eod_summary(root: str, date_str: str) -> dict[str, Any] | None:
         "atm_iv": last.get("atm_iv"),
         "wall_migrations": migrations,
         "max_pain_touches": touches,
-        "total_call_vol": sum(r.get("call_vol") or 0 for r in rows),
-        "total_put_vol": sum(r.get("put_vol") or 0 for r in rows),
+        # Contract volume is cumulative per snapshot — take the last row, never
+        # the sum, or the card multiplies the day by the number of frames.
+        "total_call_vol": last.get("call_vol") or 0,
+        "total_put_vol": last.get("put_vol") or 0,
     }
 
 

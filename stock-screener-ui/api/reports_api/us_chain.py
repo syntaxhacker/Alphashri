@@ -58,7 +58,7 @@ def _api(path: str, timeout: int = 30) -> dict[str, Any]:
 
 def front_contract(root: str = "NQ") -> dict[str, Any]:
     """Resolve ``NQ*0`` -> front contract, last, change % and points."""
-    d = _api(f"/quotes/get?symbol={root}%2A0&fields=symbol,lastPrice,percentChange,priceChange&raw=1")
+    d = _api(f"/quotes/get?symbol={root}%2A0&fields=symbol,lastPrice,percentChange,priceChange,volume&raw=1")
     row = d["data"][0]["raw"]
     pct = row.get("percentChange")
     pts = row.get("priceChange")
@@ -67,6 +67,7 @@ def front_contract(root: str = "NQ") -> dict[str, Any]:
         "last": float(row["lastPrice"]),
         "change_pct": float(pct) * 100 if pct is not None else None,
         "change_pts": float(pts) if pts is not None else None,
+        "volume": int(row.get("volume") or 0),
     }
 
 
@@ -281,5 +282,6 @@ def snapshot(root: str = "NQ") -> dict[str, Any]:
         "spot": round(spot, 2),
         "change_pct": round(chg, 3) if chg is not None else None,
         "change_pts": round(pts, 2) if pts is not None else None,
+        "volume": quote.get("volume") or 0,
         **a,
     }

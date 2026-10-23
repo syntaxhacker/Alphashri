@@ -27,6 +27,8 @@ export interface UsRow {
   h?: number;
   l?: number;
   c?: number;
+  /** Front-contract session volume (cumulative). */
+  volume?: number;
   call_oi: number;
   put_oi: number;
   call_vol: number;
@@ -76,6 +78,7 @@ export interface UsEod {
   change_pct: number | null;
   call_oi: number | null;
   put_oi: number | null;
+  volume?: number;
   pcr_oi: number | null;
   pcr_vol: number | null;
   max_pain: number | null;
