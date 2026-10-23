@@ -310,6 +310,7 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Earnings-day tails are fat:** APP printed **−19.7%** on two separate earnings days in 2026. A −6% stop cannot protect through an earnings gap — **size for the tail (a −20% day), never for the stop.**
 - **Screen artifacts to exclude by hand:** preferred-share lines (`ALL/PH`, `ALL/PI` show P/E 0.3), one-off EPS gains (`LYFT` P/E 2.4; `AU` EPS +9,057%), and buyback-inflated ROE (`HRB` 707%).
 - **NSE APIs are blocked in this environment (403/404)** — take the Nifty 50 constituent list from Wikipedia instead of `get_nifty_stocks_from_nseindia()`. India also has **BSE duplicate rows with different tickers** (`M_M`, `J_KBANK`) → keep NSE only.
+- **Do not inspect `app.routes` to check router registration in this FastAPI version.** Included routers are stored as `_IncludedRouter` wrappers (no `.path`), so a naive `[p.path for p in app.routes if "value" in p.path]` returns `[]` even when the route works. Verify with `TestClient(app).get(...)` — never by path introspection.
 
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
