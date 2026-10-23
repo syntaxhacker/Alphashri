@@ -110,7 +110,7 @@ def main() -> int:
         print(f"   usable  : {', '.join(usable)}")
         print(f"   blocked : {', '.join(blocked)}")
 
-    out = Path(__file__).resolve().parent.parent / "docs" / "tv_field_coverage.json"
+    out = Path(__file__).resolve().parent.parent.parent / "docs" / "tv_field_coverage.json"
     out.write_text(json.dumps(results, indent=2))
     print(f"\nmatrix written to {out}")
     return 0

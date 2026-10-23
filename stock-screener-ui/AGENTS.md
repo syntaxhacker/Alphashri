@@ -262,6 +262,11 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
   - `tv_client.py` — shared client: TradingView scanner wrapper (`scan` / `scanner_frame`), options straddle-implied move (`implied_move`), earnings history (`earnings_table`)
   - `us_earnings.py` — earnings prints: est vs reported, surprise %, day-1/5d/20d reaction, per-name post-earnings drift tally ("does the market pay for beats?"), forward calendar + implied moves
   - `us_scorecard.py` — business quality + earnings quality + **peer-relative** value scorecard for ~110 US large caps. Deliberately no price/technical inputs (no SMA/RSI/gap) — it scores earnings history, margins, growth, FCF, cash, dividend and multiples *relative to each name's own peer bucket*
+  - `screens.py` — the three composite screens: `--mode quality` (quality-at-a-discount; `--universe sp500` for the >$15bn proxy), `--mode ai-resilient` (excludes industries where generative AI is a direct substitute), `--mode tradable` (liquid + volatile + sold off)
+  - `correlations.py` — 6-month daily-return correlation + beta matrix vs a reference/benchmark, plus a "best diversifiers" list (the check that stops you adding the same factor twice)
+  - `ai_infra.py` — neoclouds / GPU miners / networking / power / storage / data-centre REITs panel. Shows FCF yield and debt because these names are usually unprofitable and cash-burning — a low P/S is not value here
+  - `session_shape.py` — intraday session shape + after-hours move with the **session-date pinning fix** (the after-hours trap that mis-read IBM/TSLA/META)
+  - `qa_value_engine.py` — runs the production `api/value_scan` scoring engine against the live universe (sanity-check the ranking before trusting the UI)
   - `ai_value.py` — value screen over the AI complex (accelerators, memory/HBM, interconnect/optics, power, foundry/semicap, AI software) with an explicit "expensive end" contrast table
   - `india_session.py` — next-session NSE setup: index close, classic pivots + fibs, Nifty 50 breadth, mcap-weighted sector rotation, and watchlists built with the **same filters** as `upstox_trader/screeners/modes/pre_breakout.py` and `upstox_trader/intraday_breakout_scanner.py`
   - `futures_cue.py` — global cue snapshot: NQ/MES/ES/YM/RTY, crude, GIFT Nifty, cash indices, VIX, and the QQQ/NDX weight×change contribution table
@@ -290,6 +295,21 @@ ORBSignalGenerator (orb_signals.py)  ← extends BaseSignalGenerator (no longer 
 - **Table rule**: the panel MUST use the shared `src/components/common/TanStackTable.tsx` with explicit `meta: { align }` per column (text left, numbers right, score/flags centre) — see `TABLE_CHECKLIST.md`. No bespoke table component.
 - **Charts/links**: `/chart/:symbol` is Upstox/NSE-backed, so chart links are only rendered for NSE/BSE rows; other markets show the TV symbol instead of a broken link.
 - **Tests**: `tests/api/test_value_scan/` (pure scoring/filters + mocked scanner + router), `src/components/value/*.test.tsx`, `src/api/valueScan.test.ts`, `src/hooks/useValueScan.test.ts`, `tests/e2e/deep-value.spec.ts` (mocked via `setupValueScanMocks`). Guards: `npx vitest run src/test/ui-guard.test.ts` + `npx vitest run src/ui/inputs/inputs.w-h.test.tsx`.
+
+### Learnings (2026-10 market-research work — every one of these cost time)
+
+- **`america` includes OTC/foreign listings** (`IPOAF`, `SGIOF`, `CILJF`…). Every US screen must filter `exchange in {NASDAQ, NYSE, AMEX}`.
+- **`global` is not a stocks market.** Use an explicit country list. De-duplicate by **`description`** (the company), not by ticker — Ageas SA/NV trades under 4 different tickers across Amsterdam/Paris/Milan/Brussels. There is also a **`country`** column: use it to drop US-domiciled names from GLOBAL (they belong to the USA tab).
+- **`free_cash_flow_ttm` coverage is market-dependent and brutal: ~3.5% of Indian names (69/1974) vs ~85-90% in the US.** A hard FCF gate therefore empties India. The engine treats a metric as **UNAVAILABLE for the whole bucket when coverage < 25%** (`MIN_METRIC_COVERAGE`), redistributes its points, and skips its gates. This was the single biggest bug: India returned 2 names until coverage-awareness was added.
+- **Absolute thresholds do not travel between markets.** `P/E ≤ 12 + P/S ≤ 1.5` passed **3 of 677** US names and **2 of 1974** Indian ones. Presets are now **percentile gates** (cheapest 35% of the name's own sector bucket), and percentiles are computed on the **pre-gate frame** — computing peer medians after the gates makes the ranking self-referential.
+- **Cache the scored frame per market, never per filter combination** — otherwise the hit rate collapses. User filters are applied in Python after the fetch; exactly **1 HTTP request per market per cache window**.
+- **pandas gotcha:** `Series.name` is the index name, not a column called `"name"`. `row.name` returns an int/None — always use `row["name"]` (this crashed a screen once).
+- **yfinance `prepost=True` trap:** pin the **session date** before splitting regular vs after-hours, or you silently mix in the *previous* day's post-close bars. And the **first hour of after-hours is a liquidity vacuum**: on 2026-10-21 IBM printed **+7.9%** then finished AH **−4.6%**, TSLA went **+2.2% → −3.3%**, META **+7.2% → +2.0%**. Never judge a print from a 16:15 snapshot.
+- **TV's futures feed is delayed 10 minutes** (`update_mode = delayed_streaming_600`). Never quote it as live.
+- **Futures-vs-cash basis is a *stress* gauge, not a forecast:** a normal Dec basis is **+0.3% to +0.5%**. On 2026-10-21 NQ sat at +0.36% (no crash priced) and the index still fell **3.2%** the next day on an Iran/oil headline. Basis prices **known** risk, never headlines.
+- **Earnings-day tails are fat:** APP printed **−19.7%** on two separate earnings days in 2026. A −6% stop cannot protect through an earnings gap — **size for the tail (a −20% day), never for the stop.**
+- **Screen artifacts to exclude by hand:** preferred-share lines (`ALL/PH`, `ALL/PI` show P/E 0.3), one-off EPS gains (`LYFT` P/E 2.4; `AU` EPS +9,057%), and buyback-inflated ROE (`HRB` 707%).
+- **NSE APIs are blocked in this environment (403/404)** — take the Nifty 50 constituent list from Wikipedia instead of `get_nifty_stocks_from_nseindia()`. India also has **BSE duplicate rows with different tickers** (`M_M`, `J_KBANK`) → keep NSE only.
 
 ## Chart Cache
 - `api/paper/chart_cache.py` — pickle-based disk cache at `experiments/data/chart_cache/{date}/{symbol}.pkl`
