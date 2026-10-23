@@ -1169,7 +1169,10 @@ except Exception as e:
     print(f"⚠️ Could not load sector API: {e}")
 
 try:
-    from api.value_scan import router as value_scan_router
+    # import from the SUBMODULE, not the package: `from api.value_scan import router`
+    # can resolve to the module (or a stale attribute) after other imports have
+    # touched the package, which silently registers an APIRouter with no routes.
+    from api.value_scan.router import router as value_scan_router
     app.include_router(value_scan_router)
     print("✅ Value scan API loaded at /api/value")
 except Exception as e:
