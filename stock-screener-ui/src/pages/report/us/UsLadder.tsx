@@ -138,8 +138,7 @@ export function UsLadder({ row }: { row: UsRow }) {
           pain {fmtInt(row.max_pain)}
         </Text>
         <Text size="xs" c="dimmed" span>
-          GEX {row.net_gex >= 0 ? "+" : ""}
-          {row.net_gex.toFixed(0)}m
+          GEX {row.net_gex ? `${row.net_gex >= 0 ? "+" : ""}${row.net_gex.toFixed(0)}m` : "–"}
         </Text>
       </Box>
     </Box>

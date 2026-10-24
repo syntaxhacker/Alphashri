@@ -155,7 +155,7 @@ export function UsReportPage() {
         <Stat label="PUT WALL" value={row ? fmtInt(row.put_wall) : "—"} color={NEGATIVE} testId="us-put-wall" />
         <Stat label="CALL WALL" value={row ? fmtInt(row.call_wall) : "—"} color={POSITIVE} testId="us-call-wall" />
         <Stat label="EXP MOVE" value={row?.exp_move_pct != null ? `±${fmtNum(row.exp_move_pct)}%` : "—"} testId="us-exp-move" />
-        <Stat label="GEX" value={row ? `${row.net_gex >= 0 ? "+" : ""}${fmtNum(row.net_gex, 0)}m` : "—"} />
+        <Stat label="GEX" value={row?.net_gex ? `${row.net_gex >= 0 ? "+" : ""}${fmtNum(row.net_gex, 0)}m` : "–"} />
         <Stat label="VOL" value={fmtCompact(row?.volume)} testId="us-vol" />
         <Stat label="MIN" value={mode === "eod" ? `${us.cursor + 1}/${us.frames.length}` : String(us.status?.iterations ?? "—")} />
         {us.error && (
@@ -342,7 +342,7 @@ export function UsReportPage() {
                 <span style={{ textAlign: "right", color: NEGATIVE }}>{fmtInt(s.p_oi)}</span>
                 <span style={{ textAlign: "right", color: "var(--mui-palette-text-secondary)" }}>{fmtInt(s.p_vol)}</span>
                 <span style={{ textAlign: "right", color: net >= 0 ? POSITIVE : NEGATIVE }}>{net > 0 ? "+" : ""}{fmtInt(net)}</span>
-                <span style={{ textAlign: "right", color: s.g >= 0 ? POSITIVE : NEGATIVE }}>{fmtNum(s.g, 1)}</span>
+                <span style={{ textAlign: "right", color: s.g ? (s.g >= 0 ? POSITIVE : NEGATIVE) : undefined }}>{s.g ? fmtNum(s.g, 1) : "–"}</span>
               </Box>
             );
           })}
